@@ -92,6 +92,7 @@ if st.session_state.page == 'stats':
             background-color: #f9f9f9 !important;
             padding: 15px !important;
             border-radius: 12px !important;
+            font-size: 18px !important;
             font-weight: bold !important;
         }
         </style>
@@ -103,7 +104,7 @@ if st.session_state.page == 'stats':
     with row1_col1:
         try: st.image(Image.open("baby_unicorn.png"), use_container_width=True)
         except: st.write("🍼 (이미지 업로드 필요)")
-        if st.button("🍼 유아기 유니콘 정보 확인", key="btn_baby", use_container_width=True):
+        if st.button("🍼 유아기", key="btn_baby", use_container_width=True):
             st.info("**[유아기 유니콘]** 상장 후 0~2년 사이의 기업입니다. 가장 변동성이 크며, **평균 존속 기간은 2.1년**입니다.")
             if st.button("실시간 캘린더 이동", key="go_cal_baby"):
                 st.session_state.page = 'calendar'
@@ -113,7 +114,7 @@ if st.session_state.page == 'stats':
     with row1_col2:
         try: st.image(Image.open("child_unicorn.png"), use_container_width=True)
         except: st.write("🎈 (이미지 업로드 필요)")
-        if st.button("🎈 아동기 유니콘 정보 확인", key="btn_child", use_container_width=True):
+        if st.button("🎈 아동기", key="btn_child", use_container_width=True):
             st.success("**[아동기 유니콘]** 상장 3~5년차 기업으로 시장에 안착하는 단계입니다. **평균 존속 기간은 5.4년**입니다.")
 
     st.write("") 
@@ -124,18 +125,18 @@ if st.session_state.page == 'stats':
     with row2_col1:
         try: st.image(Image.open("adult_unicorn.png"), use_container_width=True)
         except: st.write("👔 (이미지 업로드 필요)")
-        if st.button("👔 성인기 유니콘 정보 확인", key="btn_adult", use_container_width=True):
+        if st.button("👔 성인기", key="btn_adult", use_container_width=True):
             st.warning("**[성인기 유니콘]** 미국 중견기업 수준으로 성장한 단계입니다. 상장 후 **평균 12.5년**을 생존합니다.")
 
     # --- [노년기] ---
     with row2_col2:
         try: st.image(Image.open("old_unicorn.png"), use_container_width=True)
         except: st.write("🏛️ (이미지 업로드 필요)")
-        if st.button("🏛️ 노년기 유니콘 정보 확인", key="btn_old", use_container_width=True):
+        if st.button("🏛️ 노년기", key="btn_old", use_container_width=True):
             st.error("**[노년기 유니콘]** S&P500급 대기업 단계입니다. 상장 후 **평균 22년 이상**의 장기 생존력을 가집니다.")
 
 # ==========================================
-# 화면 3: 메인 IPO 캘린더 (유아기 연동)
+# 화면 3: 메인 IPO 캘린더
 # ==========================================
 elif st.session_state.page == 'calendar':
     if st.sidebar.button("⬅️ 돌아가기"):
