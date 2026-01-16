@@ -23,7 +23,7 @@ if 'auth_status' not in st.session_state:
 if 'page' not in st.session_state:
     st.session_state.page = 'stats'
 
-# --- 데이터 분석 함수 ---
+# --- 데이터 분석 및 비교 함수 ---
 @st.cache_data(ttl=86400)
 def get_market_stats(api_key):
     current_year = datetime.now().year
@@ -34,7 +34,15 @@ def get_market_stats(api_key):
         count_this_year = len(response.get('ipoCalendar', []))
     except:
         count_this_year = 0
-    return count_this_year, 280
+    
+    avg_10y = 280 # 10년 평균치
+    
+    # [비교 로직] 오늘 기준 예상 건수 계산
+    day_of_year = datetime.now().timetuple().tm_yday
+    expected_now = (avg_10y / 365) * day_of_year
+    diff = count_this_year - expected_now
+    
+    return count_this_year, avg_10y, diff
 
 @st.cache_data(ttl=600)
 def get_ipo_data(api_key, days_ahead):
@@ -52,7 +60,6 @@ def get_ipo_data(api_key, days_ahead):
 # 화면 1: 진입 화면 (로그인)
 # ==========================================
 if st.session_state.auth_status is None:
-    # 55번 줄 에러 방지를 위해 구조를 아주 단순하게 변경했습니다.
     st.write("<div style='text-align: center;'>", unsafe_allow_html=True)
     st.write("# 🦄")
     st.write("# Unicornfinder")
@@ -73,91 +80,4 @@ if st.session_state.auth_status is None:
     with col2:
         st.success("### 👤 게스트 접속")
         st.write("가입 없이 서비스를 둘러봅니다.")
-        if st.button("비회원으로 시작하기", use_container_width=True):
-            st.session_state.auth_status = 'guest'
-            st.rerun()
-    st.stop()
-
-# ==========================================
-# 화면 2: 시장 분석 통계
-# ==========================================
-if st.session_state.page == 'stats':
-    display_logo_title("Unicornfinder 시장 분석")
-    
-    count_this_year, avg_10y = get_market_stats(MY_API_KEY)
-    st.write(f"📅 실시간 분석 기준: {datetime.now().strftime('%Y-%m-%d')}")
-    
-    col_m1, col_m2, col_m3 = st.columns(3)
-    with col_m1:
-        st.metric("올해 상장 건수", f"{count_this_year}건", "실시간 집계")
-    with col_m2:
-        st.metric("10년 연평균 상장", f"{avg_10y}건")
-    with col_m3:
-        st.metric("5년 평균 생존율", "48.5%", "-51.5% 탈락 위험", delta_color="inverse")
-
-    st.info(f"""
-    💡 **생존율 분석 가이드**
-    현재 IPO 기업의 5년 평균 생존율은 **48.5%**입니다. 
-    이는 일반 벤처기업의 5년 생존율(20-30%)에 비해 **약 2배 정도 높은 수치**입니다. 
-    IPO까지 성공한 기업들은 이미 시장에서 검증을 거쳤기 때문에 상대적으로 강력한 생존 능력을 갖췄다고 평가받습니다.
-    """)
-    
-    st.divider()
-    st.subheader("📈 연도별 IPO 트렌드 분석")
-    chart_data = pd.DataFrame({
-        '연도': ['2020', '2021', '2022', '2023', '2024', f'{datetime.now().year}'],
-        '상장건수': [480, 1035, 180, 154, 160, count_this_year]
-    })
-    st.bar_chart(data=chart_data, x='연도', y='상장건수', color="#6d3fc0")
-    
-    if st.button("실시간 IPO 캘린더 확인하기 ➡️", use_container_width=True):
-        st.session_state.page = 'calendar'
-        st.rerun()
-
-# ==========================================
-# 화면 3: 메인 IPO 캘린더
-# ==========================================
-elif st.session_state.page == 'calendar':
-    st.sidebar.markdown("## 🦄 Unicornfinder")
-    if st.sidebar.button("🚪 로그아웃"):
-        st.session_state.auth_status = None
-        st.session_state.page = 'stats'
-        st.rerun()
-    
-    st.sidebar.divider()
-    days = st.sidebar.slider("전망 기간 설정(일)", 7, 90, 30)
-    exclude_spac = st.sidebar.checkbox("SPAC 제외", value=True)
-
-    display_logo_title("Unicornfinder 캘린더")
-    
-    df = get_ipo_data(MY_API_KEY, days)
-
-    if not df.empty:
-        if exclude_spac:
-            df = df[~df['name'].str.contains('SPAC|Acquisition|Unit|Blank Check', case=False, na=False)]
-        
-        display_df = df[['date', 'symbol', 'name', 'price', 'numberOfShares', 'exchange']].copy()
-        display_df['📄 공시'] = display_df['symbol'].apply(lambda x: f"https://www.sec.gov/cgi-bin/browse-edgar?CIK={x}")
-        display_df['📊 재무'] = display_df['symbol'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}/financials")
-        display_df['💬 토론'] = display_df['symbol'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}/community")
-        
-        display_df.columns = ['상장일', '티커', '기업명', '가격', '주식수', '거래소', '공시', '재무', '토론']
-
-        st.data_editor(
-            display_df,
-            column_config={
-                "공시": st.column_config.LinkColumn(display_text="보기"),
-                "재무": st.column_config.LinkColumn(display_text="보기"),
-                "토론": st.column_config.LinkColumn(display_text="참여"),
-            },
-            hide_index=True, use_container_width=True, disabled=True
-        )
-        
-        st.divider()
-        st.subheader("💬 실시간 분석 피드")
-        selected_stock = st.selectbox("기업 선택", display_df['기업명'].tolist())
-        if selected_stock:
-            ticker = display_df[display_df['기업명'] == selected_stock]['티커'].values[0]
-            st.components.v1.iframe(f"https://stocktwits.com/symbol/{ticker}", height=600, scrolling=True)
-    else:
-        st.warning("데이터가 없습니다.")
+        if st.button("비회원으로 시작하기",
