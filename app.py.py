@@ -11,12 +11,13 @@ st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 # --- CSS 스타일 ---
 st.markdown("""
     <style>
+    /* 하단 고정 푸터 */
     .footer {
         position: fixed; left: 0; bottom: 0; width: 100%;
         background-color: white; color: #888888; text-align: center;
         padding: 10px; font-size: 11px; border-top: 1px solid #eeeeee; z-index: 999;
     }
-    /* 탐험 버튼 스타일 */
+    /* 탐험 버튼 스타일 (3D) */
     div.stButton > button[key="go_cal_baby"] {
         display: block !important; margin: 20px auto !important;     
         width: 260px !important; height: 85px !important;
@@ -27,7 +28,7 @@ st.markdown("""
         text-shadow: 2px 2px 0px #4a69bd !important;
         box-shadow: 0px 8px 0px #3c569b, 0px 15px 20px rgba(0,0,0,0.3) !important;
     }
-    /* 리스트 내 기업명 버튼 스타일 (텍스트처럼 보이게) */
+    /* 리스트 내 기업명 버튼 (텍스트 링크 스타일) */
     div.stButton > button[key^="name_"] {
         background-color: transparent !important;
         border: none !important;
@@ -36,6 +37,15 @@ st.markdown("""
         text-decoration: underline !important;
         text-align: left !important;
         padding: 0 !important;
+        font-size: 16px !important;
+    }
+    div.stButton > button[key^="name_"]:hover {
+        color: #a777e3 !important;
+    }
+    .card-text {
+        text-align: center; font-size: 1.3rem; padding: 25px;
+        background-color: #f8f9fa; border-radius: 20px;
+        margin-top: 15px; color: #333; border: 1px solid #eee;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -47,9 +57,14 @@ if 'page' not in st.session_state: st.session_state.page = 'stats'
 if 'swipe_idx' not in st.session_state: st.session_state.swipe_idx = 0
 if 'selected_stock' not in st.session_state: st.session_state.selected_stock = None
 
-# --- 공통 푸터 ---
+# --- 공통 기능: 푸터 ---
 def show_footer():
-    st.markdown("<div class='footer'>본 서비스는 Finnhub API 데이터를 기반으로 하며, 상세 수치는 공시 시점에 따라 차이가 있을 수 있습니다.</div>", unsafe_allow_html=True)
+    st.markdown("""
+        <div class='footer'>
+            본 서비스는 Finnhub API 데이터를 기반으로 하며, 기업 로고에는 Clearbit API를 활용하였습니다. 
+            | 상세 수치는 공시 시점에 따라 차이가 있을 수 있습니다.
+        </div>
+    """, unsafe_allow_html=True)
 
 # --- 데이터 로직 ---
 @st.cache_data(ttl=600)
@@ -63,15 +78,14 @@ def get_ipo_data(api_key, days_ahead):
     except: return pd.DataFrame()
 
 # ==========================================
-# 화면 1: 로그인 (기존 유지)
+# 화면 1: 로그인
 # ==========================================
 if st.session_state.auth_status is None:
-    # (로그인 코드 생략 - 기존과 동일)
     st.write("<div style='text-align: center; margin-top: 50px;'><h1>🦄 Unicornfinder</h1><h3>당신의 다음 유니콘을 찾아보세요</h3></div>", unsafe_allow_html=True)
     st.divider()
     _, col_m, _ = st.columns([1, 2, 1])
     with col_m:
-        phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="phone_input")
+        phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="login_phone")
         c1, c2 = st.columns(2)
         if c1.button("회원 로그인", use_container_width=True): 
             if len(phone) > 9: st.session_state.auth_status = 'user'; st.rerun()
@@ -79,12 +93,17 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 카드 (기존 유지)
+# 화면 2: 시장 분석 카드
 # ==========================================
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
     st.divider()
-    stages = [{"name": "유아기", "img": "baby_unicorn.png", "desc": "상장 0~2년차 기업입니다."}, {"name": "아동기", "img": "child_unicorn.png", "desc": "상장 3~5년차 기업입니다."}, {"name": "성인기", "img": "adult_unicorn.png", "desc": "중견기업 단계입니다."}, {"name": "노년기", "img": "old_unicorn.png", "desc": "대기업 단계입니다."}]
+    stages = [
+        {"name": "유아기", "img": "baby_unicorn.png", "desc": "상장 0~2년차 기업입니다."},
+        {"name": "아동기", "img": "child_unicorn.png", "desc": "상장 3~5년차 기업입니다."},
+        {"name": "성인기", "img": "adult_unicorn.png", "desc": "중견기업 단계입니다."},
+        {"name": "노년기", "img": "old_unicorn.png", "desc": "대기업 단계입니다."}
+    ]
     idx = st.session_state.swipe_idx
     stage = stages[idx]
     st.markdown(f"<h2 style='text-align: center; color: #6e8efb;'>{stage['name']} 유니콘</h2>", unsafe_allow_html=True)
@@ -93,58 +112,55 @@ if st.session_state.page == 'stats':
         if os.path.exists(stage['img']): st.image(Image.open(stage['img']), use_container_width=True)
         else: st.info(f"[{stage['name']} 이미지 준비 중]")
     _, n1, n2, _ = st.columns([1.8, 0.7, 0.7, 1.8])
-    if n1.button("◀", key=f"p_{idx}"): st.session_state.swipe_idx = (idx-1)%4; st.rerun()
-    if n2.button("▶", key=f"n_{idx}"): st.session_state.swipe_idx = (idx+1)%4; st.rerun()
+    if n1.button("◀", key=f"prev_{idx}"): st.session_state.swipe_idx = (idx-1)%4; st.rerun()
+    if n2.button("▶", key=f"next_{idx}"): st.session_state.swipe_idx = (idx+1)%4; st.rerun()
     st.markdown(f"<div class='card-text'>{stage['desc']}</div>", unsafe_allow_html=True)
     if stage['name'] == "유아기":
         if st.button("탐험", key="go_cal_baby"): st.session_state.page = 'calendar'; st.rerun()
 
 # ==========================================
-# 화면 3: 캘린더 (기업명 클릭 시 이동)
+# 화면 3: 캘린더 (목록형)
 # ==========================================
 elif st.session_state.page == 'calendar':
     st.sidebar.header("⚙️ 필터 설정")
-    if st.sidebar.button("⬅️ 돌아가기"): st.session_state.page = 'stats'; st.rerun()
+    if st.sidebar.button("⬅️ 메인으로"): st.session_state.page = 'stats'; st.rerun()
     days_ahead = st.sidebar.slider("조회 기간(일) 설정", 0, 60, 30, 5)
 
     st.header("🚀 실시간 유아기 유니콘 캘린더")
     df = get_ipo_data(MY_API_KEY, days_ahead)
 
     if not df.empty:
-        # 데이터 처리
+        # 데이터 가공
         df['price'] = pd.to_numeric(df['price'], errors='coerce')
         df['numberOfShares'] = pd.to_numeric(df['numberOfShares'], errors='coerce')
         df['공모일'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
         df['희망가/공모가'] = df['price'].apply(lambda x: f"${x:,.2f}" if x > 0 else "미정")
         df['공모규모($)'] = (df['price'] * df['numberOfShares']).apply(lambda x: f"${x:,.0f}" if x > 0 else "계산 불가")
         
-        # 상세 데이터 미리 생성 (4페이지용)
-        df['자금용도'] = "운영 자금 및 전략적 투자"
-        df['보호예수'] = "180일"
-        df['언더라이터'] = "주요 IB 주관사"
+        # 상세 데이터 기본값 (나중에 상세페이지에서 활용)
+        df['자금용도'] = "운영 자금 및 신규 사업 투자"
+        df['보호예수'] = "상장 후 180일"
+        df['언더라이터'] = "주요 투자은행(IB)"
         df['공시'] = df['symbol'].apply(lambda x: f"https://www.sec.gov/cgi-bin/browse-edgar?CIK={x}")
         df['재무'] = df['symbol'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}/financials")
         
-        result_df = df.sort_values(by='공모일')
+        result_df = df.sort_values(by='공모일').reset_index(drop=True)
 
-        st.info("💡 **기업명**을 클릭하면 상세 분석 페이지로 이동합니다.")
+        st.info("💡 **기업명**을 클릭하시면 상세 AI 분석 리포트 페이지로 이동합니다.")
         
         # 헤더
         st.write("---")
         c1, c2, c3, c4, c5, c6 = st.columns([1.2, 2.5, 0.8, 1.2, 1.2, 1.2])
-        c1.write("**공모일**")
-        c2.write("**기업명**")
-        c3.write("**티커**")
-        c4.write("**희망가**")
-        c5.write("**주식수**")
-        c6.write("**공모규모**")
+        c1.write("**공모일**"); c2.write("**기업명**"); c3.write("**티커**")
+        c4.write("**희망가**"); c5.write("**주식수**"); c6.write("**공모규모**")
         st.write("---")
 
+        # 리스트 출력
         for i, row in result_df.iterrows():
             col1, col2, col3, col4, col5, col6 = st.columns([1.2, 2.5, 0.8, 1.2, 1.2, 1.2])
             col1.write(row['공모일'])
-            # 기업명을 버튼으로 만들어 클릭 시 세션 저장 및 페이지 이동
-            if col2.button(row['name'], key=f"name_{row['symbol']}"):
+            # [에러 해결 포인트] key에 인덱스 i를 추가하여 중복 방지
+            if col2.button(row['name'], key=f"name_{row['symbol']}_{i}"):
                 st.session_state.selected_stock = row
                 st.session_state.page = 'detail'
                 st.rerun()
@@ -152,6 +168,7 @@ elif st.session_state.page == 'calendar':
             col4.write(row['희망가/공모가'])
             col5.write(f"{row['numberOfShares']:,}")
             col6.write(row['공모규모($)'])
+            st.write("") # 줄간격
     else:
         st.warning("데이터가 없습니다.")
     show_footer()
@@ -161,13 +178,11 @@ elif st.session_state.page == 'calendar':
 # ==========================================
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
-    if stock is None: 
-        st.session_state.page = 'calendar'
-        st.rerun()
+    if stock is None:
+        st.session_state.page = 'calendar'; st.rerun()
 
     if st.button("⬅️ 목록으로 돌아가기"):
-        st.session_state.page = 'calendar'
-        st.rerun()
+        st.session_state.page = 'calendar'; st.rerun()
 
     st.title(f"🚀 {stock['name']} 상세 분석 리포트")
     
@@ -179,8 +194,6 @@ elif st.session_state.page == 'detail':
     with col_r:
         st.subheader(f"{stock['name']} ({stock['symbol']})")
         st.write(f"**거래소:** {stock['exchange']} | **상장일:** {stock['공모일']}")
-        
-        # 상세 지표 레이아웃
         st.divider()
         m1, m2, m3 = st.columns(3)
         m1.metric("희망가/공모가", stock['희망가/공모가'])
@@ -189,20 +202,20 @@ elif st.session_state.page == 'detail':
 
     st.divider()
     
-    # 추가 상세 정보 섹션
+    # 상세 정보 카드 섹션
     st.markdown("### 🤖 투자 핵심 요약")
     c_a, c_b = st.columns(2)
     with c_a:
         st.info(f"**📌 자금 용도**\n\n{stock['자금용도']}")
         st.info(f"**🛡️ 보호예수 기간**\n\n{stock['보호예수']}")
     with c_b:
-        st.info(f"**🏦 주요 언더라이터(주관사)**\n\n{stock['언더라이터']}")
+        st.info(f"**🏦 주요 주관사(Underwriter)**\n\n{stock['언더라이터']}")
         st.info(f"**📈 거래소**\n\n{stock['exchange']}")
 
     st.divider()
-    st.markdown("### 🔗 외부 리서치 링크")
+    st.markdown("### 🔗 심층 분석 링크")
     l1, l2 = st.columns(2)
-    l1.link_button("📄 SEC 공식 공시 확인", stock['공시'], use_container_width=True)
+    l1.link_button("📄 SEC 공식 공시(S-1) 확인", stock['공시'], use_container_width=True)
     l2.link_button("📊 Yahoo Finance 재무 지표", stock['재무'], use_container_width=True)
     
     show_footer()
