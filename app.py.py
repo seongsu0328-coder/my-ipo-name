@@ -84,7 +84,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 및 생애 주기 유니콘 선택
+# 화면 2: 시장 분석 및 2x2 유니콘 선택
 # ==========================================
 if st.session_state.page == 'stats':
     display_logo_title("Unicornfinder 시장 분석")
@@ -110,43 +110,40 @@ if st.session_state.page == 'stats':
     st.subheader("🧬 IPO 기업 생애 주기별 유니콘")
     st.write("확인하고 싶은 단계의 유니콘을 클릭하세요.")
     
-    # --- 유니콘 클릭 영역 (이동 로직 포함) ---
-    uc1, uc2, uc3, uc4 = st.columns(4)
-    
-    with uc1:
-        st.write("### 🍼")
-        st.write("**유아 유니콘**")
-        st.caption("상장 직후 ~ 2년")
-        if st.button("IPO 캘린더 보기 ➡️", key="btn_infant", use_container_width=True):
+    # --- 2x2 유니콘 배치 시작 ---
+    row1_col1, row1_col2 = st.columns(2)
+    with row1_col1:
+        st.markdown("### 🍼 유아 유니콘")
+        st.caption("상장 직후 ~ 2년 (생존 투쟁기)")
+        if st.button("IPO 캘린더 보기 ➡️", key="btn_infant_grid", use_container_width=True):
             st.session_state.page = 'calendar'
             st.rerun()
             
-    with uc2:
-        st.write("### 🎈")
-        st.write("**아동 유니콘**")
-        st.caption("상장 3년 ~ 5년")
-        if st.button("준비 중...", key="btn_child", use_container_width=True):
+    with row1_col2:
+        st.markdown("### 🎈 아동 유니콘")
+        st.caption("상장 3년 ~ 5년 (시장 안착기)")
+        if st.button("분석 준비 중...", key="btn_child_grid", use_container_width=True):
             st.toast("아동 유니콘 데이터 분석 준비 중입니다!")
-            
-    with uc3:
-        st.write("### 👔")
-        st.write("**성인 유니콘**")
-        st.caption("중견기업(Mid-Cap)")
-        if st.button("준비 중...", key="btn_adult", use_container_width=True):
+
+    st.write("") # 간격 조절용
+
+    row2_col1, row2_col2 = st.columns(2)
+    with row2_col1:
+        st.markdown("### 👔 성인 유니콘")
+        st.caption("중견기업(Mid-Cap) 편입 (수익 안정기)")
+        if st.button("분석 준비 중...", key="btn_adult_grid", use_container_width=True):
             st.toast("성인 유니콘 데이터 분석 준비 중입니다!")
             
-    with uc4:
-        st.write("### 🏛️")
-        st.write("**노년 유니콘**")
-        st.caption("대기업(Large-Cap)")
-        if st.button("준비 중...", key="btn_old", use_container_width=True):
+    with row2_col2:
+        st.markdown("### 🏛️ 노년 유니콘")
+        st.caption("대기업(Large-Cap) 편입 (시장 지배기)")
+        if st.button("분석 준비 중...", key="btn_old_grid", use_container_width=True):
             st.toast("노년 유니콘 데이터 분석 준비 중입니다!")
+    # --- 2x2 배치 끝 ---
 
-    st.info(f"""
-    현재 올해 IPO 속도는 **{market_status}**입니다. 
-    대부분의 IPO 기업은 **아동기(5년)** 단계에서 생존 여부가 결정되니 주의 깊은 관찰이 필요합니다.
-    """)
-    
+    st.divider()
+    st.info(f"💡 현재 올해 IPO 속도는 **{market_status}**입니다. 초기 투자 리스크를 줄이려면 '유아 유니콘'의 실시간 데이터를 면밀히 검토하세요.")
+
 # ==========================================
 # 화면 3: 메인 IPO 캘린더
 # ==========================================
