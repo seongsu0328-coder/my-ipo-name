@@ -13,7 +13,7 @@ st.markdown("""
     /* 3D 효과를 주는 탐험 버튼 스타일 */
     div.stButton > button[key="go_cal_baby"] {
         display: block !important;
-        margin: 30px auto !important;     
+        margin: 10px auto !important;     
         width: 220px !important; 
         height: 75px !important;
         font-size: 28px !important;
@@ -30,6 +30,16 @@ st.markdown("""
         box-shadow: 0px 2px 0px #3c569b !important;
         transform: translateY(6px) !important;
     }
+    
+    /* 화살표 버튼 스타일 커스텀 */
+    div.stButton > button[key^="prev_"], div.stButton > button[key^="next_"] {
+        font-size: 24px !important;
+        font-weight: bold !important;
+        border-radius: 50% !important;
+        width: 60px !important;
+        height: 60px !important;
+    }
+
     [data-testid="stMetricValue"] {
         font-size: 28px !important;
         font-weight: bold !important;
@@ -41,7 +51,7 @@ st.markdown("""
         padding: 20px;
         background-color: #f8f9fa;
         border-radius: 15px;
-        margin: 10px 0;
+        margin: 15px 0;
         color: #333;
     }
     </style>
@@ -86,7 +96,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 + Tinder 스타일 Swipe
+# 화면 2: 시장 분석 + 화살표 내비게이션 카드
 # ==========================================
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
@@ -104,15 +114,28 @@ if st.session_state.page == 'stats':
         {"name": "노년기", "img": "old_unicorn.png", "desc": "S&P500급 대기업 단계입니다. 상장 후 평균 22년 이상의 생존력을 가집니다."}
     ]
 
-    current_idx = st.select_slider("슬라이드하여 단계를 탐험하세요", options=[0, 1, 2, 3], value=st.session_state.swipe_idx, format_func=lambda x: stages[x]['name'])
-    st.session_state.swipe_idx = current_idx
-    stage = stages[current_idx]
+    # 현재 선택된 단계 정보
+    idx = st.session_state.swipe_idx
+    stage = stages[idx]
 
     st.markdown(f"<h2 style='text-align: center;'>{stage['name']} 유니콘</h2>", unsafe_allow_html=True)
+    
+    # 이미지 중앙 배치
     _, col_img, _ = st.columns([1, 2.5, 1])
     with col_img:
         try: st.image(Image.open(stage['img']), use_container_width=True)
         except: st.warning("이미지가 없습니다.")
+
+    # --- [좌우 화살표 버튼 배치] ---
+    col_prev, col_spacer, col_next = st.columns([1, 4, 1])
+    with col_prev:
+        if st.button("◀", key=f"prev_{idx}"):
+            st.session_state.swipe_idx = (idx - 1) % len(stages)
+            st.rerun()
+    with col_next:
+        if st.button("▶", key=f"next_{idx}"):
+            st.session_state.swipe_idx = (idx + 1) % len(stages)
+            st.rerun()
 
     st.markdown(f"<div class='card-text'>{stage['desc']}</div>", unsafe_allow_html=True)
 
@@ -122,7 +145,7 @@ if st.session_state.page == 'stats':
             st.rerun()
 
 # ==========================================
-# 화면 3: 캘린더 (공시/재무/피드 복구 버전)
+# 화면 3: 캘린더 (복구 버전 유지)
 # ==========================================
 elif st.session_state.page == 'calendar':
     if st.sidebar.button("⬅️ 돌아가기"):
@@ -134,14 +157,11 @@ elif st.session_state.page == 'calendar':
     df = get_ipo_data(MY_API_KEY, days)
 
     if not df.empty:
-        # 데이터 가공 및 링크 생성
         display_df = df[['date', 'symbol', 'name', 'price', 'numberOfShares', 'exchange']].copy()
         display_df['📄 공시'] = display_df['symbol'].apply(lambda x: f"https://www.sec.gov/cgi-bin/browse-edgar?CIK={x}")
         display_df['📊 재무'] = display_df['symbol'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}/financials")
-        
         display_df.columns = ['상장일', '티커', '기업명', '가격', '주식수', '거래소', '공시', '재무']
 
-        # 데이터 편집기 (링크 컬럼 설정)
         st.data_editor(
             display_df,
             column_config={
@@ -152,7 +172,6 @@ elif st.session_state.page == 'calendar':
         )
         
         st.divider()
-        # 실시간 분석 피드 복구
         st.subheader("💬 실시간 분석 피드 (Stocktwits)")
         selected_stock = st.selectbox("분석할 기업 선택", display_df['기업명'].tolist())
         if selected_stock:
