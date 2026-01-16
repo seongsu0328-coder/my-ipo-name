@@ -8,7 +8,7 @@ import os
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- CSS 스타일 ---
+# --- CSS 스타일 (기존과 동일) ---
 st.markdown("""
     <style>
     div.stButton > button[key="go_cal_baby"] {
@@ -43,20 +43,20 @@ if 'auth_status' not in st.session_state: st.session_state.auth_status = None
 if 'page' not in st.session_state: st.session_state.page = 'stats'
 if 'swipe_idx' not in st.session_state: st.session_state.swipe_idx = 0
 
+# --- 데이터 로직 ---
 @st.cache_data(ttl=600)
 def get_ipo_data(api_key, days_ahead):
+    # 과거 5일부터 사용자가 설정한 미래 날짜까지 가져오기
     base_url = "https://finnhub.io/api/v1/calendar/ipo"
-    params = {'from': (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'), # 과거 5일부터
-              'to': (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d'), # 미래 30일까지
+    params = {'from': (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'), 
+              'to': (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d'), 
               'token': api_key}
     try:
         response = requests.get(base_url, params=params).json()
         return pd.DataFrame(response['ipoCalendar']) if 'ipoCalendar' in response else pd.DataFrame()
     except: return pd.DataFrame()
 
-# ==========================================
-# 화면 1 & 2 로직 (로그인/카드)
-# ==========================================
+# (화면 1: 로그인 로직 생략 - 기존과 동일)
 if st.session_state.auth_status is None:
     st.write("<div style='text-align: center; margin-top: 50px;'><h1>🦄 Unicornfinder</h1><h3>당신의 다음 유니콘을 찾아보세요</h3></div>", unsafe_allow_html=True)
     st.divider()
@@ -69,6 +69,7 @@ if st.session_state.auth_status is None:
         if c2.button("비회원 시작", use_container_width=True): st.session_state.auth_status = 'guest'; st.rerun()
     st.stop()
 
+# 화면 2: 카드 슬라이드
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
     st.divider()
@@ -88,46 +89,47 @@ if st.session_state.page == 'stats':
         if st.button("탐험", key="go_cal_baby"): st.session_state.page = 'calendar'; st.rerun()
 
 # ==========================================
-# 화면 3: 캘린더 (가격 복구 로직 적용)
+# 화면 3: 캘린더 (날짜 조절 슬라이더 추가)
 # ==========================================
 elif st.session_state.page == 'calendar':
+    # 사이드바 설정
+    st.sidebar.header("⚙️ 필터 설정")
     if st.sidebar.button("⬅️ 돌아가기"):
         st.session_state.page = 'stats'
         st.rerun()
     
-    st.header("🚀 실시간 유아기 유니콘 캘린더")
-    # 검색 범위를 과거 5일부터로 설정하여 확정가가 있는 최근 상장주도 포함되게 함
-    df = get_ipo_data(MY_API_KEY, 30)
+    st.sidebar.divider()
+    # 날짜 범위 조절 슬라이더 복구 (0일~60일)
+    days_ahead = st.sidebar.slider("조회 기간 설정 (오늘 기준 이후)", min_value=0, max_value=60, value=30, step=5)
+    st.sidebar.caption(f"현재 오늘부터 {days_ahead}일 뒤까지 조회 중입니다.")
+
+    st.header(f"🚀 실시간 유아기 유니콘 캘린더 (향후 {days_ahead}일)")
+    
+    # 슬라이더에서 받은 days_ahead 값을 API에 전달
+    df = get_ipo_data(MY_API_KEY, days_ahead)
 
     if not df.empty:
-        # 데이터 타입 변환
+        # 데이터 처리 (가격 복구 로직 포함)
         df['price'] = pd.to_numeric(df['price'], errors='coerce')
         df['numberOfShares'] = pd.to_numeric(df['numberOfShares'], errors='coerce')
         
-        # [가격 표시 복구]
-        # 숫자가 있으면 숫자 그대로, 없으면(NaN/0) '미정'으로 표시
         def get_price_display(val):
             if pd.isna(val) or val <= 0: return "공시 확인(미정)"
             return f"${val:,.2f}"
-
         df['희망가/공모가'] = df['price'].apply(get_price_display)
         
-        # [공모규모 계산]
         df['공모규모_num'] = df['price'] * df['numberOfShares']
         def get_deal_size_display(val):
             if pd.isna(val) or val <= 0: return "계산 불가"
             return f"${val:,.0f}"
-
         df['공모규모($)'] = df['공모규모_num'].apply(get_deal_size_display)
         
-        # 링크 및 기타 정보
         df['자금용도'] = "공시(S-1) 참조"
         df['보호예수'] = "180일(통상)"
         df['언더라이터'] = "주관사 확인" 
         df['📄 공시'] = df['symbol'].apply(lambda x: f"https://www.sec.gov/cgi-bin/browse-edgar?CIK={x}")
         df['📊 재무'] = df['symbol'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}/financials")
         
-        # 순서 재배치
         result_df = df[['name', 'symbol', '희망가/공모가', 'numberOfShares', '공모규모($)', '자금용도', '보호예수', '언더라이터', 'exchange', '📄 공시', '📊 재무']]
         result_df.columns = ['기업명', '티커', '희망가/공모가', '주식수', '공모규모($)', '자금용도', '보호예수', '언더라이터', '거래소', '공시', '재무']
 
@@ -140,6 +142,5 @@ elif st.session_state.page == 'calendar':
             },
             hide_index=True, use_container_width=True
         )
-        st.caption("※ 가격이 '미정'으로 표시될 경우 '공시' 버튼을 눌러 S-1 서류의 Price Range를 확인하세요.")
     else:
-        st.warning("조회된 데이터가 없습니다.")
+        st.warning(f"최근 5일부터 향후 {days_ahead}일 사이에 예정된 IPO 데이터가 없습니다.")
