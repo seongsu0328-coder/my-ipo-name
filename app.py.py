@@ -7,7 +7,7 @@ from PIL import Image
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- CSS 스타일 (화살표 버튼 크기 및 중앙 밀집 최적화) ---
+# --- CSS 스타일 (화살표 버튼 중앙 밀집 및 크기 최적화) ---
 st.markdown("""
     <style>
     /* 3D 탐험 버튼 스타일 */
@@ -26,18 +26,17 @@ st.markdown("""
         box-shadow: 0px 8px 0px #3c569b, 0px 15px 20px rgba(0,0,0,0.3) !important;
     }
     
-    /* 화살표 버튼: 네모 상자에 꽉 차는 큰 버튼 스타일 */
+    /* 화살표 버튼: 네모 상자에 꽉 차고 중앙에 밀집된 스타일 */
     div.stButton > button[key^="prev_"], div.stButton > button[key^="next_"] {
-        font-size: 40px !important;        /* 화살표 크기 대폭 확대 */
+        font-size: 35px !important;
         font-weight: bold !important;
-        border-radius: 12px !important;    /* 약간 각진 네모 스타일 */
-        width: 100% !important;            /* 상자 너비에 꽉 채움 */
-        height: 80px !important;           /* 높이도 상자에 맞게 조절 */
+        border-radius: 12px !important;
+        width: 100% !important;
+        height: 70px !important;
         background-color: #f8f9fa !important;
         border: 2px solid #6e8efb !important;
         color: #6e8efb !important;
-        box-shadow: 0px 4px 0px #6e8efb !important; /* 아래쪽 테두리 강조 */
-        margin-bottom: 10px !important;
+        box-shadow: 0px 4px 0px #6e8efb !important;
     }
     
     div.stButton > button[key^="prev_"]:active, div.stButton > button[key^="next_"]:active {
@@ -45,14 +44,15 @@ st.markdown("""
         box-shadow: 0px 1px 0px #6e8efb !important;
     }
 
+    /* 카드 텍스트 스타일 */
     .card-text {
         text-align: center;
         font-size: 1.3rem;
-        padding: 25px;
+        padding: 20px;
         background-color: #ffffff;
         border: 1px solid #e0e0e0;
         border-radius: 20px;
-        margin-top: 10px;
+        margin-top: 15px;
         color: #333;
     }
     </style>
@@ -64,7 +64,7 @@ if 'auth_status' not in st.session_state: st.session_state.auth_status = None
 if 'page' not in st.session_state: st.session_state.page = 'stats'
 if 'swipe_idx' not in st.session_state: st.session_state.swipe_idx = 0
 
-# --- 데이터 로직 함수 생략 (기존과 동일) ---
+# --- 데이터 로직 함수 (생략 - 기존과 동일) ---
 @st.cache_data(ttl=86400)
 def get_market_stats(api_key): return 154, 280, 48.5 
 
@@ -95,7 +95,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 + 중앙 밀집형 대형 화살표 버튼
+# 화면 2: 시장 분석 + 중앙 밀집형 화살표 컨트롤러
 # ==========================================
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
@@ -118,15 +118,15 @@ if st.session_state.page == 'stats':
 
     st.markdown(f"<h2 style='text-align: center; color: #6e8efb;'>{stage['name']} 유니콘</h2>", unsafe_allow_html=True)
     
-    # 이미지 출력 (모바일 가독성을 위해 너비 조절)
-    _, col_img, _ = st.columns([1, 2.5, 1])
+    # 이미지 출력
+    _, col_img, _ = st.columns([1, 2, 1])
     with col_img:
         try: st.image(Image.open(stage['img']), use_container_width=True)
         except: st.info(f"[{stage['name']} 이미지 준비 중]")
 
-    # --- [화살표 버튼: 사진 바로 아래 정중앙 밀집 배치] ---
-    # 컬럼 비율을 조절하여 버튼 두 개가 중앙으로 모이게 함
-    _, nav_col1, nav_col2, _ = st.columns([1.5, 1, 1, 1.5]) 
+    # --- [화살표 버튼: 사진 정중앙 하단에 밀집] ---
+    # 비율을 [2, 0.5, 0.5, 2]로 조정하여 버튼 두 개를 중앙으로 바짝 모음
+    _, nav_col1, nav_col2, _ = st.columns([2, 0.5, 0.5, 2]) 
     with nav_col1:
         if st.button("◀", key=f"prev_{idx}"):
             st.session_state.swipe_idx = (idx - 1) % len(stages)
@@ -136,19 +136,18 @@ if st.session_state.page == 'stats':
             st.session_state.swipe_idx = (idx + 1) % len(stages)
             st.rerun()
 
-    # 설명 텍스트
+    # 설명 텍스트 및 탐험 버튼
     st.markdown(f"<div class='card-text'>{stage['desc']}</div>", unsafe_allow_html=True)
 
-    # 탐험 버튼 (유아기 한정)
     if stage['name'] == "유아기":
         if st.button("탐험", key="go_cal_baby"):
             st.session_state.page = 'calendar'
             st.rerun()
 
 # ==========================================
-# 화면 3: 캘린더 (생략)
+# 화면 3: 캘린더 (로직 유지)
 # ==========================================
 elif st.session_state.page == 'calendar':
     if st.sidebar.button("⬅️ 돌아가기"): st.session_state.page = 'stats'; st.rerun()
     st.header("🚀 실시간 유아기 유니콘 캘린더")
-    # (기존 데이터 테이블 로직 그대로 유지...)
+    # ... 기존 캘린더 및 피드 로직 ...
