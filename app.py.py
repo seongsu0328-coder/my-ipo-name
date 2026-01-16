@@ -97,34 +97,58 @@ if st.session_state.page == 'stats':
     """, unsafe_allow_html=True)
 
     row1_col1, row1_col2 = st.columns(2)
+    
+    # --- [유아] baby_unicorn.png ---
     with row1_col1:
         try:
-            img = Image.open("baby_unicorn.png")
-            st.image(img, use_container_width=True)
-            if st.button("🍼 유아 유니콘 데이터 확인", use_container_width=True):
+            img_baby = Image.open("baby_unicorn.png")
+            st.image(img_baby, use_container_width=True)
+            if st.button("🍼 유아 유니콘 데이터 확인", key="btn_baby", use_container_width=True):
                 st.session_state.page = 'calendar'
                 st.rerun()
-        except FileNotFoundError:
-            st.warning("baby_unicorn.png 파일을 찾을 수 없습니다.")
-            if st.button("🍼 유아 유니콘 (임시 버튼)", use_container_width=True):
+        except:
+            st.warning("baby_unicorn.png 없음")
+            if st.button("🍼 유아 유니콘", key="btn_baby_temp", use_container_width=True):
                 st.session_state.page = 'calendar'
                 st.rerun()
         st.markdown("<p style='text-align: center;'><b>[유아]</b> 상장 0~2년차<br>평균 존속 <b>2.1년</b></p>", unsafe_allow_html=True)
 
+    # --- [아동] child_unicorn.png ---
     with row1_col2:
-        st.write("<h1 style='text-align: center;'>🎈</h1>", unsafe_allow_html=True)
-        if st.button("아동 유니콘 분석 준비중", use_container_width=True):
-            st.toast("데이터를 수집 중입니다.")
+        try:
+            img_child = Image.open("child_unicorn.png")
+            st.image(img_child, use_container_width=True)
+            if st.button("🎈 아동 유니콘 데이터 확인", key="btn_child", use_container_width=True):
+                st.toast("아동 유니콘 상세 분석 준비 중")
+        except:
+            st.warning("child_unicorn.png 없음")
+            st.button("🎈 아동 유니콘 준비중", key="btn_child_temp", use_container_width=True)
         st.markdown("<p style='text-align: center;'><b>[아동]</b> 상장 3~5년차<br>평균 존속 <b>5.4년</b></p>", unsafe_allow_html=True)
 
+    st.write("") 
+
     row2_col1, row2_col2 = st.columns(2)
+    
+    # --- [성인] adult_unicorn.png ---
     with row2_col1:
-        st.write("<h1 style='text-align: center;'>👔</h1>", unsafe_allow_html=True)
-        st.button("성인 유니콘 준비중", use_container_width=True)
+        try:
+            img_adult = Image.open("adult_unicorn.png")
+            st.image(img_adult, use_container_width=True)
+            st.button("👔 성인 유니콘 데이터 확인", key="btn_adult", use_container_width=True)
+        except:
+            st.warning("adult_unicorn.png 없음")
+            st.button("👔 성인 유니콘 준비중", key="btn_adult_temp", use_container_width=True)
         st.markdown("<p style='text-align: center;'><b>[성인]</b> 미국 중견기업<br>상장 후 평균 <b>12.5년</b></p>", unsafe_allow_html=True)
+
+    # --- [노년] old_unicorn.png ---
     with row2_col2:
-        st.write("<h1 style='text-align: center;'>🏛️</h1>", unsafe_allow_html=True)
-        st.button("노년 유니콘 준비중", use_container_width=True)
+        try:
+            img_old = Image.open("old_unicorn.png")
+            st.image(img_old, use_container_width=True)
+            st.button("🏛️ 노년 유니콘 데이터 확인", key="btn_old", use_container_width=True)
+        except:
+            st.warning("old_unicorn.png 없음")
+            st.button("🏛️ 노년 유니콘 준비중", key="btn_old_temp", use_container_width=True)
         st.markdown("<p style='text-align: center;'><b>[노년]</b> 미국 대기업<br>상장 후 평균 <b>22년 이상</b></p>", unsafe_allow_html=True)
 
 # ==========================================
@@ -148,8 +172,6 @@ elif st.session_state.page == 'calendar':
             df = df[~df['name'].str.contains('SPAC|Acquisition|Unit|Blank Check', case=False, na=False)]
         
         display_df = df[['date', 'symbol', 'name', 'price', 'numberOfShares', 'exchange']].copy()
-        
-        # --- 끊겼던 부분: 링크 생성 ---
         display_df['📄 공시'] = display_df['symbol'].apply(lambda x: f"https://www.sec.gov/cgi-bin/browse-edgar?CIK={x}")
         display_df['📊 재무'] = display_df['symbol'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}/financials")
         display_df['💬 토론'] = display_df['symbol'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}/community")
