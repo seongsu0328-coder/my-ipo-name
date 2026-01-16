@@ -60,4 +60,9 @@ def get_ipo_data(api_key, days_ahead):
     end_date = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
     params = {'from': start_date, 'to': end_date, 'token': api_key}
     try:
-        response = requests.get(base_url, params=params
+        # 아래 줄 끝에 괄호 ')'가 두 번 닫혀야 합니다!
+        response = requests.get(base_url, params=params) 
+        data = response.json()
+        return pd.DataFrame(data['ipoCalendar']) if 'ipoCalendar' in data else pd.DataFrame()
+    except Exception as e:
+        return pd.DataFrame()
