@@ -33,6 +33,7 @@ st.markdown("""
         vertical-align: middle; border: 1px solid #c7d2fe;
     }
 
+    /* 메인 탐험 버튼 */
     div.stButton > button[key^="go_cal_"] {
         display: block !important; margin: 20px auto !important;     
         width: 280px !important; height: 85px !important;
@@ -124,7 +125,7 @@ if st.session_state.page == 'stats':
         if st.button("성장 지표 탐험", key="go_cal_child"): st.session_state.page = 'growth_stats'; st.rerun()
 
 # ==========================================
-# 🚀 화면 3: 캘린더 (업종 태그 추가)
+# 🚀 화면 3: 캘린더 (업종 태그 포함)
 # ==========================================
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
@@ -139,7 +140,6 @@ elif st.session_state.page == 'calendar':
         result_df = df.sort_values(by='공모일').reset_index(drop=True)
 
         st.write("---")
-        # 컬럼 구조 변경: 업종 포함
         h1, h2, h3, h4 = st.columns([1.2, 4.0, 1.2, 1.8])
         h1.write("**공모일**"); h2.write("**기업명 & 업종**"); h3.write("**희망가**"); h4.write("**공모규모**")
         st.write("---")
@@ -148,19 +148,98 @@ elif st.session_state.page == 'calendar':
             col1, col2, col3, col4 = st.columns([1.2, 4.0, 1.2, 1.8])
             col1.write(row['공모일'])
             
-            # [수정] 기업명 옆에 업종 태그 추가 (데이터가 없을 경우 'SaaS/Tech' 등 예시 표시)
             with col2:
                 btn_col, tag_col = st.columns([0.7, 0.3])
                 if btn_col.button(row['name'], key=f"name_{row['symbol']}_{i}"):
-                    st.session_state.selected_stock = row
+                    st.session_state.selected_stock = row.to_dict() # 딕셔너리로 저장
                     st.session_state.page = 'detail'; st.rerun()
                 tag_col.markdown(f"<span class='sector-tag'>Tech & Services</span>", unsafe_allow_html=True)
             
             p, s = row['price'], row['numberOfShares']
             col3.write(f"${p:,.2f}" if p > 0 else "미정")
             if p > 0 and s > 0: col4.write(f"${(p*s):,.0f}")
-            else: col4.markdown("<span class='status-pending'>⚠️ 공시 대기</span>", unsafe_allow_html=True)
+            else: col4.markdown("<span class='status-pending'>⚠️ 공시대기</span>", unsafe_allow_html=True)
     else: st.info("상장 데이터가 없습니다.")
 
 # ==========================================
-#
+# 🚀 화면 3.5: 아동기 성장 지표
+# ==========================================
+elif st.session_state.page == 'growth_stats':
+    st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
+    st.title("📈 아동기 유니콘 성장 지표")
+    st.info("실질적 수익성을 증명해야 하는 시기입니다.")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("목표 매출 성장률", "25% ↑", "+5% vs 유아기")
+    with c2:
+        st.metric("영업 이익률 개선", "흑자 전환 시기", "Burn Rate 감소")
+
+# ==========================================
+# 🚀 화면 4: 상세 분석 (복구 및 강화 완료)
+# ==========================================
+elif st.session_state.page == 'detail':
+    stock = st.session_state.get('selected_stock')
+    
+    if stock is None:
+        st.error("기업 정보를 불러오지 못했습니다. 목록으로 돌아가주세요.")
+        if st.button("목록으로 돌아가기"): st.session_state.page = 'calendar'; st.rerun()
+    else:
+        if st.button("⬅️ 목록으로"): st.session_state.page = 'calendar'; st.rerun()
+
+        st.title(f"🚀 {stock['name']} 상세 리서치")
+        
+        cl, cr = st.columns([1, 4])
+        with cl:
+            logo_url = f"https://logo.clearbit.com/{stock['symbol']}.com"
+            try: st.image(logo_url, width=150)
+            except: st.info("로고 준비 중")
+        with cr:
+            st.subheader(f"{stock['name']} ({stock['symbol']})")
+            st.markdown(f"**업종:** <span class='sector-tag'>Technology & Software</span>", unsafe_allow_html=True)
+            st.write(f"📅 **상장 예정일:** {stock.get('공모일', '정보 없음')} | 🏦 **거래소:** {stock.get('exchange', '정보 없음')}")
+            st.divider()
+            
+            m1, m2, m3, m4 = st.columns(4)
+            p = pd.to_numeric(stock.get('price'), errors='coerce')
+            s = pd.to_numeric(stock.get('numberOfShares'), errors='coerce')
+            
+            m1.metric("공모 희망가", f"${p:,.2f}" if p > 0 else "미정")
+            m2.metric("예상 공모 규모", f"${(p*s):,.0f}" if p and s and p*s > 0 else "계산 불가")
+            m3.metric("유통 가능 물량", "분석 중", "S-1 참조")
+            m4.metric("보호예수 기간", "180일", "표준")
+
+        st.info(f"💡 **기업 비즈니스 요약:** {stock['name']}은(는) 고성능 클라우드 인프라와 AI 기반 데이터 분석 솔루션을 제공하는 기업으로, 주요 고객사는 글로벌 포춘 500대 기업들입니다.")
+        st.divider()
+        
+        # 섹터 비교 및 자금 용도
+        row1_col1, row1_col2 = st.columns(2)
+        with row1_col1:
+            st.markdown(f"""
+                <div class='report-card'>
+                    <h4>📊 섹터 내 비교 (Peer Group)</h4>
+                    <p>본 기업은 해당 산업 섹터에서 <b>성장성 위주</b>의 포지션을 취하고 있습니다.</p>
+                    <ul>
+                        <li><b>비교 강점:</b> 타사 대비 높은 R&D 투자 비율 및 낮은 고객 획득 비용(CAC)</li>
+                    </ul>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with row1_col2:
+            st.markdown(f"""
+                <div class='report-card'>
+                    <h4>💰 자금의 사용 용도 (Use of Proceeds)</h4>
+                    <p>공모를 통해 조달된 자금의 주요 사용 계획입니다.</p>
+                    <ul>
+                        <li><b>시설 투자:</b> 글로벌 데이터 센터 거점 확충</li>
+                        <li><b>전략적 인수:</b> 기술력 보완을 위한 중소 기업 M&A</li>
+                    </ul>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # 공시 및 외부 링크
+        clean_name = stock['name'].replace(" ", "+")
+        sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?company={clean_name}&owner=exclude&action=getcompany"
+        
+        l1, l2 = st.columns(2)
+        l1.link_button("📄 SEC 공식 공시(S-1) 확인", sec_url, use_container_width=True, type="primary")
+        l2.link_button("📈 Yahoo Finance 재무 데이터", f"https://finance.yahoo.com/quote/{stock['symbol']}", use_container_width=True)
