@@ -84,7 +84,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 및 그림 기반 네비게이션
+# 화면 2: 시장 분석 및 커스텀 아이콘 타일 (2x2)
 # ==========================================
 if st.session_state.page == 'stats':
     display_logo_title("Unicornfinder 시장 분석")
@@ -106,48 +106,63 @@ if st.session_state.page == 'stats':
     c3.metric("5년 평균 생존율", "48.5%", delta="-51.5% 탈락 위험", delta_color="inverse")
 
     st.divider()
+
+    # --- 테두리 제거 및 아이콘 크기 확대를 위한 CSS ---
+    st.markdown("""
+        <style>
+        /* 모든 버튼의 테두리와 배경 제거, 폰트 크기 확대 */
+        div.stButton > button {
+            border: none !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
+            font-size: 100px !important; /* 아이콘 크기 대폭 확대 */
+            height: 140px !important;
+            width: 100% !important;
+            transition: transform 0.2s; /* 클릭 시 효과 */
+        }
+        div.stButton > button:active {
+            transform: scale(0.9); /* 클릭 시 살짝 작아짐 */
+        }
+        div.stButton > button:hover {
+            background-color: transparent !important;
+            color: inherit !important;
+        }
+        /* 텍스트 중앙 정렬 스타일 */
+        .icon-label {
+            text-align: center;
+            font-size: 16px;
+            margin-top: -10px;
+            margin-bottom: 20px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
     
-    # --- 2x2 그림 타일 배치 ---
+    # 2x2 배치
     row1_col1, row1_col2 = st.columns(2)
     with row1_col1:
-        # 버튼 안에는 그림(이모지)만 배치
-        if st.button("🍼", key="infant_img", use_container_width=True):
+        if st.button("🍼", key="infant_icon"):
             st.session_state.page = 'calendar'
             st.rerun()
-        st.markdown("""
-        **[유아]** 상장 0~2년차 기업  
-        **[기간]** 평균 존속 약 **2.1년**
-        """)
+        st.markdown("<div class='icon-label'><b>[유아]</b> 상장 0~2년<br>평균 존속 <b>2.1년</b></div>", unsafe_allow_html=True)
             
     with row1_col2:
-        if st.button("🎈", key="child_img", use_container_width=True):
+        if st.button("🎈", key="child_icon"):
             st.toast("아동 구간 분석 준비 중")
-        st.markdown("""
-        **[아동]** 상장 3~5년차 기업  
-        **[기간]** 평균 존속 약 **5.4년**
-        """)
-
-    st.write("") 
+        st.markdown("<div class='icon-label'><b>[아동]</b> 상장 3~5년<br>평균 존속 <b>5.4년</b></div>", unsafe_allow_html=True)
 
     row2_col1, row2_col2 = st.columns(2)
     with row2_col1:
-        if st.button("👔", key="adult_img", use_container_width=True):
+        if st.button("👔", key="adult_icon"):
             st.toast("성인 구간 분석 준비 중")
-        st.markdown("""
-        **[성인]** 미국 중견기업(Mid-Cap)  
-        **[도달]** 상장 후 평균 **12.5년**
-        """)
+        st.markdown("<div class='icon-label'><b>[성인]</b> 미국 중견기업<br>도달 평균 <b>12.5년</b></div>", unsafe_allow_html=True)
             
     with row2_col2:
-        if st.button("🏛️", key="old_img", use_container_width=True):
+        if st.button("🏛️", key="old_icon"):
             st.toast("노년 구간 분석 준비 중")
-        st.markdown("""
-        **[노년]** 미국 대기업(Large-Cap)  
-        **[도달]** 상장 후 평균 **22년 이상**
-        """)
+        st.markdown("<div class='icon-label'><b>[노년]</b> 미국 대기업<br>도달 평균 <b>22년 이상</b></div>", unsafe_allow_html=True)
 
     st.divider()
-    st.info(f"💡 그림을 클릭하여 단계별 데이터를 확인하세요. 현재 시장 속도는 **{market_status}**입니다.")
+    st.info(f"💡 아이콘을 터치하여 단계별 데이터를 확인하세요.")
 
 # ==========================================
 # 화면 3: 메인 IPO 캘린더
