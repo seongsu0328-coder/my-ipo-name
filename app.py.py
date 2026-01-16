@@ -60,9 +60,10 @@ if st.session_state.auth_status is None:
     with col1:
         st.info("### 📱 휴대폰 가입")
         phone_number = st.text_input("휴대폰 번호", placeholder="010-0000-0000")
-        if st.button("Unicornfinder 시작하기", use_container_width=True):
+       if st.button("Unicornfinder 시작하기", use_container_width=True):
             if len(phone_number) > 9:
                 st.session_state.auth_status = 'user'
                 st.rerun()
             else:
-                st.error("올바른 번호를
+                st.error("올바른 번호를 입력해 주세요.")
+
