@@ -84,7 +84,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 및 2x2 유니콘 선택
+# 화면 2: 시장 분석 및 아이콘 기반 네비게이션
 # ==========================================
 if st.session_state.page == 'stats':
     display_logo_title("Unicornfinder 시장 분석")
@@ -107,37 +107,34 @@ if st.session_state.page == 'stats':
 
     st.divider()
     
+    # --- 아이콘 클릭 영역 (2x2) ---
     row1_col1, row1_col2 = st.columns(2)
     with row1_col1:
-        st.markdown("### 🍼 유아 유니콘")
-        st.caption("상장 직후 ~ 2년 (생존 투쟁기)")
-        if st.button("실시간 캘린더 보기 ➡️", key="btn_infant_grid", use_container_width=True):
+        if st.button("🍼\n\n유아 유니콘", key="infant_icon", use_container_width=True):
             st.session_state.page = 'calendar'
             st.rerun()
+        st.caption("상장 직후 ~ 2년 (생존 투쟁기)")
             
     with row1_col2:
-        st.markdown("### 🎈 아동 유니콘")
+        if st.button("🎈\n\n아동 유니콘", key="child_icon", use_container_width=True):
+            st.toast("아동 유니콘 분석 데이터 준비 중입니다.")
         st.caption("상장 3년 ~ 5년 (시장 안착기)")
-        if st.button("분석 데이터 준비 중", key="btn_child_grid", use_container_width=True):
-            st.toast("아동 유니콘 데이터 분석 준비 중입니다!")
 
     st.write("") 
 
     row2_col1, row2_col2 = st.columns(2)
     with row2_col1:
-        st.markdown("### 👔 성인 유니콘")
+        if st.button("👔\n\n성인 유니콘", key="adult_icon", use_container_width=True):
+            st.toast("성인 유니콘 분석 데이터 준비 중입니다.")
         st.caption("중견기업(Mid-Cap) 편입")
-        if st.button("분석 데이터 준비 중", key="btn_adult_grid", use_container_width=True):
-            st.toast("성인 유니콘 데이터 분석 준비 중입니다!")
             
     with row2_col2:
-        st.markdown("### 🏛️ 노년 유니콘")
+        if st.button("🏛️\n\n노년 유니콘", key="old_icon", use_container_width=True):
+            st.toast("노년 유니콘 분석 데이터 준비 중입니다.")
         st.caption("대기업(Large-Cap) 편입")
-        if st.button("분석 데이터 준비 중", key="btn_old_grid", use_container_width=True):
-            st.toast("노년 유니콘 데이터 분석 준비 중입니다!")
 
     st.divider()
-    st.info(f"💡 현재 IPO 시장 속도는 **{market_status}**입니다. 초기 투자 시 '유아 유니콘'의 캘린더를 통해 향후 상장 일정을 확인하세요.")
+    st.info(f"💡 아이콘을 클릭하여 상세 데이터를 확인하세요. 현재 시장 속도는 **{market_status}**입니다.")
 
 # ==========================================
 # 화면 3: 메인 IPO 캘린더
