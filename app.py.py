@@ -35,13 +35,10 @@ def get_market_stats(api_key):
     except:
         count_this_year = 0
     
-    avg_10y = 280 # 10년 평균치
-    
-    # [비교 로직] 오늘 기준 예상 건수 계산
+    avg_10y = 280 
     day_of_year = datetime.now().timetuple().tm_yday
     expected_now = (avg_10y / 365) * day_of_year
     diff = count_this_year - expected_now
-    
     return count_this_year, avg_10y, diff
 
 @st.cache_data(ttl=600)
@@ -70,17 +67,4 @@ if st.session_state.auth_status is None:
     col1, col2 = st.columns(2)
     with col1:
         st.info("### 📱 휴대폰 가입")
-        phone_number = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="phone_input")
-        if st.button("Unicornfinder 시작하기", use_container_width=True):
-            if len(phone_number) > 9:
-                st.session_state.auth_status = 'user'
-                st.rerun()
-            else:
-                st.error("올바른 번호를 입력해 주세요.")
-   with col2:
-        st.success("### 👤 게스트 접속")
-        st.write("가입 없이 서비스를 둘러봅니다.")
-        # 아래 줄 끝에 괄호 ')'와 콜론 ':'이 정확히 있는지 확인하세요.
-        if st.button("비회원으로 시작하기", use_container_width=True):
-            st.session_state.auth_status = 'guest'
-            st.rerun()
+        phone_number = st.text_input("휴대폰 번호", placeholder="0
