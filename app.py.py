@@ -84,7 +84,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 및 2x2 유니콘 선택 (설명 텍스트 제거)
+# 화면 2: 시장 분석 및 2x2 유니콘 선택
 # ==========================================
 if st.session_state.page == 'stats':
     display_logo_title("Unicornfinder 시장 분석")
@@ -100,7 +100,6 @@ if st.session_state.page == 'stats':
 
     st.write(f"📅 분석 기준: {datetime.now().strftime('%Y-%m-%d')}")
     
-    # 상단 지표
     c1, c2, c3 = st.columns(3)
     c1.metric("올해 상장 건수", f"{count_this_year}건")
     c2.metric("10년 연평균 상장", f"{avg_10y}건", delta=market_status, delta_color=status_color)
@@ -108,7 +107,6 @@ if st.session_state.page == 'stats':
 
     st.divider()
     
-    # --- 2x2 유니콘 배치 (설명 문구 없이 바로 배치) ---
     row1_col1, row1_col2 = st.columns(2)
     with row1_col1:
         st.markdown("### 🍼 유아 유니콘")
@@ -123,7 +121,7 @@ if st.session_state.page == 'stats':
         if st.button("분석 데이터 준비 중", key="btn_child_grid", use_container_width=True):
             st.toast("아동 유니콘 데이터 분석 준비 중입니다!")
 
-    st.write("") # 간격 조절용
+    st.write("") 
 
     row2_col1, row2_col2 = st.columns(2)
     with row2_col1:
@@ -177,4 +175,18 @@ elif st.session_state.page == 'calendar':
         st.data_editor(
             display_df,
             column_config={
-                "공시":
+                "공시": st.column_config.LinkColumn(display_text="보기"),
+                "재무": st.column_config.LinkColumn(display_text="보기"),
+                "토론": st.column_config.LinkColumn(display_text="참여"),
+            },
+            hide_index=True, use_container_width=True, disabled=True
+        )
+        
+        st.divider()
+        st.subheader("💬 실시간 분석 피드")
+        selected_stock = st.selectbox("기업 선택", display_df['기업명'].tolist())
+        if selected_stock:
+            ticker = display_df[display_df['기업명'] == selected_stock]['티커'].values[0]
+            st.components.v1.iframe(f"https://stocktwits.com/symbol/{ticker}", height=600, scrolling=True)
+    else:
+        st.warning("데이터가 없습니다.")
