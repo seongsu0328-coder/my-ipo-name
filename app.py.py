@@ -8,7 +8,7 @@ import os
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- CSS 스타일 (기존과 동일) ---
+# --- CSS 스타일 ---
 st.markdown("""
     <style>
     div.stButton > button[key="go_cal_baby"] {
@@ -43,10 +43,8 @@ if 'auth_status' not in st.session_state: st.session_state.auth_status = None
 if 'page' not in st.session_state: st.session_state.page = 'stats'
 if 'swipe_idx' not in st.session_state: st.session_state.swipe_idx = 0
 
-# --- 데이터 로직 ---
 @st.cache_data(ttl=600)
 def get_ipo_data(api_key, days_ahead):
-    # 과거 5일부터 사용자가 설정한 미래 날짜까지 가져오기
     base_url = "https://finnhub.io/api/v1/calendar/ipo"
     params = {'from': (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'), 
               'to': (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d'), 
@@ -56,7 +54,7 @@ def get_ipo_data(api_key, days_ahead):
         return pd.DataFrame(response['ipoCalendar']) if 'ipoCalendar' in response else pd.DataFrame()
     except: return pd.DataFrame()
 
-# (화면 1: 로그인 로직 생략 - 기존과 동일)
+# --- 화면 1 & 2 로직 (생략 - 기존 유지) ---
 if st.session_state.auth_status is None:
     st.write("<div style='text-align: center; margin-top: 50px;'><h1>🦄 Unicornfinder</h1><h3>당신의 다음 유니콘을 찾아보세요</h3></div>", unsafe_allow_html=True)
     st.divider()
@@ -69,7 +67,6 @@ if st.session_state.auth_status is None:
         if c2.button("비회원 시작", use_container_width=True): st.session_state.auth_status = 'guest'; st.rerun()
     st.stop()
 
-# 화면 2: 카드 슬라이드
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
     st.divider()
@@ -89,30 +86,29 @@ if st.session_state.page == 'stats':
         if st.button("탐험", key="go_cal_baby"): st.session_state.page = 'calendar'; st.rerun()
 
 # ==========================================
-# 화면 3: 캘린더 (날짜 조절 슬라이더 추가)
+# 화면 3: 캘린더 (날짜 열 추가)
 # ==========================================
 elif st.session_state.page == 'calendar':
-    # 사이드바 설정
     st.sidebar.header("⚙️ 필터 설정")
     if st.sidebar.button("⬅️ 돌아가기"):
         st.session_state.page = 'stats'
         st.rerun()
     
     st.sidebar.divider()
-    # 날짜 범위 조절 슬라이더 복구 (0일~60일)
-    days_ahead = st.sidebar.slider("조회 기간 설정 (오늘 기준 이후)", min_value=0, max_value=60, value=30, step=5)
-    st.sidebar.caption(f"현재 오늘부터 {days_ahead}일 뒤까지 조회 중입니다.")
+    days_ahead = st.sidebar.slider("조회 기간 설정", min_value=0, max_value=60, value=30, step=5)
 
-    st.header(f"🚀 실시간 유아기 유니콘 캘린더 (향후 {days_ahead}일)")
-    
-    # 슬라이더에서 받은 days_ahead 값을 API에 전달
+    st.header(f"🚀 실시간 유아기 유니콘 캘린더")
     df = get_ipo_data(MY_API_KEY, days_ahead)
 
     if not df.empty:
-        # 데이터 처리 (가격 복구 로직 포함)
+        # 데이터 처리
         df['price'] = pd.to_numeric(df['price'], errors='coerce')
         df['numberOfShares'] = pd.to_numeric(df['numberOfShares'], errors='coerce')
         
+        # 날짜 포맷팅 (YYYY-MM-DD)
+        df['공모일'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
+        
+        # 가격 및 규모 표시 로직
         def get_price_display(val):
             if pd.isna(val) or val <= 0: return "공시 확인(미정)"
             return f"${val:,.2f}"
@@ -124,18 +120,24 @@ elif st.session_state.page == 'calendar':
             return f"${val:,.0f}"
         df['공모규모($)'] = df['공모규모_num'].apply(get_deal_size_display)
         
+        # 링크 및 기타 정보
         df['자금용도'] = "공시(S-1) 참조"
         df['보호예수'] = "180일(통상)"
         df['언더라이터'] = "주관사 확인" 
         df['📄 공시'] = df['symbol'].apply(lambda x: f"https://www.sec.gov/cgi-bin/browse-edgar?CIK={x}")
         df['📊 재무'] = df['symbol'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}/financials")
         
-        result_df = df[['name', 'symbol', '희망가/공모가', 'numberOfShares', '공모규모($)', '자금용도', '보호예수', '언더라이터', 'exchange', '📄 공시', '📊 재무']]
-        result_df.columns = ['기업명', '티커', '희망가/공모가', '주식수', '공모규모($)', '자금용도', '보호예수', '언더라이터', '거래소', '공시', '재무']
+        # [요청사항] 공모일 컬럼을 가장 왼쪽(기업명 앞)에 배치
+        result_df = df[['공모일', 'name', 'symbol', '희망가/공모가', 'numberOfShares', '공모규모($)', '자금용도', '보호예수', '언더라이터', 'exchange', '📄 공시', '📊 재무']]
+        result_df.columns = ['공모일', '기업명', '티커', '희망가/공모가', '주식수', '공모규모($)', '자금용도', '보호예수', '언더라이터', '거래소', '공시', '재무']
+
+        # 날짜순으로 정렬 (최신순)
+        result_df = result_df.sort_values(by='공모일', ascending=True)
 
         st.data_editor(
             result_df,
             column_config={
+                "공모일": st.column_config.TextColumn(width="medium"),
                 "주식수": st.column_config.NumberColumn(format="%d"),
                 "공시": st.column_config.LinkColumn(display_text="SEC 확인"),
                 "재무": st.column_config.LinkColumn(display_text="재무 지표"),
@@ -143,4 +145,4 @@ elif st.session_state.page == 'calendar':
             hide_index=True, use_container_width=True
         )
     else:
-        st.warning(f"최근 5일부터 향후 {days_ahead}일 사이에 예정된 IPO 데이터가 없습니다.")
+        st.warning(f"조회된 기간 내 예정된 IPO 데이터가 없습니다.")
