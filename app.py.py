@@ -7,10 +7,10 @@ from PIL import Image
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- 3D 글씨체 및 디자인 CSS ---
+# --- CSS 스타일 (3D 버튼 및 레이아웃) ---
 st.markdown("""
     <style>
-    /* 3D 효과를 주는 탐험 버튼 스타일 */
+    /* 3D 탐험 버튼 */
     div.stButton > button[key="go_cal_baby"] {
         display: block !important;
         margin: 10px auto !important;     
@@ -31,7 +31,7 @@ st.markdown("""
         transform: translateY(6px) !important;
     }
     
-    /* 화살표 버튼 스타일 커스텀 */
+    /* 화살표 버튼 */
     div.stButton > button[key^="prev_"], div.stButton > button[key^="next_"] {
         font-size: 24px !important;
         font-weight: bold !important;
@@ -40,11 +40,6 @@ st.markdown("""
         height: 60px !important;
     }
 
-    [data-testid="stMetricValue"] {
-        font-size: 28px !important;
-        font-weight: bold !important;
-        color: #1f77b4 !important;
-    }
     .card-text {
         text-align: center;
         font-size: 1.2rem;
@@ -81,22 +76,35 @@ def get_ipo_data(api_key, days_ahead):
     except: return pd.DataFrame()
 
 # ==========================================
-# 화면 1: 진입 화면 (로그인)
+# 화면 1: 진입 화면 (회원/비회원 선택 복구)
 # ==========================================
 if st.session_state.auth_status is None:
     st.write("<div style='text-align: center; margin-top: 50px;'><h1>🦄 Unicornfinder</h1><h3>당신의 다음 유니콘을 찾아보세요</h3></div>", unsafe_allow_html=True)
     st.divider()
+    
     _, col_m, _ = st.columns([1, 2, 1])
     with col_m:
-        phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="phone_input")
-        if st.button("시작하기", key="start_btn", use_container_width=True):
-            if len(phone) > 9:
-                st.session_state.auth_status = 'user'
+        phone = st.text_input("휴대폰 번호 (회원 접속 시)", placeholder="010-0000-0000", key="phone_input")
+        
+        # 버튼을 나란히 배치하기 위해 컬럼 분할
+        btn_col1, btn_col2 = st.columns(2)
+        
+        with btn_col1:
+            if st.button("회원 로그인", use_container_width=True):
+                if len(phone) > 9:
+                    st.session_state.auth_status = 'user'
+                    st.rerun()
+                else:
+                    st.warning("번호를 입력해주세요.")
+        
+        with btn_col2:
+            if st.button("비회원 시작", use_container_width=True):
+                st.session_state.auth_status = 'guest'
                 st.rerun()
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 + 화살표 내비게이션 카드
+# 화면 2: 시장 분석 + 화살표 카드
 # ==========================================
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
@@ -114,19 +122,17 @@ if st.session_state.page == 'stats':
         {"name": "노년기", "img": "old_unicorn.png", "desc": "S&P500급 대기업 단계입니다. 상장 후 평균 22년 이상의 생존력을 가집니다."}
     ]
 
-    # 현재 선택된 단계 정보
     idx = st.session_state.swipe_idx
     stage = stages[idx]
 
     st.markdown(f"<h2 style='text-align: center;'>{stage['name']} 유니콘</h2>", unsafe_allow_html=True)
     
-    # 이미지 중앙 배치
     _, col_img, _ = st.columns([1, 2.5, 1])
     with col_img:
         try: st.image(Image.open(stage['img']), use_container_width=True)
-        except: st.warning("이미지가 없습니다.")
+        except: st.write(f"이미지 필요: {stage['img']}")
 
-    # --- [좌우 화살표 버튼 배치] ---
+    # 화살표 버튼
     col_prev, col_spacer, col_next = st.columns([1, 4, 1])
     with col_prev:
         if st.button("◀", key=f"prev_{idx}"):
@@ -145,7 +151,7 @@ if st.session_state.page == 'stats':
             st.rerun()
 
 # ==========================================
-# 화면 3: 캘린더 (복구 버전 유지)
+# 화면 3: 캘린더 (공시/재무/피드 포함)
 # ==========================================
 elif st.session_state.page == 'calendar':
     if st.sidebar.button("⬅️ 돌아가기"):
@@ -153,8 +159,7 @@ elif st.session_state.page == 'calendar':
         st.rerun()
     
     st.header("🚀 실시간 유아기 유니콘 캘린더")
-    days = st.sidebar.slider("조회 기간(일)", 7, 90, 30)
-    df = get_ipo_data(MY_API_KEY, days)
+    df = get_ipo_data(MY_API_KEY, 30)
 
     if not df.empty:
         display_df = df[['date', 'symbol', 'name', 'price', 'numberOfShares', 'exchange']].copy()
@@ -172,10 +177,8 @@ elif st.session_state.page == 'calendar':
         )
         
         st.divider()
-        st.subheader("💬 실시간 분석 피드 (Stocktwits)")
+        st.subheader("💬 실시간 분석 피드")
         selected_stock = st.selectbox("분석할 기업 선택", display_df['기업명'].tolist())
         if selected_stock:
             ticker = display_df[display_df['기업명'] == selected_stock]['티커'].values[0]
             st.components.v1.iframe(f"https://stocktwits.com/symbol/{ticker}", height=500, scrolling=True)
-    else:
-        st.warning(f"최근 {days}일 이내의 데이터가 없습니다.")
