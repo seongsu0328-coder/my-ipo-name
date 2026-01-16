@@ -11,55 +11,54 @@ st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 # --- CSS 스타일 ---
 st.markdown("""
     <style>
-    .stApp { background-color: #ffffff; }
-    .stage-title { 
-        text-align: center; color: #4a69bd; font-size: 42px; font-weight: 900; 
-        margin-top: 10px; margin-bottom: 20px; letter-spacing: -1.5px;
-    }
+    .stats-header { text-align: center; color: #6e8efb; margin-bottom: 20px; }
     .stats-box {
-        background-color: #f8faff; padding: 20px; border-radius: 12px;
-        text-align: center; border: 1px solid #e1e8f0;
+        background-color: #f0f4ff; padding: 15px; border-radius: 10px;
+        text-align: center; border: 1px solid #d1d9ff;
     }
-    .stats-label { font-size: 14px; color: #777; font-weight: bold; }
-    .stats-value { font-size: 22px; color: #2e4172; font-weight: 900; }
+    .stats-label { font-size: 13px; color: #555; font-weight: bold; }
+    .stats-value { font-size: 19px; color: #4a69bd; font-weight: 900; }
     
+    /* 기업명 3D 버튼 */
     div.stButton > button[key^="name_"] {
         background-color: transparent !important; border: none !important;
         color: #6e8efb !important; font-weight: 900 !important; font-size: 18px !important;
-        text-shadow: 1px 1px 0px #eeeeee, 2px 2px 0px #dddddd !important;
+        text-shadow: 1px 1px 0px #eeeeee, 2px 2px 0px #dddddd, 3px 3px 2px rgba(0,0,0,0.15) !important;
     }
+
+    /* 업종 태그 스타일 */
     .sector-tag {
         background-color: #eef2ff; color: #4f46e5; padding: 2px 8px;
         border-radius: 5px; font-size: 12px; font-weight: bold; margin-left: 10px;
         vertical-align: middle; border: 1px solid #c7d2fe;
     }
+
+    /* 메인 탐험 버튼 */
     div.stButton > button[key^="go_cal_"] {
-        display: block !important; margin: 30px auto !important;     
-        width: 320px !important; height: 80px !important;
-        font-size: 24px !important; font-weight: 900 !important;
+        display: block !important; margin: 20px auto !important;     
+        width: 280px !important; height: 85px !important;
+        font-size: 28px !important; font-weight: 900 !important;
         color: #ffffff !important;
-        background: linear-gradient(135deg, #6e8efb, #a777e3) !important;
-        border: none !important; border-radius: 50px !important;
+        background: linear-gradient(145deg, #6e8efb, #a777e3) !important;
+        border: none !important; border-radius: 20px !important;
+        text-shadow: 2px 2px 0px #4a69bd !important;
+        box-shadow: 0px 8px 0px #3c569b, 0px 15px 20px rgba(0,0,0,0.3) !important;
     }
     .report-card {
         background-color: #f8faff; padding: 20px; border-radius: 15px;
         border: 1px solid #e1e8f0; margin-bottom: 20px; min-height: 160px;
     }
-    .financial-card {
-        background-color: #fffdf7; padding: 20px; border-radius: 15px;
-        border: 1px solid #ffecb3; margin-top: 20px;
-    }
+    .status-pending { color: #ff4b4b; font-weight: bold; font-size: 14px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 세션 및 API 설정 ---
+# 세션 상태 초기화
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
+for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock']:
+    if key not in st.session_state:
+        st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('stats' if key == 'page' else 0)
 
-if 'auth_status' not in st.session_state: st.session_state.auth_status = None
-if 'page' not in st.session_state: st.session_state.page = 'stats'
-if 'swipe_idx' not in st.session_state: st.session_state.swipe_idx = 0
-if 'selected_stock' not in st.session_state: st.session_state.selected_stock = None
-
+# 데이터 호출 함수
 @st.cache_data(ttl=600)
 def get_ipo_data(api_key, days_ahead):
     today_str = datetime.now().strftime('%Y-%m-%d')
@@ -78,73 +77,117 @@ def get_ipo_data(api_key, days_ahead):
 # 🚀 화면 1: 로그인
 # ==========================================
 if st.session_state.auth_status is None:
-    st.write("<div style='text-align: center; margin-top: 80px;'><h1>🦄 Unicornfinder</h1><p>성공적인 미국 IPO 투자의 시작</p></div>", unsafe_allow_html=True)
+    st.write("<div style='text-align: center; margin-top: 50px;'><h1>🦄 Unicornfinder</h1><h3>당신의 다음 유니콘을 찾아보세요</h3></div>", unsafe_allow_html=True)
     st.divider()
-    _, col_m, _ = st.columns([1, 1.5, 1])
+    _, col_m, _ = st.columns([1, 2, 1])
     with col_m:
-        phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000")
-        if st.button("시작하기", use_container_width=True):
+        phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="login_phone")
+        c1, c2 = st.columns(2)
+        if c1.button("회원 로그인", use_container_width=True): 
             if len(phone) > 9: st.session_state.auth_status = 'user'; st.rerun()
+        if c2.button("비회원 시작", use_container_width=True): 
+            st.session_state.auth_status = 'guest'; st.rerun()
     st.stop()
 
 # ==========================================
 # 🚀 화면 2: 시장 분석
 # ==========================================
 if st.session_state.page == 'stats':
+    st.title("🦄 Unicornfinder 분석")
     stages = [
-        {"name": "유아기 유니콘", "img": "baby_unicorn.png", "avg_count": "연평균 180개", "survival_time": "약 1.5년", "survival_rate": "45%", "desc": "상장 0~2년차: 폭발적인 잠재력과 변동성이 공존하는 시기"},
-        {"name": "아동기 유니콘", "img": "child_unicorn.png", "avg_count": "연평균 120개", "survival_time": "약 4년", "survival_rate": "65%", "desc": "상장 3~5년차: 비즈니스 모델이 시장에 안착하는 시기"},
-        {"name": "성인기 유니콘", "img": "adult_unicorn.png", "avg_count": "연평균 85개", "survival_time": "약 12년", "survival_rate": "88%", "desc": "상장 6~15년차: 안정적인 이익 구조와 배당을 고민하는 시기"},
-        {"name": "노년기 유니콘", "img": "old_unicorn.png", "avg_count": "연평균 40개", "survival_time": "25년 이상", "survival_rate": "95%", "desc": "상장 20년 이상: S&P 500을 이끄는 시장의 거인들"}
+        {"name": "유아기", "img": "baby_unicorn.png", "avg_count": "연평균 180개", "survival_time": "약 1.5년", "survival_rate": "45%", "desc": "상장 0~2년차의 폭발적 성장기 기업"},
+        {"name": "아동기", "img": "child_unicorn.png", "avg_count": "연평균 120개", "survival_time": "약 4년", "survival_rate": "65%", "desc": "상장 3~5년차의 시장 안착기 기업"},
+        {"name": "성인기", "img": "adult_unicorn.png", "avg_count": "연평균 85개", "survival_time": "약 12년", "survival_rate": "88%", "desc": "안정적인 수익 구조를 갖춘 중견 기업"},
+        {"name": "노년기", "img": "old_unicorn.png", "avg_count": "연평균 40개", "survival_time": "25년 이상", "survival_rate": "95%", "desc": "S&P 500에 근접한 전통 대기업"}
     ]
     idx = st.session_state.swipe_idx
     stage = stages[idx]
-    st.markdown(f"<div class='stage-title'>{stage['name']}</div>", unsafe_allow_html=True)
-    _, b1, ci, b2, _ = st.columns([1, 0.4, 2, 0.4, 1])
-    with b1: st.write("<br><br><br><br>", unsafe_allow_html=True)
-    if b1.button("◀", key="p_btn"): st.session_state.swipe_idx = (idx-1)%4; st.rerun()
+    
+    st.markdown(f"<h2 class='stats-header'>{stage['name']} 유니콘</h2>", unsafe_allow_html=True)
+    _, b1, ci, b2, _ = st.columns([1, 0.5, 2, 0.5, 1])
+    with b1: st.write("<br><br><br>", unsafe_allow_html=True); n1 = st.button("◀", key="p_btn")
     with ci:
         if os.path.exists(stage['img']): st.image(Image.open(stage['img']), use_container_width=True)
         else: st.info(f"[{stage['name']} 이미지]")
-    with b2: st.write("<br><br><br><br>", unsafe_allow_html=True)
-    if b2.button("▶", key="n_btn"): st.session_state.swipe_idx = (idx+1)%4; st.rerun()
+    with b2: st.write("<br><br><br>", unsafe_allow_html=True); n2 = st.button("▶", key="n_btn")
+    
+    if n1: st.session_state.swipe_idx = (idx-1)%4; st.rerun()
+    if n2: st.session_state.swipe_idx = (idx+1)%4; st.rerun()
 
     c1, c2, c3 = st.columns(3)
-    with c1: st.markdown(f"<div class='stats-box'><div class='stats-label'>평균 상장 개수</div><div class='stats-value'>{stage['avg_count']}</div></div>", unsafe_allow_html=True)
+    with c1: st.markdown(f"<div class='stats-box'><div class='stats-label'>평균 IPO 개수</div><div class='stats-value'>{stage['avg_count']}</div></div>", unsafe_allow_html=True)
     with c2: st.markdown(f"<div class='stats-box'><div class='stats-label'>평균 생존 기간</div><div class='stats-value'>{stage['survival_time']}</div></div>", unsafe_allow_html=True)
     with c3: st.markdown(f"<div class='stats-box'><div class='stats-label'>기업 생존율</div><div class='stats-value'>{stage['survival_rate']}</div></div>", unsafe_allow_html=True)
     
-    if "유아기" in stage['name']:
-        if st.button("상장 캘린더 탐험하기", key="go_cal_baby"): st.session_state.page = 'calendar'; st.rerun()
+    if stage['name'] == "유아기":
+        if st.button("상장 캘린더 탐험", key="go_cal_baby"): st.session_state.page = 'calendar'; st.rerun()
+    elif stage['name'] == "아동기":
+        if st.button("성장 지표 탐험", key="go_cal_child"): st.session_state.page = 'growth_stats'; st.rerun()
 
 # ==========================================
-# 🚀 화면 3: 캘린더
+# 🚀 화면 3: 캘린더 (업종 태그 포함)
 # ==========================================
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
-    st.header("🚀 상장 예정 기업")
-    df = get_ipo_data(MY_API_KEY, 60)
+    days_ahead = st.sidebar.slider("조회 기간 설정", 1, 60, 60)
+    st.header(f"🚀 향후 {days_ahead}일 상장 예정 기업")
+    df = get_ipo_data(MY_API_KEY, days_ahead)
+
     if not df.empty:
-        df['price'] = pd.to_numeric(df['price'], errors='coerce').fillna(0)
-        df['numberOfShares'] = pd.to_numeric(df['numberOfShares'], errors='coerce').fillna(0)
+        df['price'] = pd.to_numeric(df['price'], errors='coerce')
+        df['numberOfShares'] = pd.to_numeric(df['numberOfShares'], errors='coerce')
         df['공모일'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
-        for i, row in df.iterrows():
+        result_df = df.sort_values(by='공모일').reset_index(drop=True)
+
+        st.write("---")
+        h1, h2, h3, h4 = st.columns([1.2, 4.0, 1.2, 1.8])
+        h1.write("**공모일**"); h2.write("**기업명 & 업종**"); h3.write("**희망가**"); h4.write("**공모규모**")
+        st.write("---")
+
+        for i, row in result_df.iterrows():
             col1, col2, col3, col4 = st.columns([1.2, 4.0, 1.2, 1.8])
             col1.write(row['공모일'])
-            if col2.button(row['name'], key=f"name_{i}"):
-                st.session_state.selected_stock = row.to_dict(); st.session_state.page = 'detail'; st.rerun()
-            col3.write(f"${row['price']:,.2f}")
-            col4.write(f"${(row['price']*row['numberOfShares']):,.0f}")
+            
+            with col2:
+                btn_col, tag_col = st.columns([0.7, 0.3])
+                if btn_col.button(row['name'], key=f"name_{row['symbol']}_{i}"):
+                    st.session_state.selected_stock = row.to_dict() # 딕셔너리로 저장
+                    st.session_state.page = 'detail'; st.rerun()
+                tag_col.markdown(f"<span class='sector-tag'>Tech & Services</span>", unsafe_allow_html=True)
+            
+            p, s = row['price'], row['numberOfShares']
+            col3.write(f"${p:,.2f}" if p > 0 else "미정")
+            if p > 0 and s > 0: col4.write(f"${(p*s):,.0f}")
+            else: col4.markdown("<span class='status-pending'>⚠️ 공시대기</span>", unsafe_allow_html=True)
+    else: st.info("상장 데이터가 없습니다.")
 
 # ==========================================
-# 🚀 화면 4: 상세 분석 (ValueError 해결 및 재무 데이터 보강)
+# 🚀 화면 3.5: 아동기 성장 지표
+# ==========================================
+elif st.session_state.page == 'growth_stats':
+    st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
+    st.title("📈 아동기 유니콘 성장 지표")
+    st.info("실질적 수익성을 증명해야 하는 시기입니다.")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("목표 매출 성장률", "25% ↑", "+5% vs 유아기")
+    with c2:
+        st.metric("영업 이익률 개선", "흑자 전환 시기", "Burn Rate 감소")
+
+# ==========================================
+# 🚀 화면 4: 상세 분석 (복구 및 강화 완료)
 # ==========================================
 elif st.session_state.page == 'detail':
-    stock = st.session_state.selected_stock
-    if stock:
+    stock = st.session_state.get('selected_stock')
+    
+    if stock is None:
+        st.error("기업 정보를 불러오지 못했습니다. 목록으로 돌아가주세요.")
+        if st.button("목록으로 돌아가기"): st.session_state.page = 'calendar'; st.rerun()
+    else:
         if st.button("⬅️ 목록으로"): st.session_state.page = 'calendar'; st.rerun()
-        
+
         st.title(f"🚀 {stock['name']} 상세 리서치")
+        
         cl, cr = st.columns([1, 4])
         with cl:
             logo_url = f"https://logo.clearbit.com/{stock['symbol']}.com"
@@ -153,50 +196,50 @@ elif st.session_state.page == 'detail':
         with cr:
             st.subheader(f"{stock['name']} ({stock['symbol']})")
             st.markdown(f"**업종:** <span class='sector-tag'>Technology & Software</span>", unsafe_allow_html=True)
+            st.write(f"📅 **상장 예정일:** {stock.get('공모일', '정보 없음')} | 🏦 **거래소:** {stock.get('exchange', '정보 없음')}")
             st.divider()
+            
             m1, m2, m3, m4 = st.columns(4)
+            p = pd.to_numeric(stock.get('price'), errors='coerce')
+            s = pd.to_numeric(stock.get('numberOfShares'), errors='coerce')
             
-            # [에러 수정 포인트] errors='coerce'를 명시하고 fillna(0)로 안전하게 처리
-            p = pd.to_numeric(stock.get('price'), errors='coerce') or 0
-            s = pd.to_numeric(stock.get('numberOfShares'), errors='coerce') or 0
-            
-            m1.metric("공모 희망가", f"${p:,.2f}")
-            m2.metric("예상 공모 규모", f"${(p*s):,.0f}")
-            m3.metric("유통 가능 물량", "약 25%", "S-1 기준")
-            m4.metric("보호예수", "180일", "표준")
+            m1.metric("공모 희망가", f"${p:,.2f}" if p > 0 else "미정")
+            m2.metric("예상 공모 규모", f"${(p*s):,.0f}" if p and s and p*s > 0 else "계산 불가")
+            m3.metric("유통 가능 물량", "분석 중", "S-1 참조")
+            m4.metric("보호예수 기간", "180일", "표준")
 
-        st.info(f"💡 **기업 비즈니스 요약:** {stock['name']}은(는) 혁신 기술을 보유한 IPO 유망주입니다.")
+        st.info(f"💡 **기업 비즈니스 요약:** {stock['name']}은(는) 고성능 클라우드 인프라와 AI 기반 데이터 분석 솔루션을 제공하는 기업으로, 주요 고객사는 글로벌 포춘 500대 기업들입니다.")
+        st.divider()
         
-        c1, c2 = st.columns(2)
-        with c1:
+        # 섹터 비교 및 자금 용도
+        row1_col1, row1_col2 = st.columns(2)
+        with row1_col1:
             st.markdown(f"""
                 <div class='report-card'>
-                    <h4>📊 섹터 내 비교 (Peer Comparison)</h4>
+                    <h4>📊 섹터 내 비교 (Peer Group)</h4>
                     <p>본 기업은 해당 산업 섹터에서 <b>성장성 위주</b>의 포지션을 취하고 있습니다.</p>
                     <ul>
-                        <li><b>가장 유사한 기업 (Peer):</b> {stock['symbol']} (유사한 시장 지배력)</li>
-                        <li><b>비교 분석:</b> 동종 업계 리더 대비 <b>매출 성장률이 약 15% 높으며</b>, 점유율 우위를 점하고 있습니다.</li>
+                        <li><b>비교 강점:</b> 타사 대비 높은 R&D 투자 비율 및 낮은 고객 획득 비용(CAC)</li>
                     </ul>
                 </div>
             """, unsafe_allow_html=True)
-        with c2:
-            st.markdown("<div class='report-card'><h4>💰 자금의 사용 용도</h4><ul><li><b>R&D 투자:</b> 차세대 인프라 구축</li><li><b>마케팅:</b> 글로벌 시장 점유율 확대</li></ul></div>", unsafe_allow_html=True)
+            
+        with row1_col2:
+            st.markdown(f"""
+                <div class='report-card'>
+                    <h4>💰 자금의 사용 용도 (Use of Proceeds)</h4>
+                    <p>공모를 통해 조달된 자금의 주요 사용 계획입니다.</p>
+                    <ul>
+                        <li><b>시설 투자:</b> 글로벌 데이터 센터 거점 확충</li>
+                        <li><b>전략적 인수:</b> 기술력 보완을 위한 중소 기업 M&A</li>
+                    </ul>
+                </div>
+            """, unsafe_allow_html=True)
 
+        # 공시 및 외부 링크
         clean_name = stock['name'].replace(" ", "+")
         sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?company={clean_name}&owner=exclude&action=getcompany"
-        st.link_button("📄 SEC 공식 공시(S-1) 확인", sec_url, use_container_width=True, type="primary")
-
-        # 재무 분석 섹션
-        st.markdown(f"""
-            <div class='financial-card'>
-                <h4>📈 재무 분석 (Financial Analysis)</h4>
-                <div style='display: flex; justify-content: space-around; text-align: center; margin-top: 15px;'>
-                    <div><p style='color:#777;'>최근 연매출</p><p style='font-size:20px; font-weight:bold;'>$450M</p><p style='color:green;'>▲ 28%</p></div>
-                    <div><p style='color:#777;'>영업 이익률</p><p style='font-size:20px; font-weight:bold;'>-12.5%</p><p style='color:blue;'>개선 중</p></div>
-                    <div><p style='color:#777;'>부채 비율</p><p style='font-size:20px; font-weight:bold;'>45%</p><p style='color:green;'>안정적</p></div>
-                    <div><p style='color:#777;'>현금 흐름(FCF)</p><p style='font-size:20px; font-weight:bold;'>$12M</p><p style='color:green;'>흑자 전환</p></div>
-                </div>
-                <hr style='border: 0.5px solid #ffecb3; margin: 15px 0;'>
-                <p>⚠️ <b>전문가 의견:</b> 높은 성장세 대비 영업 적자 상태이나, 공모 자금을 통해 재무 건전성이 비약적으로 상승할 것으로 전망됩니다.</p>
-            </div>
-        """, unsafe_allow_html=True)
+        
+        l1, l2 = st.columns(2)
+        l1.link_button("📄 SEC 공식 공시(S-1) 확인", sec_url, use_container_width=True, type="primary")
+        l2.link_button("📈 Yahoo Finance 재무 데이터", f"https://finance.yahoo.com/quote/{stock['symbol']}", use_container_width=True)
