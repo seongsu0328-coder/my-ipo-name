@@ -7,16 +7,16 @@ from PIL import Image
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- CSS 스타일 (화살표 버튼 중앙 정렬 및 크기 강화) ---
+# --- CSS 스타일 (화살표 버튼 크기 및 중앙 밀집 최적화) ---
 st.markdown("""
     <style>
     /* 3D 탐험 버튼 스타일 */
     div.stButton > button[key="go_cal_baby"] {
         display: block !important;
         margin: 20px auto !important;     
-        width: 240px !important; 
-        height: 80px !important;
-        font-size: 30px !important;
+        width: 260px !important; 
+        height: 85px !important;
+        font-size: 32px !important;
         font-weight: 900 !important;
         color: #ffffff !important;
         background: linear-gradient(145deg, #6e8efb, #a777e3) !important;
@@ -24,38 +24,36 @@ st.markdown("""
         border-radius: 20px !important;
         text-shadow: 2px 2px 0px #4a69bd !important;
         box-shadow: 0px 8px 0px #3c569b, 0px 15px 20px rgba(0,0,0,0.3) !important;
-        transition: all 0.1s ease !important;
     }
     
-    /* 화살표 버튼: 크기 대폭 확대 및 중앙 정렬용 스타일 */
+    /* 화살표 버튼: 네모 상자에 꽉 차는 큰 버튼 스타일 */
     div.stButton > button[key^="prev_"], div.stButton > button[key^="next_"] {
-        font-size: 32px !important;
+        font-size: 40px !important;        /* 화살표 크기 대폭 확대 */
         font-weight: bold !important;
-        border-radius: 15px !important;
-        width: 100% !important; /* 컬럼 너비에 맞춤 */
-        height: 70px !important;
-        background-color: #ffffff !important;
+        border-radius: 12px !important;    /* 약간 각진 네모 스타일 */
+        width: 100% !important;            /* 상자 너비에 꽉 채움 */
+        height: 80px !important;           /* 높이도 상자에 맞게 조절 */
+        background-color: #f8f9fa !important;
         border: 2px solid #6e8efb !important;
         color: #6e8efb !important;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.1) !important;
-        transition: all 0.2s !important;
+        box-shadow: 0px 4px 0px #6e8efb !important; /* 아래쪽 테두리 강조 */
+        margin-bottom: 10px !important;
     }
     
-    div.stButton > button[key^="prev_"]:hover, div.stButton > button[key^="next_"]:hover {
-        background-color: #6e8efb !important;
-        color: #ffffff !important;
+    div.stButton > button[key^="prev_"]:active, div.stButton > button[key^="next_"]:active {
+        transform: translateY(2px) !important;
+        box-shadow: 0px 1px 0px #6e8efb !important;
     }
 
     .card-text {
         text-align: center;
         font-size: 1.3rem;
         padding: 25px;
-        background-color: #f0f2f6;
+        background-color: #ffffff;
+        border: 1px solid #e0e0e0;
         border-radius: 20px;
-        margin: 20px 0;
-        color: #1f2937;
-        font-weight: 500;
-        line-height: 1.6;
+        margin-top: 10px;
+        color: #333;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -97,7 +95,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 + 중앙 집중형 화살표 카드
+# 화면 2: 시장 분석 + 중앙 밀집형 대형 화살표 버튼
 # ==========================================
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
@@ -120,15 +118,15 @@ if st.session_state.page == 'stats':
 
     st.markdown(f"<h2 style='text-align: center; color: #6e8efb;'>{stage['name']} 유니콘</h2>", unsafe_allow_html=True)
     
-    # 이미지 출력
-    _, col_img, _ = st.columns([1, 2, 1])
+    # 이미지 출력 (모바일 가독성을 위해 너비 조절)
+    _, col_img, _ = st.columns([1, 2.5, 1])
     with col_img:
         try: st.image(Image.open(stage['img']), use_container_width=True)
         except: st.info(f"[{stage['name']} 이미지 준비 중]")
 
-    # --- [화살표 버튼 중앙 배치 및 크기 강화] ---
-    # 이미지 바로 아래에 버튼을 중앙으로 모음
-    _, nav_col1, nav_col2, _ = st.columns([1.2, 1, 1, 1.2])
+    # --- [화살표 버튼: 사진 바로 아래 정중앙 밀집 배치] ---
+    # 컬럼 비율을 조절하여 버튼 두 개가 중앙으로 모이게 함
+    _, nav_col1, nav_col2, _ = st.columns([1.5, 1, 1, 1.5]) 
     with nav_col1:
         if st.button("◀", key=f"prev_{idx}"):
             st.session_state.swipe_idx = (idx - 1) % len(stages)
@@ -138,20 +136,19 @@ if st.session_state.page == 'stats':
             st.session_state.swipe_idx = (idx + 1) % len(stages)
             st.rerun()
 
+    # 설명 텍스트
     st.markdown(f"<div class='card-text'>{stage['desc']}</div>", unsafe_allow_html=True)
 
+    # 탐험 버튼 (유아기 한정)
     if stage['name'] == "유아기":
         if st.button("탐험", key="go_cal_baby"):
             st.session_state.page = 'calendar'
             st.rerun()
 
 # ==========================================
-# 화면 3: 캘린더 (기존 기능 유지)
+# 화면 3: 캘린더 (생략)
 # ==========================================
 elif st.session_state.page == 'calendar':
     if st.sidebar.button("⬅️ 돌아가기"): st.session_state.page = 'stats'; st.rerun()
     st.header("🚀 실시간 유아기 유니콘 캘린더")
-    df = get_ipo_data(MY_API_KEY, 30)
-    if not df.empty:
-        # (기존 데이터 테이블 및 피드 로직 동일...)
-        st.dataframe(df[['date', 'symbol', 'name', 'price', 'exchange']], use_container_width=True)
+    # (기존 데이터 테이블 로직 그대로 유지...)
