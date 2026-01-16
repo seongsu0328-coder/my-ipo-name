@@ -28,12 +28,12 @@ st.markdown("""
     
     /* 화살표 버튼: 칼럼 상자 안에 꽉 차고 정중앙에 위치 */
     div.stButton > button[key^="prev_"], div.stButton > button[key^="next_"] {
-        font-size: 50px !important;        /* 화살표 크기 극대화 */
+        font-size: 50px !important;
         font-weight: 900 !important;
         padding: 0px !important;
         border-radius: 12px !important;
         width: 100% !important;
-        height: 85px !important;           /* 상자 안에 꽉 차는 높이 */
+        height: 85px !important;
         background-color: #ffffff !important;
         border: 3px solid #6e8efb !important;
         color: #6e8efb !important;
@@ -48,7 +48,6 @@ st.markdown("""
         box-shadow: 0px 2px 0px #6e8efb !important;
     }
 
-    /* 메트릭 및 텍스트 스타일 */
     [data-testid="stMetricValue"] { font-size: 28px !important; font-weight: bold !important; color: #1f77b4 !important; }
     .card-text {
         text-align: center; font-size: 1.3rem; padding: 25px;
@@ -68,7 +67,7 @@ if 'swipe_idx' not in st.session_state: st.session_state.swipe_idx = 0
 # --- 데이터 로직 함수 ---
 @st.cache_data(ttl=86400)
 def get_market_stats(api_key):
-    return 154, 280, 48.5  # 올해 상장, 10년 평균, 생존율
+    return 154, 280, 48.5 
 
 @st.cache_data(ttl=600)
 def get_ipo_data(api_key, days_ahead):
@@ -82,7 +81,7 @@ def get_ipo_data(api_key, days_ahead):
     except: return pd.DataFrame()
 
 # ==========================================
-# 화면 1: 진입 화면 (로그인 방식 복구)
+# 화면 1: 진입 화면
 # ==========================================
 if st.session_state.auth_status is None:
     st.write("<div style='text-align: center; margin-top: 50px;'><h1>🦄 Unicornfinder</h1><h3>당신의 다음 유니콘을 찾아보세요</h3></div>", unsafe_allow_html=True)
@@ -101,12 +100,10 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 + 중앙 밀집 대형 화살표 카드
+# 화면 2: 시장 분석 + 화살표 카드
 # ==========================================
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
-    
-    # 상단 지표 섹션
     count_this_year, avg_10y, survival_rate = get_market_stats(MY_API_KEY)
     c1, c2, c3 = st.columns(3)
     c1.metric("올해 상장", f"{count_this_year}건")
@@ -126,13 +123,11 @@ if st.session_state.page == 'stats':
 
     st.markdown(f"<h2 style='text-align: center; color: #6e8efb;'>{stage['name']} 유니콘</h2>", unsafe_allow_html=True)
     
-    # 이미지 중앙 배치
     _, col_img, _ = st.columns([1, 2, 1])
     with col_img:
         try: st.image(Image.open(stage['img']), use_container_width=True)
         except: st.info(f"[{stage['name']} 이미지 준비중]")
 
-    # --- [화살표: 사진 정중앙 하단에 밀집 및 꽉 차게 배치] ---
     _, nav_col1, nav_col2, _ = st.columns([1.8, 0.7, 0.7, 1.8]) 
     with nav_col1:
         if st.button("◀", key=f"prev_{idx}"):
@@ -145,14 +140,13 @@ if st.session_state.page == 'stats':
 
     st.markdown(f"<div class='card-text'>{stage['desc']}</div>", unsafe_allow_html=True)
 
-    # 유아기 전용 3D 탐험 버튼
     if stage['name'] == "유아기":
         if st.button("탐험", key="go_cal_baby"):
             st.session_state.page = 'calendar'
             st.rerun()
 
 # ==========================================
-# 화면 3: 캘린더 (공시/재무/피드 복구)
+# 화면 3: 캘린더 (분석 피드 제거됨)
 # ==========================================
 elif st.session_state.page == 'calendar':
     if st.sidebar.button("⬅️ 돌아가기"):
@@ -176,12 +170,6 @@ elif st.session_state.page == 'calendar':
             },
             hide_index=True, use_container_width=True
         )
-        
-        st.divider()
-        st.subheader("💬 실시간 분석 피드 (Stocktwits)")
-        selected_stock = st.selectbox("분석할 기업 선택", display_df['기업명'].tolist())
-        if selected_stock:
-            ticker = display_df[display_df['기업명'] == selected_stock]['티커'].values[0]
-            st.components.v1.iframe(f"https://stocktwits.com/symbol/{ticker}", height=500, scrolling=True)
+        st.info("💡 티커별 공시 및 재무 지표를 확인하려면 우측의 링크 버튼을 클릭하세요.")
     else:
-        st.warning("조회된 데이터가 없습니다.")
+        st.warning("현재 조회된 유아기 유니콘 데이터가 없습니다.")
