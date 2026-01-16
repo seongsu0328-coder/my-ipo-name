@@ -67,4 +67,6 @@ if st.session_state.auth_status is None:
     col1, col2 = st.columns(2)
     with col1:
         st.info("### 📱 휴대폰 가입")
-        phone_number = st.text_input("휴대폰 번호", placeholder="0
+        # 아래 줄이 잘리지 않도록 주의해서 복사해주세요!
+        phone_number = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="phone_input")
+        if st.button("Unicornfinder 시작하기", use_container_width=
