@@ -16,11 +16,11 @@ st.markdown("""
     /* 1. 버튼 내부 글자가 모바일에서도 잘 보이도록 설정 */
     div.stButton > button {
         border: 1px solid #ddd !important;
-        background-color: #ffffff !important; /* 배경을 흰색으로 고정 */
-        color: #333333 !important;           /* 글자색을 진한 회색으로 고정 */
-        padding: 10px 2px !important;        /* 좌우 패딩 최소화 */
+        background-color: #ffffff !important; 
+        color: #333333 !important;           
+        padding: 10px 2px !important;        
         border-radius: 10px !important;
-        font-size: 16px !important;          /* 모바일 적정 폰트 크기 */
+        font-size: 16px !important;          
         font-weight: bold !important;
         width: 100% !important;
         display: block !important;
@@ -34,6 +34,11 @@ st.markdown("""
     /* 3. 이미지 테두리 둥글게 */
     [data-testid="stImage"] img {
         border-radius: 12px;
+    }
+
+    /* 4. '탐험' 버튼 등 특정 강조 버튼 스타일 (선택사항) */
+    .stButton button:active {
+        background-color: #fffdde !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -120,8 +125,8 @@ if st.session_state.page == 'stats':
         try: st.image(Image.open("baby_unicorn.png"), use_container_width=True)
         except: st.write("사진: baby_unicorn.png")
         if st.button("유아기", key="btn_baby", use_container_width=True):
-            st.info("**[유아기]** 상장 0~2년차 기업. 평균 존속 2.1년.")
-            if st.button("실시간 캘린더 이동", key="go_cal_baby"):
+            st.info("**[유아기 유니콘]** 상장 0~2년차 기업입니다. 가장 변동성이 크며, **평균 존속 기간은 2.1년**입니다.")
+            if st.button("탐험", key="go_cal_baby"):
                 st.session_state.page = 'calendar'
                 st.rerun()
 
@@ -130,7 +135,7 @@ if st.session_state.page == 'stats':
         try: st.image(Image.open("child_unicorn.png"), use_container_width=True)
         except: st.write("사진: child_unicorn.png")
         if st.button("아동기", key="btn_child", use_container_width=True):
-            st.success("**[아동기]** 상장 3~5년차 기업. 평균 존속 5.4년.")
+            st.success("**[아동기 유니콘]** 상장 3~5년차 기업으로 시장에 안착하는 단계입니다. **평균 존속 기간은 5.4년**입니다.")
 
     st.write("") 
 
@@ -140,14 +145,14 @@ if st.session_state.page == 'stats':
         try: st.image(Image.open("adult_unicorn.png"), use_container_width=True)
         except: st.write("사진: adult_unicorn.png")
         if st.button("성인기", key="btn_adult", use_container_width=True):
-            st.warning("**[성인기]** 미국 중견기업 단계. 평균 존속 12.5년.")
+            st.warning("**[성인기 유니콘]** 미국 중견기업 단계입니다. 상장 후 **평균 12.5년**을 생존합니다.")
 
     # --- [노년기] ---
     with row2_col2:
         try: st.image(Image.open("old_unicorn.png"), use_container_width=True)
         except: st.write("사진: old_unicorn.png")
         if st.button("노년기", key="btn_old", use_container_width=True):
-            st.error("**[노년기]** S&P500 대기업 단계. 평균 존속 22년 이상.")
+            st.error("**[노년기 유니콘]** S&P500급 대기업 단계입니다. 상장 후 **평균 22년 이상**의 장기 생존력을 가집니다.")
 
 # ==========================================
 # 화면 3: 메인 IPO 캘린더
