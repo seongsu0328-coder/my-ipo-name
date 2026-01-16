@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 
-# 1. 페이지 설정 (브라우저 탭 이름 및 아이콘)
+# 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder - 미국 IPO 추적기", layout="wide", page_icon="🦄")
 
 # API 키 설정
@@ -24,7 +24,7 @@ if 'page' not in st.session_state:
     st.session_state.page = 'stats'
 
 # --- 데이터 분석 함수 ---
-@st.cache_data(ttl=86400) # 통계 데이터는 24시간마다 갱신
+@st.cache_data(ttl=86400)
 def get_market_stats(api_key):
     current_year = datetime.now().year
     base_url = "https://finnhub.io/api/v1/calendar/ipo"
@@ -36,7 +36,7 @@ def get_market_stats(api_key):
         count_this_year = 0
     return count_this_year, 280
 
-@st.cache_data(ttl=600) # 캘린더 데이터는 10분마다 갱신
+@st.cache_data(ttl=600)
 def get_ipo_data(api_key, days_ahead):
     base_url = "https://finnhub.io/api/v1/calendar/ipo"
     start_date = datetime.now().strftime('%Y-%m-%d')
@@ -49,7 +49,36 @@ def get_ipo_data(api_key, days_ahead):
         return pd.DataFrame()
 
 # ==========================================
-# 화면 1: 진입 화면 (로그인 및 가입)
+# 화면 1: 진입 화면 (로그인)
 # ==========================================
 if st.session_state.auth_status is None:
-    st.markdown("<div style='text-align: center;'><h1 style='font-
+    # 55번 줄 에러 방지를 위해 3중 따옴표 방식으로 안전하게 작성
+    st.markdown("""
+        <div style='text-align: center;'>
+            <h1 style='font-size: 70px;'>🦄</h1>
+            <h1>Unicornfinder</h1>
+            <h3>당신의 다음 유니콘을 찾아보세요</h3>
+        </div>
+    """, unsafe_allow_html=True)
+    st.divider()
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info("### 📱 휴대폰 가입")
+        phone_number = st.text_input("휴대폰 번호", placeholder="010-0000-0000")
+        if st.button("Unicornfinder 시작하기", use_container_width=True):
+            if len(phone_number) > 9:
+                st.session_state.auth_status = 'user'
+                st.rerun()
+            else:
+                st.error("올바른 번호를 입력해 주세요.")
+    with col2:
+        st.success("### 👤 게스트 접속")
+        st.write("가입 없이 서비스를 둘러봅니다.")
+        if st.button("비회원으로 시작하기", use_container_width=True):
+            st.session_state.auth_status = 'guest'
+            st.rerun()
+    st.stop()
+
+# ==========================================
+# 화면 2: 시장 분석 통
