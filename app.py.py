@@ -84,7 +84,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 및 2x2 유니콘 선택
+# 화면 2: 시장 분석 및 2x2 유니콘 선택 (설명 텍스트 제거)
 # ==========================================
 if st.session_state.page == 'stats':
     display_logo_title("Unicornfinder 시장 분석")
@@ -98,31 +98,29 @@ if st.session_state.page == 'stats':
         market_status = f"평균 대비 -{abs(int(diff))}건 (둔화 📉)"
         status_color = "inverse"
 
-    st.write(f"📅 실시간 분석 기준: {datetime.now().strftime('%Y-%m-%d')}")
+    st.write(f"📅 분석 기준: {datetime.now().strftime('%Y-%m-%d')}")
     
+    # 상단 지표
     c1, c2, c3 = st.columns(3)
-    c1.metric("올해 상장 건수", f"{count_this_year}건", delta="실시간 집계")
+    c1.metric("올해 상장 건수", f"{count_this_year}건")
     c2.metric("10년 연평균 상장", f"{avg_10y}건", delta=market_status, delta_color=status_color)
     c3.metric("5년 평균 생존율", "48.5%", delta="-51.5% 탈락 위험", delta_color="inverse")
 
     st.divider()
     
-    st.subheader("🧬 IPO 기업 생애 주기별 유니콘")
-    st.write("확인하고 싶은 단계의 유니콘을 클릭하세요.")
-    
-    # --- 2x2 유니콘 배치 시작 ---
+    # --- 2x2 유니콘 배치 (설명 문구 없이 바로 배치) ---
     row1_col1, row1_col2 = st.columns(2)
     with row1_col1:
         st.markdown("### 🍼 유아 유니콘")
         st.caption("상장 직후 ~ 2년 (생존 투쟁기)")
-        if st.button("IPO 캘린더 보기 ➡️", key="btn_infant_grid", use_container_width=True):
+        if st.button("실시간 캘린더 보기 ➡️", key="btn_infant_grid", use_container_width=True):
             st.session_state.page = 'calendar'
             st.rerun()
             
     with row1_col2:
         st.markdown("### 🎈 아동 유니콘")
         st.caption("상장 3년 ~ 5년 (시장 안착기)")
-        if st.button("분석 준비 중...", key="btn_child_grid", use_container_width=True):
+        if st.button("분석 데이터 준비 중", key="btn_child_grid", use_container_width=True):
             st.toast("아동 유니콘 데이터 분석 준비 중입니다!")
 
     st.write("") # 간격 조절용
@@ -130,19 +128,18 @@ if st.session_state.page == 'stats':
     row2_col1, row2_col2 = st.columns(2)
     with row2_col1:
         st.markdown("### 👔 성인 유니콘")
-        st.caption("중견기업(Mid-Cap) 편입 (수익 안정기)")
-        if st.button("분석 준비 중...", key="btn_adult_grid", use_container_width=True):
+        st.caption("중견기업(Mid-Cap) 편입")
+        if st.button("분석 데이터 준비 중", key="btn_adult_grid", use_container_width=True):
             st.toast("성인 유니콘 데이터 분석 준비 중입니다!")
             
     with row2_col2:
         st.markdown("### 🏛️ 노년 유니콘")
-        st.caption("대기업(Large-Cap) 편입 (시장 지배기)")
-        if st.button("분석 준비 중...", key="btn_old_grid", use_container_width=True):
+        st.caption("대기업(Large-Cap) 편입")
+        if st.button("분석 데이터 준비 중", key="btn_old_grid", use_container_width=True):
             st.toast("노년 유니콘 데이터 분석 준비 중입니다!")
-    # --- 2x2 배치 끝 ---
 
     st.divider()
-    st.info(f"💡 현재 올해 IPO 속도는 **{market_status}**입니다. 초기 투자 리스크를 줄이려면 '유아 유니콘'의 실시간 데이터를 면밀히 검토하세요.")
+    st.info(f"💡 현재 IPO 시장 속도는 **{market_status}**입니다. 초기 투자 시 '유아 유니콘'의 캘린더를 통해 향후 상장 일정을 확인하세요.")
 
 # ==========================================
 # 화면 3: 메인 IPO 캘린더
@@ -154,7 +151,7 @@ elif st.session_state.page == 'calendar':
         st.session_state.page = 'stats'
         st.rerun()
     
-    if st.sidebar.button("⬅️ 통계 화면으로"):
+    if st.sidebar.button("⬅️ 분석 화면으로"):
         st.session_state.page = 'stats'
         st.rerun()
     
@@ -180,18 +177,4 @@ elif st.session_state.page == 'calendar':
         st.data_editor(
             display_df,
             column_config={
-                "공시": st.column_config.LinkColumn(display_text="보기"),
-                "재무": st.column_config.LinkColumn(display_text="보기"),
-                "토론": st.column_config.LinkColumn(display_text="참여"),
-            },
-            hide_index=True, use_container_width=True, disabled=True
-        )
-        
-        st.divider()
-        st.subheader("💬 실시간 분석 피드")
-        selected_stock = st.selectbox("기업 선택", display_df['기업명'].tolist())
-        if selected_stock:
-            ticker = display_df[display_df['기업명'] == selected_stock]['티커'].values[0]
-            st.components.v1.iframe(f"https://stocktwits.com/symbol/{ticker}", height=600, scrolling=True)
-    else:
-        st.warning("데이터가 없습니다.")
+                "공시":
