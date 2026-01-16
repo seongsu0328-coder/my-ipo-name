@@ -62,18 +62,18 @@ if st.session_state.auth_status is None:
     col1, col2 = st.columns(2)
     with col1:
         phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="phone_input")
-        if st.button("시작하기", use_container_width=True):
+        if st.button("시작하기", key="start_btn", use_container_width=True):
             if len(phone) > 9:
                 st.session_state.auth_status = 'user'
                 st.rerun()
     with col2:
-        if st.button("비회원으로 시작하기", use_container_width=True):
+        if st.button("비회원으로 시작하기", key="guest_btn", use_container_width=True):
             st.session_state.auth_status = 'guest'
             st.rerun()
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 및 커스텀 이미지 버튼
+# 화면 2: 시장 분석 및 이미지 타일 메뉴
 # ==========================================
 if st.session_state.page == 'stats':
     display_logo_title("Unicornfinder 시장 분석")
@@ -85,69 +85,92 @@ if st.session_state.page == 'stats':
     c3.metric("5년 평균 생존율", "48.5%")
     st.divider()
 
-    # --- 이미지 버튼 디자인 CSS ---
     st.markdown("""
         <style>
         div.stButton > button {
-            border: none !important;
-            background-color: #f0f2f6 !important;
+            border: 1px solid #ddd !important;
+            background-color: #ffffff !important;
             padding: 10px !important;
-            border-radius: 10px !important;
+            border-radius: 8px !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
     row1_col1, row1_col2 = st.columns(2)
-    
     with row1_col1:
         try:
-            # 업로드한 이미지 불러오기
             img = Image.open("baby_unicorn.png")
             st.image(img, use_container_width=True)
-            # 이미지 바로 아래 버튼 배치
-            if st.button("🍼 유아 유니콘 데이터 보기", use_container_width=True):
+            if st.button("🍼 유아 유니콘 데이터 확인", use_container_width=True):
                 st.session_state.page = 'calendar'
                 st.rerun()
-        except:
-            # 사진이 없을 경우 대비
-            st.warning("baby_unicorn.png 파일을 업로드해주세요.")
+        except FileNotFoundError:
+            st.warning("baby_unicorn.png 파일을 찾을 수 없습니다.")
             if st.button("🍼 유아 유니콘 (임시 버튼)", use_container_width=True):
                 st.session_state.page = 'calendar'
                 st.rerun()
-        st.markdown("<p style='text-align: center;'>상장 0~2년차 / 평균 존속 <b>2.1년</b></p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center;'><b>[유아]</b> 상장 0~2년차<br>평균 존속 <b>2.1년</b></p>", unsafe_allow_html=True)
 
     with row1_col2:
-        # 아동 유니콘 (동일한 방식으로 사진 추가 가능)
-        st.write("# 🎈") # 임시 아이콘
+        st.write("<h1 style='text-align: center;'>🎈</h1>", unsafe_allow_html=True)
         if st.button("아동 유니콘 분석 준비중", use_container_width=True):
-            st.toast("데이터 준비 중입니다.")
-        st.markdown("<p style='text-align: center;'>상장 3~5년차 / 평균 존속 <b>5.4년</b></p>", unsafe_allow_html=True)
-
-    st.write("") # 간격
+            st.toast("데이터를 수집 중입니다.")
+        st.markdown("<p style='text-align: center;'><b>[아동]</b> 상장 3~5년차<br>평균 존속 <b>5.4년</b></p>", unsafe_allow_html=True)
 
     row2_col1, row2_col2 = st.columns(2)
     with row2_col1:
-        st.write("# 👔")
+        st.write("<h1 style='text-align: center;'>👔</h1>", unsafe_allow_html=True)
         st.button("성인 유니콘 준비중", use_container_width=True)
+        st.markdown("<p style='text-align: center;'><b>[성인]</b> 미국 중견기업<br>상장 후 평균 <b>12.5년</b></p>", unsafe_allow_html=True)
     with row2_col2:
-        st.write("# 🏛️")
+        st.write("<h1 style='text-align: center;'>🏛️</h1>", unsafe_allow_html=True)
         st.button("노년 유니콘 준비중", use_container_width=True)
+        st.markdown("<p style='text-align: center;'><b>[노년]</b> 미국 대기업<br>상장 후 평균 <b>22년 이상</b></p>", unsafe_allow_html=True)
 
 # ==========================================
 # 화면 3: 메인 IPO 캘린더
 # ==========================================
 elif st.session_state.page == 'calendar':
-    st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
-    display_logo_title("실시간 IPO 캘린더")
+    if st.sidebar.button("⬅️ 분석 화면으로"):
+        st.session_state.page = 'stats'
+        st.rerun()
     
-    df = get_ipo_data(MY_API_KEY, 30)
+    st.sidebar.divider()
+    days = st.sidebar.slider("전망 기간 설정(일)", 7, 90, 30)
+    exclude_spac = st.sidebar.checkbox("SPAC 제외", value=True)
+
+    display_logo_title("유아 유니콘: 실시간 캘린더")
+    
+    df = get_ipo_data(MY_API_KEY, days)
+
     if not df.empty:
-        st.dataframe(df[['date', 'symbol', 'name', 'price', 'exchange']], use_container_width=True)
+        if exclude_spac:
+            df = df[~df['name'].str.contains('SPAC|Acquisition|Unit|Blank Check', case=False, na=False)]
+        
+        display_df = df[['date', 'symbol', 'name', 'price', 'numberOfShares', 'exchange']].copy()
+        
+        # --- 끊겼던 부분: 링크 생성 ---
+        display_df['📄 공시'] = display_df['symbol'].apply(lambda x: f"https://www.sec.gov/cgi-bin/browse-edgar?CIK={x}")
+        display_df['📊 재무'] = display_df['symbol'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}/financials")
+        display_df['💬 토론'] = display_df['symbol'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}/community")
+        
+        display_df.columns = ['상장일', '티커', '기업명', '가격', '주식수', '거래소', '공시', '재무', '토론']
+
+        st.data_editor(
+            display_df,
+            column_config={
+                "공시": st.column_config.LinkColumn(display_text="보기"),
+                "재무": st.column_config.LinkColumn(display_text="보기"),
+                "토론": st.column_config.LinkColumn(display_text="참여"),
+            },
+            hide_index=True, use_container_width=True, disabled=True
+        )
         
         st.divider()
         st.subheader("💬 실시간 분석 피드")
-        selected_stock = st.selectbox("기업 선택", df['name'].tolist())
-        ticker = df[df['name'] == selected_stock]['symbol'].values[0]
-        st.components.v1.iframe(f"https://stocktwits.com/symbol/{ticker}", height=600, scrolling=True)
+        selected_stock = st.selectbox("분석할 기업 선택", display_df['기업명'].tolist())
+        if selected_stock:
+            ticker = display_df[display_df['기업명'] == selected_stock]['티커'].values[0]
+            st.components.v1.iframe(f"https://stocktwits.com/symbol/{ticker}", height=600, scrolling=True)
     else:
-        st.warning("상장 예정 데이터가 없습니다.")
+        st.warning("데이터가 없습니다.")
