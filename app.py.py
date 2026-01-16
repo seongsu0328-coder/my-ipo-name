@@ -49,8 +49,8 @@ st.markdown("""
     
     /* 투표 섹션 스타일 */
     .vote-container {
-        padding: 20px; background-color: #fdfdfd; border-radius: 15px;
-        border: 1px dashed #d1d9ff; margin-top: 30px;
+        padding: 25px; background-color: #fdfdfd; border-radius: 15px;
+        border: 1px dashed #6e8efb; margin-top: 30px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -59,7 +59,7 @@ st.markdown("""
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data']:
     if key not in st.session_state:
-        if key == 'vote_data': st.session_state[key] = {} # 기업별 투표 저장소
+        if key == 'vote_data': st.session_state[key] = {} 
         else: st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('stats' if key == 'page' else 0)
 
 # 데이터 호출 함수
@@ -78,7 +78,7 @@ def get_ipo_data(api_key, days_ahead):
     except: return pd.DataFrame()
 
 # ==========================================
-# 🚀 화면 1: 로그인 (기존 동일)
+# 🚀 화면 1: 로그인
 # ==========================================
 if st.session_state.auth_status is None:
     st.write("<div style='text-align: center; margin-top: 50px;'><h1>🦄 Unicornfinder</h1><h3>당신의 다음 유니콘을 찾아보세요</h3></div>", unsafe_allow_html=True)
@@ -94,7 +94,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 🚀 화면 2: 시장 분석 (기존 동일)
+# 🚀 화면 2: 시장 분석
 # ==========================================
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
@@ -129,7 +129,7 @@ if st.session_state.page == 'stats':
         if st.button("성장 지표 탐험", key="go_cal_child"): st.session_state.page = 'growth_stats'; st.rerun()
 
 # ==========================================
-# 🚀 화면 3: 캘린더 (기존 동일)
+# 🚀 화면 3: 캘린더
 # ==========================================
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
@@ -164,7 +164,7 @@ elif st.session_state.page == 'calendar':
             else: col4.markdown("<span class='status-pending'>⚠️ 공시대기</span>", unsafe_allow_html=True)
 
 # ==========================================
-# 🚀 화면 4: 상세 분석 (투표 기능 통합됨!)
+# 🚀 화면 4: 상세 분석 (Investor Expectation 투표 포함)
 # ==========================================
 elif st.session_state.page == 'detail':
     stock = st.session_state.get('selected_stock')
@@ -194,40 +194,38 @@ elif st.session_state.page == 'detail':
 
         st.info(f"💡 **기업 비즈니스 요약:** {stock['name']}은(는) 혁신 기술을 보유한 IPO 유망주입니다.")
         
-        # 중간 분석 카드들...
         l1, l2 = st.columns(2)
         l1.link_button("📄 SEC 공식 공시(S-1) 확인", f"https://www.sec.gov/cgi-bin/browse-edgar?company={stock['name'].replace(' ', '+')}", use_container_width=True, type="primary")
         l2.link_button("📈 Yahoo Finance 데이터", f"https://finance.yahoo.com/quote/{stock['symbol']}", use_container_width=True)
 
-        # 🗳️ [추가] 투표 및 시각화 섹션
+        # 🗳️ [최종 수정] Investor Expectation 섹션
         st.markdown("<div class='vote-container'>", unsafe_allow_html=True)
-        st.subheader("🗳️ Investor Sentiment: 유니콘인가, 추락인가?")
-        st.write("이 기업의 미래 가치에 투표해 주세요.")
+        st.subheader("🗳️ Investor Expectation: Unicorn vs Fallen Angel")
+        st.write("이 기업에 대해 당신은 어떤 성장을 기대하시나요?")
 
-        # 투표 데이터 세션 초기화 (현재 기업 심볼 기준)
         s_id = stock['symbol']
         if s_id not in st.session_state.vote_data:
-            st.session_state.vote_data[s_id] = {'unicorn': 10, 'fallen': 10} # 기본 샘플값
+            st.session_state.vote_data[s_id] = {'unicorn': 12, 'fallen': 8} # 초기 예시값
 
         v_col1, v_col2 = st.columns(2)
-        if v_col1.button("🦄 Unicorn (매우 유망)", use_container_width=True, key=f"v_u_{s_id}"):
+        if v_col1.button("🦄 Unicorn (성장 기대)", use_container_width=True, key=f"v_u_{s_id}"):
             st.session_state.vote_data[s_id]['unicorn'] += 1
-            st.toast(f"{stock['name']}에 유니콘 표를 던졌습니다!", icon="🦄")
+            st.toast(f"{stock['name']}의 성장을 응원했습니다!", icon="🦄")
         
         if v_col2.button("💸 Fallen Angel (하락 우려)", use_container_width=True, key=f"v_f_{s_id}"):
             st.session_state.vote_data[s_id]['fallen'] += 1
-            st.toast(f"신중한 한 표를 기록했습니다.", icon="💸")
+            st.toast(f"신중한 관점을 기록했습니다.", icon="💸")
 
-        # 결과 계산 및 시각화
+        # 시각화 결과
         u_v = st.session_state.vote_data[s_id]['unicorn']
         f_v = st.session_state.vote_data[s_id]['fallen']
         total_v = u_v + f_v
         u_ratio = u_v / total_v if total_v > 0 else 0.5
 
-        st.write(f"**현재 참여도: {total_v}명**")
-        st.progress(u_ratio) # 유니콘 비율 시각화
+        st.write(f"**현재 참여 현황: {total_v}명**")
+        st.progress(u_ratio) 
         
         r1, r2 = st.columns(2)
-        r1.markdown(f"**🦄 Unicorn:** {int(u_ratio*100)}% ({u_v}표)")
-        r2.markdown(f"**💸 Fallen Angel:** {int((1-u_ratio)*100)}% ({f_v}표)")
+        r1.markdown(f"**🦄 Unicorn Expectation:** {int(u_ratio*100)}% ({u_v}표)")
+        r2.markdown(f"**💸 Fallen Angel Risk:** {int((1-u_ratio)*100)}% ({f_v}표)")
         st.markdown("</div>", unsafe_allow_html=True)
