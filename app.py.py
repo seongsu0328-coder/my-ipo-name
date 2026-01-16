@@ -54,7 +54,7 @@ def get_ipo_data(api_key, days_ahead):
         return pd.DataFrame()
 
 # ==========================================
-# 화면 1: 진입 화면 (로그인)
+# 화면 1: 진입 화면
 # ==========================================
 if st.session_state.auth_status is None:
     st.write("<div style='text-align: center;'>", unsafe_allow_html=True)
@@ -84,7 +84,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 화면 2: 시장 분석 통계 (그래프 제거 버전)
+# 화면 2: 시장 분석 및 생애 주기 유니콘 선택
 # ==========================================
 if st.session_state.page == 'stats':
     display_logo_title("Unicornfinder 시장 분석")
@@ -100,28 +100,53 @@ if st.session_state.page == 'stats':
 
     st.write(f"📅 실시간 분석 기준: {datetime.now().strftime('%Y-%m-%d')}")
     
-    # 지표 레이아웃
     c1, c2, c3 = st.columns(3)
     c1.metric("올해 상장 건수", f"{count_this_year}건", delta="실시간 집계")
     c2.metric("10년 연평균 상장", f"{avg_10y}건", delta=market_status, delta_color=status_color)
     c3.metric("5년 평균 생존율", "48.5%", delta="-51.5% 탈락 위험", delta_color="inverse")
 
     st.divider()
+    
+    st.subheader("🧬 IPO 기업 생애 주기별 유니콘")
+    st.write("확인하고 싶은 단계의 유니콘을 클릭하세요.")
+    
+    # --- 유니콘 클릭 영역 (이동 로직 포함) ---
+    uc1, uc2, uc3, uc4 = st.columns(4)
+    
+    with uc1:
+        st.write("### 🍼")
+        st.write("**유아 유니콘**")
+        st.caption("상장 직후 ~ 2년")
+        if st.button("IPO 캘린더 보기 ➡️", key="btn_infant", use_container_width=True):
+            st.session_state.page = 'calendar'
+            st.rerun()
+            
+    with uc2:
+        st.write("### 🎈")
+        st.write("**아동 유니콘**")
+        st.caption("상장 3년 ~ 5년")
+        if st.button("준비 중...", key="btn_child", use_container_width=True):
+            st.toast("아동 유니콘 데이터 분석 준비 중입니다!")
+            
+    with uc3:
+        st.write("### 👔")
+        st.write("**성인 유니콘**")
+        st.caption("중견기업(Mid-Cap)")
+        if st.button("준비 중...", key="btn_adult", use_container_width=True):
+            st.toast("성인 유니콘 데이터 분석 준비 중입니다!")
+            
+    with uc4:
+        st.write("### 🏛️")
+        st.write("**노년 유니콘**")
+        st.caption("대기업(Large-Cap)")
+        if st.button("준비 중...", key="btn_old", use_container_width=True):
+            st.toast("노년 유니콘 데이터 분석 준비 중입니다!")
 
-    # 상세 분석 안내 문구 (그래프 대신 텍스트 리포트 강조)
     st.info(f"""
-    💡 **데이터 분석 리포트**
-    현재 올해 IPO 속도는 10년 평균치와 비교했을 때 **{market_status}** 상태입니다. 
-    또한, IPO까지 성공한 기업들의 5년 평균 생존율은 **48.5%**로, 일반 벤처기업(20~30%)에 비해 **약 2배 정도 높은 생존 능력**을 갖췄다고 평가받습니다.
-    이미 시장에서 검증을 거친 기업들인 만큼 안정적인 투자 기회를 제공할 가능성이 높습니다.
+    현재 올해 IPO 속도는 **{market_status}**입니다. 
+    대부분의 IPO 기업은 **아동기(5년)** 단계에서 생존 여부가 결정되니 주의 깊은 관찰이 필요합니다.
     """)
     
-    st.write("") # 여백 추가
-    
-    if st.button("실시간 IPO 캘린더 확인하기 ➡️", use_container_width=True):
-        st.session_state.page = 'calendar'
-        st.rerun()
-
 # ==========================================
 # 화면 3: 메인 IPO 캘린더
 # ==========================================
@@ -132,11 +157,15 @@ elif st.session_state.page == 'calendar':
         st.session_state.page = 'stats'
         st.rerun()
     
+    if st.sidebar.button("⬅️ 통계 화면으로"):
+        st.session_state.page = 'stats'
+        st.rerun()
+    
     st.sidebar.divider()
     days = st.sidebar.slider("전망 기간 설정(일)", 7, 90, 30)
     exclude_spac = st.sidebar.checkbox("SPAC 제외", value=True)
 
-    display_logo_title("Unicornfinder 캘린더")
+    display_logo_title("유아 유니콘: 실시간 캘린더")
     
     df = get_ipo_data(MY_API_KEY, days)
 
