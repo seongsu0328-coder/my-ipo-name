@@ -77,7 +77,10 @@ if st.session_state.auth_status is None:
                 st.rerun()
             else:
                 st.error("올바른 번호를 입력해 주세요.")
-    with col2:
+   with col2:
         st.success("### 👤 게스트 접속")
         st.write("가입 없이 서비스를 둘러봅니다.")
-        if st.button("비회원으로 시작하기",
+        # 아래 줄 끝에 괄호 ')'와 콜론 ':'이 정확히 있는지 확인하세요.
+        if st.button("비회원으로 시작하기", use_container_width=True):
+            st.session_state.auth_status = 'guest'
+            st.rerun()
