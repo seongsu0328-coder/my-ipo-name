@@ -46,33 +46,21 @@ st.markdown("""
         padding: 25px; background-color: #fdfdfd; border-radius: 15px;
         border: 1px dashed #6e8efb; margin-top: 30px;
     }
-
-    /* 게시판 & 피드 전용 스타일 */
-    .feed-card {
-        padding: 12px; background-color: #f8faff; border-radius: 10px;
-        border: 1px solid #e1e8f0; margin-bottom: 8px;
-    }
-    .post-card {
-        padding: 20px; background-color: white; border-radius: 15px;
-        border: 1px solid #eee; margin-bottom: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-    }
-    .best-badge {
-        background-color: #ffcc00; color: #000; padding: 2px 8px;
-        border-radius: 5px; font-weight: bold; font-size: 12px;
-    }
-    .post-title { font-weight: bold; font-size: 18px; color: #1f2937; }
-    .post-content { color: #4b5563; margin-top: 10px; }
+    .my-choice { color: #4f46e5; font-size: 12px; font-weight: bold; margin-bottom: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
-# 세션 상태 초기화
+# 세션 상태 초기화 및 안전장치
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
-for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data', 'posts']:
+for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data', 'user_votes']:
     if key not in st.session_state:
         if key == 'vote_data': st.session_state[key] = {} 
-        elif key == 'posts': st.session_state[key] = [] # 게시글 저장용
+        elif key == 'user_votes': st.session_state[key] = {} 
         else: st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('stats' if key == 'page' else 0)
+
+# 타입 체크 (AttributeError 방지)
+if not isinstance(st.session_state.user_votes, dict):
+    st.session_state.user_votes = {}
 
 # 데이터 호출 함수
 @st.cache_data(ttl=600)
@@ -90,7 +78,7 @@ def get_ipo_data(api_key, days_ahead):
     except: return pd.DataFrame()
 
 # ==========================================
-# 🚀 화면 1: 로그인 (원형 유지)
+# 🚀 화면 1: 로그인
 # ==========================================
 if st.session_state.auth_status is None:
     st.write("<div style='text-align: center; margin-top: 50px;'><h1>🦄 Unicornfinder</h1><h3>당신의 다음 유니콘을 찾아보세요</h3></div>", unsafe_allow_html=True)
@@ -106,153 +94,143 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 🚀 화면 2: 시장 분석 (원형 유지)
+# 🚀 화면 2: 시장 분석
 # ==========================================
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
     stages = [
-        {"name": "유아기", "img": "baby_unicorn.png", "avg_count": "연평균 180개", "survival_time": "약 1.5년", "survival_rate": "45%"},
-        {"name": "아동기", "img": "child_unicorn.png", "avg_count": "연평균 120개", "survival_time": "약 4년", "survival_rate": "65%"},
-        {"name": "성인기", "img": "adult_unicorn.png", "avg_count": "연평균 85개", "survival_time": "약 12년", "survival_rate": "88%"},
-        {"name": "노년기", "img": "old_unicorn.png", "avg_count": "연평균 40개", "survival_time": "25년 이상", "survival_rate": "95%"}
+        {"name": "유아기", "img": "baby_unicorn.png", "avg_count": "연평균 180개", "survival_time": "약 1.5년", "survival_rate": "45%", "desc": "상장 0~2년차의 폭발적 성장기 기업"},
+        {"name": "아동기", "img": "child_unicorn.png", "avg_count": "연평균 120개", "survival_time": "약 4년", "survival_rate": "65%", "desc": "상장 3~5년차의 시장 안착기 기업"},
+        {"name": "성인기", "img": "adult_unicorn.png", "avg_count": "연평균 85개", "survival_time": "약 12년", "survival_rate": "88%", "desc": "안정적인 수익 구조를 갖춘 중견 기업"},
+        {"name": "노년기", "img": "old_unicorn.png", "avg_count": "연평균 40개", "survival_time": "25년 이상", "survival_rate": "95%", "desc": "S&P 500에 근접한 전통 대기업"}
     ]
     idx = st.session_state.swipe_idx
     stage = stages[idx]
+    
     st.markdown(f"<h2 class='stats-header'>{stage['name']} 유니콘</h2>", unsafe_allow_html=True)
     _, b1, ci, b2, _ = st.columns([1, 0.5, 2, 0.5, 1])
     with b1: st.write("<br><br><br>", unsafe_allow_html=True); n1 = st.button("◀", key="p_btn")
     with ci:
         if os.path.exists(stage['img']): st.image(Image.open(stage['img']), use_container_width=True)
-        else: st.info(f"[{stage['name']} 이미지]")
+        else: st.info(f"[{stage['name']} 이미지 준비 중]")
     with b2: st.write("<br><br><br>", unsafe_allow_html=True); n2 = st.button("▶", key="n_btn")
+    
     if n1: st.session_state.swipe_idx = (idx-1)%4; st.rerun()
     if n2: st.session_state.swipe_idx = (idx+1)%4; st.rerun()
+
     c1, c2, c3 = st.columns(3)
     with c1: st.markdown(f"<div class='stats-box'><div class='stats-label'>평균 IPO 개수</div><div class='stats-value'>{stage['avg_count']}</div></div>", unsafe_allow_html=True)
     with c2: st.markdown(f"<div class='stats-box'><div class='stats-label'>평균 생존 기간</div><div class='stats-value'>{stage['survival_time']}</div></div>", unsafe_allow_html=True)
     with c3: st.markdown(f"<div class='stats-box'><div class='stats-label'>기업 생존율</div><div class='stats-value'>{stage['survival_rate']}</div></div>", unsafe_allow_html=True)
-    if st.button("상장 캘린더 탐험", key="go_cal"): st.session_state.page = 'calendar'; st.rerun()
+    
+    if stage['name'] == "유아기":
+        if st.button("상장 캘린더 탐험", key="go_cal_baby"): st.session_state.page = 'calendar'; st.rerun()
+    elif stage['name'] == "아동기":
+        if st.button("성장 지표 탐험", key="go_cal_child"): st.session_state.page = 'growth_stats'; st.rerun()
 
 # ==========================================
-# 🚀 화면 3: 캘린더 (원형 유지)
+# 🚀 화면 3: 캘린더
 # ==========================================
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     days_ahead = st.sidebar.slider("조회 기간 설정", 1, 60, 60)
     st.header(f"🚀 향후 {days_ahead}일 상장 예정 기업")
     df = get_ipo_data(MY_API_KEY, days_ahead)
+
     if not df.empty:
         df['공모일'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
         result_df = df.sort_values(by='공모일').reset_index(drop=True)
+        st.write("---")
+        h1, h2, h3, h4 = st.columns([1.2, 4.0, 1.2, 1.8])
+        h1.write("**공모일**"); h2.write("**기업명 & 업종**"); h3.write("**희망가**"); h4.write("**공모규모**")
+        st.write("---")
+
         for i, row in result_df.iterrows():
             col1, col2, col3, col4 = st.columns([1.2, 4.0, 1.2, 1.8])
             col1.write(row['공모일'])
             with col2:
-                if st.button(row['name'], key=f"name_{row['symbol']}_{i}"):
+                btn_col, tag_col = st.columns([0.7, 0.3])
+                if btn_col.button(row['name'], key=f"name_{row['symbol']}_{i}"):
                     st.session_state.selected_stock = row.to_dict()
                     st.session_state.page = 'detail'; st.rerun()
+                tag_col.markdown(f"<span class='sector-tag'>Tech & Services</span>", unsafe_allow_html=True)
+            
             p, s = pd.to_numeric(row['price'], errors='coerce') or 0, pd.to_numeric(row['numberOfShares'], errors='coerce') or 0
             col3.write(f"${p:,.2f}" if p > 0 else "미정")
-            col4.write(f"${(p*s):,.0f}" if p > 0 and s > 0 else "공시대기")
+            col4.write(f"${(p*s):,.0f}" if p*s > 0 else "미정")
 
 # ==========================================
-# 🚀 화면 4: 상세 분석 & 트위터 피드
+# 🚀 화면 4: 상세 분석 (투표 로직 최적화)
 # ==========================================
 elif st.session_state.page == 'detail':
     stock = st.session_state.get('selected_stock')
-    if st.button("⬅️ 목록으로"): st.session_state.page = 'calendar'; st.rerun()
+    if stock is None:
+        st.error("기업 정보를 불러오지 못했습니다.")
+        if st.button("목록으로 돌아가기"): st.session_state.page = 'calendar'; st.rerun()
+    else:
+        if st.button("⬅️ 목록으로"): st.session_state.page = 'calendar'; st.rerun()
 
-    st.title(f"🚀 {stock['name']} 상세 리서치")
-    # (원형의 기업 정보 레이아웃)
-    cl, cr = st.columns([1, 4])
-    with cl:
-        logo_url = f"https://logo.clearbit.com/{stock['symbol']}.com"
-        try: st.image(logo_url, width=150)
-        except: st.info("로고 준비 중")
-    with cr:
-        st.subheader(f"{stock['name']} ({stock['symbol']})")
-        st.divider()
-        m1, m2, m3, m4 = st.columns(4)
-        p = pd.to_numeric(stock.get('price'), errors='coerce') or 0
-        s = pd.to_numeric(stock.get('numberOfShares'), errors='coerce') or 0
-        m1.metric("공모가", f"${p:,.2f}" if p > 0 else "미정")
-        m2.metric("규모", f"${(p*s):,.0f}" if p*s > 0 else "미정")
-        m3.metric("유통물량", "분석중")
-        m4.metric("보호예수", "180일")
-
-    # 🗳️ 투표 섹션 (원형 로직)
-    st.markdown("<div class='vote-container'>", unsafe_allow_html=True)
-    st.subheader("🗳️ Investor Expectation")
-    s_id = stock['symbol']
-    if s_id not in st.session_state.vote_data: st.session_state.vote_data[s_id] = {'unicorn': 12, 'fallen': 8}
-    v1, v2 = st.columns(2)
-    if v1.button("🦄 Unicorn (성장)", use_container_width=True, key=f"v_u_{s_id}"): st.session_state.vote_data[s_id]['unicorn'] += 1; st.rerun()
-    if v2.button("💸 Fallen Angel (하락)", use_container_width=True, key=f"v_f_{s_id}"): st.session_state.vote_data[s_id]['fallen'] += 1; st.rerun()
-    
-    # 🐦 1. 트위터처럼 새로운 메시지 자동 노출 (피드)
-    st.write("---")
-    st.subheader("🐦 실시간 의견 피드")
-    current_posts = [p for p in st.session_state.posts if p['symbol'] == s_id]
-    if current_posts:
-        for p in current_posts[:3]: # 최신 3개만 피드에 표시
-            st.markdown(f"""<div class='feed-card'>
-                <strong>{p['title']}</strong> | <small>{p['time']}</small><br>{p['content'][:60]}...
-            </div>""", unsafe_allow_html=True)
-    else: st.info("아직 의견이 없습니다.")
-
-    # 2. 게시판 입장 버튼
-    if st.button("📝 전체 게시판 및 글쓰기", use_container_width=True):
-        st.session_state.page = 'board'; st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ==========================================
-# 🚀 화면 5: 게시판 (상세 글쓰기 및 추천 기능)
-# ==========================================
-elif st.session_state.page == 'board':
-    stock = st.session_state.selected_stock
-    s_id = stock['symbol']
-    st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'detail'))
-    
-    st.title(f"💬 {stock['name']} 커뮤니티")
-    
-    # 🖋️ 글쓰기 (제목/내용 형태)
-    with st.expander("📝 의견 남기기", expanded=False):
-        with st.form("post_form"):
-            t_input = st.text_input("제목")
-            c_input = st.text_area("내용")
-            if st.form_submit_button("등록"):
-                new_post = {
-                    "id": len(st.session_state.posts), "symbol": s_id,
-                    "title": t_input, "content": c_input,
-                    "up": 0, "down": 0, "time": datetime.now().strftime('%H:%M:%S')
-                }
-                st.session_state.posts.insert(0, new_post) # 최신순 정렬
-                st.rerun()
-
-    # 👑 4. 가장 많이 추천(+) 받은 베스트 글
-    stock_posts = [p for p in st.session_state.posts if p['symbol'] == s_id]
-    if stock_posts:
-        best_post = max(stock_posts, key=lambda x: x['up'])
-        if best_post['up'] > 0:
-            st.subheader("🏆 금주의 베스트 의견")
-            st.markdown(f"""<div class='post-card' style='border: 2px solid #ffcc00; background-color: #fffef0;'>
-                <span class='best-badge'>BEST</span><br>
-                <span class='post-title'>{best_post['title']}</span><p>{best_post['content']}</p>
-                <div style='color: #888;'>👍 {best_post['up']} | {best_post['time']}</div>
-            </div>""", unsafe_allow_html=True)
-
-    # 📋 3. 의견 리스트 (+/- 표시)
-    st.subheader("📋 전체 의견")
-    for p in stock_posts:
-        with st.container():
-            st.markdown(f"""<div class='post-card'>
-                <span class='post-title'>{p['title']}</span>
-                <p class='post-content'>{p['content']}</p>
-            </div>""", unsafe_allow_html=True)
-            c1, c2, c3, _ = st.columns([0.15, 0.15, 0.2, 0.5])
-            if c1.button(f"🦄 +{p['up']}", key=f"up_{p['id']}"):
-                p['up'] += 1; st.rerun()
-            if c2.button(f"💸 -{p['down']}", key=f"dn_{p['id']}"):
-                p['down'] += 1; st.rerun()
-            c3.write(f"⏰ {p['time']}")
+        st.title(f"🚀 {stock['name']} 상세 리서치")
+        cl, cr = st.columns([1, 4])
+        with cl:
+            logo_url = f"https://logo.clearbit.com/{stock['symbol']}.com"
+            try: st.image(logo_url, width=150)
+            except: st.info("로고 준비 중")
+        with cr:
+            st.subheader(f"{stock['name']} ({stock['symbol']})")
+            st.markdown(f"**업종:** <span class='sector-tag'>Technology & Software</span>", unsafe_allow_html=True)
             st.divider()
+            m1, m2, m3, m4 = st.columns(4)
+            p = pd.to_numeric(stock.get('price'), errors='coerce') or 0
+            s = pd.to_numeric(stock.get('numberOfShares'), errors='coerce') or 0
+            m1.metric("공모 희망가", f"${p:,.2f}" if p > 0 else "미정")
+            m2.metric("예상 공모 규모", f"${(p*s):,.0f}" if p*s > 0 else "미정")
+            m3.metric("유통 가능 물량", "분석 중", "S-1 참조")
+            m4.metric("보호예수 기간", "180일", "표준")
+
+        l1, l2 = st.columns(2)
+        l1.link_button("📄 SEC 공시 확인", f"https://www.sec.gov/cgi-bin/browse-edgar?company={stock['name'].replace(' ', '+')}", use_container_width=True, type="primary")
+        l2.link_button("📈 Yahoo Finance", f"https://finance.yahoo.com/quote/{stock['symbol']}", use_container_width=True)
+
+        # 🗳️ Investor Expectation 섹션
+        st.markdown("<div class='vote-container'>", unsafe_allow_html=True)
+        st.subheader("🗳️ Investor Expectation: Unicorn vs Fallen Angel")
+        
+        sid = stock['symbol']
+        choice = st.session_state.user_votes.get(sid)
+        if sid not in st.session_state.vote_data:
+            st.session_state.vote_data[sid] = {'u': 15, 'f': 5} # 초기 예시값
+
+        c1, c2 = st.columns(2)
+        # 유니콘 버튼
+        with c1:
+            if choice == 'u': st.markdown("<p class='my-choice'>✅ 당신의 선택</p>", unsafe_allow_html=True)
+            if st.button("🦄 Unicorn (성장 기대)", use_container_width=True, key=f"btn_u_{sid}"):
+                if choice == 'f': st.session_state.vote_data[sid]['f'] -= 1
+                if choice != 'u':
+                    st.session_state.vote_data[sid]['u'] += 1
+                    st.session_state.user_votes[sid] = 'u'
+                    st.toast("유니콘 기대로 수정되었습니다!", icon="🦄")
+                    st.rerun()
+        # 폴른 엔젤 버튼
+        with c2:
+            if choice == 'f': st.markdown("<p class='my-choice'>✅ 당신의 선택</p>", unsafe_allow_html=True)
+            if st.button("💸 Fallen Angel (하락 우려)", use_container_width=True, key=f"btn_f_{sid}"):
+                if choice == 'u': st.session_state.vote_data[sid]['u'] -= 1
+                if choice != 'f':
+                    st.session_state.vote_data[sid]['f'] += 1
+                    st.session_state.user_votes[sid] = 'f'
+                    st.toast("하락 우려로 수정되었습니다.", icon="💸")
+                    st.rerun()
+
+        u_cnt = st.session_state.vote_data[sid]['u']
+        f_cnt = st.session_state.vote_data[sid]['f']
+        total = u_cnt + f_cnt
+        u_per = int(u_cnt/total*100) if total > 0 else 50
+
+        st.write(f"**전체 {total}명 참여 중**")
+        st.progress(u_per / 100)
+        res1, res2 = st.columns(2)
+        res1.write(f"🦄 유니콘 기대: {u_per}% ({u_cnt}표)")
+        res2.write(f"💸 하락 우려: {100-u_per}% ({f_cnt}표)")
+        st.markdown("</div>", unsafe_allow_html=True)
