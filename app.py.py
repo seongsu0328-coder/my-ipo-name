@@ -11,7 +11,6 @@ st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 # --- CSS 스타일 ---
 st.markdown("""
     <style>
-    /* 인트로 카드 및 애니메이션 */
     .intro-card {
         background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
         padding: 60px 40px; border-radius: 30px; color: white;
@@ -20,8 +19,6 @@ st.markdown("""
     }
     .intro-title { font-size: 45px; font-weight: 900; margin-bottom: 15px; letter-spacing: -1px; }
     .intro-subtitle { font-size: 19px; opacity: 0.9; margin-bottom: 40px; }
-    
-    /* 인트로 내 기능 설명 그리드 (복구된 부분) */
     .feature-grid { display: flex; justify-content: space-around; gap: 20px; margin-bottom: 30px; }
     .feature-item {
         background: rgba(255, 255, 255, 0.15);
@@ -31,7 +28,6 @@ st.markdown("""
     .feature-icon { font-size: 32px; margin-bottom: 12px; }
     .feature-text { font-size: 15px; font-weight: 600; line-height: 1.4; }
 
-    /* 2x2 그리드 카드 스타일 */
     .grid-card {
         background-color: #ffffff;
         padding: 20px; border-radius: 20px; border: 1px solid #eef2ff;
@@ -43,7 +39,6 @@ st.markdown("""
     .grid-stats-label { font-size: 11px; color: #888; }
     .grid-stats-value { font-size: 14px; color: #4a69bd; font-weight: 700; }
 
-    /* 공통 요소 */
     .quote-card {
         background: linear-gradient(145deg, #ffffff, #f9faff);
         padding: 25px; border-radius: 20px; border-top: 5px solid #6e8efb;
@@ -61,7 +56,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 데이터 및 API 로직 ---
+# --- 데이터 및 API 로직 (조회 범위 확장) ---
 @st.cache_data(ttl=86400)
 def get_daily_quote():
     try:
@@ -76,11 +71,12 @@ def get_daily_quote():
         return {"eng": "The best way to predict the future is to create it.", "kor": "미래를 예측하는 가장 좋은 방법은 미래를 직접 만드는 것이다.", "author": "Peter Drucker"}
 
 @st.cache_data(ttl=600)
-def get_ipo_data(api_key, days_ahead):
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    future_limit_str = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+def get_extended_ipo_data(api_key):
+    # 오늘 기준 18개월 전 ~ 60일 후
+    start_date = (datetime.now() - timedelta(days=18*30)).strftime('%Y-%m-%d')
+    end_date = (datetime.now() + timedelta(days=60)).strftime('%Y-%m-%d')
     base_url = "https://finnhub.io/api/v1/calendar/ipo"
-    params = {'from': today_str, 'to': future_limit_str, 'token': api_key}
+    params = {'from': start_date, 'to': end_date, 'token': api_key}
     try:
         response = requests.get(base_url, params=params).json()
         if 'ipoCalendar' in response:
@@ -93,42 +89,22 @@ def get_ipo_data(api_key, days_ahead):
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 for key in ['auth_status', 'page', 'selected_stock', 'vote_data']:
     if key not in st.session_state:
-        if key == 'vote_data': st.session_state[key] = {}
-        else: st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('intro' if key == 'page' else 0)
+        st.session_state[key] = {} if key == 'vote_data' else (None if key in ['auth_status', 'selected_stock'] else 'intro')
 
 # ==========================================
-# 🚀 화면 제어
+# 🚀 화면 제어 로직
 # ==========================================
 
-# 1. 인트로 (복구 완료)
+# 1. 인트로 페이지
 if st.session_state.page == 'intro':
     _, col_center, _ = st.columns([1, 8, 1])
     with col_center:
-        st.markdown("""
-            <div class='intro-card'>
-                <div class='intro-title'>UNICORN FINDER</div>
-                <div class='intro-subtitle'>미국 시장의 차세대 주역을 가장 먼저 발견하세요</div>
-                <div class='feature-grid'>
-                    <div class='feature-item'>
-                        <div class='feature-icon'>📅</div>
-                        <div class='feature-text'><b>IPO 스케줄</b><br>상장 예정 기업 실시간 트래킹</div>
-                    </div>
-                    <div class='feature-item'>
-                        <div class='feature-icon'>📊</div>
-                        <div class='feature-text'><b>데이터 리서치</b><br>공시 자료 기반 심층 분석</div>
-                    </div>
-                    <div class='feature-item'>
-                        <div class='feature-icon'>🗳️</div>
-                        <div class='feature-text'><b>집단 지성</b><br>글로벌 투자자 심리 투표</div>
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown("<div class='intro-card'><div class='intro-title'>UNICORN FINDER</div><div class='intro-subtitle'>미국 시장의 차세대 주역을 가장 먼저 발견하세요</div><div class='feature-grid'><div class='feature-item'><div class='feature-icon'>📅</div><div class='feature-text'><b>IPO 스케줄</b><br>상장 예정 기업 실시간 트래킹</div></div><div class='feature-item'><div class='feature-icon'>📊</div><div class='feature-text'><b>데이터 리서치</b><br>공시 자료 기반 심층 분석</div></div><div class='feature-item'><div class='feature-icon'>🗳️</div><div class='feature-text'><b>집단 지성</b><br>글로벌 투자자 심리 투표</div></div></div></div>", unsafe_allow_html=True)
         if st.button("탐험 시작하기", key="start_app", use_container_width=True):
             st.session_state.page = 'login'; st.rerun()
     st.stop()
 
-# 2. 로그인
+# 2. 로그인 페이지
 elif st.session_state.page == 'login' and st.session_state.auth_status is None:
     st.write("<br>" * 6, unsafe_allow_html=True)
     _, col_m, _ = st.columns([1, 1.5, 1])
@@ -138,79 +114,70 @@ elif st.session_state.page == 'login' and st.session_state.auth_status is None:
         if c1.button("회원 로그인", use_container_width=True): 
             if len(phone) > 9: st.session_state.auth_status = 'user'; st.session_state.page = 'stats'; st.rerun()
         if c2.button("비회원 시작", use_container_width=True): 
-            st.session_status = 'guest'; st.session_state.page = 'stats'; st.rerun()
+            st.session_state.auth_status = 'guest'; st.session_state.page = 'stats'; st.rerun()
     st.write("<br>" * 2, unsafe_allow_html=True)
     q = get_daily_quote()
     st.markdown(f"<div class='quote-card'><div style='font-size: 11px; color: #6e8efb; font-weight: bold; margin-bottom: 8px; letter-spacing: 1px;'>TODAY'S INSIGHT</div><div style='font-size: 16px; color: #333; font-weight: 600; line-height: 1.5;'>\"{q['eng']}\"</div><div style='font-size: 13px; color: #666; margin-top: 6px;'>({q['kor']})</div><div style='color: #aaa; font-size: 11px; margin-top: 12px;'>- {q['author']} -</div></div>", unsafe_allow_html=True)
     st.stop()
 
-# 3. 시장 분석 (2x2 그리드 + 이미지 클릭 팝업)
+# 3. 시장 분석 (2x2 그리드 & 이미지 클릭 팝업)
 elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
-    st.caption("상세 분석을 원하는 유니콘 단계를 선택하세요.")
-    
-    stages = [
-        {"name": "유아기 유니콘", "img": "baby_unicorn.png", "avg": "연 180개", "time": "약 1.5년", "rate": "45%"},
-        {"name": "아동기 유니콘", "img": "child_unicorn.png", "avg": "연 120개", "time": "약 4년", "rate": "65%"},
-        {"name": "성인기 유니콘", "img": "adult_unicorn.png", "avg": "연 85개", "time": "약 12년", "rate": "88%"},
-        {"name": "노년기 유니콘", "img": "old_unicorn.png", "avg": "연 40개", "time": "25년 이상", "rate": "95%"}
-    ]
+    stages = [{"name": "유아기 유니콘", "img": "baby_unicorn.png", "avg": "연 180개", "time": "약 1.5년", "rate": "45%"},{"name": "아동기 유니콘", "img": "child_unicorn.png", "avg": "연 120개", "time": "약 4년", "rate": "65%"},{"name": "성인기 유니콘", "img": "adult_unicorn.png", "avg": "연 85개", "time": "약 12년", "rate": "88%"},{"name": "노년기 유니콘", "img": "old_unicorn.png", "avg": "연 40개", "time": "25년 이상", "rate": "95%"}]
 
     @st.dialog("상장 예정 기업 탐험")
     def confirm_exploration():
-        st.write("상장 예정 기업 리스트 탐험을 시작하시겠습니까?")
-        col_yes, col_no = st.columns(2)
-        if col_yes.button("네", use_container_width=True, type="primary"):
-            st.session_state.page = 'calendar'; st.rerun()
-        if col_no.button("아니오", use_container_width=True):
-            st.rerun()
+        st.write("18개월간의 히스토리와 상장 예정 기업 리스트를 확인하시겠습니까?")
+        cy, cn = st.columns(2)
+        if cy.button("네", use_container_width=True, type="primary"): st.session_state.page = 'calendar'; st.rerun()
+        if cn.button("아니오", use_container_width=True): st.rerun()
 
-    row1_col1, row1_col2 = st.columns(2)
-    row2_col1, row2_col2 = st.columns(2)
-    cols = [row1_col1, row1_col2, row2_col1, row2_col2]
-
+    r1_c1, r1_c2 = st.columns(2); r2_c1, r2_c2 = st.columns(2)
+    cols = [r1_c1, r1_c2, r2_c1, r2_c2]
     for i, stage in enumerate(stages):
         with cols[i]:
             st.markdown(f"<div class='grid-card'><div class='grid-title'>{stage['name']}</div></div>", unsafe_allow_html=True)
-            if st.button(f"🔎 {stage['name']} 탐험하기", key=f"img_btn_{i}", use_container_width=True):
-                confirm_exploration()
+            if st.button(f"🔎 {stage['name']} 탐험하기", key=f"img_btn_{i}", use_container_width=True): confirm_exploration()
             if os.path.exists(stage['img']): st.image(Image.open(stage['img']), use_container_width=True)
             else: st.info(f"[{stage['name']} 이미지]")
-            
             c1, c2, c3 = st.columns(3)
             c1.markdown(f"<div class='grid-stats-box'><div class='grid-stats-label'>IPO 개수</div><div class='grid-stats-value'>{stage['avg']}</div></div>", unsafe_allow_html=True)
             c2.markdown(f"<div class='grid-stats-box'><div class='grid-stats-label'>생존기간</div><div class='grid-stats-value'>{stage['time']}</div></div>", unsafe_allow_html=True)
             c3.markdown(f"<div class='grid-stats-box'><div class='grid-stats-label'>생존율</div><div class='grid-stats-value'>{stage['rate']}</div></div>", unsafe_allow_html=True)
-            st.write("<br>", unsafe_allow_html=True)
 
-# 4. 캘린더 & 5. 상세 페이지 (기존 로직 유지)
+# 4. 캘린더 (내림차순 정렬 & 18개월 데이터)
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
-    days_ahead = st.sidebar.slider("조회 기간 설정", 1, 60, 60)
-    st.header(f"🚀 향후 {days_ahead}일 상장 예정 기업")
-    df = get_ipo_data(MY_API_KEY, days_ahead)
+    st.header("🚀 IPO 히스토리 & 상장 예정 기업")
+    df = get_extended_ipo_data(MY_API_KEY)
     if not df.empty:
         df['price'] = pd.to_numeric(df['price'], errors='coerce')
         df['numberOfShares'] = pd.to_numeric(df['numberOfShares'], errors='coerce')
-        df['공모일'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
-        result_df = df.sort_values(by='공모일').reset_index(drop=True)
+        df['공모일_dt'] = pd.to_datetime(df['date'])
+        
+        # [정렬 변경] 상장일이 먼 미래에서 과거 순으로 (내림차순)
+        result_df = df.sort_values(by='공모일_dt', ascending=False).reset_index(drop=True)
+        
         st.write("---")
         h1, h2, h3, h4 = st.columns([1.2, 4.0, 1.2, 1.8])
         h1.write("**공모일**"); h2.write("**기업명 & 업종**"); h3.write("**희망가**"); h4.write("**공모규모**")
         st.write("---")
         for i, row in result_df.iterrows():
             col1, col2, col3, col4 = st.columns([1.2, 4.0, 1.2, 1.8])
-            col1.write(row['공모일'])
+            is_past = row['공모일_dt'].date() < datetime.now().date()
+            d_color = "#888" if is_past else "#000"
+            col1.markdown(f"<span style='color:{d_color};'>{row['date']}</span>", unsafe_allow_html=True)
             with col2:
-                btn_col, tag_col = st.columns([0.7, 0.3])
-                if btn_col.button(row['name'], key=f"name_{row['symbol']}_{i}"):
+                bc, tc = st.columns([0.7, 0.3])
+                if bc.button(row['name'], key=f"n_{row['symbol']}_{i}"):
                     st.session_state.selected_stock = row.to_dict(); st.session_state.page = 'detail'; st.rerun()
-                tag_col.markdown(f"<span class='sector-tag'>Tech</span>", unsafe_allow_html=True)
+                tc.markdown(f"<span class='sector-tag'>Tech</span>", unsafe_allow_html=True)
             p, s = row['price'], row['numberOfShares']
             col3.write(f"${p:,.2f}" if p > 0 else "미정")
             if p > 0 and s > 0: col4.write(f"${(p*s):,.0f}")
             else: col4.markdown("<span style='color:#ff4b4b;font-weight:bold;'>공시대기</span>", unsafe_allow_html=True)
 
+# 5. 상세 리서치 (업종 복구 완료)
 elif st.session_state.page == 'detail':
     stock = st.session_state.get('selected_stock')
     if stock:
