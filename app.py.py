@@ -9,7 +9,7 @@ import random
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- CSS 스타일 (원형의 모든 스타일 포함) ---
+# --- CSS 스타일 ---
 st.markdown("""
     <style>
     .stats-header { text-align: center; color: #6e8efb; margin-bottom: 20px; }
@@ -49,35 +49,46 @@ st.markdown("""
         border: 1px dashed #d1d9ff; margin-top: 30px;
     }
 
+    /* ✨ 명언 카드 디자인 */
     .quote-card {
         background: linear-gradient(145deg, #ffffff, #f9faff);
-        padding: 25px; border-radius: 15px; border-top: 4px solid #6e8efb;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
-        margin-top: 80px; text-align: center;
-        max-width: 600px; margin-left: auto; margin-right: auto;
+        padding: 30px; border-radius: 20px; border-top: 5px solid #6e8efb;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1); 
+        margin-top: 60px; text-align: center;
+        max-width: 700px; margin-left: auto; margin-right: auto;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 📚 일일 고정 명언 로직
+# 🌐 API 기반 영문/한글 명언 호출 로직
 # ==========================================
-@st.cache_data
+@st.cache_data(ttl=86400) # 24시간 동안 캐시 유지
 def get_daily_quote():
-    quotes = [
-        {"text": "위대한 일을 해내는 유일한 방법은 당신이 하는 일을 사랑하는 것입니다.", "author": "Steve Jobs"},
-        {"text": "투자에서 가장 위험한 것은 아무것도 하지 않는 것이다.", "author": "Warren Buffett"},
-        {"text": "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것이다.", "author": "Peter Drucker"},
-        {"text": "기회는 준비된 자에게만 찾아온다.", "author": "Louis Pasteur"},
-        {"text": "시장이 비관적일 때 투자하고, 낙관적일 때 매도하라.", "author": "John Templeton"},
-        {"text": "위험은 자신이 무엇을 하는지 모르는 데서 온다.", "author": "Warren Buffett"},
-        {"text": "지식에 투자하는 것이 가장 높은 이자를 지불한다.", "author": "Benjamin Franklin"}
-    ]
-    today_seed = int(datetime.now().strftime('%Y%m%d'))
-    random.seed(today_seed)
-    return random.choice(quotes)
+    try:
+        # 1. 영문 명언 API (Quotable)
+        res = requests.get("https://api.quotable.io/random?tags=business|wisdom", timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            eng_text = data['content']
+            author = data['author']
+            
+            # 2. 무료 번역 API (MyMemory)
+            trans_res = requests.get(
+                f"https://api.mymemory.translated.net/get?q={eng_text}&langpair=en|ko", 
+                timeout=5
+            )
+            kor_text = trans_res.json()['responseData']['translatedText']
+            return {"eng": eng_text, "kor": kor_text, "author": author}
+    except:
+        # API 호출 실패 시 대체 명언
+        return {
+            "eng": "The best way to predict the future is to create it.",
+            "kor": "미래를 예측하는 가장 좋은 방법은 미래를 직접 만드는 것이다.",
+            "author": "Peter Drucker"
+        }
 
-# 세션 및 데이터 함수 (원형 그대로)
+# 세션 상태 초기화 및 데이터 함수
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data']:
     if key not in st.session_state:
@@ -99,7 +110,7 @@ def get_ipo_data(api_key, days_ahead):
     except: return pd.DataFrame()
 
 # ==========================================
-# 🚀 화면 1: 로그인
+# 🚀 화면 1: 로그인 (API 명언 적용)
 # ==========================================
 if st.session_state.auth_status is None:
     st.write("<div style='text-align: center; margin-top: 50px;'><h1>🦄 Unicornfinder</h1><h3>당신의 다음 유니콘을 찾아보세요</h3></div>", unsafe_allow_html=True)
@@ -113,9 +124,17 @@ if st.session_state.auth_status is None:
         if c2.button("비회원 시작", use_container_width=True): 
             st.session_state.auth_status = 'guest'; st.rerun()
     
-    st.write("<br>" * 3, unsafe_allow_html=True)
-    daily_q = get_daily_quote()
-    st.markdown(f"<div class='quote-card'><div style='font-size: 13px; color: #6e8efb; font-weight: bold;'>TODAY'S MOTIVATION</div><div style='font-style: italic; font-size: 18px; color: #444; margin-top:10px;'>“{daily_q['text']}”</div><div style='color: #888; margin-top: 10px;'>- {daily_q['author']} -</div></div>", unsafe_allow_html=True)
+    # 영문/한글 명언 섹션
+    st.write("<br>" * 2, unsafe_allow_html=True)
+    q = get_daily_quote()
+    st.markdown(f"""
+        <div class='quote-card'>
+            <div style='font-size: 13px; color: #6e8efb; font-weight: bold; margin-bottom: 15px;'>TODAY'S MOTIVATION</div>
+            <div style='font-size: 18px; color: #333; font-weight: 600; line-height: 1.6;'>"{q['eng']}"</div>
+            <div style='font-size: 15px; color: #666; margin-top: 10px; margin-bottom: 20px; font-style: italic;'>({q['kor']})</div>
+            <div style='color: #888; font-weight: 500;'>- {q['author']} -</div>
+        </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
 # ==========================================
@@ -151,7 +170,7 @@ if st.session_state.page == 'stats':
     if st.button("상장 캘린더 탐험", key="go_cal_baby"): st.session_state.page = 'calendar'; st.rerun()
 
 # ==========================================
-# 🚀 화면 3: 캘린더 (누락 복구 완료)
+# 🚀 화면 3: 캘린더 (누락 방지 완벽 대응)
 # ==========================================
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
@@ -185,7 +204,7 @@ elif st.session_state.page == 'calendar':
             else: col4.markdown("<span class='status-pending'>⚠️ 공시대기</span>", unsafe_allow_html=True)
 
 # ==========================================
-# 🚀 화면 4: 상세 분석 (누락 복구 완료)
+# 🚀 화면 4: 상세 분석 & 투표
 # ==========================================
 elif st.session_state.page == 'detail':
     stock = st.session_state.get('selected_stock')
@@ -212,12 +231,10 @@ elif st.session_state.page == 'detail':
 
         st.info(f"💡 **기업 비즈니스 요약:** {stock['name']}은(는) 혁신 기술을 보유한 IPO 유망주입니다.")
         
-        # 상세 링크 (누락되었던 부분)
         l1, l2 = st.columns(2)
         l1.link_button("📄 SEC 공식 공시(S-1) 확인", f"https://www.sec.gov/cgi-bin/browse-edgar?company={stock['name'].replace(' ', '+')}", use_container_width=True, type="primary")
         l2.link_button("📈 Yahoo Finance 데이터", f"https://finance.yahoo.com/quote/{stock['symbol']}", use_container_width=True)
 
-        # 투표 섹션
         st.markdown("<div class='vote-container'>", unsafe_allow_html=True)
         st.subheader("🗳️ Investor Sentiment")
         s_id = stock['symbol']
