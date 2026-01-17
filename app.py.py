@@ -46,6 +46,7 @@ st.markdown("""
         border: 1px solid #e1e8f0; margin-bottom: 20px; min-height: 160px;
     }
     
+    /* 투표 섹션 스타일 */
     .vote-container {
         padding: 25px; background-color: #fdfdfd; border-radius: 15px;
         border: 1px dashed #6e8efb; margin-top: 30px;
@@ -58,8 +59,8 @@ st.markdown("""
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data', 'user_votes']:
     if key not in st.session_state:
-        if key == 'vote_data': st.session_state[key] = {} 
-        elif key == 'user_votes': st.session_state[key] = [] 
+        if key == 'vote_data': st.session_state[key] = {} # 전체 투표 수
+        elif key == 'user_votes': st.session_state[key] = [] # 유저가 투표한 종목 리스트
         else: st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('stats' if key == 'page' else 0)
 
 # 데이터 호출 함수
@@ -160,7 +161,7 @@ elif st.session_state.page == 'calendar':
             col4.write(f"${(p*s):,.0f}" if p*s > 0 else "미정")
 
 # ==========================================
-# 🚀 화면 4: 상세 분석
+# 🚀 화면 4: 상세 분석 (중복 투표 방지 적용)
 # ==========================================
 elif st.session_state.page == 'detail':
     stock = st.session_state.get('selected_stock')
@@ -188,31 +189,36 @@ elif st.session_state.page == 'detail':
             m3.metric("유통 가능 물량", "분석 중", "S-1 참조")
             m4.metric("보호예수 기간", "180일", "표준")
 
-        # 🗳️ Investor Expectation 섹션 (중복 투표 방지)
+        # 🗳️ Investor Expectation 섹션 (중복 투표 방지 로직)
         st.markdown("<div class='vote-container'>", unsafe_allow_html=True)
         st.subheader("🗳️ Investor Expectation: Unicorn vs Fallen Angel")
         
         s_id = stock['symbol']
+        # 이미 투표했는지 확인
         has_voted = s_id in st.session_state.user_votes
+        
         if s_id not in st.session_state.vote_data:
             st.session_state.vote_data[s_id] = {'unicorn': 12, 'fallen': 8}
 
         v_col1, v_col2 = st.columns(2)
+        
+        # 버튼 활성화/비활성화 제어
         if v_col1.button("🦄 Unicorn (성장 기대)", use_container_width=True, key=f"v_u_{s_id}", disabled=has_voted):
             st.session_state.vote_data[s_id]['unicorn'] += 1
-            st.session_state.user_votes.append(s_id)
+            st.session_state.user_votes.append(s_id) # 투표 기록 추가
             st.toast(f"{stock['name']}의 성장을 응원했습니다!", icon="🦄")
             st.rerun()
         
         if v_col2.button("💸 Fallen Angel (하락 우려)", use_container_width=True, key=f"v_f_{s_id}", disabled=has_voted):
             st.session_state.vote_data[s_id]['fallen'] += 1
-            st.session_state.user_votes.append(s_id)
+            st.session_state.user_votes.append(s_id) # 투표 기록 추가
             st.toast(f"신중한 관점을 기록했습니다.", icon="💸")
             st.rerun()
 
         if has_voted:
             st.markdown("<p class='voted-msg'>✅ 이 기업에 대한 투표 참여를 완료하셨습니다.</p>", unsafe_allow_html=True)
 
+        # 결과 시각화
         u_v = st.session_state.vote_data[s_id]['unicorn']
         f_v = st.session_state.vote_data[s_id]['fallen']
         total_v = u_v + f_v
