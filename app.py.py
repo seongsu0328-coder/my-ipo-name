@@ -9,9 +9,45 @@ import random
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- CSS 스타일 ---
+# --- CSS 스타일 (브랜드 인트로 및 기존 스타일 통합) ---
 st.markdown("""
     <style>
+    /* 1. 인트로 브랜드 카드 스타일 */
+    .intro-card {
+        background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+        padding: 60px 40px; border-radius: 30px; color: white;
+        text-align: center; margin-top: 20px;
+        box-shadow: 0 20px 40px rgba(110, 142, 251, 0.3);
+    }
+    .intro-title { font-size: 45px; font-weight: 900; margin-bottom: 15px; letter-spacing: -1px; }
+    .intro-subtitle { font-size: 19px; opacity: 0.9; margin-bottom: 40px; }
+    
+    .feature-grid { display: flex; justify-content: space-around; gap: 20px; }
+    .feature-item {
+        background: rgba(255, 255, 255, 0.15);
+        padding: 25px 15px; border-radius: 20px; flex: 1;
+        backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .feature-icon { font-size: 32px; margin-bottom: 12px; }
+    .feature-text { font-size: 15px; font-weight: 600; line-height: 1.4; }
+
+    /* 2. 공통 버튼 스타일 */
+    div.stButton > button[key="start_app"] {
+        background-color: #ffffff !important; color: #6e8efb !important;
+        font-weight: 900 !important; font-size: 22px !important;
+        padding: 12px 60px !important; border-radius: 50px !important;
+        border: none !important; box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+        margin-top: 40px !important; transition: all 0.3s ease;
+    }
+
+    /* 3. 명언 카드 및 기타 기존 스타일 */
+    .quote-card {
+        background: linear-gradient(145deg, #ffffff, #f9faff);
+        padding: 30px; border-radius: 20px; border-top: 5px solid #6e8efb;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1); 
+        margin-top: 50px; text-align: center;
+        max-width: 750px; margin-left: auto; margin-right: auto;
+    }
     .stats-header { text-align: center; color: #6e8efb; margin-bottom: 20px; }
     .stats-box {
         background-color: #f0f4ff; padding: 15px; border-radius: 10px;
@@ -23,77 +59,34 @@ st.markdown("""
     div.stButton > button[key^="name_"] {
         background-color: transparent !important; border: none !important;
         color: #6e8efb !important; font-weight: 900 !important; font-size: 18px !important;
-        text-shadow: 1px 1px 0px #eeeeee, 2px 2px 0px #dddddd, 3px 3px 2px rgba(0,0,0,0.15) !important;
+        text-shadow: 1px 1px 0px #eeeeee, 2px 2px 0px #dddddd;
     }
-
     .sector-tag {
         background-color: #eef2ff; color: #4f46e5; padding: 2px 8px;
-        border-radius: 5px; font-size: 12px; font-weight: bold; margin-left: 10px;
-        vertical-align: middle; border: 1px solid #c7d2fe;
+        border-radius: 5px; font-size: 12px; font-weight: bold; border: 1px solid #c7d2fe;
     }
-
-    div.stButton > button[key^="go_cal_"] {
-        display: block !important; margin: 20px auto !important;      
-        width: 280px !important; height: 85px !important;
-        font-size: 28px !important; font-weight: 900 !important;
-        color: #ffffff !important;
-        background: linear-gradient(145deg, #6e8efb, #a777e3) !important;
-        border: none !important; border-radius: 20px !important;
-        text-shadow: 2px 2px 0px #4a69bd !important;
-        box-shadow: 0px 8px 0px #3c569b, 0px 15px 20px rgba(0,0,0,0.3) !important;
-    }
-    .status-pending { color: #ff4b4b; font-weight: bold; font-size: 14px; }
-    
     .vote-container {
         padding: 20px; background-color: #fdfdfd; border-radius: 15px;
         border: 1px dashed #d1d9ff; margin-top: 30px;
-    }
-
-    /* ✨ 명언 카드 디자인 */
-    .quote-card {
-        background: linear-gradient(145deg, #ffffff, #f9faff);
-        padding: 30px; border-radius: 20px; border-top: 5px solid #6e8efb;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1); 
-        margin-top: 60px; text-align: center;
-        max-width: 700px; margin-left: auto; margin-right: auto;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 🌐 API 기반 영문/한글 명언 호출 로직
+# 🌐 데이터 및 API 로직
 # ==========================================
-@st.cache_data(ttl=86400) # 24시간 동안 캐시 유지
+@st.cache_data(ttl=86400)
 def get_daily_quote():
     try:
-        # 1. 영문 명언 API (Quotable)
         res = requests.get("https://api.quotable.io/random?tags=business|wisdom", timeout=5)
         if res.status_code == 200:
             data = res.json()
-            eng_text = data['content']
-            author = data['author']
-            
-            # 2. 무료 번역 API (MyMemory)
-            trans_res = requests.get(
-                f"https://api.mymemory.translated.net/get?q={eng_text}&langpair=en|ko", 
-                timeout=5
-            )
+            eng_text, author = data['content'], data['author']
+            trans_res = requests.get(f"https://api.mymemory.translated.net/get?q={eng_text}&langpair=en|ko", timeout=5)
             kor_text = trans_res.json()['responseData']['translatedText']
             return {"eng": eng_text, "kor": kor_text, "author": author}
     except:
-        # API 호출 실패 시 대체 명언
-        return {
-            "eng": "The best way to predict the future is to create it.",
-            "kor": "미래를 예측하는 가장 좋은 방법은 미래를 직접 만드는 것이다.",
-            "author": "Peter Drucker"
-        }
-
-# 세션 상태 초기화 및 데이터 함수
-MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
-for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data']:
-    if key not in st.session_state:
-        if key == 'vote_data': st.session_state[key] = {}
-        else: st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('stats' if key == 'page' else 0)
+        return {"eng": "The best way to predict the future is to create it.", "kor": "미래를 예측하는 가장 좋은 방법은 미래를 직접 만드는 것이다.", "author": "Peter Drucker"}
 
 @st.cache_data(ttl=600)
 def get_ipo_data(api_key, days_ahead):
@@ -109,36 +102,75 @@ def get_ipo_data(api_key, days_ahead):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
+# 세션 초기화
+MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
+for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data']:
+    if key not in st.session_state:
+        if key == 'vote_data': st.session_state[key] = {}
+        else: st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('intro' if key == 'page' else 0)
+
 # ==========================================
-# 🚀 화면 1: 로그인 (API 명언 적용)
+# 🚀 화면 0: 인트로 브랜드 시작 화면
 # ==========================================
-if st.session_state.auth_status is None:
-    st.write("<div style='text-align: center; margin-top: 50px;'><h1>🦄 Unicornfinder</h1><h3>당신의 다음 유니콘을 찾아보세요</h3></div>", unsafe_allow_html=True)
-    st.divider()
-    _, col_m, _ = st.columns([1, 2, 1])
-    with col_m:
-        phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="login_phone")
-        c1, c2 = st.columns(2)
-        if c1.button("회원 로그인", use_container_width=True): 
-            if len(phone) > 9: st.session_state.auth_status = 'user'; st.rerun()
-        if c2.button("비회원 시작", use_container_width=True): 
-            st.session_state.auth_status = 'guest'; st.rerun()
-    
-    # 영문/한글 명언 섹션
+if st.session_state.page == 'intro':
+    _, col_center, _ = st.columns([1, 8, 1])
+    with col_center:
+        st.markdown("""
+            <div class='intro-card'>
+                <div class='intro-title'>UNICORN FINDER</div>
+                <div class='intro-subtitle'>미국 시장의 차세대 주역을 가장 먼저 발견하세요</div>
+                <div class='feature-grid'>
+                    <div class='feature-item'>
+                        <div class='feature-icon'>📅</div>
+                        <div class='feature-text'><b>IPO 스케줄</b><br>상장 예정 기업 실시간 트래킹</div>
+                    </div>
+                    <div class='feature-item'>
+                        <div class='feature-icon'>📊</div>
+                        <div class='feature-text'><b>데이터 리서치</b><br>공시 자료 기반 심층 분석</div>
+                    </div>
+                    <div class='feature-item'>
+                        <div class='feature-icon'>🗳️</div>
+                        <div class='feature-text'><b>집단 지성</b><br>글로벌 투자자 심리 투표</div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("탐험 시작하기", key="start_app", use_container_width=True):
+            st.session_state.page = 'login'; st.rerun()
+
+    # 인트로 하단 명언 배치
     st.write("<br>" * 2, unsafe_allow_html=True)
     q = get_daily_quote()
     st.markdown(f"""
         <div class='quote-card'>
-            <div style='font-size: 13px; color: #6e8efb; font-weight: bold; margin-bottom: 15px;'>TODAY'S MOTIVATION</div>
-            <div style='font-size: 18px; color: #333; font-weight: 600; line-height: 1.6;'>"{q['eng']}"</div>
-            <div style='font-size: 15px; color: #666; margin-top: 10px; margin-bottom: 20px; font-style: italic;'>({q['kor']})</div>
-            <div style='color: #888; font-weight: 500;'>- {q['author']} -</div>
+            <div style='font-size: 13px; color: #6e8efb; font-weight: bold; margin-bottom: 12px;'>TODAY'S INSIGHT</div>
+            <div style='font-size: 18px; color: #333; font-weight: 600; line-height: 1.5;'>"{q['eng']}"</div>
+            <div style='font-size: 15px; color: #666; margin-top: 8px;'>({q['kor']})</div>
+            <div style='color: #aaa; font-size: 13px; margin-top: 15px;'>- {q['author']} -</div>
         </div>
     """, unsafe_allow_html=True)
     st.stop()
 
 # ==========================================
-# 🚀 화면 2: 시장 분석
+# 🚀 화면 1: 로그인
+# ==========================================
+if st.session_state.page == 'login' and st.session_state.auth_status is None:
+    st.write("<br>" * 2, unsafe_allow_html=True)
+    st.subheader("계정 인증")
+    st.write("서비스 이용을 위해 휴대폰 번호를 입력해주세요.")
+    _, col_m, _ = st.columns([1, 2, 1])
+    with col_m:
+        phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="login_phone")
+        c1, c2 = st.columns(2)
+        if c1.button("회원 로그인", use_container_width=True): 
+            if len(phone) > 9: st.session_state.auth_status = 'user'; st.session_state.page = 'stats'; st.rerun()
+        if c2.button("비회원 시작", use_container_width=True): 
+            st.session_state.auth_status = 'guest'; st.session_state.page = 'stats'; st.rerun()
+    st.stop()
+
+# ==========================================
+# 🚀 화면 2: 시장 분석 (유니콘 성장 단계)
 # ==========================================
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
@@ -167,10 +199,12 @@ if st.session_state.page == 'stats':
     with c2: st.markdown(f"<div class='stats-box'><div class='stats-label'>평균 생존 기간</div><div class='stats-value'>{stage['survival_time']}</div></div>", unsafe_allow_html=True)
     with c3: st.markdown(f"<div class='stats-box'><div class='stats-label'>기업 생존율</div><div class='stats-value'>{stage['survival_rate']}</div></div>", unsafe_allow_html=True)
     
-    if st.button("상장 캘린더 탐험", key="go_cal_baby"): st.session_state.page = 'calendar'; st.rerun()
+    st.write("<br>", unsafe_allow_html=True)
+    if st.button("🚀 상장 예정 기업 리스트 탐험", key="go_cal_main", use_container_width=True): 
+        st.session_state.page = 'calendar'; st.rerun()
 
 # ==========================================
-# 🚀 화면 3: 캘린더 (누락 방지 완벽 대응)
+# 🚀 화면 3: 캘린더
 # ==========================================
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
@@ -196,22 +230,21 @@ elif st.session_state.page == 'calendar':
                 btn_col, tag_col = st.columns([0.7, 0.3])
                 if btn_col.button(row['name'], key=f"name_{row['symbol']}_{i}"):
                     st.session_state.selected_stock = row.to_dict(); st.session_state.page = 'detail'; st.rerun()
-                tag_col.markdown(f"<span class='sector-tag'>Tech & Services</span>", unsafe_allow_html=True)
+                tag_col.markdown(f"<span class='sector-tag'>Tech</span>", unsafe_allow_html=True)
             
             p, s = row['price'], row['numberOfShares']
             col3.write(f"${p:,.2f}" if p > 0 else "미정")
             if p > 0 and s > 0: col4.write(f"${(p*s):,.0f}")
-            else: col4.markdown("<span class='status-pending'>⚠️ 공시대기</span>", unsafe_allow_html=True)
+            else: col4.markdown("<span style='color:#ff4b4b;font-weight:bold;'>공시대기</span>", unsafe_allow_html=True)
 
 # ==========================================
-# 🚀 화면 4: 상세 분석 & 투표
+# 🚀 화면 4: 상세 리서치 & 투표
 # ==========================================
 elif st.session_state.page == 'detail':
     stock = st.session_state.get('selected_stock')
     if stock:
         if st.button("⬅️ 목록으로"): st.session_state.page = 'calendar'; st.rerun()
         st.title(f"🚀 {stock['name']} 상세 리서치")
-        
         cl, cr = st.columns([1, 4])
         with cl:
             logo_url = f"https://logo.clearbit.com/{stock['symbol']}.com"
@@ -219,18 +252,14 @@ elif st.session_state.page == 'detail':
             except: st.info("로고 준비 중")
         with cr:
             st.subheader(f"{stock['name']} ({stock['symbol']})")
-            st.markdown(f"**업종:** <span class='sector-tag'>Technology & Software</span>", unsafe_allow_html=True)
             st.divider()
             m1, m2, m3, m4 = st.columns(4)
-            p = pd.to_numeric(stock.get('price'), errors='coerce') or 0
-            s = pd.to_numeric(stock.get('numberOfShares'), errors='coerce') or 0
+            p, s = pd.to_numeric(stock.get('price'), 0), pd.to_numeric(stock.get('numberOfShares'), 0)
             m1.metric("공모 희망가", f"${p:,.2f}" if p > 0 else "미정")
             m2.metric("예상 규모", f"${(p*s):,.0f}" if p*s > 0 else "미정")
-            m3.metric("유통물량", "분석 중", "S-1 참조")
-            m4.metric("보호예수", "180일", "표준")
+            m3.metric("유통물량", "분석 중")
+            m4.metric("보호예수", "180일")
 
-        st.info(f"💡 **기업 비즈니스 요약:** {stock['name']}은(는) 혁신 기술을 보유한 IPO 유망주입니다.")
-        
         l1, l2 = st.columns(2)
         l1.link_button("📄 SEC 공식 공시(S-1) 확인", f"https://www.sec.gov/cgi-bin/browse-edgar?company={stock['name'].replace(' ', '+')}", use_container_width=True, type="primary")
         l2.link_button("📈 Yahoo Finance 데이터", f"https://finance.yahoo.com/quote/{stock['symbol']}", use_container_width=True)
@@ -239,12 +268,10 @@ elif st.session_state.page == 'detail':
         st.subheader("🗳️ Investor Sentiment")
         s_id = stock['symbol']
         if s_id not in st.session_state.vote_data: st.session_state.vote_data[s_id] = {'unicorn': 10, 'fallen': 10}
-        
         v1, v2 = st.columns(2)
         if v1.button("🦄 Unicorn", use_container_width=True, key=f"v_u_{s_id}"): st.session_state.vote_data[s_id]['unicorn'] += 1; st.rerun()
         if v2.button("💸 Fallen Angel", use_container_width=True, key=f"v_f_{s_id}"): st.session_state.vote_data[s_id]['fallen'] += 1; st.rerun()
-        
         u_v, f_v = st.session_state.vote_data[s_id]['unicorn'], st.session_state.vote_data[s_id]['fallen']
         st.progress(u_v / (u_v + f_v))
-        st.write(f"현재 참여: {u_v + f_v}명 (유니콘 {int(u_v/(u_v+f_v)*100)}%)")
+        st.write(f"현재 참여: {u_v + f_v}명 (유니콘 지수: {int(u_v/(u_v+f_v)*100)}%)")
         st.markdown("</div>", unsafe_allow_html=True)
