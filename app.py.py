@@ -35,11 +35,12 @@ st.markdown("""
         border: none !important; box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
         margin-top: 40px !important;
     }
+    /* 명언 카드 스타일 */
     .quote-card {
         background: linear-gradient(145deg, #ffffff, #f9faff);
-        padding: 30px; border-radius: 20px; border-top: 5px solid #6e8efb;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1); 
-        margin-top: 20px; text-align: center;
+        padding: 25px; border-radius: 20px; border-top: 5px solid #6e8efb;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.05); 
+        margin-top: 60px; text-align: center;
         max-width: 650px; margin-left: auto; margin-right: auto;
     }
     .stats-header { text-align: center; color: #6e8efb; margin-bottom: 20px; }
@@ -92,7 +93,7 @@ for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data']:
         else: st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('intro' if key == 'page' else 0)
 
 # ==========================================
-# 🚀 화면 제어 로직 (if/elif 구조 최적화)
+# 🚀 화면 제어 로직
 # ==========================================
 
 # 1. 인트로 페이지
@@ -104,12 +105,11 @@ if st.session_state.page == 'intro':
             st.session_state.page = 'login'; st.rerun()
     st.stop()
 
-# 2. 로그인 페이지
+# 2. 로그인 페이지 (명언 하단 배치)
 elif st.session_state.page == 'login' and st.session_state.auth_status is None:
-    st.write("<br>" * 3, unsafe_allow_html=True)
-    q = get_daily_quote()
-    st.markdown(f"<div class='quote-card'><div style='font-size: 12px; color: #6e8efb; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;'>TODAY'S INSIGHT</div><div style='font-size: 17px; color: #333; font-weight: 600; line-height: 1.5;'>\"{q['eng']}\"</div><div style='font-size: 14px; color: #666; margin-top: 8px;'>({q['kor']})</div><div style='color: #aaa; font-size: 12px; margin-top: 15px;'>- {q['author']} -</div></div>", unsafe_allow_html=True)
-    st.write("<br>", unsafe_allow_html=True)
+    st.write("<br>" * 6, unsafe_allow_html=True)
+    
+    # [입력 섹션 우선 노출]
     _, col_m, _ = st.columns([1, 1.5, 1])
     with col_m:
         phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="login_phone", label_visibility="collapsed")
@@ -118,6 +118,11 @@ elif st.session_state.page == 'login' and st.session_state.auth_status is None:
             if len(phone) > 9: st.session_state.auth_status = 'user'; st.session_state.page = 'stats'; st.rerun()
         if c2.button("비회원 시작", use_container_width=True): 
             st.session_state.auth_status = 'guest'; st.session_state.page = 'stats'; st.rerun()
+    
+    # [명언 섹션 하단 이동]
+    st.write("<br>" * 2, unsafe_allow_html=True)
+    q = get_daily_quote()
+    st.markdown(f"<div class='quote-card'><div style='font-size: 11px; color: #6e8efb; font-weight: bold; margin-bottom: 8px; letter-spacing: 1px;'>TODAY'S INSIGHT</div><div style='font-size: 16px; color: #333; font-weight: 600; line-height: 1.5;'>\"{q['eng']}\"</div><div style='font-size: 13px; color: #666; margin-top: 6px;'>({q['kor']})</div><div style='color: #aaa; font-size: 11px; margin-top: 12px;'>- {q['author']} -</div></div>", unsafe_allow_html=True)
     st.stop()
 
 # 3. 시장 분석 페이지
@@ -170,7 +175,7 @@ elif st.session_state.page == 'calendar':
             if p > 0 and s > 0: col4.write(f"${(p*s):,.0f}")
             else: col4.markdown("<span style='color:#ff4b4b;font-weight:bold;'>공시대기</span>", unsafe_allow_html=True)
 
-# 5. 상세 리서치 페이지 (업종 복구 & 에러 방지)
+# 5. 상세 리서치 페이지
 elif st.session_state.page == 'detail':
     stock = st.session_state.get('selected_stock')
     if stock:
@@ -183,17 +188,13 @@ elif st.session_state.page == 'detail':
             except: st.info("로고 준비 중")
         with cr:
             st.subheader(f"{stock['name']} ({stock['symbol']})")
-            
-            # ✨ 업종 태그 복구
             st.markdown(f"**업종:** <span class='sector-tag'>Technology & Software</span>", unsafe_allow_html=True)
-            
             st.divider()
             m1, m2, m3, m4 = st.columns(4)
             p = pd.to_numeric(stock.get('price'), errors='coerce')
             s = pd.to_numeric(stock.get('numberOfShares'), errors='coerce')
             p = 0 if pd.isna(p) else p
             s = 0 if pd.isna(s) else s
-            
             m1.metric("공모 희망가", f"${p:,.2f}" if p > 0 else "미정")
             m2.metric("예상 규모", f"${(p*s):,.0f}" if p*s > 0 else "미정")
             m3.metric("유통물량", "분석 중")
