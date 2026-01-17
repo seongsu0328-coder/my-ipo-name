@@ -4,7 +4,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 from PIL import Image
 import os
-import random
 
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
@@ -20,16 +19,7 @@ st.markdown("""
     }
     .intro-title { font-size: 45px; font-weight: 900; margin-bottom: 15px; letter-spacing: -1px; }
     .intro-subtitle { font-size: 19px; opacity: 0.9; margin-bottom: 40px; }
-    .feature-grid { display: flex; justify-content: space-around; gap: 20px; }
-    .feature-item {
-        background: rgba(255, 255, 255, 0.15);
-        padding: 25px 15px; border-radius: 20px; flex: 1;
-        backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    .feature-icon { font-size: 32px; margin-bottom: 12px; }
-    .feature-text { font-size: 15px; font-weight: 600; line-height: 1.4; }
     
-    /* 2x2 그리드 카드 스타일 */
     .grid-card {
         background-color: #ffffff;
         padding: 20px;
@@ -37,25 +27,18 @@ st.markdown("""
         border: 1px solid #eef2ff;
         box-shadow: 0 10px 20px rgba(0,0,0,0.05);
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 10px;
     }
     .grid-title { color: #6e8efb; font-size: 20px; font-weight: 900; margin-bottom: 15px; }
     .grid-stats-box {
         background-color: #f8faff;
         padding: 10px;
         border-radius: 12px;
-        margin-top: 10px;
+        margin-top: 5px;
     }
-    .grid-stats-label { font-size: 12px; color: #888; }
-    .grid-stats-value { font-size: 15px; color: #4a69bd; font-weight: 700; }
+    .grid-stats-label { font-size: 11px; color: #888; }
+    .grid-stats-value { font-size: 14px; color: #4a69bd; font-weight: 700; }
 
-    /* 버튼 스타일 */
-    div.stButton > button[key="start_app"] {
-        background-color: #ffffff !important; color: #6e8efb !important;
-        font-weight: 900 !important; font-size: 22px !important;
-        padding: 12px 60px !important; border-radius: 50px !important;
-        border: none !important; box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
-    }
     .quote-card {
         background: linear-gradient(145deg, #ffffff, #f9faff);
         padding: 25px; border-radius: 20px; border-top: 5px solid #6e8efb;
@@ -63,6 +46,9 @@ st.markdown("""
         max-width: 650px; margin-left: auto; margin-right: auto;
     }
     .sector-tag { background-color: #eef2ff; color: #4f46e5; padding: 2px 8px; border-radius: 5px; font-size: 12px; font-weight: bold; border: 1px solid #c7d2fe; }
+    
+    /* 이미지 클릭 버튼 투명화 스타일 */
+    div[data-testid="stExpander"] { border: none !important; box-shadow: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -101,13 +87,15 @@ for key in ['auth_status', 'page', 'selected_stock', 'vote_data']:
         if key == 'vote_data': st.session_state[key] = {}
         else: st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('intro' if key == 'page' else 0)
 
-# --- 화면 제어 ---
+# ==========================================
+# 🚀 화면 제어
+# ==========================================
 
 # 1. 인트로
 if st.session_state.page == 'intro':
     _, col_center, _ = st.columns([1, 8, 1])
     with col_center:
-        st.markdown("<div class='intro-card'><div class='intro-title'>UNICORN FINDER</div><div class='intro-subtitle'>미국 시장의 차세대 주역을 가장 먼저 발견하세요</div><div class='feature-grid'><div class='feature-item'><div class='feature-icon'>📅</div><div class='feature-text'><b>IPO 스케줄</b><br>상장 예정 기업 실시간 트래킹</div></div><div class='feature-item'><div class='feature-icon'>📊</div><div class='feature-text'><b>데이터 리서치</b><br>공시 자료 기반 심층 분석</div></div><div class='feature-item'><div class='feature-icon'>🗳️</div><div class='feature-text'><b>집단 지성</b><br>글로벌 투자자 심리 투표</div></div></div></div>", unsafe_allow_html=True)
+        st.markdown("<div class='intro-card'><div class='intro-title'>UNICORN FINDER</div><div class='intro-subtitle'>미국 시장의 차세대 주역을 가장 먼저 발견하세요</div></div>", unsafe_allow_html=True)
         if st.button("탐험 시작하기", key="start_app", use_container_width=True):
             st.session_state.page = 'login'; st.rerun()
     st.stop()
@@ -128,9 +116,10 @@ elif st.session_state.page == 'login' and st.session_state.auth_status is None:
     st.markdown(f"<div class='quote-card'><div style='font-size: 11px; color: #6e8efb; font-weight: bold; margin-bottom: 8px; letter-spacing: 1px;'>TODAY'S INSIGHT</div><div style='font-size: 16px; color: #333; font-weight: 600; line-height: 1.5;'>\"{q['eng']}\"</div><div style='font-size: 13px; color: #666; margin-top: 6px;'>({q['kor']})</div><div style='color: #aaa; font-size: 11px; margin-top: 12px;'>- {q['author']} -</div></div>", unsafe_allow_html=True)
     st.stop()
 
-# 3. 시장 분석 (2x2 그리드 레이아웃)
+# 3. 시장 분석 (이미지 클릭 탐험 유도)
 elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
+    st.caption("관심 있는 성장 단계를 클릭하여 상장 예정 기업 탐험을 시작하세요.")
     
     stages = [
         {"name": "유아기 유니콘", "img": "baby_unicorn.png", "avg": "연 180개", "time": "약 1.5년", "rate": "45%"},
@@ -139,33 +128,40 @@ elif st.session_state.page == 'stats':
         {"name": "노년기 유니콘", "img": "old_unicorn.png", "avg": "연 40개", "time": "25년 이상", "rate": "95%"}
     ]
 
-    # 2x2 그리드 생성
+    # 모달 창 구현을 위한 상호작용
+    @st.dialog("상장 예정 기업 탐험")
+    def confirm_exploration():
+        st.write("상장 예정 기업 리스트 탐험을 시작하시겠습니까?")
+        col_yes, col_no = st.columns(2)
+        if col_yes.button("네", use_container_width=True, type="primary"):
+            st.session_state.page = 'calendar'; st.rerun()
+        if col_no.button("아니오", use_container_width=True):
+            st.rerun()
+
     row1_col1, row1_col2 = st.columns(2)
     row2_col1, row2_col2 = st.columns(2)
     cols = [row1_col1, row1_col2, row2_col1, row2_col2]
 
     for i, stage in enumerate(stages):
         with cols[i]:
-            st.markdown(f"""
-                <div class='grid-card'>
-                    <div class='grid-title'>{stage['name']}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            # 이미지 배치
-            if os.path.exists(stage['img']): st.image(Image.open(stage['img']), use_container_width=True)
-            else: st.info(f"[{stage['name']} 이미지]")
+            st.markdown(f"<div class='grid-card'><div class='grid-title'>{stage['name']}</div></div>", unsafe_allow_html=True)
             
-            # 통계 정보 배치
+            # 이미지 클릭 이벤트 처리
+            if st.button(f"🔎 {stage['name']} 상세보기", key=f"img_btn_{i}", use_container_width=True):
+                confirm_exploration()
+
+            if os.path.exists(stage['img']): 
+                st.image(Image.open(stage['img']), use_container_width=True)
+            else: 
+                st.info(f"[{stage['name']} 이미지]")
+            
             c1, c2, c3 = st.columns(3)
             c1.markdown(f"<div class='grid-stats-box'><div class='grid-stats-label'>IPO 개수</div><div class='grid-stats-value'>{stage['avg']}</div></div>", unsafe_allow_html=True)
             c2.markdown(f"<div class='grid-stats-box'><div class='grid-stats-label'>생존기간</div><div class='grid-stats-value'>{stage['time']}</div></div>", unsafe_allow_html=True)
             c3.markdown(f"<div class='grid-stats-box'><div class='grid-stats-label'>생존율</div><div class='grid-stats-value'>{stage['rate']}</div></div>", unsafe_allow_html=True)
             st.write("<br>", unsafe_allow_html=True)
 
-    if st.button("🚀 상장 예정 기업 리스트 탐험", key="go_cal", use_container_width=True, type="primary"):
-        st.session_state.page = 'calendar'; st.rerun()
-
-# 4. 캘린더 & 5. 상세 페이지 (기존 로직 유지)
+# 4. 캘린더 & 5. 상세 페이지 (이후 로직 동일)
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     days_ahead = st.sidebar.slider("조회 기간 설정", 1, 60, 60)
