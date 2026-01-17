@@ -12,7 +12,6 @@ st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 # --- CSS 스타일 ---
 st.markdown("""
     <style>
-    /* 인트로 브랜드 카드 */
     .intro-card {
         background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
         padding: 60px 40px; border-radius: 30px; color: white;
@@ -21,7 +20,6 @@ st.markdown("""
     }
     .intro-title { font-size: 45px; font-weight: 900; margin-bottom: 15px; letter-spacing: -1px; }
     .intro-subtitle { font-size: 19px; opacity: 0.9; margin-bottom: 40px; }
-    
     .feature-grid { display: flex; justify-content: space-around; gap: 20px; }
     .feature-item {
         background: rgba(255, 255, 255, 0.15);
@@ -30,8 +28,6 @@ st.markdown("""
     }
     .feature-icon { font-size: 32px; margin-bottom: 12px; }
     .feature-text { font-size: 15px; font-weight: 600; line-height: 1.4; }
-
-    /* 버튼 스타일 */
     div.stButton > button[key="start_app"] {
         background-color: #ffffff !important; color: #6e8efb !important;
         font-weight: 900 !important; font-size: 22px !important;
@@ -39,8 +35,6 @@ st.markdown("""
         border: none !important; box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
         margin-top: 40px !important;
     }
-
-    /* 명언 카드 (로그인 페이지용) */
     .quote-card {
         background: linear-gradient(145deg, #ffffff, #f9faff);
         padding: 30px; border-radius: 20px; border-top: 5px solid #6e8efb;
@@ -48,8 +42,6 @@ st.markdown("""
         margin-top: 20px; text-align: center;
         max-width: 650px; margin-left: auto; margin-right: auto;
     }
-
-    /* 기타 기존 스타일 유지 */
     .stats-header { text-align: center; color: #6e8efb; margin-bottom: 20px; }
     .stats-box {
         background-color: #f0f4ff; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #d1d9ff;
@@ -64,9 +56,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# 🌐 데이터 및 API 로직
-# ==========================================
+# --- 데이터 및 API 로직 ---
 @st.cache_data(ttl=86400)
 def get_daily_quote():
     try:
@@ -101,54 +91,20 @@ for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data']:
         if key == 'vote_data': st.session_state[key] = {}
         else: st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('intro' if key == 'page' else 0)
 
-# ==========================================
-# 🚀 화면 0: 인트로 화면 (명언 없음, 텍스트 로고 없음)
-# ==========================================
+# --- 화면 0: 인트로 ---
 if st.session_state.page == 'intro':
     _, col_center, _ = st.columns([1, 8, 1])
     with col_center:
-        st.markdown("""
-            <div class='intro-card'>
-                <div class='intro-title'>UNICORN FINDER</div>
-                <div class='intro-subtitle'>미국 시장의 차세대 주역을 가장 먼저 발견하세요</div>
-                <div class='feature-grid'>
-                    <div class='feature-item'>
-                        <div class='feature-icon'>📅</div>
-                        <div class='feature-text'><b>IPO 스케줄</b><br>상장 예정 기업 실시간 트래킹</div>
-                    </div>
-                    <div class='feature-item'>
-                        <div class='feature-icon'>📊</div>
-                        <div class='feature-text'><b>데이터 리서치</b><br>공시 자료 기반 심층 분석</div>
-                    </div>
-                    <div class='feature-item'>
-                        <div class='feature-icon'>🗳️</div>
-                        <div class='feature-text'><b>집단 지성</b><br>글로벌 투자자 심리 투표</div>
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown("<div class='intro-card'><div class='intro-title'>UNICORN FINDER</div><div class='intro-subtitle'>미국 시장의 차세대 주역을 가장 먼저 발견하세요</div><div class='feature-grid'><div class='feature-item'><div class='feature-icon'>📅</div><div class='feature-text'><b>IPO 스케줄</b><br>상장 예정 기업 실시간 트래킹</div></div><div class='feature-item'><div class='feature-icon'>📊</div><div class='feature-text'><b>데이터 리서치</b><br>공시 자료 기반 심층 분석</div></div><div class='feature-item'><div class='feature-icon'>🗳️</div><div class='feature-text'><b>집단 지성</b><br>글로벌 투자자 심리 투표</div></div></div></div>", unsafe_allow_html=True)
         if st.button("탐험 시작하기", key="start_app", use_container_width=True):
             st.session_state.page = 'login'; st.rerun()
     st.stop()
 
-# ==========================================
-# 🚀 화면 1: 로그인 (명언 이동 & 안내문구 삭제)
-# ==========================================
+# --- 화면 1: 로그인 ---
 if st.session_state.page == 'login' and st.session_state.auth_status is None:
     st.write("<br>" * 3, unsafe_allow_html=True)
-    
-    # 명언을 로그인 화면 상단으로 이동
     q = get_daily_quote()
-    st.markdown(f"""
-        <div class='quote-card'>
-            <div style='font-size: 12px; color: #6e8efb; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;'>TODAY'S INSIGHT</div>
-            <div style='font-size: 17px; color: #333; font-weight: 600; line-height: 1.5;'>"{q['eng']}"</div>
-            <div style='font-size: 14px; color: #666; margin-top: 8px;'>({q['kor']})</div>
-            <div style='color: #aaa; font-size: 12px; margin-top: 15px;'>- {q['author']} -</div>
-        </div>
-    """, unsafe_allow_html=True)
-    
+    st.markdown(f"<div class='quote-card'><div style='font-size: 12px; color: #6e8efb; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;'>TODAY'S INSIGHT</div><div style='font-size: 17px; color: #333; font-weight: 600; line-height: 1.5;'>\"{q['eng']}\"</div><div style='font-size: 14px; color: #666; margin-top: 8px;'>({q['kor']})</div><div style='color: #aaa; font-size: 12px; margin-top: 15px;'>- {q['author']} -</div></div>", unsafe_allow_html=True)
     st.write("<br>", unsafe_allow_html=True)
     _, col_m, _ = st.columns([1, 1.5, 1])
     with col_m:
@@ -160,20 +116,12 @@ if st.session_state.page == 'login' and st.session_state.auth_status is None:
             st.session_state.auth_status = 'guest'; st.session_state.page = 'stats'; st.rerun()
     st.stop()
 
-# ==========================================
-# 🚀 화면 2~4: 기존 로직 (stats, calendar, detail) 동일
-# ==========================================
+# --- 화면 2: 시장 분석 ---
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
-    stages = [
-        {"name": "유아기", "img": "baby_unicorn.png", "avg_count": "연평균 180개", "survival_time": "약 1.5년", "survival_rate": "45%"},
-        {"name": "아동기", "img": "child_unicorn.png", "avg_count": "연평균 120개", "survival_time": "약 4년", "survival_rate": "65%"},
-        {"name": "성인기", "img": "adult_unicorn.png", "avg_count": "연평균 85개", "survival_time": "약 12년", "survival_rate": "88%"},
-        {"name": "노년기", "img": "old_unicorn.png", "avg_count": "연평균 40개", "survival_time": "25년 이상", "survival_rate": "95%"}
-    ]
+    stages = [{"name": "유아기", "img": "baby_unicorn.png", "avg_count": "연평균 180개", "survival_time": "약 1.5년", "survival_rate": "45%"},{"name": "아동기", "img": "child_unicorn.png", "avg_count": "연평균 120개", "survival_time": "약 4년", "survival_rate": "65%"},{"name": "성인기", "img": "adult_unicorn.png", "avg_count": "연평균 85개", "survival_time": "약 12년", "survival_rate": "88%"},{"name": "노년기", "img": "old_unicorn.png", "avg_count": "연평균 40개", "survival_time": "25년 이상", "survival_rate": "95%"}]
     idx = st.session_state.swipe_idx
     stage = stages[idx]
-    
     st.markdown(f"<h2 class='stats-header'>{stage['name']} 유니콘</h2>", unsafe_allow_html=True)
     _, b1, ci, b2, _ = st.columns([1, 0.5, 2, 0.5, 1])
     with b1: st.write("<br><br><br>", unsafe_allow_html=True); n1 = st.button("◀", key="p_btn")
@@ -181,19 +129,16 @@ if st.session_state.page == 'stats':
         if os.path.exists(stage['img']): st.image(Image.open(stage['img']), use_container_width=True)
         else: st.info(f"[{stage['name']} 이미지]")
     with b2: st.write("<br><br><br>", unsafe_allow_html=True); n2 = st.button("▶", key="n_btn")
-    
     if n1: st.session_state.swipe_idx = (idx-1)%4; st.rerun()
     if n2: st.session_state.swipe_idx = (idx+1)%4; st.rerun()
-
     c1, c2, c3 = st.columns(3)
     with c1: st.markdown(f"<div class='stats-box'><div class='stats-label'>평균 IPO 개수</div><div class='stats-value'>{stage['avg_count']}</div></div>", unsafe_allow_html=True)
     with c2: st.markdown(f"<div class='stats-box'><div class='stats-label'>평균 생존 기간</div><div class='stats-value'>{stage['survival_time']}</div></div>", unsafe_allow_html=True)
     with c3: st.markdown(f"<div class='stats-box'><div class='stats-label'>기업 생존율</div><div class='stats-value'>{stage['survival_rate']}</div></div>", unsafe_allow_html=True)
-    
     st.write("<br>", unsafe_allow_html=True)
-    if st.button("🚀 상장 예정 기업 리스트 탐험", key="go_cal_main", use_container_width=True): 
-        st.session_state.page = 'calendar'; st.rerun()
+    if st.button("🚀 상장 예정 기업 리스트 탐험", key="go_cal_main", use_container_width=True): st.session_state.page = 'calendar'; st.rerun()
 
+# --- 화면 3: 캘린더 ---
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     days_ahead = st.sidebar.slider("조회 기간 설정", 1, 60, 60)
@@ -221,6 +166,7 @@ elif st.session_state.page == 'calendar':
             if p > 0 and s > 0: col4.write(f"${(p*s):,.0f}")
             else: col4.markdown("<span style='color:#ff4b4b;font-weight:bold;'>공시대기</span>", unsafe_allow_html=True)
 
+# --- 화면 4: 상세 리서치 (에러 수정 완료) ---
 elif st.session_state.page == 'detail':
     stock = st.session_state.get('selected_stock')
     if stock:
@@ -235,7 +181,12 @@ elif st.session_state.page == 'detail':
             st.subheader(f"{stock['name']} ({stock['symbol']})")
             st.divider()
             m1, m2, m3, m4 = st.columns(4)
-            p, s = pd.to_numeric(stock.get('price'), 0), pd.to_numeric(stock.get('numberOfShares'), 0)
+            # ✨ 에러 수정 지점: errors='coerce' 사용
+            p = pd.to_numeric(stock.get('price'), errors='coerce')
+            s = pd.to_numeric(stock.get('numberOfShares'), errors='coerce')
+            p = 0 if pd.isna(p) else p
+            s = 0 if pd.isna(s) else s
+            
             m1.metric("공모 희망가", f"${p:,.2f}" if p > 0 else "미정")
             m2.metric("예상 규모", f"${(p*s):,.0f}" if p*s > 0 else "미정")
             m3.metric("유통물량", "분석 중")
