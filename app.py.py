@@ -50,7 +50,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 세션 상태 초기화 및 타입 체크 (에러 방지 핵심)
+# 세션 상태 초기화 및 안전장치
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data', 'user_votes']:
     if key not in st.session_state:
@@ -58,7 +58,7 @@ for key in ['auth_status', 'page', 'swipe_idx', 'selected_stock', 'vote_data', '
         elif key == 'user_votes': st.session_state[key] = {} 
         else: st.session_state[key] = None if key in ['auth_status', 'selected_stock'] else ('stats' if key == 'page' else 0)
 
-# ⚠️ 추가 안전장치: 기존에 리스트였다면 딕셔너리로 강제 변환 (AttributeError 해결)
+# 타입 체크 (AttributeError 방지)
 if not isinstance(st.session_state.user_votes, dict):
     st.session_state.user_votes = {}
 
@@ -94,7 +94,7 @@ if st.session_state.auth_status is None:
     st.stop()
 
 # ==========================================
-# 🚀 화면 2: 시장 분석 (생존 분석 카드 포함)
+# 🚀 화면 2: 시장 분석
 # ==========================================
 if st.session_state.page == 'stats':
     st.title("🦄 Unicornfinder 분석")
@@ -160,7 +160,7 @@ elif st.session_state.page == 'calendar':
             col4.write(f"${(p*s):,.0f}" if p*s > 0 else "미정")
 
 # ==========================================
-# 🚀 화면 4: 상세 분석 (투표 수정 기능)
+# 🚀 화면 4: 상세 분석 (투표 로직 최적화)
 # ==========================================
 elif st.session_state.page == 'detail':
     stock = st.session_state.get('selected_stock')
@@ -188,34 +188,49 @@ elif st.session_state.page == 'detail':
             m3.metric("유통 가능 물량", "분석 중", "S-1 참조")
             m4.metric("보호예수 기간", "180일", "표준")
 
-        st.info(f"💡 **기업 비즈니스 요약:** {stock['name']}은(는) 혁신 기술을 보유한 IPO 유급망주입니다.")
-        
-        # 재무 분석 링크 등 기존 정보
         l1, l2 = st.columns(2)
-        l1.link_button("📄 SEC 공식 공시(S-1) 확인", f"https://www.sec.gov/cgi-bin/browse-edgar?company={stock['name'].replace(' ', '+')}", use_container_width=True, type="primary")
-        l2.link_button("📈 Yahoo Finance 데이터", f"https://finance.yahoo.com/quote/{stock['symbol']}", use_container_width=True)
+        l1.link_button("📄 SEC 공시 확인", f"https://www.sec.gov/cgi-bin/browse-edgar?company={stock['name'].replace(' ', '+')}", use_container_width=True, type="primary")
+        l2.link_button("📈 Yahoo Finance", f"https://finance.yahoo.com/quote/{stock['symbol']}", use_container_width=True)
 
-        # 🗳️ Investor Expectation (수정 가능 로직)
+        # 🗳️ Investor Expectation 섹션
         st.markdown("<div class='vote-container'>", unsafe_allow_html=True)
         st.subheader("🗳️ Investor Expectation: Unicorn vs Fallen Angel")
         
-        s_id = stock['symbol']
-        current_choice = st.session_state.user_votes.get(s_id)
-        
-        if s_id not in st.session_state.vote_data:
-            st.session_state.vote_data[s_id] = {'unicorn': 12, 'fallen': 8}
+        sid = stock['symbol']
+        choice = st.session_state.user_votes.get(sid)
+        if sid not in st.session_state.vote_data:
+            st.session_state.vote_data[sid] = {'u': 15, 'f': 5} # 초기 예시값
 
-        v_col1, v_col2 = st.columns(2)
-        
-        with v_col1:
-            if current_choice == 'unicorn': st.markdown("<p class='my-choice'>✅ 당신의 선택</p>", unsafe_allow_html=True)
-            if st.button("🦄 Unicorn (성장 기대)", use_container_width=True, key=f"v_u_{s_id}"):
-                if current_choice == 'fallen':
-                    st.session_state.vote_data[s_id]['fallen'] -= 1
-                    st.session_state.vote_data[s_id]['unicorn'] += 1
-                elif current_choice is None:
-                    st.session_state.vote_data[s_id]['unicorn'] += 1
-                
-                if current_choice != 'unicorn':
-                    st.session_state.user_votes[s_id] = 'unicorn'
-                    st.toast("유니콘 기
+        c1, c2 = st.columns(2)
+        # 유니콘 버튼
+        with c1:
+            if choice == 'u': st.markdown("<p class='my-choice'>✅ 당신의 선택</p>", unsafe_allow_html=True)
+            if st.button("🦄 Unicorn (성장 기대)", use_container_width=True, key=f"btn_u_{sid}"):
+                if choice == 'f': st.session_state.vote_data[sid]['f'] -= 1
+                if choice != 'u':
+                    st.session_state.vote_data[sid]['u'] += 1
+                    st.session_state.user_votes[sid] = 'u'
+                    st.toast("유니콘 기대로 수정되었습니다!", icon="🦄")
+                    st.rerun()
+        # 폴른 엔젤 버튼
+        with c2:
+            if choice == 'f': st.markdown("<p class='my-choice'>✅ 당신의 선택</p>", unsafe_allow_html=True)
+            if st.button("💸 Fallen Angel (하락 우려)", use_container_width=True, key=f"btn_f_{sid}"):
+                if choice == 'u': st.session_state.vote_data[sid]['u'] -= 1
+                if choice != 'f':
+                    st.session_state.vote_data[sid]['f'] += 1
+                    st.session_state.user_votes[sid] = 'f'
+                    st.toast("하락 우려로 수정되었습니다.", icon="💸")
+                    st.rerun()
+
+        u_cnt = st.session_state.vote_data[sid]['u']
+        f_cnt = st.session_state.vote_data[sid]['f']
+        total = u_cnt + f_cnt
+        u_per = int(u_cnt/total*100) if total > 0 else 50
+
+        st.write(f"**전체 {total}명 참여 중**")
+        st.progress(u_per / 100)
+        res1, res2 = st.columns(2)
+        res1.write(f"🦄 유니콘 기대: {u_per}% ({u_cnt}표)")
+        res2.write(f"💸 하락 우려: {100-u_per}% ({f_cnt}표)")
+        st.markdown("</div>", unsafe_allow_html=True)
