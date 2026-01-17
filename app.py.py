@@ -8,12 +8,12 @@ import os
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- 세션 초기화 ---
+# --- 세션 초기화 (시스템 안정성 확보) ---
 for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock']:
     if key not in st.session_state:
         st.session_state[key] = 'intro' if key == 'page' else ({} if 'data' in key else None)
 
-# --- CSS 스타일 (기존 화려한 스타일 복구) ---
+# --- CSS 스타일 (원형 디자인 유지) ---
 st.markdown("""
     <style>
     .intro-card {
@@ -37,7 +37,7 @@ st.markdown("""
         background: linear-gradient(145deg, #ffffff, #f9faff);
         padding: 25px; border-radius: 20px; border-top: 5px solid #6e8efb;
         box-shadow: 0 10px 40px rgba(0,0,0,0.05); text-align: center;
-        max-width: 650px; margin: 40px auto; /* 중앙 정렬 복구 */
+        max-width: 650px; margin: 40px auto;
     }
     .grid-card {
         background-color: #ffffff; padding: 20px; border-radius: 20px; 
@@ -65,7 +65,7 @@ def get_daily_quote():
         res = requests.get("https://api.quotable.io/random?tags=business", timeout=3).json()
         trans = requests.get(f"https://api.mymemory.translated.net/get?q={res['content']}&langpair=en|ko", timeout=3).json()
         return {"eng": res['content'], "kor": trans['responseData']['translatedText'], "author": res['author']}
-    except: return {"eng": "Predicting the future isn't magic, it's artificial intelligence.", "kor": "미래를 예측하는 것은 마법이 아니라 인공지능이다.", "author": "Dave Waters"}
+    except: return {"eng": "AI will not replace you. A person using AI will.", "kor": "AI가 당신을 대체하지 않을 것입니다. AI를 사용하는 사람이 당신을 대체할 것입니다.", "author": "Unknown"}
 
 @st.cache_data(ttl=600)
 def get_extended_ipo_data(api_key):
@@ -89,7 +89,7 @@ def get_current_stock_price(symbol, api_key):
 # 🚀 화면 제어 로직
 # ==========================================
 
-# 1. 인트로 페이지 (기존의 풍부한 설명 복구)
+# 1. 인트로 페이지 (수정된 AI 가격예측 문구 포함)
 if st.session_state.page == 'intro':
     _, col_center, _ = st.columns([1, 8, 1])
     with col_center:
@@ -104,7 +104,7 @@ if st.session_state.page == 'intro':
                     </div>
                     <div class='feature-item'>
                         <div class='feature-icon'>📊</div>
-                        <div class='feature-text'><b>데이터 리서치</b><br>공시 자료 기반 심층 분석</div>
+                        <div class='feature-text'><b>AI기반 가격예측</b><br>데이터 기반 서비스 제공</div>
                     </div>
                     <div class='feature-item'>
                         <div class='feature-icon'>🗳️</div>
@@ -116,7 +116,7 @@ if st.session_state.page == 'intro':
         if st.button("탐험 시작하기", key="start_app", use_container_width=True):
             st.session_state.page = 'login'; st.rerun()
 
-# 2. 로그인 페이지 (명언 중앙 정렬 복구)
+# 2. 로그인 페이지 (중앙 정렬 명언 복구)
 elif st.session_state.page == 'login' and st.session_state.auth_status is None:
     st.write("<br>" * 6, unsafe_allow_html=True)
     _, col_m, _ = st.columns([1, 1.5, 1])
@@ -128,7 +128,6 @@ elif st.session_state.page == 'login' and st.session_state.auth_status is None:
         if c2.button("비회원 시작", use_container_width=True):
             st.session_state.auth_status = 'guest'; st.session_state.page = 'stats'; st.rerun()
     
-    # 명언 카드 중앙 배치
     q = get_daily_quote()
     st.markdown(f"""
         <div class='quote-card'>
@@ -160,7 +159,7 @@ elif st.session_state.page == 'stats':
             else: st.info(f"[{stage['name']} 이미지 준비중]")
             st.markdown(f"<div style='background:#f8faff; padding:10px; border-radius:10px; margin-top:10px;'><small>IPO {stage['avg']} | 생존 {stage['time']} | 생존율 {stage['rate']}</small></div>", unsafe_allow_html=True)
 
-# 4. 캘린더 (필터링 기능 유지)
+# 4. 캘린더 (기간 필터 및 현재가)
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     st.header("🚀 IPO 리서치 센터")
@@ -196,44 +195,39 @@ elif st.session_state.page == 'calendar':
                 col5.markdown(f"<span style='color:{'#28a745' if cp >= p else '#dc3545'}; font-weight:bold;'>${cp:,.2f}</span>" if cp > 0 else "-", unsafe_allow_html=True)
             else: col5.write("대기")
 
-# 5. 상세 리서치 (업종, 공시, 재무 섹션 복구)
+# 5. 상세 리서치 (탭별 상세 분석 및 투표)
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
         if st.button("⬅️ 목록으로"): st.session_state.page = 'calendar'; st.rerun()
         st.title(f"🚀 {stock['name']} 상세 리서치")
         
-        # 1. 기업 기본 정보
         cl, cr = st.columns([1, 4])
         with cl: st.image(f"https://logo.clearbit.com/{stock['symbol']}.com", width=150)
         with cr:
             st.subheader(f"{stock['name']} ({stock['symbol']})")
-            st.markdown(f"**업종:** <span class='sector-tag'>Technology & Software</span>", unsafe_allow_html=True)
+            st.markdown(f"**업종:** <span class='sector-tag'>Technology & Infrastructure</span>", unsafe_allow_html=True)
             m1, m2, m3 = st.columns(3)
             p = pd.to_numeric(stock.get('price'), errors='coerce') or 0
-            m1.metric("공모가(IPO Price)", f"${p:,.2f}")
-            m2.metric("현재가(Live)", f"${get_current_stock_price(stock['symbol'], MY_API_KEY):,.2f}")
-            m3.metric("보호예수(Lock-up)", "180일")
+            m1.metric("공모가", f"${p:,.2f}")
+            m2.metric("현재가", f"${get_current_stock_price(stock['symbol'], MY_API_KEY):,.2f}")
+            m3.metric("보호예수", "180일")
 
-        # 2. [복구] 핵심 분석 섹션 (업종, 공시, 재무)
         st.write("---")
-        t1, t2, t3 = st.tabs(["📌 기업 및 업종 분석", "📄 공식 공시 (SEC)", "💰 재무 하이라이트"])
+        t1, t2, t3 = st.tabs(["📌 기업 분석", "📄 SEC 공시", "💰 재무 정보"])
         with t1:
-            st.write(f"**{stock['name']}**은 해당 분야에서 혁신적인 솔루션을 제공하는 기업입니다.")
-            st.info("최근 클라우드 기반 서비스 확대로 시장 점유율이 급격히 상승하고 있습니다.")
+            st.write(f"**{stock['name']}**은 업계 내 강력한 경쟁 우위를 바탕으로 성장 중입니다.")
+            st.info("AI 및 자동화 기술을 도입하여 운영 효율성을 극대화하고 있습니다.")
         with t2:
-            st.link_button("📄 SEC S-1 공시 자료 보기", f"https://www.sec.gov/cgi-bin/browse-edgar?company={stock['name'].replace(' ', '+')}", use_container_width=True)
-            st.caption("상세한 투자 위험 요소와 자금 사용 목적을 확인할 수 있습니다.")
+            st.link_button("📄 SEC S-1 공시 보기", f"https://www.sec.gov/cgi-bin/browse-edgar?company={stock['name'].replace(' ', '+')}", use_container_width=True)
         with t3:
-            st.write("최근 분기 매출 성장률: **+45% YoY**")
-            st.write("영업 이익률: **분석 중**")
-            st.link_button("📈 Yahoo Finance 재무제표", f"https://finance.yahoo.com/quote/{stock['symbol']}/financials", use_container_width=True)
+            st.write("최근 연간 매출 성장률: **+38%**")
+            st.link_button("📈 Yahoo Finance 상세 지표", f"https://finance.yahoo.com/quote/{stock['symbol']}/financials", use_container_width=True)
 
-        # 3. 투표 및 커뮤니티
         st.write("---")
         st.subheader("🗳️ Investor Sentiment")
         sid = stock['symbol']
-        if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 15, 'f': 5}
+        if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 20, 'f': 5}
         if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
         
         vcol, ccol = st.columns(2)
@@ -247,8 +241,8 @@ elif st.session_state.page == 'detail':
             st.write(f"유니콘 지수: **{int(uv/(uv+fv)*100)}%**")
             st.markdown("</div>", unsafe_allow_html=True)
         with ccol:
-            nc = st.text_input("투자 의견을 남겨주세요", key=f"in_{sid}")
-            if st.button("의견 올리기", key=f"bn_{sid}") and nc:
+            nc = st.text_input("커뮤니티 투자 의견", key=f"in_{sid}")
+            if st.button("의견 등록", key=f"bn_{sid}") and nc:
                 st.session_state.comment_data[sid].insert(0, {"t": nc, "d": datetime.now().strftime("%H:%M")})
                 st.rerun()
             for c in st.session_state.comment_data[sid][:3]:
