@@ -128,8 +128,8 @@ elif st.session_state.page == 'login':
 elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
     stages = [
-        {"name": "유아기 유니콘", "img": "baby_unicorn.png", "icon": "🌱", "avg": "연 180개", "time": "약 1.5년", "rate": "45%"},
-        {"name": "아동기 유니콘", "img": "child_unicorn.png", "icon": "🦄", "avg": "연 120개", "time": "약 4년", "rate": "65%"}
+        {"name": "New 유니콘", "img": "baby_unicorn.png", "icon": "🌱", "avg": "연 180개", "time": "약 1.5년", "rate": "45%"},
+        {"name": "My 유니콘", "img": "child_unicorn.png", "icon": "🦄", "avg": "연 120개", "time": "약 4년", "rate": "65%"}
     ]
     
     c1, c2 = st.columns(2)
@@ -259,3 +259,4 @@ elif st.session_state.page == 'detail':
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제", key=f"del_{sid}"):
                     st.session_state.watchlist.remove(sid); st.rerun()
+
