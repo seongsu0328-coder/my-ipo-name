@@ -226,7 +226,6 @@ elif st.session_state.page == 'detail':
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
         with tab0:
-            st.subheader(f"📰 {stock['name']} 투자 인사이트 브리핑")
             
             # 상태 세션 초기화
             if 'news_topic' not in st.session_state:
@@ -290,7 +289,6 @@ elif st.session_state.page == 'detail':
                 """, unsafe_allow_html=True)
 
         with tab1:
-            st.subheader(f"📋 {stock['name']} 핵심 기업 정보")
             
             # 레이아웃 배치
             cc1, cc2 = st.columns(2)
@@ -345,7 +343,6 @@ elif st.session_state.page == 'detail':
                 st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
 
         with tab2:
-            st.subheader(f"⚖️ {stock['name']} AI 가치 평가")
             
             # 가치 평가를 위한 카드형 레이아웃
             st.markdown(f"""
@@ -411,6 +408,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
