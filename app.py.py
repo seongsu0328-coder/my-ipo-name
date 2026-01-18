@@ -223,7 +223,7 @@ elif st.session_state.page == 'stats':
     with c2:
         st.markdown("<div class='grid-card'><h3>Hot 유니콘</h3>", unsafe_allow_html=True)
         if os.path.exists(img_adult):
-            st.image(img_adult, caption="시장을 지배하는 성숙기 유니콘 🔥", use_container_width=True)
+            st.image(img_adult, caption="가장 많은 관심을 받는 유니콘 🔥", use_container_width=True)
         else: 
             st.warning("adult_unicorn.png.png 파일을 찾을 수 없습니다.")
         
@@ -233,7 +233,7 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
             
-        st.markdown("<div class='stat-box'><small>📈 상장 후 3년 이상 경과하여 안정성과 성장을 증명한 기업들입니다.</small></div>", unsafe_allow_html=True)
+        st.markdown("<div class='stat-box'><small>📈 1년동안 가장 수익률이 높은 유니콘과 가장 관심을 많이 받는 유니콘</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     # --- [3. My 유니콘] ---
@@ -649,6 +649,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
