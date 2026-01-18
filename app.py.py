@@ -421,14 +421,32 @@ elif st.session_state.page == 'detail':
                 """, unsafe_allow_html=True)
                 
             with cc2:
-                st.markdown("#### 📊 핵심 재무 요약")
-                f_data = {
-                    "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
-                    "현황": ["+45.2%", "-12.5%", "적자 지속", "28.4%"]
-                }
-                st.table(pd.DataFrame(f_data))
-                st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
-
+    st.markdown("#### 📊 핵심 재무 요약")
+    
+    # 1. 데이터 존재 여부 체크 (향후 API 연동 시 실제 변수로 대체 가능)
+    # 현재는 데이터가 없는 상태를 시뮬레이션하기 위해 symbol에 따라 분기 처리
+    has_financials = False # 기본값을 False로 설정
+    
+    # 예시: 특정 기업만 데이터가 있다고 가정하거나, 
+    # 실제 API 호출 결과(예: df_financials)가 비어있는지 확인하는 로직이 들어갈 자리입니다.
+    # if not stock_financial_data.empty: has_financials = True
+    
+    if has_financials:
+        # 데이터가 있을 경우 (실제 값 매핑)
+        f_data = {
+            "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
+            "현황": ["+45.2%", "-12.5%", "적자 지속", "28.4%"] 
+        }
+        st.table(pd.DataFrame(f_data))
+        st.caption("※ 본 수치는 최신 S-1 공시 자료를 분석한 결과입니다.")
+    else:
+        # 데이터가 없을 경우 (Pending 처리)
+        pending_data = {
+            "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
+            "현황": ["⏳ Pending", "⏳ Pending", "🧐 분석 중", "⚠️ 데이터 확인 불가"]
+        }
+        st.table(pd.DataFrame(pending_data))
+        st.info("💡 해당 기업은 아직 상세 재무 공시(S-1)가 업데이트되지 않았거나 가공 중입니다. [EDGAR 원문] 버튼을 통해 확인해 주세요.")
         with tab2:
             # --- [1단계: 실시간 AI 연산 로직] ---
             # 재무 데이터 추출 (실제 데이터 연동 전 샘플값, 향후 API 연동 가능)
@@ -580,6 +598,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
