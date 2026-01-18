@@ -396,45 +396,49 @@ elif st.session_state.page == 'detail':
                 """, unsafe_allow_html=True)
 
         # --- [Tab 1: 핵심 정보 - 기업별 실제 데이터 반영 버전] ---
-with tab1:
-    cc1, cc2 = st.columns([1.5, 1])
-    
-    # 실제 기업 프로필 데이터 호출
-    profile = get_company_profile(stock['symbol'], MY_API_KEY)
-    biz_desc = profile.get('description', "상세 사업 설명이 업데이트 대기 중입니다.") if profile else "데이터를 불러오는 중입니다."
-    industry = profile.get('finnhubIndustry', "기술/서비스") if profile else "미분류"
+        with tab1:
+            cc1, cc2 = st.columns([1.5, 1])
+            
+            # 실제 기업 프로필 데이터 호출 (상단 데이터 로직에 get_company_profile 함수가 있어야 합니다)
+            profile = get_company_profile(stock['symbol'], MY_API_KEY)
+            
+            if profile:
+                biz_desc = profile.get('description', "상세 사업 설명이 업데이트 대기 중입니다.")
+                industry = profile.get('finnhubIndustry', "기술/서비스")
+            else:
+                biz_desc = "상세 사업 설명이 업데이트 대기 중입니다."
+                industry = "미분류"
 
-    with cc1:
-        st.markdown(f"#### 📑 {stock['name']} 핵심 비즈니스 분석")
-        
-        # 기업별 맞춤형 요약 레이아웃
-        st.markdown(f"""
-            <div style='background-color: #fff4e5; padding: 20px; border-radius: 15px; border-left: 5px solid #ffa500; margin-bottom: 15px;'>
-                <b style='color:#d35400; font-size: 16px;'>📝 기업 공시 기반 AI 요약 브리핑</b><br><br>
-                <ul style='font-size: 14.5px; color: #333; line-height: 1.6;'>
-                    <li><b>주요 업종:</b> {industry}</li>
-                    <li><b>비즈니스 요약:</b> {stock['name']}은(는) {industry} 섹터에서 활동하며, 주요 사업 영역은 다음과 같습니다: {biz_desc[:200]}...</li>
-                    <li><b>자금 조달 목적:</b> S-1 서류에 따르면, 본 공모를 통해 확보한 자금은 운영 자금 확보, 신규 시장 진출 및 {industry} 관련 기술 고도화에 사용될 예정입니다.</li>
-                    <li><b>리스크 요인:</b> 해당 산업군의 경쟁 심화, 거시 경제 변동성 및 관련 법규 변화가 주요 위험 요소로 명시되어 있습니다.</li>
-                </ul>
-            </div>
-        """, unsafe_allow_html=True)
+            with cc1:
+                st.markdown(f"#### 📑 {stock['name']} 핵심 비즈니스 분석")
+                
+                # 기업별 맞춤형 요약 레이아웃
+                st.markdown(f"""
+                    <div style='background-color: #fff4e5; padding: 20px; border-radius: 15px; border-left: 5px solid #ffa500; margin-bottom: 15px;'>
+                        <b style='color:#d35400; font-size: 16px;'>📝 기업 공시 기반 AI 요약 브리핑</b><br><br>
+                        <ul style='font-size: 14.5px; color: #333; line-height: 1.6;'>
+                            <li><b>주요 업종:</b> {industry}</li>
+                            <li><b>비즈니스 요약:</b> {stock['name']}은(는) {industry} 섹터에서 활동하며, 주요 사업 영역은 다음과 같습니다: {biz_desc[:200]}...</li>
+                            <li><b>자금 조달 목적:</b> S-1 서류에 따르면, 본 공모를 통해 확보한 자금은 운영 자금 확보, 신규 시장 진출 및 {industry} 관련 기술 고도화에 사용될 예정입니다.</li>
+                            <li><b>리스크 요인:</b> 해당 산업군의 경쟁 심화, 거시 경제 변동성 및 관련 법규 변화가 주요 위험 요소로 명시되어 있습니다.</li>
+                        </ul>
+                    </div>
+                """, unsafe_allow_html=True)
 
-        st.markdown("---")
-        search_name = stock['name'].replace(" ", "+")
-        st.markdown(f"""
-            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #eee;'>
-                <p style='font-size: 14px; font-weight: bold;'>🌐 SEC 공식 문서(S-1) 확인</p>
-                <p style='font-size: 12px; color: #666;'>가장 정확한 투자 판단을 위해 원문 서류를 반드시 확인하세요.</p>
-                <a href="https://www.sec.gov/edgar/search/#/q={search_name}" target="_blank" style="text-decoration: none;">
-                    <button style='width:100%; padding:10px; background-color:#34495e; color:white; border:none; border-radius:5px; cursor:pointer;'>EDGAR 공시 시스템 원문 보기 ↗</button>
-                </a>
-            </div>
-        """, unsafe_allow_html=True)
+                st.markdown("---")
+                search_name = stock['name'].replace(" ", "+")
+                st.markdown(f"""
+                    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #eee;'>
+                        <p style='font-size: 14px; font-weight: bold;'>🌐 SEC 공식 문서(S-1) 확인</p>
+                        <p style='font-size: 12px; color: #666;'>가장 정확한 투자 판단을 위해 원문 서류를 반드시 확인하세요.</p>
+                        <a href="https://www.sec.gov/edgar/search/#/q={search_name}" target="_blank" style="text-decoration: none;">
+                            <button style='width:100%; padding:10px; background-color:#34495e; color:white; border:none; border-radius:5px; cursor:pointer;'>EDGAR 공시 시스템 원문 보기 ↗</button>
+                        </a>
+                    </div>
+                """, unsafe_allow_html=True)
 
-    with cc2:
-        st.markdown("#### 📊 실시간 핵심 재무 (TTM)")
-        # ... (이후 재무 데이터 표 코드는 기존과 동일)
+            with cc2:
+                st.markdown("#### 📊 실시간 핵심 재무 (TTM)")
                 
                 # 실제 데이터 호출
                 fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
@@ -601,6 +605,7 @@ with tab1:
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
