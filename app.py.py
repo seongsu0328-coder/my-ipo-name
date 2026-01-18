@@ -116,7 +116,7 @@ elif st.session_state.page == 'login':
     q = get_daily_quote()
     st.markdown(f"<div class='quote-card'><small>TODAY'S INSIGHT</small><br><b>\"{q['eng']}\"</b><br><small>({q['kor']})</small><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
 
-# 3. 성장 단계 분석 (이미지 복구 및 오류 수정 완료)
+# 3. 성장 단계 분석 (기존 유아기/아동기 이미지로 고정)
 elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
     
