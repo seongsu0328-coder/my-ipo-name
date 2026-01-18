@@ -235,7 +235,7 @@ elif st.session_state.page == 'stats':
         st.markdown("<div class='stat-box'><small>나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# 4. 캘린더 (로고 API 및 리서치 센터 고도화 버전)
+# 4. 캘린더 (로고 API 및 상장 상태 아이콘 구분 버전)
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     view_mode = st.session_state.get('view_mode', 'all')
@@ -243,7 +243,6 @@ elif st.session_state.page == 'calendar':
     
     # [로고 API 도우미 함수]
     def get_logo_url(symbol):
-        # Clearbit API 활용: 티커 기반으로 로고 추출
         return f"https://logo.clearbit.com/{symbol.lower()}.com"
 
     # [1. 원본 데이터 로드]
@@ -293,6 +292,7 @@ elif st.session_state.page == 'calendar':
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
             if not display_df.empty:
+                # 정렬 로직 (동일)
                 if sort_option == "수익률 높은순":
                     def get_ret(row):
                         try:
@@ -308,32 +308,42 @@ elif st.session_state.page == 'calendar':
                 else:
                     display_df = display_df.sort_values(by='공모일_dt', ascending=False)
 
-        # [5. 리스트 렌더링 (로고 추가 버전)]
+        # [5. 리스트 렌더링 (상태별 아이콘 적용)]
         if not display_df.empty:
             st.write("---")
-            # 헤더 컬럼 (비율 조정: 로고 칸 확보)
-            h_logo, h_date, h_name, h_price, h_size, h_curr, h_exch = st.columns([0.5, 1.2, 2.5, 1.2, 1.2, 1.2, 1.2])
+            h_logo, h_date, h_name, h_price, h_size, h_curr, h_exch = st.columns([0.6, 1.2, 2.5, 1.2, 1.2, 1.2, 1.2])
             h_logo.write(""); h_date.write("**공모일**"); h_name.write("**기업 정보**"); h_price.write("**공모가**"); h_size.write("**규모**"); h_curr.write("**현재가**"); h_exch.write("**거래소**")
             
             for i, row in display_df.iterrows():
-                col_logo, col_date, col_name, col_price, col_size, col_curr, col_exch = st.columns([0.5, 1.2, 2.5, 1.2, 1.2, 1.2, 1.2])
-                is_p = row['공모일_dt'].date() <= today
+                col_logo, col_date, col_name, col_price, col_size, col_curr, col_exch = st.columns([0.6, 1.2, 2.5, 1.2, 1.2, 1.2, 1.2])
+                is_listed = row['공모일_dt'].date() <= today
                 
-                # (1) 로고 표시
+                # (1) 로고/이모지 표시 로직
                 with col_logo:
-                    logo_url = get_logo_url(row['symbol'])
-                    # HTML을 사용해 로고가 없을 경우 대비한 에러 처리 (Fallback)
-                    st.markdown(f"""
-                        <div style="display: flex; align-items: center; justify-content: center; height: 100%;">
-                            <img src="{logo_url}" width="35" style="border-radius: 5px; border: 1px solid #f0f2f6;" 
-                            onerror="this.onerror=null; this.src='https://cdn-icons-png.flaticon.com/512/2583/2583155.png';">
-                        </div>
-                    """, unsafe_allow_html=True)
+                    if not is_listed:
+                        # 상장 예정: 🐣
+                        st.markdown(f"""
+                            <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background-color: #fff9db; border-radius: 10px; border: 1px solid #ffe066; font-size: 20px;">
+                                🐣
+                            </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        # 상장 완료: 로고 -> 실패 시 첫 글자
+                        logo_url = get_logo_url(row['symbol'])
+                        st.markdown(f"""
+                            <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background-color: #f0f2f6; border-radius: 10px; overflow: hidden; border: 1px solid #ddd;">
+                                <img src="{logo_url}" style="width: 100%; height: 100%; object-fit: cover;" 
+                                     onerror="this.style.display='none'; this.nextSibling.style.display='flex';">
+                                <div style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; font-weight: bold; color: #4f46e5; font-size: 16px;">
+                                    {row['symbol'][0]}
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
                 
                 # (2) 공모일
-                col_date.markdown(f"<div style='padding-top:10px; color:{'#888888' if is_p else '#4f46e5'};'>{row['date']}</div>", unsafe_allow_html=True)
+                col_date.markdown(f"<div style='padding-top:10px; color:{'#888888' if is_listed else '#4f46e5'};'>{row['date']}</div>", unsafe_allow_html=True)
                 
-                # (3) 기업 정보 (티커 + 이름 버튼)
+                # (3) 기업 정보
                 with col_name:
                     st.markdown(f"<small style='color:#888;'>{row['symbol']}</small>", unsafe_allow_html=True)
                     if st.button(row['name'], key=f"n_{row['symbol']}_{i}", use_container_width=True):
@@ -351,8 +361,8 @@ elif st.session_state.page == 'calendar':
                     col_size.markdown(f"<div style='padding-top:10px;'>${(p_num * s_num / 1000000):,.1f}M</div>", unsafe_allow_html=True)
                 else: col_size.markdown("<div style='padding-top:10px;'>Pending</div>", unsafe_allow_html=True)
 
-                # (6) 현재가 및 변동률
-                if is_p:
+                # (6) 현재가
+                if is_listed:
                     cp = get_current_stock_price(row['symbol'], MY_API_KEY)
                     try: p_ref = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
                     except: p_ref = 0
@@ -370,7 +380,7 @@ elif st.session_state.page == 'calendar':
                 display_exch = "NASDAQ" if "NASDAQ" in exch_str else ("NYSE" if "NYSE" in exch_str or "NEW YORK" in exch_str else exch_raw)
                 col_exch.markdown(f"<div style='padding-top:10px;'>🏛️ {display_exch}</div>", unsafe_allow_html=True)
                 
-                st.write("") # 줄 간격 조절
+                st.write("") 
         else:
             st.warning("조건에 맞는 유효한 기업 데이터가 없습니다.")
     else:
@@ -684,6 +694,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
