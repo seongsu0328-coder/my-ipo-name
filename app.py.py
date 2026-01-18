@@ -260,7 +260,6 @@ elif st.session_state.page == 'stats':
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     view_mode = st.session_state.get('view_mode', 'all')
-    st.header("⭐ My 리서치 보관함" if view_mode == 'watchlist' else "🚀 IPO 리서치 센터" )
     
     # [1. 원본 데이터 로드]
     all_df_raw = get_extended_ipo_data(MY_API_KEY)
@@ -649,6 +648,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
