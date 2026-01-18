@@ -57,6 +57,7 @@ MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 
 @st.cache_data(ttl=86400)
 def get_daily_quote():
+    """로그인 화면의 오늘의 명언을 가져옵니다."""
     try:
         res = requests.get("https://api.quotable.io/random?tags=business", timeout=3).json()
         trans = requests.get(f"https://api.mymemory.translated.net/get?q={res['content']}&langpair=en|ko", timeout=3).json()
@@ -64,8 +65,27 @@ def get_daily_quote():
     except:
         return {"eng": "Opportunities don't happen. You create them.", "kor": "기회는 일어나는 것이 아니라 만드는 것이다.", "author": "Chris Grosser"}
 
+@st.cache_data(ttl=86400)
+def get_financial_metrics(symbol, api_key):
+    """특정 기업의 실제 재무 지표(성장률, 이익률 등)를 가져옵니다."""
+    try:
+        # Finnhub Basic Financials 엔드포인트
+        url = f"https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={api_key}"
+        res = requests.get(url, timeout=5).json()
+        metrics = res.get('metric', {})
+        if not metrics: return None
+        return {
+            "growth": metrics.get('salesGrowthYoy', None),
+            "op_margin": metrics.get('operatingMarginTTM', None),
+            "net_margin": metrics.get('netProfitMarginTTM', None),
+            "debt_equity": metrics.get('totalDebt/totalEquityQuarterly', None)
+        }
+    except:
+        return None
+
 @st.cache_data(ttl=600)
 def get_extended_ipo_data(api_key):
+    """IPO 캘린더 데이터를 가져옵니다."""
     start = (datetime.now() - timedelta(days=540)).strftime('%Y-%m-%d')
     end = (datetime.now() + timedelta(days=120)).strftime('%Y-%m-%d')
     url = f"https://finnhub.io/api/v1/calendar/ipo?from={start}&to={end}&token={api_key}"
@@ -77,12 +97,13 @@ def get_extended_ipo_data(api_key):
     except: return pd.DataFrame()
 
 def get_current_stock_price(symbol, api_key):
+    """현재 주가를 실시간으로 조회합니다."""
     try:
         url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
         return requests.get(url, timeout=2).json().get('c', 0)
     except: return 0
 
-# --- 화면 제어 ---
+# --- 화면 제어 시작 ---
 
 # 1. 인트로
 if st.session_state.page == 'intro':
@@ -577,6 +598,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
