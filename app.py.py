@@ -333,38 +333,41 @@ elif st.session_state.page == 'detail':
                 st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
 
         with tab2:
-            # 1. 학술적 근거 섹션 정의
+            # 1. 학술적 근거 섹션 (원문 링크 추가)
             st.markdown("#### 🎓 AI Valuation Methodology")
             st.caption("본 가치 평가는 금융 학계의 권위 있는 IPO 평가 모델을 기반으로 산출되었습니다.")
             
-            # 논문 카드 스타일 및 내용 정의 (Syntax Error 방지를 위해 변수화)
+            # 논문 카드 정의 (Google Scholar 링크 포함)
             paper1_html = """
-            <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 260px; border-top: 3px solid #6e8efb;'>
+            <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 280px; border-top: 3px solid #6e8efb; position: relative;'>
                 <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Relative Valuation</p>
                 <p style='font-size: 13px; font-weight: 600; line-height: 1.3;'>Kim & Ritter (1999)</p>
                 <hr style='margin: 8px 0;'>
-                <p style='font-size: 11px; color: #333; margin-bottom: 5px;'><b>📍 실무 적용:</b> 동종 업계 유사 기업의 Forward P/E 및 P/S 멀티플을 활용한 가치 산정</p>
-                <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 미래 추정 수익 기반의 P/E 비율이 IPO 기업 가치 예측에 가장 효과적임을 입증</p>
+                <p style='font-size: 11px; color: #333; margin-bottom: 5px;'><b>📍 실무 적용:</b> 유사 기업의 Forward P/E 및 P/S 멀티플을 활용한 가치 산정</p>
+                <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 미래 추정 수익 기반의 P/E 비율이 가치 예측에 가장 효과적임을 입증</p>
+                <div style='margin-top: 10px;'><a href='https://scholar.google.com/scholar?q=Valuing+IPOs+Kim+Ritter+1999' target='_blank' style='font-size: 11px; color: #6e8efb; text-decoration: none; font-weight: bold;'>[원문 확인 ↗]</a></div>
             </div>
             """
             
             paper2_html = """
-            <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 260px; border-top: 3px solid #6e8efb;'>
+            <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 280px; border-top: 3px solid #6e8efb;'>
                 <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Fair Value Model</p>
                 <p style='font-size: 13px; font-weight: 600; line-height: 1.3;'>Purnanandam (2004)</p>
                 <hr style='margin: 8px 0;'>
-                <p style='font-size: 11px; color: #333; margin-bottom: 5px;'><b>📍 실무 적용:</b> 업계 평균 대비 공모가의 할증/할인율 분석을 통한 고평가 여부 조기 판별</p>
-                <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 상장 초기 오버슈팅 속에서도 본질적 가치 회귀 지점(Fair Value)을 산출</p>
+                <p style='font-size: 11px; color: #333; margin-bottom: 5px;'><b>📍 실무 적용:</b> 업계 평균 대비 공모가의 할증/할인율 분석을 통한 고평가 판별</p>
+                <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 상장 초기 오버슈팅 속에서도 본질적 가치 회귀 지점(Fair Value) 산출</p>
+                <div style='margin-top: 10px;'><a href='https://scholar.google.com/scholar?q=Are+IPOs+Really+Underpriced+Purnanandam+Swaminathan+2004' target='_blank' style='font-size: 11px; color: #6e8efb; text-decoration: none; font-weight: bold;'>[원문 확인 ↗]</a></div>
             </div>
             """
             
             paper3_html = """
-            <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 260px; border-top: 3px solid #6e8efb;'>
+            <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 280px; border-top: 3px solid #6e8efb;'>
                 <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Margin of Safety</p>
                 <p style='font-size: 13px; font-weight: 600; line-height: 1.3;'>Loughran & Ritter (2002)</p>
                 <hr style='margin: 8px 0;'>
-                <p style='font-size: 11px; color: #333; margin-bottom: 5px;'><b>📍 실무 적용:</b> 발행사와 주간사의 의도적 저평가(Underpricing) 범위를 계산하여 하방 경직성 확보</p>
-                <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 정보 비대칭성을 활용해 초기 투자자를 위한 '테이블 위의 돈(할인액)' 추정</p>
+                <p style='font-size: 11px; color: #333; margin-bottom: 5px;'><b>📍 실무 적용:</b> 발행사와 주간사의 의도적 저평가 범위를 계산하여 하방 경직성 확보</p>
+                <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 정보 비대칭성을 활용해 초기 투자자를 위한 할인액(Money on the table) 추정</p>
+                <div style='margin-top: 10px;'><a href='https://scholar.google.com/scholar?q=Why+Has+IPO+Underpricing+Changed+Over+Time+Loughran+Ritter+2002' target='_blank' style='font-size: 11px; color: #6e8efb; text-decoration: none; font-weight: bold;'>[원문 확인 ↗]</a></div>
             </div>
             """
 
@@ -375,7 +378,7 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
             
-            # 2. 가치 평가 결과 카드
+            # 2. 가치 평가 결과 카드 (기존 유지)
             valuation_result_html = f"""
             <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
                 <div style='display: flex; align-items: center; margin-bottom: 10px;'>
@@ -439,6 +442,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
