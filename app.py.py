@@ -235,63 +235,53 @@ elif st.session_state.page == 'stats':
         st.markdown("<div class='stat-box'><small>나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# 4. 캘린더 (리서치 센터 고도화 및 유령 종목 필터링 버전)
+# 4. 캘린더 (로고 API 및 리서치 센터 고도화 버전)
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     view_mode = st.session_state.get('view_mode', 'all')
     st.header("⭐ My 리서치 보관함" if view_mode == 'watchlist' else "🚀 IPO 리서치 센터")
     
+    # [로고 API 도우미 함수]
+    def get_logo_url(symbol):
+        # Clearbit API 활용: 티커 기반으로 로고 추출
+        return f"https://logo.clearbit.com/{symbol.lower()}.com"
+
     # [1. 원본 데이터 로드]
     all_df_raw = get_extended_ipo_data(MY_API_KEY)
     
     if not all_df_raw.empty:
         # [2. 유령 종목 및 비정상 데이터 필터링]
-        # (1) 거래소 정보가 'None'이거나 비어있는 데이터 제거
         all_df = all_df_raw.dropna(subset=['exchange'])
         all_df = all_df[all_df['exchange'].astype(str).str.upper() != 'NONE']
-        
-        # (2) 심볼(Ticker) 정보가 없는 데이터 제거
         all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
-        
         today = datetime.now().date()
 
-        # (3) 상장 유효성 검사 함수: 상장일이 지났는데 가격이 0이면 제외
         @st.cache_data(ttl=600)
         def filter_invalid_stocks(df):
             valid_indices = []
             for idx, row in df.iterrows():
                 ipo_dt = row['공모일_dt'].date()
                 if ipo_dt > today:
-                    # 상장 예정일이 미래라면 무조건 통과
                     valid_indices.append(idx)
                 else:
-                    # 상장일이 오늘이거나 과거라면 실제 가격이 찍히는지 확인
                     cp = get_current_stock_price(row['symbol'], MY_API_KEY)
-                    if cp > 0: 
-                        valid_indices.append(idx)
+                    if cp > 0: valid_indices.append(idx)
             return df.loc[valid_indices]
 
-        # 필터링 실행
         all_df = filter_invalid_stocks(all_df)
 
-        # --- [3. 필터 및 정렬 레이아웃] ---
+        # [3. 필터 및 정렬 레이아웃]
         if view_mode == 'watchlist':
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
             if display_df.empty:
-                st.info("보관함에 유효한 상장 정보가 없습니다. (상장 취소 또는 데이터 미비 종목 자동 제외)")
+                st.info("보관함에 유효한 상장 정보가 없습니다.")
         else:
             col_f1, col_f2 = st.columns([2, 1])
-            
             with col_f1:
-                period = st.radio("📅 조회 기간 설정", 
-                    ["상장 예정 (90일 내)", "최근 6개월", "최근 12개월", "최근 18개월"], 
-                    horizontal=True)
-            
+                period = st.radio("📅 조회 기간 설정", ["상장 예정 (90일 내)", "최근 6개월", "최근 12개월", "최근 18개월"], horizontal=True)
             with col_f2:
-                sort_option = st.selectbox("🎯 리스트 정렬", 
-                    ["최신순", "수익률 높은순", "매출 성장률순(AI)"])
+                sort_option = st.selectbox("🎯 리스트 정렬", ["최신순", "수익률 높은순", "매출 성장률순(AI)"])
 
-            # 기간 필터링 적용
             if period == "상장 예정 (90일 내)":
                 future_limit = today + timedelta(days=90)
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= future_limit)]
@@ -302,7 +292,6 @@ elif st.session_state.page == 'calendar':
             elif period == "최근 18개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
-            # --- [4. 스마트 정렬 실행] ---
             if not display_df.empty:
                 if sort_option == "수익률 높은순":
                     def get_ret(row):
@@ -319,31 +308,50 @@ elif st.session_state.page == 'calendar':
                 else:
                     display_df = display_df.sort_values(by='공모일_dt', ascending=False)
 
-        # --- [5. 테이블 렌더링] ---
+        # [5. 리스트 렌더링 (로고 추가 버전)]
         if not display_df.empty:
             st.write("---")
-            h1, h2, h3, h4, h5, h6 = st.columns([1.2, 3.0, 1.2, 1.2, 1.2, 1.2])
-            h1.write("**공모일**"); h2.write("**기업명**"); h3.write("**공모가**"); h4.write("**규모**"); h5.write("**현재가**"); h6.write("**거래소**")
+            # 헤더 컬럼 (비율 조정: 로고 칸 확보)
+            h_logo, h_date, h_name, h_price, h_size, h_curr, h_exch = st.columns([0.5, 1.2, 2.5, 1.2, 1.2, 1.2, 1.2])
+            h_logo.write(""); h_date.write("**공모일**"); h_name.write("**기업 정보**"); h_price.write("**공모가**"); h_size.write("**규모**"); h_curr.write("**현재가**"); h_exch.write("**거래소**")
             
             for i, row in display_df.iterrows():
-                col1, col2, col3, col4, col5, col6 = st.columns([1.2, 3.0, 1.2, 1.2, 1.2, 1.2])
+                col_logo, col_date, col_name, col_price, col_size, col_curr, col_exch = st.columns([0.5, 1.2, 2.5, 1.2, 1.2, 1.2, 1.2])
                 is_p = row['공모일_dt'].date() <= today
                 
-                col1.markdown(f"<span style='color:{'#888888' if is_p else '#4f46e5'};'>{row['date']}</span>", unsafe_allow_html=True)
+                # (1) 로고 표시
+                with col_logo:
+                    logo_url = get_logo_url(row['symbol'])
+                    # HTML을 사용해 로고가 없을 경우 대비한 에러 처리 (Fallback)
+                    st.markdown(f"""
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%;">
+                            <img src="{logo_url}" width="35" style="border-radius: 5px; border: 1px solid #f0f2f6;" 
+                            onerror="this.onerror=null; this.src='https://cdn-icons-png.flaticon.com/512/2583/2583155.png';">
+                        </div>
+                    """, unsafe_allow_html=True)
                 
-                if col2.button(row['name'], key=f"n_{row['symbol']}_{i}", use_container_width=True):
-                    st.session_state.selected_stock = row.to_dict(); st.session_state.page = 'detail'; st.rerun()
+                # (2) 공모일
+                col_date.markdown(f"<div style='padding-top:10px; color:{'#888888' if is_p else '#4f46e5'};'>{row['date']}</div>", unsafe_allow_html=True)
                 
+                # (3) 기업 정보 (티커 + 이름 버튼)
+                with col_name:
+                    st.markdown(f"<small style='color:#888;'>{row['symbol']}</small>", unsafe_allow_html=True)
+                    if st.button(row['name'], key=f"n_{row['symbol']}_{i}", use_container_width=True):
+                        st.session_state.selected_stock = row.to_dict(); st.session_state.page = 'detail'; st.rerun()
+                
+                # (4) 공모가
                 p_raw = row.get('price', '')
                 p_num = pd.to_numeric(str(p_raw).replace('$', '').split('-')[0], errors='coerce')
-                col3.write(f"${p_num:,.2f}" if pd.notnull(p_num) and p_num > 0 else (str(p_raw) if p_raw else "TBD"))
+                col_price.markdown(f"<div style='padding-top:10px;'>${p_num:,.2f}</div>" if pd.notnull(p_num) and p_num > 0 else f"<div style='padding-top:10px;'>{p_raw if p_raw else 'TBD'}</div>", unsafe_allow_html=True)
                 
+                # (5) 규모
                 s_raw = row.get('numberOfShares', '')
                 s_num = pd.to_numeric(s_raw, errors='coerce')
                 if pd.notnull(p_num) and pd.notnull(s_num) and p_num * s_num > 0:
-                    col4.write(f"${(p_num * s_num / 1000000):,.1f}M")
-                else: col4.write("Pending")
+                    col_size.markdown(f"<div style='padding-top:10px;'>${(p_num * s_num / 1000000):,.1f}M</div>", unsafe_allow_html=True)
+                else: col_size.markdown("<div style='padding-top:10px;'>Pending</div>", unsafe_allow_html=True)
 
+                # (6) 현재가 및 변동률
                 if is_p:
                     cp = get_current_stock_price(row['symbol'], MY_API_KEY)
                     try: p_ref = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
@@ -352,14 +360,17 @@ elif st.session_state.page == 'calendar':
                         chg_pct = ((cp - p_ref) / p_ref) * 100
                         color = "#28a745" if chg_pct >= 0 else "#dc3545"
                         icon = "▲" if chg_pct >= 0 else "▼"
-                        col5.markdown(f"<div style='line-height:1.2;'><b style='color:{color};'>${cp:,.2f}</b><br><small style='color:{color}; font-size:10px;'>{icon}{abs(chg_pct):.1f}%</small></div>", unsafe_allow_html=True)
-                    else: col5.write(f"${cp:,.2f}" if cp > 0 else "-")
-                else: col5.write("대기")
+                        col_curr.markdown(f"<div style='padding-top:5px; line-height:1.2;'><b style='color:{color};'>${cp:,.2f}</b><br><small style='color:{color}; font-size:10px;'>{icon}{abs(chg_pct):.1f}%</small></div>", unsafe_allow_html=True)
+                    else: col_curr.markdown(f"<div style='padding-top:10px;'>${cp:,.2f}</div>" if cp > 0 else "<div style='padding-top:10px;'>-</div>", unsafe_allow_html=True)
+                else: col_curr.markdown("<div style='padding-top:10px; color:#666;'>대기</div>", unsafe_allow_html=True)
 
+                # (7) 거래소
                 exch_raw = row.get('exchange', 'TBD')
                 exch_str = str(exch_raw).upper()
                 display_exch = "NASDAQ" if "NASDAQ" in exch_str else ("NYSE" if "NYSE" in exch_str or "NEW YORK" in exch_str else exch_raw)
-                col6.write(f"🏛️ {display_exch}")
+                col_exch.markdown(f"<div style='padding-top:10px;'>🏛️ {display_exch}</div>", unsafe_allow_html=True)
+                
+                st.write("") # 줄 간격 조절
         else:
             st.warning("조건에 맞는 유효한 기업 데이터가 없습니다.")
     else:
@@ -673,6 +684,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
