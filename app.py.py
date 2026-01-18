@@ -190,33 +190,48 @@ elif st.session_state.page == 'login':
     q = get_daily_quote()
     st.markdown(f"<div class='quote-card'><small>TODAY'S INSIGHT</small><br><b>\"{q['eng']}\"</b><br><small>({q['kor']})</small><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
 
-# 3. 성장 단계 분석
+# 3. 성장 단계 분석 (미니멀 버전)
 elif st.session_state.page == 'stats':
-    st.title("🦄 유니콘 성장 단계 분석")
+    # 제목(st.title)을 제거하고 상단 여백을 살짝 줍니다.
+    st.write("<br>", unsafe_allow_html=True)
+    
     img_baby = "baby_unicorn.png.png"
     img_child = "child_unicorn.png.png"
     
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("<div class='grid-card'><h3>New 유니콘 </h3>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>New 유니콘</h3>", unsafe_allow_html=True)
         if os.path.exists(img_baby):
             st.image(img_baby, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
-        else: st.warning("baby_unicorn.png.png 파일을 찾을 수 없습니다.")
+        else: 
+            st.warning("baby_unicorn.png.png 파일을 찾을 수 없습니다.")
+        
         if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True, key="go_all"):
-            st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
+            st.session_state.view_mode = 'all'
+            st.session_state.page = 'calendar'
+            st.rerun()
+            
         st.markdown("<div class='stat-box'><small>📊 <b>시장 통계:</b> 연간 평균 180~250개의 기업이 미국 시장에 상장합니다.</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
         
     with c2:
-        st.markdown("<div class='grid-card'><h3>My 유니콘 </h3>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>My 유니콘</h3>", unsafe_allow_html=True)
         if os.path.exists(img_child):
             st.image(img_child, caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
-        else: st.warning("child_unicorn.png.png 파일을 찾을 수 없습니다.")
+        else: 
+            st.warning("child_unicorn.png.png 파일을 찾을 수 없습니다.")
+            
         watch_count = len(st.session_state.watchlist)
+        # My 유니콘 버튼은 강조를 위해 primary 타입을 유지하거나, 
+        # 로그인창처럼 통일하고 싶으시면 type="primary"를 제거하세요.
         if st.button(f"🔎 My 유니콘 탐험 ({watch_count}개 보관 중)", use_container_width=True, type="primary", key="go_watch"):
             if watch_count > 0:
-                st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'; st.rerun()
-            else: st.warning("아직 보관함에 담긴 기업이 없습니다.")
+                st.session_state.view_mode = 'watchlist'
+                st.session_state.page = 'calendar'
+                st.rerun()
+            else:
+                st.warning("아직 보관함에 담긴 기업이 없습니다.")
+                
         st.markdown("<div class='stat-box'><small>나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -658,6 +673,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
