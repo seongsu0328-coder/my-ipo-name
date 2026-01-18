@@ -157,12 +157,12 @@ elif st.session_state.page == 'login':
 
         # 2단계: 가입 의사 확인
         elif st.session_state.login_step == 'ask_signup':
-            st.info("💡 회원 가입 시 나만의 유니콘 관리 및 신규 상장 알림 정보를 받을 수 있습니다. 계속하시겠습니까?")
+            st.info("💡 회원 가입시 관심기업관리 및 신규IPO 정보를 받을 수 있습니다.")
             c1, c2 = st.columns(2)
-            if c1.button("✅ 예", use_container_width=True): # 여기도 하얀색으로 통일
+            if c1.button("✅ 진행하기", use_container_width=True): # 여기도 하얀색으로 통일
                 st.session_state.login_step = 'input_phone'
                 st.rerun()
-            if c2.button("❌ 아니오", use_container_width=True):
+            if c2.button("❌ 돌아가기", use_container_width=True):
                 st.session_state.login_step = 'choice'
                 st.rerun()
 
@@ -658,6 +658,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
