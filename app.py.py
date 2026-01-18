@@ -197,12 +197,28 @@ elif st.session_state.page == 'calendar':
                 col4.write(f"${(p_num * s_num / 1000000):,.1f}M")
             else: col4.write("Pending")
 
-            # 5. 현재가
+            # 5. 현재가 (리스트 버전: 수익률 포함)
             if is_p:
                 cp = get_current_stock_price(row['symbol'], MY_API_KEY)
-                p_ref = p_num if pd.notnull(p_num) else 0
-                col5.markdown(f"<span style='color:{'#28a745' if cp >= p_ref else '#dc3545'}; font-weight:bold;'>${cp:,.2f}</span>" if cp > 0 else "-", unsafe_allow_html=True)
-            else: col5.write("대기")
+                try:
+                    p_ref = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
+                except:
+                    p_ref = 0
+                
+                if cp > 0 and p_ref > 0:
+                    chg_pct = ((cp - p_ref) / p_ref) * 100
+                    color = "#28a745" if chg_pct >= 0 else "#dc3545"
+                    icon = "▲" if chg_pct >= 0 else "▼"
+                    col5.markdown(f"""
+                        <div style='line-height:1.2;'>
+                            <b style='color:{color};'>${cp:,.2f}</b><br>
+                            <small style='color:{color}; font-size:10px;'>{icon}{abs(chg_pct):.1f}%</small>
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    col5.write("-" if cp <= 0 else f"${cp:,.2f}")
+            else:
+                col5.write("대기")
 
             # 6. 거래소 (오류 방지 로직 적용)
             exch_raw = row.get('exchange', 'TBD')
@@ -539,6 +555,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
