@@ -418,9 +418,9 @@ elif st.session_state.page == 'detail':
                 st.table(pd.DataFrame(pending_data))
                 st.info("💡 정확한 수치는 상단 S-1 요약 또는 원문 공시를 확인해 주세요.")
 
-        # --- [Tab 2: AI 가치 평가 (순서 변경 및 고도화)] ---
+        # --- [Tab 2: AI 가치 평가 (논문 링크 추가)] ---
         with tab2:
-            # [기본 데이터 계산 로직 - 동일]
+            # [데이터 계산 로직]
             growth_rate, profit_margin = 0.452, -0.125
             growth_score = min(100, int(growth_rate * 150 + 20))
             profit_score = max(10, min(100, int((profit_margin + 0.3) * 200)))
@@ -431,7 +431,7 @@ elif st.session_state.page == 'detail':
             fair_high = fair_low * 1.25
             undervalued_pct = ((fair_low - offering_p) / offering_p) * 100 if offering_p > 0 else 0
 
-            # 1. 가치 평가 방법론 상세 (Academic Methodology) - 상단으로 이동
+            # 1. 가치 평가 방법론 상세 (Academic Methodology)
             st.markdown("##### 🔬 1. 가치 평가 방법론 상세 (Academic Methodology)")
             p_cols = st.columns(3)
             
@@ -439,36 +439,46 @@ elif st.session_state.page == 'detail':
                 {
                     "title": "Relative Valuation",
                     "author": "Kim & Ritter (1999)",
-                    "desc": "동종 업계 유사 기업의 P/S, P/E 배수를 적용하여 상장 초기 적정 시가총액을 산출합니다."
+                    "desc": "동종 업계 유사 기업의 P/S, P/E 배수를 적용하여 상장 초기 적정 시가총액을 산출합니다.",
+                    "link": "https://scholar.google.com/scholar?q=Kim+Ritter+1999+Valuing+IPO"
                 },
                 {
                     "title": "Fair Value Model",
                     "author": "Purnanandam (2004)",
-                    "desc": "IPO 가격 설정의 비효율성을 분석하여 공모가가 기업의 내재 가치보다 얼마나 괴리되었는지 측정합니다."
+                    "desc": "IPO 가격 설정의 비효율성을 분석하여 공모가가 기업의 내재 가치보다 얼마나 괴리되었는지 측정합니다.",
+                    "link": "https://scholar.google.com/scholar?q=Purnanandam+2004+Are+IPOs+Priced+Right"
                 },
                 {
                     "title": "Margin of Safety",
                     "author": "Loughran & Ritter",
-                    "desc": "상장 후 6-12개월간의 장기 수익성을 예측하여 투자 원금 보호를 위한 안전 마진을 계산합니다."
+                    "desc": "상장 후 6-12개월간의 장기 수익성을 예측하여 투자 원금 보호를 위한 안전 마진을 계산합니다.",
+                    "link": "https://scholar.google.com/scholar?q=Loughran+Ritter+IPO+Long-run+Performance"
                 }
             ]
 
             for i, m in enumerate(methodologies):
                 with p_cols[i]:
                     st.markdown(f"""
-                        <div style='border-top: 4px solid #6e8efb; background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 210px;'>
-                            <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 2px;'>{m['title']}</p>
-                            <p style='font-size: 14px; font-weight: 600; color: #333;'>{m['author']}</p>
-                            <p style='font-size: 12.5px; color: #555; line-height: 1.5;'>{m['desc']}</p>
+                        <div style='border-top: 4px solid #6e8efb; background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 250px; display: flex; flex-direction: column; justify-content: space-between;'>
+                            <div>
+                                <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 2px;'>{m['title']}</p>
+                                <p style='font-size: 14px; font-weight: 600; color: #333;'>{m['author']}</p>
+                                <p style='font-size: 12.5px; color: #555; line-height: 1.5;'>{m['desc']}</p>
+                            </div>
+                            <div style='margin-top: 10px;'>
+                                <a href='{m['link']}' target='_blank' style='text-decoration: none;'>
+                                    <button style='width: 100%; background-color: #ffffff; border: 1px solid #6e8efb; color: #6e8efb; border-radius: 5px; font-size: 11px; cursor: pointer; padding: 5px 0;'>논문 원문보기 ↗</button>
+                                </a>
+                            </div>
                         </div>
                     """, unsafe_allow_html=True)
 
-            st.write("<br>", unsafe_allow_html=True) # 여백 추가
+            st.write("<br>", unsafe_allow_html=True)
 
-            # 2. 학술 모델 기반 가치 분석 리포트 - 하단으로 이동
+            # 2. 학술 모델 기반 가치 분석 리포트
             st.markdown("#### 🎓 2. AI 가치 분석 및 적정가 리포트")
             
-            # 3대 지표 시각화
+            # [이하 리포트 시각화 및 적정가 카드 로직 - 이전과 동일]
             col_metrics = st.columns(3)
             with col_metrics[0]:
                 st.metric("성장성 점수 (G)", f"{growth_score}점")
@@ -485,7 +495,6 @@ elif st.session_state.page == 'detail':
 
             st.write("---")
 
-            # AI 적정 가치 카드 및 종합 매력도
             res_col1, res_col2 = st.columns([1.5, 1])
             with res_col1:
                 st.markdown(f"""
@@ -504,7 +513,6 @@ elif st.session_state.page == 'detail':
                 status = "매우 높음" if total_score > 75 else ("보통" if total_score > 50 else "주의")
                 st.info(f"종합 투자 매력도는 **'{status}'** 단계입니다.")
 
-            # 수식 보기 (맨 아래 유지)
             with st.expander("🔬 AI 알고리즘 산출 수식 보기"):
                 st.write("본 모델은 아래의 다중 회귀 분석 수식을 사용하여 실시간 가중치를 조정합니다.")
                 st.latex(r"Score_{total} = (G \times 0.4) + (P \times 0.3) + (I \times 0.3)")
@@ -548,6 +556,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
