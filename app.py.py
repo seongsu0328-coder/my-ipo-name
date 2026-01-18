@@ -238,7 +238,6 @@ elif st.session_state.page == 'calendar':
             col6.write(f"🏛️ {display_exch}")
 
 # 5. 상세 페이지
-# 5. 상세 페이지 (이 부분을 찾아서 아래 내용으로 교체하세요)
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
@@ -256,30 +255,32 @@ elif st.session_state.page == 'detail':
             
         current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
         
-        # 2. 수익률 및 HTML 타이틀 구성
+        # 2. 수익률 강조 디자인 구성 (글자 크기 통일)
         if current_p > 0 and offering_p > 0:
             change_pct = ((current_p - offering_p) / offering_p) * 100
-            color = "#28a745" if change_pct >= 0 else "#dc3545"
+            # 수익률 강조 색상 (상승: 형광 초록, 하락: 밝은 빨강)
+            pct_color = "#00ff41" if change_pct >= 0 else "#ff4b4b" 
             icon = "▲" if change_pct >= 0 else "▼"
             
+            # 모든 글자 크기를 h1 수준으로 동일하게 설정
             price_html = f"""
-                <span style='font-size: 18px; color: #666; font-weight: normal; margin-left: 12px;'>
-                    (공모 ${offering_p:,.2f} / 현재 
-                    <span style='color: {color}; font-weight: bold;'>
-                        ${current_p:,.2f} {icon} {abs(change_pct):.1f}%
+                <span style='font-weight: normal; margin-left: 15px;'>
+                    (공모 ${offering_p:,.2f} / 현재 ${current_p:,.2f} 
+                    <span style='color: {pct_color}; font-weight: 900; background-color: #1a1a1a; padding: 2px 10px; border-radius: 8px; border: 1px solid {pct_color}33;'>
+                        {icon} {abs(change_pct):.1f}%
                     </span>)
                 </span>
             """
         else:
             # 상장 전이거나 가격 정보가 없는 경우
             p_text = f"${offering_p:,.2f}" if offering_p > 0 else "TBD"
-            price_html = f"<span style='font-size: 18px; color: #666; margin-left: 12px;'>(공모 {p_text} / 상장 대기)</span>"
+            price_html = f"<span style='font-weight: normal; margin-left: 15px;'>(공모 {p_text} / 상장 대기)</span>"
 
-        # 3. 브라우저가 HTML을 해석하도록 출력
+        # 3. 브라우저 렌더링 (unsafe_allow_html 필수)
         st.markdown(f"<h1 style='display: flex; align-items: center; margin-bottom: 0;'>🚀 {stock['name']} {price_html}</h1>", unsafe_allow_html=True)
         st.write("---")
         
-        # 이후 탭 생성 부분(tab0, tab1...)은 기존 코드 그대로 유지하시면 됩니다.
+        # 이후 탭 생성 부분(tab0, tab1...)은 기존 코드 그대로 이어집니다.
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
         with tab0:
@@ -540,6 +541,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
