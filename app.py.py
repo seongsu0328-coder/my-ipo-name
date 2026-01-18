@@ -120,7 +120,13 @@ elif st.session_state.page == 'stats':
             
         if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True):
             st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
-        st.markdown("<small>미국 시장에 새로 등장하는 모든 상장 예정 기업</small></div>", unsafe_allow_html=True)
+        
+        # 요청하신 문구로 변경: 연간 IPO 개수 및 생존율 정보
+        st.markdown("""
+            <div style='text-align: left; padding: 10px; background-color: #f8f9fa; border-radius: 10px; margin-top: 10px;'>
+                <small>📊 <b>시장 통계:</b> 연간 평균 180~250개의 기업이 미국 시장에 상장하며, 상장 후 3년 생존율은 약 65% 내외입니다. 초기 성장의 기회를 발견하세요.</small>
+            </div>
+        """, unsafe_allow_html=True)
         
     with c2:
         st.markdown("<div class='grid-card'><h3>My 유니콘 (아동기)</h3>", unsafe_allow_html=True)
@@ -234,3 +240,4 @@ elif st.session_state.page == 'detail':
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제"):
                     st.session_state.watchlist.remove(sid); st.rerun()
+
