@@ -230,8 +230,10 @@ elif st.session_state.page == 'detail':
                 st.session_state.news_topic = "🥊 경쟁사 비교/분석"
 
             # 2. AI 실시간 한글 브리핑 영역
-            st.markdown(f"<div style='background-color: #f0f4ff; padding: 20px; border-radius: 15px; border-left: 5px solid #6e8efb; margin-top: 10px;'>"
-                        f"<h5 style='color:#333;'>🤖 AI 실시간 요약: {st.session_state.news_topic}</h5>", unsafe_allow_html=True)
+            st.markdown(f"""
+                <div style='background-color: #f0f4ff; padding: 20px; border-radius: 15px; border-left: 5px solid #6e8efb; margin-top: 10px;'>
+                    <h5 style='color:#333; margin-bottom:10px;'>🤖 AI 실시간 요약: {st.session_state.news_topic}</h5>
+            """, unsafe_allow_html=True)
             
             if st.session_state.news_topic == "💰 공모가 범위/확정 소식":
                 rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 최근 기관 수요예측에서 긍정적인 평가가 이어지고 있으며, 상단 돌파 가능성이 언급되고 있습니다."
@@ -257,12 +259,19 @@ elif st.session_state.page == 'detail':
             
             for i, news in enumerate(news_topics):
                 news_url = f"https://www.google.com/search?q={news['query']}&tbm=nws"
+                # 아래 따옴표가 닫히지 않았던 부분을 수정한 HTML 코드입니다.
                 st.markdown(f"""
                     <a href="{news_url}" target="_blank" style="text-decoration: none; color: inherit;">
                         <div style="background-color: #ffffff; padding: 12px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #eef2ff; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <span style="font-size: 13px; font-weight: bold; color: #6e8efb;">TOP {i+1} · {news['tag']}</span>
-                                <span style="font-size: 11px; color: #aaa;">상세보기 ↗
+                                <span style="font-size: 11px; color: #aaa;">상세보기 ↗</span>
+                            </div>
+                            <div style="margin-top: 5px; font-size: 15px; font-weight: 600; color: #333;">{news['title']}</div>
+                        </div>
+                    </a>
+                """, unsafe_allow_html=True)
+
 
 
 
