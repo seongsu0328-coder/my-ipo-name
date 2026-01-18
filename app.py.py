@@ -116,30 +116,41 @@ elif st.session_state.page == 'login':
     q = get_daily_quote()
     st.markdown(f"<div class='quote-card'><small>TODAY'S INSIGHT</small><br><b>\"{q['eng']}\"</b><br><small>({q['kor']})</small><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
 
-# 3. 성장 단계 분석 (기존 유아기/아동기 이미지로 고정)
+# 3. 성장 단계 분석 (사용자 지정 이미지 반영)
 elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
     
-    img_baby_url = "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=800&q=80"
-    img_child_url = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80"
+    # 로컬 이미지 경로 설정 (확장자 중복 반영)
+    img_baby_path = "baby_unicorn.png.png"
+    img_child_path = "child_unicorn.png.png"
     
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("<div class='grid-card'><h3>New 유니콘 (유아기)</h3>", unsafe_allow_html=True)
-        st.image(img_baby_url, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
+        try:
+            st.image(img_baby_path, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
+        except:
+            st.warning("유아기 유니콘 이미지를 불러올 수 없습니다. (파일명 확인 필요)")
+            
         if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True, key="go_all"):
             st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
+        
         st.markdown("<div class='stat-box'><small>📊 <b>시장 통계:</b> 연간 평균 180~250개의 기업이 미국 시장에 상장하며, 상장 후 3년 생존율은 약 65% 내외입니다.</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
         
     with c2:
         st.markdown("<div class='grid-card'><h3>My 유니콘 (아동기)</h3>", unsafe_allow_html=True)
-        st.image(img_child_url, caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
+        try:
+            st.image(img_child_path, caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
+        except:
+            st.warning("아동기 유니콘 이미지를 불러올 수 없습니다. (파일명 확인 필요)")
+            
         watch_count = len(st.session_state.watchlist)
         if st.button(f"🔎 My 유니콘 탐험 ({watch_count}개 보관 중)", use_container_width=True, type="primary", key="go_watch"):
             if watch_count > 0:
                 st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'; st.rerun()
             else: st.warning("아직 보관함에 담긴 기업이 없습니다.")
+        
         st.markdown("<div class='stat-box'><small>내가 직접 분석하고 찜한 나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -219,29 +230,4 @@ elif st.session_state.page == 'detail':
 
         with tab3:
             sid = stock['symbol']
-            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
-            if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
-            
-            st.write("**1. 투자 매력도 투표**")
-            v1, v2 = st.columns(2)
-            if v1.button("🦄 Unicorn", use_container_width=True, key=f"vu_{sid}"): 
-                st.session_state.vote_data[sid]['u'] += 1; st.rerun()
-            if v2.button("💸 Fallen Angel", use_container_width=True, key=f"vf_{sid}"): 
-                st.session_state.vote_data[sid]['f'] += 1; st.rerun()
-            uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
-            st.progress(uv/(uv+fv)); st.write(f"유니콘 지수: {int(uv/(uv+fv)*100)}% ({uv+fv}명 참여)")
-
-            st.write("**2. 커뮤니티 의견**")
-            nc = st.text_input("의견 등록", key=f"ci_{sid}")
-            if st.button("등록", key=f"cb_{sid}") and nc:
-                st.session_state.comment_data[sid].insert(0, {"t": nc, "d": "방금 전"}); st.rerun()
-            for c in st.session_state.comment_data[sid][:3]:
-                st.markdown(f"<div class='comment-box'><small>{c['d']}</small><br>{c['t']}</div>", unsafe_allow_html=True)
-
-            st.write("---")
-            if sid not in st.session_state.watchlist:
-                if st.button("⭐ 마이 리서치 보관함에 담기", use_container_width=True, type="primary"):
-                    st.session_state.watchlist.append(sid); st.balloons(); st.toast("보관함 추가 완료!"); st.rerun()
-            else:
-                st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
-                if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10,
