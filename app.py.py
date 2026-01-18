@@ -418,66 +418,21 @@ elif st.session_state.page == 'detail':
                 st.table(pd.DataFrame(pending_data))
                 st.info("💡 정확한 수치는 상단 S-1 요약 또는 원문 공시를 확인해 주세요.")
 
-        # --- [Tab 2: AI 가치 평가 (고도화 버전)] ---
+        # --- [Tab 2: AI 가치 평가 (순서 변경 및 고도화)] ---
         with tab2:
-            # 1. 시뮬레이션 데이터 설정 (실제로는 API 기반 동적 데이터가 들어갈 자리)
+            # [기본 데이터 계산 로직 - 동일]
             growth_rate, profit_margin = 0.452, -0.125
-            
-            # 논문 모델 기반 가중치 점수 산출
-            growth_score = min(100, int(growth_rate * 150 + 20))    # 성장성 (G)
-            profit_score = max(10, min(100, int((profit_margin + 0.3) * 200))) # 수익성 (P)
-            interest_score = 85 + (len(stock['symbol']) % 15)      # 시장 관심도 (I)
-            
-            # 종합 점수 (가중 평균)
+            growth_score = min(100, int(growth_rate * 150 + 20))
+            profit_score = max(10, min(100, int((profit_margin + 0.3) * 200)))
+            interest_score = 85 + (len(stock['symbol']) % 15)
             total_score = (growth_score * 0.4) + (profit_score * 0.3) + (interest_score * 0.3)
             
-            # 적정가 산출 로직
             fair_low = offering_p * (1 + (total_score - 50) / 200) if offering_p > 0 else 20.0
             fair_high = fair_low * 1.25
             undervalued_pct = ((fair_low - offering_p) / offering_p) * 100 if offering_p > 0 else 0
 
-            st.markdown("#### 🎓 학술 모델 기반 가치 분석 리포트")
-            
-            # 2. 3대 핵심 평가 지표 시각화 (간략화되었던 부분 복구)
-            col_metrics = st.columns(3)
-            with col_metrics[0]:
-                st.metric("성장성 점수 (G)", f"{growth_score}점")
-                st.progress(growth_score / 100)
-                st.caption("매출 증가율 및 시장 점유율 확장성")
-            with col_metrics[1]:
-                st.metric("수익성 점수 (P)", f"{profit_score}점")
-                st.progress(profit_score / 100)
-                st.caption("영업 이익률 및 현금 흐름 건전성")
-            with col_metrics[2]:
-                st.metric("시장 관심도 (I)", f"{interest_score}점")
-                st.progress(interest_score / 100)
-                st.caption("기관 수요 예측 및 검색 트렌드")
-
-            st.write("---")
-
-            # 3. AI 적정 가치 및 분석 결과
-            res_col1, res_col2 = st.columns([1.5, 1])
-            with res_col1:
-                st.markdown(f"""
-                    <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
-                        <p style='color: #666; font-size: 14px; margin-bottom: 5px;'>AI 추정 적정 가치 범위 (Fair Value)</p>
-                        <h2 style='color: #6e8efb; margin-bottom: 10px;'>${fair_low:.2f} — ${fair_high:.2f}</h2>
-                        <p style='color: {"#28a745" if undervalued_pct > 0 else "#dc3545"}; font-weight: bold; font-size: 16px;'>
-                            현재 공모가 대비 약 {abs(undervalued_pct):.1f}% {"저평가" if undervalued_pct > 0 else "고평가"} 상태
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            with res_col2:
-                st.markdown(f"**🤖 AI {stock['symbol']} 종합 매력도**")
-                st.title(f"{total_score:.1f} / 100")
-                status = "매우 높음" if total_score > 75 else ("보통" if total_score > 50 else "주의")
-                st.info(f"종합 투자 매력도는 **'{status}'** 단계입니다.")
-
-            st.write("---")
-
-            # 4. 논문 요약 내용 고도화 (부족했던 설명 추가)
-            st.markdown("##### 🔬 가치 평가 방법론 상세 (Academic Methodology)")
+            # 1. 가치 평가 방법론 상세 (Academic Methodology) - 상단으로 이동
+            st.markdown("##### 🔬 1. 가치 평가 방법론 상세 (Academic Methodology)")
             p_cols = st.columns(3)
             
             methodologies = [
@@ -502,12 +457,54 @@ elif st.session_state.page == 'detail':
                 with p_cols[i]:
                     st.markdown(f"""
                         <div style='border-top: 4px solid #6e8efb; background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 210px;'>
-                            <p style='font-size: 12px; font-weight: bold; color: #6e8efb; margin-bottom: 2px;'>{m['title']}</p>
+                            <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 2px;'>{m['title']}</p>
                             <p style='font-size: 14px; font-weight: 600; color: #333;'>{m['author']}</p>
                             <p style='font-size: 12.5px; color: #555; line-height: 1.5;'>{m['desc']}</p>
                         </div>
                     """, unsafe_allow_html=True)
 
+            st.write("<br>", unsafe_allow_html=True) # 여백 추가
+
+            # 2. 학술 모델 기반 가치 분석 리포트 - 하단으로 이동
+            st.markdown("#### 🎓 2. AI 가치 분석 및 적정가 리포트")
+            
+            # 3대 지표 시각화
+            col_metrics = st.columns(3)
+            with col_metrics[0]:
+                st.metric("성장성 점수 (G)", f"{growth_score}점")
+                st.progress(growth_score / 100)
+                st.caption("매출 증가율 및 시장 확장성")
+            with col_metrics[1]:
+                st.metric("수익성 점수 (P)", f"{profit_score}점")
+                st.progress(profit_score / 100)
+                st.caption("영업 이익률 및 현금 흐름")
+            with col_metrics[2]:
+                st.metric("시장 관심도 (I)", f"{interest_score}점")
+                st.progress(interest_score / 100)
+                st.caption("기관 수요 및 검색 트렌드")
+
+            st.write("---")
+
+            # AI 적정 가치 카드 및 종합 매력도
+            res_col1, res_col2 = st.columns([1.5, 1])
+            with res_col1:
+                st.markdown(f"""
+                    <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
+                        <p style='color: #666; font-size: 14px; margin-bottom: 5px;'>AI 추정 적정 가치 범위 (Fair Value)</p>
+                        <h2 style='color: #6e8efb; margin-bottom: 10px;'>${fair_low:.2f} — ${fair_high:.2f}</h2>
+                        <p style='color: {"#28a745" if undervalued_pct > 0 else "#dc3545"}; font-weight: bold; font-size: 16px;'>
+                            현재 공모가 대비 약 {abs(undervalued_pct):.1f}% {"저평가" if undervalued_pct > 0 else "고평가"} 상태
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            with res_col2:
+                st.markdown(f"**🤖 {stock['symbol']} 종합 매력도**")
+                st.title(f"{total_score:.1f} / 100")
+                status = "매우 높음" if total_score > 75 else ("보통" if total_score > 50 else "주의")
+                st.info(f"종합 투자 매력도는 **'{status}'** 단계입니다.")
+
+            # 수식 보기 (맨 아래 유지)
             with st.expander("🔬 AI 알고리즘 산출 수식 보기"):
                 st.write("본 모델은 아래의 다중 회귀 분석 수식을 사용하여 실시간 가중치를 조정합니다.")
                 st.latex(r"Score_{total} = (G \times 0.4) + (P \times 0.3) + (I \times 0.3)")
@@ -551,6 +548,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
