@@ -204,12 +204,21 @@ elif st.session_state.page == 'calendar':
                 col5.markdown(f"<span style='color:{'#28a745' if cp >= p_ref else '#dc3545'}; font-weight:bold;'>${cp:,.2f}</span>" if cp > 0 else "-", unsafe_allow_html=True)
             else: col5.write("대기")
 
-            # 6. 거래소 (새로 추가됨)
-            exch = row.get('exchange', 'TBD')
-            # 거래소 이름이 길 경우 약어로 표시 (예: NASDAQ Global Select Market -> NASDAQ)
-            if "NASDAQ" in exch.upper(): display_exch = "NASDAQ"
-            elif "NEW YORK" in exch.upper() or "NYSE" in exch.upper(): display_exch = "NYSE"
-            else: display_exch = exch
+            # 6. 거래소 (오류 방지 로직 적용)
+            exch_raw = row.get('exchange', 'TBD')
+            
+            # exch_raw가 None이거나 문자열이 아닐 경우를 대비
+            if pd.isna(exch_raw) or exch_raw is None:
+                display_exch = "TBD"
+            else:
+                exch_str = str(exch_raw).upper()
+                if "NASDAQ" in exch_str:
+                    display_exch = "NASDAQ"
+                elif "NEW YORK" in exch_str or "NYSE" in exch_str:
+                    display_exch = "NYSE"
+                else:
+                    display_exch = exch_raw
+            
             col6.write(f"🏛️ {display_exch}")
 
 # 5. 상세 페이지 (뉴스 탭 및 브리핑 통합 버전)
@@ -483,6 +492,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
