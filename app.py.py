@@ -342,7 +342,7 @@ elif st.session_state.page == 'detail':
                 st.table(pd.DataFrame(f_data))
                 st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
 
-        wwith tab2:
+            with tab2:
             # 1. 학술적 근거 섹션 (신규 추가)
             st.markdown("#### 🎓 AI Valuation Methodology")
             st.caption("본 가치 평가는 금융 학계의 권위 있는 IPO 평가 모델을 기반으로 산출되었습니다.")
@@ -441,6 +441,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
