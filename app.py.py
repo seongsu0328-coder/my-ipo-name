@@ -198,7 +198,7 @@ elif st.session_state.page == 'stats':
     
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("<div class='grid-card'><h3>New 유니콘 (유아기)</h3>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>New 유니콘 </h3>", unsafe_allow_html=True)
         if os.path.exists(img_baby):
             st.image(img_baby, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
         else: st.warning("baby_unicorn.png.png 파일을 찾을 수 없습니다.")
@@ -208,7 +208,7 @@ elif st.session_state.page == 'stats':
         st.markdown("</div>", unsafe_allow_html=True)
         
     with c2:
-        st.markdown("<div class='grid-card'><h3>My 유니콘 (아동기)</h3>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>My 유니콘 </h3>", unsafe_allow_html=True)
         if os.path.exists(img_child):
             st.image(img_child, caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
         else: st.warning("child_unicorn.png.png 파일을 찾을 수 없습니다.")
@@ -658,6 +658,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
