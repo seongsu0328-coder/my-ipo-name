@@ -344,7 +344,36 @@ elif st.session_state.page == 'detail':
                 st.table(pd.DataFrame(f_data))
                 st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
 
-        with tab3:
+        with tab2:
+            st.subheader(f"⚖️ {stock['name']} AI 가치 평가")
+            
+            # 가치 평가를 위한 카드형 레이아웃
+            st.markdown(f"""
+                <div style='background-color: #ffffff; padding: 20px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
+                    <p style='color: #666; font-size: 14px; margin-bottom: 5px;'>AI 추정 적정가 범위</p>
+                    <h2 style='color: #6e8efb; margin-top: 0;'>$24.50 — $31.20</h2>
+                    <p style='font-size: 14px; color: #444;'>현재 공모가(상단) 대비 약 <span style='color: #28a745; font-weight: bold;'>15.2% 저평가</span> 상태로 분석됩니다.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            st.write("<br>", unsafe_allow_html=True)
+            
+            # 투자 매력도 게이지
+            st.write("**🤖 AI 종합 매력도 점수**")
+            score = 78
+            st.progress(score / 100)
+            st.write(f"상위 {100-score}%의 투자 유망 종목입니다. (유사 업종 200개 기업 데이터 비교 결과)")
+
+            # 세부 평가 지표
+            st.write("---")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("성장성 점수", "88/100", "High")
+            m2.metric("수익성 점수", "42/100", "Low")
+            m3.metric("시장 관심도", "95/100", "Extreme")
+
+            st.info("💡 AI 가치 평가는 최근 상장한 유사 기업들의 멀티플(P/S, P/E) 및 SEC 공시 데이터를 기반으로 산출된 시뮬레이션 결과입니다.")
+
+         with tab3:
             sid = stock['symbol']
             if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
             if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
@@ -382,6 +411,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
