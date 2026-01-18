@@ -333,40 +333,33 @@ elif st.session_state.page == 'detail':
                 st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
 
         with tab2:
-            # --- [실시간 AI 연산 로직 시작] ---
-            # 1. 재무 데이터 추출 (데이터가 없을 경우를 대비한 기본값 설정)
-            growth_rate = 0.452  # 매출 성장률 (예: 45.2%)
-            profit_margin = -0.125  # 영업 이익률 (예: -12.5%)
+            # --- [1단계: 실시간 AI 연산 로직] ---
+            # 재무 데이터 추출 (실제 데이터 연동 전 샘플값, 향후 API 연동 가능)
+            growth_rate = 0.452  # 매출 성장률
+            profit_margin = -0.125  # 영업 이익률
             
-            # 2. 개별 점수 계산 (알고리즘 기반)
-            # 성장성: 성장률에 기반하되 0~100 사이로 변환
+            # 개별 점수 산출
             growth_score = min(100, int(growth_rate * 150 + 20)) 
-            # 수익성: 이익률이 낮으면 감점, 높으면 가점
             profit_score = max(10, min(100, int((profit_margin + 0.3) * 200))) 
-            # 관심도: 심볼의 길이나 랜덤성을 활용한 시뮬레이션 (추후 소셜 언급량 API 연동 가능)
             interest_score = 85 + (len(stock['symbol']) % 15)
             
-            # 3. 종합 매력도 점수 (논문 가중치 적용)
-            # Kim & Ritter(성장성 40%) + Purnanandam(수익성 30%) + Loughran(시장관심 30%)
+            # 종합 매력도 점수 (학술 가중치 반영)
             total_score = (growth_score * 0.4) + (profit_score * 0.3) + (interest_score * 0.3)
             
-            # 4. 적정가 범위 계산
-            # 현재 공모가(price)를 숫자로 변환 (예: "$15.00" -> 15.0)
+            # 적정가 범위 계산
             try:
                 base_price = float(stock.get('price', '$20.00').replace('$', '').split('-')[0])
             except:
                 base_price = 20.0
             
-            # 점수에 따른 프리미엄/디스카운트 적용
             fair_low = base_price * (1 + (total_score - 50) / 200)
             fair_high = fair_low * 1.25
             undervalued_pct = ((fair_low - base_price) / base_price) * 100
-            # --- [실시간 AI 연산 로직 끝] ---
 
+            # --- [2단계: 상단 학술 모델 카드 출력] ---
             st.markdown("#### 🎓 AI Valuation Methodology")
             st.caption(f"본 분석은 **{stock['name']}**의 실시간 재무 지표를 3대 학술 모델에 대입한 결과입니다.")
             
-            # 논문 카드 정의 (상단 변수화 방식 유지)
             paper_style = "height: 280px; border-top: 3px solid #6e8efb; background-color: #f8f9fa; padding: 15px; border-radius: 10px;"
             p_cols = st.columns(3)
             
@@ -399,27 +392,44 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
             
-            # 2. 실시간 계산 결과 반영 카드
-            # ... (기존 실시간 계산 및 카드 로직 뒤에 이어서 추가)
+            # --- [3단계: 실시간 결과 카드 및 지표 출력] ---
+            st.markdown(f"""
+                <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
+                    <div style='display: flex; align-items: center; margin-bottom: 10px;'>
+                        <span style='background-color: #6e8efb; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; margin-right: 10px;'>AI ENGINE ACTIVE</span>
+                        <p style='color: #666; font-size: 14px; margin: 0;'>실시간 데이터 분석 기반 추정 적정가</p>
+                    </div>
+                    <h2 style='color: #6e8efb; margin-top: 0;'>${fair_low:.2f} — ${fair_high:.2f}</h2>
+                    <p style='font-size: 14px; color: #444;'>현재 공모가 대비 약 <span style='color: {"#28a745" if undervalued_pct > 0 else "#dc3545"}; font-weight: bold;'>{undervalued_pct:.1f}% {"저평가" if undervalued_pct > 0 else "고평가"}</span> 상태입니다.</p>
+                </div>
+            """, unsafe_allow_html=True)
 
+            st.write("<br>", unsafe_allow_html=True)
+            st.write(f"**🤖 AI {stock['symbol']} 종합 매력도 점수**")
+            st.progress(total_score / 100)
+            
+            st.write("---")
+            mc1, mc2, mc3 = st.columns(3)
+            mc1.metric("성장성 점수", f"{growth_score}/100", delta=f"{growth_rate*100:.1f}% YoY")
+            mc2.metric("수익성 점수", f"{profit_score}/100", delta=f"{profit_margin*100:.1f}% Marg.")
+            mc3.metric("시장 관심도", f"{interest_score}/100", delta="High Interest")
+
+            # --- [4단계: 최하단 알고리즘 수식 및 근거 (Expander)] ---
             st.write("<br><br>", unsafe_allow_html=True)
             with st.expander("🔬 AI 기반 가치평가 알고리즘 상세 설계 및 수식", expanded=False):
                 st.markdown("### 🧬 Algorithm Architecture")
                 st.write("본 알고리즘은 IPO 시장의 정보 비대칭성을 해소하기 위해 **금융 공학의 가치 회귀 모델**을 기반으로 설계되었습니다.")
 
-                # 1. 통합 수식 (LaTeX 사용)
                 st.markdown("#### 1. 종합 매력도 점수 (Total Appeal Score) 산출 공식")
                 st.latex(r"S_{total} = (G \times 0.4) + (P \times 0.3) + (I \times 0.3)")
                 st.caption("※ $G$: 매출 성장성 지수, $P$: 수익성 지수, $I$: 시장 투심 지수")
 
-                # 2. 적정가 산출 공식 (LaTeX 사용)
                 st.markdown("#### 2. AI 추정 적정가 (Estimated Fair Value) 도출")
                 st.latex(r"P_{fair} = P_{base} \times \left(1 + \frac{S_{total} - 50}{200}\right)")
                 st.caption("※ $P_{base}$: 공모가 하단 기준, $S_{total} > 50$일 경우 할증(Premium), 미만일 경우 할인(Discount) 적용")
 
                 st.write("---")
 
-                # 3. 모델별 산출 근거 요약 테이블
                 st.markdown("#### 3. 지표별 산출 근거 (Empirical Basis)")
                 evidence_data = {
                     "평가 항목": ["성장성 (G)", "수익성 (P)", "시장관심 (I)"],
@@ -431,8 +441,7 @@ elif st.session_state.page == 'detail':
                     ]
                 }
                 st.table(pd.DataFrame(evidence_data))
-                
-                st.warning("⚠️ 본 알고리즘은 학술적 모델을 기반으로 한 시뮬레이션이며, 실제 시장 상황(매크로 환경, 규제 등)에 따라 주가는 변동될 수 있습니다.")
+                st.warning("⚠️ 본 알고리즘은 학술적 모델을 기반으로 한 시뮬레이션이며, 실제 시장 상황에 따라 결과는 달라질 수 있습니다.")
 
         with tab3:
             # 최종 투자 결정 탭 기능 복구
@@ -474,6 +483,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
