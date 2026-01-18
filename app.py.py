@@ -373,7 +373,7 @@ elif st.session_state.page == 'detail':
 
             st.info("💡 AI 가치 평가는 최근 상장한 유사 기업들의 멀티플(P/S, P/E) 및 SEC 공시 데이터를 기반으로 산출된 시뮬레이션 결과입니다.")
 
-         with tab3:
+        with tab3:
             sid = stock['symbol']
             if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
             if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
@@ -411,6 +411,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
