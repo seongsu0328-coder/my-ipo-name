@@ -210,7 +210,7 @@ elif st.session_state.page == 'detail':
             
         st.title(f"🚀 {stock['name']} 심층 분석")
         
-        # 탭 생성
+       # 탭 생성
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
         with tab0:
@@ -259,7 +259,6 @@ elif st.session_state.page == 'detail':
             
             for i, news in enumerate(news_topics):
                 news_url = f"https://www.google.com/search?q={news['query']}&tbm=nws"
-                # 아래 따옴표가 닫히지 않았던 부분을 수정한 HTML 코드입니다.
                 st.markdown(f"""
                     <a href="{news_url}" target="_blank" style="text-decoration: none; color: inherit;">
                         <div style="background-color: #ffffff; padding: 12px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #eef2ff; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
@@ -271,11 +270,11 @@ elif st.session_state.page == 'detail':
                         </div>
                     </a>
                 """, unsafe_allow_html=True)
-                with tab1:
+
+        with tab1:
             st.subheader("🔍 투자자 검색 상위 5대 지표")
             c1, c2 = st.columns([1, 2.5])
             with c1: 
-                # 로고 서비스 연동
                 st.image(f"https://logo.clearbit.com/{stock['symbol']}.com", width=200)
             with c2:
                 p_n = pd.to_numeric(stock.get('price'), errors='coerce') or 0
@@ -290,9 +289,8 @@ elif st.session_state.page == 'detail':
             cc1, cc2 = st.columns(2)
             with cc1:
                 st.subheader("📑 주요 기업 공시 (SEC)")
-                # 이전에 수정한 기업명 기반 검색 링크
                 search_name = stock['name'].replace(" ", "+")
-                st.markdown(f"[🔗 SEC 공식 홈페이지에서 {stock['name']} 검색하기](https://www.sec.gov/edgar/search/#/q={search_name})")
+                st.markdown(f"[🔗 SEC 공식 홈페이지 검색](https://www.sec.gov/edgar/search/#/q={search_name})")
             with cc2:
                 st.subheader("📊 핵심 재무 요약")
                 f_data = {"항목": ["매출 성장률", "영업 이익률", "현금 흐름"], "수치": ["+45.2%", "-12.5%", "Positive"]}
@@ -303,22 +301,19 @@ elif st.session_state.page == 'detail':
             p_n = pd.to_numeric(stock.get('price'), errors='coerce') or 20.0
             st.metric("AI 추정 적정가 범위", f"${p_n*1.12:,.2f} ~ ${p_n*1.38:,.2f}")
             st.progress(0.65)
-            st.success(f"평균 **12%~38%** 추가 상승 가능성 (업계 평균 및 성장률 기반)")
-            
-            st.info("💡 AI 가치 평가는 과거 유사 기업의 상장 첫날 수익률과 현재 시장 변동성을 결합하여 산출됩니다.")
+            st.success(f"평균 **12%~38%** 추가 상승 가능성")
 
         with tab3:
             sid = stock['symbol']
-            # 투표 데이터 초기화
             if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
             if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
             
             st.write("**1. 투자 매력도 투표**")
             v1, v2 = st.columns(2)
-            if v1.button("🦄 Unicorn (매수 추천)", use_container_width=True, key=f"vu_{sid}"): 
+            if v1.button("🦄 Unicorn", use_container_width=True, key=f"vu_{sid}"): 
                 st.session_state.vote_data[sid]['u'] += 1
                 st.rerun()
-            if v2.button("💸 Fallen Angel (관망)", use_container_width=True, key=f"vf_{sid}"): 
+            if v2.button("💸 Fallen Angel", use_container_width=True, key=f"vf_{sid}"): 
                 st.session_state.vote_data[sid]['f'] += 1
                 st.rerun()
             
@@ -327,16 +322,14 @@ elif st.session_state.page == 'detail':
             st.write(f"유니콘 지수: {int(uv/(uv+fv)*100)}% ({uv+fv}명 참여)")
 
             st.write("**2. 커뮤니티 의견**")
-            nc = st.text_input("의견 등록", key=f"ci_{sid}", placeholder="이 기업에 대한 생각을 공유하세요.")
+            nc = st.text_input("의견 등록", key=f"ci_{sid}")
             if st.button("등록", key=f"cb_{sid}") and nc:
                 st.session_state.comment_data[sid].insert(0, {"t": nc, "d": "방금 전"})
                 st.rerun()
-            
             for c in st.session_state.comment_data[sid][:3]:
                 st.markdown(f"<div class='comment-box'><small>{c['d']}</small><br>{c['t']}</div>", unsafe_allow_html=True)
 
             st.write("---")
-            # 보관함 로직
             if sid not in st.session_state.watchlist:
                 if st.button("⭐ 마이 리서치 보관함에 담기", use_container_width=True, type="primary"):
                     st.session_state.watchlist.append(sid)
@@ -348,6 +341,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
