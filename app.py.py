@@ -238,63 +238,48 @@ elif st.session_state.page == 'calendar':
             col6.write(f"🏛️ {display_exch}")
 
 # 5. 상세 페이지
+# 5. 상세 페이지 (이 부분을 찾아서 아래 내용으로 교체하세요)
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
+        # 1. 상단 버튼 및 데이터 계산
         if st.button("⬅️ 목록으로"): 
             st.session_state.page = 'calendar'
             st.rerun()
             
-        # --- [수익률 계산 로직] ---
-        # 1. 공모가 숫자 추출
         try:
-            raw_offering = stock.get('price', '0').replace('$', '').split('-')[0].strip()
-            offering_p = float(raw_offering)
+            # 공모가 추출 ($10.00 -> 10.0)
+            off_val = str(stock.get('price', '0')).replace('$', '').split('-')[0].strip()
+            offering_p = float(off_val) if off_val and off_val != 'TBD' else 0
         except:
             offering_p = 0
             
-        # 2. 현재가 가져오기
         current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
         
-        # 3. 등락률 계산 및 UI 구성
-        price_display = f" (공모 ${offering_p:,.2f}"
-        
+        # 2. 수익률 및 HTML 타이틀 구성
         if current_p > 0 and offering_p > 0:
             change_pct = ((current_p - offering_p) / offering_p) * 100
-            if change_pct > 0:
-                status_icon = "▲"
-                color = "#28a745" # 초록색
-            elif change_pct < 0:
-                status_icon = "▼"
-                color = "#dc3545" # 빨간색
-            else:
-                status_icon = "-"
-                color = "#666666"
-                
-            price_info_html = f"""
-                <span style='font-size: 0.6em; color: #666;'>
-                    {price_display} / 현재 
+            color = "#28a745" if change_pct >= 0 else "#dc3545"
+            icon = "▲" if change_pct >= 0 else "▼"
+            
+            price_html = f"""
+                <span style='font-size: 18px; color: #666; font-weight: normal; margin-left: 12px;'>
+                    (공모 ${offering_p:,.2f} / 현재 
                     <span style='color: {color}; font-weight: bold;'>
-                        ${current_p:,.2f} {status_icon} {abs(change_pct):.1f}%
+                        ${current_p:,.2f} {icon} {abs(change_pct):.1f}%
                     </span>)
                 </span>
             """
         else:
-            price_info_html = f"<span style='font-size: 0.6em; color: #666;'>{price_display} / 상장 대기)</span>"
+            # 상장 전이거나 가격 정보가 없는 경우
+            p_text = f"${offering_p:,.2f}" if offering_p > 0 else "TBD"
+            price_html = f"<span style='font-size: 18px; color: #666; margin-left: 12px;'>(공모 {p_text} / 상장 대기)</span>"
 
-        # HTML을 사용하여 타이틀과 가격 정보를 한 줄에 표시
-        st.markdown(f"# 🚀 {stock['name']} {price_info_html}", unsafe_allow_html=True)
-        # ------------------------------------------
+        # 3. 브라우저가 HTML을 해석하도록 출력
+        st.markdown(f"<h1 style='display: flex; align-items: center; margin-bottom: 0;'>🚀 {stock['name']} {price_html}</h1>", unsafe_allow_html=True)
+        st.write("---")
         
-        # 탭 생성 (기존 코드와 동일)
-        tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
-        # ------------------------------------------
-        
-        # 탭 생성 (이후 코드는 동일)
-        tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
-        # ... (이하 생략))
-        
-       # 탭 생성
+        # 이후 탭 생성 부분(tab0, tab1...)은 기존 코드 그대로 유지하시면 됩니다.
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
         with tab0:
@@ -555,6 +540,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
