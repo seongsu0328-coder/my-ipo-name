@@ -210,14 +210,14 @@ elif st.session_state.page == 'detail':
         # 탭 구성 수정: 뉴스 탭 추가
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
-        with tab0:
+       with tab0:
             st.subheader(f"📰 {stock['name']} 투자 인사이트 브리핑")
             
-            # 1. 상태 세션 초기화 (어떤 버튼을 눌렀는지 저장)
+            # 1. 상태 세션 초기화 (어떤 주제를 선택했는지 저장)
             if 'news_topic' not in st.session_state:
                 st.session_state.news_topic = "💰 공모가 범위/확정 소식"
 
-            # 2. 투자자 필수 체크 버튼 (클릭 시 상태 업데이트)
+            # 2. 투자자 핵심 체크 버튼 (상단)
             col_k1, col_k2, col_k3 = st.columns(3)
             if col_k1.button("💰 공모가 범위/확정 소식", use_container_width=True):
                 st.session_state.news_topic = "💰 공모가 범위/확정 소식"
@@ -226,52 +226,31 @@ elif st.session_state.page == 'detail':
             if col_k3.button("🥊 경쟁사 비교/분석", use_container_width=True):
                 st.session_state.news_topic = "🥊 경쟁사 비교/분석"
 
-            st.write("---")
-
-            # 3. 실시간 번역 및 브리핑 영역
-            st.markdown(f"#### 🤖 AI 실시간 브리핑: {st.session_state.news_topic}")
-            
-            # 주제별 동적 리포트 생성 (API 데이터 기반 시뮬레이션 및 번역)
-            with st.spinner('글로벌 데이터를 수집하여 한글로 번역 중입니다...'):
+            # 3. AI 실시간 한글 브리핑 영역
+            with st.container():
+                st.markdown(f"<div style='background-color: #f0f4ff; padding: 20px; border-radius: 15px; border-left: 5px solid #6e8efb; margin-top: 10px;'>"
+                            f"<h5>🤖 AI 실시간 요약: {st.session_state.news_topic}</h5>", unsafe_allow_html=True)
+                
+                # 주제별 분석 내용 생성
                 if st.session_state.news_topic == "💰 공모가 범위/확정 소식":
-                    report_eng = f"The expected pricing for {stock['name']} is currently set between {stock.get('price', 'TBD')}. Institutional demand is showing strong momentum."
-                    report_kor = "공모가 범위는 현재 시장 상황을 반영하여 설정되었습니다. 기관 투자자들의 수요 예측 조사에서 매우 긍정적인 신호가 감지되고 있으며, 최종 공모가는 희망 밴드 상단에서 결정될 가능성이 높습니다."
-                
+                    rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 최근 기관 수요예측에서 긍정적인 평가가 이어지고 있으며, 상단 돌파 가능성이 언급되고 있습니다."
                 elif st.session_state.news_topic == "📅 상장 일정/연기 소식":
-                    report_eng = f"{stock['name']} is scheduled to debut on {stock['date']}. No significant delays reported from the SEC filings so far."
-                    report_kor = f"현재 {stock['name']}의 공식 상장일은 {stock['date']}로 예정되어 있습니다. SEC 증권신고서 분석 결과, 현재까지 일정이 연기될 가능성은 낮으며 예정대로 뉴욕 증시(또는 나스닥)에 입성할 것으로 보입니다."
+                    rep_kor = f"{stock['name']}은(는) {stock['date']}에 상장 예정입니다. SEC 공시 상 특이사항은 없으며, 예정된 일정대로 진행될 확률이 매우 높습니다."
+                else:
+                    rep_kor = f"{stock['name']}은(는) 동종 업계 대비 높은 성장성을 보이고 있습니다. 다만, 상장 후 시가총액이 주요 경쟁사들의 밸류에이션 대비 적절한지가 핵심 관건입니다."
                 
-                else: # 경쟁사 비교
-                    report_eng = f"Compared to industry peers, {stock['symbol']} shows higher revenue growth but remains at a net loss. Valuation is competitive."
-                    report_kor = f"동종 업계 경쟁사들과 비교했을 때, {stock['name']}은 매출 성장률 면에서 우위를 점하고 있습니다. 다만 아직 순손실 상태이므로, 상장 후 시가총액이 경쟁사인 A사 대비 저평가되었는지 여부가 핵심 투자 포인트입니다."
-
-                # 리포트 카드 출력
-                st.success("✅ 번역 및 분석 완료")
-                c1, c2 = st.columns([1, 1.2])
-                with c1:
-                    st.markdown(f"**[Source: Market Feed]**\n\n`{report_eng}`")
-                with c2:
-                    st.markdown(f"**[한글 번역 인사이트]**\n\n{report_kor}")
+                st.write(rep_kor)
+                st.markdown("</div>", unsafe_allow_html=True)
 
             st.write("---")
 
-            # 4. 실시간 뉴스 Top 5 (기존 기능 유지하되 번역 포함)
-            st.markdown(f"##### 🔥 {stock['name']} 인기 뉴스 제목 번역")
+            # 4. 🔥 [복구] 실시간 인기 뉴스 Top 5 (클릭 시 원문 이동)
+            st.markdown(f"##### 🔥 {stock['name']} 관련 실시간 인기 뉴스 Top 5")
             
-            news_items = [
-                f"{stock['name']} IPO: Why investors are excited",
-                f"How {stock['symbol']} plans to dominate the market",
-                f"The risks of investing in {stock['name']} right now"
-            ]
-            
-            for news_txt in news_items:
-                # 간단한 번역 로직 (실제는 API 호출 가능)
-                st.markdown(f"""
-                <div style="background-color: #f0f2f6; padding: 10px; border-radius: 8px; margin-bottom: 5px; font-size: 14px;">
-                    <b>ENG:</b> {news_txt}<br>
-                    <b>KOR:</b> {'인베스터들이 이 IPO에 열광하는 이유' if 'excited' in news_txt else '시장 점유율 확대 계획' if 'dominate' in news_txt else '현재 투자 시 유의해야 할 리스크'}
-                </div>
-                """, unsafe_allow_html=True)
+            # 기업 정보를 반영한 뉴스 데이터
+            news_topics = [
+                {"title": f"{stock['name']} IPO: 주요 투자 위험 요소 및 기회 분석", "query": f"{stock['name']}+IPO+analysis", "tag": "분석"},
+                {"title": f"나스닥 상장 앞둔 {stock['symbol']}, 월스트리트의 평가는?", "query": f"{stock['symbol']}+stock+wall
 
         with tab1:
             st.subheader("🔍 투자자 검색 상위 5대 지표")
@@ -333,6 +312,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
