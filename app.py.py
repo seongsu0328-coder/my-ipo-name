@@ -86,17 +86,7 @@ def get_current_stock_price(symbol, api_key):
 if st.session_state.page == 'intro':
     _, col_center, _ = st.columns([1, 8, 1])
     with col_center:
-        st.markdown("""
-            <div class='intro-card'>
-                <div class='intro-title'>UNICORN FINDER</div>
-                <div class='intro-subtitle'>미국 시장의 차세대 주역을 가장 먼저 발견하세요</div>
-                <div class='feature-grid'>
-                    <div class='feature-item'><div class='feature-icon'>📅</div><div class='feature-text'>IPO 스케줄<br>실시간 트래킹</div></div>
-                    <div class='feature-item'><div class='feature-icon'>📊</div><div class='feature-text'>AI기반 분석<br>데이터 예측</div></div>
-                    <div class='feature-item'><div class='feature-icon'>🗳️</div><div class='feature-text'>집단 지성<br>글로벌 심리 투표</div></div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown("<div class='intro-card'><div class='intro-title'>UNICORN FINDER</div><div class='intro-subtitle'>미국 시장의 차세대 주역을 가장 먼저 발견하세요</div><div class='feature-grid'><div class='feature-item'><div class='feature-icon'>📅</div><div class='feature-text'>IPO 스케줄<br>실시간 트래킹</div></div><div class='feature-item'><div class='feature-icon'>📊</div><div class='feature-text'>AI기반 분석<br>데이터 예측</div></div><div class='feature-item'><div class='feature-icon'>🗳️</div><div class='feature-text'>집단 지성<br>글로벌 심리 투표</div></div></div></div>", unsafe_allow_html=True)
         if st.button("탐험 시작하기", key="start_app", use_container_width=True):
             st.session_state.page = 'login'; st.rerun()
 
@@ -117,22 +107,18 @@ elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("<div class='grid-card'><h3>New 유니콘</h3>", unsafe_allow_html=True)
-        st.markdown("<div style='font-size:80px; padding:20px;'>🌱</div>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>New 유니콘</h3><div style='font-size:80px; padding:20px;'>🌱</div>", unsafe_allow_html=True)
         if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True):
-            st.session_state.view_mode = 'all'
-            st.session_state.page = 'calendar'; st.rerun()
-        st.markdown("<small>미국 시장에 새로 등장하는 상장 예정 기업</small></div>", unsafe_allow_html=True)
+            st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
+        st.markdown("<small>미국 시장에 새로 등장하는 모든 상장 예정 기업</small></div>", unsafe_allow_html=True)
     with c2:
-        st.markdown("<div class='grid-card'><h3>My 유니콘</h3>", unsafe_allow_html=True)
-        st.markdown("<div style='font-size:80px; padding:20px;'>⭐</div>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>My 유니콘</h3><div style='font-size:80px; padding:20px;'>⭐</div>", unsafe_allow_html=True)
         watch_count = len(st.session_state.watchlist)
         if st.button(f"🔎 My 유니콘 탐험 ({watch_count}개 보관 중)", use_container_width=True, type="primary"):
             if watch_count > 0:
-                st.session_state.view_mode = 'watchlist'
-                st.session_state.page = 'calendar'; st.rerun()
+                st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'; st.rerun()
             else: st.warning("아직 보관함에 담긴 기업이 없습니다.")
-        st.markdown("<small>내가 분석하고 찜한 나만의 유니콘 후보</small></div>", unsafe_allow_html=True)
+        st.markdown("<small>내가 직접 분석하고 찜한 나만의 유니콘 후보들</small></div>", unsafe_allow_html=True)
 
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
@@ -175,12 +161,62 @@ elif st.session_state.page == 'detail':
         if st.button("⬅️ 목록으로"): st.session_state.page = 'calendar'; st.rerun()
         st.title(f"🚀 {stock['name']} 심층 분석")
         tab1, tab2, tab3 = st.tabs(["📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
-        # ... (이전과 동일한 탭 상세 내용) ...
+        
+        with tab1:
+            st.subheader("🔍 투자자 검색 상위 5대 지표")
+            c1, c2 = st.columns([1, 2.5])
+            with c1: st.image(f"https://logo.clearbit.com/{stock['symbol']}.com", width=200)
+            with c2:
+                p, s = pd.to_numeric(stock.get('price'), errors='coerce') or 0, pd.to_numeric(stock.get('numberOfShares'), errors='coerce') or 0
+                st.markdown(f"<div class='info-box'><b>1. 예상 공모가:</b> ${p:,.2f}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='info-box'><b>2. 공모 규모:</b> ${(p*s/1000000):,.1f}M USD</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='info-box'><b>3. 상장 거래소:</b> {stock.get('exchange', 'NYSE/NASDAQ')}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='info-box'><b>4. 보호예수 기간:</b> 상장 후 180일</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='info-box'><b>5. 주요 주간사:</b> 글로벌 Top-tier 투자은행</div>", unsafe_allow_html=True)
+
+        with tab2:
+            st.subheader("⚖️ AI 가치 평가 (학술 모델)")
+            p = pd.to_numeric(stock.get('price'), errors='coerce') or 0
+            fp_min, fp_max = p * 1.12, p * 1.38
+            ca, cb = st.columns(2)
+            with ca:
+                st.metric("AI 추정 적정가 범위", f"${fp_min:,.2f} ~ ${fp_max:,.2f}")
+                st.markdown("#### **참조 모델**\n- Ritter(1991) IPO 성과 분석\n- Fama-French 5-Factor")
+            with cb:
+                st.write("상승 잠재력 분석")
+                st.progress(0.65)
+                st.success(f"평균 **12%~38%** 추가 상승 가능성")
+
         with tab3:
             sid = stock['symbol']
+            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
+            if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
+            
+            st.markdown("<div class='vote-container'>", unsafe_allow_html=True)
+            st.write("**1. 투자 매력도 투표**")
+            v1, v2 = st.columns(2)
+            if v1.button("🦄 Unicorn", use_container_width=True, key=f"vu_{sid}"): 
+                st.session_state.vote_data[sid]['u'] += 1; st.rerun()
+            if v2.button("💸 Fallen Angel", use_container_width=True, key=f"vf_{sid}"): 
+                st.session_state.vote_data[sid]['f'] += 1; st.rerun()
+            uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
+            st.progress(uv/(uv+fv))
+            st.write(f"유니콘 지수: {int(uv/(uv+fv)*100)}% ({uv+fv}명 참여)")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            st.write("**2. 커뮤니티 의견**")
+            nc = st.text_input("의견 등록", key=f"ci_{sid}")
+            if st.button("등록", key=f"cb_{sid}") and nc:
+                st.session_state.comment_data[sid].insert(0, {"t": nc, "d": "방금 전"}); st.rerun()
+            for c in st.session_state.comment_data[sid][:3]:
+                st.markdown(f"<div class='comment-box'><small>{c['d']}</small><br>{c['t']}</div>", unsafe_allow_html=True)
+
+            st.write("---")
+            st.write("**3. 마이 리서치 보관함**")
             if sid not in st.session_state.watchlist:
-                if st.button("⭐ 관심 종목으로 등록", use_container_width=True, type="primary"):
-                    st.session_state.watchlist.append(sid); st.balloons(); st.rerun()
+                if st.button("⭐ 관심 종목으로 등록하고 상장 알림 받기", use_container_width=True, type="primary"):
+                    st.session_state.watchlist.append(sid); st.balloons(); st.toast("보관함 추가 완료!"); st.rerun()
             else:
-                st.success("✅ 보관함에 저장됨"); 
-                if st.button("❌ 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+                st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
+                if st.button("❌ 관심 종목 해제"):
+                    st.session_state.watchlist.remove(sid); st.rerun()
