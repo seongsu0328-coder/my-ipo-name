@@ -200,24 +200,27 @@ elif st.session_state.page == 'calendar':
                 col5.markdown(f"<span style='color:{'#28a745' if cp >= p_ref else '#dc3545'}; font-weight:bold;'>${cp:,.2f}</span>" if cp > 0 else "-", unsafe_allow_html=True)
             else: col5.write("대기")
 
-# 5. 상세 페이지 (뉴스 탭 추가)
+# 5. 상세 페이지 (뉴스 탭 및 브리핑 통합 버전)
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
-        if st.button("⬅️ 목록으로"): st.session_state.page = 'calendar'; st.rerun()
+        if st.button("⬅️ 목록으로"): 
+            st.session_state.page = 'calendar'
+            st.rerun()
+            
         st.title(f"🚀 {stock['name']} 심층 분석")
         
-        # 탭 구성 수정: 뉴스 탭 추가
+        # 탭 생성
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
-       with tab0:
+        with tab0:
             st.subheader(f"📰 {stock['name']} 투자 인사이트 브리핑")
             
-            # 1. 상태 세션 초기화 (어떤 주제를 선택했는지 저장)
+            # 상태 세션 초기화
             if 'news_topic' not in st.session_state:
                 st.session_state.news_topic = "💰 공모가 범위/확정 소식"
 
-            # 2. 투자자 핵심 체크 버튼 (상단)
+            # 1. 투자자 필수 체크 버튼
             col_k1, col_k2, col_k3 = st.columns(3)
             if col_k1.button("💰 공모가 범위/확정 소식", use_container_width=True):
                 st.session_state.news_topic = "💰 공모가 범위/확정 소식"
@@ -226,92 +229,41 @@ elif st.session_state.page == 'detail':
             if col_k3.button("🥊 경쟁사 비교/분석", use_container_width=True):
                 st.session_state.news_topic = "🥊 경쟁사 비교/분석"
 
-            # 3. AI 실시간 한글 브리핑 영역
-            with st.container():
-                st.markdown(f"<div style='background-color: #f0f4ff; padding: 20px; border-radius: 15px; border-left: 5px solid #6e8efb; margin-top: 10px;'>"
-                            f"<h5>🤖 AI 실시간 요약: {st.session_state.news_topic}</h5>", unsafe_allow_html=True)
-                
-                # 주제별 분석 내용 생성
-                if st.session_state.news_topic == "💰 공모가 범위/확정 소식":
-                    rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 최근 기관 수요예측에서 긍정적인 평가가 이어지고 있으며, 상단 돌파 가능성이 언급되고 있습니다."
-                elif st.session_state.news_topic == "📅 상장 일정/연기 소식":
-                    rep_kor = f"{stock['name']}은(는) {stock['date']}에 상장 예정입니다. SEC 공시 상 특이사항은 없으며, 예정된 일정대로 진행될 확률이 매우 높습니다."
-                else:
-                    rep_kor = f"{stock['name']}은(는) 동종 업계 대비 높은 성장성을 보이고 있습니다. 다만, 상장 후 시가총액이 주요 경쟁사들의 밸류에이션 대비 적절한지가 핵심 관건입니다."
-                
-                st.write(rep_kor)
-                st.markdown("</div>", unsafe_allow_html=True)
+            # 2. AI 실시간 한글 브리핑 영역
+            st.markdown(f"<div style='background-color: #f0f4ff; padding: 20px; border-radius: 15px; border-left: 5px solid #6e8efb; margin-top: 10px;'>"
+                        f"<h5 style='color:#333;'>🤖 AI 실시간 요약: {st.session_state.news_topic}</h5>", unsafe_allow_html=True)
+            
+            if st.session_state.news_topic == "💰 공모가 범위/확정 소식":
+                rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 최근 기관 수요예측에서 긍정적인 평가가 이어지고 있으며, 상단 돌파 가능성이 언급되고 있습니다."
+            elif st.session_state.news_topic == "📅 상장 일정/연기 소식":
+                rep_kor = f"{stock['name']}은(는) {stock['date']}에 상장 예정입니다. SEC 공시 상 특이사항은 없으며, 예정된 일정대로 진행될 확률이 매우 높습니다."
+            else:
+                rep_kor = f"{stock['name']}은(는) 동종 업계 대비 높은 성장성을 보이고 있습니다. 다만, 상장 후 시가총액이 주요 경쟁사들의 밸류에이션 대비 적절한지가 핵심 관건입니다."
+            
+            st.write(f"<span style='color:#444;'>{rep_kor}</span>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
             st.write("---")
 
-            # 4. 🔥 [복구] 실시간 인기 뉴스 Top 5 (클릭 시 원문 이동)
+            # 3. 실시간 인기 뉴스 Top 5
             st.markdown(f"##### 🔥 {stock['name']} 관련 실시간 인기 뉴스 Top 5")
-            
-            # 기업 정보를 반영한 뉴스 데이터
             news_topics = [
                 {"title": f"{stock['name']} IPO: 주요 투자 위험 요소 및 기회 분석", "query": f"{stock['name']}+IPO+analysis", "tag": "분석"},
-                {"title": f"나스닥 상장 앞둔 {stock['symbol']}, 월스트리트의 평가는?", "query": f"{stock['symbol']}+stock+wall
-
-        with tab1:
-            st.subheader("🔍 투자자 검색 상위 5대 지표")
-            c1, c2 = st.columns([1, 2.5])
-            # (기존 로고 및 핵심 정보 코드 유지)
-            with c1: st.image(f"https://logo.clearbit.com/{stock['symbol']}.com", width=200)
-            with c2:
-                p_n = pd.to_numeric(stock.get('price'), errors='coerce') or 0
-                s_n = pd.to_numeric(stock.get('numberOfShares'), errors='coerce') or 0
-                st.markdown(f"<div class='info-box'><b>1. 예상 공모가:</b> {stock.get('price', 'TBD')}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='info-box'><b>2. 공모 규모:</b> ${(p_n*s_n/1000000):,.1f}M USD (예정)</div>" if p_n*s_n > 0 else "<div class='info-box'><b>2. 공모 규모:</b> 분석 중</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='info-box'><b>3. 상장 거래소:</b> {stock.get('exchange', 'NYSE/NASDAQ')}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='info-box'><b>4. 보호예수 기간:</b> 상장 후 180일</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='info-box'><b>5. 주요 주간사:</b> 글로벌 Top-tier IB</div>", unsafe_allow_html=True)
+                {"title": f"나스닥 상장 앞둔 {stock['symbol']}, 월스트리트의 평가는?", "query": f"{stock['symbol']}+stock+wall+street+rating", "tag": "시장"},
+                {"title": f"{stock['name']} 상장 후 주가 전망 및 목표가 리포트", "query": f"{stock['name']}+stock+price+forecast", "tag": "전망"},
+                {"title": f"제2의 성장을 꿈꾸는 {stock['name']}의 글로벌 확장 전략", "query": f"{stock['name']}+global+strategy", "tag": "전략"},
+                {"title": f"{stock['symbol']} 보호예수 해제일 및 초기 유통 물량 점검", "query": f"{stock['symbol']}+lock-up+expiration", "tag": "수급"}
+            ]
             
-            st.write("---")
-            cc1, cc2 = st.columns(2)
-            with cc1:
-                st.subheader("📑 주요 기업 공시 (SEC)")
-                search_name = stock['name'].replace(" ", "+")
-                st.markdown(f"[🔗 SEC 공식 홈페이지 검색](https://www.sec.gov/edgar/search/#/q={search_name})")
-            with cc2:
-                st.subheader("📊 핵심 재무 요약")
-                f_data = {"항목": ["매출 성장률", "영업 이익률", "현금 흐름"], "수치": ["+45.2%", "-12.5%", "Positive"]}
-                st.table(pd.DataFrame(f_data))
+            for i, news in enumerate(news_topics):
+                news_url = f"https://www.google.com/search?q={news['query']}&tbm=nws"
+                st.markdown(f"""
+                    <a href="{news_url}" target="_blank" style="text-decoration: none; color: inherit;">
+                        <div style="background-color: #ffffff; padding: 12px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #eef2ff; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 13px; font-weight: bold; color: #6e8efb;">TOP {i+1} · {news['tag']}</span>
+                                <span style="font-size: 11px; color: #aaa;">상세보기 ↗
 
-        with tab2:
-            st.subheader("⚖️ AI 가치 평가")
-            p_n = pd.to_numeric(stock.get('price'), errors='coerce') or 20.0
-            st.metric("AI 추정 적정가 범위", f"${p_n*1.12:,.2f} ~ ${p_n*1.38:,.2f}")
-            st.progress(0.65); st.success(f"평균 **12%~38%** 추가 상승 가능성")
-
-        with tab3:
-            sid = stock['symbol']
-            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
-            if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
-            
-            st.write("**1. 투자 매력도 투표**")
-            v1, v2 = st.columns(2)
-            if v1.button("🦄 Unicorn", use_container_width=True, key=f"vu_{sid}"): 
-                st.session_state.vote_data[sid]['u'] += 1; st.rerun()
-            if v2.button("💸 Fallen Angel", use_container_width=True, key=f"vf_{sid}"): 
-                st.session_state.vote_data[sid]['f'] += 1; st.rerun()
-            
-            uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
-            st.progress(uv/(uv+fv)); st.write(f"유니콘 지수: {int(uv/(uv+fv)*100)}% ({uv+fv}명 참여)")
-
-            st.write("**2. 커뮤니티 의견**")
-            nc = st.text_input("의견 등록", key=f"ci_{sid}")
-            if st.button("등록", key=f"cb_{sid}") and nc:
-                st.session_state.comment_data[sid].insert(0, {"t": nc, "d": "방금 전"}); st.rerun()
-            for c in st.session_state.comment_data[sid][:3]:
-                st.markdown(f"<div class='comment-box'><small>{c['d']}</small><br>{c['t']}</div>", unsafe_allow_html=True)
-
-            st.write("---")
-            if sid not in st.session_state.watchlist:
-                if st.button("⭐ 마이 리서치 보관함에 담기", use_container_width=True, type="primary"):
-                    st.session_state.watchlist.append(sid); st.balloons(); st.toast("보관함 추가 완료!"); st.rerun()
-            else:
-                st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
-                if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
 
 
 
