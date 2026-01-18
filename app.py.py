@@ -67,7 +67,7 @@ def get_daily_quote():
 @st.cache_data(ttl=600)
 def get_extended_ipo_data(api_key):
     start = (datetime.now() - timedelta(days=540)).strftime('%Y-%m-%d')
-    end = (datetime.now() + timedelta(days=60)).strftime('%Y-%m-%d')
+    end = (datetime.now() + timedelta(days=120)).strftime('%Y-%m-%d')
     url = f"https://finnhub.io/api/v1/calendar/ipo?from={start}&to={end}&token={api_key}"
     try:
         res = requests.get(url, timeout=5).json()
@@ -116,7 +116,7 @@ elif st.session_state.page == 'login':
     q = get_daily_quote()
     st.markdown(f"<div class='quote-card'><small>TODAY'S INSIGHT</small><br><b>\"{q['eng']}\"</b><br><small>({q['kor']})</small><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
 
-# 3. 성장 단계 분석 (로컬 이미지 반영)
+# 3. 성장 단계 분석
 elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
     img_baby = "baby_unicorn.png.png"
@@ -127,8 +127,7 @@ elif st.session_state.page == 'stats':
         st.markdown("<div class='grid-card'><h3>New 유니콘 (유아기)</h3>", unsafe_allow_html=True)
         if os.path.exists(img_baby):
             st.image(img_baby, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
-        else:
-            st.warning("baby_unicorn.png.png 파일을 찾을 수 없습니다.")
+        else: st.warning("baby_unicorn.png.png 파일을 찾을 수 없습니다.")
         if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True, key="go_all"):
             st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
         st.markdown("<div class='stat-box'><small>📊 <b>시장 통계:</b> 연간 평균 180~250개의 기업이 미국 시장에 상장합니다.</small></div>", unsafe_allow_html=True)
@@ -138,8 +137,7 @@ elif st.session_state.page == 'stats':
         st.markdown("<div class='grid-card'><h3>My 유니콘 (아동기)</h3>", unsafe_allow_html=True)
         if os.path.exists(img_child):
             st.image(img_child, caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
-        else:
-            st.warning("child_unicorn.png.png 파일을 찾을 수 없습니다.")
+        else: st.warning("child_unicorn.png.png 파일을 찾을 수 없습니다.")
         watch_count = len(st.session_state.watchlist)
         if st.button(f"🔎 My 유니콘 탐험 ({watch_count}개 보관 중)", use_container_width=True, type="primary", key="go_watch"):
             if watch_count > 0:
@@ -148,7 +146,7 @@ elif st.session_state.page == 'stats':
         st.markdown("<div class='stat-box'><small>나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# 4. 캘린더
+# 4. 캘린더 (필터 및 범위 표시 통합)
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     view_mode = st.session_state.get('view_mode', 'all')
@@ -160,41 +158,49 @@ elif st.session_state.page == 'calendar':
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
         else:
             today = datetime.now().date()
-            # 조회 기간 설정 UI
             period = st.radio("조회 기간 설정", ["상장 예정 (90일 내)", "최근 6개월", "최근 12개월", "전체"], horizontal=True)
             
             if period == "상장 예정 (90일 내)":
-                # 접속일(today)로부터 90일 후까지의 데이터만 필터링
                 future_limit = today + timedelta(days=90)
-                display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & 
-                                    (all_df['공모일_dt'].dt.date <= future_limit)].sort_values(by='공모일_dt')
-            
+                display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= future_limit)].sort_values(by='공모일_dt')
             elif period == "최근 6개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=180))].sort_values(by='공모일_dt', ascending=False)
             elif period == "최근 12개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=365))].sort_values(by='공모일_dt', ascending=False)
-            else: 
-                display_df = all_df.sort_values(by='공모일_dt', ascending=False)
+            else: display_df = all_df.sort_values(by='공모일_dt', ascending=False)
 
         st.write("---")
         h1, h2, h3, h4, h5 = st.columns([1.2, 3.5, 1.2, 1.5, 1.2])
         h1.write("**공모일**"); h2.write("**기업명**"); h3.write("**공모가**"); h4.write("**규모**"); h5.write("**현재가**")
+        
         for i, row in display_df.iterrows():
             col1, col2, col3, col4, col5 = st.columns([1.2, 3.5, 1.2, 1.5, 1.2])
             is_p = row['공모일_dt'].date() <= datetime.now().date()
             col1.markdown(f"<span style='color:{'#888888' if is_p else '#4f46e5'};'>{row['date']}</span>", unsafe_allow_html=True)
             if col2.button(row['name'], key=f"n_{row['symbol']}_{i}", use_container_width=True):
                 st.session_state.selected_stock = row.to_dict(); st.session_state.page = 'detail'; st.rerun()
-            p = pd.to_numeric(row['price'], errors='coerce') or 0
-            s = pd.to_numeric(row['numberOfShares'], errors='coerce') or 0
-            col3.write(f"${p:,.2f}" if p > 0 else "미정")
-            col4.write(f"${(p*s/1000000):,.1f}M" if p*s > 0 else "대기")
+            
+            # --- 공모가 범위/문자열 유지 로직 ---
+            p_raw = row.get('price', '')
+            s_raw = row.get('numberOfShares', '')
+            p_num = pd.to_numeric(p_raw, errors='coerce')
+            s_num = pd.to_numeric(s_raw, errors='coerce')
+
+            # 공모가 표시: 숫자면 $포맷, 아니면 범위(문자열) 그대로
+            col3.write(f"${p_num:,.2f}" if pd.notnull(p_num) and p_num > 0 else (str(p_raw) if p_raw else "TBD"))
+            
+            # 규모 표시: 공모가와 주식수가 모두 숫자일 때만 금액 계산
+            if pd.notnull(p_num) and pd.notnull(s_num) and p_num * s_num > 0:
+                col4.write(f"${(p_num * s_num / 1000000):,.1f}M")
+            else: col4.write("Pending")
+
             if is_p:
                 cp = get_current_stock_price(row['symbol'], MY_API_KEY)
-                col5.markdown(f"<span style='color:{'#28a745' if cp >= p else '#dc3545'}; font-weight:bold;'>${cp:,.2f}</span>" if cp > 0 else "-", unsafe_allow_html=True)
+                p_ref = p_num if pd.notnull(p_num) else 0
+                col5.markdown(f"<span style='color:{'#28a745' if cp >= p_ref else '#dc3545'}; font-weight:bold;'>${cp:,.2f}</span>" if cp > 0 else "-", unsafe_allow_html=True)
             else: col5.write("대기")
 
-# 5. 상세 페이지 (핵심정보 - 공시/재무 복구)
+# 5. 상세 페이지
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
@@ -207,13 +213,13 @@ elif st.session_state.page == 'detail':
             c1, c2 = st.columns([1, 2.5])
             with c1: st.image(f"https://logo.clearbit.com/{stock['symbol']}.com", width=200)
             with c2:
-                p = pd.to_numeric(stock.get('price'), errors='coerce') or 0
-                s = pd.to_numeric(stock.get('numberOfShares'), errors='coerce') or 0
-                st.markdown(f"<div class='info-box'><b>1. 예상 공모가:</b> ${p:,.2f}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='info-box'><b>2. 공모 규모:</b> ${(p*s/1000000):,.1f}M USD</div>", unsafe_allow_html=True)
+                p_n = pd.to_numeric(stock.get('price'), errors='coerce') or 0
+                s_n = pd.to_numeric(stock.get('numberOfShares'), errors='coerce') or 0
+                st.markdown(f"<div class='info-box'><b>1. 예상 공모가:</b> {stock.get('price', 'TBD')}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='info-box'><b>2. 공모 규모:</b> ${(p_n*s_n/1000000):,.1f}M USD (예정)</div>" if p_n*s_n > 0 else "<div class='info-box'><b>2. 공모 규모:</b> 분석 중</div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='info-box'><b>3. 상장 거래소:</b> {stock.get('exchange', 'NYSE/NASDAQ')}</div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='info-box'><b>4. 보호예수 기간:</b> 상장 후 180일</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='info-box'><b>5. 주요 주간사:</b> 글로벌 Top-tier 투자은행</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='info-box'><b>5. 주요 주간사:</b> 글로벌 Top-tier IB</div>", unsafe_allow_html=True)
             
             st.write("---")
             cc1, cc2 = st.columns(2)
@@ -228,8 +234,8 @@ elif st.session_state.page == 'detail':
 
         with tab2:
             st.subheader("⚖️ AI 가치 평가")
-            p = pd.to_numeric(stock.get('price'), errors='coerce') or 0
-            st.metric("AI 추정 적정가 범위", f"${p*1.12:,.2f} ~ ${p*1.38:,.2f}")
+            p_n = pd.to_numeric(stock.get('price'), errors='coerce') or 20.0
+            st.metric("AI 추정 적정가 범위", f"${p_n*1.12:,.2f} ~ ${p_n*1.38:,.2f}")
             st.progress(0.65); st.success(f"평균 **12%~38%** 추가 상승 가능성")
 
         with tab3:
@@ -261,4 +267,3 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
-
