@@ -83,6 +83,17 @@ def get_financial_metrics(symbol, api_key):
     except:
         return None
 
+@st.cache_data(ttl=86400)
+def get_company_profile(symbol, api_key):
+    """기업의 실제 프로필(업종, 사업 요약, 로고 등)을 가져옵니다."""
+    try:
+        url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={api_key}"
+        res = requests.get(url, timeout=5).json()
+        # 데이터가 있고, 정상적인 응답인지 확인
+        return res if res and 'name' in res else None
+    except:
+        return None
+
 @st.cache_data(ttl=600)
 def get_extended_ipo_data(api_key):
     """IPO 캘린더 데이터를 가져옵니다."""
@@ -605,6 +616,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
