@@ -216,7 +216,7 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
             
-        st.markdown("<div class='stat-box'><small>📊 연평균 180~250개의 기업이 미국 시장에 신규 상장합니다.</small></div>", unsafe_allow_html=True)
+        st.markdown("<div class='stat-box'><small>📊 18개월 이하 유니콘 </small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     # --- [2. Hot 유니콘 (추가)] ---
@@ -233,7 +233,7 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
             
-        st.markdown("<div class='stat-box'><small>📈 수익률Top5 회원관심Top5</small></div>", unsafe_allow_html=True)
+        st.markdown("<div class='stat-box'><small>📈 수익률 Top5 & 회원관심 Top5</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     # --- [3. My 유니콘] ---
@@ -253,7 +253,7 @@ elif st.session_state.page == 'stats':
             else:
                 st.warning("아직 보관함에 담긴 기업이 없습니다.")
                 
-        st.markdown("<div class='stat-box'><small>나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small></div>", unsafe_allow_html=True)
+        st.markdown("<div class='stat-box'><small>나만의 유니콘 후보</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # 4. 캘린더 (상장 기간별 이모지 구분 버전)
@@ -649,6 +649,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
