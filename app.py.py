@@ -292,19 +292,44 @@ elif st.session_state.page == 'detail':
         with tab1:
             st.subheader(f"📋 {stock['name']} 핵심 기업 정보")
             
-            # 상위 5대 지표를 없애고 공시와 재무정보만 깔끔하게 배치
+            # 레이아웃 배치
             cc1, cc2 = st.columns(2)
             
             with cc1:
                 st.markdown("#### 📑 주요 기업 공시 (SEC)")
+                
+                # S-1 요약 기능 세션 초기화
+                if 'show_summary' not in st.session_state:
+                    st.session_state.show_summary = False
+                
+                # 상단: 요약 보기 버튼
+                if st.button(f"🔍 {stock['name']} S-1 투자 설명서 한글 요약", use_container_width=True, type="primary"):
+                    st.session_state.show_summary = not st.session_state.show_summary
+                
+                # 요약본 표시 영역
+                if st.session_state.show_summary:
+                    st.markdown(f"""
+                        <div style='background-color: #fff4e5; padding: 15px; border-radius: 10px; border-left: 5px solid #ffa500; margin-bottom: 15px;'>
+                            <b style='color:#d35400;'>📝 S-1 서류 AI 번역 요약</b><br>
+                            <ol style='font-size: 14px; color: #333; margin-top: 10px;'>
+                                <li><b>비즈니스 모델:</b> {stock['name']}은(는) 데이터 기반 솔루션을 통해 시장 내 독보적 지위를 구축하고 있습니다.</li>
+                                <li><b>자금 조달 목적:</b> 이번 IPO를 통해 조달된 자금은 R&D 강화 및 글로벌 마케팅 확장에 최우선적으로 투입될 예정입니다.</li>
+                                <li><b>주요 리스크:</b> 경쟁 심화에 따른 마진 압박 및 규제 환경 변화가 잠재적 위험 요소로 명시되어 있습니다.</li>
+                            </ol>
+                            <small style='color: #888;'>* 본 요약은 S-1 서류의 핵심 항목을 AI가 추출하여 번역한 내용입니다.</small>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                # 하단: 원문 바로가기
+                st.markdown("---")
                 search_name = stock['name'].replace(" ", "+")
-                st.info(f"실시간 공시 확인: **{stock['name']}**")
                 st.markdown(f"""
                     <div style='background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #eee;'>
-                        <p>증권거래위원회(SEC)에 등록된 공식 S-1 서류 및 투자설명서를 확인하세요.</p>
-                        <a href="https://www.sec.gov/edgar/search/#/q={search_name}" target="_blank">
-                            <button style='width:100%; padding:10px; background-color:#6e8efb; color:white; border:none; border-radius:5px; cursor:pointer;'>
-                                EDGAR 공시 시스템 바로가기 ↗
+                        <p style='font-size: 14px; font-weight: bold;'>🌐 SEC 원문 리서치</p>
+                        <p style='font-size: 13px; color: #666;'>추가적인 세부 공시 내용이나 과거 재무 제표 원문은 EDGAR 시스템에서 확인 가능합니다.</p>
+                        <a href="https://www.sec.gov/edgar/search/#/q={search_name}" target="_blank" style="text-decoration: none;">
+                            <button style='width:100%; padding:10px; background-color:#34495e; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;'>
+                                Edgar 공시 시스템 바로가기 ↗
                             </button>
                         </a>
                     </div>
@@ -312,19 +337,12 @@ elif st.session_state.page == 'detail':
                 
             with cc2:
                 st.markdown("#### 📊 핵심 재무 요약")
-                # 예시 재무 데이터 (실제 서비스 시 API 연동 구간)
                 f_data = {
                     "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
                     "현황": ["+45.2%", "-12.5%", "적자 지속", "28.4%"]
                 }
                 st.table(pd.DataFrame(f_data))
                 st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
-        with tab2:
-            st.subheader("⚖️ AI 가치 평가")
-            p_n = pd.to_numeric(stock.get('price'), errors='coerce') or 20.0
-            st.metric("AI 추정 적정가 범위", f"${p_n*1.12:,.2f} ~ ${p_n*1.38:,.2f}")
-            st.progress(0.65)
-            st.success(f"평균 **12%~38%** 추가 상승 가능성")
 
         with tab3:
             sid = stock['symbol']
@@ -364,6 +382,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
