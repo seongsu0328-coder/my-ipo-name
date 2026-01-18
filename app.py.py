@@ -233,7 +233,7 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
             
-        st.markdown("<div class='stat-box'><small>📈 1년동안 가장 수익률이 높은 유니콘과 가장 관심을 많이 받는 유니콘</small></div>", unsafe_allow_html=True)
+        st.markdown("<div class='stat-box'><small>📈 가장 Hot하거나 가장 많이 올랐거나</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     # --- [3. My 유니콘] ---
@@ -649,6 +649,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
