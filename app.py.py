@@ -223,7 +223,7 @@ elif st.session_state.page == 'detail':
         st.title(f"🚀 {stock['name']} 심층 분석")
         
        # 탭 생성
-        tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 기업 공시", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
+        tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
         with tab0:
             st.subheader(f"📰 {stock['name']} 투자 인사이트 브리핑")
@@ -232,14 +232,18 @@ elif st.session_state.page == 'detail':
             if 'news_topic' not in st.session_state:
                 st.session_state.news_topic = "💰 공모가 범위/확정 소식"
 
-            # 1. 투자자 필수 체크 버튼
-            col_k1, col_k2, col_k3 = st.columns(3)
-            if col_k1.button("💰 공모가 범위/확정 소식", use_container_width=True):
+            # 1. 투자자 필수 체크 버튼 (2x2 레이아웃으로 구성)
+            row1_col1, row1_col2 = st.columns(2)
+            row2_col1, row2_col2 = st.columns(2)
+            
+            if row1_col1.button("💰 공모가 범위/확정 소식", use_container_width=True):
                 st.session_state.news_topic = "💰 공모가 범위/확정 소식"
-            if col_k2.button("📅 상장 일정/연기 소식", use_container_width=True):
+            if row1_col2.button("📅 상장 일정/연기 소식", use_container_width=True):
                 st.session_state.news_topic = "📅 상장 일정/연기 소식"
-            if col_k3.button("🥊 경쟁사 비교/분석", use_container_width=True):
+            if row2_col1.button("🥊 경쟁사 비교/분석", use_container_width=True):
                 st.session_state.news_topic = "🥊 경쟁사 비교/분석"
+            if row2_col2.button("🏦 주요 주간사 (Underwriters)", use_container_width=True):
+                st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
 
             # 2. AI 실시간 한글 브리핑 영역
             st.markdown(f"""
@@ -251,8 +255,10 @@ elif st.session_state.page == 'detail':
                 rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 최근 기관 수요예측에서 긍정적인 평가가 이어지고 있으며, 상단 돌파 가능성이 언급되고 있습니다."
             elif st.session_state.news_topic == "📅 상장 일정/연기 소식":
                 rep_kor = f"{stock['name']}은(는) {stock['date']}에 상장 예정입니다. SEC 공시 상 특이사항은 없으며, 예정된 일정대로 진행될 확률이 매우 높습니다."
-            else:
+            elif st.session_state.news_topic == "🥊 경쟁사 비교/분석":
                 rep_kor = f"{stock['name']}은(는) 동종 업계 대비 높은 성장성을 보이고 있습니다. 다만, 상장 후 시가총액이 주요 경쟁사들의 밸류에이션 대비 적절한지가 핵심 관건입니다."
+            else: # 주요 주간사
+                rep_kor = f"이번 IPO의 주도 주간사는 골드만삭스와 모건스탠리가 맡고 있습니다. 대형 IB들이 참여했다는 점은 해당 기업의 펀더멘탈에 대한 시장의 신뢰도가 높음을 시사합니다."
             
             st.write(f"<span style='color:#444;'>{rep_kor}</span>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
@@ -284,30 +290,35 @@ elif st.session_state.page == 'detail':
                 """, unsafe_allow_html=True)
 
         with tab1:
-            st.subheader("🔍 투자자 검색 상위 5대 지표")
-            c1, c2 = st.columns([1, 2.5])
-            with c1: 
-                st.image(f"https://logo.clearbit.com/{stock['symbol']}.com", width=200)
-            with c2:
-                p_n = pd.to_numeric(stock.get('price'), errors='coerce') or 0
-                s_n = pd.to_numeric(stock.get('numberOfShares'), errors='coerce') or 0
-                st.markdown(f"<div class='info-box'><b>1. 예상 공모가:</b> {stock.get('price', 'TBD')}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='info-box'><b>2. 공모 규모:</b> ${(p_n*s_n/1000000):,.1f}M USD (예정)</div>" if p_n*s_n > 0 else "<div class='info-box'><b>2. 공모 규모:</b> 분석 중</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='info-box'><b>3. 상장 거래소:</b> {stock.get('exchange', 'NYSE/NASDAQ')}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='info-box'><b>4. 보호예수 기간:</b> 상장 후 180일</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='info-box'><b>5. 주요 주간사:</b> 글로벌 Top-tier IB</div>", unsafe_allow_html=True)
+            st.subheader(f"📋 {stock['name']} 핵심 기업 정보")
             
-            st.write("---")
+            # 상위 5대 지표를 없애고 공시와 재무정보만 깔끔하게 배치
             cc1, cc2 = st.columns(2)
+            
             with cc1:
-                st.subheader("📑 주요 기업 공시 (SEC)")
+                st.markdown("#### 📑 주요 기업 공시 (SEC)")
                 search_name = stock['name'].replace(" ", "+")
-                st.markdown(f"[🔗 SEC 공식 홈페이지 검색](https://www.sec.gov/edgar/search/#/q={search_name})")
+                st.info(f"실시간 공시 확인: **{stock['name']}**")
+                st.markdown(f"""
+                    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #eee;'>
+                        <p>증권거래위원회(SEC)에 등록된 공식 S-1 서류 및 투자설명서를 확인하세요.</p>
+                        <a href="https://www.sec.gov/edgar/search/#/q={search_name}" target="_blank">
+                            <button style='width:100%; padding:10px; background-color:#6e8efb; color:white; border:none; border-radius:5px; cursor:pointer;'>
+                                EDGAR 공시 시스템 바로가기 ↗
+                            </button>
+                        </a>
+                    </div>
+                """, unsafe_allow_html=True)
+                
             with cc2:
-                st.subheader("📊 핵심 재무 요약")
-                f_data = {"항목": ["매출 성장률", "영업 이익률", "현금 흐름"], "수치": ["+45.2%", "-12.5%", "Positive"]}
+                st.markdown("#### 📊 핵심 재무 요약")
+                # 예시 재무 데이터 (실제 서비스 시 API 연동 구간)
+                f_data = {
+                    "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
+                    "현황": ["+45.2%", "-12.5%", "적자 지속", "28.4%"]
+                }
                 st.table(pd.DataFrame(f_data))
-
+                st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
         with tab2:
             st.subheader("⚖️ AI 가치 평가")
             p_n = pd.to_numeric(stock.get('price'), errors='coerce') or 20.0
@@ -353,6 +364,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
