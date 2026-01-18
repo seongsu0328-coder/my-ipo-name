@@ -333,42 +333,51 @@ elif st.session_state.page == 'detail':
                 st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
 
         with tab2:
-            # 학술 논문 근거 기반 AI 가치 평가
+            # 1. 학술적 근거 섹션 (실무 적용 & 핵심 결론 형식)
             st.markdown("#### 🎓 AI Valuation Methodology")
-            st.caption("금융 학계의 권위 있는 IPO 평가 모델을 기반으로 산출되었습니다.")
+            st.caption("본 가치 평가는 금융 학계의 권위 있는 IPO 평가 모델을 기반으로 산출되었습니다.")
             
             p_cols = st.columns(3)
-            papers = [
-                ("Kim & Ritter (1999)", "유사 기업 멀티플 상대 가치 모델"),
-                ("Purnanandam (2004)", "공모가 할증/할인율 공정 가치 분석"),
-                ("Loughran & Ritter (2002)", "의도적 저평가(Underpricing) 분석")
-            ]
-            for idx, (title, desc) in enumerate(papers):
-                with p_cols[idx]:
-                    st.markdown(f"""<div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 180px; border-top: 3px solid #6e8efb;'>
-                        <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Academic Theory</p>
-                        <p style='font-size: 13px; font-weight: 600;'>{title}</p>
-                        <p style='font-size: 11px; color: #666;'>{desc}</p>
-                    </div>""", unsafe_allow_html=True)
-
-            st.markdown(f"""
-                <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-top: 20px;'>
-                    <p style='color: #666; font-size: 14px; margin-bottom: 5px;'>학술 모델 기반 AI 추정 적정가 범위</p>
-                    <h2 style='color: #6e8efb; margin-top: 0;'>$24.50 — $31.20</h2>
-                    <p style='font-size: 14px; color: #444;'>현재 공모가 대비 약 <span style='color: #28a745; font-weight: bold;'>15.2% 저평가</span> 상태입니다.</p>
+            
+            with p_cols[0]:
+                st.markdown("""
+                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 260px; border-top: 3px solid #6e8efb;'>
+                    <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Relative Valuation</p>
+                    <p style='font-size: 13px; font-weight: 600; line-height: 1.3;'>Kim & Ritter (1999)</p>
+                    <hr style='margin: 8px 0;'>
+                    <p style='font-size: 11px; color: #333; margin-bottom: 5px;'><b>📍 실무 적용:</b> 동종 업계 유사 기업의 Forward P/E 및 P/S 멀티플을 활용한 상대 가치 산정</p>
+                    <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 미래 추정 수익 기반의 P/E 비율이 IPO 기업 가치 예측에 가장 효과적임을 입증</p>
                 </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+                
+            with p_cols[1]:
+                st.markdown("""
+                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 260px; border-top: 3px solid #6e8efb;'>
+                    <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Fair Value Model</p>
+                    <p style='font-size: 13px; font-weight: 600; line-height: 1.3;'>Purnanandam (2004)</p>
+                    <hr style='margin: 8px 0;'>
+                    <p style='font-size: 11px; color: #333; margin-bottom: 5px;'><b>📍 실무 적용:</b> 업계 평균 대비 공모가의 할증/할인율 분석을 통한 고평가 여부 조기 판별</p>
+                    <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 상장 초기 오버슈팅 현상 속에서도 본질적 가치 회귀 지점(Fair Value)을 산출</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            with p_cols[2]:
+                st.markdown("""
+                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 260px; border-top: 3px solid #6e8efb;'>
+                    <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Margin of Safety</p>
+                    <p style='font-size: 13px; font-weight: 600; line-height: 1.3;'>Loughran & Ritter (2002)</p>
+                    <hr style='margin: 8px 0;'>
+                    <p style='font-size: 11px; color: #333; margin-bottom: 5px;'><b>📍 실무 적용:</b> 발행사와 주간사의 의도적 저평가(Underpricing) 범위를 계산하여 하방 경직성 확보</p>
+                    <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> IPO 시장의 정보 비대칭성을 활용해 초기 투자자를 위한 '테이블 위의 돈(할인액)' 추정</p>
+                </div>
+                """, unsafe_allow_html=True)
 
             st.write("<br>", unsafe_allow_html=True)
-            st.write("**🤖 AI 종합 매력도 점수**")
-            st.progress(0.78)
             
-            st.write("---")
-            mc1, mc2, mc3 = st.columns(3)
-            mc1.metric("성장성 점수", "88/100")
-            mc2.metric("수익성 점수", "42/100")
-            mc3.metric("시장 관심도", "95/100")
-            st.info("💡 위 분석은 상기 기술된 3가지 학술 논문의 알고리즘을 결합한 결과입니다.")
+            # 2. 가치 평가 결과 카드 (기존 로직 유지)
+            st.markdown(f"""
+                <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
+                    <div style='display: flex; align-
 
         with tab3:
             # 최종 투자 결정 탭 기능 복구
@@ -410,6 +419,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
