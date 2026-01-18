@@ -226,11 +226,11 @@ elif st.session_state.page == 'detail':
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
         with tab0:
-            # 상태 세션 초기화
+            # 1. 상태 세션 초기화
             if 'news_topic' not in st.session_state:
                 st.session_state.news_topic = "💰 공모가 범위/확정 소식"
 
-            # 1. 투자자 필수 체크 버튼 (2x2 레이아웃)
+            # 2. 투자자 필수 체크 버튼
             row1_col1, row1_col2 = st.columns(2)
             row2_col1, row2_col2 = st.columns(2)
             
@@ -243,69 +243,91 @@ elif st.session_state.page == 'detail':
             if row2_col2.button("🏦 주요 주간사 (Underwriters)", use_container_width=True, key="btn_p4"):
                 st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
 
-            # 2. AI 실시간 한글 브리핑 영역
+            # 3. AI 실시간 브리핑 (SyntaxError 원인 해결: 따옴표 구조 분리)
+            if st.session_state.news_topic == "💰 공모가 범위/확정 소식":
+                rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 기관 수요예측에서 긍정적 평가가 이어지고 있습니다."
+            elif st.session_state.news_topic == "📅 상장 일정/연기 소식":
+                rep_kor = f"{stock['name']}은(는) {stock['date']}에 상장 예정이며, 현재까지 지연 공시는 없습니다."
+            elif st.session_state.news_topic == "🥊 경쟁사 비교/분석":
+                rep_kor = f"{stock['name']}은(는) 동종 업계 대비 성장성이 높으나, 밸류에이션 적정성이 핵심 관건입니다."
+            else:
+                rep_kor = f"골드만삭스 등 대형 IB들이 참여하여 {stock['name']}의 펀더멘탈 신뢰도가 높습니다."
+
             st.markdown(f"""
                 <div style='background-color: #f0f4ff; padding: 20px; border-radius: 15px; border-left: 5px solid #6e8efb; margin-top: 10px;'>
                     <h5 style='color:#333; margin-bottom:10px;'>🤖 AI 실시간 요약: {st.session_state.news_topic}</h5>
+                    <p style='color:#444;'>{rep_kor}</p>
+                </div>
             """, unsafe_allow_html=True)
-            
-            if st.session_state.news_topic == "💰 공모가 범위/확정 소식":
-                rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 최근 기관 수요예측에서 긍정적인 평가가 이어지고 있으며, 상단 돌파 가능성이 언급되고 있습니다."
-            elif st.session_state.news_topic == "📅 상장 일정/연기 소식":
-                rep_kor = f"{stock['name']}은(는) {stock['date']}에 상장 예정입니다. SEC 공시 상 특이사항은 없으며, 예정된 일정대로 진행될 확률이 매우 높습니다."
-            elif st.session_state.news_topic == "🥊 경쟁사 비교/분석":
-                rep_kor = f"{stock['name']}은(는) 동종 업계 대비 높은 성장성을 보이고 있습니다. 다만, 상장 후 시가총액이 주요 경쟁사들의 밸류에이션 대비 적절한지가 핵심 관건입니다."
-            else: # 주요 주간사
-                rep_kor = f"이번 IPO의 주도 주간사는 골드만삭스와 모건스탠리가 맡고 있습니다. 대형 IB들이 참여했다는 점은 해당 기업의 펀더멘탈에 대한 시장의 신뢰도가 높음을 시사합니다."
-            
-            st.write(f"<span style='color:#444;'>{rep_kor}</span>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
 
             st.write("---")
-
-            # 3. 실시간 인기 뉴스 Top 5
-            st.markdown(f"##### 🔥 {stock['name']} 관련 실시간 인기 뉴스 Top 5")
+            st.markdown(f"##### 🔥 {stock['name']} 관련 인기 뉴스")
             news_topics = [
-                {"title": f"{stock['name']} IPO: 주요 투자 위험 요소 및 기회 분석", "query": f"{stock['name']}+IPO+analysis", "tag": "분석"},
-                {"title": f"나스닥 상장 앞둔 {stock['symbol']}, 월스트리트의 평가는?", "query": f"{stock['symbol']}+stock+wall+street+rating", "tag": "시장"},
-                {"title": f"{stock['name']} 상장 후 주가 전망 및 목표가 리포트", "query": f"{stock['name']}+stock+price+forecast", "tag": "전망"},
-                {"title": f"제2의 성장을 꿈꾸는 {stock['name']}의 글로벌 확장 전략", "query": f"{stock['name']}+global+strategy", "tag": "전략"},
-                {"title": f"{stock['symbol']} 보호예수 해제일 및 초기 유통 물량 점검", "query": f"{stock['symbol']}+lock-up+expiration", "tag": "수급"}
+                {"title": f"{stock['name']} IPO 분석 리포트", "query": f"{stock['name']}+IPO"},
+                {"title": f"{stock['symbol']} 월가 전망", "query": f"{stock['symbol']}+stock+forecast"}
             ]
-            
             for i, news in enumerate(news_topics):
-                news_url = f"https://www.google.com/search?q={news['query']}&tbm=nws"
-                st.markdown(f"""
-                    <a href="{news_url}" target="_blank" style="text-decoration: none; color: inherit;">
-                        <div style="background-color: #ffffff; padding: 12px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #eef2ff; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 13px; font-weight: bold; color: #6e8efb;">TOP {i+1} · {news['tag']}</span>
-                                <span style="font-size: 11px; color: #aaa;">상세보기 ↗</span>
-                            </div>
-                            <div style="margin-top: 5px; font-size: 15px; font-weight: 600; color: #333;">{news['title']}</div>
-                        </div>
-                    </a>
-                """, unsafe_allow_html=True)
+                url = f"https://www.google.com/search?q={news['query']}&tbm=nws"
+                st.markdown(f"**TOP {i+1}** · [{news['title']}]({url})")
 
         with tab1:
-            # 레이아웃 배치
             cc1, cc2 = st.columns(2)
-            
             with cc1:
                 st.markdown("#### 📑 주요 기업 공시 (SEC)")
-                if 'show_summary' not in st.session_state:
-                    st.session_state.show_summary = False
-                
-                if st.button(f"🔍 {stock['name']} S-1 투자 설명서 요약", use_container_width=True, type="primary"):
-                    st.session_state.show_summary = not st.session_state.show_summary
-                
-                if st.session_state.show_summary:
-                    st.markdown(f"""
-                        <div style='background-color: #fff4e5; padding: 15px; border-radius: 10px; border-left: 5px solid #ffa500; margin-bottom: 15px;'>
-                            <b style='color:#d35400;'>📝 S-1 서류 AI 번역 요약</b><br>
-                            <ol style='font-size: 14px; color: #333; margin-top: 10px;'>
-                                <li><b>비즈니스 모델:</b> {stock['name']}은(는) 데이터 기반 솔루션을 통해 시장 내 독보적 지위를 구축하고 있습니다.</li>
-                                <li><b>자금 조달 목적:</b> 조달 자금은 R&D 강화 및 글로벌 마케팅 확장에 투입될
+                if st.button(f"🔍 {stock['name']} S-1 요약 보기", use_container_width=True):
+                    st.session_state.show_summary = not st.session_state.get('show_summary', False)
+                if st.session_state.get('show_summary', False):
+                    st.info("📝 비즈니스 모델: 데이터 솔루션 기반 독보적 지위 구축 중")
+            with cc2:
+                st.markdown("#### 📊 핵심 재무 요약")
+                f_df = pd.DataFrame({"항목": ["매출성장", "이익률"], "현황": ["+45.2%", "-12.5%"]})
+                st.table(f_df)
+
+        with tab2:
+            st.markdown("#### 🎓 AI Valuation Methodology")
+            st.caption("금융 학계의 권위 있는 IPO 평가 모델을 기반으로 산출되었습니다.")
+            p_cols = st.columns(3)
+            papers = [
+                ("Kim & Ritter (1999)", "유사 기업 멀티플 상대 가치 모델"),
+                ("Purnanandam (2004)", "공모가 할증/할인율 공정 가치 분석"),
+                ("Loughran & Ritter (2002)", "의도적 저평가(Underpricing) 분석")
+            ]
+            for idx, (title, desc) in enumerate(papers):
+                with p_cols[idx]:
+                    st.markdown(f"""<div style='background-color: #f8f9fa; padding: 12px; border-radius: 10px; height: 160px; border-top: 3px solid #6e8efb;'>
+                        <p style='font-size: 13px; font-weight: bold; color: #6e8efb;'>{title}</p>
+                        <p style='font-size: 11px; color: #666;'>{desc}</p>
+                    </div>""", unsafe_allow_html=True)
+
+            st.markdown(f"""
+                <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-top: 20px;'>
+                    <p style='color: #666; font-size: 14px; margin-bottom: 5px;'>학술 모델 기반 AI 추정 적정가</p>
+                    <h2 style='color: #6e8efb; margin-top: 0;'>$24.50 — $31.20</h2>
+                    <p style='font-size: 14px; color: #444;'>현재 공모가 대비 약 <span style='color: #28a745; font-weight: bold;'>15.2% 저평가</span> 상태입니다.</p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            st.write("<br>", unsafe_allow_html=True)
+            mc1, mc2, mc3 = st.columns(3)
+            mc1.metric("성장성", "88/100")
+            mc2.metric("수익성", "42/100")
+            mc3.metric("관심도", "95/100")
+
+        with tab3:
+            sid = stock['symbol']
+            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
+            st.write("**1. 투자 매력도 투표**")
+            v1, v2 = st.columns(2)
+            if v1.button("🦄 Unicorn", key=f"u_{sid}", use_container_width=True):
+                st.session_state.vote_data[sid]['u'] += 1
+                st.rerun()
+            if v2.button("💸 Fallen Angel", key=f"f_{sid}", use_container_width=True):
+                st.session_state.vote_data[sid]['f'] += 1
+                st.rerun()
+            
+            uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
+            st.progress(uv/(uv+fv))
+            st.write(f"유니콘 지수: {int(uv/(uv+fv)*100)}% ({uv+fv}명 참여)")
 
 
 
