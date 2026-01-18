@@ -134,19 +134,19 @@ if st.session_state.page == 'intro':
         if st.button("탐험 시작하기", key="start_app", use_container_width=True):
             st.session_state.page = 'login'; st.rerun()
 
-# 2. 로그인 화면 (미니멀 버전)
+# 2. 로그인 화면 (하얀색 버튼 및 미니멀 버전)
 elif st.session_state.page == 'login':
-    st.write("<br>" * 5, unsafe_allow_html=True) # 중앙 배치를 위한 여백
+    st.write("<br>" * 5, unsafe_allow_html=True) 
     _, col_m, _ = st.columns([1, 1.2, 1])
     
     with col_m:
-        # 타이틀 카드 삭제 후 바로 단계별 로직 시작
         if 'login_step' not in st.session_state:
             st.session_state.login_step = 'choice'
 
-        # 1단계: 메인 선택
+        # 1단계: 메인 선택 (모든 버튼을 하얀색으로 통일)
         if st.session_state.login_step == 'choice':
-            if st.button("📱 회원으로 시작하기", use_container_width=True, type="primary"):
+            # type="primary"를 제거하여 하얀색 바탕으로 변경
+            if st.button("📱 회원으로 시작하기", use_container_width=True):
                 st.session_state.login_step = 'ask_signup'
                 st.rerun()
             
@@ -159,7 +159,7 @@ elif st.session_state.page == 'login':
         elif st.session_state.login_step == 'ask_signup':
             st.info("💡 회원 가입 시 나만의 유니콘 관리 및 신규 상장 알림 정보를 받을 수 있습니다. 계속하시겠습니까?")
             c1, c2 = st.columns(2)
-            if c1.button("✅ 예", use_container_width=True, type="primary"):
+            if c1.button("✅ 예", use_container_width=True): # 여기도 하얀색으로 통일
                 st.session_state.login_step = 'input_phone'
                 st.rerun()
             if c2.button("❌ 아니오", use_container_width=True):
@@ -172,7 +172,7 @@ elif st.session_state.page == 'login':
             phone = st.text_input("알림을 받을 휴대폰 번호", placeholder="010-0000-0000")
             
             cc1, cc2 = st.columns([2, 1])
-            if cc1.button("진행하기", use_container_width=True, type="primary"):
+            if cc1.button("진행하기", use_container_width=True): # 하얀색 버튼
                 if len(phone) >= 10:
                     st.success("가입이 완료되었습니다!")
                     st.session_state.auth_status = 'user'
@@ -185,7 +185,7 @@ elif st.session_state.page == 'login':
                 st.session_state.login_step = 'choice'
                 st.rerun()
 
-    # 하단 명언 (기존 유지)
+    # 하단 명언 (유지)
     st.write("<br>" * 2, unsafe_allow_html=True)
     q = get_daily_quote()
     st.markdown(f"<div class='quote-card'><small>TODAY'S INSIGHT</small><br><b>\"{q['eng']}\"</b><br><small>({q['kor']})</small><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
@@ -658,6 +658,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
