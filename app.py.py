@@ -190,15 +190,20 @@ elif st.session_state.page == 'login':
     q = get_daily_quote()
     st.markdown(f"<div class='quote-card'><small>TODAY'S INSIGHT</small><br><b>\"{q['eng']}\"</b><br><small>({q['kor']})</small><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
 
-# 3. 성장 단계 분석 (미니멀 버전)
+# 3. 성장 단계 분석 (Hot 유니콘 추가 버전)
 elif st.session_state.page == 'stats':
-    # 제목(st.title)을 제거하고 상단 여백을 살짝 줍니다.
+    # 상단 여백
     st.write("<br>", unsafe_allow_html=True)
     
+    # 이미지 파일명 정의
     img_baby = "baby_unicorn.png.png"
+    img_adult = "adult_unicorn.png.png"  # Hot 유니콘 이미지
     img_child = "child_unicorn.png.png"
     
-    c1, c2 = st.columns(2)
+    # 3개의 컬럼으로 구성 (New, Hot, My)
+    c1, c2, c3 = st.columns(3)
+    
+    # --- [1. New 유니콘] ---
     with c1:
         st.markdown("<div class='grid-card'><h3>New 유니콘</h3>", unsafe_allow_html=True)
         if os.path.exists(img_baby):
@@ -211,10 +216,28 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
             
-        st.markdown("<div class='stat-box'><small>📊 <b>시장 통계:</b> 연간 평균 180~250개의 기업이 미국 시장에 상장합니다.</small></div>", unsafe_allow_html=True)
+        st.markdown("<div class='stat-box'><small>📊 연평균 180~250개의 기업이 미국 시장에 신규 상장합니다.</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
-        
+
+    # --- [2. Hot 유니콘 (추가)] ---
     with c2:
+        st.markdown("<div class='grid-card'><h3>Hot 유니콘</h3>", unsafe_allow_html=True)
+        if os.path.exists(img_adult):
+            st.image(img_adult, caption="시장을 지배하는 성숙기 유니콘 🔥", use_container_width=True)
+        else: 
+            st.warning("adult_unicorn.png.png 파일을 찾을 수 없습니다.")
+        
+        # Hot 유니콘 클릭 시 필터링 로직 (예: 상장 3년 이상 종목만 보기 등)
+        if st.button("진행하기", use_container_width=True, key="go_hot"):
+            st.session_state.view_mode = 'hot' # 필터링 모드 설정
+            st.session_state.page = 'calendar'
+            st.rerun()
+            
+        st.markdown("<div class='stat-box'><small>📈 상장 후 3년 이상 경과하여 안정성과 성장을 증명한 기업들입니다.</small></div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- [3. My 유니콘] ---
+    with c3:
         st.markdown("<div class='grid-card'><h3>My 유니콘</h3>", unsafe_allow_html=True)
         if os.path.exists(img_child):
             st.image(img_child, caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
@@ -222,8 +245,6 @@ elif st.session_state.page == 'stats':
             st.warning("child_unicorn.png.png 파일을 찾을 수 없습니다.")
             
         watch_count = len(st.session_state.watchlist)
-        # My 유니콘 버튼은 강조를 위해 primary 타입을 유지하거나, 
-        # 로그인창처럼 통일하고 싶으시면 type="primary"를 제거하세요.
         if st.button(f"진행하기 ({watch_count}개 보관 중)", use_container_width=True, type="primary", key="go_watch"):
             if watch_count > 0:
                 st.session_state.view_mode = 'watchlist'
@@ -628,6 +649,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
