@@ -206,7 +206,7 @@ elif st.session_state.page == 'stats':
         else: 
             st.warning("baby_unicorn.png.png 파일을 찾을 수 없습니다.")
         
-        if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True, key="go_all"):
+        if st.button("진행하기", use_container_width=True, key="go_all"):
             st.session_state.view_mode = 'all'
             st.session_state.page = 'calendar'
             st.rerun()
@@ -224,7 +224,7 @@ elif st.session_state.page == 'stats':
         watch_count = len(st.session_state.watchlist)
         # My 유니콘 버튼은 강조를 위해 primary 타입을 유지하거나, 
         # 로그인창처럼 통일하고 싶으시면 type="primary"를 제거하세요.
-        if st.button(f"🔎 My 유니콘 탐험 ({watch_count}개 보관 중)", use_container_width=True, type="primary", key="go_watch"):
+        if st.button(f"진행하기 ({watch_count}개 보관 중)", use_container_width=True, type="primary", key="go_watch"):
             if watch_count > 0:
                 st.session_state.view_mode = 'watchlist'
                 st.session_state.page = 'calendar'
@@ -673,6 +673,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
