@@ -7,7 +7,7 @@ import os
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- 세션 초기화 (원본 보존) ---
+# --- 세션 초기화 ---
 for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock', 'watchlist', 'view_mode']:
     if key not in st.session_state:
         if key == 'page': st.session_state[key] = 'intro'
@@ -16,7 +16,7 @@ for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock'
         elif key == 'view_mode': st.session_state[key] = 'all'
         else: st.session_state[key] = None
 
-# --- CSS 스타일 (원본 스타일 완벽 복구) ---
+# --- CSS 스타일 ---
 st.markdown("""
     <style>
     .intro-card {
@@ -84,7 +84,7 @@ def get_current_stock_price(symbol, api_key):
 
 # --- 화면 제어 ---
 
-# 1. 인트로 페이지
+# 1. 인트로
 if st.session_state.page == 'intro':
     _, col_center, _ = st.columns([1, 10, 1])
     with col_center:
@@ -102,7 +102,7 @@ if st.session_state.page == 'intro':
         if st.button("탐험 시작하기", key="start_app", use_container_width=True):
             st.session_state.page = 'login'; st.rerun()
 
-# 2. 로그인 페이지 (명언 시스템 포함)
+# 2. 로그인 (명언 포함)
 elif st.session_state.page == 'login':
     st.write("<br>" * 4, unsafe_allow_html=True)
     _, col_m, _ = st.columns([1, 1.5, 1])
@@ -116,49 +116,34 @@ elif st.session_state.page == 'login':
     q = get_daily_quote()
     st.markdown(f"<div class='quote-card'><small>TODAY'S INSIGHT</small><br><b>\"{q['eng']}\"</b><br><small>({q['kor']})</small><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
 
-# 3. 성장 단계 분석 (Stats)
+# 3. 성장 단계 분석 (이미지 복구 및 오류 수정 완료)
 elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
     
-    # 기존에 사용하던 Unsplash 이미지 URL로 복구
     img_baby_url = "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=800&q=80"
     img_child_url = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80"
     
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("<div class='grid-card'><h3>New 유니콘 (유아기)</h3>", unsafe_allow_html=True)
-        # 1. 유아기 유니콘 이미지 출력
         st.image(img_baby_url, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
-            
         if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True, key="go_all"):
             st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
-        
-        st.markdown("""
-            <div class='stat-box'>
-                <small>📊 <b>시장 통계:</b> 연간 평균 180~250개의 기업이 미국 시장에 상장하며, 상장 후 3년 생존율은 약 65% 내외입니다. 초기 성장의 기회를 발견하세요.</small>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown("<div class='stat-box'><small>📊 <b>시장 통계:</b> 연간 평균 180~250개의 기업이 미국 시장에 상장하며, 상장 후 3년 생존율은 약 65% 내외입니다.</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
         
     with c2:
         st.markdown("<div class='grid-card'><h3>My 유니콘 (아동기)</h3>", unsafe_allow_html=True)
-        # 2. 아동기 유니콘 이미지 출력
         st.image(img_child_url, caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
-            
         watch_count = len(st.session_state.watchlist)
         if st.button(f"🔎 My 유니콘 탐험 ({watch_count}개 보관 중)", use_container_width=True, type="primary", key="go_watch"):
             if watch_count > 0:
                 st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'; st.rerun()
             else: st.warning("아직 보관함에 담긴 기업이 없습니다.")
-        
-        st.markdown("""
-            <div class='stat-box'>
-                <small>내가 직접 분석하고 찜한 나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small>
-            </div>
-        """, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)all></div></div>", unsafe_allow_html=True)
+        st.markdown("<div class='stat-box'><small>내가 직접 분석하고 찜한 나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small></div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# 4. 캘린더 페이지 (필터 로직 완벽 보존)
+# 4. 캘린더
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     view_mode = st.session_state.get('view_mode', 'all')
@@ -194,7 +179,7 @@ elif st.session_state.page == 'calendar':
                 col5.markdown(f"<span style='color:{'#28a745' if cp >= p else '#dc3545'}; font-weight:bold;'>${cp:,.2f}</span>" if cp > 0 else "-", unsafe_allow_html=True)
             else: col5.write("대기")
 
-# 5. 상세 페이지 (커뮤니티 + SEC 공시 + 재무 통합)
+# 5. 상세 페이지
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
@@ -260,4 +245,3 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
-
