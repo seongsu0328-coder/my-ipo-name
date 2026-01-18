@@ -17,38 +17,59 @@ for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock'
         elif key == 'view_mode': st.session_state[key] = 'all'
         else: st.session_state[key] = None
 
-# --- CSS 스타일 ---
+# --- CSS 스타일 (모바일 가독성 및 다크모드 대응) ---
 st.markdown("""
     <style>
+    /* 전체 배경 대비 글자색 고정 */
+    .stApp { color: #333333; }
+    
     .intro-card {
         background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
-        padding: 60px 40px; border-radius: 30px; color: white;
+        padding: 60px 40px; border-radius: 30px; color: white !important;
         text-align: center; margin-top: 20px; box-shadow: 0 20px 40px rgba(110, 142, 251, 0.3);
     }
-    .intro-title { font-size: 45px; font-weight: 900; margin-bottom: 15px; letter-spacing: -1px; }
-    .intro-subtitle { font-size: 19px; opacity: 0.9; margin-bottom: 40px; }
-    .feature-grid { display: flex; justify-content: space-around; gap: 20px; margin-bottom: 30px; }
-    .feature-item {
-        background: rgba(255, 255, 255, 0.15);
-        padding: 25px 15px; border-radius: 20px; flex: 1;
-        backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2);
+    .intro-title { font-size: 45px; font-weight: 900; margin-bottom: 15px; letter-spacing: -1px; color: white !important; }
+    .intro-subtitle { font-size: 19px; opacity: 0.9; margin-bottom: 40px; color: white !important; }
+    
+    /* 성장 단계 카드 스타일 */
+    .grid-card { 
+        background-color: #ffffff !important; 
+        padding: 25px; 
+        border-radius: 20px; 
+        border: 1px solid #eef2ff; 
+        box-shadow: 0 10px 20px rgba(0,0,0,0.05); 
+        text-align: center; 
+        color: #333333 !important; 
+        height: 100%;
+        margin-bottom: 20px;
     }
-    .feature-icon { font-size: 30px; margin-bottom: 10px; }
-    .feature-text { font-size: 15px; font-weight: 600; }
+    .grid-card h3 { color: #1a1a1b !important; font-weight: 800; margin-bottom: 15px; }
+    
+    /* 통계 박스 스타일 */
+    .stat-box {
+        text-align: left; 
+        padding: 12px; 
+        background-color: #f1f3f9 !important; 
+        border-radius: 12px; 
+        margin-top: 15px;
+        color: #444444 !important; 
+        line-height: 1.5;
+        border-left: 4px solid #6e8efb;
+    }
+    
     .quote-card {
         background: linear-gradient(145deg, #ffffff, #f9faff);
         padding: 25px; border-radius: 20px; border-top: 5px solid #6e8efb;
         box-shadow: 0 10px 40px rgba(0,0,0,0.05); text-align: center;
         max-width: 650px; margin: 40px auto; color: #333333 !important;
     }
-    .grid-card { 
-        background-color: #ffffff; padding: 25px; border-radius: 20px; 
-        border: 1px solid #eef2ff; box-shadow: 0 10px 20px rgba(0,0,0,0.05); 
-        text-align: center; color: #333; height: 100%;
-    }
-    .vote-container { background-color: #f8faff; padding: 25px; border-radius: 20px; border: 1px solid #eef2ff; margin-bottom: 20px; color: #333; }
-    .comment-box { background: white; padding: 12px; border-radius: 10px; border-left: 4px solid #6e8efb; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #333; }
-    .info-box { background-color: #f0f4ff; padding: 15px; border-radius: 12px; border-left: 5px solid #6e8efb; margin-bottom: 10px; color: #333; text-align: left; }
+    .vote-container { background-color: #f8faff; padding: 25px; border-radius: 20px; border: 1px solid #eef2ff; margin-bottom: 20px; color: #333333 !important; }
+    .comment-box { background: white; padding: 12px; border-radius: 10px; border-left: 4px solid #6e8efb; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #333333 !important; }
+    .info-box { background-color: #f0f4ff; padding: 15px; border-radius: 12px; border-left: 5px solid #6e8efb; margin-bottom: 10px; color: #333333 !important; text-align: left; }
+    
+    /* 버튼 텍스트 가독성 */
+    .stButton>button { color: #333333 !important; }
+    .stButton>button[kind="primary"] { color: white !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -101,12 +122,11 @@ elif st.session_state.page == 'login':
         if c2.button("비회원 시작", use_container_width=True):
             st.session_state.auth_status = 'guest'; st.session_state.page = 'stats'; st.rerun()
     q = get_daily_quote()
-    st.markdown(f"<div class='quote-card'><small>TODAY'S INSIGHT</small><b>\"{q['eng']}\"</b><small>({q['kor']})</small><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='quote-card'><small>TODAY'S INSIGHT</small><br><b>\"{q['eng']}\"</b><br><small>({q['kor']})</small><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
 
 elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
     
-    # 이미지 경로 및 백업 URL 설정
     img_baby_url = "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=800&q=80"
     img_child_url = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80"
     
@@ -118,15 +138,15 @@ elif st.session_state.page == 'stats':
         else:
             st.image(img_baby_url, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
             
-        if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True):
+        if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True, key="go_all"):
             st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
         
-        # 요청하신 문구로 변경: 연간 IPO 개수 및 생존율 정보
         st.markdown("""
-            <div style='text-align: left; padding: 10px; background-color: #f8f9fa; border-radius: 10px; margin-top: 10px;'>
+            <div class='stat-box'>
                 <small>📊 <b>시장 통계:</b> 연간 평균 180~250개의 기업이 미국 시장에 상장하며, 상장 후 3년 생존율은 약 65% 내외입니다. 초기 성장의 기회를 발견하세요.</small>
             </div>
         """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
         
     with c2:
         st.markdown("<div class='grid-card'><h3>My 유니콘 (아동기)</h3>", unsafe_allow_html=True)
@@ -136,11 +156,17 @@ elif st.session_state.page == 'stats':
             st.image(img_child_url, caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
             
         watch_count = len(st.session_state.watchlist)
-        if st.button(f"🔎 My 유니콘 탐험 ({watch_count}개 보관 중)", use_container_width=True, type="primary"):
+        if st.button(f"🔎 My 유니콘 탐험 ({watch_count}개 보관 중)", use_container_width=True, type="primary", key="go_watch"):
             if watch_count > 0:
                 st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'; st.rerun()
             else: st.warning("아직 보관함에 담긴 기업이 없습니다.")
-        st.markdown("<small>내가 직접 분석하고 찜한 나만의 유니콘 후보들</small></div>", unsafe_allow_html=True)
+        
+        st.markdown("""
+            <div style='margin-top:15px;'>
+                <small>내가 직접 분석하고 찜한 나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small>
+            </div>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
@@ -166,7 +192,7 @@ elif st.session_state.page == 'calendar':
         for i, row in display_df.iterrows():
             col1, col2, col3, col4, col5 = st.columns([1.2, 3.5, 1.2, 1.5, 1.2])
             is_p = row['공모일_dt'].date() <= datetime.now().date()
-            col1.markdown(f"<span style='color:{'#888' if is_p else '#4f46e5'};'>{row['date']}</span>", unsafe_allow_html=True)
+            col1.markdown(f"<span style='color:{'#888888' if is_p else '#4f46e5'};'>{row['date']}</span>", unsafe_allow_html=True)
             if col2.button(row['name'], key=f"n_{row['symbol']}_{i}", use_container_width=True):
                 st.session_state.selected_stock = row.to_dict(); st.session_state.page = 'detail'; st.rerun()
             p, s = pd.to_numeric(row['price'], errors='coerce') or 0, pd.to_numeric(row['numberOfShares'], errors='coerce') or 0
@@ -240,4 +266,3 @@ elif st.session_state.page == 'detail':
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제"):
                     st.session_state.watchlist.remove(sid); st.rerun()
-
