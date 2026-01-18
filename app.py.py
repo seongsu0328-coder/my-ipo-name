@@ -105,14 +105,30 @@ elif st.session_state.page == 'login':
 
 elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
+    
+    # 이미지 경로 및 백업 URL 설정
+    img_baby_url = "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=800&q=80"
+    img_child_url = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80"
+    
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("<div class='grid-card'><h3>New 유니콘</h3><div style='font-size:80px; padding:20px;'>🌱</div>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>New 유니콘 (유아기)</h3>", unsafe_allow_html=True)
+        if os.path.exists("baby_unicorn.png"):
+            st.image("baby_unicorn.png", use_container_width=True)
+        else:
+            st.image(img_baby_url, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
+            
         if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True):
             st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
         st.markdown("<small>미국 시장에 새로 등장하는 모든 상장 예정 기업</small></div>", unsafe_allow_html=True)
+        
     with c2:
-        st.markdown("<div class='grid-card'><h3>My 유니콘</h3><div style='font-size:80px; padding:20px;'>⭐</div>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>My 유니콘 (아동기)</h3>", unsafe_allow_html=True)
+        if os.path.exists("child_unicorn.png"):
+            st.image("child_unicorn.png", use_container_width=True)
+        else:
+            st.image(img_child_url, caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
+            
         watch_count = len(st.session_state.watchlist)
         if st.button(f"🔎 My 유니콘 탐험 ({watch_count}개 보관 중)", use_container_width=True, type="primary"):
             if watch_count > 0:
@@ -184,8 +200,7 @@ elif st.session_state.page == 'detail':
                 st.markdown("#### **참조 모델**\n- Ritter(1991) IPO 성과 분석\n- Fama-French 5-Factor")
             with cb:
                 st.write("상승 잠재력 분석")
-                st.progress(0.65)
-                st.success(f"평균 **12%~38%** 추가 상승 가능성")
+                st.progress(0.65); st.success(f"평균 **12%~38%** 추가 상승 가능성")
 
         with tab3:
             sid = stock['symbol']
@@ -200,8 +215,7 @@ elif st.session_state.page == 'detail':
             if v2.button("💸 Fallen Angel", use_container_width=True, key=f"vf_{sid}"): 
                 st.session_state.vote_data[sid]['f'] += 1; st.rerun()
             uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
-            st.progress(uv/(uv+fv))
-            st.write(f"유니콘 지수: {int(uv/(uv+fv)*100)}% ({uv+fv}명 참여)")
+            st.progress(uv/(uv+fv)); st.write(f"유니콘 지수: {int(uv/(uv+fv)*100)}% ({uv+fv}명 참여)")
             st.markdown("</div>", unsafe_allow_html=True)
 
             st.write("**2. 커뮤니티 의견**")
