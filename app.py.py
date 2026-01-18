@@ -119,21 +119,44 @@ elif st.session_state.page == 'login':
 # 3. 성장 단계 분석 (Stats)
 elif st.session_state.page == 'stats':
     st.title("🦄 유니콘 성장 단계 분석")
+    
+    # 기존에 사용하던 Unsplash 이미지 URL로 복구
+    img_baby_url = "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=800&q=80"
+    img_child_url = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80"
+    
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("<div class='grid-card'><h3>New 유니콘 (유아기)</h3>", unsafe_allow_html=True)
-        st.image("https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=800&q=80", caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
+        # 1. 유아기 유니콘 이미지 출력
+        st.image(img_baby_url, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
+            
         if st.button("🔎 New 유니콘 탐험 (전체 목록)", use_container_width=True, key="go_all"):
             st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
-        st.markdown("<div class='stat-box'><small>📊 <b>시장 통계:</b> 연간 평균 180~250개의 기업이 미국 시장에 상장하며, 상장 후 3년 생존율은 약 65% 내외입니다.</small></div></div>", unsafe_allow_html=True)
+        
+        st.markdown("""
+            <div class='stat-box'>
+                <small>📊 <b>시장 통계:</b> 연간 평균 180~250개의 기업이 미국 시장에 상장하며, 상장 후 3년 생존율은 약 65% 내외입니다. 초기 성장의 기회를 발견하세요.</small>
+            </div>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
     with c2:
         st.markdown("<div class='grid-card'><h3>My 유니콘 (아동기)</h3>", unsafe_allow_html=True)
-        st.image("https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80", caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
+        # 2. 아동기 유니콘 이미지 출력
+        st.image(img_child_url, caption="내가 찜한 아동기 유니콘 ⭐", use_container_width=True)
+            
         watch_count = len(st.session_state.watchlist)
         if st.button(f"🔎 My 유니콘 탐험 ({watch_count}개 보관 중)", use_container_width=True, type="primary", key="go_watch"):
-            if watch_count > 0: st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'; st.rerun()
+            if watch_count > 0:
+                st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'; st.rerun()
             else: st.warning("아직 보관함에 담긴 기업이 없습니다.")
-        st.markdown("<div class='stat-box'><small>내가 직접 분석하고 찜한 나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small></div></div>", unsafe_allow_html=True)
+        
+        st.markdown("""
+            <div class='stat-box'>
+                <small>내가 직접 분석하고 찜한 나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small>
+            </div>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)all></div></div>", unsafe_allow_html=True)
 
 # 4. 캘린더 페이지 (필터 로직 완벽 보존)
 elif st.session_state.page == 'calendar':
@@ -237,3 +260,4 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
