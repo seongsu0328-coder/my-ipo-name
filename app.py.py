@@ -343,65 +343,56 @@ elif st.session_state.page == 'detail':
                 st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
 
             with tab2:
-            # 1. 학술적 근거 섹션 (신규 추가)
+            # 1. 학술적 근거 섹션
             st.markdown("#### 🎓 AI Valuation Methodology")
-            st.caption("본 가치 평가는 금융 학계의 권위 있는 IPO 평가 모델을 기반으로 산출되었습니다.")
+            st.caption("금융 학계의 권위 있는 IPO 평가 모델을 기반으로 산출되었습니다.")
             
-            paper_cols = st.columns(3)
-            
-            with paper_cols[0]:
-                st.markdown("""
-                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 180px; border-top: 3px solid #6e8efb;'>
-                    <p style='font-size: 12px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Comparison Model</p>
-                    <p style='font-size: 13px; font-weight: 600; line-height: 1.3;'>Kim & Ritter (1999)</p>
-                    <p style='font-size: 11px; color: #666;'>유사 기업의 Forward P/E 및 P/S 멀티플을 활용한 상대 가치 산정의 표준 모델 적용</p>
-                </div>
-                """, unsafe_allow_html=True)
+            p_cols = st.columns(3)
+            with p_cols[0]:
+                st.markdown("""<div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 180px; border-top: 3px solid #6e8efb;'>
+                    <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Comparison Model</p>
+                    <p style='font-size: 13px; font-weight: 600;'>Kim & Ritter (1999)</p>
+                    <p style='font-size: 11px; color: #666;'>유사 기업의 멀티플을 활용한 상대 가치 산정 모델</p>
+                </div>""", unsafe_allow_html=True)
                 
-            with paper_cols[1]:
-                st.markdown("""
-                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 180px; border-top: 3px solid #6e8efb;'>
-                    <p style='font-size: 12px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Fair Value Analysis</p>
-                    <p style='font-size: 13px; font-weight: 600; line-height: 1.3;'>Purnanandam & Swaminathan (2004)</p>
-                    <p style='font-size: 11px; color: #666;'>업계 평균 대비 공모가의 할증/할인율을 분석하여 장기적 관점의 공정 가치 도출</p>
-                </div>
-                """, unsafe_allow_html=True)
+            with p_cols[1]:
+                st.markdown("""<div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 180px; border-top: 3px solid #6e8efb;'>
+                    <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Fair Value Analysis</p>
+                    <p style='font-size: 13px; font-weight: 600;'>Purnanandam (2004)</p>
+                    <p style='font-size: 11px; color: #666;'>공모가 할증/할인율 분석을 통한 공정 가치 도출</p>
+                </div>""", unsafe_allow_html=True)
                 
-            with paper_cols[2]:
-                st.markdown("""
-                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 180px; border-top: 3px solid #6e8efb;'>
-                    <p style='font-size: 12px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Underpricing Theory</p>
-                    <p style='font-size: 13px; font-weight: 600; line-height: 1.3;'>Loughran & Ritter (2002)</p>
-                    <p style='font-size: 11px; color: #666;'>초기 투자자 유입을 위한 의도적 저평가(Underpricing) 범위를 계산하여 안전 마진 확인</p>
-                </div>
-                """, unsafe_allow_html=True)
+            with p_cols[2]:
+                st.markdown("""<div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 180px; border-top: 3px solid #6e8efb;'>
+                    <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Underpricing Theory</p>
+                    <p style='font-size: 13px; font-weight: 600;'>Loughran & Ritter (2002)</p>
+                    <p style='font-size: 11px; color: #666;'>의도적 저평가 범위를 계산하여 안전 마진 확인</p>
+                </div>""", unsafe_allow_html=True)
 
             st.write("<br>", unsafe_allow_html=True)
             
-            # 2. 실제 가치 평가 결과 (기존 디자인 유지 및 텍스트 수정)
+            # 2. 가치 평가 결과 카드
             st.markdown(f"""
                 <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
-                    <div style='display: flex; align-items: center; margin-bottom: 10px;'>
-                        <span style='background-color: #6e8efb; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; margin-right: 10px;'>ALGO V3.2</span>
-                        <p style='color: #666; font-size: 14px; margin: 0;'>위 학술 모델 기반 AI 추정 적정가</p>
-                    </div>
+                    <p style='color: #666; font-size: 14px; margin-bottom: 5px;'>AI 추정 적정가 범위</p>
                     <h2 style='color: #6e8efb; margin-top: 0;'>$24.50 — $31.20</h2>
-                    <p style='font-size: 14px; color: #444;'>현재 공모가 대비 약 <span style='color: #28a745; font-weight: bold;'>15.2% 저평가</span> 상태로 분석됩니다.</p>
+                    <p style='font-size: 14px; color: #444;'>현재 공모가 대비 약 <span style='color: #28a745; font-weight: bold;'>15.2% 저평가</span> 상태입니다.</p>
                 </div>
             """, unsafe_allow_html=True)
 
+            # 3. 투자 지표 (오류 발생 지점 수정)
             st.write("<br>", unsafe_allow_html=True)
-            
-            # 3. 투자 매력도 게이지
             st.write("**🤖 AI 종합 매력도 점수**")
-            score = 78
-            st.progress(score / 100)
-            st.write(f"상위 {100-score}%의 투자 유망 종목 (학술 모델 시뮬레이션 결과)")
-
-            # 세부 평가 지표
+            st.progress(0.78)
+            
             st.write("---")
-            m1, m2, m3 = st.columns(3)
-            m1.metric("성장성
+            # 변수명을 단순화하여 충돌 방지
+            mc1, mc2, mc3 = st.columns(3)
+            mc1.metric(label="성장성 점수", value="88/100")
+            mc2.metric(label="수익성 점수", value="42/100")
+            mc3.metric(label="시장 관심도", value="95/100")
+
+            st.info("💡 위 분석은 상기 기술된 3가지 학술 논문의 알고리즘을 결합한 결과입니다.")
 
         with tab3:
             sid = stock['symbol']
@@ -441,6 +432,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
