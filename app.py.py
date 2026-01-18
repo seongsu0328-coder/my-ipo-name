@@ -156,7 +156,7 @@ elif st.session_state.page == 'login':
 
         # 1단계: 기본 선택 화면
         if st.session_state.login_step == 'choice':
-            if st.button("📱 회원 로그인 / 가입", use_container_width=True, type="primary"):
+            if st.button("📱 회원으로 시작하기", use_container_width=True, type="primary"):
                 st.session_state.login_step = 'ask_signup'
                 st.rerun()
             
@@ -666,6 +666,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
