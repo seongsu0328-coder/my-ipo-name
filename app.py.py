@@ -374,7 +374,7 @@ elif st.session_state.page == 'detail':
                     </a>
                 """, unsafe_allow_html=True)
 
-        # --- [Tab 1: 핵심 정보] ---
+        # --- [Tab 1: 핵심 정보 - 실제 재무 데이터 연동 버전] ---
         with tab1:
             cc1, cc2 = st.columns([1.5, 1])
             
@@ -410,12 +410,33 @@ elif st.session_state.page == 'detail':
                 """, unsafe_allow_html=True)
 
             with cc2:
-                st.markdown("#### 📊 핵심 재무 요약")
-                pending_data = {
-                    "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
-                    "현황": ["⏳ Pending", "⏳ Pending", "🧐 데이터 분석 중", "⚠️ 확인 불가"]
-                }
-                st.table(pd.DataFrame(pending_data))
+                st.markdown("#### 📊 실시간 핵심 재무 (TTM)")
+                
+                # 실제 데이터 호출
+                fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
+                
+                if fin_data:
+                    # 데이터가 있을 경우 실제 수치 표시
+                    display_data = {
+                        "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익률", "부채 비율 (D/E)"],
+                        "현황": [
+                            f"{fin_data['growth']:.2f}%" if fin_data['growth'] is not None else "⏳ 데이터 대기",
+                            f"{fin_data['op_margin']:.2f}%" if fin_data['op_margin'] is not None else "⏳ 데이터 대기",
+                            f"{fin_data['net_margin']:.2f}%" if fin_data['net_margin'] is not None else "🧐 분석 중",
+                            f"{fin_data['debt_equity']:.2f}%" if fin_data['debt_equity'] is not None else "⚠️ 확인 불가"
+                        ]
+                    }
+                    st.table(pd.DataFrame(display_data))
+                    st.caption("※ TTM: 최근 12개월 합산 기준 (데이터 제공: Finnhub)")
+                else:
+                    # 데이터가 없을 경우 (주로 상장 전 기업)
+                    st.warning("🧐 현재 상장 대기 중이거나 데이터 집계 전입니다.")
+                    pending_data = {
+                        "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
+                        "현황": ["⏳ Pending", "⏳ Pending", "🧐 데이터 분석 중", "⚠️ 확인 불가"]
+                    }
+                    st.table(pd.DataFrame(pending_data))
+                
                 st.info("💡 정확한 수치는 상단 S-1 요약 또는 원문 공시를 확인해 주세요.")
 
         # --- [Tab 2: AI 가치 평가 (논문 링크 추가)] ---
@@ -556,6 +577,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
