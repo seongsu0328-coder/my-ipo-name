@@ -182,7 +182,7 @@ elif st.session_state.page == 'login':
             phone = st.text_input("알림을 받을 번호를 입력해주세요", placeholder="010-0000-0000")
             
             cc1, cc2 = st.columns([2, 1])
-            if cc1.button("완료 및 시작하기", use_container_width=True, type="primary"):
+            if cc1.button("진행하기", use_container_width=True, type="primary"):
                 if len(phone) >= 10:
                     st.success(f"{phone} 번호로 가입되었습니다!")
                     st.session_state.auth_status = 'user'
@@ -190,7 +190,7 @@ elif st.session_state.page == 'login':
                     st.rerun()
                 else:
                     st.error("정확한 번호를 입력해주세요.")
-            if cc2.button("취소"):
+            if cc2.button("돌아가기"):
                 st.session_state.login_step = 'choice'
                 st.rerun()
 
@@ -666,6 +666,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
