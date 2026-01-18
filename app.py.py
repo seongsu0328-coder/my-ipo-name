@@ -221,7 +221,7 @@ elif st.session_state.page == 'calendar':
             
             col6.write(f"🏛️ {display_exch}")
 
-# 5. 상세 페이지 (수정된 타이틀 섹션)
+# 5. 상세 페이지
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
@@ -229,21 +229,49 @@ elif st.session_state.page == 'detail':
             st.session_state.page = 'calendar'
             st.rerun()
             
-        # --- [신규: 현재가 및 공모가 정보 추출] ---
-        # 1. 공시 가격 (공모가)
-        offering_price = stock.get('price', 'TBD')
-        
-        # 2. 실시간 현재가 가져오기
+        # --- [수익률 계산 로직] ---
+        # 1. 공모가 숫자 추출
+        try:
+            raw_offering = stock.get('price', '0').replace('$', '').split('-')[0].strip()
+            offering_p = float(raw_offering)
+        except:
+            offering_p = 0
+            
+        # 2. 현재가 가져오기
         current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
         
-        # 3. 상장 여부 확인 및 타이틀 구성
-        # 가격 정보가 숫자로 존재하고 0보다 크면 상장된 것으로 간주
-        if current_p > 0:
-            price_info = f" ({offering_price} / 현재 ${current_p:,.2f})"
+        # 3. 등락률 계산 및 UI 구성
+        price_display = f" (공모 ${offering_p:,.2f}"
+        
+        if current_p > 0 and offering_p > 0:
+            change_pct = ((current_p - offering_p) / offering_p) * 100
+            if change_pct > 0:
+                status_icon = "▲"
+                color = "#28a745" # 초록색
+            elif change_pct < 0:
+                status_icon = "▼"
+                color = "#dc3545" # 빨간색
+            else:
+                status_icon = "-"
+                color = "#666666"
+                
+            price_info_html = f"""
+                <span style='font-size: 0.6em; color: #666;'>
+                    {price_display} / 현재 
+                    <span style='color: {color}; font-weight: bold;'>
+                        ${current_p:,.2f} {status_icon} {abs(change_pct):.1f}%
+                    </span>)
+                </span>
+            """
         else:
-            price_info = f" ({offering_price} / 상장 대기)"
-            
-        st.title(f"🚀 {stock['name']}{price_info}")
+            price_info_html = f"<span style='font-size: 0.6em; color: #666;'>{price_display} / 상장 대기)</span>"
+
+        # HTML을 사용하여 타이틀과 가격 정보를 한 줄에 표시
+        st.markdown(f"# 🚀 {stock['name']} {price_info_html}", unsafe_allow_html=True)
+        # ------------------------------------------
+        
+        # 탭 생성 (기존 코드와 동일)
+        tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         # ------------------------------------------
         
         # 탭 생성 (이후 코드는 동일)
@@ -511,6 +539,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
