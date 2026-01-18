@@ -223,11 +223,15 @@ elif st.session_state.page == 'detail':
             
             st.write("---")
             cc1, cc2 = st.columns(2)
+            st.write("---")
+            cc1, cc2 = st.columns(2)
             with cc1:
                 st.subheader("📑 주요 기업 공시 (SEC)")
                 st.info(f"📍 **S-1 증권신고서** : {stock['symbol']} 분석 리포트")
-                search_name = stock['name'].replace(" ", "+") # 공백을 +로 변환
-st.markdown(f"🔗 [SEC에서 {stock['name']} 공시 서류 직접 검색하기](https://www.sec.gov/edgar/search/#/q={search_name})")
+                # 기업명 기반 SEC 검색 링크로 수정 완료
+                search_name = stock['name'].replace(" ", "+")
+                st.markdown(f"[🔗 SEC 공식 홈페이지 검색](https://www.sec.gov/edgar/search/#/q={search_name})")
+            
             with cc2:
                 st.subheader("📊 핵심 재무 요약")
                 f_data = {"항목": ["매출 성장률", "영업 이익률", "현금 흐름"], "수치": ["+45.2%", "-12.5%", "Positive"]}
@@ -268,4 +272,5 @@ st.markdown(f"🔗 [SEC에서 {stock['name']} 공시 서류 직접 검색하기]
             else:
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
