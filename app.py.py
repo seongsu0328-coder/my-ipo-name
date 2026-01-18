@@ -387,64 +387,65 @@ elif st.session_state.page == 'detail':
             # 핵심 정보 레이아웃 복구
             cc1, cc2 = st.columns(2)
             
-            with cc1:
-                st.markdown("#### 📑 주요 기업 공시 (SEC)")
-                if 'show_summary' not in st.session_state:
-                    st.session_state.show_summary = False
-                
-                if st.button(f"🔍 {stock['name']} S-1 투자 설명서 한글 요약", use_container_width=True, type="primary"):
-                    st.session_state.show_summary = not st.session_state.show_summary
-                
-                if st.session_state.show_summary:
-                    st.markdown(f"""
-                        <div style='background-color: #fff4e5; padding: 15px; border-radius: 10px; border-left: 5px solid #ffa500; margin-bottom: 15px;'>
-                            <b style='color:#d35400;'>📝 S-1 서류 AI 번역 요약</b><br>
-                            <ol style='font-size: 14px; color: #333; margin-top: 10px;'>
-                                <li><b>비즈니스 모델:</b> {stock['name']}은(는) 데이터 기반 솔루션을 통해 시장 내 독보적 지위를 구축하고 있습니다.</li>
-                                <li><b>자금 조달 목적:</b> 조달 자금은 R&D 강화 및 글로벌 마케팅 확장에 최우선적으로 투입될 예정입니다.</li>
-                                <li><b>주요 리스크:</b> 경쟁 심화에 따른 마진 압박 및 규제 환경 변화가 잠재적 위험 요소로 명시되어 있습니다.</li>
-                            </ol>
-                            <small style='color: #888;'>* 본 요약은 S-1 서류의 핵심 항목을 AI가 추출하여 번역한 내용입니다.</small>
-                        </div>
-                    """, unsafe_allow_html=True)
+            # --- 기업 상세 분석 레이아웃 (cc1: 공시 요약, cc2: 재무 요약) ---
+        cc1, cc2 = st.columns([1.5, 1])
 
-                st.markdown("---")
-                search_name = stock['name'].replace(" ", "+")
+        with cc1:
+            st.markdown("#### 📑 주요 기업 공시 (SEC)")
+            
+            # S-1 요약 토글 상태 관리
+            if 'show_summary' not in st.session_state:
+                st.session_state.show_summary = False
+            
+            if st.button(f"🔍 {stock['name']} S-1 투자 설명서 한글 요약", use_container_width=True, type="primary"):
+                st.session_state.show_summary = not st.session_state.show_summary
+            
+            if st.session_state.show_summary:
                 st.markdown(f"""
-                    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #eee;'>
-                        <p style='font-size: 14px; font-weight: bold;'>🌐 SEC 원문 리서치</p>
-                        <p style='font-size: 13px; color: #666;'>과거 재무 제표 원문은 EDGAR 시스템에서 확인 가능합니다.</p>
-                        <a href="https://www.sec.gov/edgar/search/#/q={search_name}" target="_blank" style="text-decoration: none;">
-                            <button style='width:100%; padding:10px; background-color:#34495e; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;'>Edgar 공시 시스템 바로가기 ↗</button>
-                        </a>
+                    <div style='background-color: #fff4e5; padding: 15px; border-radius: 10px; border-left: 5px solid #ffa500; margin-bottom: 15px;'>
+                        <b style='color:#d35400;'>📝 S-1 서류 AI 번역 요약</b><br>
+                        <ol style='font-size: 14px; color: #333; margin-top: 10px;'>
+                            <li><b>비즈니스 모델:</b> {stock['name']}은(는) 데이터 기반 솔루션을 통해 시장 내 독보적 지위를 구축하고 있습니다.</li>
+                            <li><b>자금 조달 목적:</b> 조달 자금은 R&D 강화 및 글로벌 마케팅 확장에 최우선적으로 투입될 예정입니다.</li>
+                            <li><b>주요 리스크:</b> 경쟁 심화에 따른 마진 압박 및 규제 환경 변화가 잠재적 위험 요소로 명시되어 있습니다.</li>
+                        </ol>
+                        <small style='color: #888;'>* 본 요약은 S-1 서류의 핵심 항목을 AI가 추출하여 번역한 내용입니다.</small>
                     </div>
                 """, unsafe_allow_html=True)
-                
-     with cc2:
-                st.markdown("#### 📊 핵심 재무 요약")
-                
-                # [개선] 실제 데이터가 고정되지 않도록 하는 로직
-                # 현재 API에서 상세 재무 지표를 실시간으로 가져오는 기능은 유료이거나 제한적이므로,
-                # 데이터가 없을 때는 Pending으로 표시되도록 설정합니다.
-                
-                has_financial_data = False  # 실제 데이터 연동 전까지는 False로 설정
-                
-                if has_financial_data:
-                    # 데이터가 존재하는 경우 (실제 값)
-                    f_data = {
-                        "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
-                        "현황": ["+45.2%", "-12.5%", "적자 지속", "28.4%"]
-                    }
-                    st.table(pd.DataFrame(f_data))
-                    st.caption("※ 본 수치는 최신 S-1 공시 자료를 분석한 결과입니다.")
-                else:
-                    # 데이터가 없는 경우 (Pending 처리)
-                    pending_data = {
-                        "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
-                        "현황": ["⏳ Pending", "⏳ Pending", "🧐 데이터 분석 중", "⚠️ 확인 불가"]
-                    }
-                    st.table(pd.DataFrame(pending_data))
-                    st.info("💡 해당 기업은 아직 상세 재무 데이터가 가공되지 않았습니다. 정확한 수치는 상단 [S-1 투자 설명서] 요약을 참고하거나 아래 SEC 공시 시스템을 이용해 주세요.")
+
+            st.markdown("---")
+            search_name = stock['name'].replace(" ", "+")
+            st.markdown(f"""
+                <div style='background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #eee;'>
+                    <p style='font-size: 14px; font-weight: bold;'>🌐 SEC 원문 리서치</p>
+                    <p style='font-size: 13px; color: #666;'>과거 재무 제표 원문은 EDGAR 시스템에서 확인 가능합니다.</p>
+                    <a href="https://www.sec.gov/edgar/search/#/q={search_name}" target="_blank" style="text-decoration: none;">
+                        <button style='width:100%; padding:10px; background-color:#34495e; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;'>Edgar 공시 시스템 바로가기 ↗</button>
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
+
+        with cc2:
+            st.markdown("#### 📊 핵심 재무 요약")
+            
+            # [개선] 데이터 유무에 따른 동적 표시 로직
+            # 실제 데이터 연동 로직이 들어오기 전까지는 False로 유지되어 Pending을 보여줍니다.
+            has_financial_data = False 
+            
+            if has_financial_data:
+                f_data = {
+                    "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
+                    "현황": ["+45.2%", "-12.5%", "적자 지속", "28.4%"]
+                }
+                st.table(pd.DataFrame(f_data))
+                st.caption("※ 본 수치는 최신 S-1 공시 자료를 분석한 결과입니다.")
+            else:
+                pending_data = {
+                    "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
+                    "현황": ["⏳ Pending", "⏳ Pending", "🧐 데이터 분석 중", "⚠️ 확인 불가"]
+                }
+                st.table(pd.DataFrame(pending_data))
+                st.info("💡 해당 기업은 아직 상세 재무 데이터가 가공되지 않았습니다. 정확한 수치는 상단 [S-1 투자 설명서] 요약을 참고하거나 원문 공시를 확인해 주세요.")
         with tab2:
             # --- [1단계: 실시간 AI 연산 로직] ---
             # 재무 데이터 추출 (실제 데이터 연동 전 샘플값, 향후 API 연동 가능)
@@ -596,6 +597,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
