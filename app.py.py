@@ -134,17 +134,67 @@ if st.session_state.page == 'intro':
         if st.button("탐험 시작하기", key="start_app", use_container_width=True):
             st.session_state.page = 'login'; st.rerun()
 
-# 2. 로그인
+# 2. 로그인 화면 (개선 버전)
 elif st.session_state.page == 'login':
-    st.write("<br>" * 4, unsafe_allow_html=True)
-    _, col_m, _ = st.columns([1, 1.5, 1])
+    st.write("<br>" * 3, unsafe_allow_html=True)
+    _, col_m, _ = st.columns([1, 1.2, 1])
+    
     with col_m:
-        phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000")
-        c1, c2 = st.columns(2)
-        if c1.button("회원 로그인", use_container_width=True):
-            st.session_state.auth_status = 'user'; st.session_state.page = 'stats'; st.rerun()
-        if c2.button("비회원 시작", use_container_width=True):
-            st.session_state.auth_status = 'guest'; st.session_state.page = 'stats'; st.rerun()
+        # 상단 비주얼 카드
+        st.markdown("""
+            <div style='background-color: white; padding: 40px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); border: 1px solid #eee; text-align: center;'>
+                <h1 style='margin:0;'>🦄</h1>
+                <h2 style='margin:10px 0 5px 0; color: #333;'>Unicornfinder</h2>
+                <p style='color: #777; font-size: 14px;'>미국 IPO 시장의 미래를 만나보세요</p>
+            </div>
+            <div style='margin-top: 25px;'></div>
+        """, unsafe_allow_html=True)
+
+        # 세션 상태에 따라 단계별 화면 표시
+        if 'login_step' not in st.session_state:
+            st.session_state.login_step = 'choice'
+
+        # 1단계: 기본 선택 화면
+        if st.session_state.login_step == 'choice':
+            if st.button("📱 회원 로그인 / 가입", use_container_width=True, type="primary"):
+                st.session_state.login_step = 'ask_signup'
+                st.rerun()
+            
+            if st.button("👀 비회원으로 시작하기", use_container_width=True):
+                st.session_state.auth_status = 'guest'
+                st.session_state.page = 'stats'
+                st.rerun()
+
+        # 2단계: 가입 안내 메시지 단계
+        elif st.session_state.login_step == 'ask_signup':
+            st.info("💡 회원 가입 시 나만의 유니콘 관리 및 신규 상장 알림 정보를 받을 수 있습니다. 계속하시겠습니까?")
+            c1, c2 = st.columns(2)
+            if c1.button("✅ 예", use_container_width=True):
+                st.session_state.login_step = 'input_phone'
+                st.rerun()
+            if c2.button("❌ 아니오", use_container_width=True):
+                st.session_state.login_step = 'choice'
+                st.rerun()
+
+        # 3단계: 가입 절차 (휴대폰 번호 입력)
+        elif st.session_state.login_step == 'input_phone':
+            st.markdown("#### 📱 휴대폰 번호 입력")
+            phone = st.text_input("알림을 받을 번호를 입력해주세요", placeholder="010-0000-0000")
+            
+            cc1, cc2 = st.columns([2, 1])
+            if cc1.button("완료 및 시작하기", use_container_width=True, type="primary"):
+                if len(phone) >= 10:
+                    st.success(f"{phone} 번호로 가입되었습니다!")
+                    st.session_state.auth_status = 'user'
+                    st.session_state.page = 'stats'
+                    st.rerun()
+                else:
+                    st.error("정확한 번호를 입력해주세요.")
+            if cc2.button("취소"):
+                st.session_state.login_step = 'choice'
+                st.rerun()
+
+    # 하단 명언 (기존 유지)
     q = get_daily_quote()
     st.markdown(f"<div class='quote-card'><small>TODAY'S INSIGHT</small><br><b>\"{q['eng']}\"</b><br><small>({q['kor']})</small><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
 
@@ -616,6 +666,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
