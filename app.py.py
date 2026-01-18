@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 import os
+import plotly.graph_objects as go  #
 
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
@@ -337,62 +338,69 @@ elif st.session_state.page == 'detail':
                 
             with cc2:
                 st.markdown("#### 📊 연도별 핵심 재무 추이")
-                
-                # 1. API 데이터 수집 및 출처 판별 함수
-                def get_financial_data(symbol):
-                    url = f"https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={MY_API_KEY}"
-                    is_simulated = False
-                    try:
-                        res = requests.get(url, timeout=5).json()
-                        metrics = res.get('series', {}).get('annual', {})
-                        
-                        # 실제 연간 실적 데이터가 존재하는지 확인
-                        if metrics and 'sales' in metrics and len(metrics['sales']) > 0:
-                            df = pd.DataFrame({
-                                '매출액($M)': metrics.get('sales', [])[-3:],
-                                '영업이익($M)': metrics.get('ebit', [])[-3:],
-                                '순이익($M)': metrics.get('netIncome', [])[-3:]
-                            })
-                            df = df.applymap(lambda x: x['v'] if isinstance(x, dict) else x)
-                            return df, False # 실제 데이터임
-                    except:
-                        pass
-                    
-                    # 데이터가 없거나 에러 발생 시 시뮬레이션 데이터 반환
-                    sim_df = pd.DataFrame({
-                        '매출액($M)': [120, 185, 260],
-                        '영업이익($M)': [-18, -4, 28],
-                        '순이익($M)': [-22, -9, 18],
-                        '총부채($M)': [45, 65, 60]
-                    })
-                    return sim_df, True # 시뮬레이션 데이터임
+                import plotly.graph_objects as go
 
-                # 2. 데이터 및 출처 상태 가져오기
+                # 1. 데이터 가져오기 (기존 함수 활용)
                 fin_df, is_sim = get_financial_data(stock['symbol'])
-                fin_df.index = ['2023', '2024', '2025(E)']
+                years = ['2023', '2024', '2025(E)']
 
-                # 3. 출처에 따른 알림 메시지 출력
+                # 2. 출처 알림
                 if is_sim:
-                    st.warning("⚠️ 데이터가 불충분해 추정된 시뮬레이션 그래프입니다.")
+                    st.warning("⚠️ 데이터 불충분: 추정된 시뮬레이션 그래프입니다.")
                 else:
-                    st.success("✅ 실제 재무 공시 데이터를 바탕으로 구성된 그래프입니다.")
+                    st.success("✅ 실제 재무 공시 데이터 기반")
 
-                # 4. 수익성 그래프 출력
-                st.write("**📈 수익성 지표 (매출/영업이익/순이익)**")
-                st.bar_chart(fin_df[['매출액($M)', '영업이익($M)', '순이익($M)']])
-                
-                # 5. 하단 지표 분석 요약
-                m1, m2, m3 = st.columns(3)
-                latest_rev = fin_df['매출액($M)'].iloc[-1]
-                prev_rev = fin_df['매출액($M)'].iloc[-2]
-                growth_calc = ((latest_rev / prev_rev) - 1) * 100
-                
-                m1.metric("매출 성장률", f"{growth_calc:.1f}%")
-                m2.metric("수익성 상태", "턴어라운드" if fin_df['영업이익($M)'].iloc[-1] > 0 else "적자 지속")
-                m3.metric("데이터 신뢰도", "추정" if is_sim else "확정")
+                # 3. Plotly를 이용한 직관적인 시각화
+                fig = go.Figure()
 
-                if is_sim:
-                    st.caption("※ IPO 예정 기업은 상장 전까지 공식 API 데이터가 누락될 수 있어 시뮬레이션 모델을 제공합니다.")
+                # 매출액 (막대 그래프)
+                fig.add_trace(go.Bar(
+                    x=years,
+                    y=fin_df['매출액($M)'],
+                    name='매출액 ($M)',
+                    marker_color='#6e8efb',
+                    hovertemplate='%{x} 매출: $ %{y}M<extra></extra>'
+                ))
+
+                # 영업이익 (선 그래프)
+                fig.add_trace(go.Scatter(
+                    x=years,
+                    y=fin_df['영업이익($M)'],
+                    name='영업이익 ($M)',
+                    line=dict(color='#ff6b6b', width=4),
+                    marker=dict(size=10),
+                    hovertemplate='%{x} 영업이익: $ %{y}M<extra></extra>'
+                ))
+
+                fig.update_layout(
+                    hovermode="x unified",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    margin=dict(l=0, r=0, t=30, b=0),
+                    height=300,
+                    yaxis_title="Unit: Millions ($M)",
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 4. 하단 요약 지표 (Metric)
+                m1, m2 = st.columns(2)
+                growth = ((fin_df['매출액($M)'].iloc[-1] / fin_df['매출액($M)'].iloc[-2]) - 1) * 100
+                margin = (fin_df['영업이익($M)'].iloc[-1] / fin_df['매출액($M)'].iloc[-1]) * 100
+                
+                m1.metric("매출 성장률", f"{growth:.1f}%", f"{growth-20:.1f}%" if growth > 20 else "")
+                m2.metric("영업 이익률", f"{margin:.1f}%", "흑자전환" if margin > 0 else "")
+
+                with st.expander("🏦 부채 및 건전성 지표 보기"):
+                    # 부채는 별도의 깔끔한 선 그래프로 표시
+                    fig_debt = go.Figure(go.Scatter(
+                        x=years, y=fin_df['총부채($M)'], 
+                        fill='tozeroy', line_color='#34495e',
+                        name='총부채'
+                    ))
+                    fig_debt.update_layout(height=200, margin=dict(l=0, r=0, t=10, b=0))
+                    st.plotly_chart(fig_debt, use_container_width=True)
         with tab3:
             sid = stock['symbol']
             if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
@@ -431,6 +439,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
