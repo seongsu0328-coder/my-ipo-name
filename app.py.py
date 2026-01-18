@@ -336,14 +336,63 @@ elif st.session_state.page == 'detail':
                 """, unsafe_allow_html=True)
                 
             with cc2:
-                st.markdown("#### 📊 핵심 재무 요약")
-                f_data = {
-                    "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
-                    "현황": ["+45.2%", "-12.5%", "적자 지속", "28.4%"]
-                }
-                st.table(pd.DataFrame(f_data))
-                st.caption("※ 위 수치는 최신 S-1 공시 자료를 바탕으로 요약된 수치입니다.")
+                st.markdown("#### 📊 연도별 핵심 재무 추이")
+                
+                # 1. API 데이터 수집 및 출처 판별 함수
+                def get_financial_data(symbol):
+                    url = f"https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={MY_API_KEY}"
+                    is_simulated = False
+                    try:
+                        res = requests.get(url, timeout=5).json()
+                        metrics = res.get('series', {}).get('annual', {})
+                        
+                        # 실제 연간 실적 데이터가 존재하는지 확인
+                        if metrics and 'sales' in metrics and len(metrics['sales']) > 0:
+                            df = pd.DataFrame({
+                                '매출액($M)': metrics.get('sales', [])[-3:],
+                                '영업이익($M)': metrics.get('ebit', [])[-3:],
+                                '순이익($M)': metrics.get('netIncome', [])[-3:]
+                            })
+                            df = df.applymap(lambda x: x['v'] if isinstance(x, dict) else x)
+                            return df, False # 실제 데이터임
+                    except:
+                        pass
+                    
+                    # 데이터가 없거나 에러 발생 시 시뮬레이션 데이터 반환
+                    sim_df = pd.DataFrame({
+                        '매출액($M)': [120, 185, 260],
+                        '영업이익($M)': [-18, -4, 28],
+                        '순이익($M)': [-22, -9, 18],
+                        '총부채($M)': [45, 65, 60]
+                    })
+                    return sim_df, True # 시뮬레이션 데이터임
 
+                # 2. 데이터 및 출처 상태 가져오기
+                fin_df, is_sim = get_financial_data(stock['symbol'])
+                fin_df.index = ['2023', '2024', '2025(E)']
+
+                # 3. 출처에 따른 알림 메시지 출력
+                if is_sim:
+                    st.warning("⚠️ 데이터가 불충분해 추정된 시뮬레이션 그래프입니다.")
+                else:
+                    st.success("✅ 실제 재무 공시 데이터를 바탕으로 구성된 그래프입니다.")
+
+                # 4. 수익성 그래프 출력
+                st.write("**📈 수익성 지표 (매출/영업이익/순이익)**")
+                st.bar_chart(fin_df[['매출액($M)', '영업이익($M)', '순이익($M)']])
+                
+                # 5. 하단 지표 분석 요약
+                m1, m2, m3 = st.columns(3)
+                latest_rev = fin_df['매출액($M)'].iloc[-1]
+                prev_rev = fin_df['매출액($M)'].iloc[-2]
+                growth_calc = ((latest_rev / prev_rev) - 1) * 100
+                
+                m1.metric("매출 성장률", f"{growth_calc:.1f}%")
+                m2.metric("수익성 상태", "턴어라운드" if fin_df['영업이익($M)'].iloc[-1] > 0 else "적자 지속")
+                m3.metric("데이터 신뢰도", "추정" if is_sim else "확정")
+
+                if is_sim:
+                    st.caption("※ IPO 예정 기업은 상장 전까지 공식 API 데이터가 누락될 수 있어 시뮬레이션 모델을 제공합니다.")
         with tab3:
             sid = stock['symbol']
             if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
@@ -382,6 +431,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
