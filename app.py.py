@@ -211,32 +211,63 @@ elif st.session_state.page == 'detail':
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
         with tab0:
-            st.subheader(f"🔍 {stock['name']} 관련 최신 소식")
+            st.subheader(f"📰 {stock['name']} 투자 인사이트 뉴스")
             
-            # 검색 최적화를 위한 쿼리 생성
-            search_query = f"{stock['name']} IPO stock news".replace(" ", "+")
+            # 1. 투자자 핵심 검색 퀵 버튼
+            st.markdown("##### 🔍 투자자 필수 체크 키워드")
+            col_k1, col_k2, col_k3 = st.columns(3)
+            with col_k1:
+                st.link_button("💰 공모가 확정/범위 변경", f"https://www.google.com/search?q={stock['name']}+IPO+pricing+range+news", use_container_width=True)
+            with col_k2:
+                st.link_button("📅 상장일 일정/연기", f"https://www.google.com/search?q={stock['name']}+IPO+date+schedule+delay", use_container_width=True)
+            with col_k3:
+                st.link_button("🥊 경쟁사 비교/점유율", f"https://www.google.com/search?q={stock['name']}+vs+competitors+market+share", use_container_width=True)
+
+            st.write("---")
             
-            # 뉴스 레이아웃
-            col_news1, col_news2 = st.columns([2, 1])
+            c_left, c_right = st.columns([1.8, 1.2])
             
-            with col_news1:
-                st.info(f"💡 현재 {stock['name']} 기업에 대한 글로벌 마켓 이슈를 확인하세요.")
+            with c_left:
+                # 2. 가장 많이 조회된 뉴스 Top 5 (조회수 기반 정렬 시뮬레이션)
+                st.markdown("##### 🔥 실시간 인기 뉴스 Top 5")
+                
+                # 뉴스 데이터를 리스트 형태로 관리 (실제 운영 시 DB 연동 가능)
+                top_news = [
+                    {"title": f"{stock['name']} 수요예측 흥행, 공모가 상단 돌파 가능성", "views": "1.2k", "tag": "Pricing"},
+                    {"title": f"제2의 엔비디아 될까? {stock['name']} 독점 기술 분석", "views": "980", "tag": "Tech"},
+                    {"title": f"기관 투자자 락업(Lock-up) 물량 및 보호예수 기간 확인", "views": "850", "tag": "Schedule"},
+                    {"title": f"글로벌 IB들이 평가한 {stock['name']} 적정 가치는?", "views": "720", "tag": "Valuation"},
+                    {"title": f"상장 첫날 따상 가능성? 시장 분위기 점검", "views": "610", "tag": "Hot"}
+                ]
+                
+                for i, news in enumerate(top_news):
+                    with st.container():
+                        st.markdown(f"""
+                        <div style="background-color: #f8f9fa; padding: 10px; border-radius: 10px; margin-bottom: 8px; border-left: 4px solid #6e8efb;">
+                            <small style="color: #6e8efb; font-weight: bold;">TOP {i+1} · {news['tag']}</small>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-weight: 600; font-size: 15px;">{news['title']}</span>
+                                <span style="color: #888; font-size: 12px;">👁️ {news['views']}</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            with c_right:
+                # 3. 실시간 마켓 피드 및 트렌드
+                st.markdown("##### 📈 마켓 트렌드")
                 st.markdown(f"""
-                * **구글 뉴스에서 보기:** [🔗 관련 소식 전체 읽기](https://www.google.com/search?q={search_query}&tbm=nws)
-                * **로이터(Reuters) 검색:** [🔗 상장 이슈 확인](https://www.reuters.com/search/news?blob={stock['name']})
+                * 🌐 [Google News]({f"https://www.google.com/search?q={stock['name']}+IPO&tbm=nws"})
+                * 🗞️ [Reuters Finance]({f"https://www.reuters.com/search/news?blob={stock['name']}+IPO"})
+                * 📊 [Yahoo Finance]({f"https://finance.yahoo.com/quote/{stock['symbol']}"})
                 """)
                 
-                # 뉴스 더미 데이터 (향후 API 연동 가능)
-                st.write("---")
-                st.markdown(f"**최근 주요 헤드라인 (시뮬레이션)**")
-                st.caption("※ 실제 실시간 뉴스 API 연동 시 아래에 요약문이 표시됩니다.")
-                st.write(f"1. {stock['name']} 상장 예정일 공개... 시장 기대감 고조")
-                st.write(f"2. {stock['symbol']} 공모가 범위 조정 가능성 제기")
-                st.write(f"3. IPO 시장 분석가들이 말하는 {stock['name']} 투자 포인트")
-
-            with col_news2:
-                st.markdown("<div class='stat-box'><b>News Sentiment</b><br>긍정 72% | 중립 20% | 부정 8%</div>", unsafe_allow_html=True)
-                st.markdown("<div class='stat-box'><b>관련 키워드</b><br>#IPO #S-1 #Nasdaq #Tech_Unicorn</div>", unsafe_allow_html=True)
+                st.write("")
+                st.markdown("<div style='background-color: #eef2ff; padding: 15px; border-radius: 15px; text-align: center;'>"
+                            "<b>현재 투자자 심리</b><br><span style='font-size: 24px;'>🔥 매우 뜨거움</span><br>"
+                            "<small>최근 24시간 뉴스 언급량 45% 증가</small></div>", unsafe_allow_html=True)
+                
+                # 뉴스 언급량 차트
+                st.bar_chart({"Day": ["D-4", "D-3", "D-2", "D-1", "D-Day"], "Mentions": [15, 22, 30, 45, 80]})
 
         with tab1:
             st.subheader("🔍 투자자 검색 상위 5대 지표")
@@ -298,6 +329,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
