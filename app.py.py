@@ -211,7 +211,7 @@ elif st.session_state.page == 'detail':
         st.title(f"🚀 {stock['name']} 심층 분석")
         
        # 탭 생성
-        tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
+        tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 기업 공시", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
         with tab0:
             st.subheader(f"📰 {stock['name']} 투자 인사이트 브리핑")
@@ -341,6 +341,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
