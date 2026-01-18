@@ -221,7 +221,7 @@ elif st.session_state.page == 'calendar':
             
             col6.write(f"🏛️ {display_exch}")
 
-# 5. 상세 페이지 (뉴스 탭 및 브리핑 통합 버전)
+# 5. 상세 페이지 (수정된 타이틀 섹션)
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
@@ -229,7 +229,26 @@ elif st.session_state.page == 'detail':
             st.session_state.page = 'calendar'
             st.rerun()
             
-        st.title(f"🚀 {stock['name']} 심층 분석")
+        # --- [신규: 현재가 및 공모가 정보 추출] ---
+        # 1. 공시 가격 (공모가)
+        offering_price = stock.get('price', 'TBD')
+        
+        # 2. 실시간 현재가 가져오기
+        current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
+        
+        # 3. 상장 여부 확인 및 타이틀 구성
+        # 가격 정보가 숫자로 존재하고 0보다 크면 상장된 것으로 간주
+        if current_p > 0:
+            price_info = f" ({offering_price} / 현재 ${current_p:,.2f})"
+        else:
+            price_info = f" ({offering_price} / 상장 대기)"
+            
+        st.title(f"🚀 {stock['name']}{price_info}")
+        # ------------------------------------------
+        
+        # 탭 생성 (이후 코드는 동일)
+        tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
+        # ... (이하 생략))
         
        # 탭 생성
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
@@ -492,6 +511,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
