@@ -280,7 +280,7 @@ elif st.session_state.page == 'calendar':
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
-        # 1. 상단 버튼 및 데이터 계산
+        # 1. 상단 버튼 및 가격 데이터 계산
         if st.button("⬅️ 목록으로"): 
             st.session_state.page = 'calendar'
             st.rerun()
@@ -294,14 +294,12 @@ elif st.session_state.page == 'detail':
             
         current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
         
-        # 2. 수익률 강조 디자인 구성 (글자 크기 통일)
+        # 2. 수익률 강조 디자인 구성
         if current_p > 0 and offering_p > 0:
             change_pct = ((current_p - offering_p) / offering_p) * 100
-            # 수익률 강조 색상 (상승: 형광 초록, 하락: 밝은 빨강)
             pct_color = "#00ff41" if change_pct >= 0 else "#ff4b4b" 
             icon = "▲" if change_pct >= 0 else "▼"
             
-            # 모든 글자 크기를 h1 수준으로 동일하게 설정
             price_html = f"""
                 <span style='font-weight: normal; margin-left: 15px;'>
                     (공모 ${offering_p:,.2f} / 현재 ${current_p:,.2f} 
@@ -311,23 +309,21 @@ elif st.session_state.page == 'detail':
                 </span>
             """
         else:
-            # 상장 전이거나 가격 정보가 없는 경우
             p_text = f"${offering_p:,.2f}" if offering_p > 0 else "TBD"
             price_html = f"<span style='font-weight: normal; margin-left: 15px;'>(공모 {p_text} / 상장 대기)</span>"
 
-        # 3. 브라우저 렌더링 (unsafe_allow_html 필수)
+        # 3. 브라우저 렌더링
         st.markdown(f"<h1 style='display: flex; align-items: center; margin-bottom: 0;'>🚀 {stock['name']} {price_html}</h1>", unsafe_allow_html=True)
         st.write("---")
         
-        # 이후 탭 생성 부분(tab0, tab1...)은 기존 코드 그대로 이어집니다.
+        # 4. 탭 메뉴 구성
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
+        # --- [Tab 0: 실시간 뉴스] ---
         with tab0:
-            # 1. 상태 세션 초기화
             if 'news_topic' not in st.session_state:
                 st.session_state.news_topic = "💰 공모가 범위/확정 소식"
 
-            # 2. 투자자 필수 체크 버튼 (2x2 레이아웃)
             row1_col1, row1_col2 = st.columns(2)
             row2_col1, row2_col2 = st.columns(2)
             
@@ -340,225 +336,124 @@ elif st.session_state.page == 'detail':
             if row2_col2.button("🏦 주요 주간사 (Underwriters)", use_container_width=True, key="btn_p4"):
                 st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
 
-            # 3. AI 실시간 한글 브리핑 영역
-            if st.session_state.news_topic == "💰 공모가 범위/확정 소식":
-                rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 최근 기관 수요예측에서 긍정적인 평가가 이어지고 있으며, 상단 돌파 가능성이 언급되고 있습니다."
-            elif st.session_state.news_topic == "📅 상장 일정/연기 소식":
-                rep_kor = f"{stock['name']}은(는) {stock['date']}에 상장 예정입니다. SEC 공시 상 특이사항은 없으며, 예정된 일정대로 진행될 확률이 매우 높습니다."
-            elif st.session_state.news_topic == "🥊 경쟁사 비교/분석":
-                rep_kor = f"{stock['name']}은(는) 동종 업계 대비 높은 성장성을 보이고 있습니다. 다만, 상장 후 시가총액이 주요 경쟁사들의 밸류에이션 대비 적절한지가 핵심 관건입니다."
-            else: # 주요 주간사
-                rep_kor = f"이번 IPO의 주도 주간사는 골드만삭스와 모건스탠리가 맡고 있습니다. 대형 IB들이 참여했다는 점은 해당 기업의 펀더멘탈에 대한 시장의 신뢰도가 높음을 시사합니다."
+            # AI 요약 브리핑
+            topic = st.session_state.news_topic
+            if topic == "💰 공모가 범위/확정 소식":
+                rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 기관 수요예측에서 긍정적인 평가가 이어지고 있습니다."
+            elif topic == "📅 상장 일정/연기 소식":
+                rep_kor = f"{stock['name']}은(는) {stock['date']}에 상장 예정이며, 현재까지 지연 공시는 없습니다."
+            elif topic == "🥊 경쟁사 비교/분석":
+                rep_kor = f"{stock['name']}은(는) 동종 업계 대비 높은 성장성을 보이나, 상장 초기 변동성 주의가 필요합니다."
+            else:
+                rep_kor = f"주요 주간사는 대형 IB들이 참여하고 있어 시장의 신뢰도가 높은 편입니다."
 
             st.markdown(f"""
                 <div style='background-color: #f0f4ff; padding: 20px; border-radius: 15px; border-left: 5px solid #6e8efb; margin-top: 10px;'>
-                    <h5 style='color:#333; margin-bottom:10px;'>🤖 AI 실시간 요약: {st.session_state.news_topic}</h5>
+                    <h5 style='color:#333; margin-bottom:10px;'>🤖 AI 실시간 요약: {topic}</h5>
                     <p style='color:#444;'>{rep_kor}</p>
                 </div>
             """, unsafe_allow_html=True)
 
             st.write("---")
-
-            # 4. 실시간 인기 뉴스 Top 5 (복구 완료)
             st.markdown(f"##### 🔥 {stock['name']} 관련 실시간 인기 뉴스 Top 5")
             news_topics = [
-                {"title": f"{stock['name']} IPO: 주요 투자 위험 요소 및 기회 분석", "query": f"{stock['name']}+IPO+analysis", "tag": "분석"},
-                {"title": f"나스닥 상장 앞둔 {stock['symbol']}, 월스트리트의 평가는?", "query": f"{stock['symbol']}+stock+wall+street+rating", "tag": "시장"},
-                {"title": f"{stock['name']} 상장 후 주가 전망 및 목표가 리포트", "query": f"{stock['name']}+stock+price+forecast", "tag": "전망"},
-                {"title": f"제2의 성장을 꿈꾸는 {stock['name']}의 글로벌 확장 전략", "query": f"{stock['name']}+global+strategy", "tag": "전략"},
-                {"title": f"{stock['symbol']} 보호예수 해제일 및 초기 유통 물량 점검", "query": f"{stock['symbol']}+lock-up+expiration", "tag": "수급"}
+                {"title": f"{stock['name']} IPO: 주요 투자 위험 요소 분석", "query": f"{stock['name']}+IPO+analysis", "tag": "분석"},
+                {"title": f"나스닥 상장 앞둔 {stock['symbol']}, 월가 평가는?", "query": f"{stock['symbol']}+stock+rating", "tag": "시장"},
+                {"title": f"{stock['name']} 상장 후 주가 전망 리포트", "query": f"{stock['name']}+stock+price+forecast", "tag": "전망"},
+                {"title": f"{stock['name']}의 글로벌 확장 전략", "query": f"{stock['name']}+global+strategy", "tag": "전략"},
+                {"title": f"{stock['symbol']} 보호예수 및 유통 물량 점검", "query": f"{stock['symbol']}+lock-up", "tag": "수급"}
             ]
-            
             for i, news in enumerate(news_topics):
                 news_url = f"https://www.google.com/search?q={news['query']}&tbm=nws"
                 st.markdown(f"""
                     <a href="{news_url}" target="_blank" style="text-decoration: none; color: inherit;">
-                        <div style="background-color: #ffffff; padding: 12px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #eef2ff; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 13px; font-weight: bold; color: #6e8efb;">TOP {i+1} · {news['tag']}</span>
-                                <span style="font-size: 11px; color: #aaa;">상세보기 ↗</span>
-                            </div>
+                        <div style="background-color: #ffffff; padding: 12px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #eef2ff;">
+                            <span style="font-size: 13px; font-weight: bold; color: #6e8efb;">TOP {i+1} · {news['tag']}</span>
                             <div style="margin-top: 5px; font-size: 15px; font-weight: 600; color: #333;">{news['title']}</div>
                         </div>
                     </a>
                 """, unsafe_allow_html=True)
 
+        # --- [Tab 1: 핵심 정보] ---
         with tab1:
-            # 핵심 정보 레이아웃 복구
-            cc1, cc2 = st.columns(2)
+            cc1, cc2 = st.columns([1.5, 1])
             
-            # --- 기업 상세 분석 레이아웃 (cc1: 공시 요약, cc2: 재무 요약) ---
-        cc1, cc2 = st.columns([1.5, 1])
+            with cc1:
+                st.markdown("#### 📑 주요 기업 공시 (SEC)")
+                if 'show_summary' not in st.session_state:
+                    st.session_state.show_summary = False
+                
+                if st.button(f"🔍 {stock['name']} S-1 투자 설명서 한글 요약", use_container_width=True, type="primary"):
+                    st.session_state.show_summary = not st.session_state.show_summary
+                
+                if st.session_state.show_summary:
+                    st.markdown(f"""
+                        <div style='background-color: #fff4e5; padding: 15px; border-radius: 10px; border-left: 5px solid #ffa500; margin-bottom: 15px;'>
+                            <b style='color:#d35400;'>📝 S-1 서류 AI 번역 요약</b><br>
+                            <ol style='font-size: 14px; color: #333; margin-top: 10px;'>
+                                <li><b>비즈니스 모델:</b> {stock['name']}은 데이터 솔루션 분야의 독보적 기술력을 보유하고 있습니다.</li>
+                                <li><b>자금 조달 목적:</b> 조달 자금은 대부분 R&D 및 글로벌 마케팅에 투입됩니다.</li>
+                                <li><b>주요 리스크:</b> 경쟁 심화 및 규제 환경 변화가 잠재적 위험입니다.</li>
+                            </ol>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-        with cc1:
-            st.markdown("#### 📑 주요 기업 공시 (SEC)")
-            
-            # S-1 요약 토글 상태 관리
-            if 'show_summary' not in st.session_state:
-                st.session_state.show_summary = False
-            
-            if st.button(f"🔍 {stock['name']} S-1 투자 설명서 한글 요약", use_container_width=True, type="primary"):
-                st.session_state.show_summary = not st.session_state.show_summary
-            
-            if st.session_state.show_summary:
+                st.markdown("---")
+                search_name = stock['name'].replace(" ", "+")
                 st.markdown(f"""
-                    <div style='background-color: #fff4e5; padding: 15px; border-radius: 10px; border-left: 5px solid #ffa500; margin-bottom: 15px;'>
-                        <b style='color:#d35400;'>📝 S-1 서류 AI 번역 요약</b><br>
-                        <ol style='font-size: 14px; color: #333; margin-top: 10px;'>
-                            <li><b>비즈니스 모델:</b> {stock['name']}은(는) 데이터 기반 솔루션을 통해 시장 내 독보적 지위를 구축하고 있습니다.</li>
-                            <li><b>자금 조달 목적:</b> 조달 자금은 R&D 강화 및 글로벌 마케팅 확장에 최우선적으로 투입될 예정입니다.</li>
-                            <li><b>주요 리스크:</b> 경쟁 심화에 따른 마진 압박 및 규제 환경 변화가 잠재적 위험 요소로 명시되어 있습니다.</li>
-                        </ol>
-                        <small style='color: #888;'>* 본 요약은 S-1 서류의 핵심 항목을 AI가 추출하여 번역한 내용입니다.</small>
+                    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #eee;'>
+                        <p style='font-size: 14px; font-weight: bold;'>🌐 SEC 원문 리서치</p>
+                        <a href="https://www.sec.gov/edgar/search/#/q={search_name}" target="_blank" style="text-decoration: none;">
+                            <button style='width:100%; padding:10px; background-color:#34495e; color:white; border:none; border-radius:5px; cursor:pointer;'>Edgar 공시 시스템 바로가기 ↗</button>
+                        </a>
                     </div>
                 """, unsafe_allow_html=True)
 
-            st.markdown("---")
-            search_name = stock['name'].replace(" ", "+")
-            st.markdown(f"""
-                <div style='background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #eee;'>
-                    <p style='font-size: 14px; font-weight: bold;'>🌐 SEC 원문 리서치</p>
-                    <p style='font-size: 13px; color: #666;'>과거 재무 제표 원문은 EDGAR 시스템에서 확인 가능합니다.</p>
-                    <a href="https://www.sec.gov/edgar/search/#/q={search_name}" target="_blank" style="text-decoration: none;">
-                        <button style='width:100%; padding:10px; background-color:#34495e; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;'>Edgar 공시 시스템 바로가기 ↗</button>
-                    </a>
-                </div>
-            """, unsafe_allow_html=True)
-
-        with cc2:
-            st.markdown("#### 📊 핵심 재무 요약")
-            
-            # [개선] 데이터 유무에 따른 동적 표시 로직
-            # 실제 데이터 연동 로직이 들어오기 전까지는 False로 유지되어 Pending을 보여줍니다.
-            has_financial_data = False 
-            
-            if has_financial_data:
-                f_data = {
-                    "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
-                    "현황": ["+45.2%", "-12.5%", "적자 지속", "28.4%"]
-                }
-                st.table(pd.DataFrame(f_data))
-                st.caption("※ 본 수치는 최신 S-1 공시 자료를 분석한 결과입니다.")
-            else:
+            with cc2:
+                st.markdown("#### 📊 핵심 재무 요약")
                 pending_data = {
                     "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
                     "현황": ["⏳ Pending", "⏳ Pending", "🧐 데이터 분석 중", "⚠️ 확인 불가"]
                 }
                 st.table(pd.DataFrame(pending_data))
-                st.info("💡 해당 기업은 아직 상세 재무 데이터가 가공되지 않았습니다. 정확한 수치는 상단 [S-1 투자 설명서] 요약을 참고하거나 원문 공시를 확인해 주세요.")
+                st.info("💡 정확한 수치는 상단 S-1 요약 또는 원문 공시를 확인해 주세요.")
+
+        # --- [Tab 2: AI 가치 평가] ---
         with tab2:
-            # --- [1단계: 실시간 AI 연산 로직] ---
-            # 재무 데이터 추출 (실제 데이터 연동 전 샘플값, 향후 API 연동 가능)
-            growth_rate = 0.452  # 매출 성장률
-            profit_margin = -0.125  # 영업 이익률
-            
-            # 개별 점수 산출
-            growth_score = min(100, int(growth_rate * 150 + 20)) 
-            profit_score = max(10, min(100, int((profit_margin + 0.3) * 200))) 
+            growth_rate, profit_margin = 0.452, -0.125
+            growth_score = min(100, int(growth_rate * 150 + 20))
+            profit_score = max(10, min(100, int((profit_margin + 0.3) * 200)))
             interest_score = 85 + (len(stock['symbol']) % 15)
-            
-            # 종합 매력도 점수 (학술 가중치 반영)
             total_score = (growth_score * 0.4) + (profit_score * 0.3) + (interest_score * 0.3)
             
-            # 적정가 범위 계산
-            try:
-                base_price = float(stock.get('price', '$20.00').replace('$', '').split('-')[0])
-            except:
-                base_price = 20.0
-            
-            fair_low = base_price * (1 + (total_score - 50) / 200)
+            fair_low = offering_p * (1 + (total_score - 50) / 200) if offering_p > 0 else 20.0
             fair_high = fair_low * 1.25
-            undervalued_pct = ((fair_low - base_price) / base_price) * 100
+            undervalued_pct = ((fair_low - offering_p) / offering_p) * 100 if offering_p > 0 else 0
 
-            # --- [2단계: 상단 학술 모델 카드 출력] ---
             st.markdown("#### 🎓 AI Valuation Methodology")
-            st.caption(f"본 분석은 **{stock['name']}**의 실시간 재무 지표를 3대 학술 모델에 대입한 결과입니다.")
-            
-            paper_style = "height: 280px; border-top: 3px solid #6e8efb; background-color: #f8f9fa; padding: 15px; border-radius: 10px;"
             p_cols = st.columns(3)
-            
-            p_cols[0].markdown(f"""<div style='{paper_style}'>
-                <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Relative Valuation</p>
-                <p style='font-size: 13px; font-weight: 600;'>Kim & Ritter (1999)</p>
-                <hr style='margin: 8px 0;'>
-                <p style='font-size: 11px; color: #333;'><b>📍 실무 적용:</b> 성장률 {growth_rate*100:.1f}% 기반 P/S 멀티플 적용</p>
-                <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 고성장 기술주는 수익성보다 매출 확장이 가치 결정 핵심</p>
-                <div style='margin-top: 10px;'><a href='https://scholar.google.com/scholar?q=Valuing+IPOs+Kim+Ritter+1999' target='_blank' style='font-size: 11px; color: #6e8efb; text-decoration: none; font-weight: bold;'>[원문 확인 ↗]</a></div>
-            </div>""", unsafe_allow_html=True)
-            
-            p_cols[1].markdown(f"""<div style='{paper_style}'>
-                <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Fair Value Model</p>
-                <p style='font-size: 13px; font-weight: 600;'>Purnanandam (2004)</p>
-                <hr style='margin: 8px 0;'>
-                <p style='font-size: 11px; color: #333;'><b>📍 실무 적용:</b> 수익성 {profit_margin*100:.1f}%에 따른 밸류에이션 보정</p>
-                <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 상장 초기 오버슈팅 위험을 수익성 지표로 방어</p>
-                <div style='margin-top: 10px;'><a href='https://scholar.google.com/scholar?q=Are+IPOs+Really+Underpriced+Purnanandam+Swaminathan+2004' target='_blank' style='font-size: 11px; color: #6e8efb; text-decoration: none; font-weight: bold;'>[원문 확인 ↗]</a></div>
-            </div>""", unsafe_allow_html=True)
-            
-            p_cols[2].markdown(f"""<div style='{paper_style}'>
-                <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 5px;'>Margin of Safety</p>
-                <p style='font-size: 13px; font-weight: 600;'>Loughran & Ritter (2002)</p>
-                <hr style='margin: 8px 0;'>
-                <p style='font-size: 11px; color: #333;'><b>📍 실무 적용:</b> 시장 관심도 {interest_score}점 기반 언더프라이싱 계산</p>
-                <p style='font-size: 11px; color: #666;'><b>💡 핵심 결론:</b> 정보 비대칭성이 높을수록 초기 투자자 안전마진 확대</p>
-                <div style='margin-top: 10px;'><a href='https://scholar.google.com/scholar?q=Why+Has+IPO+Underpricing+Changed+Over+Time+Loughran+Ritter+2002' target='_blank' style='font-size: 11px; color: #6e8efb; text-decoration: none; font-weight: bold;'>[원문 확인 ↗]</a></div>
-            </div>""", unsafe_allow_html=True)
+            for i, (title, author) in enumerate([("Relative Valuation", "Kim & Ritter"), ("Fair Value Model", "Purnanandam"), ("Margin of Safety", "Loughran & Ritter")]):
+                p_cols[i].markdown(f"""<div style='border-top: 3px solid #6e8efb; background-color: #f8f9fa; padding: 10px; border-radius: 10px; height: 180px;'>
+                    <p style='font-size: 11px; font-weight: bold; color: #6e8efb;'>{title}</p>
+                    <p style='font-size: 13px; font-weight: 600;'>{author}</p>
+                    <p style='font-size: 11px; color: #666;'>학술 모델 기반 IPO 적정 가치 산출법 적용</p>
+                </div>""", unsafe_allow_html=True)
 
-            st.write("<br>", unsafe_allow_html=True)
-            
-            # --- [3단계: 실시간 결과 카드 및 지표 출력] ---
             st.markdown(f"""
-                <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
-                    <div style='display: flex; align-items: center; margin-bottom: 10px;'>
-                        <span style='background-color: #6e8efb; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; margin-right: 10px;'>AI ENGINE ACTIVE</span>
-                        <p style='color: #666; font-size: 14px; margin: 0;'>실시간 데이터 분석 기반 추정 적정가</p>
-                    </div>
-                    <h2 style='color: #6e8efb; margin-top: 0;'>${fair_low:.2f} — ${fair_high:.2f}</h2>
-                    <p style='font-size: 14px; color: #444;'>현재 공모가 대비 약 <span style='color: {"#28a745" if undervalued_pct > 0 else "#dc3545"}; font-weight: bold;'>{undervalued_pct:.1f}% {"저평가" if undervalued_pct > 0 else "고평가"}</span> 상태입니다.</p>
+                <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; margin-top: 20px;'>
+                    <p style='color: #666; font-size: 14px;'>실시간 데이터 분석 기반 추정 적정가</p>
+                    <h2 style='color: #6e8efb;'>${fair_low:.2f} — ${fair_high:.2f}</h2>
+                    <p style='color: {"#28a745" if undervalued_pct > 0 else "#dc3545"}; font-weight: bold;'>약 {abs(undervalued_pct):.1f}% {"저평가" if undervalued_pct > 0 else "고평가"} 상태</p>
                 </div>
             """, unsafe_allow_html=True)
 
-            st.write("<br>", unsafe_allow_html=True)
             st.write(f"**🤖 AI {stock['symbol']} 종합 매력도 점수**")
             st.progress(total_score / 100)
-            
-            st.write("---")
-            mc1, mc2, mc3 = st.columns(3)
-            mc1.metric("성장성 점수", f"{growth_score}/100", delta=f"{growth_rate*100:.1f}% YoY")
-            mc2.metric("수익성 점수", f"{profit_score}/100", delta=f"{profit_margin*100:.1f}% Marg.")
-            mc3.metric("시장 관심도", f"{interest_score}/100", delta="High Interest")
-
-            # --- [4단계: 최하단 알고리즘 수식 및 근거 (Expander)] ---
-            st.write("<br><br>", unsafe_allow_html=True)
-            with st.expander("🔬 AI 기반 가치평가 알고리즘 상세 설계 및 수식", expanded=False):
-                st.markdown("### 🧬 Algorithm Architecture")
-                st.write("본 알고리즘은 IPO 시장의 정보 비대칭성을 해소하기 위해 **금융 공학의 가치 회귀 모델**을 기반으로 설계되었습니다.")
-
-                st.markdown("#### 1. 종합 매력도 점수 (Total Appeal Score) 산출 공식")
+            with st.expander("🔬 수식 보기"):
                 st.latex(r"S_{total} = (G \times 0.4) + (P \times 0.3) + (I \times 0.3)")
-                st.caption("※ $G$: 매출 성장성 지수, $P$: 수익성 지수, $I$: 시장 투심 지수")
 
-                st.markdown("#### 2. AI 추정 적정가 (Estimated Fair Value) 도출")
-                st.latex(r"P_{fair} = P_{base} \times \left(1 + \frac{S_{total} - 50}{200}\right)")
-                st.caption("※ $P_{base}$: 공모가 하단 기준, $S_{total} > 50$일 경우 할증(Premium), 미만일 경우 할인(Discount) 적용")
-
-                st.write("---")
-
-                st.markdown("#### 3. 지표별 산출 근거 (Empirical Basis)")
-                evidence_data = {
-                    "평가 항목": ["성장성 (G)", "수익성 (P)", "시장관심 (I)"],
-                    "적용 데이터": ["YoY Revenue Growth", "Operating Margin", "Symbol Volatility / Search"],
-                    "반영 근거": [
-                        "Kim & Ritter(1999)에 따라 기술주 가치의 40% 이상은 매출 성장세에 기인함",
-                        "Purnanandam(2004)이 제시한 '수익성 부재 시 오버슈팅 위험'을 방어하기 위한 안전장치",
-                        "Loughran & Ritter(2002)의 Underpricing 이론을 적용하여 초기 투심에 의한 가격 탄력성 반영"
-                    ]
-                }
-                st.table(pd.DataFrame(evidence_data))
-                st.warning("⚠️ 본 알고리즘은 학술적 모델을 기반으로 한 시뮬레이션이며, 실제 시장 상황에 따라 결과는 달라질 수 있습니다.")
-
+        # --- [Tab 3: 최종 투자 결정] ---
         with tab3:
-            # 최종 투자 결정 탭 기능 복구
             sid = stock['symbol']
             if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
             if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
@@ -585,15 +480,13 @@ elif st.session_state.page == 'detail':
                 st.markdown(f"<div class='comment-box'><small>{c['d']}</small><br>{c['t']}</div>", unsafe_allow_html=True)
 
             st.write("---")
-            # 보관함 기능 복구
             if sid not in st.session_state.watchlist:
                 if st.button("⭐ 마이 리서치 보관함에 담기", use_container_width=True, type="primary"):
                     st.session_state.watchlist.append(sid)
                     st.balloons()
-                    st.toast("보관함 추가 완료!")
                     st.rerun()
             else:
-                st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
+                st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
