@@ -146,7 +146,7 @@ elif st.session_state.page == 'stats':
         st.markdown("<div class='stat-box'><small>나만의 유니콘 후보들입니다. 상장 일정을 놓치지 마세요.</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# 4. 캘린더 (필터 및 범위 표시 통합)
+# 4. 캘린더 (거래소 항목 추가 버전)
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     view_mode = st.session_state.get('view_mode', 'all')
@@ -170,35 +170,47 @@ elif st.session_state.page == 'calendar':
             else: display_df = all_df.sort_values(by='공모일_dt', ascending=False)
 
         st.write("---")
-        h1, h2, h3, h4, h5 = st.columns([1.2, 3.5, 1.2, 1.5, 1.2])
-        h1.write("**공모일**"); h2.write("**기업명**"); h3.write("**공모가**"); h4.write("**규모**"); h5.write("**현재가**")
+        # 컬럼 비율 조정 (거래소 추가를 위해 비율 세분화)
+        h1, h2, h3, h4, h5, h6 = st.columns([1.2, 3.0, 1.2, 1.2, 1.2, 1.2])
+        h1.write("**공모일**"); h2.write("**기업명**"); h3.write("**공모가**"); h4.write("**규모**"); h5.write("**현재가**"); h6.write("**거래소**")
         
         for i, row in display_df.iterrows():
-            col1, col2, col3, col4, col5 = st.columns([1.2, 3.5, 1.2, 1.5, 1.2])
+            col1, col2, col3, col4, col5, col6 = st.columns([1.2, 3.0, 1.2, 1.2, 1.2, 1.2])
             is_p = row['공모일_dt'].date() <= datetime.now().date()
+            
+            # 1. 공모일
             col1.markdown(f"<span style='color:{'#888888' if is_p else '#4f46e5'};'>{row['date']}</span>", unsafe_allow_html=True)
+            
+            # 2. 기업명 (버튼)
             if col2.button(row['name'], key=f"n_{row['symbol']}_{i}", use_container_width=True):
                 st.session_state.selected_stock = row.to_dict(); st.session_state.page = 'detail'; st.rerun()
             
-            # --- 공모가 범위/문자열 유지 로직 ---
+            # 3. 공모가
             p_raw = row.get('price', '')
-            s_raw = row.get('numberOfShares', '')
             p_num = pd.to_numeric(p_raw, errors='coerce')
-            s_num = pd.to_numeric(s_raw, errors='coerce')
-
-            # 공모가 표시: 숫자면 $포맷, 아니면 범위(문자열) 그대로
             col3.write(f"${p_num:,.2f}" if pd.notnull(p_num) and p_num > 0 else (str(p_raw) if p_raw else "TBD"))
             
-            # 규모 표시: 공모가와 주식수가 모두 숫자일 때만 금액 계산
+            # 4. 규모
+            s_raw = row.get('numberOfShares', '')
+            s_num = pd.to_numeric(s_raw, errors='coerce')
             if pd.notnull(p_num) and pd.notnull(s_num) and p_num * s_num > 0:
                 col4.write(f"${(p_num * s_num / 1000000):,.1f}M")
             else: col4.write("Pending")
 
+            # 5. 현재가
             if is_p:
                 cp = get_current_stock_price(row['symbol'], MY_API_KEY)
                 p_ref = p_num if pd.notnull(p_num) else 0
                 col5.markdown(f"<span style='color:{'#28a745' if cp >= p_ref else '#dc3545'}; font-weight:bold;'>${cp:,.2f}</span>" if cp > 0 else "-", unsafe_allow_html=True)
             else: col5.write("대기")
+
+            # 6. 거래소 (새로 추가됨)
+            exch = row.get('exchange', 'TBD')
+            # 거래소 이름이 길 경우 약어로 표시 (예: NASDAQ Global Select Market -> NASDAQ)
+            if "NASDAQ" in exch.upper(): display_exch = "NASDAQ"
+            elif "NEW YORK" in exch.upper() or "NYSE" in exch.upper(): display_exch = "NYSE"
+            else: display_exch = exch
+            col6.write(f"🏛️ {display_exch}")
 
 # 5. 상세 페이지 (뉴스 탭 및 브리핑 통합 버전)
 elif st.session_state.page == 'detail':
@@ -341,6 +353,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
