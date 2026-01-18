@@ -160,11 +160,21 @@ elif st.session_state.page == 'calendar':
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
         else:
             today = datetime.now().date()
-            period = st.radio("조회 기간 설정", ["상장 예정", "최근 6개월", "최근 12개월", "전체"], horizontal=True)
-            if period == "상장 예정": display_df = all_df[all_df['공모일_dt'].dt.date >= today].sort_values(by='공모일_dt')
-            elif period == "최근 6개월": display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=180))].sort_values(by='공모일_dt', ascending=False)
-            elif period == "최근 12개월": display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=365))].sort_values(by='공모일_dt', ascending=False)
-            else: display_df = all_df.sort_values(by='공모일_dt', ascending=False)
+            # 조회 기간 설정 UI
+            period = st.radio("조회 기간 설정", ["상장 예정 (90일 내)", "최근 6개월", "최근 12개월", "전체"], horizontal=True)
+            
+            if period == "상장 예정 (90일 내)":
+                # 접속일(today)로부터 90일 후까지의 데이터만 필터링
+                future_limit = today + timedelta(days=90)
+                display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & 
+                                    (all_df['공모일_dt'].dt.date <= future_limit)].sort_values(by='공모일_dt')
+            
+            elif period == "최근 6개월": 
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=180))].sort_values(by='공모일_dt', ascending=False)
+            elif period == "최근 12개월": 
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=365))].sort_values(by='공모일_dt', ascending=False)
+            else: 
+                display_df = all_df.sort_values(by='공모일_dt', ascending=False)
 
         st.write("---")
         h1, h2, h3, h4, h5 = st.columns([1.2, 3.5, 1.2, 1.5, 1.2])
@@ -251,3 +261,4 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
