@@ -200,17 +200,48 @@ elif st.session_state.page == 'calendar':
                 col5.markdown(f"<span style='color:{'#28a745' if cp >= p_ref else '#dc3545'}; font-weight:bold;'>${cp:,.2f}</span>" if cp > 0 else "-", unsafe_allow_html=True)
             else: col5.write("대기")
 
-# 5. 상세 페이지
+# 5. 상세 페이지 (뉴스 탭 추가)
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
         if st.button("⬅️ 목록으로"): st.session_state.page = 'calendar'; st.rerun()
         st.title(f"🚀 {stock['name']} 심층 분석")
-        tab1, tab2, tab3 = st.tabs(["📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
+        # 탭 구성 수정: 뉴스 탭 추가
+        tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
+        
+        with tab0:
+            st.subheader(f"🔍 {stock['name']} 관련 최신 소식")
+            
+            # 검색 최적화를 위한 쿼리 생성
+            search_query = f"{stock['name']} IPO stock news".replace(" ", "+")
+            
+            # 뉴스 레이아웃
+            col_news1, col_news2 = st.columns([2, 1])
+            
+            with col_news1:
+                st.info(f"💡 현재 {stock['name']} 기업에 대한 글로벌 마켓 이슈를 확인하세요.")
+                st.markdown(f"""
+                * **구글 뉴스에서 보기:** [🔗 관련 소식 전체 읽기](https://www.google.com/search?q={search_query}&tbm=nws)
+                * **로이터(Reuters) 검색:** [🔗 상장 이슈 확인](https://www.reuters.com/search/news?blob={stock['name']})
+                """)
+                
+                # 뉴스 더미 데이터 (향후 API 연동 가능)
+                st.write("---")
+                st.markdown(f"**최근 주요 헤드라인 (시뮬레이션)**")
+                st.caption("※ 실제 실시간 뉴스 API 연동 시 아래에 요약문이 표시됩니다.")
+                st.write(f"1. {stock['name']} 상장 예정일 공개... 시장 기대감 고조")
+                st.write(f"2. {stock['symbol']} 공모가 범위 조정 가능성 제기")
+                st.write(f"3. IPO 시장 분석가들이 말하는 {stock['name']} 투자 포인트")
+
+            with col_news2:
+                st.markdown("<div class='stat-box'><b>News Sentiment</b><br>긍정 72% | 중립 20% | 부정 8%</div>", unsafe_allow_html=True)
+                st.markdown("<div class='stat-box'><b>관련 키워드</b><br>#IPO #S-1 #Nasdaq #Tech_Unicorn</div>", unsafe_allow_html=True)
+
         with tab1:
             st.subheader("🔍 투자자 검색 상위 5대 지표")
             c1, c2 = st.columns([1, 2.5])
+            # (기존 로고 및 핵심 정보 코드 유지)
             with c1: st.image(f"https://logo.clearbit.com/{stock['symbol']}.com", width=200)
             with c2:
                 p_n = pd.to_numeric(stock.get('price'), errors='coerce') or 0
@@ -223,15 +254,10 @@ elif st.session_state.page == 'detail':
             
             st.write("---")
             cc1, cc2 = st.columns(2)
-            st.write("---")
-            cc1, cc2 = st.columns(2)
             with cc1:
                 st.subheader("📑 주요 기업 공시 (SEC)")
-                st.info(f"📍 **S-1 증권신고서** : {stock['symbol']} 분석 리포트")
-                # 기업명 기반 SEC 검색 링크로 수정 완료
                 search_name = stock['name'].replace(" ", "+")
                 st.markdown(f"[🔗 SEC 공식 홈페이지 검색](https://www.sec.gov/edgar/search/#/q={search_name})")
-            
             with cc2:
                 st.subheader("📊 핵심 재무 요약")
                 f_data = {"항목": ["매출 성장률", "영업 이익률", "현금 흐름"], "수치": ["+45.2%", "-12.5%", "Positive"]}
@@ -272,5 +298,6 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ {stock['name']} 종목이 보관함에 저장되어 있습니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
