@@ -435,9 +435,13 @@ elif st.session_state.page == 'detail':
     if stock:
         # [1. 데이터 로딩 및 초기 설정]
         today = datetime.now().date()
-        try: ipo_dt = stock['공모일_dt'].date() if hasattr(stock['공모일_dt'], 'date') else pd.to_datetime(stock['공모일_dt']).date()
-        except: ipo_dt = today
+        try: 
+            ipo_dt = stock['공모일_dt'].date() if hasattr(stock['공모일_dt'], 'date') else pd.to_datetime(stock['공모일_dt']).date()
+        except: 
+            ipo_dt = today
+        
         status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
+        date_str = ipo_dt.strftime('%Y-%m-%d') # 상장일 문자열 생성
 
         if st.button("⬅️ 목록으로"): 
             st.session_state.page = 'calendar'; st.rerun()
@@ -453,14 +457,16 @@ elif st.session_state.page == 'detail':
                 fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
             except: pass
 
-        # [2. 헤더 섹션: 주가 및 등락률 표시]
+        # [2. 헤더 섹션: 상장일 추가 및 등락률 표시]
+        # 요청사항: 기업명 (상장일 / 공모가격 / 현재가격 / 증감비율)
         if current_p > 0 and off_val > 0:
             pct = ((current_p - off_val) / off_val) * 100
             color = "#00ff41" if pct >= 0 else "#ff4b4b"
             icon = "▲" if pct >= 0 else "▼"
-            p_html = f"(공모 ${off_val} / 현재 ${current_p} <span style='color:{color}'><b>{icon} {abs(pct):.1f}%</b></span>)"
+            # 상장일(date_str) 추가
+            p_html = f"({date_str} / 공모 ${off_val} / 현재 ${current_p} <span style='color:{color}'><b>{icon} {abs(pct):.1f}%</b></span>)"
         else:
-            p_html = f"(공모 ${off_val} / 상장 대기)"
+            p_html = f"({date_str} / 공모 ${off_val} / 상장 대기)"
 
         st.markdown(f"<h1>{status_emoji} {stock['name']} <small>{p_html}</small></h1>", unsafe_allow_html=True)
         st.write("---")
@@ -468,25 +474,23 @@ elif st.session_state.page == 'detail':
         # [3. 탭 메뉴 구성]
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
 
-        # --- Tab 0: 뉴스 (기존 최신 기능 유지) ---
+        # --- Tab 0: 뉴스 (버튼 간소화 버전) ---
         with tab0:
-            if 'news_topic' not in st.session_state: st.session_state.news_topic = "💰 공모가 범위/확정 소식"
+            # 기본 선택값 변경 (공모가가 버튼에서 사라졌으므로 경쟁우위로 변경)
+            if 'news_topic' not in st.session_state: st.session_state.news_topic = "🥊 경쟁사 비교/분석"
             
-            # 토픽 버튼
-            c1, c2, c3, c4 = st.columns(4)
-            if c1.button("💰 공모가격", use_container_width=True): st.session_state.news_topic = "💰 공모가 범위/확정 소식"
-            if c2.button("📅 상장일정", use_container_width=True): st.session_state.news_topic = "📅 상장 일정/연기 소식"
-            if c3.button("🥊 경쟁우위", use_container_width=True): st.session_state.news_topic = "🥊 경쟁사 비교/분석"
-            if c4.button("🏦 상장 주관사", use_container_width=True): st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
+            # [수정] 공모가격, 상장일정 버튼 제거 -> 2개 버튼으로 정리
+            c1, c2 = st.columns(2)
+            if c1.button("🥊 경쟁우위", use_container_width=True): st.session_state.news_topic = "🥊 경쟁사 비교/분석"
+            if c2.button("🏦 상장 주관사", use_container_width=True): st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
 
             topic = st.session_state.news_topic
             rep_kor = {
-                "💰 공모가 범위/확정 소식": f"{stock['name']}의 공모가는 {stock.get('price', 'TBD')} 수준이며, 기관 수요에 따라 변동 가능합니다.",
-                "📅 상장 일정/연기 소식": f"{stock['date']} 상장 예정이며, 현재 특이사항은 보고되지 않았습니다.",
                 "🥊 경쟁사 비교/분석": f"동종 업계 대비 높은 성장성을 보이나, 시장 점유율 경쟁이 리스크 요인입니다.",
                 "🏦 주요 주간사 (Underwriters)": f"주요 대형 IB들이 주간사로 참여하여 상장 초기 주가 흐름이 주목됩니다."
             }
-            st.info(f"🤖 AI 요약 ({topic}): {rep_kor.get(topic)}")
+            # 딕셔너리에 없는 키가 호출될 경우를 대비해 .get() 사용
+            st.info(f"🤖 AI 요약 ({topic}): {rep_kor.get(topic, '해당 토픽에 대한 AI 분석을 불러오는 중입니다.')}")
             
             st.write("---")
             st.markdown(f"##### 🔥 {stock['name']} 실시간 인기 뉴스 Top 5")
@@ -784,6 +788,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
