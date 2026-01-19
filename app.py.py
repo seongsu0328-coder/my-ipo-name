@@ -474,26 +474,47 @@ elif st.session_state.page == 'detail':
         # [3. 탭 메뉴 구성]
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
 
-        # --- Tab 0: 뉴스 (버튼 간소화 버전) ---
+        # --- Tab 0: 뉴스 & 심층 분석 (검색 연동 기능) ---
         with tab0:
-            # 기본 선택값 변경 (공모가가 버튼에서 사라졌으므로 경쟁우위로 변경)
-            if 'news_topic' not in st.session_state: st.session_state.news_topic = "🥊 경쟁사 비교/분석"
-            
-            # [수정] 공모가격, 상장일정 버튼 제거 -> 2개 버튼으로 정리
-            c1, c2 = st.columns(2)
-            if c1.button("🥊 경쟁우위", use_container_width=True): st.session_state.news_topic = "🥊 경쟁사 비교/분석"
-            if c2.button("🏦 상장 주관사", use_container_width=True): st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
+            st.markdown("##### 🕵️ AI 심층 분석 도우미")
+            st.caption("실시간 데이터가 없는 항목은 구글 검색으로 자동 연결됩니다.")
 
-            topic = st.session_state.news_topic
-            rep_kor = {
-                "🥊 경쟁사 비교/분석": f"동종 업계 대비 높은 성장성을 보이나, 시장 점유율 경쟁이 리스크 요인입니다.",
-                "🏦 주요 주간사 (Underwriters)": f"주요 대형 IB들이 주간사로 참여하여 상장 초기 주가 흐름이 주목됩니다."
-            }
-            # 딕셔너리에 없는 키가 호출될 경우를 대비해 .get() 사용
-            st.info(f"🤖 AI 요약 ({topic}): {rep_kor.get(topic, '해당 토픽에 대한 AI 분석을 불러오는 중입니다.')}")
+            # [1] 검색 키워드 생성
+            # 검색어 예: "Arm Holdings competitors market share", "Arm Holdings IPO underwriters"
+            q_comp = f"{stock['name']} competitors market share analysis"
+            url_comp = f"https://www.google.com/search?q={q_comp}"
             
+            q_under = f"{stock['name']} IPO underwriters investment bank"
+            url_under = f"https://www.google.com/search?q={q_under}"
+
+            # [2] 산업군별 AI 분석 팁 생성 (업종에 따라 멘트가 바뀜)
+            industry = profile.get('finnhubIndustry', 'General') if profile else 'General'
+            
+            if 'Tech' in industry or 'Semiconductor' in industry:
+                tip_msg = f"💡 **{industry} 섹터 분석:** 기술적 진입장벽(Moat)과 R&D 투자 비율을 경쟁사와 비교하는 것이 핵심입니다."
+            elif 'Bio' in industry or 'Health' in industry:
+                tip_msg = f"💡 **{industry} 섹터 분석:** 임상 단계(Phase)와 FDA 승인 가능성, 그리고 현금 소진율(Burn Rate)을 확인하세요."
+            elif 'Financ' in industry:
+                tip_msg = f"💡 **{industry} 섹터 분석:** 금리 영향과 자산 건전성, 배당 수익률을 경쟁사와 비교해보세요."
+            else:
+                tip_msg = f"💡 **{industry} 섹터 분석:** 시장 점유율 1, 2위 기업과의 매출 성장률 격차를 확인하는 것이 좋습니다."
+
+            # [3] 버튼 및 가이드 배치
+            c1, c2 = st.columns(2)
+            
+            with c1:
+                # st.link_button: 새 탭에서 링크 열기 (Streamlit 최신 기능)
+                st.link_button("🥊 경쟁우위 검색 (Google)", url_comp, use_container_width=True)
+                st.info(tip_msg) # 산업별 맞춤 팁 표시
+
+            with c2:
+                st.link_button("🏦 주관사 검색 (Google)", url_under, use_container_width=True)
+                st.info("💡 **주관사(IB) 체크포인트:** 골드만삭스, 모건스탠리 등 메이저 IB가 참여했다면, 기관 투자자들의 신뢰도가 높다는 신호입니다.")
+
             st.write("---")
-            st.markdown(f"##### 🔥 {stock['name']} 실시간 인기 뉴스 Top 5")
+            
+            # [4] 뉴스 리스트 (기존 유지)
+            st.markdown(f"##### 🔥 {stock['name']} 관련 실시간 뉴스")
             
             rss_news = get_real_news_rss(stock['name'])
             tags = ["분석", "시장", "전망", "전략", "수급"]
@@ -788,6 +809,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
