@@ -381,11 +381,43 @@ elif st.session_state.page == 'calendar':
         else:
             st.warning("조건에 맞는 유효한 기업 데이터가 없습니다.")
 
+import xml.etree.ElementTree as ET # [필수] 코드 최상단 import 영역에 추가되어야 합니다.
+
+# [추가 함수] 실시간 뉴스 RSS 파싱 (상세 페이지 내부 또는 코드 상단에 위치)
+@st.cache_data(ttl=300)
+def get_real_news_rss(company_name):
+    """구글 뉴스 RSS를 통해 실시간 기사 제목과 링크를 가져옵니다."""
+    try:
+        # 검색어 설정 (예: "ARM Holdings IPO")
+        query = f"{company_name} stock IPO"
+        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        
+        response = requests.get(url, timeout=3)
+        root = ET.fromstring(response.content)
+        
+        news_items = []
+        # 상위 5개 기사만 추출
+        for item in root.findall('./channel/item')[:5]:
+            title = item.find('title').text
+            link = item.find('link').text
+            pubDate = item.find('pubDate').text
+            # 날짜 포맷 간단화
+            try:
+                date_str = " ".join(pubDate.split(' ')[1:3]) # 예: "12 Jan"
+            except:
+                date_str = "Recent"
+            
+            news_items.append({"title": title, "link": link, "date": date_str})
+            
+        return news_items
+    except:
+        return []
+
 # 5. 상세 페이지
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     if stock:
-        # [추가된 로직: 성장 단계 판별]
+        # [성장 단계 판별]
         today = datetime.now().date()
         one_year_ago = today - timedelta(days=365)
         try:
@@ -396,21 +428,27 @@ elif st.session_state.page == 'detail':
         # 아이콘 결정
         status_emoji = "🐣" if ipo_dt > one_year_ago else "🦄"
 
-        # 1. 상단 버튼 및 가격 데이터 계산
+        # 1. 상단 버튼
         if st.button("⬅️ 목록으로"): 
             st.session_state.page = 'calendar'
             st.rerun()
             
-        try:
-            # 공모가 추출 ($10.00 -> 10.0)
-            off_val = str(stock.get('price', '0')).replace('$', '').split('-')[0].strip()
-            offering_p = float(off_val) if off_val and off_val != 'TBD' else 0
-        except:
-            offering_p = 0
+        # [데이터 로딩 및 예외 처리]
+        with st.spinner(f"🤖 {stock['name']}의 실시간 데이터를 AI가 분석 중입니다..."):
+            try:
+                off_val = str(stock.get('price', '0')).replace('$', '').split('-')[0].strip()
+                offering_p = float(off_val) if off_val and off_val != 'TBD' else 0
+            except:
+                offering_p = 0
             
-        current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
+            try:
+                current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
+                profile = get_company_profile(stock['symbol'], MY_API_KEY)
+                fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
+            except:
+                current_p, profile, fin_data = 0, None, None
         
-        # 2. 수익률 강조 디자인 구성
+        # 2. 수익률 강조 디자인
         if current_p > 0 and offering_p > 0:
             change_pct = ((current_p - offering_p) / offering_p) * 100
             pct_color = "#00ff41" if change_pct >= 0 else "#ff4b4b" 
@@ -428,14 +466,14 @@ elif st.session_state.page == 'detail':
             p_text = f"${offering_p:,.2f}" if offering_p > 0 else "TBD"
             price_html = f"<span style='font-weight: normal; margin-left: 15px;'>(공모 {p_text} / 상장 대기)</span>"
 
-        # 3. 브라우저 렌더링 (성장 아이콘 적용)
+        # 3. 브라우저 렌더링
         st.markdown(f"<h1 style='display: flex; align-items: center; margin-bottom: 0;'>{status_emoji} {stock['name']} {price_html}</h1>", unsafe_allow_html=True)
         st.write("---")
         
         # 4. 탭 메뉴 구성
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
-        # --- [Tab 0: 실시간 뉴스] ---
+        # --- [Tab 0: 실시간 뉴스 (RSS 연동 적용됨)] ---
         with tab0:
             if 'news_topic' not in st.session_state:
                 st.session_state.news_topic = "💰 공모가 범위/확정 소식"
@@ -453,6 +491,7 @@ elif st.session_state.page == 'detail':
                 st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
 
             topic = st.session_state.news_topic
+            # (기존 AI 요약 텍스트 로직)
             if topic == "💰 공모가 범위/확정 소식":
                 rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 기관 수요예측에서 긍정적인 평가가 이어지고 있습니다."
             elif topic == "📅 상장 일정/연기 소식":
@@ -470,24 +509,133 @@ elif st.session_state.page == 'detail':
             """, unsafe_allow_html=True)
 
             st.write("---")
-            st.markdown(f"##### 🔥 {stock['name']} 관련 실시간 인기 뉴스 Top 5")
-            news_topics = [
-                {"title": f"{stock['name']} IPO: 주요 투자 위험 요소 분석", "query": f"{stock['name']}+IPO+analysis", "tag": "분석"},
-                {"title": f"나스닥 상장 앞둔 {stock['symbol']}, 월가 평가는?", "query": f"{stock['symbol']}+stock+rating", "tag": "시장"},
-                {"title": f"{stock['name']} 상장 후 주가 전망 리포트", "query": f"{stock['name']}+stock+price+forecast", "tag": "전망"},
-                {"title": f"{stock['name']}의 글로벌 확장 전략", "query": f"{stock['name']}+global+strategy", "tag": "전략"},
-                {"title": f"{stock['symbol']} 보호예수 및 유통 물량 점검", "query": f"{stock['symbol']}+lock-up", "tag": "수급"}
-            ]
-            for i, news in enumerate(news_topics):
-                news_url = f"https://www.google.com/search?q={news['query']}&tbm=nws"
+            
+            # [변경된 부분: 실제 RSS 뉴스 불러오기]
+            st.markdown(f"##### 🔥 {stock['name']} 실시간 주요 뉴스 (Google News)")
+            
+            real_news = get_real_news_rss(stock['name'])
+            
+            if real_news:
+                for i, news in enumerate(real_news):
+                    st.markdown(f"""
+                        <a href="{news['link']}" target="_blank" style="text-decoration: none; color: inherit;">
+                            <div style="background-color: #ffffff; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #eef2ff; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 12px; font-weight: bold; color: #6e8efb;">NEWS {i+1}</span>
+                                    <span style="font-size: 11px; color: #999;">{news['date']}</span>
+                                </div>
+                                <div style="margin-top: 8px; font-size: 15px; font-weight: 600; color: #333; line-height: 1.4;">
+                                    {news['title']}
+                                </div>
+                            </div>
+                        </a>
+                    """, unsafe_allow_html=True)
+            else:
+                # 뉴스가 없을 경우 검색 링크 제공
+                st.info("현재 수집된 실시간 뉴스가 없어 검색 링크를 제공합니다.")
+                fallback_url = f"https://www.google.com/search?q={stock['name']}+IPO+news&tbm=nws"
+                st.markdown(f"👉 **[Google 뉴스 검색 결과 바로가기]({fallback_url})**")
+
+        # --- [Tab 1: 핵심 정보] ---
+        with tab1:
+            cc1, cc2 = st.columns([1.5, 1])
+            if profile:
+                biz_desc = profile.get('description', "상세 사업 설명이 업데이트 대기 중입니다.")
+                industry = profile.get('finnhubIndustry', "기술/서비스")
+            else:
+                biz_desc = "상세 사업 설명이 업데이트 대기 중입니다."
+                industry = "미분류"
+
+            with cc1:
+                st.markdown(f"#### 📑 {stock['name']} 핵심 비즈니스 분석")
                 st.markdown(f"""
-                    <a href="{news_url}" target="_blank" style="text-decoration: none; color: inherit;">
-                        <div style="background-color: #ffffff; padding: 12px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #eef2ff;">
-                            <span style="font-size: 13px; font-weight: bold; color: #6e8efb;">TOP {i+1} · {news['tag']}</span>
-                            <div style="margin-top: 5px; font-size: 15px; font-weight: 600; color: #333;">{news['title']}</div>
-                        </div>
-                    </a>
+                    <div style='background-color: #fff4e5; padding: 20px; border-radius: 15px; border-left: 5px solid #ffa500; margin-bottom: 15px;'>
+                        <b style='color:#d35400; font-size: 16px;'>📝 기업 공시 기반 AI 요약 브리핑</b><br><br>
+                        <ul style='font-size: 14.5px; color: #333; line-height: 1.6;'>
+                            <li><b>주요 업종:</b> {industry}</li>
+                            <li><b>비즈니스 요약:</b> {stock['name']}은(는) {industry} 섹터에서 활동하며, 주요 사업 영역은 다음과 같습니다: {biz_desc[:200]}...</li>
+                        </ul>
+                    </div>
                 """, unsafe_allow_html=True)
+                st.markdown("---")
+                search_name = stock['name'].replace(" ", "+")
+                st.markdown(f"<a href='https://www.sec.gov/edgar/search/#/q={search_name}' target='_blank'>[SEC 공식 문서(S-1) 원문 보기]</a>", unsafe_allow_html=True)
+
+            with cc2:
+                st.markdown("#### 📊 실시간 핵심 재무 (TTM)")
+                if fin_data:
+                    display_data = {
+                        "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익률", "부채 비율"],
+                        "현황": [
+                            f"{fin_data['growth']:.2f}%" if fin_data['growth'] else "-",
+                            f"{fin_data['op_margin']:.2f}%" if fin_data['op_margin'] else "-",
+                            f"{fin_data['net_margin']:.2f}%" if fin_data['net_margin'] else "-",
+                            f"{fin_data['debt_equity']:.2f}%" if fin_data['debt_equity'] else "-"
+                        ]
+                    }
+                    st.table(pd.DataFrame(display_data))
+                else:
+                    st.warning("재무 데이터를 불러올 수 없습니다.")
+
+        # --- [Tab 2: AI 가치 평가] ---
+        with tab2:
+            growth_score, profit_score, interest_score = 75, 60, 85 # 예시 로직
+            total_score = (growth_score * 0.4) + (profit_score * 0.3) + (interest_score * 0.3)
+            fair_low = offering_p * 1.1 if offering_p > 0 else 25.0
+            
+            st.markdown("##### 🔬 가치 평가 모델 (Valuation Model)")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("성장성", f"{growth_score}점"); c1.progress(growth_score/100)
+            c2.metric("수익성", f"{profit_score}점"); c2.progress(profit_score/100)
+            c3.metric("시장 관심", f"{interest_score}점"); c3.progress(interest_score/100)
+            
+            st.write("---")
+            st.markdown(f"### 🤖 종합 매력도: {total_score:.1f}점")
+            st.success(f"AI 추정 적정가 범위: ${fair_low:.2f} ~ ${fair_low*1.3:.2f}")
+
+        # --- [Tab 3: 최종 투자 결정] ---
+        with tab3:
+            sid = stock['symbol']
+            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
+            if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
+            if 'user_votes' not in st.session_state: st.session_state.user_votes = {}
+
+            st.markdown("### 🗳️ 투자 매력도 투표")
+            if st.session_state.auth_status == 'user':
+                if sid not in st.session_state.user_votes:
+                    v1, v2 = st.columns(2)
+                    if v1.button("🦄 Unicorn", use_container_width=True, key=f"vu_{sid}"): 
+                        st.session_state.vote_data[sid]['u'] += 1
+                        st.session_state.user_votes[sid] = 'u'; st.rerun()
+                    if v2.button("💸 Fallen Angel", use_container_width=True, key=f"vf_{sid}"): 
+                        st.session_state.vote_data[sid]['f'] += 1
+                        st.session_state.user_votes[sid] = 'f'; st.rerun()
+                else:
+                    st.info(f"✅ 투표 완료 ({'유니콘' if st.session_state.user_votes[sid] == 'u' else '폴른엔젤'})")
+            else:
+                st.warning("로그인 후 투표 가능합니다.")
+
+            uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
+            if uv+fv > 0: st.progress(uv/(uv+fv))
+            
+            st.write("---")
+            st.markdown("### 💬 커뮤니티 의견")
+            if st.session_state.auth_status == 'user':
+                nc = st.text_input("의견 등록", key=f"ci_{sid}")
+                if st.button("등록", key=f"cb_{sid}") and nc:
+                    st.session_state.comment_data[sid].insert(0, {"t": nc, "d": datetime.now().strftime("%H:%M")})
+                    st.rerun()
+            
+            for c in st.session_state.comment_data[sid][:3]:
+                st.markdown(f"<div style='background:#f9f9f9; padding:10px; border-radius:5px; margin-bottom:5px;'><small>{c['d']}</small><br>{c['t']}</div>", unsafe_allow_html=True)
+
+            st.write("---")
+            if sid not in st.session_state.watchlist:
+                if st.button("⭐ 보관함 담기", use_container_width=True, type="primary"):
+                    st.session_state.watchlist.append(sid); st.balloons(); st.rerun()
+            else:
+                st.success("✅ 보관함에 저장됨")
+                if st.button("❌ 보관함 해제"): st.session_state.watchlist.remove(sid); st.rerun()
 
         # --- [Tab 1: 핵심 정보] ---
         with tab1:
@@ -686,6 +834,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
