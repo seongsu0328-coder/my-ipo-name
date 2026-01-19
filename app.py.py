@@ -500,8 +500,7 @@ elif st.session_state.page == 'detail':
                 else:
                     st.markdown(f"<div style='padding:10px; color:#999; border:1px dashed #ddd; border-radius:10px; text-align:center;'>관련 뉴스가 부족하여 검색 링크를 제공합니다.</div>", unsafe_allow_html=True)
 
-        # --- [Tab 1: 핵심 정보 (디자인 통일: 버튼 그리드 + AI 요약)] ---
-        # --- [Tab 1: 핵심 정보 (정의 + 상세 AI 요약 분리)] ---
+        # --- [Tab 1: 핵심 정보 (수정 완료: 괄호 에러 및 HTML 태그 노출 해결)] ---
         with tab1:
             # 0. 기업 기본 프로필
             if profile:
@@ -539,10 +538,7 @@ elif st.session_state.page == 'detail':
             }
             curr_meta = def_meta[topic]
 
-            # (B) 상세 AI 요약 텍스트 생성 (Simulated 5-10 lines)
-            # 실제 서비스에서는 여기에 LLM API를 연동하여 실제 내용을 요약합니다.
-            # 지금은 프로토타입이므로 템플릿을 사용하여 그럴싸한 문구를 생성합니다.
-            
+            # (B) 상세 AI 요약 텍스트 생성
             detail_summary = ""
             if topic == "financial":
                 detail_summary = f"""
@@ -571,7 +567,7 @@ elif st.session_state.page == 'detail':
 
             # --- UI 렌더링 ---
             
-            # 1. 파란색: 정의 박스 (Brief)
+            # 1. 파란색: 정의 박스
             st.markdown(f"""
                 <div style='background-color: #f0f4ff; padding: 15px; border-radius: 10px; border-left: 5px solid #6e8efb; margin-top: 15px;'>
                     <b style='color:#333;'>💡 {curr_meta['t']}란?</b>
@@ -579,9 +575,8 @@ elif st.session_state.page == 'detail':
                 </div>
             """, unsafe_allow_html=True)
 
-            # 2. 회색: 상세 분석 박스 (HTML 구조 수정)
+            # 2. 회색: 상세 분석 박스 (HTML 구조 수정 및 괄호 에러 해결)
             today_str = datetime.now().strftime('%Y-%m-%d')
-            
             st.markdown(f"""
                 <div style='background-color: #fafafa; padding: 20px; border-radius: 10px; border: 1px solid #eee; margin-top: 10px; margin-bottom: 20px;'>
                     <h5 style='margin-top:0; margin-bottom:15px; color:#333;'>📝 AI 기업 분석 요약</h5>
@@ -592,7 +587,7 @@ elif st.session_state.page == 'detail':
                         <small style='color:#999;'>Last updated: {today_str}</small>
                     </div>
                 </div>
-            """, unsafe_allow_html=True))
+            """, unsafe_allow_html=True)
 
             # 3. 하단: 원문 링크 or 데이터
             if curr_meta['is_doc']:
@@ -751,6 +746,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
