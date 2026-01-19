@@ -225,9 +225,10 @@ elif st.session_state.page == 'login':
     q = get_daily_quote()
     st.markdown(f"<div class='quote-card'><b>\"{q['eng']}\"</b><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
 
-# 3. 성장 단계 분석 (대시보드) - 텍스트 제거 버전
+# 3. 성장 단계 분석 (대시보드) - 심플 버전 (박스 제거)
 elif st.session_state.page == 'stats':
     st.write("<br>", unsafe_allow_html=True)
+    
     # 이미지 파일명 (사용자 지정)
     img_baby = "new_unicorn.png"
     img_adult = "hot_unicorn.png"
@@ -235,36 +236,40 @@ elif st.session_state.page == 'stats':
     
     c1, c2, c3 = st.columns(3)
     
-    # 1. NEW 섹션 (텍스트 제거)
+    # 1. NEW 섹션
     with c1:
-        # <h3>NEW</h3> 태그를 삭제하고 div만 열었습니다.
-        st.markdown("<div class='grid-card'>", unsafe_allow_html=True)
-        if os.path.exists(img_baby): st.image(img_baby, use_container_width=True)
+        # 박스(<div class='grid-card'>) 제거 -> 이미지 바로 출력
+        if os.path.exists(img_baby): 
+            st.image(img_baby, use_container_width=True)
+        
+        # 버튼 (텍스트 역할)
         if st.button("신규상장 기업", use_container_width=True, key="go_all"):
             st.session_state.view_mode = 'all'
-            st.session_state.page = 'calendar'; st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.session_state.page = 'calendar'
+            st.rerun()
 
-    # 2. HOT 섹션 (텍스트 제거)
+    # 2. HOT 섹션
     with c2:
-        # <h3>HOT</h3> 태그 삭제
-        st.markdown("<div class='grid-card'>", unsafe_allow_html=True)
-        if os.path.exists(img_adult): st.image(img_adult, use_container_width=True)
+        # 박스 제거
+        if os.path.exists(img_adult): 
+            st.image(img_adult, use_container_width=True)
+            
         if st.button("인기상승 기업", use_container_width=True, key="go_hot"):
             st.session_state.view_mode = 'hot'
-            st.session_state.page = 'calendar'; st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.session_state.page = 'calendar'
+            st.rerun()
 
-    # 3. MY 섹션 (텍스트 제거)
+    # 3. MY 섹션
     with c3:
-        # <h3>MY</h3> 태그 삭제
-        st.markdown("<div class='grid-card'>", unsafe_allow_html=True)
-        if os.path.exists(img_child): st.image(img_child, use_container_width=True)
+        # 박스 제거
+        if os.path.exists(img_child): 
+            st.image(img_child, use_container_width=True)
+            
         watch_count = len(st.session_state.watchlist)
         if st.button(f"관심기업 ({watch_count})", use_container_width=True, type="primary", key="go_watch"):
             st.session_state.view_mode = 'watchlist'
-            st.session_state.page = 'calendar'; st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.session_state.page = 'calendar'
+            st.rerun()
 
 # 4. 캘린더 페이지 (중복 제거 및 최신 정렬 기능 완벽 통합)
 elif st.session_state.page == 'calendar':
@@ -733,6 +738,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
