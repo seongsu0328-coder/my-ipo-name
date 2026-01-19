@@ -203,11 +203,11 @@ elif st.session_state.page == 'stats':
     # 3개의 컬럼으로 구성 (New, Hot, My)
     c1, c2, c3 = st.columns(3)
     
-    # --- [1. New 유니콘] ---
+    # --- [1. New ] ---
     with c1:
-        st.markdown("<div class='grid-card'><h3>New 유니콘</h3>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>New </h3>", unsafe_allow_html=True)
         if os.path.exists(img_baby):
-            st.image(img_baby, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
+            st.image(img_baby, use_container_width=True)
         else: 
             st.warning("baby_unicorn.png.png 파일을 찾을 수 없습니다.")
         
@@ -221,9 +221,9 @@ elif st.session_state.page == 'stats':
 
     # --- [2. Hot 유니콘 (추가)] ---
     with c2:
-        st.markdown("<div class='grid-card'><h3>Hot 유니콘</h3>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>Hot </h3>", unsafe_allow_html=True)
         if os.path.exists(img_adult):
-            st.image(img_adult, caption="가장 많은 관심을 받는 유니콘 🔥", use_container_width=True)
+            st.image(img_adult, use_container_width=True)
         else: 
             st.warning("adult_unicorn.png.png 파일을 찾을 수 없습니다.")
         
@@ -648,6 +648,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
