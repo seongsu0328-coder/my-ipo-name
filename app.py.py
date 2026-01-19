@@ -83,7 +83,35 @@ def get_financial_metrics(symbol, api_key):
         }
     except:
         return None
-
+@st.cache_data(ttl=300)
+def get_real_news_rss(company_name):
+    """구글 뉴스 RSS를 통해 실시간 기사 제목과 링크를 가져옵니다."""
+    try:
+        # 검색어 설정 (예: "Samsung Electronics stock news")
+        query = f"{company_name} stock news"
+        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        
+        response = requests.get(url, timeout=3)
+        root = ET.fromstring(response.content)
+        
+        news_items = []
+        # 상위 5개 기사만 추출
+        for item in root.findall('./channel/item')[:5]:
+            title = item.find('title').text
+            link = item.find('link').text
+            pubDate = item.find('pubDate').text
+            
+            # 날짜 포맷 간단화 (예: Mon, 15 Jan... -> 15 Jan)
+            try:
+                date_str = " ".join(pubDate.split(' ')[1:3])
+            except:
+                date_str = "Recent"
+            
+            news_items.append({"title": title, "link": link, "date": date_str})
+            
+        return news_items
+    except:
+        return []
 @st.cache_data(ttl=86400)
 def get_company_profile(symbol, api_key):
     """기업의 실제 프로필(업종, 사업 요약, 로고 등)을 가져옵니다."""
@@ -703,6 +731,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
