@@ -583,51 +583,60 @@ elif st.session_state.page == 'detail':
 
             # ... (이전 코드와 동일) ...
 
+            # ... (이전 코드와 동일) ...
+
             # 3. 하단: 원문 링크 or 데이터
             if curr_meta['is_doc']:
                 import urllib.parse
-                import re  # 정규표현식 모듈
+                import re
 
-                # [개선 1] CIK(고유번호)가 있다면 무조건 CIK로 검색 (가장 정확함)
-                # profile 데이터에 'cik' 키가 있는지 확인하여 사용합니다.
+                # [1] CIK 확인 (가장 정확함)
                 cik = profile.get('cik', '') if profile else ''
 
-                # [개선 2] 이름 정제 로직 강화 (CIK가 없을 때를 대비)
-                # 예: "Tesla, Inc." -> "Tesla", "Arm Holdings plc" -> "Arm Holdings"
+                # [2] 이름 정제 로직 수정 (너무 많이 지워서 실패하는 경우 방지)
                 raw_name = stock['name']
-                # 1. 쉼표, 점 제거
-                clean_name = re.sub(r'[,.]', '', raw_name)
-                # 2. 흔한 법인 접미사(Inc, Corp, Ltd 등) 제거 (대소문자 무시)
-                # 접미사 뒤에 오는 모든 글자도 함께 날림
-                clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|Group|Holdings|SA|NV).*$', '', clean_name, flags=re.IGNORECASE).strip()
                 
-                # 만약 정제 과정에서 이름이 다 지워졌다면(오류 방지), 원본 사용
-                if not clean_name or len(clean_name) < 2:
+                # 1단계: 특수문자 제거
+                clean_name = re.sub(r'[,.]', '', raw_name)
+                
+                # 2단계: 법인 형태(Suffix)만 제거 (Inc, Corp, Ltd, PLC, LLC)
+                # 주의: 'Holdings', 'Group', 'Systems' 등은 이름의 일부일 수 있어 남겨야 함!
+                # 대소문자 무시(re.I), 문장 끝($)에 있는 것만 제거
+                clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
+
+                # 안전장치: 정제했더니 이름이 너무 짧아지면 원본 사용
+                if len(clean_name) < 2:
                     clean_name = raw_name
 
-                # URL 생성 로직
-                enc_topic = urllib.parse.quote(topic)
-                
+                # [3] URL 생성 전략 이원화
+                # A. CIK가 있음 -> 'Classic Browse' (깔끔한 리스트 뷰)
                 if cik:
-                    # CIK가 있으면 가장 정확한 검색
+                    enc_topic = urllib.parse.quote(topic)
                     sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={enc_topic}&owner=include&count=40"
+                    btn_text = f"🏛️ {stock['name']} - {topic} 리스트 보기 ↗"
+                
+                # B. CIK가 없음 -> 'Modern Search' (최신 통합 검색)
+                # 구형 시스템의 'No matching' 오류를 피하기 위해, 키워드 검색 방식으로 전환합니다.
                 else:
-                    # CIK가 없으면 '정제된 이름'으로 검색
-                    enc_name = urllib.parse.quote(clean_name)
-                    sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company={enc_name}&type={enc_topic}&owner=include&count=40"
+                    # 검색어 예시: "Arm Holdings" "S-1"
+                    # 따옴표("")로 감싸서 정확도를 높임
+                    query = f'"{clean_name}" {topic}'
+                    enc_query = urllib.parse.quote(query)
+                    
+                    # SEC 최신 검색 엔진 URL
+                    sec_url = f"https://www.sec.gov/edgar/search/#/q={enc_query}&dateRange=all"
+                    btn_text = f"🔍 {clean_name} - {topic} 검색 결과 보기 ↗"
 
                 st.markdown(f"""
                     <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                         <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; transition:0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>
-                            🏛️ {stock['name']} - {topic} 원문 리스트 보기 ↗
+                            {btn_text}
                         </button>
                     </a>
                 """, unsafe_allow_html=True)
-                
-                # (옵션) 디버깅용: 실제 어떤 이름으로 검색했는지 작게 표시 (필요 없으면 삭제 가능)
-                # st.caption(f"검색 키워드: {cik if cik else clean_name}")
 
             else:
+                # ... (재무 데이터 코드 동일) ...
                 # ... (재무 데이터 코드는 동일) ...
                 if fin_data:
                     c1, c2 = st.columns(2)
@@ -775,6 +784,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
