@@ -581,22 +581,40 @@ elif st.session_state.page == 'detail':
             """
             st.markdown(html_content, unsafe_allow_html=True)
 
+            # ... (이전 코드와 동일) ...
+
             # 3. 하단: 원문 링크 or 데이터
             if curr_meta['is_doc']:
                 import urllib.parse
-                
-                # [수정 1] 검색 정확도를 높이기 위한 기업명 정제 (Inc, Corp 등 제거)
-                # IPO 기업은 티커보다 '이름'으로 검색해야 문서가 잘 나옵니다.
-                raw_name = stock['name']
-                clean_name = raw_name.replace(" Inc.", "").replace(" Corp.", "").replace(" Ltd.", "").replace(" PLC", "").replace(",", "").strip()
-                
-                # URL 인코딩
-                enc_name = urllib.parse.quote(clean_name)
-                enc_topic = urllib.parse.quote(topic)
+                import re  # 정규표현식 모듈
 
-                # [수정 2] CIK={symbol} 대신 company={name} 파라미터 사용
-                # action=getcompany: 기업명으로 검색하여 문서 리스트를 가져옵니다.
-                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company={enc_name}&type={enc_topic}&owner=include&count=40"
+                # [개선 1] CIK(고유번호)가 있다면 무조건 CIK로 검색 (가장 정확함)
+                # profile 데이터에 'cik' 키가 있는지 확인하여 사용합니다.
+                cik = profile.get('cik', '') if profile else ''
+
+                # [개선 2] 이름 정제 로직 강화 (CIK가 없을 때를 대비)
+                # 예: "Tesla, Inc." -> "Tesla", "Arm Holdings plc" -> "Arm Holdings"
+                raw_name = stock['name']
+                # 1. 쉼표, 점 제거
+                clean_name = re.sub(r'[,.]', '', raw_name)
+                # 2. 흔한 법인 접미사(Inc, Corp, Ltd 등) 제거 (대소문자 무시)
+                # 접미사 뒤에 오는 모든 글자도 함께 날림
+                clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|Group|Holdings|SA|NV).*$', '', clean_name, flags=re.IGNORECASE).strip()
+                
+                # 만약 정제 과정에서 이름이 다 지워졌다면(오류 방지), 원본 사용
+                if not clean_name or len(clean_name) < 2:
+                    clean_name = raw_name
+
+                # URL 생성 로직
+                enc_topic = urllib.parse.quote(topic)
+                
+                if cik:
+                    # CIK가 있으면 가장 정확한 검색
+                    sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={enc_topic}&owner=include&count=40"
+                else:
+                    # CIK가 없으면 '정제된 이름'으로 검색
+                    enc_name = urllib.parse.quote(clean_name)
+                    sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company={enc_name}&type={enc_topic}&owner=include&count=40"
 
                 st.markdown(f"""
                     <a href="{sec_url}" target="_blank" style="text-decoration:none;">
@@ -605,7 +623,12 @@ elif st.session_state.page == 'detail':
                         </button>
                     </a>
                 """, unsafe_allow_html=True)
+                
+                # (옵션) 디버깅용: 실제 어떤 이름으로 검색했는지 작게 표시 (필요 없으면 삭제 가능)
+                # st.caption(f"검색 키워드: {cik if cik else clean_name}")
+
             else:
+                # ... (재무 데이터 코드는 동일) ...
                 if fin_data:
                     c1, c2 = st.columns(2)
                     c3, c4 = st.columns(2)
@@ -752,6 +775,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
