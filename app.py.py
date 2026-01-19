@@ -685,7 +685,8 @@ elif st.session_state.page == 'detail':
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
-                    st.rerun() 이 코드와 비교해서 누락된걸 복구해줘
+                    st.rerun()
+
 
 
 
