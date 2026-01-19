@@ -435,56 +435,72 @@ elif st.session_state.page == 'detail':
         # 4. 탭 메뉴 구성 (여기서 tab3를 정의해야 NameError가 발생하지 않습니다)
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
-        # --- [Tab 0: 실시간 뉴스] ---
+        # --- [Tab 0: 실시간 뉴스 (TOP 5 + 실제 기사 매칭)] ---
         with tab0:
-            if 'news_topic' not in st.session_state:
-                st.session_state.news_topic = "💰 공모가 범위/확정 소식"
-
-            row1_col1, row1_col2 = st.columns(2)
-            row2_col1, row2_col2 = st.columns(2)
+            # 1. 상단 토픽 버튼 (기존 유지)
+            if 'news_topic' not in st.session_state: st.session_state.news_topic = "💰 공모가 범위/확정 소식"
             
-            if row1_col1.button("💰 공모가 범위/확정 소식", use_container_width=True, key="btn_p1"):
-                st.session_state.news_topic = "💰 공모가 범위/확정 소식"
-            if row1_col2.button("📅 상장 일정/연기 소식", use_container_width=True, key="btn_p2"):
-                st.session_state.news_topic = "📅 상장 일정/연기 소식"
-            if row2_col1.button("🥊 경쟁사 비교/분석", use_container_width=True, key="btn_p3"):
-                st.session_state.news_topic = "🥊 경쟁사 비교/분석"
-            if row2_col2.button("🏦 주요 주간사 (Underwriters)", use_container_width=True, key="btn_p4"):
-                st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
+            c_btn1, c_btn2, c_btn3, c_btn4 = st.columns(4)
+            if c_btn1.button("💰 가격", use_container_width=True): st.session_state.news_topic = "💰 공모가 범위/확정 소식"
+            if c_btn2.button("📅 일정", use_container_width=True): st.session_state.news_topic = "📅 상장 일정/연기 소식"
+            if c_btn3.button("🥊 경쟁", use_container_width=True): st.session_state.news_topic = "🥊 경쟁사 비교/분석"
+            if c_btn4.button("🏦 주간사", use_container_width=True): st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
 
+            # 2. AI 요약 (기존 유지)
             topic = st.session_state.news_topic
-            if topic == "💰 공모가 범위/확정 소식":
-                rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 기관 수요예측에서 긍정적인 평가가 이어지고 있습니다."
-            elif topic == "📅 상장 일정/연기 소식":
-                rep_kor = f"{stock['name']}은(는) {stock['date']}에 상장 예정이며, 현재까지 지연 공시는 없습니다."
-            elif topic == "🥊 경쟁사 비교/분석":
-                rep_kor = f"{stock['name']}은(는) 동종 업계 대비 높은 성장성을 보이나, 상장 초기 변동성 주의가 필요합니다."
-            else:
-                rep_kor = f"주요 주간사는 대형 IB들이 참여하고 있어 시장의 신뢰도가 높은 편입니다."
-
+            rep_kor = {
+                "💰 공모가 범위/확정 소식": f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 기관 수요예측 결과에 따라 변동 가능성이 있습니다.",
+                "📅 상장 일정/연기 소식": f"{stock['name']}은(는) {stock['date']} 상장이 유력하며, 현재 별다른 지연 이슈는 보고되지 않았습니다.",
+                "🥊 경쟁사 비교/분석": f"{stock['name']}은(는) 동종 섹터 내에서 기술적 우위를 점하고 있으나, 마케팅 비용 증가가 리스크로 꼽힙니다.",
+                "🏦 주요 주간사 (Underwriters)": f"골드만삭스, 모건스탠리 등 메이저 IB들이 주간사로 참여하여 공모 흥행 기대감이 높습니다."
+            }
+            
             st.markdown(f"""
                 <div style='background-color: #f0f4ff; padding: 20px; border-radius: 15px; border-left: 5px solid #6e8efb; margin-top: 10px;'>
                     <h5 style='color:#333; margin-bottom:10px;'>🤖 AI 실시간 요약: {topic}</h5>
-                    <p style='color:#444;'>{rep_kor}</p>
+                    <p style='color:#444;'>{rep_kor.get(topic)}</p>
                 </div>
             """, unsafe_allow_html=True)
 
             st.write("---")
             st.markdown(f"##### 🔥 {stock['name']} 관련 실시간 인기 뉴스 Top 5")
-            news_topics = [
-                {"title": f"{stock['name']} IPO: 주요 투자 위험 요소 분석", "query": f"{stock['name']}+IPO+analysis", "tag": "분석"},
-                {"title": f"나스닥 상장 앞둔 {stock['symbol']}, 월가 평가는?", "query": f"{stock['symbol']}+stock+rating", "tag": "시장"},
-                {"title": f"{stock['name']} 상장 후 주가 전망 리포트", "query": f"{stock['name']}+stock+price+forecast", "tag": "전망"},
-                {"title": f"{stock['name']}의 글로벌 확장 전략", "query": f"{stock['name']}+global+strategy", "tag": "전략"},
-                {"title": f"{stock['symbol']} 보호예수 및 유통 물량 점검", "query": f"{stock['symbol']}+lock-up", "tag": "수급"}
-            ]
-            for i, news in enumerate(news_topics):
-                news_url = f"https://www.google.com/search?q={news['query']}&tbm=nws"
+
+            # 3. [핵심 수정] 실제 RSS 뉴스 가져오기 + TOP 5 태그 매칭
+            rss_news = get_real_news_rss(stock['name'])
+            
+            # 고정 태그 리스트 (사용자가 원하는 순서대로)
+            tags = ["분석", "시장", "전망", "전략", "수급"]
+            
+            # 뉴스 데이터가 5개보다 적을 경우를 대비한 기본값 처리
+            for i in range(5):
+                tag = tags[i] # 순서대로 태그 배정
+                
+                # 실제 뉴스가 있으면 그 내용을 사용
+                if rss_news and i < len(rss_news):
+                    title = rss_news[i]['title']
+                    link = rss_news[i]['link']
+                    date = rss_news[i]['date']
+                # 실제 뉴스가 부족하면 구글 검색 링크로 대체 (에러 방지)
+                else:
+                    title = f"{stock['name']} 관련 최신 뉴스 더보기"
+                    link = f"https://www.google.com/search?q={stock['name']}+stock+news&tbm=nws"
+                    date = "Google Search"
+
+                # 디자인: TOP 순위와 태그는 위에, 실제 기사 제목은 아래에 배치
                 st.markdown(f"""
-                    <a href="{news_url}" target="_blank" style="text-decoration: none; color: inherit;">
-                        <div style="background-color: #ffffff; padding: 12px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #eef2ff;">
-                            <span style="font-size: 13px; font-weight: bold; color: #6e8efb;">TOP {i+1} · {news['tag']}</span>
-                            <div style="margin-top: 5px; font-size: 15px; font-weight: 600; color: #333;">{news['title']}</div>
+                    <a href="{link}" target="_blank" style="text-decoration: none; color: inherit;">
+                        <div style="background-color: #ffffff; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #eef2ff; box-shadow: 0 2px 5px rgba(0,0,0,0.03); transition: 0.2s;">
+                            <div style="margin-bottom: 8px; display: flex; justify-content: space-between;">
+                                <div>
+                                    <span style="font-size: 13px; font-weight: 900; color: #6e8efb;">TOP {i+1}</span>
+                                    <span style="font-size: 13px; color: #ddd; margin: 0 5px;">|</span>
+                                    <span style="font-size: 13px; font-weight: bold; color: #555;">{tag}</span>
+                                </div>
+                                <span style="font-size: 11px; color: #aaa;">{date}</span>
+                            </div>
+                            <div style="font-size: 16px; font-weight: 600; color: #333; line-height: 1.4;">
+                                {title}
+                            </div>
                         </div>
                     </a>
                 """, unsafe_allow_html=True)
@@ -686,6 +702,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
