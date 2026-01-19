@@ -579,18 +579,20 @@ elif st.session_state.page == 'detail':
                 </div>
             """, unsafe_allow_html=True)
 
-            # 2. 회색: 상세 분석 박스 (Detail, 5~10줄 분량)
+            # 2. 회색: 상세 분석 박스 (HTML 구조 수정)
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            
             st.markdown(f"""
                 <div style='background-color: #fafafa; padding: 20px; border-radius: 10px; border: 1px solid #eee; margin-top: 10px; margin-bottom: 20px;'>
-                    <h5 style='margin-top:0; color:#333;'>📝 AI 기업 분석 요약</h5>
-                    <div style='font-size:14px; color:#444; line-height:1.6;'>
+                    <h5 style='margin-top:0; margin-bottom:15px; color:#333;'>📝 AI 기업 분석 요약</h5>
+                    <div style='font-size:14px; color:#444; line-height:1.6; margin-bottom:15px;'>
                         {detail_summary}
                     </div>
-                    <div style='text-align:right; margin-top:10px;'>
-                        <small style='color:#999;'>Last updated: {datetime.now().strftime('%Y-%m-%d')}</small>
+                    <div style='text-align:right; border-top: 1px solid #eee; padding-top: 10px;'>
+                        <small style='color:#999;'>Last updated: {today_str}</small>
                     </div>
                 </div>
-            """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True))
 
             # 3. 하단: 원문 링크 or 데이터
             if curr_meta['is_doc']:
@@ -749,6 +751,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
