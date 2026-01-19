@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 import os
+import xml.etree.ElementTree as ET  # <--- 여기에 추가!
 
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
@@ -702,6 +703,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
