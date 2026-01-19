@@ -230,7 +230,7 @@ elif st.session_state.page == 'stats':
     st.write("<br>", unsafe_allow_html=True)
     img_baby = "new_unicorn.png"
     img_adult = "hot_unicorn.png"
-    img_child = "my_unicorn.pngg"
+    img_child = "my_unicorn.png"
     
     c1, c2, c3 = st.columns(3)
     
@@ -726,6 +726,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
