@@ -432,7 +432,7 @@ elif st.session_state.page == 'detail':
         st.markdown(f"<h1 style='display: flex; align-items: center; margin-bottom: 0;'>{status_emoji} {stock['name']} {price_html}</h1>", unsafe_allow_html=True)
         st.write("---")
         
-        # 4. 탭 메뉴 구성
+        # 4. 탭 메뉴 구성 (여기서 tab3를 정의해야 NameError가 발생하지 않습니다)
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
         
         # --- [Tab 0: 실시간 뉴스] ---
@@ -452,7 +452,6 @@ elif st.session_state.page == 'detail':
             if row2_col2.button("🏦 주요 주간사 (Underwriters)", use_container_width=True, key="btn_p4"):
                 st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
 
-            # AI 요약 브리핑 (원형 코드 텍스트 100% 복구)
             topic = st.session_state.news_topic
             if topic == "💰 공모가 범위/확정 소식":
                 rep_kor = f"현재 {stock['name']}의 공모가 범위는 {stock.get('price', 'TBD')}입니다. 기관 수요예측에서 긍정적인 평가가 이어지고 있습니다."
@@ -551,7 +550,6 @@ elif st.session_state.page == 'detail':
 
         # --- [Tab 2: AI 가치 평가] ---
         with tab2:
-            # 원형 코드의 가치평가 로직
             growth_rate, profit_margin = 0.452, -0.125
             growth_score = min(100, int(growth_rate * 150 + 20))
             profit_score = max(10, min(100, int((profit_margin + 0.3) * 200)))
@@ -615,79 +613,80 @@ elif st.session_state.page == 'detail':
                 st.latex(r"Score_{total} = (G \times 0.4) + (P \times 0.3) + (I \times 0.3)")
 
         # --- [Tab 3: 최종 투자 결정] ---
-with tab3:
-    sid = stock['symbol']
-    
-    # 데이터 초기화
-    if sid not in st.session_state.vote_data: 
-        st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
-    if sid not in st.session_state.comment_data: 
-        st.session_state.comment_data[sid] = []
-    if 'user_votes' not in st.session_state: 
-        st.session_state.user_votes = {} # 유저의 투표 기록 저장소
+        with tab3:
+            sid = stock['symbol']
+            
+            # 데이터 초기화
+            if sid not in st.session_state.vote_data: 
+                st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
+            if sid not in st.session_state.comment_data: 
+                st.session_state.comment_data[sid] = []
+            if 'user_votes' not in st.session_state: 
+                st.session_state.user_votes = {} # 유저의 투표 기록 저장소
 
-    st.markdown("### 🗳️ 투자 매력도 투표")
-    
-    # 투표 로직 (회원 전용)
-    if st.session_state.auth_status == 'user':
-        if sid not in st.session_state.user_votes:
-            v1, v2 = st.columns(2)
-            if v1.button("🦄 Unicorn", use_container_width=True, key=f"vu_{sid}"): 
-                st.session_state.vote_data[sid]['u'] += 1
-                st.session_state.user_votes[sid] = 'u' # 투표 기록
-                st.rerun()
-            if v2.button("💸 Fallen Angel", use_container_width=True, key=f"vf_{sid}"): 
-                st.session_state.vote_data[sid]['f'] += 1
-                st.session_state.user_votes[sid] = 'f' # 투표 기록
-                st.rerun()
-        else:
-            v_type = "유니콘" if st.session_state.user_votes[sid] == 'u' else "폴른엔젤"
-            st.info(f"✅ 이미 '{v_type}'에 투표하셨습니다. (종목당 1회 참여 가능)")
-    else:
-        st.warning("🔒 투표는 회원만 참여 가능합니다. [시작하기]에서 가입해주세요.")
+            st.markdown("### 🗳️ 투자 매력도 투표")
+            
+            # 투표 로직 (회원 전용 + 중복 방지)
+            if st.session_state.auth_status == 'user':
+                if sid not in st.session_state.user_votes:
+                    v1, v2 = st.columns(2)
+                    if v1.button("🦄 Unicorn", use_container_width=True, key=f"vu_{sid}"): 
+                        st.session_state.vote_data[sid]['u'] += 1
+                        st.session_state.user_votes[sid] = 'u' # 투표 기록 저장
+                        st.rerun()
+                    if v2.button("💸 Fallen Angel", use_container_width=True, key=f"vf_{sid}"): 
+                        st.session_state.vote_data[sid]['f'] += 1
+                        st.session_state.user_votes[sid] = 'f' # 투표 기록 저장
+                        st.rerun()
+                else:
+                    v_type = "유니콘" if st.session_state.user_votes[sid] == 'u' else "폴른엔젤"
+                    st.info(f"✅ 이미 '{v_type}'에 투표하셨습니다. (종목당 1회 참여 가능)")
+            else:
+                st.warning("🔒 투표는 회원만 참여 가능합니다. [시작하기]에서 가입해주세요.")
 
-    # 투표 결과 표시 (공통)
-    uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
-    total_votes = uv + fv
-    if total_votes > 0:
-        ratio = uv / total_votes
-        st.progress(ratio)
-        st.write(f"유니콘 지수: {int(ratio*100)}% ({total_votes}명 참여)")
-    
-    st.write("---")
+            # 투표 결과 표시 (공통)
+            uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
+            total_votes = uv + fv
+            if total_votes > 0:
+                ratio = uv / total_votes
+                st.progress(ratio)
+                st.write(f"유니콘 지수: {int(ratio*100)}% ({total_votes}명 참여)")
+            
+            st.write("---")
 
-    st.markdown("### 💬 커뮤니티 의견")
-    
-    # 의견 등록 로직 (회원 전용)
-    if st.session_state.auth_status == 'user':
-        nc = st.text_input("의견 등록", key=f"ci_{sid}", placeholder="회원님, 의견을 남겨주세요.")
-        if st.button("등록", key=f"cb_{sid}") and nc:
-            st.session_state.comment_data[sid].insert(0, {"t": nc, "d": datetime.now().strftime("%H:%M")})
-            st.rerun()
-    else:
-        st.info("🔒 의견 등록은 회원만 가능합니다.")
+            st.markdown("### 💬 커뮤니티 의견")
+            
+            # 의견 등록 로직 (회원 전용)
+            if st.session_state.auth_status == 'user':
+                nc = st.text_input("의견 등록", key=f"ci_{sid}", placeholder="회원님, 의견을 남겨주세요.")
+                if st.button("등록", key=f"cb_{sid}") and nc:
+                    st.session_state.comment_data[sid].insert(0, {"t": nc, "d": datetime.now().strftime("%H:%M")})
+                    st.rerun()
+            else:
+                st.info("🔒 의견 등록은 회원만 가능합니다.")
 
-    # 댓글 목록 표시
-    for c in st.session_state.comment_data[sid][:3]:
-        st.markdown(f"""
-            <div style='background-color:#f9f9f9; padding:10px; border-radius:10px; margin-bottom:5px; border-left: 3px solid #6e8efb;'>
-                <small style='color:#888;'>{c['d']}</small><br>{c['t']}
-            </div>
-        """, unsafe_allow_html=True)
+            # 댓글 목록 표시
+            for c in st.session_state.comment_data[sid][:3]:
+                st.markdown(f"""
+                    <div style='background-color:#f9f9f9; padding:10px; border-radius:10px; margin-bottom:5px; border-left: 3px solid #6e8efb;'>
+                        <small style='color:#888;'>{c['d']}</small><br>{c['t']}
+                    </div>
+                """, unsafe_allow_html=True)
 
-    st.write("---")
-    
-    # 보관함 로직 (회원/비회원 구분 없이 또는 선택적으로 운영 가능)
-    if sid not in st.session_state.watchlist:
-        if st.button("⭐ 마이 리서치 보관함에 담기", use_container_width=True, type="primary"):
-            st.session_state.watchlist.append(sid)
-            st.balloons()
-            st.rerun()
-    else:
-        st.success(f"✅ 보관함에 저장된 종목입니다.")
-        if st.button("❌ 관심 종목 해제"): 
-            st.session_state.watchlist.remove(sid)
-            st.rerun()
+            st.write("---")
+            
+            # 보관함 로직
+            if sid not in st.session_state.watchlist:
+                if st.button("⭐ 마이 리서치 보관함에 담기", use_container_width=True, type="primary"):
+                    st.session_state.watchlist.append(sid)
+                    st.balloons()
+                    st.rerun()
+            else:
+                st.success(f"✅ 보관함에 저장된 종목입니다.")
+                if st.button("❌ 관심 종목 해제"): 
+                    st.session_state.watchlist.remove(sid)
+                    st.rerun()
+
 
 
 
