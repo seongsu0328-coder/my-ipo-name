@@ -55,7 +55,7 @@ st.markdown("""
 # --- 데이터 로직 ---
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 
-@st.cache_data(ttl=86400)
+@st.cache_data(ttl=43200)
 def get_daily_quote():
     """로그인 화면의 오늘의 명언을 가져옵니다."""
     try:
@@ -648,6 +648,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
