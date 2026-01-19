@@ -500,7 +500,7 @@ elif st.session_state.page == 'detail':
                 else:
                     st.markdown(f"<div style='padding:10px; color:#999; border:1px dashed #ddd; border-radius:10px; text-align:center;'>관련 뉴스가 부족하여 검색 링크를 제공합니다.</div>", unsafe_allow_html=True)
 
-        # --- [Tab 1: 핵심 정보 (수정 완료: 괄호 에러 및 HTML 태그 노출 해결)] ---
+        # --- [Tab 1: 핵심 정보 (HTML 렌더링 오류 수정)] ---
         with tab1:
             # 0. 기업 기본 프로필
             if profile:
@@ -508,7 +508,7 @@ elif st.session_state.page == 'detail':
             
             st.write("---")
 
-            # 1. 버튼 그리드 (2행 3열)
+            # 1. 버튼 그리드
             if 'core_topic' not in st.session_state: st.session_state.core_topic = "financial"
 
             r1_c1, r1_c2, r1_c3 = st.columns(3)
@@ -522,12 +522,12 @@ elif st.session_state.page == 'detail':
             if r2_c2.button("✅ 424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
             if r2_c3.button("🌍 F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
 
-            # 2. 콘텐츠 로직
+            # 2. 콘텐츠 설정
             topic = st.session_state.core_topic
             industry = profile.get('finnhubIndustry', 'Technology') if profile else 'Technology'
             s_name = stock['name']
 
-            # (A) 문서 정의 (Brief)
+            # (A) 문서 정의 데이터
             def_meta = {
                 "financial": {"t": "실시간 재무 (TTM)", "d": "최근 12개월 합산 재무 지표로, 기업의 현재 기초 체력을 나타냅니다.", "is_doc": False},
                 "S-1": {"t": "증권신고서 (S-1)", "d": "상장을 위해 최초로 제출하는 서류입니다. 사업 모델과 리스크가 상세히 적혀있습니다.", "is_doc": True},
@@ -538,56 +538,36 @@ elif st.session_state.page == 'detail':
             }
             curr_meta = def_meta[topic]
 
-            # (B) 상세 AI 요약 텍스트 생성
+            # (B) 상세 AI 요약 텍스트
             detail_summary = ""
             if topic == "financial":
-                detail_summary = f"""
-                <b>1. 성장성 분석:</b> {s_name}의 최근 재무 데이터를 분석한 결과, {industry} 섹터 평균 대비 유의미한 변동성을 보이고 있습니다. 특히 매출 성장률 추이는 상장 후 기업 가치 평가에 핵심적인 요소로 작용할 것입니다.<br>
-                <b>2. 수익성 지표:</b> 현재 영업 이익률과 순이익률 구조를 볼 때, 초기 투자 비용이 높은 단계인지 혹은 이익 실현 구간에 진입했는지 확인이 필요합니다. TTM 기준 마진율은 기업의 비용 통제 능력을 보여줍니다.<br>
-                <b>3. 재무 건전성:</b> 부채 비율(D/E Ratio)은 금리 인상기와 맞물려 투자 리스크를 판단하는 중요 척도입니다. 유동성 비율을 함께 점검하여 단기 자금 조달 능력을 평가해야 합니다.
-                """
+                detail_summary = f"<b>1. 성장성 분석:</b> {s_name}의 최근 재무 데이터를 분석한 결과, {industry} 섹터 평균 대비 유의미한 변동성을 보이고 있습니다.<br><br><b>2. 수익성 지표:</b> 현재 영업 이익률과 순이익률 구조를 볼 때, 초기 투자 비용이 높은 단계인지 확인이 필요합니다.<br><br><b>3. 재무 건전성:</b> 부채 비율(D/E Ratio)은 금리 인상기와 맞물려 투자 리스크를 판단하는 중요 척도입니다."
             elif topic == "S-1":
-                detail_summary = f"""
-                <b>1. 비즈니스 개요:</b> {s_name}은(는) {industry} 시장 내에서 독자적인 기술력 또는 플랫폼을 기반으로 시장 점유율 확대를 목표로 하고 있습니다. S-1 서류에 명시된 핵심 경쟁 우위(Moat)를 중점적으로 확인해야 합니다.<br>
-                <b>2. 자금 사용 목적:</b> 이번 공모를 통해 조달된 자금은 주로 R&D 투자, 운영 자금 확보, 그리고 기존 부채 상환에 사용될 예정입니다. 공격적인 확장을 위한 자금인지, 재무 구조 개선용인지 구분이 필요합니다.<br>
-                <b>3. 주요 리스크:</b> 해당 산업군의 경쟁 심화, 규제 변화, 그리고 거시 경제적 불확실성이 주요 위험 요인(Risk Factors)으로 기재되어 있습니다. 특히 초기 투자자들의 보호예수(Lock-up) 기간을 반드시 체크하세요.
-                """
+                detail_summary = f"<b>1. 비즈니스 개요:</b> {s_name}은(는) {industry} 시장 내에서 독자적인 기술력을 기반으로 시장 점유율 확대를 목표로 하고 있습니다. S-1 서류에 명시된 핵심 경쟁 우위(Moat)를 확인하세요.<br><br><b>2. 자금 사용 목적:</b> 조달된 자금은 주로 R&D 투자, 운영 자금 확보, 그리고 기존 부채 상환에 사용될 예정입니다.<br><br><b>3. 주요 리스크:</b> 해당 산업군의 경쟁 심화 및 규제 변화가 주요 위험 요인(Risk Factors)입니다."
             elif topic == "S-1/A":
-                detail_summary = f"""
-                <b>1. 밸류에이션 업데이트:</b> 정정 신고서를 통해 구체적인 공모 희망 가격 밴드가 제시되었습니다. 이는 주관사(Underwriters)가 기관 투자자들의 초기 수요를 탭핑(Tapping)한 결과를 반영한 수치입니다.<br>
-                <b>2. 공모 규모 변동:</b> 기존 S-1 대비 발행 주식 수나 공모 금액에 변경이 있는지 확인해야 합니다. 밴드 상단을 초과하여 결정될 경우 강력한 수요를, 하단을 하회할 경우 수요 부진을 의미합니다.<br>
-                <b>3. 시장 반응:</b> 이번 수정 사항은 {s_name}에 대한 기관들의 실제 평가 분위기를 감지할 수 있는 가장 정확한 데이터입니다.
-                """
+                detail_summary = f"<b>1. 밸류에이션 업데이트:</b> 정정 신고서를 통해 구체적인 공모 희망 가격 밴드가 제시되었습니다.<br><br><b>2. 공모 규모 변동:</b> 기존 S-1 대비 발행 주식 수나 공모 금액에 변경이 있는지 확인해야 합니다.<br><br><b>3. 시장 반응:</b> 이번 수정 사항은 {s_name}에 대한 기관들의 실제 평가 분위기를 감지할 수 있는 지표입니다."
             else:
-                detail_summary = f"""
-                <b>1. 핵심 포인트:</b> {curr_meta['t']} 문서를 통해 {s_name}의 현재 상장 프로세스가 막바지 단계임을 알 수 있습니다. 이 문서는 투자자들에게 최종적인 의사 결정을 위한 구체적인 데이터를 제공합니다.<br>
-                <b>2. 투자 전략:</b> {industry} 섹터의 최근 IPO 트렌드와 비교하여, 이 기업이 제시하는 비전이 얼마나 설득력 있는지 검토해 보세요. 로드쇼 자료나 최종 공모가 확정 내역은 상장 직후 주가 변동성을 예측하는 선행 지표가 됩니다.<br>
-                <b>3. 체크리스트:</b> 문서 내 'Management Discussion' 섹션을 통해 경영진이 바라보는 향후 3년 간의 성장 로드맵을 면밀히 분석하는 것을 권장합니다.
-                """
+                detail_summary = f"<b>1. 핵심 포인트:</b> {curr_meta['t']} 문서를 통해 {s_name}의 상장 프로세스가 막바지 단계임을 알 수 있습니다.<br><br><b>2. 투자 전략:</b> {industry} 섹터의 최근 IPO 트렌드와 비교하여, 이 기업의 비전을 검토해 보세요.<br><br><b>3. 체크리스트:</b> 경영진이 바라보는 향후 3년 간의 성장 로드맵을 면밀히 분석하는 것을 권장합니다."
 
-            # --- UI 렌더링 ---
+            # --- UI 렌더링 (안전한 HTML 방식 적용) ---
             
             # 1. 파란색: 정의 박스
-            st.markdown(f"""
-                <div style='background-color: #f0f4ff; padding: 15px; border-radius: 10px; border-left: 5px solid #6e8efb; margin-top: 15px;'>
-                    <b style='color:#333;'>💡 {curr_meta['t']}란?</b>
-                    <span style='color:#555; font-size:14px; margin-left:5px;'>{curr_meta['d']}</span>
-                </div>
-            """, unsafe_allow_html=True)
+            st.info(f"💡 **{curr_meta['t']}란?**\n\n{curr_meta['d']}")
 
-            # 2. 회색: 상세 분석 박스 (HTML 구조 수정 및 괄호 에러 해결)
+            # 2. 회색: 상세 분석 박스 (HTML 변수 분리)
             today_str = datetime.now().strftime('%Y-%m-%d')
-            st.markdown(f"""
-                <div style='background-color: #fafafa; padding: 20px; border-radius: 10px; border: 1px solid #eee; margin-top: 10px; margin-bottom: 20px;'>
-                    <h5 style='margin-top:0; margin-bottom:15px; color:#333;'>📝 AI 기업 분석 요약</h5>
-                    <div style='font-size:14px; color:#444; line-height:1.6; margin-bottom:15px;'>
-                        {detail_summary}
-                    </div>
-                    <div style='text-align:right; border-top: 1px solid #eee; padding-top: 10px;'>
-                        <small style='color:#999;'>Last updated: {today_str}</small>
-                    </div>
+            html_content = f"""
+            <div style="background-color: #fafafa; padding: 20px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 20px;">
+                <h5 style="margin-top:0; margin-bottom:15px; color:#333;">📝 AI 기업 분석 요약</h5>
+                <div style="font-size:14px; color:#444; line-height:1.6; margin-bottom:15px;">
+                    {detail_summary}
                 </div>
-            """, unsafe_allow_html=True)
+                <div style="text-align:right; border-top: 1px solid #eee; padding-top: 10px;">
+                    <small style="color:#999;">Last updated: {today_str}</small>
+                </div>
+            </div>
+            """
+            st.markdown(html_content, unsafe_allow_html=True)
 
             # 3. 하단: 원문 링크 or 데이터
             if curr_meta['is_doc']:
@@ -746,6 +726,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
