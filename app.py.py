@@ -615,38 +615,79 @@ elif st.session_state.page == 'detail':
                 st.latex(r"Score_{total} = (G \times 0.4) + (P \times 0.3) + (I \times 0.3)")
 
         # --- [Tab 3: 최종 투자 결정] ---
-        with tab3:
-            sid = stock['symbol']
-            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
-            if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
-            
-            st.write("**1. 투자 매력도 투표**")
+with tab3:
+    sid = stock['symbol']
+    
+    # 데이터 초기화
+    if sid not in st.session_state.vote_data: 
+        st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
+    if sid not in st.session_state.comment_data: 
+        st.session_state.comment_data[sid] = []
+    if 'user_votes' not in st.session_state: 
+        st.session_state.user_votes = {} # 유저의 투표 기록 저장소
+
+    st.markdown("### 🗳️ 투자 매력도 투표")
+    
+    # 투표 로직 (회원 전용)
+    if st.session_state.auth_status == 'user':
+        if sid not in st.session_state.user_votes:
             v1, v2 = st.columns(2)
             if v1.button("🦄 Unicorn", use_container_width=True, key=f"vu_{sid}"): 
-                st.session_state.vote_data[sid]['u'] += 1; st.rerun()
-            if v2.button("💸 Fallen Angel", use_container_width=True, key=f"vf_{sid}"): 
-                st.session_state.vote_data[sid]['f'] += 1; st.rerun()
-            
-            uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
-            st.progress(uv/(uv+fv))
-            st.write(f"유니콘 지수: {int(uv/(uv+fv)*100)}% ({uv+fv}명 참여)")
-
-            st.write("**2. 커뮤니티 의견**")
-            nc = st.text_input("의견 등록", key=f"ci_{sid}")
-            if st.button("등록", key=f"cb_{sid}") and nc:
-                st.session_state.comment_data[sid].insert(0, {"t": nc, "d": "방금 전"})
+                st.session_state.vote_data[sid]['u'] += 1
+                st.session_state.user_votes[sid] = 'u' # 투표 기록
                 st.rerun()
-            for c in st.session_state.comment_data[sid][:3]:
-                # CSS 클래스 'comment-box'가 정의되어 있다고 가정하거나 스타일 직접 적용
-                st.markdown(f"<div style='background-color:#f9f9f9; padding:10px; border-radius:10px; margin-bottom:5px;'><small>{c['d']}</small><br>{c['t']}</div>", unsafe_allow_html=True)
+            if v2.button("💸 Fallen Angel", use_container_width=True, key=f"vf_{sid}"): 
+                st.session_state.vote_data[sid]['f'] += 1
+                st.session_state.user_votes[sid] = 'f' # 투표 기록
+                st.rerun()
+        else:
+            v_type = "유니콘" if st.session_state.user_votes[sid] == 'u' else "폴른엔젤"
+            st.info(f"✅ 이미 '{v_type}'에 투표하셨습니다. (종목당 1회 참여 가능)")
+    else:
+        st.warning("🔒 투표는 회원만 참여 가능합니다. [시작하기]에서 가입해주세요.")
 
-            st.write("---")
-            if sid not in st.session_state.watchlist:
-                if st.button("⭐ 마이 리서치 보관함에 담기", use_container_width=True, type="primary"):
-                    st.session_state.watchlist.append(sid); st.balloons(); st.rerun()
-            else:
-                st.success(f"✅ 보관함에 저장된 종목입니다.")
-                if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+    # 투표 결과 표시 (공통)
+    uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
+    total_votes = uv + fv
+    if total_votes > 0:
+        ratio = uv / total_votes
+        st.progress(ratio)
+        st.write(f"유니콘 지수: {int(ratio*100)}% ({total_votes}명 참여)")
+    
+    st.write("---")
+
+    st.markdown("### 💬 커뮤니티 의견")
+    
+    # 의견 등록 로직 (회원 전용)
+    if st.session_state.auth_status == 'user':
+        nc = st.text_input("의견 등록", key=f"ci_{sid}", placeholder="회원님, 의견을 남겨주세요.")
+        if st.button("등록", key=f"cb_{sid}") and nc:
+            st.session_state.comment_data[sid].insert(0, {"t": nc, "d": datetime.now().strftime("%H:%M")})
+            st.rerun()
+    else:
+        st.info("🔒 의견 등록은 회원만 가능합니다.")
+
+    # 댓글 목록 표시
+    for c in st.session_state.comment_data[sid][:3]:
+        st.markdown(f"""
+            <div style='background-color:#f9f9f9; padding:10px; border-radius:10px; margin-bottom:5px; border-left: 3px solid #6e8efb;'>
+                <small style='color:#888;'>{c['d']}</small><br>{c['t']}
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.write("---")
+    
+    # 보관함 로직 (회원/비회원 구분 없이 또는 선택적으로 운영 가능)
+    if sid not in st.session_state.watchlist:
+        if st.button("⭐ 마이 리서치 보관함에 담기", use_container_width=True, type="primary"):
+            st.session_state.watchlist.append(sid)
+            st.balloons()
+            st.rerun()
+    else:
+        st.success(f"✅ 보관함에 저장된 종목입니다.")
+        if st.button("❌ 관심 종목 해제"): 
+            st.session_state.watchlist.remove(sid)
+            st.rerun()
 
 
 
