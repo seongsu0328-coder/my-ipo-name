@@ -233,7 +233,7 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
             
-        st.markdown("<div class='stat-box'><small>📈 수익률 Top5 & 회원관심 Top5</small></div>", unsafe_allow_html=True)
+        #
         st.markdown("</div>", unsafe_allow_html=True)
 
     # --- [3. MY ] ---
@@ -253,7 +253,7 @@ elif st.session_state.page == 'stats':
             else:
                 st.warning("아직 보관함에 담긴 기업이 없습니다.")
                 
-        st.markdown("<div class='stat-box'><small>나만의 유니콘 후보</small></div>", unsafe_allow_html=True)
+        #
         st.markdown("</div>", unsafe_allow_html=True)
 
 # 4. 캘린더 (상장 기간별 이모지 구분 버전)
@@ -648,6 +648,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
