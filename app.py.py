@@ -206,8 +206,7 @@ elif st.session_state.page == 'stats':
     # --- [1. New 유니콘] ---
     with c1:
         st.markdown("<div class='grid-card'><h3>New 유니콘</h3>", unsafe_allow_html=True)
-        if os.path.exists(img_baby):
-            st.image(img_baby, caption="상장을 앞둔 유아기 유니콘 🌱", use_container_width=True)
+        if os.path.exists(img_baby)
         else: 
             st.warning("baby_unicorn.png.png 파일을 찾을 수 없습니다.")
         
@@ -648,6 +647,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
