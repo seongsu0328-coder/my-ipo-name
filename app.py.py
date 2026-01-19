@@ -583,17 +583,25 @@ elif st.session_state.page == 'detail':
 
             # 3. 하단: 원문 링크 or 데이터
             if curr_meta['is_doc']:
-                # [수정된 부분] SEC Classic Browse URL 생성 (기업 전용 문서 리스트)
                 import urllib.parse
-                safe_topic = urllib.parse.quote(topic) # S-1/A 같은 특수문자 처리
                 
-                # CIK=심볼(티커), type=문서종류
-                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={stock['symbol']}&type={safe_topic}&dateb=&owner=include&count=40"
+                # [수정 1] 검색 정확도를 높이기 위한 기업명 정제 (Inc, Corp 등 제거)
+                # IPO 기업은 티커보다 '이름'으로 검색해야 문서가 잘 나옵니다.
+                raw_name = stock['name']
+                clean_name = raw_name.replace(" Inc.", "").replace(" Corp.", "").replace(" Ltd.", "").replace(" PLC", "").replace(",", "").strip()
+                
+                # URL 인코딩
+                enc_name = urllib.parse.quote(clean_name)
+                enc_topic = urllib.parse.quote(topic)
+
+                # [수정 2] CIK={symbol} 대신 company={name} 파라미터 사용
+                # action=getcompany: 기업명으로 검색하여 문서 리스트를 가져옵니다.
+                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company={enc_name}&type={enc_topic}&owner=include&count=40"
 
                 st.markdown(f"""
                     <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                         <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; transition:0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>
-                            🏛️ {stock['symbol']} - {topic} 원문 리스트 보기 ↗
+                            🏛️ {stock['name']} - {topic} 원문 리스트 보기 ↗
                         </button>
                     </a>
                 """, unsafe_allow_html=True)
@@ -744,6 +752,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
