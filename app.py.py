@@ -462,10 +462,10 @@ elif st.session_state.page == 'detail':
             
             # 토픽 버튼
             c1, c2, c3, c4 = st.columns(4)
-            if c1.button("💰 가격", use_container_width=True): st.session_state.news_topic = "💰 공모가 범위/확정 소식"
-            if c2.button("📅 일정", use_container_width=True): st.session_state.news_topic = "📅 상장 일정/연기 소식"
-            if c3.button("🥊 경쟁", use_container_width=True): st.session_state.news_topic = "🥊 경쟁사 비교/분석"
-            if c4.button("🏦 주간사", use_container_width=True): st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
+            if c1.button("💰 공모가격", use_container_width=True): st.session_state.news_topic = "💰 공모가 범위/확정 소식"
+            if c2.button("📅 상장일정", use_container_width=True): st.session_state.news_topic = "📅 상장 일정/연기 소식"
+            if c3.button("🥊 경쟁우위", use_container_width=True): st.session_state.news_topic = "🥊 경쟁사 비교/분석"
+            if c4.button("🏦 상장 주관사", use_container_width=True): st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
 
             topic = st.session_state.news_topic
             rep_kor = {
@@ -654,6 +654,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
