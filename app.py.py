@@ -203,9 +203,9 @@ elif st.session_state.page == 'stats':
     # 3개의 컬럼으로 구성 (New, Hot, My)
     c1, c2, c3 = st.columns(3)
     
-    # --- [1. New ] ---
+    # --- [1. NEW ] ---
     with c1:
-        st.markdown("<div class='grid-card'><h3>New </h3>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>NEW </h3>", unsafe_allow_html=True)
         if os.path.exists(img_baby):
             st.image(img_baby, use_container_width=True)
         else: 
@@ -219,9 +219,9 @@ elif st.session_state.page == 'stats':
         st.markdown("<div class='stat-box'><small>📊 18개월 이하 유니콘 </small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- [2. Hot 유니콘 (추가)] ---
+    # --- [2. HOT 유니콘 (추가)] ---
     with c2:
-        st.markdown("<div class='grid-card'><h3>Hot </h3>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>HOT </h3>", unsafe_allow_html=True)
         if os.path.exists(img_adult):
             st.image(img_adult, use_container_width=True)
         else: 
@@ -236,9 +236,9 @@ elif st.session_state.page == 'stats':
         st.markdown("<div class='stat-box'><small>📈 수익률 Top5 & 회원관심 Top5</small></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- [3. My ] ---
+    # --- [3. MY ] ---
     with c3:
-        st.markdown("<div class='grid-card'><h3>My </h3>", unsafe_allow_html=True)
+        st.markdown("<div class='grid-card'><h3>MY </h3>", unsafe_allow_html=True)
         if os.path.exists(img_child):
             st.image(img_child, use_container_width=True)
         else: 
@@ -648,6 +648,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
