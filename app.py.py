@@ -131,7 +131,7 @@ if st.session_state.page == 'intro':
                 </div>
             </div>
         """, unsafe_allow_html=True)
-        if st.button("탐험 시작하기", key="start_app", use_container_width=True):
+        if st.button("시작하기", key="start_app", use_container_width=True):
             st.session_state.page = 'login'; st.rerun()
 
 # 2. 로그인 화면 (하얀색 버튼 및 미니멀 버전)
@@ -648,6 +648,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
