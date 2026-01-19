@@ -500,24 +500,106 @@ elif st.session_state.page == 'detail':
                 else:
                     st.markdown(f"<div style='padding:10px; color:#999; border:1px dashed #ddd; border-radius:10px; text-align:center;'>관련 뉴스가 부족하여 검색 링크를 제공합니다.</div>", unsafe_allow_html=True)
 
-        # --- Tab 1: 핵심 정보 (기존 최신 기능 유지) ---
+        # --- [Tab 1: 핵심 정보 (디자인 통일: 버튼 그리드 + AI 요약)] ---
         with tab1:
+            # 0. 기업 기본 프로필 (상단 고정)
             if profile:
                 st.markdown(f"**🏢 {stock['name']}** | {profile.get('finnhubIndustry','-')} | {profile.get('currency','USD')}")
             
-            info_type = st.radio("자료 선택", ["📊 실시간 재무 (TTM)", "📄 S-1", "🌍 F-1", "🔄 S-1/A", "📢 FWP", "✅ 424B4"], horizontal=True)
+            st.write("---")
+
+            # 1. 디자인 일관성을 위한 버튼 그리드 (2행 3열)
+            # 세션 상태 초기화 (기본값: 실시간 재무)
+            if 'core_topic' not in st.session_state: st.session_state.core_topic = "financial"
+
+            # 버튼 레이아웃 구성
+            r1_c1, r1_c2, r1_c3 = st.columns(3)
+            r2_c1, r2_c2, r2_c3 = st.columns(3)
+
+            # 첫 번째 줄 버튼
+            if r1_c1.button("📊 실시간 재무 (TTM)", use_container_width=True): st.session_state.core_topic = "financial"
+            if r1_c2.button("📄 S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
+            if r1_c3.button("🔄 S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
             
-            if info_type == "📊 실시간 재무 (TTM)":
+            # 두 번째 줄 버튼
+            if r2_c1.button("📢 FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
+            if r2_c2.button("✅ 424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
+            if r2_c3.button("🌍 F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
+
+            # 2. 선택된 항목에 따른 콘텐츠 표시
+            topic = st.session_state.core_topic
+            
+            # (A) AI 요약 및 설명 데이터 정의
+            info_meta = {
+                "financial": {
+                    "title": "실시간 핵심 재무 (TTM)",
+                    "summary": "최근 12개월(Trailing Twelve Months) 합산 기준 재무 데이터입니다. 기업의 현재 성장세와 수익성을 가장 객관적으로 보여줍니다.",
+                    "is_doc": False
+                },
+                "S-1": {
+                    "title": "증권신고서 (S-1)",
+                    "summary": "기업이 상장을 위해 최초로 SEC에 제출하는 서류입니다. 비즈니스 모델, 리스크 요인, 자금 사용 목적이 가장 상세하게 기술되어 있습니다.",
+                    "is_doc": True
+                },
+                "S-1/A": {
+                    "title": "정정신고서 (S-1/A)",
+                    "summary": "최초 신고서 내용을 수정한 버전입니다. 통상적으로 상장 직전에 제출되는 버전에 '공모가 희망 밴드'와 '발행 주식 수'가 확정되어 나옵니다.",
+                    "is_doc": True
+                },
+                "FWP": {
+                    "title": "투자설명회 자료 (FWP)",
+                    "summary": "로드쇼(Roadshow)에서 기관 투자자들에게 보여주는 PPT 자료(IR Book)가 포함됩니다. 텍스트보다 그래프와 이미지가 많아 이해하기 쉽습니다.",
+                    "is_doc": True
+                },
+                "424B4": {
+                    "title": "최종 투자설명서 (Prospectus)",
+                    "summary": "공모 가격(Pricing)이 최종 확정된 후 발행되는 문서입니다. 회사가 실제로 조달한 자금 규모와 확정 공모가를 확인할 수 있습니다.",
+                    "is_doc": True
+                },
+                "F-1": {
+                    "title": "해외기업 신고서 (F-1)",
+                    "summary": "미국 이외의 국가 기업(예: 쿠팡, 알리바바 등)이 미국 증시에 상장할 때 S-1 대신 제출하는 서류입니다.",
+                    "is_doc": True
+                }
+            }
+            
+            selected_info = info_meta.get(topic, info_meta['financial'])
+
+            # (B) 1단계: 한글 요약 박스 (뉴스 탭과 디자인 통일)
+            st.markdown(f"""
+                <div style='background-color: #f0f4ff; padding: 20px; border-radius: 15px; border-left: 5px solid #6e8efb; margin-top: 15px; margin-bottom: 20px;'>
+                    <h5 style='color:#333; margin-bottom:5px;'>🤖 AI Insight: {selected_info['title']}</h5>
+                    <p style='color:#555; font-size:14px; margin:0;'>{selected_info['summary']}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            # (C) 2단계: 원문 보기 or 데이터 표시
+            if selected_info['is_doc']:
+                # 문서인 경우 -> SEC 원문 링크 버튼
+                sec_url = f"https://www.sec.gov/edgar/search/#/q={stock['symbol']}%2520{topic}&dateRange=all"
+                st.markdown(f"""
+                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
+                        <div style="background-color: white; border: 1px solid #ddd; border-radius: 10px; padding: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: 0.3s;">
+                            <h3 style="margin:0; color:#004e92;">🏛️ SEC 원문 문서 확인하기</h3>
+                            <p style="color:#888; font-size:12px; margin-top:10px;">클릭 시 미 증권거래위원회(EDGAR) 공식 사이트로 이동합니다.</p>
+                        </div>
+                    </a>
+                """, unsafe_allow_html=True)
+            else:
+                # 재무 데이터인 경우 -> 지표 대시보드
                 if fin_data:
                     c1, c2 = st.columns(2)
-                    c1.metric("매출 성장률", f"{fin_data['growth']}%" if fin_data['growth'] else "-")
-                    c2.metric("영업 이익률", f"{fin_data['op_margin']}%" if fin_data['op_margin'] else "-")
-                else: st.warning("재무 데이터 없음")
-            else:
-                code_map = {"📄 S-1": "S-1", "🌍 F-1": "F-1", "🔄 S-1/A": "S-1/A", "📢 FWP": "FWP", "✅ 424B4": "424B4"}
-                code = code_map.get(info_type.split(' ')[0] + ' ' + info_type.split(' ')[1], "S-1")
-                st.info(f"{code} 문서를 SEC EDGAR에서 검색합니다.")
-                st.markdown(f"[🏛️ SEC 원문 보기](https://www.sec.gov/edgar/search/#/q={stock['symbol']}%2520{code})")
+                    c3, c4 = st.columns(2)
+                    
+                    def fmt(v): return f"{v:.2f}%" if v is not None else "-"
+                    
+                    # 카드 형태의 디자인 적용
+                    with c1: st.metric("🚀 매출 성장률 (YoY)", fmt(fin_data['growth']))
+                    with c2: st.metric("💰 영업 이익률", fmt(fin_data['op_margin']))
+                    with c3: st.metric("💵 순이익률", fmt(fin_data['net_margin']))
+                    with c4: st.metric("🏦 부채 비율", str(fin_data['debt_equity']) if fin_data['debt_equity'] else "-")
+                else:
+                    st.warning("⚠️ 현재 집계된 재무 데이터가 없습니다.")
 
         # --- Tab 2: AI 가치 평가 (누락된 상세 로직 및 디자인 복구) ---
         with tab2:
@@ -654,6 +736,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
