@@ -259,65 +259,111 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# 4. 캘린더 (리스트)
+# 4. 캘린더 페이지 (정렬 및 필터 기능 100% 복구)
 elif st.session_state.page == 'calendar':
-    st.sidebar.button("⬅️ 돌아가기", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
+    st.sidebar.button("⬅️ 메인으로", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
+    
+    # 1. 데이터 가져오기
+    all_df_raw = get_extended_ipo_data(MY_API_KEY)
     view_mode = st.session_state.get('view_mode', 'all')
     
-    all_df_raw = get_extended_ipo_data(MY_API_KEY)
-    
     if not all_df_raw.empty:
+        # 데이터 전처리
         all_df = all_df_raw.dropna(subset=['exchange'])
         all_df = all_df[all_df['exchange'].astype(str).str.upper() != 'NONE']
         all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
         today = datetime.now().date()
 
+        # 2. 상단 필터 및 정렬 UI (복구됨)
         if view_mode == 'watchlist':
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
             st.title("⭐ 나의 관심 종목")
         else:
-            period = st.radio("📅 조회 기간", ["예정 (90일)", "최근 6개월", "최근 1년"], horizontal=True)
-            if period == "예정 (90일)":
+            # [복구] 좌측: 기간 설정 (18개월 추가), 우측: 정렬 설정
+            col_f1, col_f2 = st.columns([2, 1])
+            
+            with col_f1:
+                period = st.radio(
+                    "📅 조회 기간 설정", 
+                    ["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], 
+                    horizontal=True
+                )
+            
+            with col_f2:
+                sort_option = st.selectbox(
+                    "🎯 리스트 정렬", 
+                    ["최신순 (기본)", "공모가 높은순", "규모(M) 큰순"]
+                )
+
+            # 3. 기간 필터링 로직
+            if period == "상장 예정 (90일)":
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
             elif period == "최근 6개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=180))]
-            else: 
+            elif period == "최근 12개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=365))]
+            elif period == "최근 18개월": 
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
+            # 4. 정렬 로직 (데이터프레임 조작)
+            if not display_df.empty:
+                # 숫자 변환 (정렬을 위해)
+                display_df['price_num'] = display_df['price'].astype(str).str.replace('$','').str.split('-').str[0]
+                display_df['price_num'] = pd.to_numeric(display_df['price_num'], errors='coerce').fillna(0)
+                display_df['shares_num'] = pd.to_numeric(display_df['numberOfShares'], errors='coerce').fillna(0)
+                display_df['size_num'] = display_df['price_num'] * display_df['shares_num']
+
+                if sort_option == "최신순 (기본)":
+                    display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+                elif sort_option == "공모가 높은순":
+                    display_df = display_df.sort_values(by='price_num', ascending=False)
+                elif sort_option == "규모(M) 큰순":
+                    display_df = display_df.sort_values(by='size_num', ascending=False)
+
+        # 5. 리스트 렌더링
         if not display_df.empty:
             st.write("---")
-            h_cols = st.columns([0.6, 1.2, 2.5, 1.2, 1.2, 1.2, 1.2])
-            headers = ["", "공모일", "기업명", "공모가", "규모", "현재가", "거래소"]
-            for c, h in zip(h_cols, headers): c.write(f"**{h}**")
+            # 헤더 그리드 (비율 조정)
+            h_cols = st.columns([0.6, 1.2, 2.8, 1.1, 1.1, 1.1, 1.1])
+            headers = ["", "공모일", "기업 정보", "공모가", "규모", "현재가", "거래소"]
+            for c, h in zip(h_cols, headers): c.markdown(f"**{h}**")
             
             for i, row in display_df.iterrows():
-                c_cols = st.columns([0.6, 1.2, 2.5, 1.2, 1.2, 1.2, 1.2])
+                c_cols = st.columns([0.6, 1.2, 2.8, 1.1, 1.1, 1.1, 1.1])
                 ipo_date = row['공모일_dt'].date()
                 
-                # 아이콘
+                # (1) 아이콘: 1년 기준 🐣/🦄
                 icon = "🐣" if ipo_date > (today - timedelta(days=365)) else "🦄"
                 bg = "#fff9db" if icon == "🐣" else "#f3f0ff"
                 c_cols[0].markdown(f"<div style='background:{bg}; width:40px; height:40px; border-radius:10px; text-align:center; padding-top:5px; font-size:20px;'>{icon}</div>", unsafe_allow_html=True)
                 
-                c_cols[1].write(row['date'])
+                # (2) 공모일
+                is_future = ipo_date > today
+                date_color = "#4f46e5" if is_future else "#333"
+                c_cols[1].markdown(f"<div style='padding-top:10px; color:{date_color}; font-weight:{'bold' if is_future else 'normal'}'>{row['date']}</div>", unsafe_allow_html=True)
                 
+                # (3) 기업명 (클릭 버튼)
                 with c_cols[2]:
-                    if st.button(f"{row['name']} ({row['symbol']})", key=f"btn_{i}", use_container_width=True):
+                    st.markdown(f"<small style='color:#888'>{row['symbol']}</small>", unsafe_allow_html=True)
+                    if st.button(f"{row['name']}", key=f"btn_{i}", use_container_width=True):
                         st.session_state.selected_stock = row.to_dict()
                         st.session_state.page = 'detail'; st.rerun()
                 
-                c_cols[3].write(row.get('price', '-'))
+                # (4) 공모가
+                p_val = row.get('price_num', 0)
+                c_cols[3].markdown(f"<div style='padding-top:10px;'>${p_val:,.2f}</div>" if p_val > 0 else "<div style='padding-top:10px;'>-</div>", unsafe_allow_html=True)
                 
-                # 규모
-                try: 
-                    p = float(str(row.get('price','0')).split('-')[0].replace('$',''))
-                    s = int(row.get('numberOfShares',0))
-                    val = f"${p*s/1000000:,.0f}M"
-                except: val = "-"
-                c_cols[4].write(val)
+                # (5) 규모
+                sz_val = row.get('size_num', 0)
+                c_cols[4].markdown(f"<div style='padding-top:10px;'>${sz_val/1000000:,.0f}M</div>" if sz_val > 0 else "<div style='padding-top:10px;'>-</div>", unsafe_allow_html=True)
                 
-                c_cols[5].write("-") # 리스트 속도 최적화
-                c_cols[6].write(row.get('exchange', '-'))
+                # (6) 현재가 (리스트에서는 '-' 처리하여 속도 최적화, 상세페이지에서 확인 유도)
+                c_cols[5].markdown("<div style='padding-top:10px; color:#999;'>-</div>", unsafe_allow_html=True)
+                
+                # (7) 거래소
+                c_cols[6].markdown(f"<div style='padding-top:10px;'>{row.get('exchange', '-')}</div>", unsafe_allow_html=True)
+                
+                st.markdown("<hr style='margin:5px 0; border-top: 1px solid #f0f2f6;'>", unsafe_allow_html=True)
         else:
             st.info("조건에 맞는 데이터가 없습니다.")
 
@@ -565,4 +611,5 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
