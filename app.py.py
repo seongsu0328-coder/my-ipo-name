@@ -551,64 +551,89 @@ elif st.session_state.page == 'detail':
                     </a>
                 """, unsafe_allow_html=True)
 
-        # --- [Tab 1: 핵심 정보] ---
+        # --- [Tab 1: 핵심 정보 (공시 자료 세분화 & 재무 분석)] ---
         with tab1:
-            cc1, cc2 = st.columns([1.5, 1])
-            profile = get_company_profile(stock['symbol'], MY_API_KEY)
-            
+            # 0. 기업 기본 프로필 (항상 상단 표시)
             if profile:
-                biz_desc = profile.get('description', "상세 사업 설명이 업데이트 대기 중입니다.")
-                industry = profile.get('finnhubIndustry', "기술/서비스")
+                industry = profile.get('finnhubIndustry', '-')
+                st.markdown(f"**🏢 {stock['name']}** | 업종: {industry} | 통화: {profile.get('currency', 'USD')}")
             else:
-                biz_desc = "상세 사업 설명이 업데이트 대기 중입니다."
-                industry = "미분류"
+                st.caption("기본 프로필 로딩 중...")
+            
+            st.write("---")
 
-            with cc1:
-                st.markdown(f"#### 📑 {stock['name']} 핵심 비즈니스 분석")
-                st.markdown(f"""
-                    <div style='background-color: #fff4e5; padding: 20px; border-radius: 15px; border-left: 5px solid #ffa500; margin-bottom: 15px;'>
-                        <b style='color:#d35400; font-size: 16px;'>📝 기업 공시 기반 AI 요약 브리핑</b><br><br>
-                        <ul style='font-size: 14.5px; color: #333; line-height: 1.6;'>
-                            <li><b>주요 업종:</b> {industry}</li>
-                            <li><b>비즈니스 요약:</b> {stock['name']}은(는) {industry} 섹터에서 활동하며, 주요 사업 영역은 다음과 같습니다: {biz_desc[:200]}...</li>
-                            <li><b>자금 조달 목적:</b> S-1 서류에 따르면, 본 공모를 통해 확보한 자금은 운영 자금 확보, 신규 시장 진출 및 {industry} 관련 기술 고도화에 사용될 예정입니다.</li>
-                            <li><b>리스크 요인:</b> 해당 산업군의 경쟁 심화, 거시 경제 변동성 및 관련 법규 변화가 주요 위험 요소로 명시되어 있습니다.</li>
-                        </ul>
-                    </div>
-                """, unsafe_allow_html=True)
+            # 1. 정보 카테고리 선택 (라디오 버튼)
+            # 사용자가 요청한 5가지 카테고리 + TTM 재무
+            info_type = st.radio(
+                "확인하고 싶은 자료를 선택하세요:",
+                ["📊 실시간 재무 (TTM)", "📄 S-1 (최초 신고서)", "🌍 F-1 (해외 기업)", "🔄 S-1/A (공모가 밴드)", "📢 FWP (로드쇼/IR)", "✅ 424B4 (최종 확정)"],
+                horizontal=True,
+                label_visibility="collapsed"
+            )
 
-                st.markdown("---")
-                search_name = stock['name'].replace(" ", "+")
-                st.markdown(f"""
-                    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #eee;'>
-                        <p style='font-size: 14px; font-weight: bold;'>🌐 SEC 공식 문서(S-1) 확인</p>
-                        <p style='font-size: 12px; color: #666;'>가장 정확한 투자 판단을 위해 원문 서류를 반드시 확인하세요.</p>
-                        <a href="https://www.sec.gov/edgar/search/#/q={search_name}" target="_blank" style="text-decoration: none;">
-                            <button style='width:100%; padding:10px; background-color:#34495e; color:white; border:none; border-radius:5px; cursor:pointer;'>EDGAR 공시 시스템 원문 보기 ↗</button>
-                        </a>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            with cc2:
-                st.markdown("#### 📊 실시간 핵심 재무 (TTM)")
-                fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
+            # 2. 선택된 카테고리에 따른 콘텐츠 표시
+            if info_type == "📊 실시간 재무 (TTM)":
+                st.markdown("#### 📊 실시간 핵심 재무 지표 (TTM)")
+                st.caption("※ 최근 12개월 합산(Trailing Twelve Months) 기준 데이터입니다.")
+                
                 if fin_data:
-                    display_data = {
-                        "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익률", "부채 비율 (D/E)"],
-                        "현황": [
-                            f"{fin_data['growth']:.2f}%" if fin_data['growth'] is not None else "⏳ 데이터 대기",
-                            f"{fin_data['op_margin']:.2f}%" if fin_data['op_margin'] is not None else "⏳ 데이터 대기",
-                            f"{fin_data['net_margin']:.2f}%" if fin_data['net_margin'] is not None else "🧐 분석 중",
-                            f"{fin_data['debt_equity']:.2f}%" if fin_data['debt_equity'] is not None else "⚠️ 확인 불가"
-                        ]
-                    }
+                    # 가독성을 위해 2x2 그리드로 배치
+                    f_c1, f_c2 = st.columns(2)
+                    f_c3, f_c4 = st.columns(2)
+                    
+                    # 데이터 포맷팅 함수
+                    def fmt(val, unit="%"):
+                        return f"{val:.2f}{unit}" if val is not None else "-"
+
+                    with f_c1:
+                        st.metric("매출 성장률 (YoY)", fmt(fin_data['growth']), delta_color="normal")
+                    with f_c2:
+                        st.metric("영업 이익률", fmt(fin_data['op_margin']))
+                    with f_c3:
+                        st.metric("순이익률", fmt(fin_data['net_margin']))
+                    with f_c4:
+                        st.metric("부채 비율 (D/E)", fmt(fin_data['debt_equity']))
+                    
+                    # 상세 테이블
+                    with st.expander("재무 데이터 상세 보기"):
+                        st.table(pd.DataFrame(fin_data.items(), columns=['항목', '값']))
                 else:
-                    display_data = {
-                        "재무 항목": ["매출 성장률 (YoY)", "영업 이익률", "순이익 현황", "총 부채 비율"],
-                        "현황": ["⏳ Pending", "⏳ Pending", "🧐 데이터 분석 중", "⚠️ 확인 불가"]
-                    }
-                st.table(pd.DataFrame(display_data))
-                st.caption("※ TTM: 최근 12개월 합산 기준 (데이터 제공: Finnhub)")
+                    st.warning("⚠️ 해당 기업의 재무 데이터를 불러올 수 없습니다. (신규 상장 기업의 경우 데이터 집계까지 시간이 소요될 수 있습니다.)")
+
+            else:
+                # 공시 자료 선택 시 로직
+                # 문서 타입 매핑
+                doc_map = {
+                    "📄 S-1 (최초 신고서)": {"code": "S-1", "desc": "미국 기업이 상장을 위해 최초로 제출하는 증권신고서입니다. 사업 모델과 리스크 요인이 가장 상세히 적혀 있습니다."},
+                    "🌍 F-1 (해외 기업)": {"code": "F-1", "desc": "미국 이외의 국가 기업(예: 쿠팡, 알리바바)이 상장할 때 제출하는 서류입니다. S-1과 동일한 효력을 가집니다."},
+                    "🔄 S-1/A (공모가 밴드)": {"code": "S-1/A", "desc": "최초 신고서의 내용을 수정/보완한 문서입니다. 통상적으로 상장 직전 제출본에 '공모가 희망 범위'와 '발행 주식 수'가 확정됩니다."},
+                    "📢 FWP (로드쇼/IR)": {"code": "FWP", "desc": "Free Writing Prospectus의 약자로, 투자자 설명회(Roadshow)에서 사용하는 PPT 자료 등이 포함됩니다. 시각 자료가 많아 이해하기 쉽습니다."},
+                    "✅ 424B4 (최종 확정)": {"code": "424B4", "desc": "공모 가격이 최종 확정된 후 발행되는 투자 설명서입니다. 확정된 공모가와 조달 자금 규모를 확인할 수 있습니다."}
+                }
+                
+                selected_doc = doc_map[info_type]
+                form_type = selected_doc['code']
+                
+                # 안내 UI
+                st.info(f"💡 **{form_type}란?**\n\n{selected_doc['desc']}")
+                
+                # SEC 검색 링크 생성
+                # (가장 정확도가 높은 최신 EDGAR 검색 쿼리 사용)
+                sec_url = f"https://www.sec.gov/edgar/search/#/q={stock['symbol']}%2520{form_type}&dateRange=all&startdt=2020-01-01&enddt=2026-12-31"
+                
+                st.markdown(f"""
+                    <div style='text-align: center; margin-top: 20px;'>
+                        <a href="{sec_url}" target="_blank">
+                            <button style='background-color: #004e92; color: white; padding: 15px 30px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+                                🏛️ SEC EDGAR에서 {form_type} 원문 검색하기
+                            </button>
+                        </a>
+                        <p style='font-size: 12px; color: #666; margin-top: 10px;'>
+                            ※ 버튼을 클릭하면 미 증권거래위원회(SEC) 공식 사이트로 이동합니다.<br>
+                            기업 상황에 따라 해당 문서가 아직 제출되지 않았을 수 있습니다.
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
 
         # --- [Tab 2: AI 가치 평가] ---
         with tab2:
@@ -748,6 +773,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
