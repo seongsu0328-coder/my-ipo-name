@@ -228,9 +228,9 @@ elif st.session_state.page == 'login':
 # 3. 성장 단계 분석 (대시보드)
 elif st.session_state.page == 'stats':
     st.write("<br>", unsafe_allow_html=True)
-    img_baby = "baby_unicorn.png.png"
-    img_adult = "adult_unicorn.png.png"
-    img_child = "child_unicorn.png.png"
+    img_baby = "new_unicorn.png"
+    img_adult = "hot_unicorn.png"
+    img_child = "my_unicorn.pngg"
     
     c1, c2, c3 = st.columns(3)
     
@@ -726,6 +726,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
