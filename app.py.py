@@ -216,7 +216,7 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
             
-        st.markdown("<div class='stat-box'><small>📊 18개월 이하 유니콘 </small></div>", unsafe_allow_html=True)
+        #
         st.markdown("</div>", unsafe_allow_html=True)
 
     # --- [2. HOT 유니콘 (추가)] ---
@@ -648,6 +648,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.success(f"✅ 보관함에 저장된 종목입니다.")
                 if st.button("❌ 관심 종목 해제"): st.session_state.watchlist.remove(sid); st.rerun()
+
 
 
 
