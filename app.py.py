@@ -259,7 +259,7 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# 4. 캘린더 페이지 (수익률/성장률 정렬 기능 고도화)
+# 4. 캘린더 페이지 (가격 표시 로직 수정됨)
 elif st.session_state.page == 'calendar':
     st.sidebar.button("⬅️ 메인으로", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     
@@ -280,20 +280,10 @@ elif st.session_state.page == 'calendar':
             st.title("⭐ 나의 관심 종목")
         else:
             col_f1, col_f2 = st.columns([2, 1])
-            
             with col_f1:
-                period = st.radio(
-                    "📅 조회 기간 설정", 
-                    ["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], 
-                    horizontal=True
-                )
-            
+                period = st.radio("📅 조회 기간", ["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], horizontal=True)
             with col_f2:
-                # [수정] 요청하신 정렬 옵션 추가
-                sort_option = st.selectbox(
-                    "🎯 리스트 정렬", 
-                    ["최신순 (기본)", "🚀 수익률 높은순 (실시간)", "📈 매출 성장률순 (AI)"]
-                )
+                sort_option = st.selectbox("🎯 리스트 정렬", ["최신순 (기본)", "🚀 수익률 높은순 (실시간)", "📈 매출 성장률순 (AI)"])
 
             # 3. 기간 필터링
             if period == "상장 예정 (90일)":
@@ -305,51 +295,67 @@ elif st.session_state.page == 'calendar':
             elif period == "최근 18개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
-            # 4. 고급 정렬 로직 (실시간 데이터 연산)
+            # 4. 정렬 및 가격 조회 로직
+            # [중요] 실시간 가격을 담을 컬럼 초기화
+            display_df['live_price'] = 0.0
+
             if not display_df.empty:
-                # 기본 정렬 (날짜순)
                 if sort_option == "최신순 (기본)":
                     display_df = display_df.sort_values(by='공모일_dt', ascending=False)
                 
-                # [A] 수익률 높은순 (현재가 vs 공모가)
+                # [A] 수익률 정렬 시 -> 가격도 함께 저장
                 elif sort_option == "🚀 수익률 높은순 (실시간)":
-                    with st.spinner("🔄 전 종목 실시간 시세 분석 중... (잠시만 기다려주세요)"):
-                        # 임시 리스트에 수익률 저장
+                    with st.spinner("🔄 전 종목 실시간 시세 조회 중... (약 5~10초 소요)"):
                         returns = []
+                        prices = []
                         for idx, row in display_df.iterrows():
                             try:
-                                # 공모가 파싱
                                 p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
-                                # 현재가 조회 (API)
                                 p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
                                 
                                 if p_ipo > 0 and p_curr > 0:
                                     ret = ((p_curr - p_ipo) / p_ipo) * 100
                                 else:
-                                    ret = -9999 # 데이터 없으면 맨 뒤로
-                            except: ret = -9999
+                                    ret = -9999
+                            except: 
+                                ret = -9999
+                                p_curr = 0
+                            
                             returns.append(ret)
+                            prices.append(p_curr)
                         
                         display_df['temp_return'] = returns
+                        display_df['live_price'] = prices # 조회한 가격 저장
                         display_df = display_df.sort_values(by='temp_return', ascending=False)
 
-                # [B] 매출 성장률순 (재무 데이터)
+                # [B] 매출 성장률 정렬
                 elif sort_option == "📈 매출 성장률순 (AI)":
-                    with st.spinner("📊 기업 재무제표 AI 스캔 중..."):
+                    with st.spinner("📊 기업 재무제표 스캔 중..."):
                         growths = []
                         for idx, row in display_df.iterrows():
                             try:
-                                # 재무 데이터 조회 (API)
                                 fins = get_financial_metrics(row['symbol'], MY_API_KEY)
-                                if fins and fins['growth']:
-                                    g = float(fins['growth'])
-                                else:
-                                    g = -9999
+                                g = float(fins['growth']) if fins and fins['growth'] else -9999
                             except: g = -9999
                             growths.append(g)
-                        
                         display_df['temp_growth'] = growths
                         display_df = display_df.sort_values(by='temp_growth', ascending=False)
+
+        # 5. 리스트 렌더링
+        if not display_df.empty:
+            st.write("---")
+            h_cols = st.columns([0.6, 1.2, 2.8, 1.1, 1.1, 1.1, 1.1])
+            headers = ["", "공모일", "기업 정보", "공모가", "규모", "현재가", "거래소"]
+            for c, h in zip(h_cols, headers): c.markdown(f"**{h}**")
+            
+            for i, row in display_df.iterrows():
+                c_cols = st.columns([0.6, 1.2, 2.8, 1.1, 1.1, 1.1, 1.1])
+                ipo_date = row['공모일_dt'].date()
+                
+                # 아이콘
+                icon = "🐣" if ipo_date > (today - timedelta(days=365)) else "🦄"
+                bg = "#fff9db" if icon == "🐣" else "#f3f0ff"
+                c_cols[0].markdown(f"<div style='background:{bg}; width:40px; height:40px; border-radius:10px; text
 
         # 5. 리스트 렌더링
         if not display_df.empty:
@@ -702,6 +708,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
