@@ -239,6 +239,7 @@ elif st.session_state.page == 'stats':
     with c1:
         # <h3>NEW</h3> 태그를 삭제하고 div만 열었습니다.
         st.markdown("<div class='grid-card'>", unsafe_allow_html=True)
+        if os.path.exists(img_baby): st.image(img_baby, use_container_width=True)
         if st.button("신규상장", use_container_width=True, key="go_all"):
             st.session_state.view_mode = 'all'
             st.session_state.page = 'calendar'; st.rerun()
@@ -732,6 +733,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
