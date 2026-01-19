@@ -240,7 +240,7 @@ elif st.session_state.page == 'stats':
         # <h3>NEW</h3> 태그를 삭제하고 div만 열었습니다.
         st.markdown("<div class='grid-card'>", unsafe_allow_html=True)
         if os.path.exists(img_baby): st.image(img_baby, use_container_width=True)
-        if st.button("신규상장", use_container_width=True, key="go_all"):
+        if st.button("신규상장 기업", use_container_width=True, key="go_all"):
             st.session_state.view_mode = 'all'
             st.session_state.page = 'calendar'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -250,7 +250,7 @@ elif st.session_state.page == 'stats':
         # <h3>HOT</h3> 태그 삭제
         st.markdown("<div class='grid-card'>", unsafe_allow_html=True)
         if os.path.exists(img_adult): st.image(img_adult, use_container_width=True)
-        if st.button("주목할 종목", use_container_width=True, key="go_hot"):
+        if st.button("인기상승 기업", use_container_width=True, key="go_hot"):
             st.session_state.view_mode = 'hot'
             st.session_state.page = 'calendar'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -261,7 +261,7 @@ elif st.session_state.page == 'stats':
         st.markdown("<div class='grid-card'>", unsafe_allow_html=True)
         if os.path.exists(img_child): st.image(img_child, use_container_width=True)
         watch_count = len(st.session_state.watchlist)
-        if st.button(f"보관함 ({watch_count})", use_container_width=True, type="primary", key="go_watch"):
+        if st.button(f"관심기업 ({watch_count})", use_container_width=True, type="primary", key="go_watch"):
             st.session_state.view_mode = 'watchlist'
             st.session_state.page = 'calendar'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -733,6 +733,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
