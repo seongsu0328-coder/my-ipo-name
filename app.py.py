@@ -85,9 +85,9 @@ def get_financial_metrics(symbol, api_key):
         return None
 @st.cache_data(ttl=300)
 def get_real_news_rss(company_name):
-    """구글 뉴스 RSS를 통해 실시간 기사 제목과 링크를 가져옵니다."""
+    """구글 뉴스 RSS + 한글 번역(제목)"""
     try:
-        # 검색어 설정 (예: "Samsung Electronics stock news")
+        # 1. RSS 데이터 가져오기
         query = f"{company_name} stock news"
         url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
         
@@ -97,17 +97,34 @@ def get_real_news_rss(company_name):
         news_items = []
         # 상위 5개 기사만 추출
         for item in root.findall('./channel/item')[:5]:
-            title = item.find('title').text
+            title_en = item.find('title').text
             link = item.find('link').text
             pubDate = item.find('pubDate').text
             
-            # 날짜 포맷 간단화 (예: Mon, 15 Jan... -> 15 Jan)
+            # 날짜 포맷 (예: 15 Jan)
+            try: date_str = " ".join(pubDate.split(' ')[1:3])
+            except: date_str = "Recent"
+
+            # 2. [추가된 로직] 제목 한글 번역 (MyMemory API 사용)
             try:
-                date_str = " ".join(pubDate.split(' ')[1:3])
+                # API 호출 (무료, 하루 1000단어 제한이나 개인용으론 충분)
+                trans_url = "https://api.mymemory.translated.net/get"
+                params = {'q': title_en, 'langpair': 'en|ko'}
+                # 타임아웃을 짧게(1초) 주어 번역이 느리면 영문만 표시하도록 함
+                res = requests.get(trans_url, params=params, timeout=1).json()
+                
+                if res['responseStatus'] == 200:
+                    title_ko = res['responseData']['translatedText']
+                    # HTML 엔티티(&quot; 등) 제거를 위한 간단 처리
+                    title_ko = title_ko.replace("&quot;", "'").replace("&amp;", "&")
+                    display_title = f"{title_en}\n(🇰🇷 {title_ko})"
+                else:
+                    display_title = title_en
             except:
-                date_str = "Recent"
+                # 번역 실패 시 영문 제목만 사용
+                display_title = title_en
             
-            news_items.append({"title": title, "link": link, "date": date_str})
+            news_items.append({"title": display_title, "link": link, "date": date_str})
             
         return news_items
     except:
@@ -731,6 +748,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
