@@ -470,10 +470,10 @@ elif st.session_state.page == 'detail':
             if 'news_topic' not in st.session_state: st.session_state.news_topic = "💰 공모가 범위/확정 소식"
             
             c_btn1, c_btn2, c_btn3, c_btn4 = st.columns(4)
-            if c_btn1.button("💰 가격", use_container_width=True): st.session_state.news_topic = "💰 공모가 범위/확정 소식"
-            if c_btn2.button("📅 일정", use_container_width=True): st.session_state.news_topic = "📅 상장 일정/연기 소식"
-            if c_btn3.button("🥊 경쟁", use_container_width=True): st.session_state.news_topic = "🥊 경쟁사 비교/분석"
-            if c_btn4.button("🏦 주간사", use_container_width=True): st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
+            if c_btn1.button("💰 공모가격", use_container_width=True): st.session_state.news_topic = "💰 공모가 범위/확정 소식"
+            if c_btn2.button("📅 상장일정", use_container_width=True): st.session_state.news_topic = "📅 상장 일정/연기 소식"
+            if c_btn3.button("🥊 경쟁우위", use_container_width=True): st.session_state.news_topic = "🥊 경쟁사 비교/분석"
+            if c_btn4.button("🏦 상장 주관사", use_container_width=True): st.session_state.news_topic = "🏦 주요 주간사 (Underwriters)"
 
             # 2. AI 요약 (기존 유지)
             topic = st.session_state.news_topic
@@ -731,6 +731,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제"): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
