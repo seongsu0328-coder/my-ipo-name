@@ -706,11 +706,9 @@ elif st.session_state.page == 'detail':
             st.write("---")
 
             # 1. 문서 선택 버튼 그리드
-            # 기본값 설정
             if 'core_topic' not in st.session_state or st.session_state.core_topic == "financial":
                 st.session_state.core_topic = "S-1"
 
-            # 버튼 배치 (3열 / 2열)
             r1_c1, r1_c2, r1_c3 = st.columns(3)
             r2_c1, r2_c2 = st.columns(2)
 
@@ -724,7 +722,6 @@ elif st.session_state.page == 'detail':
             # 2. 콘텐츠 설정
             topic = st.session_state.core_topic
             
-            # 문서 정의 데이터
             def_meta = {
                 "S-1": {"t": "증권신고서 (S-1)", "d": "상장을 위해 최초로 제출하는 서류입니다. 사업 모델과 리스크가 상세히 적혀있습니다.", "is_doc": True},
                 "S-1/A": {"t": "정정신고서 (S-1/A)", "d": "공모가 밴드와 발행 주식 수가 확정되는 수정 문서입니다.", "is_doc": True},
@@ -741,13 +738,14 @@ elif st.session_state.page == 'detail':
             # (1) 문서 정의 설명 (파란 박스)
             st.info(f"💡 **{curr_meta['t']}란?**\n\n{curr_meta['d']}")
 
-            # (2) 하단: 원문 링크 버튼 (SEC EDGAR 연결)
+            # (2) 하단: 원문 링크 버튼
             import urllib.parse
             import re
 
-            # CIK 및 이름 정제
             cik = profile.get('cik', '') if profile else ''
             raw_name = stock['name']
+            
+            # 이름 정제 로직
             clean_name = re.sub(r'[,.]', '', raw_name)
             clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
             if len(clean_name) < 2: clean_name = raw_name
@@ -756,14 +754,14 @@ elif st.session_state.page == 'detail':
             if cik:
                 enc_topic = urllib.parse.quote(topic)
                 sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={enc_topic}&owner=include&count=40"
-                btn_text = f"🏛️ {stock['name']} - {topic} 원문 리스트 보기 ↗"
             else:
                 query = f'"{clean_name}" {topic}'
                 enc_query = urllib.parse.quote(query)
                 sec_url = f"https://www.sec.gov/edgar/search/#/q={enc_query}&dateRange=all"
-                btn_text = f"🔍 {clean_name} - {topic} 검색 결과 보기 ↗"
 
-            # 버튼 출력
+            # [수정] 버튼 텍스트를 심플하게 'SEC 원문공시'로 통일
+            btn_text = "🏛️ SEC 원문공시 ↗"
+
             st.markdown(f"""
                 <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                     <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; transition:0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>
@@ -1076,6 +1074,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
