@@ -642,7 +642,7 @@ elif st.session_state.page == 'detail':
                     <div style="display:flex; align-items:center; margin-bottom:15px; border-bottom:1px solid #ddd; padding-bottom:10px;">
                         <span style="font-size:24px; margin-right:10px;">👨‍💼</span>
                         <div>
-                            <h4 style="margin:0; color:#333;">창업주 & 리더십</h4>
+                            <h4 style="margin:0; color:#333;">창업주소개</h4>
                             <span style="font-size:12px; color:#666;">Founder's Background</span>
                         </div>
                     </div>
@@ -659,7 +659,7 @@ elif st.session_state.page == 'detail':
                     <div style="display:flex; align-items:center; margin-bottom:15px; border-bottom:1px solid #a5b4fc; padding-bottom:10px;">
                         <span style="font-size:24px; margin-right:10px;">🏢</span>
                         <div>
-                            <h4 style="margin:0; color:#333;">비즈니스 모델</h4>
+                            <h4 style="margin:0; color:#333;">기업소개</h4>
                             <span style="font-size:12px; color:#555;">Market & Revenue</span>
                         </div>
                     </div>
@@ -1135,6 +1135,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
