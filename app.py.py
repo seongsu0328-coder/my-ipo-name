@@ -188,43 +188,98 @@ elif st.session_state.page == 'login':
     st.write("<br>" * 5, unsafe_allow_html=True)
     _, col_m, _ = st.columns([1, 1.2, 1])
     
+    # [가상 DB] 가입된 사용자 목록을 기억하기 위한 임시 저장소
+    # 앱을 새로고침하면 초기화되지만, 사용하는 동안은 기억합니다.
+    if 'db_users' not in st.session_state:
+        st.session_state.db_users = ["010-0000-0000"] # 테스트용: 관리자 번호는 이미 가입된 것으로 간주
+    
     with col_m:
+        # 로그인 단계 초기화
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
 
+        # [Step 1] 첫 선택 화면 (로그인 vs 회원가입 분리)
         if st.session_state.login_step == 'choice':
-            if st.button("📱 회원으로 시작하기", use_container_width=True):
-                st.session_state.login_step = 'ask_signup'; st.rerun()
-            if st.button("👀 비회원으로 시작하기", use_container_width=True):
-                st.session_state.auth_status = 'guest'
-                st.session_state.page = 'stats'; st.rerun()
-
-        elif st.session_state.login_step == 'ask_signup':
-            st.info("관심기업 관리 및 알림을 받을 수 있습니다.")
-            c1, c2 = st.columns(2)
-            if c1.button("✅ 진행하기", use_container_width=True):
-                st.session_state.login_step = 'input_phone'; st.rerun()
-            if c2.button("❌ 돌아가기", use_container_width=True):
-                st.session_state.login_step = 'choice'; st.rerun()
-
-        elif st.session_state.login_step == 'input_phone':
-            st.markdown("### 📱 가입 정보 입력")
-            phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000")
+            st.markdown("<h3 style='text-align:center;'>환영합니다! 👋</h3>", unsafe_allow_html=True)
+            st.write("")
             
-            cc1, cc2 = st.columns([2, 1])
-            if cc1.button("가입 완료", use_container_width=True):
-                if len(phone) >= 10:
-                    st.session_state.auth_status = 'user'
-                    
-                    # ▼▼▼ [중요 추가] 전화번호를 세션에 저장 (본인 글 삭제 기능용) ▼▼▼
-                    st.session_state.user_phone = phone 
-                    # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-                    
-                    st.session_state.page = 'stats'
+            # 버튼 1: 기존 회원 로그인 (바로 입력창으로)
+            if st.button("🔑 기존 회원 로그인", use_container_width=True, type="primary"):
+                st.session_state.login_step = 'login_input' # 로그인 입력 단계로 이동
+                st.rerun()
+                
+            # 버튼 2: 신규 회원 가입 (안내 화면으로)
+            if st.button("✨ 3초만에 회원가입", use_container_width=True):
+                st.session_state.login_step = 'ask_signup' # 가입 안내 단계로 이동
+                st.rerun()
+                
+            # 버튼 3: 비회원 둘러보기
+            if st.button("👀 비회원으로 구경하기", use_container_width=True):
+                st.session_state.auth_status = 'guest'
+                st.session_state.page = 'stats'
+                st.rerun()
+
+        # [Step 2-A] 로그인 입력 화면 (기존 회원용)
+        elif st.session_state.login_step == 'login_input':
+            st.markdown("### 🔑 로그인")
+            phone_login = st.text_input("가입하신 휴대폰 번호를 입력하세요", placeholder="010-0000-0000", key="login_phone")
+            
+            l_c1, l_c2 = st.columns([2, 1])
+            with l_c1:
+                if st.button("접속하기", use_container_width=True, type="primary"):
+                    # 가입된 번호인지 확인
+                    if phone_login in st.session_state.db_users:
+                        st.session_state.auth_status = 'user'
+                        st.session_state.user_phone = phone_login # 세션에 정보 저장
+                        st.success(f"반갑습니다! {phone_login}님")
+                        st.session_state.page = 'stats'
+                        st.session_state.login_step = 'choice'
+                        st.rerun()
+                    else:
+                        st.error("가입되지 않은 번호입니다. 회원가입을 먼저 진행해주세요.")
+            with l_c2:
+                if st.button("뒤로가기", use_container_width=True):
                     st.session_state.login_step = 'choice'
                     st.rerun()
-                else: st.error("정확한 번호를 입력해주세요.")
-            if cc2.button("취소"):
-                st.session_state.login_step = 'choice'; st.rerun()
+
+        # [Step 2-B] 회원가입 안내 화면 (신규 회원용)
+        elif st.session_state.login_step == 'ask_signup':
+            st.info("🦄 회원가입 시 관심기업 관리, 투자 예측 저장, 토론 참여가 가능합니다.")
+            c1, c2 = st.columns(2)
+            if c1.button("✅ 가입 진행", use_container_width=True):
+                st.session_state.login_step = 'signup_input' # 가입 입력 단계로 이동
+                st.rerun()
+            if c2.button("❌ 취소", use_container_width=True):
+                st.session_state.login_step = 'choice'
+                st.rerun()
+
+        # [Step 3] 가입 정보 입력 (신규 회원용)
+        elif st.session_state.login_step == 'signup_input':
+            st.markdown("### 📝 정보 입력")
+            phone_signup = st.text_input("사용하실 휴대폰 번호를 입력하세요", placeholder="010-0000-0000", key="signup_phone")
+            
+            s_c1, s_c2 = st.columns([2, 1])
+            with s_c1:
+                if st.button("가입 완료", use_container_width=True, type="primary"):
+                    if len(phone_signup) >= 10:
+                        # 이미 존재하는지 확인
+                        if phone_signup in st.session_state.db_users:
+                            st.warning("이미 가입된 번호입니다. '기존 회원 로그인'을 이용해주세요.")
+                        else:
+                            # [DB 저장] 신규 회원을 리스트에 추가
+                            st.session_state.db_users.append(phone_signup)
+                            
+                            st.session_state.auth_status = 'user'
+                            st.session_state.user_phone = phone_signup
+                            st.balloons() # 가입 축하 효과
+                            st.toast("회원가입을 축하합니다!", icon="🎉")
+                            st.session_state.page = 'stats'
+                            st.session_state.login_step = 'choice'
+                            st.rerun()
+                    else: st.error("올바른 번호를 입력해주세요.")
+            with s_c2:
+                if st.button("취소", key="back_signup"):
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
 
     st.write("<br>" * 2, unsafe_allow_html=True)
     q = get_daily_quote()
@@ -989,6 +1044,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
