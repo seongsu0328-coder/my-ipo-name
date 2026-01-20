@@ -4,6 +4,10 @@ import pandas as pd
 from datetime import datetime, timedelta
 import os
 import xml.etree.ElementTree as ET
+import time
+import uuid
+# [추가] 무료 검색 라이브러리
+from duckduckgo_search import DDGS
 
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
@@ -1125,6 +1129,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
