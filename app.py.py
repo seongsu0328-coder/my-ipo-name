@@ -278,7 +278,7 @@ elif st.session_state.page == 'stats':
 
 # 4. 캘린더 페이지 (중복 제거 및 최신 정렬 기능 완벽 통합)
 elif st.session_state.page == 'calendar':
-    show_login_nav() # [누락된 기능 복구] 상단 로그인 이동 버튼
+    # [수정] 로그인 이동 버튼 제거됨
     st.sidebar.button("⬅️ 메인으로", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     
     # 1. 데이터 가져오기
@@ -989,6 +989,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
