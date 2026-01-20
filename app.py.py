@@ -783,32 +783,86 @@ elif st.session_state.page == 'detail':
             
             st.write("---")
 
-            # 3. 커뮤니티 의견 (댓글)
-            st.markdown("### 💬 주주 토론방")
-            if st.session_state.auth_status == 'user':
-                nc = st.text_input("이 종목에 대한 의견을 남겨주세요", key=f"ci_{sid}")
-                if st.button("등록", key=f"cb_{sid}") and nc:
-                    st.session_state.comment_data[sid].insert(0, {"t": nc, "d": datetime.now().strftime("%H:%M")})
+            # --- [수정된 코드] 3. 커뮤니티 의견 (UI/UX 업그레이드) ---
+        st.markdown("### 💬 주주 토론방")
+        
+        # (1) 댓글 입력창 (Form 사용으로 리로드 방지 및 UX 개선)
+        if st.session_state.auth_status == 'user':
+            with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
+                # 텍스트 영역으로 변경 (긴 글 입력 용이)
+                user_input = st.text_area("의견 남기기", placeholder=f"{stock['name']}에 대한 자유로운 의견을 남겨주세요 (매너 채팅 부탁드립니다 🙏)", height=80)
+                
+                c_submit_col1, c_submit_col2 = st.columns([4, 1])
+                with c_submit_col2:
+                    submit_btn = st.form_submit_button("등록하기", use_container_width=True, type="primary")
+                
+                if submit_btn and user_input:
+                    # 현재 시간 및 데이터 저장
+                    now_time = datetime.now().strftime("%m.%d %H:%M")
+                    new_comment = {"t": user_input, "d": now_time, "u": "익명의 투자자"} # 'u'는 추후 닉네임 기능 확장 대비
+                    st.session_state.comment_data[sid].insert(0, new_comment)
+                    st.toast("✅ 소중한 의견이 등록되었습니다!", icon="💬")
                     st.rerun()
-            else:
-                st.info("🔒 의견 등록은 회원만 가능합니다.")
+        else:
+            st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
 
-            for c in st.session_state.comment_data[sid][:3]:
-                st.markdown(f"<div class='comment-box'><small>{c['d']}</small><br>{c['t']}</div>", unsafe_allow_html=True)
+        # (2) 댓글 리스트 출력 (디자인 개선)
+        comments = st.session_state.comment_data.get(sid, [])
+        if comments:
+            st.markdown(f"<div style='margin-bottom:10px; color:#666; font-size:14px;'>총 <b>{len(comments)}</b>개의 의견이 있습니다.</div>", unsafe_allow_html=True)
             
-            st.write("---")
+            # 최신 5개만 보여주고 나머지는 더보기로 처리
+            for c in comments[:5]:
+                st.markdown(f"""
+                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.02);'>
+                    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
+                        <div style='font-weight:bold; font-size:14px; color:#444;'>👤 {c.get('u', '익명의 투자자')}</div>
+                        <div style='font-size:12px; color:#999;'>{c['d']}</div>
+                    </div>
+                    <div style='font-size:15px; color:#333; line-height:1.5;'>{c['t']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # 댓글이 5개 넘어가면 접기 기능 제공
+            if len(comments) > 5:
+                with st.expander(f"➕ 지난 댓글 더 보기 ({len(comments)-5}개)"):
+                    for c in comments[5:]:
+                        st.markdown(f"<div class='comment-box' style='color:#666; font-size:14px;'><b>{c['d']}</b>: {c['t']}</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("""
+                <div style='text-align:center; padding: 30px; background:#f9f9f9; border-radius:10px; color:#999;'>
+                    📭 아직 등록된 의견이 없습니다.<br>첫 번째 의견을 남겨보세요!
+                </div>
+            """, unsafe_allow_html=True)
+        
+        st.write("---")
 
-            # 4. 보관함 버튼 (풍선 효과 포함)
+        # --- [수정된 코드] 4. 보관함 버튼 (토스트 알림 및 디자인 강화) ---
+        st.markdown("### ⭐ 관심 종목 관리")
+        
+        col_act1, col_act2 = st.columns([3, 1])
+        
+        with col_act1:
             if sid not in st.session_state.watchlist:
-                if st.button("⭐ 마이 리서치 보관함에 담기", use_container_width=True, type="primary"): 
+                st.markdown("이 기업을 관심 종목에 추가하고<br><b>대시보드에서 모아보세요!</b>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"현재 <b>{stock['name']}</b> 기업을<br>관심 종목으로 지켜보고 있습니다.", unsafe_allow_html=True)
+
+        with col_act2:
+            if sid not in st.session_state.watchlist:
+                # 담기 버튼
+                if st.button("⭐ 담기", use_container_width=True, type="primary"): 
                     st.session_state.watchlist.append(sid)
-                    st.balloons()
+                    st.balloons() # 담을 때는 축하 효과
+                    st.toast(f"'{stock['name']}'을(를) 관심기업에 추가했습니다!", icon="🦄")
                     st.rerun()
             else:
-                st.success("✅ 보관함에 저장된 종목입니다.")
-                if st.button("❌ 관심 종목 해제", use_container_width=True): 
+                # 해제 버튼 (빨간색 텍스트 느낌보다는 회색 버튼으로 차분하게)
+                if st.button("🗑️ 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
+                    st.toast("관심기업 목록에서 삭제했습니다.", icon="🗑️")
                     st.rerun()
+
 
 
 
