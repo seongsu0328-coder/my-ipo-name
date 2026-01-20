@@ -1053,14 +1053,14 @@ elif st.session_state.page == 'detail':
                     # 아직 안 담은 경우 -> 예측 버튼 2개 노출
                     c_up, c_down = st.columns(2)
                     with c_up:
-                        if st.button("📈 UP", help="5년 뒤 20% 이상 상승할 것이다", use_container_width=True):
+                        if st.button("📈 UP", help="5년 뒤 50% 이상 상승할 것이다", use_container_width=True):
                             st.session_state.watchlist.append(sid)
                             st.session_state.watchlist_predictions[sid] = "UP"
                             st.balloons()
                             st.toast(f"'{stock['name']}' 상승 예측으로 저장 완료!", icon="🚀")
                             st.rerun()
                     with c_down:
-                        if st.button("📉 DOWN", help="5년 뒤 20% 이상 하락할 것이다", use_container_width=True):
+                        if st.button("📉 DOWN", help="5년 뒤 50% 이상 하락할 것이다", use_container_width=True):
                             st.session_state.watchlist.append(sid)
                             st.session_state.watchlist_predictions[sid] = "DOWN"
                             st.toast(f"'{stock['name']}' 하락 예측으로 저장 완료!", icon="📉")
@@ -1074,6 +1074,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
