@@ -697,7 +697,7 @@ elif st.session_state.page == 'detail':
                 else:
                     st.markdown(f"<div style='padding:10px; color:#999; border:1px dashed #ddd; border-radius:10px; text-align:center;'>관련 뉴스가 부족하여 검색 링크를 제공합니다.</div>", unsafe_allow_html=True)
 
-        # --- [Tab 1: 핵심 정보 (통합 수정 버전)] ---
+        # --- [Tab 1: 핵심 정보 (공시 문서 중심 통합)] ---
         with tab1:
             # 0. 기업 기본 프로필
             if profile:
@@ -705,120 +705,101 @@ elif st.session_state.page == 'detail':
             
             st.write("---")
 
-            # 1. 버튼 그리드
-            if 'core_topic' not in st.session_state: st.session_state.core_topic = "financial"
+            # 1. 문서 선택 버튼 그리드 (TTM 제거 및 S-1 기본 설정)
+            # 'financial'이 선택되어 있거나 초기 상태면 'S-1'으로 강제 변경
+            if 'core_topic' not in st.session_state or st.session_state.core_topic == "financial":
+                st.session_state.core_topic = "S-1"
 
+            # 버튼 배치: 윗줄 3개, 아랫줄 2개
             r1_c1, r1_c2, r1_c3 = st.columns(3)
-            r2_c1, r2_c2, r2_c3 = st.columns(3)
+            r2_c1, r2_c2 = st.columns(2)
 
-            if r1_c1.button("📊 실시간 재무 (TTM)", use_container_width=True): st.session_state.core_topic = "financial"
-            if r1_c2.button("📄 S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
-            if r1_c3.button("🔄 S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
+            if r1_c1.button("📄 S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
+            if r1_c2.button("🔄 S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
+            if r1_c3.button("🌍 F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
             
             if r2_c1.button("📢 FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
             if r2_c2.button("✅ 424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
-            if r2_c3.button("🌍 F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
 
             # 2. 콘텐츠 설정
             topic = st.session_state.core_topic
             industry = profile.get('finnhubIndustry', 'Technology') if profile else 'Technology'
             s_name = stock['name']
 
-            # (A) 문서 정의 데이터
+            # (A) 문서 정의 데이터 (financial 제거됨)
             def_meta = {
-                "financial": {"t": "실시간 재무 (TTM)", "d": "최근 12개월 합산 재무 지표로, 기업의 현재 기초 체력을 나타냅니다.", "is_doc": False},
                 "S-1": {"t": "증권신고서 (S-1)", "d": "상장을 위해 최초로 제출하는 서류입니다. 사업 모델과 리스크가 상세히 적혀있습니다.", "is_doc": True},
                 "S-1/A": {"t": "정정신고서 (S-1/A)", "d": "공모가 밴드와 발행 주식 수가 확정되는 수정 문서입니다.", "is_doc": True},
                 "FWP": {"t": "투자설명회 (FWP)", "d": "기관 투자자 대상 로드쇼(Roadshow)에서 사용된 PPT 자료입니다.", "is_doc": True},
                 "424B4": {"t": "최종설명서 (Prospectus)", "d": "공모가가 확정된 후 발행되는 최종 문서로, 조달 자금 규모를 확정합니다.", "is_doc": True},
                 "F-1": {"t": "해외기업 신고서 (F-1)", "d": "미국 외 기업이 상장할 때 S-1 대신 제출하는 서류입니다.", "is_doc": True},
             }
+            
+            # 안전장치
+            if topic not in def_meta: topic = "S-1"
             curr_meta = def_meta[topic]
 
-            # (B) 상세 AI 요약 텍스트
+            # (B) 상세 AI 요약 텍스트 (문서별 맞춤 분석 멘트)
             detail_summary = ""
-            if topic == "financial":
-                detail_summary = f"<b>1. 성장성 분석:</b> {s_name}의 최근 재무 데이터를 분석한 결과, {industry} 섹터 평균 대비 유의미한 변동성을 보이고 있습니다.<br><br><b>2. 수익성 지표:</b> 현재 영업 이익률과 순이익률 구조를 볼 때, 초기 투자 비용이 높은 단계인지 확인이 필요합니다.<br><br><b>3. 재무 건전성:</b> 부채 비율(D/E Ratio)은 금리 인상기와 맞물려 투자 리스크를 판단하는 중요 척도입니다."
-            elif topic == "S-1":
-                detail_summary = f"<b>1. 비즈니스 개요:</b> {s_name}은(는) {industry} 시장 내에서 독자적인 기술력을 기반으로 시장 점유율 확대를 목표로 하고 있습니다. S-1 서류에 명시된 핵심 경쟁 우위(Moat)를 확인하세요.<br><br><b>2. 자금 사용 목적:</b> 조달된 자금은 주로 R&D 투자, 운영 자금 확보, 그리고 기존 부채 상환에 사용될 예정입니다.<br><br><b>3. 주요 리스크:</b> 해당 산업군의 경쟁 심화 및 규제 변화가 주요 위험 요인(Risk Factors)입니다."
+            if topic == "S-1" or topic == "F-1":
+                detail_summary = f"<b>1. 비즈니스 개요:</b> {s_name}은(는) {industry} 시장 내에서 독자적인 기술력을 기반으로 시장 점유율 확대를 목표로 하고 있습니다. 신고서 내 'Business' 섹션에서 핵심 경쟁 우위(Moat)를 확인하세요.<br><br><b>2. 자금 사용 목적:</b> 'Use of Proceeds' 섹션을 통해 조달된 자금이 R&D, 운영 자금, 또는 부채 상환 중 어디에 쓰이는지 확인해야 합니다.<br><br><b>3. 주요 리스크:</b> 'Risk Factors' 섹션에 명시된 해당 산업군의 경쟁 심화 및 규제 변화 요인을 체크하세요."
             elif topic == "S-1/A":
                 detail_summary = f"<b>1. 밸류에이션 업데이트:</b> 정정 신고서를 통해 구체적인 공모 희망 가격 밴드가 제시되었습니다.<br><br><b>2. 공모 규모 변동:</b> 기존 S-1 대비 발행 주식 수나 공모 금액에 변경이 있는지 확인해야 합니다.<br><br><b>3. 시장 반응:</b> 이번 수정 사항은 {s_name}에 대한 기관들의 실제 평가 분위기를 감지할 수 있는 지표입니다."
             else:
                 detail_summary = f"<b>1. 핵심 포인트:</b> {curr_meta['t']} 문서를 통해 {s_name}의 상장 프로세스가 막바지 단계임을 알 수 있습니다.<br><br><b>2. 투자 전략:</b> {industry} 섹터의 최근 IPO 트렌드와 비교하여, 이 기업의 비전을 검토해 보세요.<br><br><b>3. 체크리스트:</b> 경영진이 바라보는 향후 3년 간의 성장 로드맵을 면밀히 분석하는 것을 권장합니다."
 
-            # --- UI 렌더링 (안전한 HTML 방식 적용) ---
+            # --- UI 렌더링 ---
             
-            # 1. 파란색: 정의 박스
+            # 1. 파란색: 문서 정의 박스
             st.info(f"💡 **{curr_meta['t']}란?**\n\n{curr_meta['d']}")
 
-            # 2. 회색: 상세 분석 박스 (HTML 변수 분리)
+            # 2. 회색: 상세 분석 요약 박스
             today_str = datetime.now().strftime('%Y-%m-%d')
             html_content = f"""
             <div style="background-color: #fafafa; padding: 20px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 20px;">
-                <h5 style="margin-top:0; margin-bottom:15px; color:#333;">📝 AI 기업 분석 요약</h5>
+                <h5 style="margin-top:0; margin-bottom:15px; color:#333;">📝 문서 핵심 포인트 요약</h5>
                 <div style="font-size:14px; color:#444; line-height:1.6; margin-bottom:15px;">
                     {detail_summary}
                 </div>
                 <div style="text-align:right; border-top: 1px solid #eee; padding-top: 10px;">
-                    <small style="color:#999;">Last updated: {today_str}</small>
+                    <small style="color:#999;">Updated: {today_str}</small>
                 </div>
             </div>
             """
             st.markdown(html_content, unsafe_allow_html=True)
 
-            # ... (이전 코드와 동일) ...
+            # 3. 하단: 원문 링크 버튼 (SEC EDGAR 연결)
+            import urllib.parse
+            import re
 
-            # ... (이전 코드와 동일) ...
+            # [1] CIK 확인
+            cik = profile.get('cik', '') if profile else ''
 
-            # 3. 하단: 원문 링크 or 데이터
-            if curr_meta['is_doc']:
-                import urllib.parse
-                import re
+            # [2] 이름 정제 (검색 정확도 향상)
+            raw_name = stock['name']
+            clean_name = re.sub(r'[,.]', '', raw_name)
+            clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
+            if len(clean_name) < 2: clean_name = raw_name
 
-                # [1] CIK 확인 (가장 정확함)
-                cik = profile.get('cik', '') if profile else ''
+            # [3] URL 생성 (CIK 유무에 따라 최적화)
+            if cik:
+                enc_topic = urllib.parse.quote(topic)
+                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={enc_topic}&owner=include&count=40"
+                btn_text = f"🏛️ {stock['name']} - {topic} 원문 리스트 보기 ↗"
+            else:
+                # CIK 없으면 최신 통합 검색으로 유도
+                query = f'"{clean_name}" {topic}'
+                enc_query = urllib.parse.quote(query)
+                sec_url = f"https://www.sec.gov/edgar/search/#/q={enc_query}&dateRange=all"
+                btn_text = f"🔍 {clean_name} - {topic} 검색 결과 보기 ↗"
 
-                # [2] 이름 정제 로직 수정 (너무 많이 지워서 실패하는 경우 방지)
-                raw_name = stock['name']
-                
-                # 1단계: 특수문자 제거
-                clean_name = re.sub(r'[,.]', '', raw_name)
-                
-                # 2단계: 법인 형태(Suffix)만 제거 (Inc, Corp, Ltd, PLC, LLC)
-                # 주의: 'Holdings', 'Group', 'Systems' 등은 이름의 일부일 수 있어 남겨야 함!
-                # 대소문자 무시(re.I), 문장 끝($)에 있는 것만 제거
-                clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
-
-                # 안전장치: 정제했더니 이름이 너무 짧아지면 원본 사용
-                if len(clean_name) < 2:
-                    clean_name = raw_name
-
-                # [3] URL 생성 전략 이원화
-                # A. CIK가 있음 -> 'Classic Browse' (깔끔한 리스트 뷰)
-                if cik:
-                    enc_topic = urllib.parse.quote(topic)
-                    sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={enc_topic}&owner=include&count=40"
-                    btn_text = f"🏛️ {stock['name']} - {topic} 리스트 보기 ↗"
-                
-                # B. CIK가 없음 -> 'Modern Search' (최신 통합 검색)
-                # 구형 시스템의 'No matching' 오류를 피하기 위해, 키워드 검색 방식으로 전환합니다.
-                else:
-                    # 검색어 예시: "Arm Holdings" "S-1"
-                    # 따옴표("")로 감싸서 정확도를 높임
-                    query = f'"{clean_name}" {topic}'
-                    enc_query = urllib.parse.quote(query)
-                    
-                    # SEC 최신 검색 엔진 URL
-                    sec_url = f"https://www.sec.gov/edgar/search/#/q={enc_query}&dateRange=all"
-                    btn_text = f"🔍 {clean_name} - {topic} 검색 결과 보기 ↗"
-
-                st.markdown(f"""
-                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; transition:0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>
-                            {btn_text}
-                        </button>
-                    </a>
-                """, unsafe_allow_html=True)
+            st.markdown(f"""
+                <a href="{sec_url}" target="_blank" style="text-decoration:none;">
+                    <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; transition:0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>
+                        {btn_text}
+                    </button>
+                </a>
+            """, unsafe_allow_html=True)
 
             else:
                 # ... (재무 데이터 코드 동일) ...
@@ -1138,6 +1119,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
