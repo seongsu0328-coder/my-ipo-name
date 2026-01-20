@@ -203,17 +203,17 @@ elif st.session_state.page == 'login':
             st.write("")
             
             # 버튼 1: 기존 회원 로그인 (바로 입력창으로)
-            if st.button("🔑 기존 회원 로그인", use_container_width=True, type="primary"):
+            if st.button("회원 로그인", use_container_width=True, type="primary"):
                 st.session_state.login_step = 'login_input' # 로그인 입력 단계로 이동
                 st.rerun()
                 
             # 버튼 2: 신규 회원 가입 (안내 화면으로)
-            if st.button("✨ 3초만에 회원가입", use_container_width=True):
+            if st.button("회원가입", use_container_width=True):
                 st.session_state.login_step = 'ask_signup' # 가입 안내 단계로 이동
                 st.rerun()
                 
             # 버튼 3: 비회원 둘러보기
-            if st.button("👀 비회원으로 구경하기", use_container_width=True):
+            if st.button("구경하기", use_container_width=True):
                 st.session_state.auth_status = 'guest'
                 st.session_state.page = 'stats'
                 st.rerun()
@@ -243,7 +243,7 @@ elif st.session_state.page == 'login':
 
         # [Step 2-B] 회원가입 안내 화면 (신규 회원용)
         elif st.session_state.login_step == 'ask_signup':
-            st.info("🦄 회원가입 시 관심기업 관리, 투자 예측 저장, 토론 참여가 가능합니다.")
+            st.info("회원가입시 IPO정보알림받기 및 관심기업관리가 가능합니다.")
             c1, c2 = st.columns(2)
             if c1.button("✅ 가입 진행", use_container_width=True):
                 st.session_state.login_step = 'signup_input' # 가입 입력 단계로 이동
@@ -1044,6 +1044,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
