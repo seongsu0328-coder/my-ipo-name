@@ -611,7 +611,7 @@ elif st.session_state.page == 'detail':
         st.write("---")
 
         # [3. 탭 메뉴 구성]
-        tab0, tab1, tab2, tab3 = st.tabs(["📰 주요 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
+        tab0, tab1, tab2, tab3 = st.tabs(["📰 주요 뉴스", "📋 주요 공시", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
 
         # --- Tab 0: 뉴스 & 심층 분석 (하이브리드 모드) ---
         with tab0:
@@ -1138,6 +1138,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
