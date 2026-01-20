@@ -613,60 +613,61 @@ elif st.session_state.page == 'detail':
         # [3. 탭 메뉴 구성]
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
 
-        # --- Tab 0: 뉴스 & 심층 분석 (Real Search API 적용) ---
+        # --- Tab 0: 뉴스 & 심층 분석 (하이브리드 모드) ---
         with tab0:
             st.markdown("##### 🕵️ AI 심층 분석 리포트")
             st.caption("웹 검색 엔진(DuckDuckGo)을 통해 수집된 실제 데이터를 요약하여 보여줍니다.")
 
-            # [1] 실시간 검색 실행 (Spinner로 로딩 표시)
             founder_info = ""
             biz_info = ""
             
-            # 이미 캐싱되어 있으면 순식간에 지나감
-            with st.spinner("🤖 AI가 웹에서 창업주와 비즈니스 정보를 수집 중입니다..."):
-                # 검색어 최적화 (영어 검색이 정확도가 높음)
-                q_founder = f"{stock['name']} founder background education vision summary"
-                q_biz = f"{stock['name']} company business model revenue stream summary"
-                
+            # [1] 검색어 생성
+            q_founder = f"{stock['name']} founder background education vision"
+            q_biz = f"{stock['name']} business model revenue stream"
+            
+            # [2] 데이터 수집 (로딩바)
+            with st.spinner("🤖 AI가 웹 정보를 분석하고 있습니다..."):
                 founder_info = get_search_summary(q_founder)
                 biz_info = get_search_summary(q_biz)
 
-            # [2] UI 렌더링 (수집된 텍스트 표시)
+            # [3] UI 렌더링
             c1, c2 = st.columns(2)
-
+            
             # (A) 창업주/리더십 섹션
             with c1:
-                st.markdown(f"""
-                <div style="background-color: #f8f9fa; border:1px solid #e9ecef; border-radius: 15px; padding: 20px; height: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
-                    <div style="display:flex; align-items:center; margin-bottom:15px; border-bottom:1px solid #ddd; padding-bottom:10px;">
-                        <span style="font-size:24px; margin-right:10px;">👨‍💼</span>
-                        <div>
-                            <h4 style="margin:0; color:#333;">창업주소개</h4>
-                            <span style="font-size:12px; color:#666;">Founder's Background</span>
-                        </div>
-                    </div>
-                    <div style="font-size:14px; color:#444; line-height:1.6; text-align:justify; max-height:250px; overflow-y:auto;">
+                st.markdown("""
+                <div style="display:flex; align-items:center; margin-bottom:10px;">
+                    <span style="font-size:24px; margin-right:10px;">👨‍💼</span>
+                    <h4 style="margin:0; color:#333;">창업주 & 리더십</h4>
+                </div>""", unsafe_allow_html=True)
+                
+                if founder_info:
+                    # 검색 성공 시 텍스트 표시
+                    st.markdown(f"""
+                    <div style="background-color: #f8f9fa; border:1px solid #e9ecef; border-radius: 15px; padding: 20px; height: 250px; overflow-y:auto; font-size:14px; color:#444; line-height:1.6;">
                         {founder_info}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    </div>""", unsafe_allow_html=True)
+                else:
+                    # 검색 차단/실패 시 구글 버튼 표시
+                    st.info("AI 자동 요약이 지연되고 있습니다. 원문 검색을 권장합니다.")
+                    st.link_button("🔍 구글에서 창업주 정보 보기", f"https://www.google.com/search?q={q_founder}", use_container_width=True)
 
             # (B) 비즈니스/시장 섹션
             with c2:
-                st.markdown(f"""
-                <div style="background-color: #eef2ff; border:1px solid #c7d2fe; border-radius: 15px; padding: 20px; height: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
-                    <div style="display:flex; align-items:center; margin-bottom:15px; border-bottom:1px solid #a5b4fc; padding-bottom:10px;">
-                        <span style="font-size:24px; margin-right:10px;">🏢</span>
-                        <div>
-                            <h4 style="margin:0; color:#333;">기업소개</h4>
-                            <span style="font-size:12px; color:#555;">Market & Revenue</span>
-                        </div>
-                    </div>
-                    <div style="font-size:14px; color:#444; line-height:1.6; text-align:justify; max-height:250px; overflow-y:auto;">
+                st.markdown("""
+                <div style="display:flex; align-items:center; margin-bottom:10px;">
+                    <span style="font-size:24px; margin-right:10px;">🏢</span>
+                    <h4 style="margin:0; color:#333;">비즈니스 모델</h4>
+                </div>""", unsafe_allow_html=True)
+                
+                if biz_info:
+                    st.markdown(f"""
+                    <div style="background-color: #eef2ff; border:1px solid #c7d2fe; border-radius: 15px; padding: 20px; height: 250px; overflow-y:auto; font-size:14px; color:#444; line-height:1.6;">
                         {biz_info}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    </div>""", unsafe_allow_html=True)
+                else:
+                    st.info("AI 자동 요약이 지연되고 있습니다. 원문 검색을 권장합니다.")
+                    st.link_button("📊 구글에서 비즈니스 모델 보기", f"https://www.google.com/search?q={q_biz}", use_container_width=True)
 
             st.write("---")
             
@@ -1134,6 +1135,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
