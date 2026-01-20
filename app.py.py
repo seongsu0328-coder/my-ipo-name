@@ -214,6 +214,11 @@ elif st.session_state.page == 'login':
             if cc1.button("가입 완료", use_container_width=True):
                 if len(phone) >= 10:
                     st.session_state.auth_status = 'user'
+                    
+                    # ▼▼▼ [중요 추가] 전화번호를 세션에 저장 (본인 글 삭제 기능용) ▼▼▼
+                    st.session_state.user_phone = phone 
+                    # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+                    
                     st.session_state.page = 'stats'
                     st.session_state.login_step = 'choice'
                     st.rerun()
@@ -875,6 +880,7 @@ elif st.session_state.page == 'detail':
                     if st.button("🗑️ 해제", use_container_width=True): 
                         st.session_state.watchlist.remove(sid)
                         st.rerun()
+
 
 
 
