@@ -796,24 +796,29 @@ elif st.session_state.page == 'detail':
             
             st.write("---")
 
-            # --- 2. 커뮤니티 의견 (삭제 권한 기능 추가) ---
+            # --- 2. 커뮤니티 의견 (버튼 크기 수정됨) ---
             st.markdown("### 💬 주주 토론방")
             
             # (A) 댓글 입력창
             if st.session_state.auth_status == 'user':
                 with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
                     user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
-                    submit_btn = st.form_submit_button("등록하기", use_container_width=True, type="primary")
+                    
+                    # ▼▼▼ [수정] 버튼 크기를 아래 '담기' 버튼과 맞추기 위해 컬럼 분할 ([3, 1]) ▼▼▼
+                    btn_c1, btn_c2 = st.columns([3, 1])
+                    with btn_c2:
+                        # 오른쪽 1칸짜리 컬럼에 버튼을 넣어 크기를 줄임
+                        submit_btn = st.form_submit_button("등록하기", use_container_width=True, type="primary")
+                    # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
                     
                     if submit_btn and user_input:
                         now_time = datetime.now().strftime("%m.%d %H:%M")
-                        # [중요] 작성자 식별을 위해 'uid'(전화번호) 저장
                         new_comment = {
-                            "id": str(uuid.uuid4()),    # 고유 ID (삭제 시 식별용)
-                            "t": user_input,            # 내용
-                            "d": now_time,              # 날짜
-                            "u": "익명의 유니콘",        # 닉네임 (추후 변경 가능)
-                            "uid": current_user         # 작성자 ID (전화번호)
+                            "id": str(uuid.uuid4()),    
+                            "t": user_input,            
+                            "d": now_time,              
+                            "u": "익명의 유니콘",        
+                            "uid": current_user         
                         }
                         st.session_state.comment_data[sid].insert(0, new_comment)
                         st.toast("의견이 등록되었습니다!", icon="✅")
@@ -880,6 +885,7 @@ elif st.session_state.page == 'detail':
                     if st.button("🗑️ 해제", use_container_width=True): 
                         st.session_state.watchlist.remove(sid)
                         st.rerun()
+
 
 
 
