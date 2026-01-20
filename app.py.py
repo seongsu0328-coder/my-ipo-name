@@ -796,20 +796,18 @@ elif st.session_state.page == 'detail':
             
             st.write("---")
 
-            # --- 2. 커뮤니티 의견 (버튼 크기 수정됨) ---
+            # --- 2. 커뮤니티 의견 (베스트 댓글순 정렬 + 좋아요/싫어요) ---
             st.markdown("### 💬 주주 토론방")
             
-            # (A) 댓글 입력창
+            # (A) 댓글 입력창 (기존과 동일, 데이터 구조만 변경)
             if st.session_state.auth_status == 'user':
                 with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
                     user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
                     
-                    # ▼▼▼ [수정] 버튼 크기를 아래 '담기' 버튼과 맞추기 위해 컬럼 분할 ([3, 1]) ▼▼▼
+                    # 버튼 크기 맞춤 (3:1 비율)
                     btn_c1, btn_c2 = st.columns([3, 1])
                     with btn_c2:
-                        # 오른쪽 1칸짜리 컬럼에 버튼을 넣어 크기를 줄임
                         submit_btn = st.form_submit_button("등록하기", use_container_width=True, type="primary")
-                    # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
                     
                     if submit_btn and user_input:
                         now_time = datetime.now().strftime("%m.%d %H:%M")
@@ -818,7 +816,10 @@ elif st.session_state.page == 'detail':
                             "t": user_input,            
                             "d": now_time,              
                             "u": "익명의 유니콘",        
-                            "uid": current_user         
+                            "uid": current_user,
+                            # [추가] 좋아요/싫어요 누른 사람들의 ID를 저장할 리스트
+                            "likes": [],
+                            "dislikes": []
                         }
                         st.session_state.comment_data[sid].insert(0, new_comment)
                         st.toast("의견이 등록되었습니다!", icon="✅")
@@ -826,44 +827,89 @@ elif st.session_state.page == 'detail':
             else:
                 st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
 
-            # (B) 댓글 리스트 출력 (삭제 버튼 로직 적용)
+            # (B) 댓글 리스트 출력 (베스트순 정렬 + 투표 기능)
             comments = st.session_state.comment_data.get(sid, [])
+            
             if comments:
-                st.markdown(f"<div style='margin-bottom:10px; color:#666; font-size:14px;'>총 <b>{len(comments)}</b>개의 의견</div>", unsafe_allow_html=True)
+                # [핵심] 기존 댓글에 'likes' 키가 없으면 에러가 나므로 방어 코드 추가 (마이그레이션)
+                for c in comments:
+                    if 'likes' not in c: c['likes'] = []
+                    if 'dislikes' not in c: c['dislikes'] = []
+
+                # [핵심] 좋아요(likes) 개수가 많은 순서대로 정렬 (내림차순)
+                comments.sort(key=lambda x: len(x['likes']), reverse=True)
+
+                st.markdown(f"<div style='margin-bottom:10px; color:#666; font-size:14px;'>총 <b>{len(comments)}</b>개의 의견 (인기순)</div>", unsafe_allow_html=True)
                 
-                # 삭제 처리를 위한 빈 리스트
-                delete_target_id = None
+                delete_target_id = None # 삭제할 댓글 임시 저장
 
                 for c in comments:
-                    # 카드 디자인 시작
+                    # 좋아요/싫어요 수 계산
+                    n_likes = len(c['likes'])
+                    n_dislikes = len(c['dislikes'])
+                    
+                    # 카드 UI
                     st.markdown(f"""
                     <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #eee;'>
                         <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
                             <div style='font-weight:bold; font-size:14px; color:#444;'>👤 {c.get('u', '익명')}</div>
                             <div style='font-size:12px; color:#999;'>{c['d']}</div>
                         </div>
-                        <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap;'>{c['t']}</div>
+                        <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap; margin-bottom:10px;'>{c['t']}</div>
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # [삭제 권한 확인]
-                    # 작성자 본인(uid 일치) 이거나 관리자(is_admin) 인 경우에만 삭제 버튼 노출
-                    comment_author_id = c.get('uid', '') # 기존 데이터 호환 위해 get 사용
+                    # [기능] 좋아요/싫어요/삭제 버튼 액션 바
+                    # 버튼들이 너무 크지 않게 컬럼으로 공간 배분
+                    act_c1, act_c2, act_c3, act_c4 = st.columns([1, 1, 3, 1])
+                    
+                    # 1. 좋아요 버튼
+                    is_liked = current_user in c['likes']
+                    like_icon = "👍" if is_liked else "👍"
+                    if act_c1.button(f"{like_icon} {n_likes}", key=f"like_{c['id']}"):
+                        if st.session_state.auth_status == 'user':
+                            if current_user in c['likes']:
+                                c['likes'].remove(current_user) # 이미 눌렀으면 취소
+                            else:
+                                c['likes'].append(current_user) # 추가
+                                if current_user in c['dislikes']: c['dislikes'].remove(current_user) # 싫어요 눌렀었으면 취소
+                            st.rerun()
+                        else:
+                            st.toast("로그인이 필요합니다.", icon="🔒")
+
+                    # 2. 싫어요 버튼
+                    is_disliked = current_user in c['dislikes']
+                    dislike_icon = "👎" if is_disliked else "👎"
+                    if act_c2.button(f"{dislike_icon} {n_dislikes}", key=f"dislike_{c['id']}"):
+                        if st.session_state.auth_status == 'user':
+                            if current_user in c['dislikes']:
+                                c['dislikes'].remove(current_user) # 취소
+                            else:
+                                c['dislikes'].append(current_user) # 추가
+                                if current_user in c['likes']: c['likes'].remove(current_user) # 좋아요 취소
+                            st.rerun()
+                        else:
+                            st.toast("로그인이 필요합니다.", icon="🔒")
+
+                    # 3. 삭제 버튼 (작성자 or 관리자)
+                    comment_author_id = c.get('uid', '')
                     is_author = (current_user == comment_author_id) and (current_user != 'guest')
                     
                     if is_author or is_admin:
-                        # Streamlit 루프 안에서 바로 리스트를 수정하면 에러가 나므로, ID를 받아와서 루프 밖이나 rerun 처리
-                        if st.button("🗑️ 삭제", key=f"del_{c.get('id', c['t'])}"): # id가 없으면 내용이라도 키로 사용
-                            delete_target_id = c
-                
-                # 삭제 실행 로직
+                        with act_c4: # 오른쪽 끝에 배치
+                            if st.button("🗑️ 삭제", key=f"del_{c['id']}"):
+                                delete_target_id = c
+                    
+                    st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
+
+                # 삭제 실행
                 if delete_target_id:
                     st.session_state.comment_data[sid].remove(delete_target_id)
                     st.toast("댓글이 삭제되었습니다.", icon="🗑️")
                     st.rerun()
                     
             else:
-                st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 의견을 남겨보세요!</div>", unsafe_allow_html=True)
+                st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
             
             st.write("---")
 
@@ -885,6 +931,7 @@ elif st.session_state.page == 'detail':
                     if st.button("🗑️ 해제", use_container_width=True): 
                         st.session_state.watchlist.remove(sid)
                         st.rerun()
+
 
 
 
