@@ -243,7 +243,7 @@ elif st.session_state.page == 'stats':
             st.image(img_baby, use_container_width=True)
         
         # 버튼 (텍스트 역할)
-        if st.button("신규상장 기업", use_container_width=True, key="go_all"):
+        if st.button("신규상장", use_container_width=True, key="go_all"):
             st.session_state.view_mode = 'all'
             st.session_state.page = 'calendar'
             st.rerun()
@@ -254,7 +254,7 @@ elif st.session_state.page == 'stats':
         if os.path.exists(img_adult): 
             st.image(img_adult, use_container_width=True)
             
-        if st.button("인기상승 기업", use_container_width=True, key="go_hot"):
+        if st.button("인기상승", use_container_width=True, key="go_hot"):
             st.session_state.view_mode = 'hot'
             st.session_state.page = 'calendar'
             st.rerun()
@@ -266,7 +266,7 @@ elif st.session_state.page == 'stats':
             st.image(img_child, use_container_width=True)
             
         watch_count = len(st.session_state.watchlist)
-        if st.button(f"관심기업 ({watch_count})", use_container_width=True, type="primary", key="go_watch"):
+        if st.button(f"나의 관심 ({watch_count})", use_container_width=True, type="primary", key="go_watch"):
             st.session_state.view_mode = 'watchlist'
             st.session_state.page = 'calendar'
             st.rerun()
@@ -809,6 +809,7 @@ elif st.session_state.page == 'detail':
                 if st.button("❌ 관심 종목 해제", use_container_width=True): 
                     st.session_state.watchlist.remove(sid)
                     st.rerun()
+
 
 
 
