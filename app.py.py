@@ -641,7 +641,7 @@ elif st.session_state.page == 'detail':
                 st.markdown("""
                 <div style="display:flex; align-items:center; margin-bottom:10px;">
                     <span style="font-size:24px; margin-right:10px;">👨‍💼</span>
-                    <h4 style="margin:0; color:#333;">창업주 & 리더십</h4>
+                    <h4 style="margin:0; color:#333;">창업주 소개</h4>
                 </div>""", unsafe_allow_html=True)
                 
                 if founder_info:
@@ -1138,6 +1138,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
