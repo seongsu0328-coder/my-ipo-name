@@ -594,64 +594,82 @@ elif st.session_state.page == 'detail':
         # [3. 탭 메뉴 구성]
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
 
-        # --- Tab 0: 뉴스 & 심층 분석 (검색 연동 기능 + 리얼 데이터 분석) ---
+        # --- Tab 0: 뉴스 & 심층 분석 (창업주/기업분석/재무요약) ---
         with tab0:
-            st.markdown("##### 🕵️ AI 심층 분석 도우미")
-            st.caption("실시간 데이터가 없는 항목은 구글 검색으로 자동 연결됩니다.")
+            st.markdown("##### 🕵️ AI 심층 분석 리포트")
+            st.caption("기업의 리더십(인물)과 비즈니스 환경(시장)을 입체적으로 분석합니다.")
 
-            # [1] 검색 키워드 생성
-            q_comp = f"{stock['name']} competitors market share analysis"
-            url_comp = f"https://www.google.com/search?q={q_comp}"
+            # [1] 스마트 검색 키워드 생성 (AI 검색 최적화)
+            # 창업주: 학력, 경력, 비전 키워드 조합
+            q_founder = f"{stock['name']} founder education career vision history"
+            url_founder = f"https://www.google.com/search?q={q_founder}"
             
-            q_under = f"{stock['name']} IPO underwriters investment bank"
-            url_under = f"https://www.google.com/search?q={q_under}"
+            # 기업분석: 비즈니스 모델, 시장 점유율, 경쟁사 비교 키워드 조합
+            q_biz = f"{stock['name']} business model market share vs top competitors"
+            url_biz = f"https://www.google.com/search?q={q_biz}"
 
-            # [2] 리얼 데이터 기반 AI 코멘트 생성 로직
-            # 재무 데이터(fin_data)가 있으면 그것을 바탕으로 말을 만듭니다.
+            # [2] 재무 데이터 기반 AI 코멘트 생성 (이 부분은 실제 데이터로 생성됨)
+            ai_comment = "재무 데이터가 부족하여 분석할 수 없습니다."
             
-            # (A) 경쟁 우위 분석 멘트 생성
-            if fin_data and fin_data.get('growth'):
-                g_rate = fin_data['growth']
-                if g_rate > 20:
-                    comp_msg = f"🚀 **고성장 기업 분석:** {stock['name']}의 매출 성장률은 **{g_rate:.1f}%**로 매우 높습니다. 경쟁사들이 이 속도를 따라오고 있는지, 시장 점유율을 얼마나 빠르게 잠식하고 있는지 검색해보세요."
-                elif g_rate > 0:
-                    comp_msg = f"⚖️ **안정 성장 분석:** {stock['name']}은(는) **{g_rate:.1f}%**의 안정적인 성장을 보입니다. 경쟁사 대비 순이익률(Net Margin)이 더 우수한지 비교하는 것이 핵심입니다."
-                else:
-                    comp_msg = f"📉 **턴어라운드 분석:** 현재 성장이 다소 정체(**{g_rate:.1f}%**)된 상태입니다. 경쟁사 대비 확실한 돌파구(Moat)나 신사업 모멘텀이 있는지 확인이 필요합니다."
-            else:
-                # 데이터가 없을 경우 산업군별 기본 멘트
-                ind = profile.get('finnhubIndustry', 'General') if profile else 'General'
-                comp_msg = f"💡 **{ind} 섹터 분석:** 해당 산업군은 1, 2위 기업 쏠림 현상이 심할 수 있습니다. {stock['name']}의 독점적 기술력 보유 여부를 검색해보세요."
+            if fin_data:
+                # 성장성 분석
+                g = fin_data.get('growth', 0) or 0
+                if g > 30: g_msg = f"매출이 연 {g:.1f}%씩 폭발적으로 성장하는 '하이퍼 그로스(Hyper-growth)' 단계입니다."
+                elif g > 10: g_msg = f"매출 성장률 {g:.1f}%로 시장 지배력을 안정적으로 넓혀가고 있습니다."
+                else: g_msg = f"현재 성장률은 {g:.1f}%로, 성숙기에 접어들었거나 숨 고르기를 하고 있습니다."
+                
+                # 수익성 분석
+                m = fin_data.get('op_margin', 0) or 0
+                if m > 20: m_msg = f"영업이익률 {m:.1f}%의 고마진 구조로, 경쟁사 대비 압도적인 기술 격차(Moat)를 보유했을 가능성이 큽니다."
+                elif m > 0: m_msg = "흑자 경영을 유지하고 있으며, 비즈니스 모델이 안정화되었습니다."
+                else: m_msg = "현재는 적자 상태로, 공격적인 투자로 시장 점유율을 늘리는 단계인지 확인이 필요합니다."
+                
+                ai_comment = f"{g_msg} {m_msg}"
 
-            # (B) 주관사 및 리스크 분석 멘트 생성
-            if fin_data and fin_data.get('debt_equity'):
-                de_ratio = fin_data['debt_equity']
-                if de_ratio > 100:
-                    risk_msg = f"⚠️ **재무 리스크 체크:** 부채 비율이 **{de_ratio:.1f}%**로 다소 높습니다. 공모 자금이 '부채 상환'에 쓰이는지, '신규 투자'에 쓰이는지 주관사 보고서를 통해 확인해야 합니다."
-                else:
-                    risk_msg = f"💰 **재무 건전성 우수:** 부채 비율이 **{de_ratio:.1f}%**로 안정적입니다. 조달된 자금을 공격적인 M&A나 R&D에 사용할 가능성이 높습니다."
-            else:
-                risk_msg = "💡 **주관사(IB) 체크포인트:** 골드만삭스, 모건스탠리 등 메이저 IB가 참여했다면, 기관 투자자들의 신뢰도가 높다는 신호입니다. 락업(Lock-up) 해제일도 함께 확인하세요."
-
-            # [3] 버튼 및 가이드 배치 (동적 메시지 적용)
+            # [3] UI 배치 (2열 카드 섹션)
             c1, c2 = st.columns(2)
-            
-            with c1:
-                st.link_button("🥊 경쟁우위 검색 (Google)", url_comp, use_container_width=True)
-                # 파란색 박스에 동적 메시지 출력
-                st.info(comp_msg)
 
+            # (A) 창업주 소개 섹션
+            with c1:
+                st.markdown("""
+                <div style="background-color: #f1f3f5; padding: 15px; border-radius: 10px; height: 100%;">
+                    <h4 style="margin:0; color:#495057;">👨‍💼 창업주 소개</h4>
+                    <p style="font-size:13px; color:#868e96; margin-bottom:10px;">Founder's Profile</p>
+                    <ul style="font-size:14px; color:#333; padding-left:20px;">
+                        <li><b>학력/경력:</b> 어떤 배경을 가졌는가?</li>
+                        <li><b>창업 스토리:</b> 왜 이 회사를 만들었나?</li>
+                        <li><b>경영 철학:</b> 미래 비전은 무엇인가?</li>
+                    </ul>
+                </div>
+                """, unsafe_allow_html=True)
+                st.link_button("🔍 창업주 이력 & 비전 요약 보기", url_founder, use_container_width=True)
+
+            # (B) 기업 분석 섹션
             with c2:
-                st.link_button("🏦 주관사 검색 (Google)", url_under, use_container_width=True)
-                # 회색 박스 대신 warning/success 박스로 상황에 따라 다르게 표현
-                if "리스크" in risk_msg:
-                    st.warning(risk_msg)
-                else:
-                    st.success(risk_msg)
+                st.markdown("""
+                <div style="background-color: #e7f5ff; padding: 15px; border-radius: 10px; height: 100%;">
+                    <h4 style="margin:0; color:#1c7ed6;">🏢 기업 분석</h4>
+                    <p style="font-size:13px; color:#a5d8ff; margin-bottom:10px;">Business & Market</p>
+                    <ul style="font-size:14px; color:#333; padding-left:20px;">
+                        <li><b>Business:</b> 주요 수익 모델은?</li>
+                        <li><b>Market:</b> 핵심 타겟 시장은 어디?</li>
+                        <li><b>Top Tier:</b> 업계 1위는 누구인가?</li>
+                    </ul>
+                </div>
+                """, unsafe_allow_html=True)
+                st.link_button("📊 비즈니스 & 경쟁사 점유율 보기", url_biz, use_container_width=True)
+
+            # [4] AI 재무 한줄평 (하단 통합 박스)
+            st.markdown(f"""
+            <div style="margin-top: 15px; padding: 15px; border: 1px solid #dee2e6; border-radius: 10px; background-color: #fff;">
+                <strong style="color:#d63384;">🤖 AI 재무 인사이트</strong><br>
+                <span style="color:#444; font-size:15px;">{ai_comment}</span>
+            </div>
+            """, unsafe_allow_html=True)
 
             st.write("---")
             
-            # [4] 뉴스 리스트 (기존 유지)
+            # [5] 뉴스 리스트 (기존 유지)
             st.markdown(f"##### 🔥 {stock['name']} 관련 실시간 뉴스")
             
             rss_news = get_real_news_rss(stock['name'])
@@ -1116,6 +1134,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
