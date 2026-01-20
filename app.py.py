@@ -659,17 +659,8 @@ elif st.session_state.page == 'detail':
                 """, unsafe_allow_html=True)
                 st.link_button("📊 비즈니스 & 경쟁사 점유율 보기", url_biz, use_container_width=True)
 
-            # [4] AI 재무 한줄평 (하단 통합 박스)
-            st.markdown(f"""
-            <div style="margin-top: 15px; padding: 15px; border: 1px solid #dee2e6; border-radius: 10px; background-color: #fff;">
-                <strong style="color:#d63384;">🤖 AI 재무 인사이트</strong><br>
-                <span style="color:#444; font-size:15px;">{ai_comment}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.write("---")
-            
-            # [5] 뉴스 리스트 (기존 유지)
+        
+            # [4] 뉴스 리스트 (기존 유지)
             st.markdown(f"##### 🔥 {stock['name']} 관련 실시간 뉴스")
             
             rss_news = get_real_news_rss(stock['name'])
@@ -1134,6 +1125,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
