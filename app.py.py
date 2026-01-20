@@ -621,9 +621,12 @@ elif st.session_state.page == 'detail':
             founder_info = ""
             biz_info = ""
             
-            # [1] 검색어 생성
-            q_founder = f"{stock['name']} founder background education vision"
-            q_biz = f"{stock['name']} business model revenue stream"
+           # [1] 검색어 생성 (수정됨: 정확도를 위해 'IPO', 'Stock', 'CEO' 키워드 추가)
+            # 기존: f"{stock['name']} founder background..."
+            # 변경: 기업명 뒤에 'IPO stock company'를 붙여서 엉뚱한 단체 검색 방지
+            
+            q_founder = f"{stock['name']} IPO stock company founder CEO background story"
+            q_biz = f"{stock['name']} IPO stock company business model revenue revenue stream"
             
             # [2] 데이터 수집 (로딩바)
             with st.spinner("🤖 AI가 웹 정보를 분석하고 있습니다..."):
@@ -1135,6 +1138,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
