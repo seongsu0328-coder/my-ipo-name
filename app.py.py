@@ -594,42 +594,60 @@ elif st.session_state.page == 'detail':
         # [3. 탭 메뉴 구성]
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
 
-        # --- Tab 0: 뉴스 & 심층 분석 (검색 연동 기능) ---
+        # --- Tab 0: 뉴스 & 심층 분석 (검색 연동 기능 + 리얼 데이터 분석) ---
         with tab0:
             st.markdown("##### 🕵️ AI 심층 분석 도우미")
             st.caption("실시간 데이터가 없는 항목은 구글 검색으로 자동 연결됩니다.")
 
             # [1] 검색 키워드 생성
-            # 검색어 예: "Arm Holdings competitors market share", "Arm Holdings IPO underwriters"
             q_comp = f"{stock['name']} competitors market share analysis"
             url_comp = f"https://www.google.com/search?q={q_comp}"
             
             q_under = f"{stock['name']} IPO underwriters investment bank"
             url_under = f"https://www.google.com/search?q={q_under}"
 
-            # [2] 산업군별 AI 분석 팁 생성 (업종에 따라 멘트가 바뀜)
-            industry = profile.get('finnhubIndustry', 'General') if profile else 'General'
+            # [2] 리얼 데이터 기반 AI 코멘트 생성 로직
+            # 재무 데이터(fin_data)가 있으면 그것을 바탕으로 말을 만듭니다.
             
-            if 'Tech' in industry or 'Semiconductor' in industry:
-                tip_msg = f"💡 **{industry} 섹터 분석:** 기술적 진입장벽(Moat)과 R&D 투자 비율을 경쟁사와 비교하는 것이 핵심입니다."
-            elif 'Bio' in industry or 'Health' in industry:
-                tip_msg = f"💡 **{industry} 섹터 분석:** 임상 단계(Phase)와 FDA 승인 가능성, 그리고 현금 소진율(Burn Rate)을 확인하세요."
-            elif 'Financ' in industry:
-                tip_msg = f"💡 **{industry} 섹터 분석:** 금리 영향과 자산 건전성, 배당 수익률을 경쟁사와 비교해보세요."
+            # (A) 경쟁 우위 분석 멘트 생성
+            if fin_data and fin_data.get('growth'):
+                g_rate = fin_data['growth']
+                if g_rate > 20:
+                    comp_msg = f"🚀 **고성장 기업 분석:** {stock['name']}의 매출 성장률은 **{g_rate:.1f}%**로 매우 높습니다. 경쟁사들이 이 속도를 따라오고 있는지, 시장 점유율을 얼마나 빠르게 잠식하고 있는지 검색해보세요."
+                elif g_rate > 0:
+                    comp_msg = f"⚖️ **안정 성장 분석:** {stock['name']}은(는) **{g_rate:.1f}%**의 안정적인 성장을 보입니다. 경쟁사 대비 순이익률(Net Margin)이 더 우수한지 비교하는 것이 핵심입니다."
+                else:
+                    comp_msg = f"📉 **턴어라운드 분석:** 현재 성장이 다소 정체(**{g_rate:.1f}%**)된 상태입니다. 경쟁사 대비 확실한 돌파구(Moat)나 신사업 모멘텀이 있는지 확인이 필요합니다."
             else:
-                tip_msg = f"💡 **{industry} 섹터 분석:** 시장 점유율 1, 2위 기업과의 매출 성장률 격차를 확인하는 것이 좋습니다."
+                # 데이터가 없을 경우 산업군별 기본 멘트
+                ind = profile.get('finnhubIndustry', 'General') if profile else 'General'
+                comp_msg = f"💡 **{ind} 섹터 분석:** 해당 산업군은 1, 2위 기업 쏠림 현상이 심할 수 있습니다. {stock['name']}의 독점적 기술력 보유 여부를 검색해보세요."
 
-            # [3] 버튼 및 가이드 배치
+            # (B) 주관사 및 리스크 분석 멘트 생성
+            if fin_data and fin_data.get('debt_equity'):
+                de_ratio = fin_data['debt_equity']
+                if de_ratio > 100:
+                    risk_msg = f"⚠️ **재무 리스크 체크:** 부채 비율이 **{de_ratio:.1f}%**로 다소 높습니다. 공모 자금이 '부채 상환'에 쓰이는지, '신규 투자'에 쓰이는지 주관사 보고서를 통해 확인해야 합니다."
+                else:
+                    risk_msg = f"💰 **재무 건전성 우수:** 부채 비율이 **{de_ratio:.1f}%**로 안정적입니다. 조달된 자금을 공격적인 M&A나 R&D에 사용할 가능성이 높습니다."
+            else:
+                risk_msg = "💡 **주관사(IB) 체크포인트:** 골드만삭스, 모건스탠리 등 메이저 IB가 참여했다면, 기관 투자자들의 신뢰도가 높다는 신호입니다. 락업(Lock-up) 해제일도 함께 확인하세요."
+
+            # [3] 버튼 및 가이드 배치 (동적 메시지 적용)
             c1, c2 = st.columns(2)
             
             with c1:
-                # st.link_button: 새 탭에서 링크 열기 (Streamlit 최신 기능)
                 st.link_button("🥊 경쟁우위 검색 (Google)", url_comp, use_container_width=True)
-                st.info(tip_msg) # 산업별 맞춤 팁 표시
+                # 파란색 박스에 동적 메시지 출력
+                st.info(comp_msg)
 
             with c2:
                 st.link_button("🏦 주관사 검색 (Google)", url_under, use_container_width=True)
-                st.info("💡 **주관사(IB) 체크포인트:** 골드만삭스, 모건스탠리 등 메이저 IB가 참여했다면, 기관 투자자들의 신뢰도가 높다는 신호입니다.")
+                # 회색 박스 대신 warning/success 박스로 상황에 따라 다르게 표현
+                if "리스크" in risk_msg:
+                    st.warning(risk_msg)
+                else:
+                    st.success(risk_msg)
 
             st.write("---")
             
@@ -1098,6 +1116,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
