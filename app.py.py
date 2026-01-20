@@ -237,7 +237,7 @@ elif st.session_state.page == 'stats':
     # 이미지 파일명 (사용자 지정)
     img_baby = "new_unicorn.png"
     img_adult = "hot_unicorn.png"
-    img_child = "my_unicorn.png"
+    img_child = "fav_unicorn.png"
     
     c1, c2, c3 = st.columns(3)
     
@@ -989,6 +989,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
