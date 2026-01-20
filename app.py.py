@@ -278,6 +278,7 @@ elif st.session_state.page == 'stats':
 
 # 4. 캘린더 페이지 (중복 제거 및 최신 정렬 기능 완벽 통합)
 elif st.session_state.page == 'calendar':
+    show_login_nav() # [누락된 기능 복구] 상단 로그인 이동 버튼
     st.sidebar.button("⬅️ 메인으로", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     
     # 1. 데이터 가져오기
@@ -292,6 +293,9 @@ elif st.session_state.page == 'calendar':
         today = datetime.now().date()
 
         # 2. 상단 필터 및 정렬 UI
+        # [중요 수정] 에러 방지를 위해 변수를 미리 정의합니다.
+        sort_option = "최신순 (기본)" 
+
         if view_mode == 'watchlist':
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
             st.title("⭐ 나의 관심 종목")
@@ -300,6 +304,7 @@ elif st.session_state.page == 'calendar':
             with col_f1:
                 period = st.radio("📅 조회 기간", ["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], horizontal=True)
             with col_f2:
+                # 여기서 선택하면 위에서 정의한 기본값을 덮어씁니다.
                 sort_option = st.selectbox("🎯 리스트 정렬", ["최신순 (기본)", "🚀 수익률 높은순 (실시간)", "📈 매출 성장률순 (AI)"])
 
             # 3. 기간 필터링
@@ -387,6 +392,7 @@ elif st.session_state.page == 'calendar':
                 # (3) 기업명
                 with c_cols[2]:
                     extra_info = ""
+                    # sort_option이 정의되어 있으므로 에러 없음
                     if sort_option == "🚀 수익률 높은순 (실시간)" and row.get('temp_return', -9999) != -9999:
                         r = row['temp_return']
                         color = "red" if r < 0 else "green"
@@ -983,6 +989,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
