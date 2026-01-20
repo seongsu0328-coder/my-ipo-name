@@ -3,3 +3,5 @@ yfinance
 pandas
 plotly
 requests
+lxml
+duckduckgo-search
