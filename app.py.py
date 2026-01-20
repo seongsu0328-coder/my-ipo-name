@@ -706,11 +706,10 @@ elif st.session_state.page == 'detail':
             st.write("---")
 
             # 1. 문서 선택 버튼 그리드 (TTM 제거 및 S-1 기본 설정)
-            # 'financial'이 선택되어 있거나 초기 상태면 'S-1'으로 강제 변경
             if 'core_topic' not in st.session_state or st.session_state.core_topic == "financial":
                 st.session_state.core_topic = "S-1"
 
-            # 버튼 배치: 윗줄 3개, 아랫줄 2개
+            # 버튼 배치
             r1_c1, r1_c2, r1_c3 = st.columns(3)
             r2_c1, r2_c2 = st.columns(2)
 
@@ -726,7 +725,7 @@ elif st.session_state.page == 'detail':
             industry = profile.get('finnhubIndustry', 'Technology') if profile else 'Technology'
             s_name = stock['name']
 
-            # (A) 문서 정의 데이터 (financial 제거됨)
+            # (A) 문서 정의 데이터
             def_meta = {
                 "S-1": {"t": "증권신고서 (S-1)", "d": "상장을 위해 최초로 제출하는 서류입니다. 사업 모델과 리스크가 상세히 적혀있습니다.", "is_doc": True},
                 "S-1/A": {"t": "정정신고서 (S-1/A)", "d": "공모가 밴드와 발행 주식 수가 확정되는 수정 문서입니다.", "is_doc": True},
@@ -735,11 +734,10 @@ elif st.session_state.page == 'detail':
                 "F-1": {"t": "해외기업 신고서 (F-1)", "d": "미국 외 기업이 상장할 때 S-1 대신 제출하는 서류입니다.", "is_doc": True},
             }
             
-            # 안전장치
             if topic not in def_meta: topic = "S-1"
             curr_meta = def_meta[topic]
 
-            # (B) 상세 AI 요약 텍스트 (문서별 맞춤 분석 멘트)
+            # (B) 상세 AI 요약 텍스트
             detail_summary = ""
             if topic == "S-1" or topic == "F-1":
                 detail_summary = f"<b>1. 비즈니스 개요:</b> {s_name}은(는) {industry} 시장 내에서 독자적인 기술력을 기반으로 시장 점유율 확대를 목표로 하고 있습니다. 신고서 내 'Business' 섹션에서 핵심 경쟁 우위(Moat)를 확인하세요.<br><br><b>2. 자금 사용 목적:</b> 'Use of Proceeds' 섹션을 통해 조달된 자금이 R&D, 운영 자금, 또는 부채 상환 중 어디에 쓰이는지 확인해야 합니다.<br><br><b>3. 주요 리스크:</b> 'Risk Factors' 섹션에 명시된 해당 산업군의 경쟁 심화 및 규제 변화 요인을 체크하세요."
@@ -768,26 +766,21 @@ elif st.session_state.page == 'detail':
             """
             st.markdown(html_content, unsafe_allow_html=True)
 
-            # 3. 하단: 원문 링크 버튼 (SEC EDGAR 연결)
+            # 3. 하단: 원문 링크 버튼
             import urllib.parse
             import re
 
-            # [1] CIK 확인
             cik = profile.get('cik', '') if profile else ''
-
-            # [2] 이름 정제 (검색 정확도 향상)
             raw_name = stock['name']
             clean_name = re.sub(r'[,.]', '', raw_name)
             clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
             if len(clean_name) < 2: clean_name = raw_name
 
-            # [3] URL 생성 (CIK 유무에 따라 최적화)
             if cik:
                 enc_topic = urllib.parse.quote(topic)
                 sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={enc_topic}&owner=include&count=40"
                 btn_text = f"🏛️ {stock['name']} - {topic} 원문 리스트 보기 ↗"
             else:
-                # CIK 없으면 최신 통합 검색으로 유도
                 query = f'"{clean_name}" {topic}'
                 enc_query = urllib.parse.quote(query)
                 sec_url = f"https://www.sec.gov/edgar/search/#/q={enc_query}&dateRange=all"
@@ -800,20 +793,6 @@ elif st.session_state.page == 'detail':
                     </button>
                 </a>
             """, unsafe_allow_html=True)
-
-            else:
-                # ... (재무 데이터 코드 동일) ...
-                # ... (재무 데이터 코드는 동일) ...
-                if fin_data:
-                    c1, c2 = st.columns(2)
-                    c3, c4 = st.columns(2)
-                    def fmt(v): return f"{v:.2f}%" if v is not None else "-"
-                    with c1: st.metric("🚀 매출 성장률", fmt(fin_data['growth']))
-                    with c2: st.metric("💰 영업 이익률", fmt(fin_data['op_margin']))
-                    with c3: st.metric("💵 순이익률", fmt(fin_data['net_margin']))
-                    with c4: st.metric("🏦 부채 비율", str(fin_data['debt_equity']) if fin_data['debt_equity'] else "-")
-                else:
-                    st.warning("⚠️ 현재 집계된 재무 데이터가 없습니다.")
 
         # --- Tab 2: AI 가치 평가 (누락된 상세 로직 및 디자인 복구) ---
         with tab2:
@@ -1119,6 +1098,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
