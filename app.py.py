@@ -199,11 +199,10 @@ elif st.session_state.page == 'login':
 
         # [Step 1] 첫 선택 화면 (로그인 vs 회원가입 분리)
         if st.session_state.login_step == 'choice':
-            st.markdown("<h3 style='text-align:center;'>환영합니다! 👋</h3>", unsafe_allow_html=True)
             st.write("")
             
             # 버튼 1: 기존 회원 로그인 (바로 입력창으로)
-            if st.button("회원 로그인", use_container_width=True, type="primary"):
+            if st.button("로그인", use_container_width=True, type="primary"):
                 st.session_state.login_step = 'login_input' # 로그인 입력 단계로 이동
                 st.rerun()
                 
@@ -1044,6 +1043,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
