@@ -744,18 +744,26 @@ elif st.session_state.page == 'detail':
             with st.expander("🔬 AI 알고리즘 산출 수식 보기"):
                 st.latex(r"Score_{total} = (G \times 0.4) + (P \times 0.3) + (I \times 0.3)")
 
-        # --- Tab 3: 최종 투자 결정 (누락된 투표/댓글/보관함 로직 복구) ---
+        # --- Tab 3: 최종 투자 결정 ---
         with tab3:
+            import uuid  # 고유 ID 생성을 위해 필요 (상단 import에 추가해도 됨)
+
+            # [설정] 관리자 휴대폰 번호 (여기에 본인 번호를 입력하세요)
+            ADMIN_PHONE = "010-0000-0000" 
+            
             sid = stock['symbol']
             
             # 세션 데이터 초기화
             if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
             if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
             if 'user_votes' not in st.session_state: st.session_state.user_votes = {}
-
-            st.markdown("### 🗳️ 투자 매력도 투표")
             
-            # 1. 투표 버튼 (중복 방지 로직 포함)
+            # 현재 접속자 정보 가져오기 (없으면 'guest')
+            current_user = st.session_state.get('user_phone', 'guest')
+            is_admin = (current_user == ADMIN_PHONE)
+
+            # --- 1. 투표 기능 (기존 유지) ---
+            st.markdown("### 🗳️ 투자 매력도 투표")
             if st.session_state.auth_status == 'user':
                 if sid not in st.session_state.user_votes:
                     v1, v2 = st.columns(2)
@@ -769,11 +777,11 @@ elif st.session_state.page == 'detail':
                         st.rerun()
                 else:
                     my_vote = "유니콘" if st.session_state.user_votes[sid] == 'u' else "폴른엔젤"
-                    st.success(f"✅ 이미 '{my_vote}'에 투표하셨습니다. (종목당 1회만 가능)")
+                    st.success(f"✅ 이미 '{my_vote}'에 투표하셨습니다.")
             else:
-                st.warning("🔒 투표는 회원만 참여 가능합니다. [로그인] 해주세요.")
+                st.warning("🔒 투표는 회원만 참여 가능합니다.")
 
-            # 2. 결과 바 표시
+            # 결과 바 표시
             uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
             total_votes = uv + fv
             if total_votes > 0:
@@ -783,85 +791,91 @@ elif st.session_state.page == 'detail':
             
             st.write("---")
 
-            # --- [수정된 코드] 3. 커뮤니티 의견 (UI/UX 업그레이드) ---
-        st.markdown("### 💬 주주 토론방")
-        
-        # (1) 댓글 입력창 (Form 사용으로 리로드 방지 및 UX 개선)
-        if st.session_state.auth_status == 'user':
-            with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
-                # 텍스트 영역으로 변경 (긴 글 입력 용이)
-                user_input = st.text_area("의견 남기기", placeholder=f"{stock['name']}에 대한 자유로운 의견을 남겨주세요 (매너 채팅 부탁드립니다 🙏)", height=80)
-                
-                c_submit_col1, c_submit_col2 = st.columns([4, 1])
-                with c_submit_col2:
+            # --- 2. 커뮤니티 의견 (삭제 권한 기능 추가) ---
+            st.markdown("### 💬 주주 토론방")
+            
+            # (A) 댓글 입력창
+            if st.session_state.auth_status == 'user':
+                with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
+                    user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
                     submit_btn = st.form_submit_button("등록하기", use_container_width=True, type="primary")
+                    
+                    if submit_btn and user_input:
+                        now_time = datetime.now().strftime("%m.%d %H:%M")
+                        # [중요] 작성자 식별을 위해 'uid'(전화번호) 저장
+                        new_comment = {
+                            "id": str(uuid.uuid4()),    # 고유 ID (삭제 시 식별용)
+                            "t": user_input,            # 내용
+                            "d": now_time,              # 날짜
+                            "u": "익명의 유니콘",        # 닉네임 (추후 변경 가능)
+                            "uid": current_user         # 작성자 ID (전화번호)
+                        }
+                        st.session_state.comment_data[sid].insert(0, new_comment)
+                        st.toast("의견이 등록되었습니다!", icon="✅")
+                        st.rerun()
+            else:
+                st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
+
+            # (B) 댓글 리스트 출력 (삭제 버튼 로직 적용)
+            comments = st.session_state.comment_data.get(sid, [])
+            if comments:
+                st.markdown(f"<div style='margin-bottom:10px; color:#666; font-size:14px;'>총 <b>{len(comments)}</b>개의 의견</div>", unsafe_allow_html=True)
                 
-                if submit_btn and user_input:
-                    # 현재 시간 및 데이터 저장
-                    now_time = datetime.now().strftime("%m.%d %H:%M")
-                    new_comment = {"t": user_input, "d": now_time, "u": "익명의 투자자"} # 'u'는 추후 닉네임 기능 확장 대비
-                    st.session_state.comment_data[sid].insert(0, new_comment)
-                    st.toast("✅ 소중한 의견이 등록되었습니다!", icon="💬")
-                    st.rerun()
-        else:
-            st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
+                # 삭제 처리를 위한 빈 리스트
+                delete_target_id = None
 
-        # (2) 댓글 리스트 출력 (디자인 개선)
-        comments = st.session_state.comment_data.get(sid, [])
-        if comments:
-            st.markdown(f"<div style='margin-bottom:10px; color:#666; font-size:14px;'>총 <b>{len(comments)}</b>개의 의견이 있습니다.</div>", unsafe_allow_html=True)
-            
-            # 최신 5개만 보여주고 나머지는 더보기로 처리
-            for c in comments[:5]:
-                st.markdown(f"""
-                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.02);'>
-                    <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
-                        <div style='font-weight:bold; font-size:14px; color:#444;'>👤 {c.get('u', '익명의 투자자')}</div>
-                        <div style='font-size:12px; color:#999;'>{c['d']}</div>
+                for c in comments:
+                    # 카드 디자인 시작
+                    st.markdown(f"""
+                    <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #eee;'>
+                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
+                            <div style='font-weight:bold; font-size:14px; color:#444;'>👤 {c.get('u', '익명')}</div>
+                            <div style='font-size:12px; color:#999;'>{c['d']}</div>
+                        </div>
+                        <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap;'>{c['t']}</div>
                     </div>
-                    <div style='font-size:15px; color:#333; line-height:1.5;'>{c['t']}</div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+
+                    # [삭제 권한 확인]
+                    # 작성자 본인(uid 일치) 이거나 관리자(is_admin) 인 경우에만 삭제 버튼 노출
+                    comment_author_id = c.get('uid', '') # 기존 데이터 호환 위해 get 사용
+                    is_author = (current_user == comment_author_id) and (current_user != 'guest')
+                    
+                    if is_author or is_admin:
+                        # Streamlit 루프 안에서 바로 리스트를 수정하면 에러가 나므로, ID를 받아와서 루프 밖이나 rerun 처리
+                        if st.button("🗑️ 삭제", key=f"del_{c.get('id', c['t'])}"): # id가 없으면 내용이라도 키로 사용
+                            delete_target_id = c
+                
+                # 삭제 실행 로직
+                if delete_target_id:
+                    st.session_state.comment_data[sid].remove(delete_target_id)
+                    st.toast("댓글이 삭제되었습니다.", icon="🗑️")
+                    st.rerun()
+                    
+            else:
+                st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 의견을 남겨보세요!</div>", unsafe_allow_html=True)
             
-            # 댓글이 5개 넘어가면 접기 기능 제공
-            if len(comments) > 5:
-                with st.expander(f"➕ 지난 댓글 더 보기 ({len(comments)-5}개)"):
-                    for c in comments[5:]:
-                        st.markdown(f"<div class='comment-box' style='color:#666; font-size:14px;'><b>{c['d']}</b>: {c['t']}</div>", unsafe_allow_html=True)
-        else:
-            st.markdown("""
-                <div style='text-align:center; padding: 30px; background:#f9f9f9; border-radius:10px; color:#999;'>
-                    📭 아직 등록된 의견이 없습니다.<br>첫 번째 의견을 남겨보세요!
-                </div>
-            """, unsafe_allow_html=True)
-        
-        st.write("---")
+            st.write("---")
 
-        # --- [수정된 코드] 4. 보관함 버튼 (토스트 알림 및 디자인 강화) ---
-        st.markdown("### ⭐ 관심 종목 관리")
-        
-        col_act1, col_act2 = st.columns([3, 1])
-        
-        with col_act1:
-            if sid not in st.session_state.watchlist:
-                st.markdown("이 기업을 관심 종목에 추가하고<br><b>대시보드에서 모아보세요!</b>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"현재 <b>{stock['name']}</b> 기업을<br>관심 종목으로 지켜보고 있습니다.", unsafe_allow_html=True)
+            # --- 3. 보관함 버튼 (기존 유지) ---
+            st.markdown("### ⭐ 관심 종목 관리")
+            col_act1, col_act2 = st.columns([3, 1])
+            with col_act1:
+                if sid not in st.session_state.watchlist:
+                    st.markdown("관심 종목에 추가하고<br><b>대시보드에서 모아보세요!</b>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<b>{stock['name']}</b>을(를)<br>관심 종목으로 지켜보고 있습니다.", unsafe_allow_html=True)
+            with col_act2:
+                if sid not in st.session_state.watchlist:
+                    if st.button("⭐ 담기", use_container_width=True, type="primary"): 
+                        st.session_state.watchlist.append(sid)
+                        st.balloons()
+                        st.rerun()
+                else:
+                    if st.button("🗑️ 해제", use_container_width=True): 
+                        st.session_state.watchlist.remove(sid)
+                        st.rerun()
 
-        with col_act2:
-            if sid not in st.session_state.watchlist:
-                # 담기 버튼
-                if st.button("⭐ 담기", use_container_width=True, type="primary"): 
-                    st.session_state.watchlist.append(sid)
-                    st.balloons() # 담을 때는 축하 효과
-                    st.toast(f"'{stock['name']}'을(를) 관심기업에 추가했습니다!", icon="🦄")
-                    st.rerun()
-            else:
-                # 해제 버튼 (빨간색 텍스트 느낌보다는 회색 버튼으로 차분하게)
-                if st.button("🗑️ 해제", use_container_width=True): 
-                    st.session_state.watchlist.remove(sid)
-                    st.toast("관심기업 목록에서 삭제했습니다.", icon="🗑️")
-                    st.rerun()
 
 
 
