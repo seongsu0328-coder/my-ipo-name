@@ -1034,9 +1034,9 @@ elif st.session_state.page == 'detail':
                     my_pred = st.session_state.watchlist_predictions.get(sid, "N/A")
                     
                     if my_pred == "UP":
-                        pred_badge = "<span style='background:#e6f4ea; color:#1e8e3e; padding:3px 8px; border-radius:5px; font-weight:bold;'>🚀 5년 뒤 +20% 상승</span>"
+                        pred_badge = "<span style='background:#e6f4ea; color:#1e8e3e; padding:3px 8px; border-radius:5px; font-weight:bold;'>🚀 5년 뒤 +50% 상승</span>"
                     elif my_pred == "DOWN":
-                        pred_badge = "<span style='background:#fce8e6; color:#d93025; padding:3px 8px; border-radius:5px; font-weight:bold;'>📉 5년 뒤 -20% 하락</span>"
+                        pred_badge = "<span style='background:#fce8e6; color:#d93025; padding:3px 8px; border-radius:5px; font-weight:bold;'>📉 5년 뒤 -50% 하락</span>"
                     else:
                         pred_badge = "<span>관심 종목</span>"
 
@@ -1074,6 +1074,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
