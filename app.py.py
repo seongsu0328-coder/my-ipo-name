@@ -827,7 +827,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
 
-            # (B) 댓글 리스트 출력 (베스트순 정렬 + 투표 기능)
+            # (B) 댓글 리스트 출력 (베스트순 정렬 + 투표 기능 + 우측 정렬)
             comments = st.session_state.comment_data.get(sid, [])
             
             if comments:
@@ -850,57 +850,64 @@ elif st.session_state.page == 'detail':
                     
                     # 카드 UI
                     st.markdown(f"""
-                    <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #eee;'>
+                    <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 5px; border: 1px solid #eee;'>
                         <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
                             <div style='font-weight:bold; font-size:14px; color:#444;'>👤 {c.get('u', '익명')}</div>
                             <div style='font-size:12px; color:#999;'>{c['d']}</div>
                         </div>
-                        <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap; margin-bottom:10px;'>{c['t']}</div>
+                        <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap; margin-bottom:5px;'>{c['t']}</div>
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # [기능] 좋아요/싫어요/삭제 버튼 액션 바
-                    # 버튼들이 너무 크지 않게 컬럼으로 공간 배분
-                    act_c1, act_c2, act_c3, act_c4 = st.columns([1, 1, 3, 1])
+                    # [기능] 좋아요/싫어요/삭제 버튼 액션 바 (우측 정렬 수정됨)
+                    # 5.5(빈공간) : 1.5(좋아요) : 1.5(싫어요) : 1.5(삭제) 비율로 나눔
+                    col_spacer, col_like, col_dislike, col_del = st.columns([5.5, 1.5, 1.5, 1.5])
                     
                     # 1. 좋아요 버튼
                     is_liked = current_user in c['likes']
                     like_icon = "👍" if is_liked else "👍"
-                    if act_c1.button(f"{like_icon} {n_likes}", key=f"like_{c['id']}"):
-                        if st.session_state.auth_status == 'user':
-                            if current_user in c['likes']:
-                                c['likes'].remove(current_user) # 이미 눌렀으면 취소
+                    
+                    with col_like:
+                        if st.button(f"{like_icon} {n_likes}", key=f"like_{c['id']}", use_container_width=True):
+                            if st.session_state.auth_status == 'user':
+                                if current_user in c['likes']:
+                                    c['likes'].remove(current_user) # 이미 눌렀으면 취소
+                                else:
+                                    c['likes'].append(current_user) # 추가
+                                    if current_user in c['dislikes']: c['dislikes'].remove(current_user) # 싫어요 눌렀었으면 취소
+                                st.rerun()
                             else:
-                                c['likes'].append(current_user) # 추가
-                                if current_user in c['dislikes']: c['dislikes'].remove(current_user) # 싫어요 눌렀었으면 취소
-                            st.rerun()
-                        else:
-                            st.toast("로그인이 필요합니다.", icon="🔒")
+                                st.toast("로그인이 필요합니다.", icon="🔒")
 
                     # 2. 싫어요 버튼
                     is_disliked = current_user in c['dislikes']
                     dislike_icon = "👎" if is_disliked else "👎"
-                    if act_c2.button(f"{dislike_icon} {n_dislikes}", key=f"dislike_{c['id']}"):
-                        if st.session_state.auth_status == 'user':
-                            if current_user in c['dislikes']:
-                                c['dislikes'].remove(current_user) # 취소
+                    
+                    with col_dislike:
+                        if st.button(f"{dislike_icon} {n_dislikes}", key=f"dislike_{c['id']}", use_container_width=True):
+                            if st.session_state.auth_status == 'user':
+                                if current_user in c['dislikes']:
+                                    c['dislikes'].remove(current_user) # 취소
+                                else:
+                                    c['dislikes'].append(current_user) # 추가
+                                    if current_user in c['likes']: c['likes'].remove(current_user) # 좋아요 취소
+                                st.rerun()
                             else:
-                                c['dislikes'].append(current_user) # 추가
-                                if current_user in c['likes']: c['likes'].remove(current_user) # 좋아요 취소
-                            st.rerun()
-                        else:
-                            st.toast("로그인이 필요합니다.", icon="🔒")
+                                st.toast("로그인이 필요합니다.", icon="🔒")
 
                     # 3. 삭제 버튼 (작성자 or 관리자)
                     comment_author_id = c.get('uid', '')
                     is_author = (current_user == comment_author_id) and (current_user != 'guest')
                     
-                    if is_author or is_admin:
-                        with act_c4: # 오른쪽 끝에 배치
-                            if st.button("🗑️ 삭제", key=f"del_{c['id']}"):
+                    with col_del:
+                        if is_author or is_admin:
+                            if st.button("🗑️ 삭제", key=f"del_{c['id']}", use_container_width=True):
                                 delete_target_id = c
+                        else:
+                            # 버튼 줄을 맞추기 위해 권한이 없어도 빈 공간은 유지
+                            st.write("") 
                     
-                    st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
+                    st.write("") # 카드 간 간격
 
                 # 삭제 실행
                 if delete_target_id:
@@ -931,6 +938,7 @@ elif st.session_state.page == 'detail':
                     if st.button("🗑️ 해제", use_container_width=True): 
                         st.session_state.watchlist.remove(sid)
                         st.rerun()
+
 
 
 
