@@ -223,21 +223,20 @@ def get_real_news_rss(company_name):
         return news_items
     except: return []
 
-# [데이터 로직 부분에 추가: AI 검색 요약 함수]
-@st.cache_data(ttl=86400) # 24시간 캐싱 (검색 결과는 자주 안 바뀜)
+# [수정] 검색 함수: 실패 시 None을 반환하여 UI에서 버튼으로 대체하도록 유도
+@st.cache_data(ttl=86400) 
 def get_search_summary(query):
-    """DuckDuckGo 검색을 통해 상위 결과의 요약 텍스트를 가져옴"""
+    """DuckDuckGo 검색 시도 -> 실패 시 None 반환"""
     try:
         with DDGS() as ddgs:
-            # 검색 결과 2개를 가져와서 텍스트만 합침
             results = list(ddgs.text(query, max_results=2))
             if results:
                 summary = " ".join([r['body'] for r in results])
                 return summary
             else:
-                return "검색 결과가 없습니다."
+                return None # 결과 없음
     except:
-        return "정보를 불러오는 중 오류가 발생했습니다."
+        return None # 차단/에러 발생 시 None 반환
         
 # --- 화면 제어 시작 ---
 
@@ -1135,6 +1134,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
