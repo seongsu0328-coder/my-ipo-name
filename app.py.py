@@ -920,24 +920,70 @@ elif st.session_state.page == 'detail':
             
             st.write("---")
 
-            # --- 3. 보관함 버튼 (기존 유지) ---
-            st.markdown("### ⭐ 관심 종목 관리")
-            col_act1, col_act2 = st.columns([3, 1])
+           # --- 3. 보관함 버튼 (타임캡슐 예측 기능 추가) ---
+            st.markdown("### ⭐ 관심 종목 관리 & 타임캡슐")
+            
+            # [필수] 예측 데이터 저장을 위한 세션 초기화 (없으면 생성)
+            if 'watchlist_predictions' not in st.session_state:
+                st.session_state.watchlist_predictions = {}
+
+            col_act1, col_act2 = st.columns([2.5, 1.5])
+            
+            # (1) 텍스트/상태 표시 영역
             with col_act1:
                 if sid not in st.session_state.watchlist:
-                    st.markdown("관심 종목에 추가하고<br><b>대시보드에서 모아보세요!</b>", unsafe_allow_html=True)
+                    st.markdown("""
+                    <div style='padding-top:5px;'>
+                        이 기업의 <b>5년 뒤 미래</b>는 어떨까요?<br>
+                        <span style='color:#666; font-size:14px;'>예측을 선택하여 관심종목에 추가하세요!</span>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.markdown(f"<b>{stock['name']}</b>을(를)<br>관심 종목으로 지켜보고 있습니다.", unsafe_allow_html=True)
+                    # 저장된 예측 값 가져오기
+                    my_pred = st.session_state.watchlist_predictions.get(sid, "N/A")
+                    
+                    if my_pred == "UP":
+                        pred_badge = "<span style='background:#e6f4ea; color:#1e8e3e; padding:3px 8px; border-radius:5px; font-weight:bold;'>🚀 5년 뒤 +20% 상승</span>"
+                    elif my_pred == "DOWN":
+                        pred_badge = "<span style='background:#fce8e6; color:#d93025; padding:3px 8px; border-radius:5px; font-weight:bold;'>📉 5년 뒤 -20% 하락</span>"
+                    else:
+                        pred_badge = "<span>관심 종목</span>"
+
+                    st.markdown(f"""
+                    <div style='padding-top:5px;'>
+                        현재 <b>{stock['name']}</b>을(를) 보관 중입니다.<br>
+                        나의 예측: {pred_badge}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # (2) 버튼 액션 영역
             with col_act2:
                 if sid not in st.session_state.watchlist:
-                    if st.button("⭐ 담기", use_container_width=True, type="primary"): 
-                        st.session_state.watchlist.append(sid)
-                        st.balloons()
-                        st.rerun()
+                    # 아직 안 담은 경우 -> 예측 버튼 2개 노출
+                    c_up, c_down = st.columns(2)
+                    with c_up:
+                        if st.button("📈 UP", help="5년 뒤 20% 이상 상승할 것이다", use_container_width=True):
+                            st.session_state.watchlist.append(sid)
+                            st.session_state.watchlist_predictions[sid] = "UP"
+                            st.balloons()
+                            st.toast(f"'{stock['name']}' 상승 예측으로 저장 완료!", icon="🚀")
+                            st.rerun()
+                    with c_down:
+                        if st.button("📉 DOWN", help="5년 뒤 20% 이상 하락할 것이다", use_container_width=True):
+                            st.session_state.watchlist.append(sid)
+                            st.session_state.watchlist_predictions[sid] = "DOWN"
+                            st.toast(f"'{stock['name']}' 하락 예측으로 저장 완료!", icon="📉")
+                            st.rerun()
                 else:
-                    if st.button("🗑️ 해제", use_container_width=True): 
+                    # 이미 담은 경우 -> 해제 버튼
+                    if st.button("🗑️ 보관 해제", use_container_width=True): 
                         st.session_state.watchlist.remove(sid)
+                        # 예측 데이터도 같이 삭제할지, 남겨둘지 선택 (여기선 깔끔하게 삭제)
+                        if sid in st.session_state.watchlist_predictions:
+                            del st.session_state.watchlist_predictions[sid]
+                        st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
