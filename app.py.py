@@ -614,78 +614,87 @@ elif st.session_state.page == 'detail':
         # [3. 탭 메뉴 구성]
         tab0, tab1, tab2, tab3 = st.tabs(["📰 실시간 뉴스", "📋 핵심 정보", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
 
-        # --- Tab 0: 뉴스 & 심층 분석 (창업주/기업분석/재무요약) ---
+        # --- Tab 0: 뉴스 & 심층 분석 (Real Search API 적용) ---
         with tab0:
             st.markdown("##### 🕵️ AI 심층 분석 리포트")
-            st.caption("기업의 리더십(인물)과 비즈니스 환경(시장)을 입체적으로 분석합니다.")
+            st.caption("웹 검색 엔진(DuckDuckGo)을 통해 수집된 실제 데이터를 요약하여 보여줍니다.")
 
-            # [1] 스마트 검색 키워드 생성 (AI 검색 최적화)
-            # 창업주: 학력, 경력, 비전 키워드 조합
-            q_founder = f"{stock['name']} founder education career vision history"
-            url_founder = f"https://www.google.com/search?q={q_founder}"
+            # [1] 실시간 검색 실행 (Spinner로 로딩 표시)
+            founder_info = ""
+            biz_info = ""
             
-            # 기업분석: 비즈니스 모델, 시장 점유율, 경쟁사 비교 키워드 조합
-            q_biz = f"{stock['name']} business model market share vs top competitors"
-            url_biz = f"https://www.google.com/search?q={q_biz}"
-
-            # [2] 재무 데이터 기반 AI 코멘트 생성 (이 부분은 실제 데이터로 생성됨)
-            ai_comment = "재무 데이터가 부족하여 분석할 수 없습니다."
-            
-            if fin_data:
-                # 성장성 분석
-                g = fin_data.get('growth', 0) or 0
-                if g > 30: g_msg = f"매출이 연 {g:.1f}%씩 폭발적으로 성장하는 '하이퍼 그로스(Hyper-growth)' 단계입니다."
-                elif g > 10: g_msg = f"매출 성장률 {g:.1f}%로 시장 지배력을 안정적으로 넓혀가고 있습니다."
-                else: g_msg = f"현재 성장률은 {g:.1f}%로, 성숙기에 접어들었거나 숨 고르기를 하고 있습니다."
+            # 이미 캐싱되어 있으면 순식간에 지나감
+            with st.spinner("🤖 AI가 웹에서 창업주와 비즈니스 정보를 수집 중입니다..."):
+                # 검색어 최적화 (영어 검색이 정확도가 높음)
+                q_founder = f"{stock['name']} founder background education vision summary"
+                q_biz = f"{stock['name']} company business model revenue stream summary"
                 
-                # 수익성 분석
+                founder_info = get_search_summary(q_founder)
+                biz_info = get_search_summary(q_biz)
+
+            # [2] UI 렌더링 (수집된 텍스트 표시)
+            c1, c2 = st.columns(2)
+
+            # (A) 창업주/리더십 섹션
+            with c1:
+                st.markdown(f"""
+                <div style="background-color: #f8f9fa; border:1px solid #e9ecef; border-radius: 15px; padding: 20px; height: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+                    <div style="display:flex; align-items:center; margin-bottom:15px; border-bottom:1px solid #ddd; padding-bottom:10px;">
+                        <span style="font-size:24px; margin-right:10px;">👨‍💼</span>
+                        <div>
+                            <h4 style="margin:0; color:#333;">창업주 & 리더십</h4>
+                            <span style="font-size:12px; color:#666;">Founder's Background</span>
+                        </div>
+                    </div>
+                    <div style="font-size:14px; color:#444; line-height:1.6; text-align:justify; max-height:250px; overflow-y:auto;">
+                        {founder_info}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # (B) 비즈니스/시장 섹션
+            with c2:
+                st.markdown(f"""
+                <div style="background-color: #eef2ff; border:1px solid #c7d2fe; border-radius: 15px; padding: 20px; height: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+                    <div style="display:flex; align-items:center; margin-bottom:15px; border-bottom:1px solid #a5b4fc; padding-bottom:10px;">
+                        <span style="font-size:24px; margin-right:10px;">🏢</span>
+                        <div>
+                            <h4 style="margin:0; color:#333;">비즈니스 모델</h4>
+                            <span style="font-size:12px; color:#555;">Market & Revenue</span>
+                        </div>
+                    </div>
+                    <div style="font-size:14px; color:#444; line-height:1.6; text-align:justify; max-height:250px; overflow-y:auto;">
+                        {biz_info}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.write("---")
+            
+            # [3] AI 재무 인사이트 (기존 로직 유지 - 숫자는 Finnhub가 정확함)
+            ai_comment = "재무 데이터가 부족합니다."
+            if fin_data:
+                g = fin_data.get('growth', 0) or 0
                 m = fin_data.get('op_margin', 0) or 0
-                if m > 20: m_msg = f"영업이익률 {m:.1f}%의 고마진 구조로, 경쟁사 대비 압도적인 기술 격차(Moat)를 보유했을 가능성이 큽니다."
-                elif m > 0: m_msg = "흑자 경영을 유지하고 있으며, 비즈니스 모델이 안정화되었습니다."
-                else: m_msg = "현재는 적자 상태로, 공격적인 투자로 시장 점유율을 늘리는 단계인지 확인이 필요합니다."
+                
+                if g > 25: g_msg = f"📈 **폭발적 성장:** 매출이 연 **{g:.1f}%**씩 성장하며 시장을 장악하고 있습니다."
+                elif g > 10: g_msg = f"⚖️ **안정적 성장:** **{g:.1f}%**의 견조한 성장세를 유지 중입니다."
+                else: g_msg = f"🐢 **성장 정체:** 매출 성장률(**{g:.1f}%**)이 다소 둔화된 상태입니다."
+                
+                if m > 20: m_msg = f"💰 **고마진 구조:** 영업이익률 **{m:.1f}%**로 현금 창출력이 매우 뛰어납니다."
+                elif m > 0: m_msg = "✅ **흑자 경영:** 안정적인 이익 구조를 갖추고 있습니다."
+                else: m_msg = "⚠️ **투자 구간:** 현재는 적자 상태로, 미래를 위한 투자가 진행 중입니다."
                 
                 ai_comment = f"{g_msg} {m_msg}"
 
-            # [3] UI 배치 (2열 카드 섹션)
-            c1, c2 = st.columns(2)
+            st.info(f"📊 **Data Insight:** {ai_comment}")
 
-            # (A) 창업주 소개 섹션
-            with c1:
-                st.markdown("""
-                <div style="background-color: #f1f3f5; padding: 15px; border-radius: 10px; height: 100%;">
-                    <h4 style="margin:0; color:#495057;">👨‍💼 창업주 소개</h4>
-                    <p style="font-size:13px; color:#868e96; margin-bottom:10px;">Founder's Profile</p>
-                    <ul style="font-size:14px; color:#333; padding-left:20px;">
-                        <li><b>학력/경력:</b> 어떤 배경을 가졌는가?</li>
-                        <li><b>창업 스토리:</b> 왜 이 회사를 만들었나?</li>
-                        <li><b>경영 철학:</b> 미래 비전은 무엇인가?</li>
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
-                st.link_button("🔍 창업주 이력 & 비전 요약 보기", url_founder, use_container_width=True)
-
-            # (B) 기업 분석 섹션
-            with c2:
-                st.markdown("""
-                <div style="background-color: #e7f5ff; padding: 15px; border-radius: 10px; height: 100%;">
-                    <h4 style="margin:0; color:#1c7ed6;">🏢 기업 분석</h4>
-                    <p style="font-size:13px; color:#a5d8ff; margin-bottom:10px;">Business & Market</p>
-                    <ul style="font-size:14px; color:#333; padding-left:20px;">
-                        <li><b>Business:</b> 주요 수익 모델은?</li>
-                        <li><b>Market:</b> 핵심 타겟 시장은 어디?</li>
-                        <li><b>Top Tier:</b> 업계 1위는 누구인가?</li>
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
-                st.link_button("📊 비즈니스 & 경쟁사 점유율 보기", url_biz, use_container_width=True)
-
-        
+            st.write("---")
+            
             # [4] 뉴스 리스트 (기존 유지)
             st.markdown(f"##### 🔥 {stock['name']} 관련 실시간 뉴스")
-            
             rss_news = get_real_news_rss(stock['name'])
             tags = ["분석", "시장", "전망", "전략", "수급"]
-            
             for i in range(5):
                 tag = tags[i]
                 if rss_news and i < len(rss_news):
@@ -1145,6 +1154,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
