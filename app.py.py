@@ -59,10 +59,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 데이터 로직 ---
+# --- 데이터 로직 (캐싱 최적화 적용) ---
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 
-@st.cache_data(ttl=43200)
+@st.cache_data(ttl=43200) # 12시간 (명언은 자주 바뀔 필요 없음)
 def get_daily_quote():
     try:
         res = requests.get("https://api.quotable.io/random?tags=business", timeout=3).json()
@@ -70,7 +70,7 @@ def get_daily_quote():
     except:
         return {"eng": "Opportunities don't happen. You create them.", "author": "Chris Grosser"}
 
-@st.cache_data(ttl=86400)
+@st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
 def get_financial_metrics(symbol, api_key):
     try:
         url = f"https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={api_key}"
@@ -84,7 +84,7 @@ def get_financial_metrics(symbol, api_key):
         } if metrics else None
     except: return None
 
-@st.cache_data(ttl=86400)
+@st.cache_data(ttl=86400) # 24시간 (기업 프로필도 거의 안 바뀜)
 def get_company_profile(symbol, api_key):
     try:
         url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={api_key}"
@@ -92,7 +92,7 @@ def get_company_profile(symbol, api_key):
         return res if res and 'name' in res else None
     except: return None
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=14400) # [수정] 4시간 (IPO 일정은 하루에 여러 번 바뀌지 않으므로 길게 잡음)
 def get_extended_ipo_data(api_key):
     start = (datetime.now() - timedelta(days=540)).strftime('%Y-%m-%d')
     end = (datetime.now() + timedelta(days=120)).strftime('%Y-%m-%d')
@@ -104,11 +104,66 @@ def get_extended_ipo_data(api_key):
         return df
     except: return pd.DataFrame()
 
+# 주가(Price)는 실시간성이 중요하므로 캐싱하지 않거나 아주 짧게(1~5분) 잡는 것이 좋습니다.
 def get_current_stock_price(symbol, api_key):
     try:
         url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
         return requests.get(url, timeout=2).json().get('c', 0)
     except: return 0
+
+# [뉴스 감성 분석 함수 - 내부 연산이므로 별도 캐싱 불필요]
+def analyze_sentiment(text):
+    text = text.lower()
+    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
+    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
+    score = 0
+    for w in pos_words:
+        if w in text: score += 1
+    for w in neg_words:
+        if w in text: score -= 1
+    
+    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
+    elif score < 0: return "부정", "#fce8e6", "#d93025"
+    else: return "일반", "#f1f3f4", "#5f6368"
+
+@st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
+def get_real_news_rss(company_name):
+    """구글 뉴스 RSS + 한글 번역 + 감성 분석"""
+    try:
+        query = f"{company_name} stock news"
+        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        response = requests.get(url, timeout=3)
+        root = ET.fromstring(response.content)
+        
+        news_items = []
+        for item in root.findall('./channel/item')[:5]:
+            title_en = item.find('title').text
+            link = item.find('link').text
+            pubDate = item.find('pubDate').text
+            
+            # 1. 감성 분석
+            sent_label, bg, color = analyze_sentiment(title_en)
+            
+            # 2. 날짜 포맷
+            try: date_str = " ".join(pubDate.split(' ')[1:3])
+            except: date_str = "Recent"
+
+            # 3. 한글 번역 (MyMemory API)
+            try:
+                trans_url = "https://api.mymemory.translated.net/get"
+                res = requests.get(trans_url, params={'q': title_en, 'langpair': 'en|ko'}, timeout=1).json()
+                if res['responseStatus'] == 200:
+                    title_ko = res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
+                    display_title = f"{title_en}<br><span style='font-size:14px; color:#555; font-weight:normal;'>🇰🇷 {title_ko}</span>"
+                else: display_title = title_en
+            except: display_title = title_en
+            
+            news_items.append({
+                "title": display_title, "link": link, "date": date_str,
+                "sent_label": sent_label, "bg": bg, "color": color
+            })
+        return news_items
+    except: return []
 
 # [추가: 뉴스 감성 분석 함수]
 def analyze_sentiment(text):
@@ -1038,6 +1093,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
