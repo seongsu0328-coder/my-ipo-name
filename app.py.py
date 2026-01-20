@@ -189,30 +189,29 @@ elif st.session_state.page == 'login':
     _, col_m, _ = st.columns([1, 1.2, 1])
     
     # [가상 DB] 가입된 사용자 목록을 기억하기 위한 임시 저장소
-    # 앱을 새로고침하면 초기화되지만, 사용하는 동안은 기억합니다.
     if 'db_users' not in st.session_state:
-        st.session_state.db_users = ["010-0000-0000"] # 테스트용: 관리자 번호는 이미 가입된 것으로 간주
+        st.session_state.db_users = ["010-0000-0000"] # 테스트용: 관리자 번호
     
     with col_m:
         # 로그인 단계 초기화
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
 
-        # [Step 1] 첫 선택 화면 (로그인 vs 회원가입 분리)
+        # [Step 1] 첫 선택 화면 (버튼 색상 통일)
         if st.session_state.login_step == 'choice':
             st.write("")
             
-            # 버튼 1: 기존 회원 로그인 (바로 입력창으로)
+            # 버튼 1: 기존 회원 로그인
             if st.button("로그인", use_container_width=True, type="primary"):
-                st.session_state.login_step = 'login_input' # 로그인 입력 단계로 이동
+                st.session_state.login_step = 'login_input'
                 st.rerun()
                 
-            # 버튼 2: 신규 회원 가입 (안내 화면으로)
-            if st.button("회원가입", use_container_width=True):
-                st.session_state.login_step = 'ask_signup' # 가입 안내 단계로 이동
+            # 버튼 2: 신규 회원 가입 (색상 통일: type="primary" 추가)
+            if st.button("회원가입", use_container_width=True, type="primary"):
+                st.session_state.login_step = 'ask_signup'
                 st.rerun()
                 
-            # 버튼 3: 비회원 둘러보기
-            if st.button("구경하기", use_container_width=True):
+            # 버튼 3: 비회원 둘러보기 (색상 통일: type="primary" 추가)
+            if st.button("구경하기", use_container_width=True, type="primary"):
                 st.session_state.auth_status = 'guest'
                 st.session_state.page = 'stats'
                 st.rerun()
@@ -225,10 +224,9 @@ elif st.session_state.page == 'login':
             l_c1, l_c2 = st.columns([2, 1])
             with l_c1:
                 if st.button("접속하기", use_container_width=True, type="primary"):
-                    # 가입된 번호인지 확인
                     if phone_login in st.session_state.db_users:
                         st.session_state.auth_status = 'user'
-                        st.session_state.user_phone = phone_login # 세션에 정보 저장
+                        st.session_state.user_phone = phone_login
                         st.success(f"반갑습니다! {phone_login}님")
                         st.session_state.page = 'stats'
                         st.session_state.login_step = 'choice'
@@ -244,8 +242,8 @@ elif st.session_state.page == 'login':
         elif st.session_state.login_step == 'ask_signup':
             st.info("회원가입시 IPO정보알림받기 및 관심기업관리가 가능합니다.")
             c1, c2 = st.columns(2)
-            if c1.button("✅ 가입 진행", use_container_width=True):
-                st.session_state.login_step = 'signup_input' # 가입 입력 단계로 이동
+            if c1.button("✅ 가입 진행", use_container_width=True, type="primary"):
+                st.session_state.login_step = 'signup_input'
                 st.rerun()
             if c2.button("❌ 취소", use_container_width=True):
                 st.session_state.login_step = 'choice'
@@ -260,16 +258,13 @@ elif st.session_state.page == 'login':
             with s_c1:
                 if st.button("가입 완료", use_container_width=True, type="primary"):
                     if len(phone_signup) >= 10:
-                        # 이미 존재하는지 확인
                         if phone_signup in st.session_state.db_users:
                             st.warning("이미 가입된 번호입니다. '기존 회원 로그인'을 이용해주세요.")
                         else:
-                            # [DB 저장] 신규 회원을 리스트에 추가
                             st.session_state.db_users.append(phone_signup)
-                            
                             st.session_state.auth_status = 'user'
                             st.session_state.user_phone = phone_signup
-                            st.balloons() # 가입 축하 효과
+                            st.balloons()
                             st.toast("회원가입을 축하합니다!", icon="🎉")
                             st.session_state.page = 'stats'
                             st.session_state.login_step = 'choice'
@@ -1043,6 +1038,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
