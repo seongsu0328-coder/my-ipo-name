@@ -176,7 +176,7 @@ if st.session_state.page == 'intro':
                 <div class='feature-grid'>
                     <div class='feature-item'><div style='font-size:28px;'>📅</div>IPO 스케줄</div>
                     <div class='feature-item'><div style='font-size:28px;'>📊</div>AI 가격 예측</div>
-                    <div class='feature-item'><div style='font-size:28px;'>🗳️</div>투자자 투표</div>
+                    <div class='feature-item'><div style='font-size:28px;'>🗳️</div>투자자 의견</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -989,6 +989,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
