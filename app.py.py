@@ -8,6 +8,8 @@ import time
 import uuid
 import random
 
+# 게시판 기능을 위한 추가 설정 (이미 위에 포함됨)
+
 # --- [AI 및 검색 기능] ---
 from tavily import TavilyClient   # (필수) 검색 담당
 from openai import OpenAI         # (필수) 요약 담당 -> 이게 꼭 있어야 해요!
@@ -1195,6 +1197,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
