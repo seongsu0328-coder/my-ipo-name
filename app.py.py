@@ -262,32 +262,34 @@ def get_real_news_rss(company_name):
         return news_items
     except: return []
 
-# [수정] Tavily 검색 + OpenAI 요약 함수 (캐싱 적용됨)
-@st.cache_data(show_spinner=False, ttl=86400) # 24시간 동안 같은 질문은 저장해둠 (API 비용 절약)
+# [수정] Tavily 검색 + Groq(무료 AI) 요약 함수
+@st.cache_data(show_spinner=False, ttl=86400)
 def get_ai_summary(query):
     """
-    Tavily API를 사용하여 검색 후 GPT로 요약하는 함수
+    Tavily API로 검색하고, Groq(무료 LLM)로 요약하는 함수
     """
-    # 1. API 키 가져오기 (Secrets에서 로드)
+    # Secrets에 저장된 키 이름을 정확히 가져옵니다
     tavily_key = st.secrets.get("TAVILY_API_KEY")
-    openai_key = st.secrets.get("OPENAI_API_KEY")
+    groq_key = st.secrets.get("GROQ_API_KEY") 
 
-    # 키가 없을 경우 에러 메시지 반환
-    if not tavily_key or not openai_key:
-        return "⚠️ API 키 설정 오류: Secrets에 키가 있는지 확인해주세요."
+    # 키가 없을 경우 에러 메시지
+    if not tavily_key or not groq_key:
+        return "⚠️ API 키 설정 오류: Secrets 설정을 확인해주세요."
 
     try:
-        # 2. Tavily로 검색 (검색 깊이: basic, 결과 3개)
+        # 1. Tavily로 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=3)
-        
-        # 검색 결과 텍스트 합치기
         context = "\n".join([r['content'] for r in search_result['results']])
         
-        # 3. GPT에게 요약 요청
-        client = OpenAI(api_key=openai_key)
+        # 2. Groq에게 요약 요청 (OpenAI 라이브러리 활용)
+        client = OpenAI(
+            base_url="https://api.groq.com/openai/v1", # Groq 서버 주소
+            api_key=groq_key
+        )
+        
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # gpt-3.5-turbo 등 사용 중인 모델명으로 변경 가능
+            model="llama3-8b-8192",  # Groq 무료 모델
             messages=[
                 {"role": "system", "content": "You are a financial expert. Summarize the key facts in Korean within 3 sentences."},
                 {"role": "user", "content": f"Context:\n{context}\n\nQuery: {query}\n\nPlease summarize appropriately."}
@@ -296,7 +298,7 @@ def get_ai_summary(query):
         return response.choices[0].message.content
 
     except Exception as e:
-        # 에러 발생 시 로그 출력 후 None 반환 (UI에서 처리)
+        # 에러 발생 시 로그 출력 (디버깅용)
         print(f"AI Summary Error: {e}")
         return None
         
@@ -1199,6 +1201,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
