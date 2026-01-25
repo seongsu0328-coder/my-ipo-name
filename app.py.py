@@ -578,6 +578,139 @@ elif st.session_state.page == 'calendar':
                         except: ret = -9999; p_curr = 0
                         returns.append(ret); prices.append(p_curr)
                     display_df['temp_return'] = returns; display_df['live_price'] = prices
+                    display_df = display_d# 4. 캘린더 페이지 (필터는 쌓고, 리스트는 가로 고정 + 상단 여백 확보)
+elif st.session_state.page == 'calendar':
+    # [CSS] 구역별 맞춤형 스타일 적용
+    st.markdown("""
+        <style>
+        /* 1. 기본 설정 */
+        * { 
+            box-sizing: border-box !important;
+            color: #333333 !important; 
+        }
+        
+        /* 2. [상단 잘림 해결] 앱 전체 상단 여백 넉넉히 확보 */
+        .block-container {
+            padding-top: 5rem !important; /* 상단 여백 5rem으로 증가 */
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            max-width: 100% !important;
+        }
+
+        /* 3. 버튼 스타일 */
+        .stButton button {
+            background-color: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            color: #333 !important;
+            text-align: left !important;
+            box-shadow: none !important;
+            width: 100% !important;
+            display: block !important;
+            overflow: hidden !important;
+            white-space: nowrap !important;
+            text-overflow: ellipsis !important;
+            height: auto !important;
+        }
+        .stButton button p { font-weight: bold; font-size: 15px; margin-bottom: 0px; }
+
+        /* 4. [모바일 레이아웃 핵심 로직] */
+        @media (max-width: 640px) {
+            /* (A) 첫 번째 컬럼 그룹 (=상단 필터) : 줄바꿈 허용 (Stacking) */
+            div[data-testid="stHorizontalBlock"]:nth-of-type(1) {
+                flex-wrap: wrap !important;
+                gap: 10px !important;
+                margin-bottom: 20px !important;
+            }
+            /* 필터 내부 요소 너비 100%로 확장 */
+            div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div {
+                min-width: 100% !important;
+                max-width: 100% !important;
+                flex: 1 1 100% !important;
+            }
+
+            /* (B) 두 번째 이후 컬럼 그룹 (=헤더 및 리스트) : 가로 고정 (No-Wrap) */
+            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) {
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                gap: 0px !important;
+                width: 100% !important;
+            }
+
+            /* (C) 리스트 컬럼 비율 설정 (7:3) */
+            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(1) {
+                flex: 0 0 70% !important;
+                max-width: 70% !important;
+                overflow: hidden !important;
+            }
+            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(2) {
+                flex: 0 0 30% !important;
+                max-width: 30% !important;
+            }
+
+            /* (D) 리스트 내부 폰트 조정 */
+            .mobile-sub { font-size: 11px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .price-main { font-size: 13px !important; font-weight: bold; white-space: nowrap; }
+            .price-sub { font-size: 10px !important; color: #666 !important; white-space: nowrap; }
+            .date-text { font-size: 10px !important; color: #888 !important; margin-top: 2px; }
+            
+            /* 헤더 폰트 */
+            .header-text { font-size: 12px !important; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.sidebar.button("⬅️ 메인으로", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
+    
+    # 1. 데이터 가져오기
+    all_df_raw = get_extended_ipo_data(MY_API_KEY)
+    view_mode = st.session_state.get('view_mode', 'all')
+    
+    if not all_df_raw.empty:
+        all_df = all_df_raw.dropna(subset=['exchange'])
+        all_df = all_df[all_df['exchange'].astype(str).str.upper() != 'NONE']
+        all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
+        today = datetime.now().date()
+        
+        # 2. 필터 로직 (CSS로 인해 모바일에서는 위아래로 쌓임)
+        if view_mode == 'watchlist':
+            st.title("⭐ 나의 관심 종목")
+            display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
+        else:
+            # 이 부분이 첫 번째 stHorizontalBlock이 됩니다.
+            col_f1, col_f2 = st.columns([2, 1])
+            with col_f1:
+                period = st.radio("📅 조회 기간", ["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], horizontal=True)
+            with col_f2:
+                sort_option = st.selectbox("🎯 리스트 정렬", ["최신순 (기본)", "🚀 수익률 높은순 (실시간)", "📈 매출 성장률순 (AI)"])
+            
+            if period == "상장 예정 (90일)":
+                display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
+            elif period == "최근 6개월": 
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=180))]
+            elif period == "최근 12개월": 
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=365))]
+            elif period == "최근 18개월": 
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
+
+        # 정렬 로직
+        display_df['live_price'] = 0.0
+        if not display_df.empty:
+            if sort_option == "최신순 (기본)":
+                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+            elif sort_option == "🚀 수익률 높은순 (실시간)":
+                 with st.spinner("🔄 시세 조회 중..."):
+                    returns = []
+                    prices = []
+                    for idx, row in display_df.iterrows():
+                        try:
+                            p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
+                            p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
+                            ret = ((p_curr - p_ipo) / p_ipo) * 100 if p_ipo > 0 and p_curr > 0 else -9999
+                        except: ret = -9999; p_curr = 0
+                        returns.append(ret); prices.append(p_curr)
+                    display_df['temp_return'] = returns; display_df['live_price'] = prices
                     display_df = display_df.sort_values(by='temp_return', ascending=False)
             elif sort_option == "📈 매출 성장률순 (AI)":
                  with st.spinner("📊 재무 분석 중..."):
@@ -592,21 +725,21 @@ elif st.session_state.page == 'calendar':
                     display_df = display_df.sort_values(by='temp_growth', ascending=False)
 
         # ----------------------------------------------------------------
-        # [핵심] 2단 레이아웃 (비율 7 : 3)
+        # [핵심] 리스트 레이아웃 (7 : 3 비율)
         # ----------------------------------------------------------------
         GRID_RATIO = [0.7, 0.3] 
 
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더 (공간 확보 및 스타일)
+            # 1. 헤더 (두 번째 stHorizontalBlock)
             h1, h2 = st.columns(GRID_RATIO)
             h1.markdown("<div class='header-text' style='padding-left:2px;'><b>기업 정보</b></div>", unsafe_allow_html=True)
             h2.markdown("<div class='header-text' style='text-align:right'><b>가격 / 날짜</b></div>", unsafe_allow_html=True)
             
             st.markdown("<hr style='margin:5px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-            # 2. 데이터 리스트
+            # 2. 데이터 리스트 (세 번째 이후 stHorizontalBlock)
             for i, row in display_df.iterrows():
                 p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
                 p_val = p_val if p_val and p_val > 0 else 0
@@ -629,10 +762,10 @@ elif st.session_state.page == 'calendar':
                 # 날짜 HTML
                 date_html = f"<div class='date-text'>{row['date']}</div>"
 
-                # 2단 컬럼 배치
+                # 컬럼 배치
                 c1, c2 = st.columns(GRID_RATIO)
                 
-                # [왼쪽 70%] 기업명 + 하단정보
+                # [왼쪽] 기업명
                 with c1:
                     if st.button(f"{row['name']}", key=f"btn_list_{i}"):
                         st.session_state.selected_stock = row.to_dict()
@@ -645,7 +778,7 @@ elif st.session_state.page == 'calendar':
                     
                     st.markdown(f"<div class='mobile-sub' style='margin-top:-5px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
 
-                # [오른쪽 30%] 가격 + 날짜 (우측 정렬)
+                # [오른쪽] 가격 + 날짜
                 with c2:
                     st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                 
@@ -1169,6 +1302,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
