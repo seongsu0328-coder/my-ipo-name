@@ -446,9 +446,9 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (필터는 세로로 쌓고, 리스트는 가로 7:3 유지)
+# 4. 캘린더 페이지 (모바일 최적화: 수직 중앙 정렬 & 행 일치)
 elif st.session_state.page == 'calendar':
-    # [CSS] 구역별 맞춤형 스타일 (필터 vs 리스트 분리 적용)
+    # [CSS] 스타일 정의
     st.markdown("""
         <style>
         /* 1. 기본 설정 */
@@ -462,7 +462,7 @@ elif st.session_state.page == 'calendar':
             max-width: 100% !important;
         }
 
-        /* 3. 버튼 스타일 */
+        /* 3. 버튼 스타일 (타이트하게 조임) */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
@@ -477,40 +477,60 @@ elif st.session_state.page == 'calendar':
             white-space: nowrap !important;
             text-overflow: ellipsis !important;
             height: auto !important;
+            line-height: 1.1 !important; /* 줄 간격 좁힘 */
         }
-        .stButton button p { font-weight: bold; font-size: 15px; margin-bottom: 0px; }
+        .stButton button p { font-weight: bold; font-size: 14px; margin-bottom: 0px; }
 
-        /* 4. [모바일 레이아웃 핵심] 상단과 하단을 다르게 처리 */
+        /* 4. [모바일 레이아웃 핵심] */
         @media (max-width: 640px) {
             
-            /* (A) 상단 필터 구역 (첫 번째 컬럼 그룹) -> [수정] 줄바꿈 허용! */
+            /* (A) 상단 필터: 줄바꿈 허용 */
             div[data-testid="stHorizontalBlock"]:nth-of-type(1) {
-                flex-wrap: wrap !important; /* 줄바꿈 허용 (위아래로 쌓임) */
-                gap: 10px !important;       /* 필터 사이 간격 */
-                padding-bottom: 10px !important;
+                flex-wrap: wrap !important;
+                gap: 10px !important;
+                padding-bottom: 5px !important;
             }
-            
-            /* 필터 박스들을 화면 꽉 차게 늘림 */
             div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div {
                 min-width: 100% !important;
                 max-width: 100% !important;
                 flex: 1 1 100% !important;
             }
 
-            /* (B) 주식 리스트 구역 (두 번째 이후 그룹) -> [유지] 가로 고정! */
+            /* (B) 리스트 구역: 가로 고정 & 수직 중앙 정렬 (핵심!) */
             div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) {
                 flex-direction: row !important;
-                flex-wrap: nowrap !important; /* 줄바꿈 금지 */
+                flex-wrap: nowrap !important;
                 gap: 0px !important;
                 width: 100% !important;
+                align-items: center !important; /* 위아래 중앙 정렬 */
             }
 
-            /* (C) 리스트 내부 폰트 조정 */
-            .mobile-sub { font-size: 10px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .price-main { font-size: 13px !important; font-weight: bold; white-space: nowrap; }
-            .price-sub { font-size: 10px !important; color: #666 !important; white-space: nowrap; }
-            .date-text { font-size: 10px !important; color: #888 !important; margin-top: 1px; }
-            .header-text { font-size: 12px !important; }
+            /* (C) 컬럼 내부 정렬 강제 (내용물이 흩어지지 않게 모음) */
+            div[data-testid="column"] {
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important; /* 수직 가운데 */
+                min-width: 0px !important;
+                padding: 0px 2px !important;
+            }
+
+            /* (D) 리스트 컬럼 비율 (7:3) */
+            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(1) {
+                flex: 0 0 70% !important;
+                max-width: 70% !important;
+                overflow: hidden !important;
+            }
+            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(2) {
+                flex: 0 0 30% !important;
+                max-width: 30% !important;
+            }
+
+            /* (E) 폰트 및 간격 미세 조정 */
+            .mobile-sub { font-size: 10px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px; line-height: 1.1; }
+            .price-main { font-size: 13px !important; font-weight: bold; white-space: nowrap; line-height: 1.1; }
+            .price-sub { font-size: 10px !important; color: #666 !important; white-space: nowrap; line-height: 1.1; }
+            .date-text { font-size: 10px !important; color: #888 !important; margin-top: 1px; line-height: 1.1; }
+            .header-text { font-size: 12px !important; line-height: 1.0; }
         }
         </style>
     """, unsafe_allow_html=True)
@@ -532,7 +552,6 @@ elif st.session_state.page == 'calendar':
             st.title("⭐ 나의 관심 종목")
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
         else:
-            # [이 부분이 모바일에서 위아래로 쌓이게 됨]
             col_f1, col_f2 = st.columns([2, 1])
             with col_f1:
                 period = st.radio("📅 조회 기간", ["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], horizontal=True)
@@ -585,7 +604,7 @@ elif st.session_state.page == 'calendar':
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더 (7:3 비율)
+            # 1. 헤더
             h1, h2 = st.columns([7, 3])
             h1.markdown("<div class='header-text' style='padding-left:2px;'><b>기업 정보</b></div>", unsafe_allow_html=True)
             h2.markdown("<div class='header-text' style='text-align:right'><b>가격 / 날짜</b></div>", unsafe_allow_html=True)
@@ -620,6 +639,7 @@ elif st.session_state.page == 'calendar':
                 
                 # [왼쪽 70%] 기업명 + 하단정보
                 with c1:
+                    # 기업명 버튼
                     if st.button(f"{row['name']}", key=f"btn_list_{i}"):
                         st.session_state.selected_stock = row.to_dict()
                         st.session_state.page = 'detail'
@@ -629,7 +649,8 @@ elif st.session_state.page == 'calendar':
                     except: s_val = 0
                     size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
                     
-                    st.markdown(f"<div class='mobile-sub' style='margin-top:-5px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
+                    # [수정] margin-top을 0에 가깝게 조정하여 위 버튼과 찰싹 붙임
+                    st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
 
                 # [오른쪽 30%] 가격 + 날짜 (우측 정렬)
                 with c2:
@@ -1155,6 +1176,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
