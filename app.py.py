@@ -548,20 +548,20 @@ elif st.session_state.page == 'calendar':
 
         # ----------------------------------------------------------------
         # [핵심] 반응형 그리드 시스템 (헤더와 데이터 비율 통일)
-        # PC: 7개 컬럼 / 모바일: 3개 구역으로 통합
         # ----------------------------------------------------------------
         
         # [설정] 화면 비율 정의 (모바일 최적화: 1.2 : 3.8 : 1.2)
-        # 이 비율을 사용하면 좁은 폰 화면에서도 가로 스크롤 없이 딱 맞습니다.
         GRID_RATIO = [1.2, 3.8, 1.2] 
 
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더 (PC의 복잡한 헤더 대신 직관적인 3단 헤더 사용)
+            # 1. 헤더 (폰트 및 스타일 통일)
             h1, h2, h3 = st.columns(GRID_RATIO)
+            
+            # [수정] 3개 컬럼 모두 HTML div 태그를 사용하여 폰트/높이 완벽 일치시킴
             h1.markdown("<div style='text-align:center'><b>공모일</b></div>", unsafe_allow_html=True)
-            h2.markdown("<b>기업 정보</b>")
+            h2.markdown("<div>기업 정보</div>", unsafe_allow_html=True) 
             h3.markdown("<div style='text-align:right'><b>가격</b></div>", unsafe_allow_html=True)
             
             st.markdown("<hr style='margin:5px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
@@ -1139,6 +1139,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
