@@ -740,27 +740,16 @@ elif st.session_state.page == 'detail':
         # [3. 탭 메뉴 구성]
         tab0, tab1, tab2, tab3 = st.tabs(["📰 주요 뉴스", "📋 주요 공시", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
 
-        # --- Tab 0: 뉴스 & 심층 분석 (하이브리드 모드) ---
+        # --- Tab 0: 뉴스 & 심층 분석 (Tavily AI 적용됨) ---
         with tab0:
             st.markdown("##### 🕵️ AI 심층 분석 리포트")
-            st.caption("웹 검색 엔진(DuckDuckGo)을 통해 수집된 실제 데이터를 요약하여 보여줍니다.")
+            st.caption("Tavily AI 검색 엔진이 최신 웹 정보를 수집하고 GPT가 핵심 내용을 요약합니다.")
 
-            founder_info = ""
-            biz_info = ""
+            # [1] 검색어 생성 (IPO 관련 키워드 강화)
+            q_founder = f"{stock['name']} IPO stock company founder CEO biography leadership"
+            q_biz = f"{stock['name']} IPO stock company business model revenue stream competitive advantage"
             
-           # [1] 검색어 생성 (수정됨: 정확도를 위해 'IPO', 'Stock', 'CEO' 키워드 추가)
-            # 기존: f"{stock['name']} founder background..."
-            # 변경: 기업명 뒤에 'IPO stock company'를 붙여서 엉뚱한 단체 검색 방지
-            
-            q_founder = f"{stock['name']} IPO stock company founder CEO background story"
-            q_biz = f"{stock['name']} IPO stock company business model revenue revenue stream"
-            
-            # [2] 데이터 수집 (로딩바)
-            with st.spinner("🤖 AI가 웹 정보를 분석하고 있습니다..."):
-                founder_info = get_search_summary(q_founder)
-                biz_info = get_search_summary(q_biz)
-
-            # [3] UI 렌더링
+            # [2] 화면 분할 (창업주 / 비즈니스)
             c1, c2 = st.columns(2)
             
             # (A) 창업주/리더십 섹션
@@ -768,19 +757,19 @@ elif st.session_state.page == 'detail':
                 st.markdown("""
                 <div style="display:flex; align-items:center; margin-bottom:10px;">
                     <span style="font-size:24px; margin-right:10px;">👨‍💼</span>
-                    <h4 style="margin:0; color:#333;">창업주 소개</h4>
+                    <h4 style="margin:0; color:#333;">창업주 및 리더십</h4>
                 </div>""", unsafe_allow_html=True)
                 
-                if founder_info:
-                    # 검색 성공 시 텍스트 표시
-                    st.markdown(f"""
-                    <div style="background-color: #f8f9fa; border:1px solid #e9ecef; border-radius: 15px; padding: 20px; height: 250px; overflow-y:auto; font-size:14px; color:#444; line-height:1.6;">
-                        {founder_info}
-                    </div>""", unsafe_allow_html=True)
-                else:
-                    # 검색 차단/실패 시 구글 버튼 표시
-                    st.info("AI 자동 요약이 지연되고 있습니다. 원문 검색을 권장합니다.")
-                    st.link_button("🔍 구글에서 창업주 정보 보기", f"https://www.google.com/search?q={q_founder}", use_container_width=True)
+                with st.spinner("AI가 인물 정보를 분석 중..."):
+                    founder_info = get_ai_summary(q_founder)
+                    
+                    if founder_info:
+                        st.info(founder_info)
+                    else:
+                        st.error("정보를 찾을 수 없습니다.")
+                        
+                # 구글 검색 링크 (보조)
+                st.markdown(f"[👉 구글에서 '{stock['name']} 창업주' 더보기](https://www.google.com/search?q={q_founder})")
 
             # (B) 비즈니스/시장 섹션
             with c2:
@@ -790,39 +779,48 @@ elif st.session_state.page == 'detail':
                     <h4 style="margin:0; color:#333;">비즈니스 모델</h4>
                 </div>""", unsafe_allow_html=True)
                 
-                if biz_info:
-                    st.markdown(f"""
-                    <div style="background-color: #eef2ff; border:1px solid #c7d2fe; border-radius: 15px; padding: 20px; height: 250px; overflow-y:auto; font-size:14px; color:#444; line-height:1.6;">
-                        {biz_info}
-                    </div>""", unsafe_allow_html=True)
-                else:
-                    st.info("AI 자동 요약이 지연되고 있습니다. 원문 검색을 권장합니다.")
-                    st.link_button("📊 구글에서 비즈니스 모델 보기", f"https://www.google.com/search?q={q_biz}", use_container_width=True)
+                with st.spinner("AI가 사업 모델을 분석 중..."):
+                    biz_info = get_ai_summary(q_biz)
+                    
+                    if biz_info:
+                        st.success(biz_info)
+                    else:
+                        st.error("정보를 찾을 수 없습니다.")
+                        
+                # 구글 검색 링크 (보조)
+                st.markdown(f"[👉 구글에서 '{stock['name']} 비즈니스' 더보기](https://www.google.com/search?q={q_biz})")
 
             st.write("---")
             
+            # [3] 뉴스 리스트 (기존 기능 유지)
+            st.markdown(f"##### 🔥 {stock['name']} 관련 최신 뉴스 Top 5")
             
-            # [4] 뉴스 리스트 (기존 유지)
-            st.markdown(f"##### 🔥 {stock['name']} 관련 Top 5")
+            # 뉴스 데이터 가져오기 (기존 함수 활용)
             rss_news = get_real_news_rss(stock['name'])
             tags = ["분석", "시장", "전망", "전략", "수급"]
+            
+            # 뉴스 출력 루프
             for i in range(5):
-                tag = tags[i]
                 if rss_news and i < len(rss_news):
                     n = rss_news[i]
+                    tag = tags[i]
                     st.markdown(f"""
                         <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
-                            <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
+                            <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03); transition: transform 0.2s;">
                                 <div style="display:flex; justify-content:space-between;">
                                     <div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> | {tag} <span style="background:{n['bg']}; color:{n['color']}; padding:2px 5px; border-radius:4px; font-size:11px;">{n['sent_label']}</span></div>
-                                    <small>{n['date']}</small>
+                                    <small style="color:#888;">{n['date']}</small>
                                 </div>
-                                <div style="margin-top:5px; font-weight:bold;">{n['title']}</div>
+                                <div style="margin-top:5px; font-weight:600; font-size:15px;">{n['title']}</div>
                             </div>
                         </a>
                     """, unsafe_allow_html=True)
                 else:
-                    st.markdown(f"<div style='padding:10px; color:#999; border:1px dashed #ddd; border-radius:10px; text-align:center;'>관련 뉴스가 부족하여 검색 링크를 제공합니다.</div>", unsafe_allow_html=True)
+                    # 뉴스가 부족할 경우 빈 박스 대신 메시지 표시 (5개 미만일 때)
+                    if i == 0: # 아예 하나도 없는 경우
+                        st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다. 구글 검색을 이용해주세요.")
+                        st.markdown(f"[👉 구글 뉴스 검색 바로가기](https://www.google.com/search?q={stock['name']}&tbm=nws)")
+                        break
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
         with tab1:
@@ -1201,6 +1199,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
