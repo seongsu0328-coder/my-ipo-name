@@ -754,13 +754,11 @@ elif st.session_state.page == 'detail':
             
             # [2] 비즈니스 모델 섹션 (화면 전체 너비 사용)
             st.markdown(f"""
-    <div style="display:flex; align-items:center; margin-top: 20px; margin-bottom:15px;">
-        <span style="font-size:22px; margin-right:10px;">🏢</span>
-        <h3 style="margin:0; color:#333; font-size:22px; font-weight:600;">
+    <div style="margin-top: 20px; margin-bottom:15px;">
+        <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
             비즈니스 모델
         </h3>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
             
             # 로딩 및 결과 표시
             with st.spinner(f"🤖 AI가 {stock['name']}의 사업 구조를 분석하고 있습니다..."):
@@ -786,13 +784,11 @@ elif st.session_state.page == 'detail':
             
             # [3] 뉴스 리스트 (기존 기능 유지)
             st.markdown(f"""
-    <div style="display:flex; align-items:center; margin-bottom:15px;">
-        <span style="font-size:22px; margin-right:10px;">🔥</span>
-        <h3 style="margin:0; color:#333; font-size:22px; font-weight:600;">
+    <div style="margin-top: 10px; margin-bottom:15px;">
+        <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
             {stock['name']} 관련 최신 뉴스 Top 5
         </h3>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
             
             rss_news = get_real_news_rss(stock['name'])
             tags = ["분석", "시장", "전망", "전략", "수급"]
@@ -1195,6 +1191,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
