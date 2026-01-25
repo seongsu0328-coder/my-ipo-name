@@ -388,7 +388,17 @@ elif st.session_state.page == 'login':
 
     st.write("<br>" * 2, unsafe_allow_html=True)
     q = get_daily_quote()
-    st.markdown(f"<div class='quote-card'><b>\"{q['eng']}\"</b><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
+    
+    # [수정] 한글(kor)이 추가된 HTML 디자인
+    st.markdown(f"""
+        <div class='quote-card'>
+            <b>"{q['eng']}"</b>
+            <br>
+            <span style='font-size:14px; color:#555; font-weight:normal;'>{q['kor']}</span>
+            <br><br>
+            <small>- {q['author']} -</small>
+        </div>
+    """, unsafe_allow_html=True)
 
 # 3. 성장 단계 분석 (대시보드) - 심플 버전 (박스 제거)
 elif st.session_state.page == 'stats':
@@ -1106,6 +1116,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
