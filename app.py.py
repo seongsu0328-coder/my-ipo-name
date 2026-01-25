@@ -262,34 +262,40 @@ def get_real_news_rss(company_name):
         return news_items
     except: return []
 
-# [수정] Tavily 검색 + Groq(무료 AI) 요약 함수
+# [수정] Tavily + Groq 함수 (에러 메시지 출력 버전)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_ai_summary(query):
     """
     Tavily API로 검색하고, Groq(무료 LLM)로 요약하는 함수
     """
-    # Secrets에 저장된 키 이름을 정확히 가져옵니다
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     groq_key = st.secrets.get("GROQ_API_KEY") 
 
-    # 키가 없을 경우 에러 메시지
-    if not tavily_key or not groq_key:
-        return "⚠️ API 키 설정 오류: Secrets 설정을 확인해주세요."
+    # 키 확인
+    if not tavily_key:
+        return "🚫 에러: TAVILY_API_KEY가 Secrets에 없습니다."
+    if not groq_key:
+        return "🚫 에러: GROQ_API_KEY가 Secrets에 없습니다."
 
     try:
-        # 1. Tavily로 검색
+        # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=3)
+        
+        # 결과가 비어있는지 체크
+        if not search_result.get('results'):
+            return "🚫 검색 결과가 0건입니다. (정말 정보가 없는 기업일 수 있습니다)"
+
         context = "\n".join([r['content'] for r in search_result['results']])
         
-        # 2. Groq에게 요약 요청 (OpenAI 라이브러리 활용)
+        # 2. Groq (OpenAI Client) 요약
         client = OpenAI(
-            base_url="https://api.groq.com/openai/v1", # Groq 서버 주소
+            base_url="https://api.groq.com/openai/v1",
             api_key=groq_key
         )
         
         response = client.chat.completions.create(
-            model="llama3-8b-8192",  # Groq 무료 모델
+            model="llama3-8b-8192", 
             messages=[
                 {"role": "system", "content": "You are a financial expert. Summarize the key facts in Korean within 3 sentences."},
                 {"role": "user", "content": f"Context:\n{context}\n\nQuery: {query}\n\nPlease summarize appropriately."}
@@ -298,9 +304,8 @@ def get_ai_summary(query):
         return response.choices[0].message.content
 
     except Exception as e:
-        # 에러 발생 시 로그 출력 (디버깅용)
-        print(f"AI Summary Error: {e}")
-        return None
+        # 여기가 핵심입니다! 에러 내용을 숨기지 않고 화면에 보여줍니다.
+        return f"🚫 실행 오류 발생: {str(e)}"
         
 # --- 화면 제어 시작 ---
 
@@ -1201,6 +1206,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
