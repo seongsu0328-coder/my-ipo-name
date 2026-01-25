@@ -756,7 +756,7 @@ elif st.session_state.page == 'detail':
             st.markdown("""
             <div style="display:flex; align-items:center; margin-top: 20px; margin-bottom:15px;">
                 <span style="font-size:26px; margin-right:10px;">🏢</span>
-                <h3 style="margin:0; color:#333;">비즈니스 모델 & 핵심 가치</h3>
+                <h3 style="margin:0; color:#333;">비즈니스 모델</h3>
             </div>""", unsafe_allow_html=True)
             
             # 로딩 및 결과 표시
@@ -1185,6 +1185,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
