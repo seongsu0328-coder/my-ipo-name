@@ -448,6 +448,41 @@ elif st.session_state.page == 'stats':
 
 # 4. 캘린더 페이지 (중복 제거 및 최신 정렬 기능 완벽 통합)
 elif st.session_state.page == 'calendar':
+    # [수정] 모바일 최적화 CSS 주입 (이 부분이 핵심입니다!)
+    st.markdown("""
+        <style>
+        /* 1. [모든 기기 공통] 텍스트 색상 강제 검정 (다크모드 충돌 방지) */
+        .stMarkdown, p, span, div, h1, h2, h3, h4, h5, h6, li, small {
+            color: #333333 !important;
+        }
+        /* 버튼 내부 텍스트도 검정으로 */
+        button p { color: #333333 !important; }
+
+        /* 2. [모바일 전용] 테이블 강제 가로 정렬 (Stacking 방지) */
+        @media (max-width: 640px) {
+            /* 컬럼을 감싸는 블록이 줄바꿈 하지 않도록 설정 */
+            div[data-testid="stHorizontalBlock"] {
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important; /* 가로 스크롤 허용 */
+                white-space: nowrap !important;
+                padding-bottom: 10px; /* 스크롤바 공간 확보 */
+            }
+            /* 개별 컬럼의 최소 너비 확보 (찌그러짐 방지) */
+            div[data-testid="column"] {
+                min-width: 70px !important; /* 너무 좁아지지 않게 방어 */
+                flex: 0 0 auto !important;
+            }
+            /* 첫 번째 아이콘 컬럼은 좀 더 좁게 */
+            div[data-testid="column"]:first-child {
+                min-width: 50px !important;
+            }
+            /* 기업명 컬럼은 좀 더 넓게 */
+            div[data-testid="column"]:nth-child(3) {
+                min-width: 120px !important;
+            }
+        }
+        </style>
+    """, unsafe_allow_html=True)
     # [수정] 로그인 이동 버튼 제거됨
     st.sidebar.button("⬅️ 메인으로", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     
@@ -1116,6 +1151,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
