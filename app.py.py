@@ -1198,144 +1198,132 @@ elif st.session_state.page == 'detail':
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
 
-# --- 5. 게시판 페이지 (업그레이드 버전) ---
+# --- 5. 게시판 페이지 (인기글 & 필터링 버전) ---
 elif st.session_state.page == 'board':
     st.markdown("### 💬 투자자 토론 게시판")
     
-    # [A] 데이터 저장소 초기화 (댓글 전용 comment_data 추가)
+    # [A] 데이터 저장소 초기화
     if 'posts' not in st.session_state:
         st.session_state.posts = []
 
-    # [B] 상단 메뉴
-    menu_c1, menu_c2 = st.columns([8, 2])
+    # [B] 상단 메뉴 및 인기글 로직
+    # 일주일 내 좋아요가 가장 많은 상위 5개 추출
+    one_week_ago = datetime.now() - timedelta(days=7)
+    
+    def get_top_posts(posts):
+        valid_posts = [
+            p for p in posts 
+            if datetime.strptime(p['date'], "%Y-%m-%d %H:%M") > one_week_ago
+        ]
+        # 좋아요(likes) 기준 내림차순 정렬
+        return sorted(valid_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
+
+    top_posts = get_top_posts(st.session_state.posts)
+
+    if top_posts:
+        with st.expander("🔥 이번 주 인기 게시글 TOP 5", expanded=True):
+            for i, tp in enumerate(top_posts):
+                st.write(f"{i+1}. [{tp['category']}] {tp['title']} (👍 {tp.get('likes', 0)})")
+        st.divider()
+
+    # [C] 필터 및 글쓰기 버튼
+    menu_c1, menu_c2, menu_c3 = st.columns([3, 5, 2])
     with menu_c1:
-        if st.button("⬅️ 뒤로가기"):
-            st.session_state.page = 'stats'
-            st.rerun()
-    with menu_c2:
+        category_filter = st.selectbox("📂 카테고리 필터", ["전체", "거시경제", "관심기업", "자산배분", "투자인사이트"])
+    with menu_c3:
         if st.button("📝 글쓰기", use_container_width=True, type="primary"):
             st.session_state.show_editor = True
 
-    # [C] 글쓰기 폼 (이미지 업로드 추가)
+    # [D] 글쓰기 폼 (이미지/ID/초기 추천수 포함)
     if st.session_state.get('show_editor', False):
-        with st.form("board_form", clear_on_submit=True):
+        with st.form("board_form_final"):
             cat = st.selectbox("카테고리", ["거시경제", "관심기업", "자산배분", "투자인사이트"])
             title = st.text_input("제목")
             author = st.text_input("작성자", value=st.session_state.get('user_phone', '익명'))
-            content = st.text_area("내용", height=150)
+            content = st.text_area("내용")
+            uploaded_file = st.file_uploader("이미지 첨부", type=['png', 'jpg', 'jpeg'])
             
-            # 이미지 파일 업로드 컴포넌트
-            uploaded_file = st.file_uploader("이미지 첨부 (선택)", type=['png', 'jpg', 'jpeg'])
-            
-            sub_c1, sub_c2 = st.columns(2)
-            if sub_c1.form_submit_button("등록"):
+            if st.form_submit_button("등록"):
                 if title and content:
-                    img_data = uploaded_file.read() if uploaded_file else None
                     new_post = {
-                        "id": str(uuid.uuid4()), # 댓글 연결을 위한 고유 ID
+                        "id": str(uuid.uuid4()),
                         "category": cat,
                         "title": title,
                         "author": author,
                         "content": content,
-                        "image": img_data,
+                        "image": uploaded_file.read() if uploaded_file else None,
                         "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "comments": [] # 해당 글의 댓글 리스트
+                        "likes": 0,
+                        "dislikes": 0,
+                        "comments": []
                     }
                     st.session_state.posts.insert(0, new_post)
                     st.session_state.show_editor = False
-                    st.success("게시글이 등록되었습니다!")
                     st.rerun()
-            if sub_c2.form_submit_button("취소"):
-                st.session_state.show_editor = False
-                st.rerun()
 
-    st.divider()
+    # [E] 게시글 목록 (필터링 적용)
+    filtered_posts = st.session_state.posts
+    if category_filter != "전체":
+        filtered_posts = [p for p in st.session_state.posts if p['category'] == category_filter]
 
-    # [D] 게시글 목록 및 댓글 노출
-    if not st.session_state.posts:
-        st.info("작성된 게시글이 없습니다.")
+    if not filtered_posts:
+        st.info("해당 카테고리에 게시글이 없습니다.")
     else:
-        posts = st.session_state.posts
+        # 페이징
         per_page = 10
-        total_pages = max(1, (len(posts) - 1) // per_page + 1)
-        
-        if 'board_page' not in st.session_state: st.session_state.board_page = 1
-        curr_p = st.session_state.board_page
+        total_pages = max(1, (len(filtered_posts) - 1) // per_page + 1)
+        curr_p = st.session_state.get('board_page', 1)
         start_idx = (curr_p - 1) * per_page
         end_idx = start_idx + per_page
 
-        for idx, post in enumerate(posts[start_idx:end_idx]):
-            actual_idx = start_idx + idx
+        for post in filtered_posts[start_idx:end_idx]:
+            # 실제 posts 리스트에서의 인덱스 찾기
+            actual_idx = next(i for i, p in enumerate(st.session_state.posts) if p['id'] == post['id'])
+            
             with st.container():
                 st.caption(f"**[{post['category']}]** | {post['date']} | 작성자: {post['author']}")
-                
-                # 상세 보기 (Expander)
-                with st.expander(f"{post['title']} ({len(post.get('comments', []))})"):
-                    
-                    # --- 수정 모드 판별 ---
-                    is_editing = st.session_state.get('edit_post_id') == post['id']
-                    
-                    if is_editing:
-                        # [수정 양식]
-                        with st.form(key=f"edit_form_{post['id']}"):
-                            new_cat = st.selectbox("카테고리 수정", ["거시경제", "관심기업", "자산배분", "투자인사이트"], 
-                                                   index=["거시경제", "관심기업", "자산배분", "투자인사이트"].index(post['category']))
-                            new_title = st.text_input("제목 수정", value=post['title'])
-                            new_content = st.text_area("내용 수정", value=post['content'], height=150)
-                            
-                            e_c1, e_c2 = st.columns(2)
-                            if e_c1.form_submit_button("수정 완료"):
-                                st.session_state.posts[actual_idx]['category'] = new_cat
-                                st.session_state.posts[actual_idx]['title'] = new_title
-                                st.session_state.posts[actual_idx]['content'] = new_content
-                                st.session_state.edit_post_id = None # 수정 모드 종료
-                                st.success("수정되었습니다!")
-                                st.rerun()
-                            if e_c2.form_submit_button("취소"):
+                with st.expander(f"{post['title']} (👍 {post['likes']} / 💬 {len(post['comments'])})"):
+                    # 수정 모드 확인
+                    if st.session_state.get('edit_post_id') == post['id']:
+                        with st.form(f"edit_{post['id']}"):
+                            edit_title = st.text_input("제목 수정", value=post['title'])
+                            edit_content = st.text_area("내용 수정", value=post['content'])
+                            if st.form_submit_button("완료"):
+                                st.session_state.posts[actual_idx].update({"title": edit_title, "content": edit_content})
                                 st.session_state.edit_post_id = None
                                 st.rerun()
                     else:
-                        # [일반 보기 모드]
-                        if post.get('image'):
-                            st.image(post['image'], use_container_width=True)
+                        if post.get('image'): st.image(post['image'])
                         st.write(post['content'])
                         
-                        # 수정/삭제 버튼 레이아웃
-                        btn_c1, btn_c2, _ = st.columns([1, 1, 4])
-                        if btn_c1.button("📝 수정", key=f"edit_btn_{post['id']}"):
+                        # --- 좋아요/싫어요 & 수정/삭제 버튼 ---
+                        v1, v2, v3, v4, _ = st.columns([1, 1, 1, 1, 4])
+                        if v1.button(f"👍 {post['likes']}", key=f"like_{post['id']}"):
+                            st.session_state.posts[actual_idx]['likes'] += 1
+                            st.rerun()
+                        if v2.button(f"👎 {post['dislikes']}", key=f"dis_{post['id']}"):
+                            st.session_state.posts[actual_idx]['dislikes'] += 1
+                            st.rerun()
+                        if v3.button("수정", key=f"ed_{post['id']}"):
                             st.session_state.edit_post_id = post['id']
                             st.rerun()
-                        if btn_c2.button("🗑️ 삭제", key=f"del_btn_{post['id']}"):
+                        if v4.button("삭제", key=f"de_{post['id']}"):
                             st.session_state.posts.pop(actual_idx)
                             st.rerun()
 
-                    # --- 댓글 섹션 ---
-                    st.markdown("---")
-                    st.markdown("**댓글**")
-                    for comment in post.get('comments', []):
-                        st.markdown(f"""<div class='comment-box'>
-                            <small>{comment['author']} ({comment['date']})</small><br>{comment['text']}
-                        </div>""", unsafe_allow_html=True)
-                    
-                    with st.form(key=f"cmt_form_{post['id']}", clear_on_submit=True):
-                        c_text = st.text_input("댓글 입력", key=f"input_{post['id']}")
-                        if st.form_submit_button("등록"):
-                            if c_text:
+                        # 댓글창 (생략 없이 통합)
+                        for c in post['comments']:
+                            st.markdown(f"<div class='comment-box'><small>{c['author']}</small><br>{c['text']}</div>", unsafe_allow_html=True)
+                        with st.form(f"cmt_{post['id']}", clear_on_submit=True):
+                            c_in = st.text_input("댓글")
+                            if st.form_submit_button("등록"):
                                 st.session_state.posts[actual_idx]['comments'].append({
                                     "author": st.session_state.get('user_phone', '익명'),
-                                    "text": c_text,
-                                    "date": datetime.now().strftime("%m-%d %H:%M")
+                                    "text": c_in, "date": datetime.now().strftime("%m-%d %H:%M")
                                 })
                                 st.rerun()
                 st.write("---")
 
-        # 하단 페이지네이션
-        if total_pages > 1:
-            cols = st.columns(total_pages + 2)
-            for i in range(1, total_pages + 1):
-                if cols[i].button(str(i), key=f"p_{i}"):
-                    st.session_state.board_page = i
-                    st.rerun()
 
 
 
