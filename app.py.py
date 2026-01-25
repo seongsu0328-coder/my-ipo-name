@@ -69,26 +69,43 @@ MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 
 @st.cache_data(ttl=43200) # 12시간마다 갱신
 def get_daily_quote():
-    # 1. 예비용 명언 리스트 (API 실패 시 사용)
+    # 1. 예비용 명언 리스트 (한글 번역 추가됨)
     backup_quotes = [
-        {"eng": "Opportunities don't happen. You create them.", "author": "Chris Grosser"},
-        {"eng": "The best way to predict the future is to create it.", "author": "Peter Drucker"},
-        {"eng": "Do not be embarrassed by your failures, learn from them and start again.", "author": "Richard Branson"},
-        {"eng": "Innovation distinguishes between a leader and a follower.", "author": "Steve Jobs"},
-        {"eng": "It’s not about ideas. It’s about making ideas happen.", "author": "Scott Belsky"},
-        {"eng": "The only way to do great work is to love what you do.", "author": "Steve Jobs"},
-        {"eng": "Risk comes from not knowing what you're doing.", "author": "Warren Buffett"},
-        {"eng": "Success is walking from failure to failure with no loss of enthusiasm.", "author": "Winston Churchill"}
+        {"eng": "Opportunities don't happen. You create them.", "kor": "기회는 찾아오는 것이 아닙니다. 당신이 만드는 것입니다.", "author": "Chris Grosser"},
+        {"eng": "The best way to predict the future is to create it.", "kor": "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것입니다.", "author": "Peter Drucker"},
+        {"eng": "Do not be embarrassed by your failures, learn from them and start again.", "kor": "실패를 부끄러워하지 마세요. 배우고 다시 시작하세요.", "author": "Richard Branson"},
+        {"eng": "Innovation distinguishes between a leader and a follower.", "kor": "혁신이 리더와 추종자를 구분합니다.", "author": "Steve Jobs"},
+        {"eng": "It’s not about ideas. It’s about making ideas happen.", "kor": "아이디어 자체가 중요한 게 아닙니다. 실행하는 것이 중요합니다.", "author": "Scott Belsky"},
+        {"eng": "The only way to do great work is to love what you do.", "kor": "위대한 일을 하는 유일한 방법은 그 일을 사랑하는 것입니다.", "author": "Steve Jobs"},
+        {"eng": "Risk comes from not knowing what you're doing.", "kor": "위험은 자신이 무엇을 하는지 모르는 데서 옵니다.", "author": "Warren Buffett"},
+        {"eng": "Success is walking from failure to failure with no loss of enthusiasm.", "kor": "성공이란 열정을 잃지 않고 실패를 거듭해 나가는 능력입니다.", "author": "Winston Churchill"}
     ]
 
     try:
-        # API 호출 시도 (타임아웃을 2초로 줄여서 화면 로딩 속도 개선)
+        # 1. API로 영어 명언 가져오기
         res = requests.get("https://api.quotable.io/random?tags=business", timeout=2).json()
-        return {"eng": res['content'], "author": res['author']}
+        eng_text = res['content']
+        author = res['author']
+        
+        # 2. 한글 번역 시도 (기존 뉴스 번역 API 활용)
+        kor_text = ""
+        try:
+            trans_url = "https://api.mymemory.translated.net/get"
+            trans_res = requests.get(trans_url, params={'q': eng_text, 'langpair': 'en|ko'}, timeout=2).json()
+            if trans_res['responseStatus'] == 200:
+                kor_text = trans_res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
+        except:
+            pass # 번역 실패 시 빈 칸
+
+        # 번역 실패 시 예비 멘트 혹은 영어만 리턴 방지
+        if not kor_text: 
+            kor_text = "Global Business Quote"
+
+        return {"eng": eng_text, "kor": kor_text, "author": author}
+
     except:
         # API 실패 시, 예비 리스트에서 랜덤 선택
         return random.choice(backup_quotes)
-
 @st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
 def get_financial_metrics(symbol, api_key):
     try:
@@ -1089,6 +1106,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
