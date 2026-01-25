@@ -954,7 +954,7 @@ elif st.session_state.page == 'detail':
                 status = "매우 높음" if total_score > 75 else ("보통" if total_score > 50 else "주의")
                 st.info(f"종합 투자 매력도는 **'{status}'** 단계입니다.")
 
-            with st.expander("🔬 AI 알고리즘 산출 수식 보기"):
+            with st.expander("AI 알고리즘 산출 수식 보기"):
                 st.latex(r"Score_{total} = (G \times 0.4) + (P \times 0.3) + (I \times 0.3)")
 
         # --- Tab 3: 최종 투자 결정 ---
@@ -1191,6 +1191,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
