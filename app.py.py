@@ -746,7 +746,7 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 0: 뉴스 & 심층 분석 (수정: 비즈니스 모델 집중 모드) ---
         with tab0:
-            st.markdown("##### 🕵️ AI 심층 분석 리포트")
+            
             st.caption("Tavily AI 검색 엔진이 최신 웹 정보를 수집하고 AI가 핵심 내용을 요약합니다.")
 
             # [1] 검색어 생성 (비즈니스 모델만 설정)
@@ -1185,6 +1185,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
