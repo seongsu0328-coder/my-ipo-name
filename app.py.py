@@ -446,9 +446,9 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (PC/모바일 완벽 대응 반응형 그리드 통합)
+# 4. 캘린더 페이지 (PC/모바일 완벽 대응: 반응형 그리드 통합 최종본)
 elif st.session_state.page == 'calendar':
-    # [CSS] 반응형 그리드 및 스타일 설정
+    # [CSS] 반응형 그리드 및 스타일 설정 (가로 정렬 강제 포함)
     st.markdown("""
         <style>
         /* 1. 기본 텍스트 검정 (다크모드 방지) */
@@ -470,15 +470,21 @@ elif st.session_state.page == 'calendar':
             margin-bottom: 0px;
         }
 
-        /* 3. [모바일 전용] 스타일 미세 조정 */
+        /* 3. [핵심] 모바일 전용 스타일 및 가로 정렬 강제 */
         @media (max-width: 640px) {
-            /* 전체 글씨 크기 축소 */
+            /* (A) 가로 정렬 강제 (절대 줄바꿈 금지) */
+            div[data-testid="stHorizontalBlock"] {
+                flex-direction: row !important;
+                flex-wrap: nowrap !important; /* 핵심 코드 */
+                align-items: center !important;
+            }
+
+            /* (B) 전체 글씨 크기 축소 */
             div[data-testid="column"] { font-size: 11px !important; }
-            /* 날짜 폰트 */
+            
+            /* (C) 요소별 미세 조정 */
             .mobile-date { font-size: 10px !important; letter-spacing: -0.5px; color: #666 !important; }
-            /* 기업명 하단 정보 */
             .mobile-sub { font-size: 10px !important; color: #888 !important; margin-top: -2px; }
-            /* 가격 폰트 */
             .mobile-price { font-size: 12px !important; font-weight: bold; }
         }
         </style>
@@ -496,7 +502,7 @@ elif st.session_state.page == 'calendar':
         all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
         today = datetime.now().date()
         
-        # 2. 필터 로직 (기존 유지)
+        # 2. 필터 로직
         if view_mode == 'watchlist':
             st.title("⭐ 나의 관심 종목")
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
@@ -547,18 +553,17 @@ elif st.session_state.page == 'calendar':
                     display_df = display_df.sort_values(by='temp_growth', ascending=False)
 
         # ----------------------------------------------------------------
-        # [핵심] 반응형 그리드 시스템 (헤더와 데이터 비율 통일)
+        # [핵심] 반응형 그리드 시스템 (PC: 3단 / 모바일: 3단 가로 고정)
         # ----------------------------------------------------------------
         
-        # [설정] 화면 비율 정의 (모바일 최적화: 1.2 : 3.8 : 1.2)
+        # [설정] 화면 비율 (모바일에서 꽉 차게 보이도록 조정된 비율)
         GRID_RATIO = [1.2, 3.8, 1.2] 
 
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더 (세 항목 모두 <b> 태그 적용하여 굵은 글씨로 통일)
+            # 1. 헤더 (HTML 태그로 폰트 굵기 및 스타일 통일)
             h1, h2, h3 = st.columns(GRID_RATIO)
-            
             h1.markdown("<div style='text-align:center'><b>공모일</b></div>", unsafe_allow_html=True)
             h2.markdown("<div><b>기업 정보</b></div>", unsafe_allow_html=True)
             h3.markdown("<div style='text-align:right'><b>가격</b></div>", unsafe_allow_html=True)
@@ -575,20 +580,19 @@ elif st.session_state.page == 'calendar':
                 icon = "🐣" if ipo_date > (today - timedelta(days=365)) else "🦄"
                 bg = "#fff9db" if icon == "🐣" else "#f3f0ff"
                 
-                # 가격 HTML 생성
+                # 가격 HTML
                 live_p = row.get('live_price', 0)
                 if live_p > 0:
                     pct = ((live_p - p_val)/p_val)*100
                     color = "#d93025" if pct < 0 else "#1e8e3e"
-                    # 모바일용 클래스 적용
                     price_html = f"<div class='mobile-price' style='color:{color};'>${live_p:,.2f}</div><div style='font-size:10px; color:#666;'>{pct:+.0f}%</div>"
                 else:
                     price_html = f"<div class='mobile-price'>${p_val:,.2f}</div><div style='font-size:10px; color:#888;'>공모가</div>"
 
-                # 3단 컬럼 생성 (헤더와 동일 비율 유지 -> 가로 정렬 보장)
+                # 컬럼 배치 (3단)
                 c1, c2, c3 = st.columns(GRID_RATIO)
                 
-                # [Col 1] 날짜 + 아이콘 (중앙 정렬)
+                # [Col 1] 날짜 (중앙)
                 with c1:
                     st.markdown(f"""
                         <div style='text-align:center;'>
@@ -597,15 +601,13 @@ elif st.session_state.page == 'calendar':
                         </div>
                     """, unsafe_allow_html=True)
                 
-                # [Col 2] 기업정보 (좌측 정렬)
+                # [Col 2] 기업정보 (좌측)
                 with c2:
-                    # 기업명 (버튼)
                     if st.button(f"{row['name']}", key=f"btn_list_{i}"):
                         st.session_state.selected_stock = row.to_dict()
                         st.session_state.page = 'detail'
                         st.rerun()
                     
-                    # 하단 정보 한 줄 요약 (티커 | 거래소 | 규모)
                     try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                     except: s_val = 0
                     size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
@@ -613,11 +615,10 @@ elif st.session_state.page == 'calendar':
                     info_text = f"{row['symbol']} | {row.get('exchange','-')}{size_str}"
                     st.markdown(f"<div class='mobile-sub'>{info_text}</div>", unsafe_allow_html=True)
                 
-                # [Col 3] 가격 (우측 정렬)
+                # [Col 3] 가격 (우측)
                 with c3:
                     st.markdown(f"<div style='text-align:right;'>{price_html}</div>", unsafe_allow_html=True)
                 
-                # 구분선
                 st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
 
         else:
@@ -1138,6 +1139,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
