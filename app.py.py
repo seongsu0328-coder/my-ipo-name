@@ -604,12 +604,7 @@ elif st.session_state.page == 'calendar':
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더
-            h1, h2 = st.columns([7, 3])
-            h1.markdown("<div class='header-text' style='padding-left:2px;'><b>기업 정보</b></div>", unsafe_allow_html=True)
-            h2.markdown("<div class='header-text' style='text-align:right'><b>가격 / 날짜</b></div>", unsafe_allow_html=True)
-            
-            st.markdown("<hr style='margin:5px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
+  
 
             # 2. 데이터 리스트
             for i, row in display_df.iterrows():
@@ -1176,6 +1171,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
