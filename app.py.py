@@ -1271,38 +1271,62 @@ elif st.session_state.page == 'board':
                 
                 # 상세 보기 (Expander)
                 with st.expander(f"{post['title']} ({len(post.get('comments', []))})"):
-                    # 1. 이미지 표시
-                    if post.get('image'):
-                        st.image(post['image'], use_container_width=True)
                     
-                    # 2. 본문 내용
-                    st.write(post['content'])
+                    # --- 수정 모드 판별 ---
+                    is_editing = st.session_state.get('edit_post_id') == post['id']
                     
-                    # 3. 댓글 섹션
+                    if is_editing:
+                        # [수정 양식]
+                        with st.form(key=f"edit_form_{post['id']}"):
+                            new_cat = st.selectbox("카테고리 수정", ["거시경제", "관심기업", "자산배분", "투자인사이트"], 
+                                                   index=["거시경제", "관심기업", "자산배분", "투자인사이트"].index(post['category']))
+                            new_title = st.text_input("제목 수정", value=post['title'])
+                            new_content = st.text_area("내용 수정", value=post['content'], height=150)
+                            
+                            e_c1, e_c2 = st.columns(2)
+                            if e_c1.form_submit_button("수정 완료"):
+                                st.session_state.posts[actual_idx]['category'] = new_cat
+                                st.session_state.posts[actual_idx]['title'] = new_title
+                                st.session_state.posts[actual_idx]['content'] = new_content
+                                st.session_state.edit_post_id = None # 수정 모드 종료
+                                st.success("수정되었습니다!")
+                                st.rerun()
+                            if e_c2.form_submit_button("취소"):
+                                st.session_state.edit_post_id = None
+                                st.rerun()
+                    else:
+                        # [일반 보기 모드]
+                        if post.get('image'):
+                            st.image(post['image'], use_container_width=True)
+                        st.write(post['content'])
+                        
+                        # 수정/삭제 버튼 레이아웃
+                        btn_c1, btn_c2, _ = st.columns([1, 1, 4])
+                        if btn_c1.button("📝 수정", key=f"edit_btn_{post['id']}"):
+                            st.session_state.edit_post_id = post['id']
+                            st.rerun()
+                        if btn_c2.button("🗑️ 삭제", key=f"del_btn_{post['id']}"):
+                            st.session_state.posts.pop(actual_idx)
+                            st.rerun()
+
+                    # --- 댓글 섹션 ---
                     st.markdown("---")
                     st.markdown("**댓글**")
-                    for c_idx, comment in enumerate(post.get('comments', [])):
+                    for comment in post.get('comments', []):
                         st.markdown(f"""<div class='comment-box'>
                             <small>{comment['author']} ({comment['date']})</small><br>{comment['text']}
                         </div>""", unsafe_allow_html=True)
                     
-                    # 4. 댓글 입력 창
                     with st.form(key=f"cmt_form_{post['id']}", clear_on_submit=True):
-                        c_text = st.text_input("댓글을 남겨보세요", key=f"input_{post['id']}")
-                        if st.form_submit_button("댓글 등록"):
+                        c_text = st.text_input("댓글 입력", key=f"input_{post['id']}")
+                        if st.form_submit_button("등록"):
                             if c_text:
-                                new_cmt = {
+                                st.session_state.posts[actual_idx]['comments'].append({
                                     "author": st.session_state.get('user_phone', '익명'),
                                     "text": c_text,
                                     "date": datetime.now().strftime("%m-%d %H:%M")
-                                }
-                                st.session_state.posts[actual_idx]['comments'].append(new_cmt)
+                                })
                                 st.rerun()
-
-                    # 5. 글 삭제 버튼
-                    if st.button("글 삭제", key=f"del_{post['id']}"):
-                        st.session_state.posts.pop(actual_idx)
-                        st.rerun()
                 st.write("---")
 
         # 하단 페이지네이션
@@ -1312,6 +1336,7 @@ elif st.session_state.page == 'board':
                 if cols[i].button(str(i), key=f"p_{i}"):
                     st.session_state.board_page = i
                     st.rerun()
+
 
 
 
