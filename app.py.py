@@ -904,7 +904,7 @@ elif st.session_state.page == 'detail':
             undervalued_pct = ((fair_low - off_val) / off_val) * 100 if off_val > 0 else 0
 
             # 1. 방법론 카드 (누락되었던 부분 복구)
-            st.markdown("##### 🔬 1. 가치 평가 방법론 상세 (Academic Methodology)")
+            st.markdown("##### 가치 평가 방법론 상세 (Academic Methodology)")
             p_cols = st.columns(3)
             methodologies = [
                 {"title": "Relative Valuation", "author": "Kim & Ritter (1999)", "desc": "동종 업계 유사 기업의 P/S, P/E 배수를 적용합니다.", "link": "https://scholar.google.com/scholar?q=Kim+Ritter+1999+Valuing+IPO"},
@@ -930,7 +930,7 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
             
             # 2. 종합 점수 및 적정가 (복구)
-            st.markdown(f"#### 🎓 2. AI 가치 분석 및 적정가 리포트")
+            st.markdown(f"#### AI 가치 분석 및 적정가 리포트")
             col_metrics = st.columns(3)
             col_metrics[0].metric("성장성 점수 (G)", f"{growth_score}점"); col_metrics[0].progress(growth_score/100)
             col_metrics[1].metric("수익성 점수 (P)", f"{profit_score}점"); col_metrics[1].progress(profit_score/100)
@@ -1191,6 +1191,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
