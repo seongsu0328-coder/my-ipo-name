@@ -262,20 +262,43 @@ def get_real_news_rss(company_name):
         return news_items
     except: return []
 
-# [수정] 검색 함수: 실패 시 None을 반환하여 UI에서 버튼으로 대체하도록 유도
-@st.cache_data(ttl=86400) 
-def get_search_summary(query):
-    """DuckDuckGo 검색 시도 -> 실패 시 None 반환"""
+# [수정] Tavily 검색 + OpenAI 요약 함수 (캐싱 적용됨)
+@st.cache_data(show_spinner=False, ttl=86400) # 24시간 동안 같은 질문은 저장해둠 (API 비용 절약)
+def get_ai_summary(query):
+    """
+    Tavily API를 사용하여 검색 후 GPT로 요약하는 함수
+    """
+    # 1. API 키 가져오기 (Secrets에서 로드)
+    tavily_key = st.secrets.get("TAVILY_API_KEY")
+    openai_key = st.secrets.get("OPENAI_API_KEY")
+
+    # 키가 없을 경우 에러 메시지 반환
+    if not tavily_key or not openai_key:
+        return "⚠️ API 키 설정 오류: Secrets에 키가 있는지 확인해주세요."
+
     try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=2))
-            if results:
-                summary = " ".join([r['body'] for r in results])
-                return summary
-            else:
-                return None # 결과 없음
-    except:
-        return None # 차단/에러 발생 시 None 반환
+        # 2. Tavily로 검색 (검색 깊이: basic, 결과 3개)
+        tavily = TavilyClient(api_key=tavily_key)
+        search_result = tavily.search(query=query, search_depth="basic", max_results=3)
+        
+        # 검색 결과 텍스트 합치기
+        context = "\n".join([r['content'] for r in search_result['results']])
+        
+        # 3. GPT에게 요약 요청
+        client = OpenAI(api_key=openai_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # gpt-3.5-turbo 등 사용 중인 모델명으로 변경 가능
+            messages=[
+                {"role": "system", "content": "You are a financial expert. Summarize the key facts in Korean within 3 sentences."},
+                {"role": "user", "content": f"Context:\n{context}\n\nQuery: {query}\n\nPlease summarize appropriately."}
+            ]
+        )
+        return response.choices[0].message.content
+
+    except Exception as e:
+        # 에러 발생 시 로그 출력 후 None 반환 (UI에서 처리)
+        print(f"AI Summary Error: {e}")
+        return None
         
 # --- 화면 제어 시작 ---
 
@@ -1178,6 +1201,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
