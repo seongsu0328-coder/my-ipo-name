@@ -7,8 +7,15 @@ import xml.etree.ElementTree as ET
 import time
 import uuid
 import random
-# [추가] 무료 검색 라이브러리
-from duckduckgo_search import DDGS
+
+# --- [AI 및 검색 기능] ---
+from tavily import TavilyClient   # (필수) 검색 담당
+from openai import OpenAI         # (필수) 요약 담당 -> 이게 꼭 있어야 해요!
+from duckduckgo_search import DDGS # (선택) 혹시 모를 비상용
+
+# --- [주식 및 차트 기능 (기존 기능 유지)] ---
+import yfinance as yf             # 주가 데이터
+import plotly.graph_objects as go # 차트 그리기
 
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
@@ -1171,6 +1178,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
