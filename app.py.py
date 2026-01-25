@@ -1198,7 +1198,7 @@ elif st.session_state.page == 'detail':
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
 
-# --- 5. 게시판 페이지 (인기글 & 필터링 버전) ---
+# --- 5. 게시판 페이지 (에러 방지 & 최종 기능 통합) ---
 elif st.session_state.page == 'board':
     st.markdown("### 💬 투자자 토론 게시판")
     
@@ -1206,16 +1206,20 @@ elif st.session_state.page == 'board':
     if 'posts' not in st.session_state:
         st.session_state.posts = []
 
-    # [B] 상단 메뉴 및 인기글 로직
-    # 일주일 내 좋아요가 가장 많은 상위 5개 추출
+    # [B] 상단 인기글 로직 (방어적 코드 적용)
     one_week_ago = datetime.now() - timedelta(days=7)
     
     def get_top_posts(posts):
-        valid_posts = [
-            p for p in posts 
-            if datetime.strptime(p['date'], "%Y-%m-%d %H:%M") > one_week_ago
-        ]
-        # 좋아요(likes) 기준 내림차순 정렬
+        valid_posts = []
+        for p in posts:
+            try:
+                # 날짜 형식이 없거나 다를 경우를 대비한 예외 처리
+                post_date = datetime.strptime(p.get('date', datetime.now().strftime("%Y-%m-%d %H:%M")), "%Y-%m-%d %H:%M")
+                if post_date > one_week_ago:
+                    valid_posts.append(p)
+            except:
+                continue
+        # likes 키가 없어도 0으로 간주하고 정렬
         return sorted(valid_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
 
     top_posts = get_top_posts(st.session_state.posts)
@@ -1223,7 +1227,7 @@ elif st.session_state.page == 'board':
     if top_posts:
         with st.expander("🔥 이번 주 인기 게시글 TOP 5", expanded=True):
             for i, tp in enumerate(top_posts):
-                st.write(f"{i+1}. [{tp['category']}] {tp['title']} (👍 {tp.get('likes', 0)})")
+                st.write(f"{i+1}. [{tp.get('category', '일반')}] {tp.get('title', '제목 없음')} (👍 {tp.get('likes', 0)})")
         st.divider()
 
     # [C] 필터 및 글쓰기 버튼
@@ -1234,7 +1238,7 @@ elif st.session_state.page == 'board':
         if st.button("📝 글쓰기", use_container_width=True, type="primary"):
             st.session_state.show_editor = True
 
-    # [D] 글쓰기 폼 (이미지/ID/초기 추천수 포함)
+    # [D] 글쓰기 폼
     if st.session_state.get('show_editor', False):
         with st.form("board_form_final"):
             cat = st.selectbox("카테고리", ["거시경제", "관심기업", "자산배분", "투자인사이트"])
@@ -1264,12 +1268,11 @@ elif st.session_state.page == 'board':
     # [E] 게시글 목록 (필터링 적용)
     filtered_posts = st.session_state.posts
     if category_filter != "전체":
-        filtered_posts = [p for p in st.session_state.posts if p['category'] == category_filter]
+        filtered_posts = [p for p in st.session_state.posts if p.get('category') == category_filter]
 
     if not filtered_posts:
         st.info("해당 카테고리에 게시글이 없습니다.")
     else:
-        # 페이징
         per_page = 10
         total_pages = max(1, (len(filtered_posts) - 1) // per_page + 1)
         curr_p = st.session_state.get('board_page', 1)
@@ -1277,32 +1280,39 @@ elif st.session_state.page == 'board':
         end_idx = start_idx + per_page
 
         for post in filtered_posts[start_idx:end_idx]:
-            # 실제 posts 리스트에서의 인덱스 찾기
-            actual_idx = next(i for i, p in enumerate(st.session_state.posts) if p['id'] == post['id'])
+            # 실제 posts 리스트에서의 인덱스 찾기 (id 기준 검색으로 안전하게)
+            try:
+                actual_idx = next(i for i, p in enumerate(st.session_state.posts) if p['id'] == post['id'])
+            except (KeyError, StopIteration):
+                continue
             
             with st.container():
-                st.caption(f"**[{post['category']}]** | {post['date']} | 작성자: {post['author']}")
-                with st.expander(f"{post['title']} (👍 {post['likes']} / 💬 {len(post['comments'])})"):
-                    # 수정 모드 확인
-                    if st.session_state.get('edit_post_id') == post['id']:
-                        with st.form(f"edit_{post['id']}"):
-                            edit_title = st.text_input("제목 수정", value=post['title'])
-                            edit_content = st.text_area("내용 수정", value=post['content'])
+                st.caption(f"**[{post.get('category', '일반')}]** | {post.get('date', '-')} | 작성자: {post.get('author', '익명')}")
+                
+                # 에러 발생 지점 수정: .get() 사용하여 안전하게 데이터 호출
+                likes_count = post.get('likes', 0)
+                dislikes_count = post.get('dislikes', 0)
+                comments_list = post.get('comments', [])
+                
+                with st.expander(f"{post.get('title', '제목 없음')} (👍 {likes_count} / 💬 {len(comments_list)})"):
+                    if st.session_state.get('edit_post_id') == post.get('id'):
+                        with st.form(f"edit_{post.get('id')}"):
+                            edit_title = st.text_input("제목 수정", value=post.get('title', ''))
+                            edit_content = st.text_area("내용 수정", value=post.get('content', ''))
                             if st.form_submit_button("완료"):
                                 st.session_state.posts[actual_idx].update({"title": edit_title, "content": edit_content})
                                 st.session_state.edit_post_id = None
                                 st.rerun()
                     else:
                         if post.get('image'): st.image(post['image'])
-                        st.write(post['content'])
+                        st.write(post.get('content', ''))
                         
-                        # --- 좋아요/싫어요 & 수정/삭제 버튼 ---
                         v1, v2, v3, v4, _ = st.columns([1, 1, 1, 1, 4])
-                        if v1.button(f"👍 {post['likes']}", key=f"like_{post['id']}"):
-                            st.session_state.posts[actual_idx]['likes'] += 1
+                        if v1.button(f"👍 {likes_count}", key=f"like_{post['id']}"):
+                            st.session_state.posts[actual_idx]['likes'] = likes_count + 1
                             st.rerun()
-                        if v2.button(f"👎 {post['dislikes']}", key=f"dis_{post['id']}"):
-                            st.session_state.posts[actual_idx]['dislikes'] += 1
+                        if v2.button(f"👎 {dislikes_count}", key=f"dis_{post['id']}"):
+                            st.session_state.posts[actual_idx]['dislikes'] = dislikes_count + 1
                             st.rerun()
                         if v3.button("수정", key=f"ed_{post['id']}"):
                             st.session_state.edit_post_id = post['id']
@@ -1311,17 +1321,18 @@ elif st.session_state.page == 'board':
                             st.session_state.posts.pop(actual_idx)
                             st.rerun()
 
-                        # 댓글창 (생략 없이 통합)
-                        for c in post['comments']:
-                            st.markdown(f"<div class='comment-box'><small>{c['author']}</small><br>{c['text']}</div>", unsafe_allow_html=True)
+                        for c in comments_list:
+                            st.markdown(f"<div class='comment-box'><small>{c.get('author', '익명')}</small><br>{c.get('text', '')}</div>", unsafe_allow_html=True)
+                        
                         with st.form(f"cmt_{post['id']}", clear_on_submit=True):
                             c_in = st.text_input("댓글")
                             if st.form_submit_button("등록"):
-                                st.session_state.posts[actual_idx]['comments'].append({
-                                    "author": st.session_state.get('user_phone', '익명'),
-                                    "text": c_in, "date": datetime.now().strftime("%m-%d %H:%M")
-                                })
-                                st.rerun()
+                                if c_in:
+                                    st.session_state.posts[actual_idx]['comments'].append({
+                                        "author": st.session_state.get('user_phone', '익명'),
+                                        "text": c_in, "date": datetime.now().strftime("%m-%d %H:%M")
+                                    })
+                                    st.rerun()
                 st.write("---")
 
 
