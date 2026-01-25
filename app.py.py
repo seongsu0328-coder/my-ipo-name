@@ -446,76 +446,44 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (중복 제거 및 최신 정렬 기능 완벽 통합)
+# 4. 캘린더 페이지 (PC/모바일 완벽 대응 반응형 그리드 통합)
 elif st.session_state.page == 'calendar':
-    # [스타일] 모바일 카드형 리스트 디자인
+    # [CSS] 반응형 그리드 및 스타일 설정
     st.markdown("""
         <style>
-        /* 폰트 색상 강제 검정 (다크모드 방지) */
+        /* 1. 기본 텍스트 검정 (다크모드 방지) */
         * { color: #333333 !important; }
         
-        /* 리스트 아이템 카드 디자인 */
-        .stock-card {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 5px;
-            border-bottom: 1px solid #f0f2f6;
-        }
-        
-        /* [구역 1] 왼쪽: 날짜/아이콘 */
-        .card-left {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 50px;
-            text-align: center;
-        }
-        .icon-box {
-            width: 36px; height: 36px; 
-            border-radius: 10px; 
-            display: flex; align-items: center; justify-content: center;
-            font-size: 18px; margin-bottom: 4px;
-        }
-        .date-text { font-size: 10px; color: #666 !important; }
-
-        /* [구역 2] 가운데: 기업명/거래소 */
-        .card-center {
-            flex: 1; /* 남는 공간 다 차지 */
-            padding-left: 10px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        .stock-name { 
-            font-size: 15px; font-weight: bold; 
-            margin-bottom: 2px;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; /* 말줄임 */
-        }
-        .stock-sub { font-size: 11px; color: #888 !important; }
-
-        /* [구역 3] 오른쪽: 가격/수익률 */
-        .card-right {
-            text-align: right;
-            width: 90px;
-        }
-        .price-main { font-size: 14px; font-weight: bold; }
-        .price-sub { font-size: 11px; color: #666 !important; }
-        
-        /* 버튼 스타일 리셋 (투명 버튼으로 만듦) */
+        /* 2. 버튼 스타일 (투명) */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
             padding: 0 !important;
-            color: black !important;
+            margin: 0 !important;
+            color: #333 !important;
             text-align: left !important;
+            box-shadow: none !important;
         }
-        .stButton button:hover {
-            color: #4f46e5 !important;
+        .stButton button p { 
+            font-weight: bold; 
+            font-size: 15px; 
+            margin-bottom: 0px;
+        }
+
+        /* 3. [모바일 전용] 스타일 미세 조정 */
+        @media (max-width: 640px) {
+            /* 전체 글씨 크기 축소 */
+            div[data-testid="column"] { font-size: 11px !important; }
+            /* 날짜 폰트 */
+            .mobile-date { font-size: 10px !important; letter-spacing: -0.5px; color: #666 !important; }
+            /* 기업명 하단 정보 */
+            .mobile-sub { font-size: 10px !important; color: #888 !important; margin-top: -2px; }
+            /* 가격 폰트 */
+            .mobile-price { font-size: 12px !important; font-weight: bold; }
         }
         </style>
     """, unsafe_allow_html=True)
-    # [수정] 로그인 이동 버튼 제거됨
+
     st.sidebar.button("⬅️ 메인으로", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
     
     # 1. 데이터 가져오기
@@ -523,28 +491,22 @@ elif st.session_state.page == 'calendar':
     view_mode = st.session_state.get('view_mode', 'all')
     
     if not all_df_raw.empty:
-        # 데이터 전처리
         all_df = all_df_raw.dropna(subset=['exchange'])
         all_df = all_df[all_df['exchange'].astype(str).str.upper() != 'NONE']
         all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
         today = datetime.now().date()
-
-        # 2. 상단 필터 및 정렬 UI
-        # [중요 수정] 에러 방지를 위해 변수를 미리 정의합니다.
-        sort_option = "최신순 (기본)" 
-
+        
+        # 2. 필터 로직 (기존 유지)
         if view_mode == 'watchlist':
-            display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
             st.title("⭐ 나의 관심 종목")
+            display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
         else:
             col_f1, col_f2 = st.columns([2, 1])
             with col_f1:
                 period = st.radio("📅 조회 기간", ["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], horizontal=True)
             with col_f2:
-                # 여기서 선택하면 위에서 정의한 기본값을 덮어씁니다.
                 sort_option = st.selectbox("🎯 리스트 정렬", ["최신순 (기본)", "🚀 수익률 높은순 (실시간)", "📈 매출 성장률순 (AI)"])
-
-            # 3. 기간 필터링
+            
             if period == "상장 예정 (90일)":
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
             elif period == "최근 6개월": 
@@ -554,51 +516,113 @@ elif st.session_state.page == 'calendar':
             elif period == "최근 18개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
-            # 4. 정렬 및 가격 조회 로직
-            # [중요] 실시간 가격을 담을 컬럼 초기화
-            display_df['live_price'] = 0.0
+        # 정렬 로직
+        display_df['live_price'] = 0.0
+        if not display_df.empty:
+            if sort_option == "최신순 (기본)":
+                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+            elif sort_option == "🚀 수익률 높은순 (실시간)":
+                 with st.spinner("🔄 시세 조회 중..."):
+                    returns = []
+                    prices = []
+                    for idx, row in display_df.iterrows():
+                        try:
+                            p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
+                            p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
+                            ret = ((p_curr - p_ipo) / p_ipo) * 100 if p_ipo > 0 and p_curr > 0 else -9999
+                        except: ret = -9999; p_curr = 0
+                        returns.append(ret); prices.append(p_curr)
+                    display_df['temp_return'] = returns; display_df['live_price'] = prices
+                    display_df = display_df.sort_values(by='temp_return', ascending=False)
+            elif sort_option == "📈 매출 성장률순 (AI)":
+                 with st.spinner("📊 재무 분석 중..."):
+                    growths = []
+                    for idx, row in display_df.iterrows():
+                        try:
+                            fins = get_financial_metrics(row['symbol'], MY_API_KEY)
+                            g = float(fins['growth']) if fins else -9999
+                        except: g = -9999
+                        growths.append(g)
+                    display_df['temp_growth'] = growths
+                    display_df = display_df.sort_values(by='temp_growth', ascending=False)
 
-            if not display_df.empty:
-                if sort_option == "최신순 (기본)":
-                    display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+        # ----------------------------------------------------------------
+        # [핵심] 반응형 그리드 시스템 (헤더와 데이터 비율 통일)
+        # PC: 7개 컬럼 / 모바일: 3개 구역으로 통합
+        # ----------------------------------------------------------------
+        
+        # [설정] 화면 비율 정의 (모바일 최적화: 1.2 : 3.8 : 1.2)
+        # 이 비율을 사용하면 좁은 폰 화면에서도 가로 스크롤 없이 딱 맞습니다.
+        GRID_RATIO = [1.2, 3.8, 1.2] 
+
+        if not display_df.empty:
+            st.write("---")
+            
+            # 1. 헤더 (PC의 복잡한 헤더 대신 직관적인 3단 헤더 사용)
+            h1, h2, h3 = st.columns(GRID_RATIO)
+            h1.markdown("<div style='text-align:center'><b>공모일</b></div>", unsafe_allow_html=True)
+            h2.markdown("<b>기업 정보</b>")
+            h3.markdown("<div style='text-align:right'><b>가격</b></div>", unsafe_allow_html=True)
+            
+            st.markdown("<hr style='margin:5px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
+
+            # 2. 데이터 리스트
+            for i, row in display_df.iterrows():
+                ipo_date = row['공모일_dt'].date()
+                p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
+                p_val = p_val if p_val and p_val > 0 else 0
                 
-                # [A] 수익률 정렬
-                elif sort_option == "🚀 수익률 높은순 (실시간)":
-                    with st.spinner("🔄 전 종목 실시간 시세 조회 중... (약 5~10초 소요)"):
-                        returns = []
-                        prices = []
-                        for idx, row in display_df.iterrows():
-                            try:
-                                p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
-                                p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
-                                
-                                if p_ipo > 0 and p_curr > 0:
-                                    ret = ((p_curr - p_ipo) / p_ipo) * 100
-                                else:
-                                    ret = -9999
-                            except: 
-                                ret = -9999
-                                p_curr = 0
-                            
-                            returns.append(ret)
-                            prices.append(p_curr)
-                        
-                        display_df['temp_return'] = returns
-                        display_df['live_price'] = prices
-                        display_df = display_df.sort_values(by='temp_return', ascending=False)
+                # 아이콘 & 배경
+                icon = "🐣" if ipo_date > (today - timedelta(days=365)) else "🦄"
+                bg = "#fff9db" if icon == "🐣" else "#f3f0ff"
+                
+                # 가격 HTML 생성
+                live_p = row.get('live_price', 0)
+                if live_p > 0:
+                    pct = ((live_p - p_val)/p_val)*100
+                    color = "#d93025" if pct < 0 else "#1e8e3e"
+                    # 모바일용 클래스 적용
+                    price_html = f"<div class='mobile-price' style='color:{color};'>${live_p:,.2f}</div><div style='font-size:10px; color:#666;'>{pct:+.0f}%</div>"
+                else:
+                    price_html = f"<div class='mobile-price'>${p_val:,.2f}</div><div style='font-size:10px; color:#888;'>공모가</div>"
 
-                # [B] 매출 성장률 정렬
-                elif sort_option == "📈 매출 성장률순 (AI)":
-                    with st.spinner("📊 기업 재무제표 스캔 중..."):
-                        growths = []
-                        for idx, row in display_df.iterrows():
-                            try:
-                                fins = get_financial_metrics(row['symbol'], MY_API_KEY)
-                                g = float(fins['growth']) if fins and fins['growth'] else -9999
-                            except: g = -9999
-                            growths.append(g)
-                        display_df['temp_growth'] = growths
-                        display_df = display_df.sort_values(by='temp_growth', ascending=False)
+                # 3단 컬럼 생성 (헤더와 동일 비율 유지 -> 가로 정렬 보장)
+                c1, c2, c3 = st.columns(GRID_RATIO)
+                
+                # [Col 1] 날짜 + 아이콘 (중앙 정렬)
+                with c1:
+                    st.markdown(f"""
+                        <div style='text-align:center;'>
+                            <div style='background:{bg}; width:32px; height:32px; border-radius:8px; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:18px;'>{icon}</div>
+                            <div class='mobile-date' style='margin-top:2px;'>{row['date']}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                # [Col 2] 기업정보 (좌측 정렬)
+                with c2:
+                    # 기업명 (버튼)
+                    if st.button(f"{row['name']}", key=f"btn_list_{i}"):
+                        st.session_state.selected_stock = row.to_dict()
+                        st.session_state.page = 'detail'
+                        st.rerun()
+                    
+                    # 하단 정보 한 줄 요약 (티커 | 거래소 | 규모)
+                    try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
+                    except: s_val = 0
+                    size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
+                    
+                    info_text = f"{row['symbol']} | {row.get('exchange','-')}{size_str}"
+                    st.markdown(f"<div class='mobile-sub'>{info_text}</div>", unsafe_allow_html=True)
+                
+                # [Col 3] 가격 (우측 정렬)
+                with c3:
+                    st.markdown(f"<div style='text-align:right;'>{price_html}</div>", unsafe_allow_html=True)
+                
+                # 구분선
+                st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
+
+        else:
+            st.info("조건에 맞는 종목이 없습니다.")
 
         # 5. 리스트 렌더링 (최종 통합)
         if not display_df.empty:
@@ -1183,6 +1207,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
