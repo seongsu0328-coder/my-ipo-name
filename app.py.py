@@ -446,18 +446,15 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (데이터 증발 해결 & 모바일 7:3 비율 고정 최종판)
+# 4. 캘린더 페이지 (필터는 세로로 쌓고, 리스트는 가로 7:3 유지)
 elif st.session_state.page == 'calendar':
-    # [CSS] 복잡한 계산 제거 -> 단순하고 강력한 '가로 고정' 스타일
+    # [CSS] 구역별 맞춤형 스타일 (필터 vs 리스트 분리 적용)
     st.markdown("""
         <style>
-        /* 1. 기본 텍스트 및 박스 모델 설정 */
-        * { 
-            box-sizing: border-box !important;
-            color: #333333 !important; 
-        }
+        /* 1. 기본 설정 */
+        * { box-sizing: border-box !important; color: #333333 !important; }
         
-        /* 2. 상단 여백 확보 (메뉴바 가림 방지) & 좌우 여백 제거 */
+        /* 2. 상단 여백 확보 */
         .block-container {
             padding-top: 4rem !important;
             padding-left: 0.5rem !important;
@@ -465,7 +462,7 @@ elif st.session_state.page == 'calendar':
             max-width: 100% !important;
         }
 
-        /* 3. 버튼 스타일 (한 줄 유지) */
+        /* 3. 버튼 스타일 */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
@@ -483,28 +480,36 @@ elif st.session_state.page == 'calendar':
         }
         .stButton button p { font-weight: bold; font-size: 15px; margin-bottom: 0px; }
 
-        /* 4. [모바일 핵심] 무조건 가로 정렬 강제 (데이터 증발 방지) */
+        /* 4. [모바일 레이아웃 핵심] 상단과 하단을 다르게 처리 */
         @media (max-width: 640px) {
-            /* 모든 컬럼 컨테이너를 가로로 강제 (쌓임 방지) */
-            div[data-testid="stHorizontalBlock"] {
+            
+            /* (A) 상단 필터 구역 (첫 번째 컬럼 그룹) -> [수정] 줄바꿈 허용! */
+            div[data-testid="stHorizontalBlock"]:nth-of-type(1) {
+                flex-wrap: wrap !important; /* 줄바꿈 허용 (위아래로 쌓임) */
+                gap: 10px !important;       /* 필터 사이 간격 */
+                padding-bottom: 10px !important;
+            }
+            
+            /* 필터 박스들을 화면 꽉 차게 늘림 */
+            div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div {
+                min-width: 100% !important;
+                max-width: 100% !important;
+                flex: 1 1 100% !important;
+            }
+
+            /* (B) 주식 리스트 구역 (두 번째 이후 그룹) -> [유지] 가로 고정! */
+            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) {
                 flex-direction: row !important;
-                flex-wrap: nowrap !important;
+                flex-wrap: nowrap !important; /* 줄바꿈 금지 */
                 gap: 0px !important;
                 width: 100% !important;
             }
 
-            /* 개별 컬럼: 최소 너비를 없애서 화면 밖으로 안 나가게 함 */
-            div[data-testid="column"] {
-                min-width: 0px !important;
-                flex-shrink: 1 !important; /* 공간 부족하면 줄어들기 */
-                padding: 0px 2px !important;
-            }
-            
-            /* 폰트 사이즈 최적화 */
+            /* (C) 리스트 내부 폰트 조정 */
             .mobile-sub { font-size: 10px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .price-main { font-size: 12px !important; font-weight: bold; white-space: nowrap; }
-            .price-sub { font-size: 9px !important; color: #666 !important; white-space: nowrap; }
-            .date-text { font-size: 9px !important; color: #888 !important; margin-top: 1px; }
+            .price-main { font-size: 13px !important; font-weight: bold; white-space: nowrap; }
+            .price-sub { font-size: 10px !important; color: #666 !important; white-space: nowrap; }
+            .date-text { font-size: 10px !important; color: #888 !important; margin-top: 1px; }
             .header-text { font-size: 12px !important; }
         }
         </style>
@@ -527,7 +532,7 @@ elif st.session_state.page == 'calendar':
             st.title("⭐ 나의 관심 종목")
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
         else:
-            # 상단 필터: 모바일에서도 가로로 나오지만(CSS 영향), 사용엔 지장 없음
+            # [이 부분이 모바일에서 위아래로 쌓이게 됨]
             col_f1, col_f2 = st.columns([2, 1])
             with col_f1:
                 period = st.radio("📅 조회 기간", ["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], horizontal=True)
@@ -574,14 +579,13 @@ elif st.session_state.page == 'calendar':
                     display_df = display_df.sort_values(by='temp_growth', ascending=False)
 
         # ----------------------------------------------------------------
-        # [핵심 변경점] CSS 계산식 대신 Python으로 비율(7:3)을 직접 지정
-        # Streamlit은 이 비율을 받아 flex-basis를 자동으로 설정해줍니다.
+        # [핵심] 리스트 레이아웃 (7 : 3 비율)
         # ----------------------------------------------------------------
         
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더 (7:3 비율 적용)
+            # 1. 헤더 (7:3 비율)
             h1, h2 = st.columns([7, 3])
             h1.markdown("<div class='header-text' style='padding-left:2px;'><b>기업 정보</b></div>", unsafe_allow_html=True)
             h2.markdown("<div class='header-text' style='text-align:right'><b>가격 / 날짜</b></div>", unsafe_allow_html=True)
@@ -611,7 +615,7 @@ elif st.session_state.page == 'calendar':
                 # 날짜 HTML
                 date_html = f"<div class='date-text'>{row['date']}</div>"
 
-                # 2단 컬럼 배치 (7:3 비율 적용 -> CSS 충돌 방지)
+                # 2단 컬럼 배치 (7:3 비율 적용)
                 c1, c2 = st.columns([7, 3])
                 
                 # [왼쪽 70%] 기업명 + 하단정보
@@ -1151,6 +1155,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
