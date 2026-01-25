@@ -446,15 +446,15 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (PC/모바일 완벽 대응: 반응형 그리드 통합 최종본)
+# 4. 캘린더 페이지 (모바일 화면 맞춤형: 스크롤 제거 및 100% 폭 고정)
 elif st.session_state.page == 'calendar':
-    # [CSS] 반응형 그리드 및 스타일 설정 (가로 정렬 강제 포함)
+    # [CSS] 모바일 강제 맞춤 설정 (다이어트 버전)
     st.markdown("""
         <style>
-        /* 1. 기본 텍스트 검정 (다크모드 방지) */
+        /* 1. 기본 텍스트 검정 */
         * { color: #333333 !important; }
         
-        /* 2. 버튼 스타일 (투명) */
+        /* 2. 버튼 스타일 (여백 완전 제거) */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
@@ -463,29 +463,55 @@ elif st.session_state.page == 'calendar':
             color: #333 !important;
             text-align: left !important;
             box-shadow: none !important;
+            width: 100% !important; /* 버튼 폭 제한 */
+            overflow: hidden !important;
+            white-space: nowrap !important;
+            text-overflow: ellipsis !important; /* 말줄임표(...) 처리 */
         }
         .stButton button p { 
             font-weight: bold; 
-            font-size: 15px; 
+            font-size: 14px; 
             margin-bottom: 0px;
         }
 
-        /* 3. [핵심] 모바일 전용 스타일 및 가로 정렬 강제 */
+        /* 3. [핵심] 모바일 전용: 화면 폭 100% 강제 맞춤 */
         @media (max-width: 640px) {
-            /* (A) 가로 정렬 강제 (절대 줄바꿈 금지) */
+            /* (A) 컨테이너: 가로 정렬 + 간격 제거 + 스크롤 방지 */
             div[data-testid="stHorizontalBlock"] {
                 flex-direction: row !important;
-                flex-wrap: nowrap !important; /* 핵심 코드 */
-                align-items: center !important;
+                flex-wrap: nowrap !important;
+                gap: 2px !important; /* 컬럼 사이 간격을 2px로 확 줄임 */
+                width: 100% !important;
             }
 
-            /* (B) 전체 글씨 크기 축소 */
-            div[data-testid="column"] { font-size: 11px !important; }
-            
-            /* (C) 요소별 미세 조정 */
-            .mobile-date { font-size: 10px !important; letter-spacing: -0.5px; color: #666 !important; }
-            .mobile-sub { font-size: 10px !important; color: #888 !important; margin-top: -2px; }
-            .mobile-price { font-size: 12px !important; font-weight: bold; }
+            /* (B) 컬럼 공통: 최소 너비 '0'으로 설정 (중요) */
+            div[data-testid="column"] {
+                min-width: 0px !important;
+                padding: 0px !important; /* 내부 패딩 제거 */
+            }
+
+            /* (C) 구역별 너비 강제 배분 (총합 100%) */
+            /* 날짜(1번): 18% */
+            div[data-testid="column"]:nth-of-type(1) {
+                flex: 0 0 18% !important;
+                width: 18% !important;
+            }
+            /* 기업정보(2번): 57% (가장 넓게) */
+            div[data-testid="column"]:nth-of-type(2) {
+                flex: 0 0 57% !important;
+                width: 57% !important;
+                overflow: hidden !important; /* 넘치면 자름 */
+            }
+            /* 가격(3번): 25% */
+            div[data-testid="column"]:nth-of-type(3) {
+                flex: 0 0 25% !important;
+                width: 25% !important;
+            }
+
+            /* (D) 폰트 사이즈 다이어트 */
+            .mobile-date { font-size: 10px !important; letter-spacing: -1px; }
+            .mobile-sub { font-size: 10px !important; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .mobile-price { font-size: 12px !important; font-weight: bold; letter-spacing: -0.5px; }
         }
         </style>
     """, unsafe_allow_html=True)
@@ -553,16 +579,14 @@ elif st.session_state.page == 'calendar':
                     display_df = display_df.sort_values(by='temp_growth', ascending=False)
 
         # ----------------------------------------------------------------
-        # [핵심] 반응형 그리드 시스템 (PC: 3단 / 모바일: 3단 가로 고정)
+        # [핵심] 모바일 비율 최적화 (총합 100%에 근접하도록 설정)
         # ----------------------------------------------------------------
-        
-        # [설정] 화면 비율 (모바일에서 꽉 차게 보이도록 조정된 비율)
-        GRID_RATIO = [1.2, 3.8, 1.2] 
+        GRID_RATIO = [1.2, 4.0, 1.4] 
 
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더 (HTML 태그로 폰트 굵기 및 스타일 통일)
+            # 1. 헤더
             h1, h2, h3 = st.columns(GRID_RATIO)
             h1.markdown("<div style='text-align:center'><b>공모일</b></div>", unsafe_allow_html=True)
             h2.markdown("<div><b>기업 정보</b></div>", unsafe_allow_html=True)
@@ -589,19 +613,19 @@ elif st.session_state.page == 'calendar':
                 else:
                     price_html = f"<div class='mobile-price'>${p_val:,.2f}</div><div style='font-size:10px; color:#888;'>공모가</div>"
 
-                # 컬럼 배치 (3단)
+                # 컬럼 배치
                 c1, c2, c3 = st.columns(GRID_RATIO)
                 
-                # [Col 1] 날짜 (중앙)
+                # [Col 1] 날짜 (18%)
                 with c1:
                     st.markdown(f"""
                         <div style='text-align:center;'>
-                            <div style='background:{bg}; width:32px; height:32px; border-radius:8px; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:18px;'>{icon}</div>
+                            <div style='background:{bg}; width:28px; height:28px; border-radius:6px; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:16px;'>{icon}</div>
                             <div class='mobile-date' style='margin-top:2px;'>{row['date']}</div>
                         </div>
                     """, unsafe_allow_html=True)
                 
-                # [Col 2] 기업정보 (좌측)
+                # [Col 2] 기업정보 (57%)
                 with c2:
                     if st.button(f"{row['name']}", key=f"btn_list_{i}"):
                         st.session_state.selected_stock = row.to_dict()
@@ -615,7 +639,7 @@ elif st.session_state.page == 'calendar':
                     info_text = f"{row['symbol']} | {row.get('exchange','-')}{size_str}"
                     st.markdown(f"<div class='mobile-sub'>{info_text}</div>", unsafe_allow_html=True)
                 
-                # [Col 3] 가격 (우측)
+                # [Col 3] 가격 (25%)
                 with c3:
                     st.markdown(f"<div style='text-align:right;'>{price_html}</div>", unsafe_allow_html=True)
                 
@@ -1139,6 +1163,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
