@@ -1200,43 +1200,23 @@ elif st.session_state.page == 'detail':
 
 # --- 5. 게시판 페이지 ---
 elif st.session_state.page == 'board':
-    # [Top Menu] 대시보드로 돌아가기 버튼 추가
-    m_col1, m_col2 = st.columns([8, 2])
+    # [Top Menu] 상단 메뉴 버튼 추가 (stats 페이지로 이동)
+    m_col1, m_col2 = st.columns([8.5, 1.5])
     with m_col2:
-        if st.button("📊 대시보드로 돌아가기", use_container_width=True):
-            # 대시보드 페이지 키가 'dashboard'라고 가정합니다. 
-            # 실제 대시보드 호출 조건문(elif st.session_state.page == '...')에 맞춰 수정하세요.
-            st.session_state.page = 'dashboard' 
+        # 버튼 이름을 "메뉴"로 변경하고 클릭 시 page를 'stats'로 전환
+        if st.button("🏠 메뉴", use_container_width=True):
+            st.session_state.page = 'stats'
             st.rerun()
 
     st.markdown("### 💬 투자자 토론 게시판")
     
-    # [A] 데이터 저장소 초기화 (영구 저장 로직 포함 시 load_posts() 사용)
+    # [A] 데이터 저장소 초기화 (Google Sheets 또는 JSON 연결 함수를 사용하세요)
     if 'posts' not in st.session_state:
-        # 파일 저장 기능을 쓰신다면 load_posts()로, 아니면 []로 초기화
+        # 이전에 안내드린 load_posts() 함수가 있다면 아래와 같이 사용
+        # st.session_state.posts = load_posts() 
         st.session_state.posts = [] 
 
-    # [B] 상단 인기글 로직
-    one_week_ago = datetime.now() - timedelta(days=7)
-    
-    def get_top_posts(posts):
-        valid_posts = []
-        for p in posts:
-            try:
-                post_date = datetime.strptime(p.get('date', datetime.now().strftime("%Y-%m-%d %H:%M")), "%Y-%m-%d %H:%M")
-                if post_date > one_week_ago:
-                    valid_posts.append(p)
-            except:
-                continue
-        return sorted(valid_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
-
-    top_posts = get_top_posts(st.session_state.posts)
-
-    if top_posts:
-        with st.expander("🔥 이번 주 인기 게시글 TOP 5", expanded=True):
-            for i, tp in enumerate(top_posts):
-                st.write(f"{i+1}. [{tp.get('category', '일반')}] {tp.get('title', '제목 없음')} (👍 {tp.get('likes', 0)})")
-        st.divider()
+    # --- 중략 (인기글 로직 및 카테고리 필터) ---
 
     # [C] 필터 및 글쓰기 버튼
     menu_c1, menu_c2, menu_c3 = st.columns([3, 5, 2])
@@ -1246,34 +1226,8 @@ elif st.session_state.page == 'board':
         if st.button("📝 글쓰기", use_container_width=True, type="primary"):
             st.session_state.show_editor = True
 
-    # [D] 글쓰기 폼
-    if st.session_state.get('show_editor', False):
-        with st.form("board_form_final"):
-            cat = st.selectbox("카테고리", ["거시경제", "관심기업", "자산배분", "투자인사이트"])
-            title = st.text_input("제목")
-            author = st.text_input("작성자", value=st.session_state.get('user_phone', '익명'))
-            content = st.text_area("내용")
-            
-            if st.form_submit_button("등록"):
-                if title and content:
-                    new_post = {
-                        "id": str(uuid.uuid4()),
-                        "category": cat,
-                        "title": title,
-                        "author": author,
-                        "content": content,
-                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "likes": 0,
-                        "dislikes": 0,
-                        "comments": []
-                    }
-                    st.session_state.posts.insert(0, new_post)
-                    # 만약 Google Sheets나 JSON 저장을 쓰신다면 여기에 저장 함수 호출
-                    st.session_state.show_editor = False
-                    st.rerun()
+    # --- 후략 (글쓰기 폼 및 게시글 목록 출력 로직) ---
 
-    # [E] 게시글 목록 출력부 (기존과 동일)
-    # ... (이하 필터링 및 리스트 출력 로직)
 
 
 
