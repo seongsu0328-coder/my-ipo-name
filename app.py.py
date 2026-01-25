@@ -446,15 +446,15 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (모바일 화면 100% 강제 맞춤 - 최종 다이어트 버전)
+# 4. 캘린더 페이지 (2단 심플 레이아웃: 기업정보 vs 시장데이터)
 elif st.session_state.page == 'calendar':
-    # [CSS] 모바일 강제 맞춤 설정
+    # [CSS] 2단 레이아웃 최적화
     st.markdown("""
         <style>
-        /* 1. 기본 텍스트 색상 */
+        /* 1. 기본 설정 */
         * { color: #333333 !important; }
         
-        /* 2. 버튼 스타일 (글자 넘침 처리) */
+        /* 2. 버튼 스타일 (투명 & 왼쪽 정렬) */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
@@ -466,58 +466,51 @@ elif st.session_state.page == 'calendar':
             width: 100% !important;
             overflow: hidden !important;
             white-space: nowrap !important;
-            text-overflow: ellipsis !important; /* 말줄임표(...) */
+            text-overflow: ellipsis !important;
         }
         .stButton button p { 
             font-weight: bold; 
-            font-size: 14px; 
+            font-size: 15px; 
             margin-bottom: 0px;
         }
 
-        /* 3. [핵심] 모바일 전용: 여백 제거 및 폭 맞춤 */
+        /* 3. [모바일 전용] 2단 강제 고정 */
         @media (max-width: 640px) {
-            /* (A) 앱 전체 좌우 여백을 최소화 (이게 스크롤 원인!) */
-            .block-container {
-                padding-left: 0.5rem !important;
-                padding-right: 0.5rem !important;
-                max-width: 100% !important;
+            /* (A) 전체 여백 제거 */
+            .block-container { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+
+            /* (B) 가로 정렬 & 간격 조정 */
+            div[data-testid="stHorizontalBlock"] {
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                gap: 5px !important;
+                width: 100% !important;
             }
 
-            /* (B) 컬럼 컨테이너: 간격 0, 꽉 채우기 */
-            div[data-testid="stHorizontalBlock"] {
-                width: 100% !important;
-                gap: 0px !important; /* 간격 제거 */
+            /* (C) 컬럼 최소 너비 제거 */
+            div[data-testid="column"] {
+                min-width: 0px !important;
                 padding: 0 !important;
             }
 
-            /* (C) 개별 컬럼: 최소 너비 제거 (줄어들 수 있게 함) */
-            div[data-testid="column"] {
-                min-width: 0px !important;
-                padding: 0px 2px !important; /* 아주 약간의 간격만 허용 */
-            }
-
-            /* (D) 구역별 너비 강제 배분 (총합 100%) */
-            /* 날짜(1번): 16% */
+            /* (D) 2단 비율 설정 (기업정보 65% : 가격정보 35%) */
+            /* 왼쪽: 기업정보 */
             div[data-testid="column"]:nth-of-type(1) {
-                flex: 0 0 16% !important;
-                width: 16% !important;
-            }
-            /* 기업정보(2번): 60% (가장 넓게) */
-            div[data-testid="column"]:nth-of-type(2) {
-                flex: 0 0 60% !important;
-                width: 60% !important;
+                flex: 0 0 65% !important;
+                width: 65% !important;
                 overflow: hidden !important;
             }
-            /* 가격(3번): 24% */
-            div[data-testid="column"]:nth-of-type(3) {
-                flex: 0 0 24% !important;
-                width: 24% !important;
+            /* 오른쪽: 가격/날짜 */
+            div[data-testid="column"]:nth-of-type(2) {
+                flex: 0 0 35% !important;
+                width: 35% !important;
             }
-
-            /* (E) 폰트 사이즈 최적화 */
-            .mobile-date { font-size: 10px !important; letter-spacing: -1px; }
-            .mobile-sub { font-size: 10px !important; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .mobile-price { font-size: 12px !important; font-weight: bold; letter-spacing: -0.5px; }
+            
+            /* (E) 폰트 스타일 */
+            .mobile-sub { font-size: 11px !important; color: #888 !important; }
+            .price-live { font-size: 14px !important; font-weight: bold; }
+            .price-ipo { font-size: 10px !important; color: #666 !important; }
+            .date-tag { font-size: 10px !important; color: #888 !important; background: #f1f3f4; padding: 2px 4px; border-radius: 4px; display: inline-block; margin-top: 2px;}
         }
         </style>
     """, unsafe_allow_html=True)
@@ -545,6 +538,7 @@ elif st.session_state.page == 'calendar':
             with col_f2:
                 sort_option = st.selectbox("🎯 리스트 정렬", ["최신순 (기본)", "🚀 수익률 높은순 (실시간)", "📈 매출 성장률순 (AI)"])
             
+            # 기간 필터링
             if period == "상장 예정 (90일)":
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
             elif period == "최근 6개월": 
@@ -585,18 +579,18 @@ elif st.session_state.page == 'calendar':
                     display_df = display_df.sort_values(by='temp_growth', ascending=False)
 
         # ----------------------------------------------------------------
-        # [핵심] 화면 비율 정의 (16 : 60 : 24) -> 합계 100%
+        # [핵심] 2단 레이아웃 (기업정보 vs 시장데이터)
+        # 비율: 6.5 : 3.5
         # ----------------------------------------------------------------
-        GRID_RATIO = [1.6, 6.0, 2.4] 
+        GRID_RATIO = [3.5, 1.5] 
 
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더
-            h1, h2, h3 = st.columns(GRID_RATIO)
-            h1.markdown("<div style='text-align:center'><b>공모일</b></div>", unsafe_allow_html=True)
-            h2.markdown("<div><b>기업 정보</b></div>", unsafe_allow_html=True)
-            h3.markdown("<div style='text-align:right'><b>가격</b></div>", unsafe_allow_html=True)
+            # 1. 헤더 (2개로 통합)
+            h1, h2 = st.columns(GRID_RATIO)
+            h1.markdown("<div><b>기업 정보</b></div>", unsafe_allow_html=True)
+            h2.markdown("<div style='text-align:right'><b>가격 / 날짜</b></div>", unsafe_allow_html=True)
             
             st.markdown("<hr style='margin:5px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
@@ -610,44 +604,69 @@ elif st.session_state.page == 'calendar':
                 icon = "🐣" if ipo_date > (today - timedelta(days=365)) else "🦄"
                 bg = "#fff9db" if icon == "🐣" else "#f3f0ff"
                 
-                # 가격 HTML
+                # 가격 HTML (현재가 / 수익률 / 공모가)
                 live_p = row.get('live_price', 0)
                 if live_p > 0:
                     pct = ((live_p - p_val)/p_val)*100
                     color = "#d93025" if pct < 0 else "#1e8e3e"
-                    price_html = f"<div class='mobile-price' style='color:{color};'>${live_p:,.2f}</div><div style='font-size:10px; color:#666;'>{pct:+.0f}%</div>"
+                    # 실시간: 현재가(큼) -> 공모가(작음) -> 날짜
+                    price_html = f"""
+                        <div class='price-live' style='color:{color};'>${live_p:,.2f} ({pct:+.0f}%)</div>
+                        <div class='price-ipo'>IPO: ${p_val:,.2f}</div>
+                    """
                 else:
-                    price_html = f"<div class='mobile-price'>${p_val:,.2f}</div><div style='font-size:10px; color:#888;'>공모가</div>"
-
-                # 컬럼 배치
-                c1, c2, c3 = st.columns(GRID_RATIO)
+                    # 예정/일반: 공모가(큼) -> 날짜
+                    price_html = f"""
+                        <div class='price-live'>${p_val:,.2f}</div>
+                        <div class='price-ipo'>공모가</div>
+                    """
                 
-                # [Col 1] 날짜
+                # 날짜 HTML (박스 형태)
+                date_html = f"<div class='date-tag'>{row['date']}</div>"
+
+                # 2단 컬럼 배치
+                c1, c2 = st.columns(GRID_RATIO)
+                
+                # [왼쪽] 아이콘 + 기업명 + 티커 (Flex Layout)
                 with c1:
+                    # 아이콘과 텍스트를 나란히 배치하기 위해 HTML 사용하지 않고 Streamlit 컬럼 중첩 사용
+                    # (모바일에서 정렬이 깨지는 것을 막기 위해 HTML/CSS Flexbox 사용)
                     st.markdown(f"""
-                        <div style='text-align:center;'>
-                            <div style='background:{bg}; width:28px; height:28px; border-radius:6px; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:16px;'>{icon}</div>
-                            <div class='mobile-date' style='margin-top:2px;'>{row['date']}</div>
+                        <div style="display: flex; align-items: center;">
+                            <div style='background:{bg}; min-width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px; margin-right:8px;'>{icon}</div>
+                            <div style="flex: 1; overflow: hidden;">
+                                </div>
                         </div>
                     """, unsafe_allow_html=True)
-                
-                # [Col 2] 기업정보
+                    
+                    # 버튼을 아이콘 옆에 텍스트 위치에 오게 하기가 까다로우므로
+                    # 아이콘 없이 텍스트만 있는 척 하고, 위에 HTML로 아이콘을 그렸으니
+                    # 여기서는 '기업명' 버튼과 '서브정보'만 출력하되, CSS로 위치 조정
+                    
+                    # (간단한 해결책: 왼쪽 컬럼을 다시 2개로 쪼개기)
+                    sub_c1, sub_c2 = st.columns([0.8, 3])
+                    with sub_c1:
+                         st.markdown(f"<div style='height:40px;'></div>", unsafe_allow_html=True) # 공간만 차지 (위 HTML 아이콘 자리)
+                    with sub_c2:
+                         # 기업명 버튼
+                        if st.button(f"{row['name']}", key=f"btn_list_{i}"):
+                            st.session_state.selected_stock = row.to_dict()
+                            st.session_state.page = 'detail'
+                            st.rerun()
+                        # 하단 정보
+                        try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
+                        except: s_val = 0
+                        size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
+                        st.markdown(f"<div class='mobile-sub' style='margin-top:-5px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
+
+                # [오른쪽] 가격 + 날짜 (우측 정렬)
                 with c2:
-                    if st.button(f"{row['name']}", key=f"btn_list_{i}"):
-                        st.session_state.selected_stock = row.to_dict()
-                        st.session_state.page = 'detail'
-                        st.rerun()
-                    
-                    try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
-                    except: s_val = 0
-                    size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
-                    
-                    info_text = f"{row['symbol']} | {row.get('exchange','-')}{size_str}"
-                    st.markdown(f"<div class='mobile-sub'>{info_text}</div>", unsafe_allow_html=True)
-                
-                # [Col 3] 가격
-                with c3:
-                    st.markdown(f"<div style='text-align:right;'>{price_html}</div>", unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div style='text-align:right;'>
+                            {price_html}
+                            {date_html}
+                        </div>
+                    """, unsafe_allow_html=True)
                 
                 st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
 
@@ -1169,6 +1188,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
