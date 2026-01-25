@@ -446,7 +446,7 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (날짜 표시 오류 수정 - 최종 완성본)
+# 4. 캘린더 페이지 (아이콘 제거 & 심플 텍스트 리스트)
 elif st.session_state.page == 'calendar':
     # [CSS] 스타일 정의
     st.markdown("""
@@ -454,7 +454,7 @@ elif st.session_state.page == 'calendar':
         /* 기본 설정 */
         * { color: #333333 !important; }
         
-        /* 버튼 스타일 */
+        /* 버튼 스타일 (기업명) */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
@@ -472,7 +472,7 @@ elif st.session_state.page == 'calendar':
             font-weight: bold; font-size: 15px; margin-bottom: 0px; 
         }
 
-        /* [모바일] 2단 레이아웃 강제 */
+        /* [모바일] 2단 레이아웃 설정 */
         @media (max-width: 640px) {
             .block-container { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
             
@@ -484,7 +484,7 @@ elif st.session_state.page == 'calendar':
             }
             div[data-testid="column"] { min-width: 0px !important; padding: 0 !important; }
             
-            /* 비율 설정 (65:35) */
+            /* 2단 비율 설정 (기업정보 65% : 가격정보 35%) */
             div[data-testid="column"]:nth-of-type(1) { flex: 0 0 65% !important; width: 65% !important; overflow: hidden !important; }
             div[data-testid="column"]:nth-of-type(2) { flex: 0 0 35% !important; width: 35% !important; }
             
@@ -565,22 +565,18 @@ elif st.session_state.page == 'calendar':
             
             # 1. 헤더 (HTML 태그로 스타일 통일)
             h1, h2 = st.columns(GRID_RATIO)
-            h1.markdown("<div><b>기업 정보</b></div>", unsafe_allow_html=True)
+            # [수정] 아이콘이 빠졌으므로 헤더도 왼쪽 정렬로 깔끔하게 맞춤
+            h1.markdown("<div style='padding-left:2px;'><b>기업 정보</b></div>", unsafe_allow_html=True)
             h2.markdown("<div style='text-align:right'><b>가격 / 날짜</b></div>", unsafe_allow_html=True)
             
             st.markdown("<hr style='margin:5px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
             # 2. 데이터 리스트
             for i, row in display_df.iterrows():
-                ipo_date = row['공모일_dt'].date()
                 p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
                 p_val = p_val if p_val and p_val > 0 else 0
                 
-                # 아이콘 & 배경
-                icon = "🐣" if ipo_date > (today - timedelta(days=365)) else "🦄"
-                bg = "#fff9db" if icon == "🐣" else "#f3f0ff"
-                
-                # [수정 1] 가격 표시 HTML (줄바꿈 및 따옴표 충돌 방지)
+                # 가격 HTML
                 live_p = row.get('live_price', 0)
                 if live_p > 0:
                     pct = ((live_p - p_val)/p_val)*100
@@ -591,35 +587,32 @@ elif st.session_state.page == 'calendar':
                     price_line1 = f"<div style='font-weight:bold; font-size:13px;'>${p_val:,.2f}</div>"
                     price_line2 = f"<div style='color:#888; font-size:10px;'>공모가</div>"
                 
-                # [수정 2] 날짜 표시 HTML (안전한 문자열 생성)
-                # 회색 박스 제거, 일반 텍스트 스타일 적용
+                # 날짜 HTML
                 date_line = f"<div style='font-size:10px; color:#888; margin-top:2px;'>{row['date']}</div>"
 
-                # 최종 오른쪽 HTML 합치기 (줄바꿈 없이 한 줄로 연결하여 에러 방지)
+                # 오른쪽 콘텐츠 합치기
                 right_content = f"<div style='text-align:right;'>{price_line1}{price_line2}{date_line}</div>"
 
                 # 2단 컬럼 배치
                 c1, c2 = st.columns(GRID_RATIO)
                 
-                # [왼쪽] 아이콘 + 기업명 + 티커
+                # [왼쪽] 기업명 + 하단정보 (아이콘 삭제됨)
                 with c1:
-                    sub_c1, sub_c2 = st.columns([0.8, 3])
-                    with sub_c1:
-                         # 아이콘
-                         st.markdown(f"<div style='background:{bg}; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px;'>{icon}</div>", unsafe_allow_html=True)
-                    with sub_c2:
-                         # 기업명 버튼
-                        if st.button(f"{row['name']}", key=f"btn_list_{i}"):
-                            st.session_state.selected_stock = row.to_dict()
-                            st.session_state.page = 'detail'
-                            st.rerun()
-                        # 하단 정보
-                        try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
-                        except: s_val = 0
-                        size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
-                        st.markdown(f"<div class='mobile-sub' style='margin-top:-5px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
+                    # 기업명 버튼
+                    if st.button(f"{row['name']}", key=f"btn_list_{i}"):
+                        st.session_state.selected_stock = row.to_dict()
+                        st.session_state.page = 'detail'
+                        st.rerun()
+                    
+                    # 하단 정보 (티커 | 거래소 | 규모)
+                    try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
+                    except: s_val = 0
+                    size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
+                    
+                    # [수정] 버튼 바로 아래에 붙도록 마진 조정
+                    st.markdown(f"<div class='mobile-sub' style='margin-top:-5px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
 
-                # [오른쪽] 가격 + 날짜 (우측 정렬된 HTML 렌더링)
+                # [오른쪽] 가격 + 날짜
                 with c2:
                     st.markdown(right_content, unsafe_allow_html=True)
                 
@@ -1143,6 +1136,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
