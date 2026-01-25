@@ -6,6 +6,7 @@ import os
 import xml.etree.ElementTree as ET
 import time
 import uuid
+import random
 # [추가] 무료 검색 라이브러리
 from duckduckgo_search import DDGS
 
@@ -66,13 +67,27 @@ st.markdown("""
 # --- 데이터 로직 (캐싱 최적화 적용) ---
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 
-@st.cache_data(ttl=43200) # 12시간 (명언은 자주 바뀔 필요 없음)
+@st.cache_data(ttl=43200) # 12시간마다 갱신
 def get_daily_quote():
+    # 1. 예비용 명언 리스트 (API 실패 시 사용)
+    backup_quotes = [
+        {"eng": "Opportunities don't happen. You create them.", "author": "Chris Grosser"},
+        {"eng": "The best way to predict the future is to create it.", "author": "Peter Drucker"},
+        {"eng": "Do not be embarrassed by your failures, learn from them and start again.", "author": "Richard Branson"},
+        {"eng": "Innovation distinguishes between a leader and a follower.", "author": "Steve Jobs"},
+        {"eng": "It’s not about ideas. It’s about making ideas happen.", "author": "Scott Belsky"},
+        {"eng": "The only way to do great work is to love what you do.", "author": "Steve Jobs"},
+        {"eng": "Risk comes from not knowing what you're doing.", "author": "Warren Buffett"},
+        {"eng": "Success is walking from failure to failure with no loss of enthusiasm.", "author": "Winston Churchill"}
+    ]
+
     try:
-        res = requests.get("https://api.quotable.io/random?tags=business", timeout=3).json()
+        # API 호출 시도 (타임아웃을 2초로 줄여서 화면 로딩 속도 개선)
+        res = requests.get("https://api.quotable.io/random?tags=business", timeout=2).json()
         return {"eng": res['content'], "author": res['author']}
     except:
-        return {"eng": "Opportunities don't happen. You create them.", "author": "Chris Grosser"}
+        # API 실패 시, 예비 리스트에서 랜덤 선택
+        return random.choice(backup_quotes)
 
 @st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
 def get_financial_metrics(symbol, api_key):
@@ -1074,6 +1089,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
