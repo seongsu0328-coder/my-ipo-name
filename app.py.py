@@ -1198,7 +1198,7 @@ elif st.session_state.page == 'detail':
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
 
-# --- 5. 게시판 페이지 (에러 방지 & 최종 기능 통합) ---
+# --- 5. 게시판 페이지 (이미지 업로드 제거 버전) ---
 elif st.session_state.page == 'board':
     st.markdown("### 💬 투자자 토론 게시판")
     
@@ -1206,20 +1206,18 @@ elif st.session_state.page == 'board':
     if 'posts' not in st.session_state:
         st.session_state.posts = []
 
-    # [B] 상단 인기글 로직 (방어적 코드 적용)
+    # [B] 상단 인기글 로직
     one_week_ago = datetime.now() - timedelta(days=7)
     
     def get_top_posts(posts):
         valid_posts = []
         for p in posts:
             try:
-                # 날짜 형식이 없거나 다를 경우를 대비한 예외 처리
                 post_date = datetime.strptime(p.get('date', datetime.now().strftime("%Y-%m-%d %H:%M")), "%Y-%m-%d %H:%M")
                 if post_date > one_week_ago:
                     valid_posts.append(p)
             except:
                 continue
-        # likes 키가 없어도 0으로 간주하고 정렬
         return sorted(valid_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
 
     top_posts = get_top_posts(st.session_state.posts)
@@ -1238,14 +1236,14 @@ elif st.session_state.page == 'board':
         if st.button("📝 글쓰기", use_container_width=True, type="primary"):
             st.session_state.show_editor = True
 
-    # [D] 글쓰기 폼
+    # [D] 글쓰기 폼 (이미지 업로드 부분 삭제)
     if st.session_state.get('show_editor', False):
         with st.form("board_form_final"):
             cat = st.selectbox("카테고리", ["거시경제", "관심기업", "자산배분", "투자인사이트"])
             title = st.text_input("제목")
             author = st.text_input("작성자", value=st.session_state.get('user_phone', '익명'))
             content = st.text_area("내용")
-            uploaded_file = st.file_uploader("이미지 첨부", type=['png', 'jpg', 'jpeg'])
+            # 이미지 업로드(file_uploader) 코드가 삭제되었습니다.
             
             if st.form_submit_button("등록"):
                 if title and content:
@@ -1255,7 +1253,7 @@ elif st.session_state.page == 'board':
                         "title": title,
                         "author": author,
                         "content": content,
-                        "image": uploaded_file.read() if uploaded_file else None,
+                        # "image" 키를 데이터 구조에서 제거
                         "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "likes": 0,
                         "dislikes": 0,
@@ -1265,7 +1263,7 @@ elif st.session_state.page == 'board':
                     st.session_state.show_editor = False
                     st.rerun()
 
-    # [E] 게시글 목록 (필터링 적용)
+    # [E] 게시글 목록 (이미지 출력 부분 삭제)
     filtered_posts = st.session_state.posts
     if category_filter != "전체":
         filtered_posts = [p for p in st.session_state.posts if p.get('category') == category_filter]
@@ -1280,7 +1278,6 @@ elif st.session_state.page == 'board':
         end_idx = start_idx + per_page
 
         for post in filtered_posts[start_idx:end_idx]:
-            # 실제 posts 리스트에서의 인덱스 찾기 (id 기준 검색으로 안전하게)
             try:
                 actual_idx = next(i for i, p in enumerate(st.session_state.posts) if p['id'] == post['id'])
             except (KeyError, StopIteration):
@@ -1289,7 +1286,6 @@ elif st.session_state.page == 'board':
             with st.container():
                 st.caption(f"**[{post.get('category', '일반')}]** | {post.get('date', '-')} | 작성자: {post.get('author', '익명')}")
                 
-                # 에러 발생 지점 수정: .get() 사용하여 안전하게 데이터 호출
                 likes_count = post.get('likes', 0)
                 dislikes_count = post.get('dislikes', 0)
                 comments_list = post.get('comments', [])
@@ -1304,7 +1300,7 @@ elif st.session_state.page == 'board':
                                 st.session_state.edit_post_id = None
                                 st.rerun()
                     else:
-                        if post.get('image'): st.image(post['image'])
+                        # post.get('image') 체크 및 st.image() 출력 코드가 삭제되었습니다.
                         st.write(post.get('content', ''))
                         
                         v1, v2, v3, v4, _ = st.columns([1, 1, 1, 1, 4])
@@ -1334,6 +1330,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
