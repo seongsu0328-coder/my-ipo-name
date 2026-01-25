@@ -262,7 +262,7 @@ def get_real_news_rss(company_name):
         return news_items
     except: return []
 
-# [수정] Tavily + Groq 함수 (에러 메시지 출력 버전)
+# [수정] Tavily 검색 + Groq(무료 AI) 요약 함수 (최신 모델 적용)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_ai_summary(query):
     """
@@ -271,31 +271,28 @@ def get_ai_summary(query):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     groq_key = st.secrets.get("GROQ_API_KEY") 
 
-    # 키 확인
-    if not tavily_key:
-        return "🚫 에러: TAVILY_API_KEY가 Secrets에 없습니다."
-    if not groq_key:
-        return "🚫 에러: GROQ_API_KEY가 Secrets에 없습니다."
+    if not tavily_key or not groq_key:
+        return "⚠️ API 키 설정 오류: Secrets를 확인하세요."
 
     try:
         # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=3)
         
-        # 결과가 비어있는지 체크
         if not search_result.get('results'):
-            return "🚫 검색 결과가 0건입니다. (정말 정보가 없는 기업일 수 있습니다)"
+            return None # 결과 없으면 조용히 넘어감 (UI에서 처리)
 
         context = "\n".join([r['content'] for r in search_result['results']])
         
-        # 2. Groq (OpenAI Client) 요약
+        # 2. Groq 요약 요청
         client = OpenAI(
             base_url="https://api.groq.com/openai/v1",
             api_key=groq_key
         )
         
         response = client.chat.completions.create(
-            model="llama3-8b-8192", 
+            # 여기가 변경되었습니다! (최신 고성능 모델)
+            model="llama-3.3-70b-versatile", 
             messages=[
                 {"role": "system", "content": "You are a financial expert. Summarize the key facts in Korean within 3 sentences."},
                 {"role": "user", "content": f"Context:\n{context}\n\nQuery: {query}\n\nPlease summarize appropriately."}
@@ -304,8 +301,8 @@ def get_ai_summary(query):
         return response.choices[0].message.content
 
     except Exception as e:
-        # 여기가 핵심입니다! 에러 내용을 숨기지 않고 화면에 보여줍니다.
-        return f"🚫 실행 오류 발생: {str(e)}"
+        # 에러가 나면 화면에 보여줌
+        return f"🚫 오류: {str(e)}"
         
 # --- 화면 제어 시작 ---
 
@@ -1206,6 +1203,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
