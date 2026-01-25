@@ -785,7 +785,14 @@ elif st.session_state.page == 'detail':
             st.write("---")
             
             # [3] 뉴스 리스트 (기존 기능 유지)
-            st.markdown(f"##### 🔥 {stock['name']} 관련 최신 뉴스 Top 5")
+            st.markdown(f"""
+    <div style="display:flex; align-items:center; margin-bottom:15px;">
+        <span style="font-size:22px; margin-right:10px;">🔥</span>
+        <h3 style="margin:0; color:#333; font-size:22px; font-weight:600;">
+            {stock['name']} 관련 최신 뉴스 Top 5
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
             
             rss_news = get_real_news_rss(stock['name'])
             tags = ["분석", "시장", "전망", "전략", "수급"]
@@ -1188,6 +1195,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
