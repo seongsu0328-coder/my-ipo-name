@@ -446,15 +446,26 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (모바일 100% 맞춤형: 앱 여백 제거 + 글자 축소)
+# 4. 캘린더 페이지 (상단 잘림 해결 & 스크롤 완벽 제거)
 elif st.session_state.page == 'calendar':
-    # [CSS] 초강력 모바일 최적화 (여백 삭제)
+    # [CSS] 모바일 최적화 (여백 확보 + 폭 제한)
     st.markdown("""
         <style>
-        /* 1. 기본 텍스트 설정 */
-        * { color: #333333 !important; }
+        /* 1. 모든 요소의 크기 계산 방식 변경 (테두리/여백 포함) */
+        * { 
+            box-sizing: border-box !important;
+            color: #333333 !important; 
+        }
         
-        /* 2. 버튼 스타일 (말줄임표 처리 강화) */
+        /* 2. [상단 잘림 해결] 앱 전체 컨테이너 여백 조정 */
+        .block-container {
+            padding-top: 4rem !important; /* 상단 여백 확보 (메뉴바 충돌 방지) */
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            max-width: 100% !important;
+        }
+
+        /* 3. 버튼 스타일 (한 줄 유지, 말줄임표) */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
@@ -467,60 +478,52 @@ elif st.session_state.page == 'calendar':
             display: block !important;
             overflow: hidden !important;
             white-space: nowrap !important;
-            text-overflow: ellipsis !important; /* 길면 ... 처리 */
+            text-overflow: ellipsis !important;
             height: auto !important;
-            min-height: 0px !important;
         }
         .stButton button p { 
             font-weight: bold; 
-            font-size: 14px; /* 버튼 글자 크기 약간 축소 */
-            margin-bottom: 0px;
-            line-height: 1.2;
+            font-size: 14px; 
+            margin-bottom: 0px; 
         }
 
-        /* 3. [핵심] 모바일 전용: 앱 여백 삭제 및 강제 맞춤 */
+        /* 4. [모바일 전용] 레이아웃 강제 고정 */
         @media (max-width: 640px) {
-            /* (A) 앱 전체 컨테이너 여백을 거의 0으로 만듦 (스크롤 원인 제거) */
-            .block-container {
-                padding-left: 0.3rem !important;
-                padding-right: 0.3rem !important;
-                padding-top: 1rem !important;
-                max-width: 100vw !important;
+            /* (A) 가로 스크롤 원천 차단 */
+            div[data-testid="stAppViewContainer"] {
+                overflow-x: hidden !important;
             }
-
+            
             /* (B) 컬럼 컨테이너: 간격 0, 꽉 채우기 */
             div[data-testid="stHorizontalBlock"] {
                 flex-direction: row !important;
                 flex-wrap: nowrap !important;
-                gap: 0px !important; /* 간격 완전 제거 */
+                gap: 0px !important;
                 width: 100% !important;
             }
 
-            /* (C) 개별 컬럼: 패딩 제거 */
+            /* (C) 개별 컬럼: 최소 너비 제거 */
             div[data-testid="column"] {
                 min-width: 0px !important;
-                padding: 0px 2px !important; /* 최소한의 간격만 */
+                padding: 0px 2px !important;
             }
 
-            /* (D) 비율 강제 배분 (총합 100%) - 7:3 비율 */
+            /* (D) 비율 배분 (왼쪽 68% : 오른쪽 32%) */
             div[data-testid="column"]:nth-of-type(1) {
-                flex: 0 0 70% !important;
-                width: 70% !important;
+                flex: 0 0 68% !important;
+                max-width: 68% !important;
                 overflow: hidden !important;
             }
             div[data-testid="column"]:nth-of-type(2) {
-                flex: 0 0 30% !important;
-                width: 30% !important;
-                overflow: hidden !important;
+                flex: 0 0 32% !important;
+                max-width: 32% !important;
             }
 
-            /* (E) 폰트 사이즈 다이어트 (줄바꿈 방지용) */
+            /* (E) 폰트 사이즈 최적화 */
             .mobile-sub { font-size: 10px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .price-main { font-size: 12px !important; font-weight: bold; white-space: nowrap; }
             .price-sub { font-size: 9px !important; color: #666 !important; white-space: nowrap; }
             .date-text { font-size: 9px !important; color: #888 !important; margin-top: 1px; }
-            
-            /* 헤더 폰트 줄임 */
             .header-text { font-size: 12px !important; }
         }
         </style>
@@ -589,14 +592,14 @@ elif st.session_state.page == 'calendar':
                     display_df = display_df.sort_values(by='temp_growth', ascending=False)
 
         # ----------------------------------------------------------------
-        # [핵심] 2단 레이아웃 (비율 7 : 3) - 안전하게 7:3으로 설정
+        # [핵심] 2단 레이아웃 (비율 7 : 3)
         # ----------------------------------------------------------------
         GRID_RATIO = [0.7, 0.3] 
 
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더 (간격 최소화 및 폰트 축소)
+            # 1. 헤더 (공간 확보 및 스타일)
             h1, h2 = st.columns(GRID_RATIO)
             h1.markdown("<div class='header-text' style='padding-left:2px;'><b>기업 정보</b></div>", unsafe_allow_html=True)
             h2.markdown("<div class='header-text' style='text-align:right'><b>가격 / 날짜</b></div>", unsafe_allow_html=True)
@@ -631,13 +634,11 @@ elif st.session_state.page == 'calendar':
                 
                 # [왼쪽 70%] 기업명 + 하단정보
                 with c1:
-                    # 기업명 버튼 (자동 말줄임 처리됨)
                     if st.button(f"{row['name']}", key=f"btn_list_{i}"):
                         st.session_state.selected_stock = row.to_dict()
                         st.session_state.page = 'detail'
                         st.rerun()
                     
-                    # 하단 정보 (티커 | 거래소) - 글자 넘침 방지
                     try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                     except: s_val = 0
                     size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
@@ -1168,6 +1169,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
