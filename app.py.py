@@ -624,75 +624,7 @@ elif st.session_state.page == 'calendar':
         else:
             st.info("조건에 맞는 종목이 없습니다.")
 
-        # 5. 리스트 렌더링 (최종 통합)
-        if not display_df.empty:
-            st.write("---")
-            h_cols = st.columns([0.6, 1.2, 2.8, 1.1, 1.1, 1.1, 1.1])
-            headers = ["", "공모일", "기업 정보", "공모가", "규모", "현재가", "거래소"]
-            for c, h in zip(h_cols, headers): c.markdown(f"**{h}**")
-            
-            for i, row in display_df.iterrows():
-                c_cols = st.columns([0.6, 1.2, 2.8, 1.1, 1.1, 1.1, 1.1])
-                ipo_date = row['공모일_dt'].date()
-                
-                # (1) 아이콘 (안전한 HTML 처리)
-                icon = "🐣" if ipo_date > (today - timedelta(days=365)) else "🦄"
-                bg = "#fff9db" if icon == "🐣" else "#f3f0ff"
-                icon_html = f"""
-                    <div style='background:{bg}; width:40px; height:40px; border-radius:10px; 
-                    display:flex; align-items:center; justify-content:center; font-size:20px;'>
-                        {icon}
-                    </div>
-                """
-                c_cols[0].markdown(icon_html, unsafe_allow_html=True)
-                
-                # (2) 공모일
-                is_future = ipo_date > today
-                c_cols[1].markdown(f"<div style='padding-top:10px; color:{'#4f46e5' if is_future else '#333'}; font-weight:{'bold' if is_future else 'normal'}'>{row['date']}</div>", unsafe_allow_html=True)
-                
-                # (3) 기업명
-                with c_cols[2]:
-                    extra_info = ""
-                    # sort_option이 정의되어 있으므로 에러 없음
-                    if sort_option == "🚀 수익률 높은순 (실시간)" and row.get('temp_return', -9999) != -9999:
-                        r = row['temp_return']
-                        color = "red" if r < 0 else "green"
-                        extra_info = f" <span style='color:{color}; font-size:11px; font-weight:bold;'>({r:+.1f}%)</span>"
-                    elif sort_option == "📈 매출 성장률순 (AI)" and row.get('temp_growth', -9999) != -9999:
-                        g = row['temp_growth']
-                        extra_info = f" <span style='color:blue; font-size:11px; font-weight:bold;'>(YoY {g:+.1f}%)</span>"
-
-                    st.markdown(f"<small style='color:#888'>{row['symbol']}</small>", unsafe_allow_html=True)
-                    if st.button(f"{row['name']}", key=f"btn_{i}", use_container_width=True):
-                        st.session_state.selected_stock = row.to_dict()
-                        st.session_state.page = 'detail'; st.rerun()
-                    if extra_info: st.markdown(extra_info, unsafe_allow_html=True)
-                
-                # (4) 공모가
-                p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
-                c_cols[3].markdown(f"<div style='padding-top:10px;'>${p_val:,.2f}</div>" if p_val and p_val > 0 else "<div style='padding-top:10px;'>-</div>", unsafe_allow_html=True)
-                
-                # (5) 규모
-                try: 
-                    s = int(row.get('numberOfShares',0))
-                    val = f"${p_val*s/1000000:,.0f}M" if p_val and s else "-"
-                except: val = "-"
-                c_cols[4].markdown(f"<div style='padding-top:10px;'>{val}</div>", unsafe_allow_html=True)
-                
-                # (6) 현재가 (수익률 정렬 시에만 표시)
-                live_p = row.get('live_price', 0)
-                if live_p > 0:
-                    color = "red" if live_p < p_val else ("green" if live_p > p_val else "black")
-                    c_cols[5].markdown(f"<div style='padding-top:10px; color:{color}; font-weight:bold;'>${live_p:,.2f}</div>", unsafe_allow_html=True)
-                else:
-                    c_cols[5].markdown("<div style='padding-top:10px; color:#ccc;'>-</div>", unsafe_allow_html=True)
-                
-                # (7) 거래소
-                c_cols[6].markdown(f"<div style='padding-top:10px;'>{row.get('exchange', '-')}</div>", unsafe_allow_html=True)
-                
-                st.markdown("<hr style='margin:5px 0; border-top: 1px solid #f0f2f6;'>", unsafe_allow_html=True)
-        else:
-            st.info("조건에 맞는 데이터가 없습니다.")
+        
 
 # 5. 상세 페이지 (기능/디자인 100% 복구 + 에러 수정 완료)
 elif st.session_state.page == 'detail':
@@ -1207,6 +1139,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
