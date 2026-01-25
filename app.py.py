@@ -976,7 +976,7 @@ elif st.session_state.page == 'detail':
             is_admin = (current_user == ADMIN_PHONE)
 
             # --- 1. 투표 기능 (기존 유지) ---
-            st.markdown("### 🗳️ 투자 매력도 투표")
+            st.markdown("### 투자 매력도 투표")
             if st.session_state.auth_status == 'user':
                 if sid not in st.session_state.user_votes:
                     v1, v2 = st.columns(2)
@@ -989,7 +989,7 @@ elif st.session_state.page == 'detail':
                         st.session_state.user_votes[sid] = 'f'
                         st.rerun()
                 else:
-                    my_vote = "유니콘" if st.session_state.user_votes[sid] == 'u' else "폴른엔젤"
+                    my_vote = "Unicorn" if st.session_state.user_votes[sid] == 'u' else "Fallen angel"
                     st.success(f"✅ 이미 '{my_vote}'에 투표하셨습니다.")
             else:
                 st.warning("🔒 투표는 회원만 참여 가능합니다.")
@@ -1005,7 +1005,7 @@ elif st.session_state.page == 'detail':
             st.write("---")
 
             # --- 2. 커뮤니티 의견 (베스트 댓글순 정렬 + 좋아요/싫어요) ---
-            st.markdown("### 💬 주주 토론방")
+            st.markdown("### 주주 토론방")
             
             # (A) 댓글 입력창 (기존과 동일, 데이터 구조만 변경)
             if st.session_state.auth_status == 'user':
@@ -1129,7 +1129,7 @@ elif st.session_state.page == 'detail':
             st.write("---")
 
            # --- 3. 보관함 버튼 (타임캡슐 예측 기능 추가) ---
-            st.markdown("### ⭐ 관심 종목 관리 & 타임캡슐")
+            st.markdown("### 관심 종목 관리")
             
             # [필수] 예측 데이터 저장을 위한 세션 초기화 (없으면 생성)
             if 'watchlist_predictions' not in st.session_state:
@@ -1191,6 +1191,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
