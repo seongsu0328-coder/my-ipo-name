@@ -446,15 +446,15 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (회색 박스 제거 & 텍스트 스타일 통일)
+# 4. 캘린더 페이지 (날짜 표시 오류 수정 - 최종 완성본)
 elif st.session_state.page == 'calendar':
-    # [CSS] 2단 레이아웃 및 스타일 정의
+    # [CSS] 스타일 정의
     st.markdown("""
         <style>
-        /* 1. 기본 설정 */
+        /* 기본 설정 */
         * { color: #333333 !important; }
         
-        /* 2. 버튼 스타일 (투명 & 왼쪽 정렬) */
+        /* 버튼 스타일 */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
@@ -469,38 +469,24 @@ elif st.session_state.page == 'calendar':
             text-overflow: ellipsis !important;
         }
         .stButton button p { 
-            font-weight: bold; 
-            font-size: 15px; 
-            margin-bottom: 0px;
+            font-weight: bold; font-size: 15px; margin-bottom: 0px; 
         }
 
-        /* 3. [모바일 전용] 2단 강제 고정 */
+        /* [모바일] 2단 레이아웃 강제 */
         @media (max-width: 640px) {
             .block-container { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
-
-            /* 가로 정렬 & 간격 조정 */
+            
             div[data-testid="stHorizontalBlock"] {
                 flex-direction: row !important;
                 flex-wrap: nowrap !important;
                 gap: 5px !important;
                 width: 100% !important;
             }
-
-            div[data-testid="column"] {
-                min-width: 0px !important;
-                padding: 0 !important;
-            }
-
-            /* 2단 비율 설정 (기업정보 65% : 가격정보 35%) */
-            div[data-testid="column"]:nth-of-type(1) {
-                flex: 0 0 65% !important;
-                width: 65% !important;
-                overflow: hidden !important;
-            }
-            div[data-testid="column"]:nth-of-type(2) {
-                flex: 0 0 35% !important;
-                width: 35% !important;
-            }
+            div[data-testid="column"] { min-width: 0px !important; padding: 0 !important; }
+            
+            /* 비율 설정 (65:35) */
+            div[data-testid="column"]:nth-of-type(1) { flex: 0 0 65% !important; width: 65% !important; overflow: hidden !important; }
+            div[data-testid="column"]:nth-of-type(2) { flex: 0 0 35% !important; width: 35% !important; }
             
             .mobile-sub { font-size: 11px !important; color: #888 !important; }
         }
@@ -530,7 +516,6 @@ elif st.session_state.page == 'calendar':
             with col_f2:
                 sort_option = st.selectbox("🎯 리스트 정렬", ["최신순 (기본)", "🚀 수익률 높은순 (실시간)", "📈 매출 성장률순 (AI)"])
             
-            # 기간 필터
             if period == "상장 예정 (90일)":
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
             elif period == "최근 6개월": 
@@ -578,7 +563,7 @@ elif st.session_state.page == 'calendar':
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더
+            # 1. 헤더 (HTML 태그로 스타일 통일)
             h1, h2 = st.columns(GRID_RATIO)
             h1.markdown("<div><b>기업 정보</b></div>", unsafe_allow_html=True)
             h2.markdown("<div style='text-align:right'><b>가격 / 날짜</b></div>", unsafe_allow_html=True)
@@ -595,24 +580,23 @@ elif st.session_state.page == 'calendar':
                 icon = "🐣" if ipo_date > (today - timedelta(days=365)) else "🦄"
                 bg = "#fff9db" if icon == "🐣" else "#f3f0ff"
                 
-                # 가격 HTML
+                # [수정 1] 가격 표시 HTML (줄바꿈 및 따옴표 충돌 방지)
                 live_p = row.get('live_price', 0)
                 if live_p > 0:
                     pct = ((live_p - p_val)/p_val)*100
                     color = "#d93025" if pct < 0 else "#1e8e3e"
-                    price_html = f"""
-                        <div style='color:{color}; font-weight:bold; font-size:13px;'>${live_p:,.2f} ({pct:+.0f}%)</div>
-                        <div style='color:#666; font-size:10px;'>IPO: ${p_val:,.2f}</div>
-                    """
+                    price_line1 = f"<div style='color:{color}; font-weight:bold; font-size:13px;'>${live_p:,.2f} ({pct:+.0f}%)</div>"
+                    price_line2 = f"<div style='color:#666; font-size:10px;'>IPO: ${p_val:,.2f}</div>"
                 else:
-                    price_html = f"""
-                        <div style='font-weight:bold; font-size:13px;'>${p_val:,.2f}</div>
-                        <div style='color:#888; font-size:10px;'>공모가</div>
-                    """
+                    price_line1 = f"<div style='font-weight:bold; font-size:13px;'>${p_val:,.2f}</div>"
+                    price_line2 = f"<div style='color:#888; font-size:10px;'>공모가</div>"
                 
-                # [수정] 날짜 HTML (회색 박스 제거 -> 텍스트 스타일로 변경)
-                # 위 가격/공모가와 동일한 폰트 느낌(색상 #888, 작은 폰트) 적용
-                date_html = f"<div style='font-size:10px; color:#888; margin-top:2px;'>{row['date']}</div>"
+                # [수정 2] 날짜 표시 HTML (안전한 문자열 생성)
+                # 회색 박스 제거, 일반 텍스트 스타일 적용
+                date_line = f"<div style='font-size:10px; color:#888; margin-top:2px;'>{row['date']}</div>"
+
+                # 최종 오른쪽 HTML 합치기 (줄바꿈 없이 한 줄로 연결하여 에러 방지)
+                right_content = f"<div style='text-align:right;'>{price_line1}{price_line2}{date_line}</div>"
 
                 # 2단 컬럼 배치
                 c1, c2 = st.columns(GRID_RATIO)
@@ -622,9 +606,7 @@ elif st.session_state.page == 'calendar':
                     sub_c1, sub_c2 = st.columns([0.8, 3])
                     with sub_c1:
                          # 아이콘
-                         st.markdown(f"""
-                            <div style='background:{bg}; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px;'>{icon}</div>
-                         """, unsafe_allow_html=True)
+                         st.markdown(f"<div style='background:{bg}; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px;'>{icon}</div>", unsafe_allow_html=True)
                     with sub_c2:
                          # 기업명 버튼
                         if st.button(f"{row['name']}", key=f"btn_list_{i}"):
@@ -637,14 +619,9 @@ elif st.session_state.page == 'calendar':
                         size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
                         st.markdown(f"<div class='mobile-sub' style='margin-top:-5px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
 
-                # [오른쪽] 가격 + 날짜 (우측 정렬)
+                # [오른쪽] 가격 + 날짜 (우측 정렬된 HTML 렌더링)
                 with c2:
-                    st.markdown(f"""
-                        <div style='text-align:right;'>
-                            {price_html}
-                            {date_html}
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(right_content, unsafe_allow_html=True)
                 
                 st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
 
@@ -1166,6 +1143,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
