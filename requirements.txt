@@ -5,3 +5,6 @@ plotly
 requests
 lxml
 duckduckgo-search
+tavily-python
+openai
+beautifulsoup4
