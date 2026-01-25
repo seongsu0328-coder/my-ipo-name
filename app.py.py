@@ -1198,15 +1198,15 @@ elif st.session_state.page == 'detail':
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
 
-# --- 5. 게시판 페이지 (전체 코드 맨 마지막에 추가) ---
+# --- 5. 게시판 페이지 (업그레이드 버전) ---
 elif st.session_state.page == 'board':
     st.markdown("### 💬 투자자 토론 게시판")
     
-    # [A] 게시글 저장소 초기화
+    # [A] 데이터 저장소 초기화 (댓글 전용 comment_data 추가)
     if 'posts' not in st.session_state:
         st.session_state.posts = []
 
-    # [B] 상단 메뉴 (뒤로가기 & 글쓰기)
+    # [B] 상단 메뉴
     menu_c1, menu_c2 = st.columns([8, 2])
     with menu_c1:
         if st.button("⬅️ 뒤로가기"):
@@ -1216,26 +1216,34 @@ elif st.session_state.page == 'board':
         if st.button("📝 글쓰기", use_container_width=True, type="primary"):
             st.session_state.show_editor = True
 
-    # [C] 글쓰기 폼
+    # [C] 글쓰기 폼 (이미지 업로드 추가)
     if st.session_state.get('show_editor', False):
-        with st.form("board_form"):
+        with st.form("board_form", clear_on_submit=True):
             cat = st.selectbox("카테고리", ["거시경제", "관심기업", "자산배분", "투자인사이트"])
             title = st.text_input("제목")
             author = st.text_input("작성자", value=st.session_state.get('user_phone', '익명'))
             content = st.text_area("내용", height=150)
             
+            # 이미지 파일 업로드 컴포넌트
+            uploaded_file = st.file_uploader("이미지 첨부 (선택)", type=['png', 'jpg', 'jpeg'])
+            
             sub_c1, sub_c2 = st.columns(2)
             if sub_c1.form_submit_button("등록"):
                 if title and content:
+                    img_data = uploaded_file.read() if uploaded_file else None
                     new_post = {
+                        "id": str(uuid.uuid4()), # 댓글 연결을 위한 고유 ID
                         "category": cat,
                         "title": title,
                         "author": author,
                         "content": content,
-                        "date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                        "image": img_data,
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "comments": [] # 해당 글의 댓글 리스트
                     }
-                    st.session_state.posts.insert(0, new_post) # 최신글이 위로
+                    st.session_state.posts.insert(0, new_post)
                     st.session_state.show_editor = False
+                    st.success("게시글이 등록되었습니다!")
                     st.rerun()
             if sub_c2.form_submit_button("취소"):
                 st.session_state.show_editor = False
@@ -1243,34 +1251,61 @@ elif st.session_state.page == 'board':
 
     st.divider()
 
-    # [D] 게시글 목록 노출 (한 페이지당 10개)
+    # [D] 게시글 목록 및 댓글 노출
     if not st.session_state.posts:
         st.info("작성된 게시글이 없습니다.")
     else:
-        # 페이징 로직
         posts = st.session_state.posts
         per_page = 10
         total_pages = max(1, (len(posts) - 1) // per_page + 1)
         
-        if 'board_page' not in st.session_state:
-            st.session_state.board_page = 1
-            
+        if 'board_page' not in st.session_state: st.session_state.board_page = 1
         curr_p = st.session_state.board_page
         start_idx = (curr_p - 1) * per_page
         end_idx = start_idx + per_page
 
         for idx, post in enumerate(posts[start_idx:end_idx]):
+            actual_idx = start_idx + idx
             with st.container():
                 st.caption(f"**[{post['category']}]** | {post['date']} | 작성자: {post['author']}")
-                with st.expander(post['title']):
+                
+                # 상세 보기 (Expander)
+                with st.expander(f"{post['title']} ({len(post.get('comments', []))})"):
+                    # 1. 이미지 표시
+                    if post.get('image'):
+                        st.image(post['image'], use_container_width=True)
+                    
+                    # 2. 본문 내용
                     st.write(post['content'])
-                    # 삭제 버튼 (작성자 본인 확인 로직은 생략/관리용)
-                    if st.button("삭제", key=f"del_{start_idx + idx}"):
-                        st.session_state.posts.pop(start_idx + idx)
+                    
+                    # 3. 댓글 섹션
+                    st.markdown("---")
+                    st.markdown("**댓글**")
+                    for c_idx, comment in enumerate(post.get('comments', [])):
+                        st.markdown(f"""<div class='comment-box'>
+                            <small>{comment['author']} ({comment['date']})</small><br>{comment['text']}
+                        </div>""", unsafe_allow_html=True)
+                    
+                    # 4. 댓글 입력 창
+                    with st.form(key=f"cmt_form_{post['id']}", clear_on_submit=True):
+                        c_text = st.text_input("댓글을 남겨보세요", key=f"input_{post['id']}")
+                        if st.form_submit_button("댓글 등록"):
+                            if c_text:
+                                new_cmt = {
+                                    "author": st.session_state.get('user_phone', '익명'),
+                                    "text": c_text,
+                                    "date": datetime.now().strftime("%m-%d %H:%M")
+                                }
+                                st.session_state.posts[actual_idx]['comments'].append(new_cmt)
+                                st.rerun()
+
+                    # 5. 글 삭제 버튼
+                    if st.button("글 삭제", key=f"del_{post['id']}"):
+                        st.session_state.posts.pop(actual_idx)
                         st.rerun()
                 st.write("---")
 
-        # 하단 페이지 번호
+        # 하단 페이지네이션
         if total_pages > 1:
             cols = st.columns(total_pages + 2)
             for i in range(1, total_pages + 1):
