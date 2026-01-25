@@ -446,15 +446,15 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (모바일 화면 맞춤형: 스크롤 제거 및 100% 폭 고정)
+# 4. 캘린더 페이지 (모바일 화면 100% 강제 맞춤 - 최종 다이어트 버전)
 elif st.session_state.page == 'calendar':
-    # [CSS] 모바일 강제 맞춤 설정 (다이어트 버전)
+    # [CSS] 모바일 강제 맞춤 설정
     st.markdown("""
         <style>
-        /* 1. 기본 텍스트 검정 */
+        /* 1. 기본 텍스트 색상 */
         * { color: #333333 !important; }
         
-        /* 2. 버튼 스타일 (여백 완전 제거) */
+        /* 2. 버튼 스타일 (글자 넘침 처리) */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
@@ -463,10 +463,10 @@ elif st.session_state.page == 'calendar':
             color: #333 !important;
             text-align: left !important;
             box-shadow: none !important;
-            width: 100% !important; /* 버튼 폭 제한 */
+            width: 100% !important;
             overflow: hidden !important;
             white-space: nowrap !important;
-            text-overflow: ellipsis !important; /* 말줄임표(...) 처리 */
+            text-overflow: ellipsis !important; /* 말줄임표(...) */
         }
         .stButton button p { 
             font-weight: bold; 
@@ -474,41 +474,47 @@ elif st.session_state.page == 'calendar':
             margin-bottom: 0px;
         }
 
-        /* 3. [핵심] 모바일 전용: 화면 폭 100% 강제 맞춤 */
+        /* 3. [핵심] 모바일 전용: 여백 제거 및 폭 맞춤 */
         @media (max-width: 640px) {
-            /* (A) 컨테이너: 가로 정렬 + 간격 제거 + 스크롤 방지 */
-            div[data-testid="stHorizontalBlock"] {
-                flex-direction: row !important;
-                flex-wrap: nowrap !important;
-                gap: 2px !important; /* 컬럼 사이 간격을 2px로 확 줄임 */
-                width: 100% !important;
+            /* (A) 앱 전체 좌우 여백을 최소화 (이게 스크롤 원인!) */
+            .block-container {
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
+                max-width: 100% !important;
             }
 
-            /* (B) 컬럼 공통: 최소 너비 '0'으로 설정 (중요) */
+            /* (B) 컬럼 컨테이너: 간격 0, 꽉 채우기 */
+            div[data-testid="stHorizontalBlock"] {
+                width: 100% !important;
+                gap: 0px !important; /* 간격 제거 */
+                padding: 0 !important;
+            }
+
+            /* (C) 개별 컬럼: 최소 너비 제거 (줄어들 수 있게 함) */
             div[data-testid="column"] {
                 min-width: 0px !important;
-                padding: 0px !important; /* 내부 패딩 제거 */
+                padding: 0px 2px !important; /* 아주 약간의 간격만 허용 */
             }
 
-            /* (C) 구역별 너비 강제 배분 (총합 100%) */
-            /* 날짜(1번): 18% */
+            /* (D) 구역별 너비 강제 배분 (총합 100%) */
+            /* 날짜(1번): 16% */
             div[data-testid="column"]:nth-of-type(1) {
-                flex: 0 0 18% !important;
-                width: 18% !important;
+                flex: 0 0 16% !important;
+                width: 16% !important;
             }
-            /* 기업정보(2번): 57% (가장 넓게) */
+            /* 기업정보(2번): 60% (가장 넓게) */
             div[data-testid="column"]:nth-of-type(2) {
-                flex: 0 0 57% !important;
-                width: 57% !important;
-                overflow: hidden !important; /* 넘치면 자름 */
+                flex: 0 0 60% !important;
+                width: 60% !important;
+                overflow: hidden !important;
             }
-            /* 가격(3번): 25% */
+            /* 가격(3번): 24% */
             div[data-testid="column"]:nth-of-type(3) {
-                flex: 0 0 25% !important;
-                width: 25% !important;
+                flex: 0 0 24% !important;
+                width: 24% !important;
             }
 
-            /* (D) 폰트 사이즈 다이어트 */
+            /* (E) 폰트 사이즈 최적화 */
             .mobile-date { font-size: 10px !important; letter-spacing: -1px; }
             .mobile-sub { font-size: 10px !important; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .mobile-price { font-size: 12px !important; font-weight: bold; letter-spacing: -0.5px; }
@@ -579,9 +585,9 @@ elif st.session_state.page == 'calendar':
                     display_df = display_df.sort_values(by='temp_growth', ascending=False)
 
         # ----------------------------------------------------------------
-        # [핵심] 모바일 비율 최적화 (총합 100%에 근접하도록 설정)
+        # [핵심] 화면 비율 정의 (16 : 60 : 24) -> 합계 100%
         # ----------------------------------------------------------------
-        GRID_RATIO = [1.2, 4.0, 1.4] 
+        GRID_RATIO = [1.6, 6.0, 2.4] 
 
         if not display_df.empty:
             st.write("---")
@@ -616,7 +622,7 @@ elif st.session_state.page == 'calendar':
                 # 컬럼 배치
                 c1, c2, c3 = st.columns(GRID_RATIO)
                 
-                # [Col 1] 날짜 (18%)
+                # [Col 1] 날짜
                 with c1:
                     st.markdown(f"""
                         <div style='text-align:center;'>
@@ -625,7 +631,7 @@ elif st.session_state.page == 'calendar':
                         </div>
                     """, unsafe_allow_html=True)
                 
-                # [Col 2] 기업정보 (57%)
+                # [Col 2] 기업정보
                 with c2:
                     if st.button(f"{row['name']}", key=f"btn_list_{i}"):
                         st.session_state.selected_stock = row.to_dict()
@@ -639,7 +645,7 @@ elif st.session_state.page == 'calendar':
                     info_text = f"{row['symbol']} | {row.get('exchange','-')}{size_str}"
                     st.markdown(f"<div class='mobile-sub'>{info_text}</div>", unsafe_allow_html=True)
                 
-                # [Col 3] 가격 (25%)
+                # [Col 3] 가격
                 with c3:
                     st.markdown(f"<div style='text-align:right;'>{price_html}</div>", unsafe_allow_html=True)
                 
@@ -1163,6 +1169,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
