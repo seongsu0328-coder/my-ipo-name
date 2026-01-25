@@ -829,12 +829,12 @@ elif st.session_state.page == 'detail':
             r1_c1, r1_c2, r1_c3 = st.columns(3)
             r2_c1, r2_c2 = st.columns(2)
 
-            if r1_c1.button("📄 S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
-            if r1_c2.button("🔄 S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
-            if r1_c3.button("🌍 F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
+            if r1_c1.button("S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
+            if r1_c2.button("S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
+            if r1_c3.button("F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
             
-            if r2_c1.button("📢 FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
-            if r2_c2.button("✅ 424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
+            if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
+            if r2_c2.button("424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
 
             # 2. 콘텐츠 설정
             topic = st.session_state.core_topic
@@ -1191,6 +1191,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
