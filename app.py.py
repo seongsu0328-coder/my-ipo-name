@@ -448,51 +448,70 @@ elif st.session_state.page == 'stats':
 
 # 4. 캘린더 페이지 (중복 제거 및 최신 정렬 기능 완벽 통합)
 elif st.session_state.page == 'calendar':
-    # [수정] 모바일 최적화 CSS 주입 (이 부분이 핵심입니다!)
+    # [스타일] 모바일 카드형 리스트 디자인
     st.markdown("""
         <style>
-        /* 1. [공통] 텍스트 색상 강제 검정 (다크모드 방지) */
-        .stMarkdown, p, span, div, h1, h2, h3, h4, h5, h6, li, small, button p {
-            color: #333333 !important;
+        /* 폰트 색상 강제 검정 (다크모드 방지) */
+        * { color: #333333 !important; }
+        
+        /* 리스트 아이템 카드 디자인 */
+        .stock-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 5px;
+            border-bottom: 1px solid #f0f2f6;
         }
+        
+        /* [구역 1] 왼쪽: 날짜/아이콘 */
+        .card-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 50px;
+            text-align: center;
+        }
+        .icon-box {
+            width: 36px; height: 36px; 
+            border-radius: 10px; 
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; margin-bottom: 4px;
+        }
+        .date-text { font-size: 10px; color: #666 !important; }
 
-        /* 2. [모바일 전용] 스크롤 없이 한 화면에 욱여넣기 */
-        @media (max-width: 640px) {
-            /* (A) 컨테이너: 가로 배열 유지 + 스크롤 제거 */
-            div[data-testid="stHorizontalBlock"] {
-                flex-wrap: nowrap !important;
-                overflow-x: hidden !important; /* 스크롤바 숨김 */
-                padding-bottom: 0px !important;
-            }
+        /* [구역 2] 가운데: 기업명/거래소 */
+        .card-center {
+            flex: 1; /* 남는 공간 다 차지 */
+            padding-left: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .stock-name { 
+            font-size: 15px; font-weight: bold; 
+            margin-bottom: 2px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; /* 말줄임 */
+        }
+        .stock-sub { font-size: 11px; color: #888 !important; }
 
-            /* (B) 컬럼: 강제로 비율 조정 (최소 너비 삭제) */
-            div[data-testid="column"] {
-                min-width: 0px !important; /* 핵심: 화면 밖으로 안 나가게 함 */
-                padding: 0px 1px !important; /* 컬럼 사이 간격 최소화 */
-            }
-
-            /* (C) 글자: 작게 만들고 + 좁으면 줄바꿈 */
-            div[data-testid="column"] * {
-                font-size: 10px !important; /* 글씨 크기 축소 */
-                white-space: normal !important; /* 좁으면 다음 줄로 */
-                word-break: break-all !important; /* 단어가 길면 쪼개기 */
-                line-height: 1.1 !important; /* 줄간격 좁히기 */
-            }
-
-            /* (D) 비율 미세 조정 (아이콘과 기업명 확보) */
-            /* 아이콘(1번): 고정 크기 */
-            div[data-testid="column"]:nth-child(1) {
-                flex: 0 0 30px !important;
-                min-width: 30px !important;
-            }
-            /* 공모일(2번): 조금 좁게 */
-            div[data-testid="column"]:nth-child(2) { flex: 0 0 45px !important; }
-            
-            /* 기업명(3번): 공간 최우선 배정 */
-            div[data-testid="column"]:nth-child(3) { flex: 2 !important; }
-            
-            /* 나머지(가격, 거래소 등): 남는 공간 균등 */
-            div[data-testid="column"]:nth-child(n+4) { flex: 1 !important; }
+        /* [구역 3] 오른쪽: 가격/수익률 */
+        .card-right {
+            text-align: right;
+            width: 90px;
+        }
+        .price-main { font-size: 14px; font-weight: bold; }
+        .price-sub { font-size: 11px; color: #666 !important; }
+        
+        /* 버튼 스타일 리셋 (투명 버튼으로 만듦) */
+        .stButton button {
+            background-color: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            color: black !important;
+            text-align: left !important;
+        }
+        .stButton button:hover {
+            color: #4f46e5 !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -1164,6 +1183,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
