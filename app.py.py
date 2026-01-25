@@ -1198,6 +1198,86 @@ elif st.session_state.page == 'detail':
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
 
+# --- 5. 게시판 페이지 (전체 코드 맨 마지막에 추가) ---
+elif st.session_state.page == 'board':
+    st.markdown("### 💬 투자자 토론 게시판")
+    
+    # [A] 게시글 저장소 초기화
+    if 'posts' not in st.session_state:
+        st.session_state.posts = []
+
+    # [B] 상단 메뉴 (뒤로가기 & 글쓰기)
+    menu_c1, menu_c2 = st.columns([8, 2])
+    with menu_c1:
+        if st.button("⬅️ 뒤로가기"):
+            st.session_state.page = 'stats'
+            st.rerun()
+    with menu_c2:
+        if st.button("📝 글쓰기", use_container_width=True, type="primary"):
+            st.session_state.show_editor = True
+
+    # [C] 글쓰기 폼
+    if st.session_state.get('show_editor', False):
+        with st.form("board_form"):
+            cat = st.selectbox("카테고리", ["거시경제", "관심기업", "자산배분", "투자인사이트"])
+            title = st.text_input("제목")
+            author = st.text_input("작성자", value=st.session_state.get('user_phone', '익명'))
+            content = st.text_area("내용", height=150)
+            
+            sub_c1, sub_c2 = st.columns(2)
+            if sub_c1.form_submit_button("등록"):
+                if title and content:
+                    new_post = {
+                        "category": cat,
+                        "title": title,
+                        "author": author,
+                        "content": content,
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                    }
+                    st.session_state.posts.insert(0, new_post) # 최신글이 위로
+                    st.session_state.show_editor = False
+                    st.rerun()
+            if sub_c2.form_submit_button("취소"):
+                st.session_state.show_editor = False
+                st.rerun()
+
+    st.divider()
+
+    # [D] 게시글 목록 노출 (한 페이지당 10개)
+    if not st.session_state.posts:
+        st.info("작성된 게시글이 없습니다.")
+    else:
+        # 페이징 로직
+        posts = st.session_state.posts
+        per_page = 10
+        total_pages = max(1, (len(posts) - 1) // per_page + 1)
+        
+        if 'board_page' not in st.session_state:
+            st.session_state.board_page = 1
+            
+        curr_p = st.session_state.board_page
+        start_idx = (curr_p - 1) * per_page
+        end_idx = start_idx + per_page
+
+        for idx, post in enumerate(posts[start_idx:end_idx]):
+            with st.container():
+                st.caption(f"**[{post['category']}]** | {post['date']} | 작성자: {post['author']}")
+                with st.expander(post['title']):
+                    st.write(post['content'])
+                    # 삭제 버튼 (작성자 본인 확인 로직은 생략/관리용)
+                    if st.button("삭제", key=f"del_{start_idx + idx}"):
+                        st.session_state.posts.pop(start_idx + idx)
+                        st.rerun()
+                st.write("---")
+
+        # 하단 페이지 번호
+        if total_pages > 1:
+            cols = st.columns(total_pages + 2)
+            for i in range(1, total_pages + 1):
+                if cols[i].button(str(i), key=f"p_{i}"):
+                    st.session_state.board_page = i
+                    st.rerun()
+
 
 
 
