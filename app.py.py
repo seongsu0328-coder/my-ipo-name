@@ -446,9 +446,9 @@ elif st.session_state.page == 'stats':
             st.session_state.page = 'calendar'
             st.rerun()
 
-# 4. 캘린더 페이지 (2단 심플 레이아웃: 기업정보 vs 시장데이터)
+# 4. 캘린더 페이지 (회색 박스 제거 & 텍스트 스타일 통일)
 elif st.session_state.page == 'calendar':
-    # [CSS] 2단 레이아웃 최적화
+    # [CSS] 2단 레이아웃 및 스타일 정의
     st.markdown("""
         <style>
         /* 1. 기본 설정 */
@@ -476,10 +476,9 @@ elif st.session_state.page == 'calendar':
 
         /* 3. [모바일 전용] 2단 강제 고정 */
         @media (max-width: 640px) {
-            /* (A) 전체 여백 제거 */
             .block-container { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
 
-            /* (B) 가로 정렬 & 간격 조정 */
+            /* 가로 정렬 & 간격 조정 */
             div[data-testid="stHorizontalBlock"] {
                 flex-direction: row !important;
                 flex-wrap: nowrap !important;
@@ -487,30 +486,23 @@ elif st.session_state.page == 'calendar':
                 width: 100% !important;
             }
 
-            /* (C) 컬럼 최소 너비 제거 */
             div[data-testid="column"] {
                 min-width: 0px !important;
                 padding: 0 !important;
             }
 
-            /* (D) 2단 비율 설정 (기업정보 65% : 가격정보 35%) */
-            /* 왼쪽: 기업정보 */
+            /* 2단 비율 설정 (기업정보 65% : 가격정보 35%) */
             div[data-testid="column"]:nth-of-type(1) {
                 flex: 0 0 65% !important;
                 width: 65% !important;
                 overflow: hidden !important;
             }
-            /* 오른쪽: 가격/날짜 */
             div[data-testid="column"]:nth-of-type(2) {
                 flex: 0 0 35% !important;
                 width: 35% !important;
             }
             
-            /* (E) 폰트 스타일 */
             .mobile-sub { font-size: 11px !important; color: #888 !important; }
-            .price-live { font-size: 14px !important; font-weight: bold; }
-            .price-ipo { font-size: 10px !important; color: #666 !important; }
-            .date-tag { font-size: 10px !important; color: #888 !important; background: #f1f3f4; padding: 2px 4px; border-radius: 4px; display: inline-block; margin-top: 2px;}
         }
         </style>
     """, unsafe_allow_html=True)
@@ -538,7 +530,7 @@ elif st.session_state.page == 'calendar':
             with col_f2:
                 sort_option = st.selectbox("🎯 리스트 정렬", ["최신순 (기본)", "🚀 수익률 높은순 (실시간)", "📈 매출 성장률순 (AI)"])
             
-            # 기간 필터링
+            # 기간 필터
             if period == "상장 예정 (90일)":
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
             elif period == "최근 6개월": 
@@ -579,15 +571,14 @@ elif st.session_state.page == 'calendar':
                     display_df = display_df.sort_values(by='temp_growth', ascending=False)
 
         # ----------------------------------------------------------------
-        # [핵심] 2단 레이아웃 (기업정보 vs 시장데이터)
-        # 비율: 6.5 : 3.5
+        # [핵심] 2단 레이아웃 (비율 6.5 : 3.5)
         # ----------------------------------------------------------------
         GRID_RATIO = [3.5, 1.5] 
 
         if not display_df.empty:
             st.write("---")
             
-            # 1. 헤더 (2개로 통합)
+            # 1. 헤더
             h1, h2 = st.columns(GRID_RATIO)
             h1.markdown("<div><b>기업 정보</b></div>", unsafe_allow_html=True)
             h2.markdown("<div style='text-align:right'><b>가격 / 날짜</b></div>", unsafe_allow_html=True)
@@ -604,49 +595,36 @@ elif st.session_state.page == 'calendar':
                 icon = "🐣" if ipo_date > (today - timedelta(days=365)) else "🦄"
                 bg = "#fff9db" if icon == "🐣" else "#f3f0ff"
                 
-                # 가격 HTML (현재가 / 수익률 / 공모가)
+                # 가격 HTML
                 live_p = row.get('live_price', 0)
                 if live_p > 0:
                     pct = ((live_p - p_val)/p_val)*100
                     color = "#d93025" if pct < 0 else "#1e8e3e"
-                    # 실시간: 현재가(큼) -> 공모가(작음) -> 날짜
                     price_html = f"""
-                        <div class='price-live' style='color:{color};'>${live_p:,.2f} ({pct:+.0f}%)</div>
-                        <div class='price-ipo'>IPO: ${p_val:,.2f}</div>
+                        <div style='color:{color}; font-weight:bold; font-size:13px;'>${live_p:,.2f} ({pct:+.0f}%)</div>
+                        <div style='color:#666; font-size:10px;'>IPO: ${p_val:,.2f}</div>
                     """
                 else:
-                    # 예정/일반: 공모가(큼) -> 날짜
                     price_html = f"""
-                        <div class='price-live'>${p_val:,.2f}</div>
-                        <div class='price-ipo'>공모가</div>
+                        <div style='font-weight:bold; font-size:13px;'>${p_val:,.2f}</div>
+                        <div style='color:#888; font-size:10px;'>공모가</div>
                     """
                 
-                # 날짜 HTML (박스 형태)
-                date_html = f"<div class='date-tag'>{row['date']}</div>"
+                # [수정] 날짜 HTML (회색 박스 제거 -> 텍스트 스타일로 변경)
+                # 위 가격/공모가와 동일한 폰트 느낌(색상 #888, 작은 폰트) 적용
+                date_html = f"<div style='font-size:10px; color:#888; margin-top:2px;'>{row['date']}</div>"
 
                 # 2단 컬럼 배치
                 c1, c2 = st.columns(GRID_RATIO)
                 
-                # [왼쪽] 아이콘 + 기업명 + 티커 (Flex Layout)
+                # [왼쪽] 아이콘 + 기업명 + 티커
                 with c1:
-                    # 아이콘과 텍스트를 나란히 배치하기 위해 HTML 사용하지 않고 Streamlit 컬럼 중첩 사용
-                    # (모바일에서 정렬이 깨지는 것을 막기 위해 HTML/CSS Flexbox 사용)
-                    st.markdown(f"""
-                        <div style="display: flex; align-items: center;">
-                            <div style='background:{bg}; min-width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px; margin-right:8px;'>{icon}</div>
-                            <div style="flex: 1; overflow: hidden;">
-                                </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # 버튼을 아이콘 옆에 텍스트 위치에 오게 하기가 까다로우므로
-                    # 아이콘 없이 텍스트만 있는 척 하고, 위에 HTML로 아이콘을 그렸으니
-                    # 여기서는 '기업명' 버튼과 '서브정보'만 출력하되, CSS로 위치 조정
-                    
-                    # (간단한 해결책: 왼쪽 컬럼을 다시 2개로 쪼개기)
                     sub_c1, sub_c2 = st.columns([0.8, 3])
                     with sub_c1:
-                         st.markdown(f"<div style='height:40px;'></div>", unsafe_allow_html=True) # 공간만 차지 (위 HTML 아이콘 자리)
+                         # 아이콘
+                         st.markdown(f"""
+                            <div style='background:{bg}; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px;'>{icon}</div>
+                         """, unsafe_allow_html=True)
                     with sub_c2:
                          # 기업명 버튼
                         if st.button(f"{row['name']}", key=f"btn_list_{i}"):
@@ -1188,6 +1166,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
