@@ -786,7 +786,7 @@ elif st.session_state.page == 'detail':
             st.markdown(f"""
     <div style="margin-top: 10px; margin-bottom:15px;">
         <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-            {stock['name']} 관련 최신 뉴스 Top 5
+            {stock['name']} 뉴스
         </h3>
     </div>""", unsafe_allow_html=True)
             
@@ -1191,6 +1191,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
