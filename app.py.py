@@ -744,66 +744,49 @@ elif st.session_state.page == 'detail':
         # [3. 탭 메뉴 구성]
         tab0, tab1, tab2, tab3 = st.tabs(["📰 주요 뉴스", "📋 주요 공시", "⚖️ AI 가치 평가", "🎯 최종 투자 결정"])
 
-        # --- Tab 0: 뉴스 & 심층 분석 (Tavily AI 적용됨) ---
+        # --- Tab 0: 뉴스 & 심층 분석 (수정: 비즈니스 모델 집중 모드) ---
         with tab0:
             st.markdown("##### 🕵️ AI 심층 분석 리포트")
-            st.caption("Tavily AI 검색 엔진이 최신 웹 정보를 수집하고 GPT가 핵심 내용을 요약합니다.")
+            st.caption("Tavily AI 검색 엔진이 최신 웹 정보를 수집하고 AI가 핵심 내용을 요약합니다.")
 
-            # [1] 검색어 생성 (IPO 관련 키워드 강화)
-            q_founder = f"{stock['name']} IPO stock company founder CEO biography leadership"
+            # [1] 검색어 생성 (비즈니스 모델만 설정)
             q_biz = f"{stock['name']} IPO stock company business model revenue stream competitive advantage"
             
-            # [2] 화면 분할 (창업주 / 비즈니스)
-            c1, c2 = st.columns(2)
+            # [2] 비즈니스 모델 섹션 (화면 전체 너비 사용)
+            st.markdown("""
+            <div style="display:flex; align-items:center; margin-top: 20px; margin-bottom:15px;">
+                <span style="font-size:26px; margin-right:10px;">🏢</span>
+                <h3 style="margin:0; color:#333;">비즈니스 모델 & 핵심 가치</h3>
+            </div>""", unsafe_allow_html=True)
             
-            # (A) 창업주/리더십 섹션
-            with c1:
-                st.markdown("""
-                <div style="display:flex; align-items:center; margin-bottom:10px;">
-                    <span style="font-size:24px; margin-right:10px;">👨‍💼</span>
-                    <h4 style="margin:0; color:#333;">창업주 및 리더십</h4>
-                </div>""", unsafe_allow_html=True)
+            # 로딩 및 결과 표시
+            with st.spinner(f"🤖 AI가 {stock['name']}의 사업 구조를 분석하고 있습니다..."):
+                # 아까 수정한 Tavily+Groq 함수 호출
+                biz_info = get_ai_summary(q_biz)
                 
-                with st.spinner("AI가 인물 정보를 분석 중..."):
-                    founder_info = get_ai_summary(q_founder)
+                if biz_info:
+                    # 초록색 박스로 깔끔하게 표시
+                    st.success(biz_info)
+                else:
+                    st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 정보가 부족할 수 있습니다)")
                     
-                    if founder_info:
-                        st.info(founder_info)
-                    else:
-                        st.error("정보를 찾을 수 없습니다.")
-                        
-                # 구글 검색 링크 (보조)
-                st.markdown(f"[👉 구글에서 '{stock['name']} 창업주' 더보기](https://www.google.com/search?q={q_founder})")
-
-            # (B) 비즈니스/시장 섹션
-            with c2:
-                st.markdown("""
-                <div style="display:flex; align-items:center; margin-bottom:10px;">
-                    <span style="font-size:24px; margin-right:10px;">🏢</span>
-                    <h4 style="margin:0; color:#333;">비즈니스 모델</h4>
-                </div>""", unsafe_allow_html=True)
-                
-                with st.spinner("AI가 사업 모델을 분석 중..."):
-                    biz_info = get_ai_summary(q_biz)
-                    
-                    if biz_info:
-                        st.success(biz_info)
-                    else:
-                        st.error("정보를 찾을 수 없습니다.")
-                        
-                # 구글 검색 링크 (보조)
-                st.markdown(f"[👉 구글에서 '{stock['name']} 비즈니스' 더보기](https://www.google.com/search?q={q_biz})")
+            # 구글 검색 링크 (보조)
+            st.markdown(f"""
+                <div style="text-align: right; margin-top: 5px;">
+                    <a href="https://www.google.com/search?q={q_biz}" target="_blank" style="text-decoration:none; color:#666; font-size:14px;">
+                        👉 구글에서 원문 검색 결과 보기
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
 
             st.write("---")
             
             # [3] 뉴스 리스트 (기존 기능 유지)
             st.markdown(f"##### 🔥 {stock['name']} 관련 최신 뉴스 Top 5")
             
-            # 뉴스 데이터 가져오기 (기존 함수 활용)
             rss_news = get_real_news_rss(stock['name'])
             tags = ["분석", "시장", "전망", "전략", "수급"]
             
-            # 뉴스 출력 루프
             for i in range(5):
                 if rss_news and i < len(rss_news):
                     n = rss_news[i]
@@ -820,9 +803,8 @@ elif st.session_state.page == 'detail':
                         </a>
                     """, unsafe_allow_html=True)
                 else:
-                    # 뉴스가 부족할 경우 빈 박스 대신 메시지 표시 (5개 미만일 때)
-                    if i == 0: # 아예 하나도 없는 경우
-                        st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다. 구글 검색을 이용해주세요.")
+                    if i == 0: 
+                        st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
                         st.markdown(f"[👉 구글 뉴스 검색 바로가기](https://www.google.com/search?q={stock['name']}&tbm=nws)")
                         break
 
@@ -1203,6 +1185,7 @@ elif st.session_state.page == 'detail':
                             del st.session_state.watchlist_predictions[sid]
                         st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
                         st.rerun()
+
 
 
 
