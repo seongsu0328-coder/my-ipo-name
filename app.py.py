@@ -927,52 +927,41 @@ elif st.session_state.page == 'detail':
             st.caption("권위 있는 학술 지표를 실시간 데이터로 자체 분석하여 시장의 온도를 측정합니다.")
             st.write("---")
 
-            # [1] 데이터 수집 및 계산 함수 (All Internal Calculation)
+            # [1] 데이터 수집 및 계산 함수
             def get_market_status_internal(df_calendar):
                 data = {
-                    "ipo_return": 0.0,      # IPO 수익률
-                    "ipo_volume": 0,        # 상장 예정 물량
-                    "unprofitable_pct": 0,  # 적자 기업 비율
-                    "withdrawal_rate": 0,   # 철회율
-                    "vix": 0.0,             # VIX
-                    "buffett_val": 0.0,     # 버핏 지수
-                    "pe_ratio": 0.0,        # PE Ratio (CAPE Proxy)
-                    "fear_greed": 50        # Fear & Greed (Model)
+                    "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0,
+                    "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50
                 }
 
                 # --- A. [IPO Specific] 앱 내 데이터로 계산 ---
                 if not df_calendar.empty:
                     today = datetime.now().date()
                     
-                    # 1. 최근 IPO 수익률 & 적자 비율 (최근 5개 표본)
+                    # 1. 수익률 & 적자 비율 (최근 5개 표본)
                     traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < today].sort_values(by='공모일_dt', ascending=False).head(5)
-                    
                     ret_sum = 0; ret_cnt = 0; unp_cnt = 0
                     
                     for _, row in traded_ipos.iterrows():
                         try:
-                            # 수익률
                             p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
                             p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
                             if p_ipo > 0 and p_curr > 0:
                                 ret_sum += ((p_curr - p_ipo) / p_ipo) * 100
                                 ret_cnt += 1
-                            
-                            # 적자 여부 (간이 확인: 무료 API 한계로 일부만 체크)
                             fin = get_financial_metrics(row['symbol'], MY_API_KEY)
-                            if fin and fin.get('net_margin') and fin['net_margin'] < 0:
-                                unp_cnt += 1
+                            if fin and fin.get('net_margin') and fin['net_margin'] < 0: unp_cnt += 1
                         except: pass
                     
                     if ret_cnt > 0: data["ipo_return"] = ret_sum / ret_cnt
                     if len(traded_ipos) > 0: data["unprofitable_pct"] = (unp_cnt / len(traded_ipos)) * 100
 
-                    # 2. Filings Volume (향후 30일)
+                    # 2. Filings Volume
                     future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= today) & 
                                               (df_calendar['공모일_dt'].dt.date <= today + timedelta(days=30))]
                     data["ipo_volume"] = len(future_ipos)
 
-                    # 3. Withdrawal Rate (최근 6개월)
+                    # 3. Withdrawal Rate
                     recent_6m = df_calendar[df_calendar['공모일_dt'].dt.date >= (today - timedelta(days=180))]
                     if not recent_6m.empty:
                         wd = recent_6m[recent_6m['status'].str.lower() == 'withdrawn']
@@ -980,38 +969,25 @@ elif st.session_state.page == 'detail':
 
                 # --- B. [Macro Market] Yahoo Finance로 실시간 계산 ---
                 try:
-                    # 1. VIX
                     vix_obj = yf.Ticker("^VIX")
                     data["vix"] = vix_obj.history(period="1d")['Close'].iloc[-1]
 
-                    # 2. Buffett Indicator (Wilshire 5000 / GDP)
                     w5000 = yf.Ticker("^W5000").history(period="1d")['Close'].iloc[-1]
-                    us_gdp_est = 28.0 # $28T (Constant)
-                    # 지수 포인트를 대략적인 시총($T)으로 환산 (보정계수 적용)
+                    us_gdp_est = 28.0 
                     mkt_cap_est = w5000 / 1000 * 0.93 
                     data["buffett_val"] = (mkt_cap_est / us_gdp_est) * 100
 
-                    # 3. PE Ratio (SPY ETF 기준 - CAPE 대용)
-                    # info 호출은 느릴 수 있으므로 예외처리 필수
                     try:
                         spy = yf.Ticker("SPY")
-                        # trailingPE가 없으면 기본값 사용
-                        data["pe_ratio"] = spy.info.get('trailingPE', 25.0) 
-                    except: 
-                        data["pe_ratio"] = 24.5 # Fallback value
+                        data["pe_ratio"] = spy.info.get('trailingPE', 24.5) 
+                    except: data["pe_ratio"] = 24.5
 
-                    # 4. Fear & Greed (자체 모델)
-                    # S&P500 Momentum 계산
                     spx = yf.Ticker("^GSPC").history(period="1y")
                     curr_spx = spx['Close'].iloc[-1]
                     ma200 = spx['Close'].rolling(200).mean().iloc[-1]
-                    mom_score = ((curr_spx - ma200) / ma200) * 100 # 이격도 %
-                    
-                    # VIX 점수 (0~100): 12이하(탐욕100), 35이상(공포0)
+                    mom_score = ((curr_spx - ma200) / ma200) * 100
                     s_vix = max(0, min(100, (35 - data["vix"]) * (100/23)))
-                    # Momentum 점수 (0~100): +10%(탐욕100), -10%(공포0)
                     s_mom = max(0, min(100, (mom_score + 10) * 5))
-                    
                     data["fear_greed"] = (s_vix + s_mom) / 2
 
                 except: pass
@@ -1030,7 +1006,7 @@ elif st.session_state.page == 'detail':
 
                 md = get_market_status_internal(all_df_tab2)
 
-            # --- 스타일 정의 ---
+            # --- 스타일 정의 (높이 조정 및 설명 폰트) ---
             st.markdown("""
             <style>
                 .metric-card { 
@@ -1040,16 +1016,19 @@ elif st.session_state.page == 'detail':
                     border: 1px solid #e0e0e0;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.03);
                     height: 100%;
+                    min-height: 220px; /* 카드 높이 통일 */
                     display: flex;
                     flex-direction: column;
                     justify-content: space-between;
                 }
-                .metric-header { font-weight:bold; font-size:15px; color:#333; margin-bottom:5px; }
-                .metric-value { font-size:20px; font-weight:800; color:#004e92; margin: 5px 0; }
-                .metric-status { font-size:12px; padding: 3px 8px; border-radius:10px; font-weight:bold; }
-                .metric-footer { font-size:11px; color:#999; margin-top:10px; border-top:1px solid #f0f0f0; padding-top:5px; }
+                .metric-header { font-weight:bold; font-size:16px; color:#111; margin-bottom:5px; }
+                .metric-value-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+                .metric-value { font-size:20px; font-weight:800; color:#004e92; }
+                .metric-desc { font-size:13px; color:#555; line-height:1.5; margin-bottom:10px; flex-grow: 1; }
+                .metric-footer { font-size:11px; color:#999; margin-top:5px; border-top:1px solid #f0f0f0; padding-top:8px; font-style: italic; }
                 
-                /* 상태별 컬러 클래스 */
+                /* 상태별 배지 스타일 */
+                .st-badge { font-size:12px; padding: 3px 8px; border-radius:6px; font-weight:bold; }
                 .st-hot { background-color:#ffebee; color:#c62828; }
                 .st-cold { background-color:#e3f2fd; color:#1565c0; }
                 .st-good { background-color:#e8f5e9; color:#2e7d32; }
@@ -1072,10 +1051,13 @@ elif st.session_state.page == 'detail':
                 
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>📈 First-Day Returns</div>
-                    <div class='metric-value'>{val:+.1f}%</div>
-                    <div><span class='metric-status {st_cls}'>{status}</span></div>
-                    <div class='metric-footer'>Data: Unicornfinder<br>Ref: Jay Ritter (Univ. of Florida)</div>
+                    <div class='metric-header'>First-Day Returns</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val:+.1f}%</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>상장 첫날 시초가가 공모가 대비 얼마나 상승했는지 나타냅니다. 20% 이상이면 과열로 판단합니다.</div>
+                    <div class='metric-footer'>Ref: Jay Ritter (Univ. of Florida)</div>
                 </div>""", unsafe_allow_html=True)
 
             # (2) 상장 물량
@@ -1086,10 +1068,13 @@ elif st.session_state.page == 'detail':
                 
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>📑 Filings Volume</div>
-                    <div class='metric-value'>{val}건 <span style='font-size:12px'>(30일내)</span></div>
-                    <div><span class='metric-status {st_cls}'>{status}</span></div>
-                    <div class='metric-footer'>Data: Unicornfinder<br>Ref: Ibbotson & Jaffe (1975)</div>
+                    <div class='metric-header'>Filings Volume</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val}건</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>향후 30일 이내 상장 예정인 기업의 수입니다. 물량이 급증하면 고점 징후일 수 있습니다.</div>
+                    <div class='metric-footer'>Ref: Ibbotson & Jaffe (1975)</div>
                 </div>""", unsafe_allow_html=True)
 
             # (3) 적자 기업 비율
@@ -1100,10 +1085,13 @@ elif st.session_state.page == 'detail':
                 
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>📉 Unprofitable IPOs</div>
-                    <div class='metric-value'>{val:.0f}% <span style='font-size:12px'>(적자)</span></div>
-                    <div><span class='metric-status {st_cls}'>{status}</span></div>
-                    <div class='metric-footer'>Data: Recent 5 IPOs Proxy<br>Ref: Jay Ritter (Dot-com Bubble)</div>
+                    <div class='metric-header'>Unprofitable IPOs</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val:.0f}%</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>최근 상장 기업 중 순이익이 '적자'인 기업의 비율입니다. 80%에 육박하면 버블로 간주합니다.</div>
+                    <div class='metric-footer'>Ref: Jay Ritter (Dot-com Bubble)</div>
                 </div>""", unsafe_allow_html=True)
 
             # (4) 철회율
@@ -1114,10 +1102,13 @@ elif st.session_state.page == 'detail':
                 
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>🚫 Withdrawal Rate</div>
-                    <div class='metric-value'>{val:.1f}% <span style='font-size:12px'>(철회)</span></div>
-                    <div><span class='metric-status {st_cls}'>{status}</span></div>
-                    <div class='metric-footer'>Data: Unicornfinder (6m)<br>Ref: Dunbar (1998)</div>
+                    <div class='metric-header'>Withdrawal Rate</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val:.1f}%</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>상장 심사를 통과했으나 상장을 자진 철회한 비율입니다. 낮을수록(10%↓) 묻지마 상장이 많다는 뜻입니다.</div>
+                    <div class='metric-footer'>Ref: Dunbar (1998)</div>
                 </div>""", unsafe_allow_html=True)
 
             st.write("<br>", unsafe_allow_html=True)
@@ -1137,10 +1128,13 @@ elif st.session_state.page == 'detail':
                 
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>😨 VIX Index</div>
-                    <div class='metric-value'>{val:.2f}</div>
-                    <div><span class='metric-status {st_cls}'>{status}</span></div>
-                    <div class='metric-footer'>Data: Yahoo Finance<br>Ref: CBOE / Whaley (1993)</div>
+                    <div class='metric-header'>VIX Index</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val:.2f}</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>S&P 500의 변동성 지수입니다. 수치가 낮을수록 시장 참여자들이 과도하게 안심하고 있음을 뜻합니다.</div>
+                    <div class='metric-footer'>Ref: CBOE / Whaley (1993)</div>
                 </div>""", unsafe_allow_html=True)
 
             # (2) Buffett Indicator
@@ -1148,19 +1142,20 @@ elif st.session_state.page == 'detail':
                 val = md['buffett_val']
                 status = "🚨 고평가" if val > 150 else "⚠️ 높음"
                 st_cls = "st-hot" if val > 120 else "st-neutral"
-                
-                # 계산 실패시 표시 처리
                 disp_val = f"{val:.0f}%" if val > 0 else "N/A"
 
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>🍔 Buffett Indicator</div>
-                    <div class='metric-value'>{disp_val} <span style='font-size:12px'>(Est)</span></div>
-                    <div><span class='metric-status {st_cls}'>{status}</span></div>
-                    <div class='metric-footer'>Data: Wilshire 5000 / GDP<br>Ref: Warren Buffett (2001)</div>
+                    <div class='metric-header'>Buffett Indicator</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{disp_val}</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>GDP 대비 주식시장 시가총액 비율입니다. 100%를 넘으면 경제 규모 대비 주가가 비싸다는 신호입니다.</div>
+                    <div class='metric-footer'>Ref: Warren Buffett (2001)</div>
                 </div>""", unsafe_allow_html=True)
 
-            # (3) PE Ratio (CAPE Proxy)
+            # (3) PE Ratio
             with m3:
                 val = md['pe_ratio']
                 status = "🔥 고평가" if val > 25 else "✅ 적정"
@@ -1168,13 +1163,16 @@ elif st.session_state.page == 'detail':
                 
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>📊 S&P 500 PE</div>
-                    <div class='metric-value'>{val:.1f}x</div>
-                    <div><span class='metric-status {st_cls}'>{status}</span></div>
-                    <div class='metric-footer'>Data: SPY ETF Proxy<br>Ref: Shiller CAPE Model</div>
+                    <div class='metric-header'>S&P 500 PE</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val:.1f}x</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>주가를 주당순이익(EPS)으로 나눈 값입니다. 역사적 평균(약 16배)보다 높으면 고평가 구간입니다.</div>
+                    <div class='metric-footer'>Ref: Shiller CAPE Model (Proxy)</div>
                 </div>""", unsafe_allow_html=True)
 
-            # (4) Fear & Greed (자체 모델)
+            # (4) Fear & Greed
             with m4:
                 val = md['fear_greed']
                 status = "🔥 Greed" if val >= 70 else "❄️ Fear" if val <= 30 else "⚖️ Neutral"
@@ -1182,10 +1180,13 @@ elif st.session_state.page == 'detail':
                 
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>🧠 Fear & Greed</div>
-                    <div class='metric-value'>{val:.0f} <span style='font-size:12px'>/ 100</span></div>
-                    <div><span class='metric-status {st_cls}'>{status}</span></div>
-                    <div class='metric-footer'>Data: Internal Model<br>Ref: CNN Business Logic</div>
+                    <div class='metric-header'>Fear & Greed</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val:.0f}</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>모멘텀과 변동성을 결합한 심리 지표입니다. 75점 이상은 '극단적 탐욕' 상태를 의미합니다.</div>
+                    <div class='metric-footer'>Ref: CNN Business Logic</div>
                 </div>""", unsafe_allow_html=True)
 
         # --- Tab 3: 최종 투자 결정 ---
@@ -1566,6 +1567,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
