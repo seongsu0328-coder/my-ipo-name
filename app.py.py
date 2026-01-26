@@ -921,177 +921,187 @@ elif st.session_state.page == 'detail':
                 </a>
             """, unsafe_allow_html=True)
 
-        # --- Tab 2: 실시간 시장 과열도 평가 (Real-time Market Heatmap) ---
+        # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
-            st.markdown("### 🌡️ 실시간 IPO 시장 온도계")
-            st.caption("고정된 값이 아닙니다. **실시간 VIX 지수**와 **최근 상장된 5개 종목의 실제 수익률**을 분석해 산출한 결과입니다.")
+            st.markdown("### 🌡️ 실시간 시장 과열 진단 시스템")
+            st.caption("학술적 근거에 기반한 지표들을 실시간 데이터로 계산하여 시장의 '과열(Bubble)' 여부를 판별합니다.")
+            st.write("---")
 
-            # [1] 실시간 데이터 수집 함수
-            def get_market_sentiment_realtime(df_calendar):
-                # 1. VIX (공포지수) 가져오기 - Yahoo Finance
-                try:
-                    vix_data = yf.Ticker("^VIX").history(period="1d")
-                    real_vix = vix_data['Close'].iloc[-1]
-                except:
-                    real_vix = 20.0 # 에러 시 기본값 (중립)
+            # [1] 실시간 데이터 수집 및 계산 함수
+            def get_market_status_data(df_calendar):
+                # 초기값
+                status_data = {
+                    "ipo_return": 0.0,
+                    "ipo_count": 0,
+                    "vix": 0.0,
+                    "spX_trend": 0.0
+                }
 
-                # 2. 최근 IPO 분위기 (최근 상장 5개 종목 수익률 평균)
-                # 앱이 가진 캘린더 데이터 활용
-                recent_avg_ret = 0
-                count = 0
-                
+                # 1. [IPO Specific] 최근 IPO 수익률 (Underpricing Proxy)
+                # 데이터프레임에서 이미 상장된 종목(오늘 이전) 추출
                 if not df_calendar.empty:
-                    # 상장일이 오늘보다 이전인 것들만 필터링 (이미 상장된 것)
                     traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < datetime.now().date()]
-                    # 최신순 정렬 후 5개만 뽑기
+                    # 최근 5개 종목
                     recent_ipos = traded_ipos.sort_values(by='공모일_dt', ascending=False).head(5)
                     
                     total_ret = 0
-                    for idx, row in recent_ipos.iterrows():
+                    count = 0
+                    for _, row in recent_ipos.iterrows():
                         try:
-                            # 공모가
+                            # 공모가 vs 현재가
                             p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
-                            # 현재가 (API 호출)
                             p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
-                            
                             if p_ipo > 0 and p_curr > 0:
-                                ret = ((p_curr - p_ipo) / p_ipo) * 100
-                                total_ret += ret
+                                total_ret += ((p_curr - p_ipo) / p_ipo) * 100
                                 count += 1
                         except: pass
                     
                     if count > 0:
-                        recent_avg_ret = total_ret / count
+                        status_data["ipo_return"] = total_ret / count
 
-                return real_vix, recent_avg_ret
+                    # 2. [IPO Specific] 향후 30일 상장 예정 물량 (Volume)
+                    future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= datetime.now().date()) & 
+                                              (df_calendar['공모일_dt'].dt.date <= datetime.now().date() + timedelta(days=30))]
+                    status_data["ipo_count"] = len(future_ipos)
 
-            # [2] 데이터 로딩 및 점수 계산
-            with st.spinner("🔄 시장 데이터를 실시간으로 수집 중입니다..."):
-                # 캘린더 데이터 가져오기 (이미 로드된 all_df 사용)
-                # 만약 all_df가 없으면 다시 로드
+                # 3. [Macro] VIX (공포지수) - Yahoo Finance
+                try:
+                    vix_obj = yf.Ticker("^VIX")
+                    hist = vix_obj.history(period="1d")
+                    if not hist.empty:
+                        status_data["vix"] = hist['Close'].iloc[-1]
+                except: status_data["vix"] = 0
+
+                # 4. [Macro] S&P 500 모멘텀 (현재가 vs 200일 이평선 괴리율)
+                # 시장이 너무 빨리 올랐는지(과열) 판단
+                try:
+                    spx_obj = yf.Ticker("^GSPC")
+                    hist_spx = spx_obj.history(period="1y") # 1년치 데이터
+                    if not hist_spx.empty:
+                        curr_spx = hist_spx['Close'].iloc[-1]
+                        ma200 = hist_spx['Close'].rolling(window=200).mean().iloc[-1]
+                        if ma200 > 0:
+                            status_data["spx_trend"] = ((curr_spx - ma200) / ma200) * 100
+                        else:
+                            status_data["spx_trend"] = 0
+                except: status_data["spx_trend"] = 0
+                
+                return status_data
+
+            # [2] 데이터 로드 및 계산
+            with st.spinner("📊 주요 경제 지표와 IPO 데이터를 분석 중입니다..."):
+                # 캘린더 데이터 로드 (캐싱된 데이터 활용)
                 if 'all_df' not in locals(): 
-                    all_df_raw_tab2 = get_extended_ipo_data(MY_API_KEY)
-                    if not all_df_raw_tab2.empty:
-                        all_df_tab2 = all_df_raw_tab2.dropna(subset=['exchange'])
+                    all_df_tab2 = get_extended_ipo_data(MY_API_KEY)
+                    if not all_df_tab2.empty:
+                        all_df_tab2 = all_df_tab2.dropna(subset=['exchange'])
                         all_df_tab2['공모일_dt'] = pd.to_datetime(all_df_tab2['date'])
-                    else:
-                        all_df_tab2 = pd.DataFrame()
                 else:
                     all_df_tab2 = all_df
 
-                # 함수 실행
-                real_vix, real_ipo_return = get_market_sentiment_realtime(all_df_tab2)
+                m_data = get_market_status_data(all_df_tab2)
 
-                # --- [알고리즘] 버블 점수 산출 (0~100) ---
-                # 1. VIX 점수 (낮을수록 과열): 12이하면 100점, 30이상이면 0점
-                # VIX 12~20 사이가 일반적
-                score_vix = max(0, min(100, (30 - real_vix) * (100/18)))
-                
-                # 2. IPO 수익률 점수 (높을수록 과열): 평균 30% 수익이면 100점, -10%면 0점
-                score_ipo = max(0, min(100, (real_ipo_return + 10) * 2.5))
-                
-                # 종합 점수 (VIX 40% + IPO수익률 60% 반영)
-                bubble_score = (score_vix * 0.4) + (score_ipo * 0.6)
+            # --- 섹션 1: IPO 시장 지표 (IPO Specific) ---
+            st.subheader("1. 🦄 미국 IPO 시장 과열 평가 (IPO Specific)")
+            st.markdown("""
+            <style>
+                .metric-card { background-color:#f9f9f9; padding:15px; border-radius:10px; border-left: 5px solid #6e8efb; margin-bottom:10px; }
+                .metric-title { font-weight:bold; font-size:16px; color:#333; }
+                .metric-desc { font-size:13px; color:#666; margin-bottom:5px; }
+                .metric-source { font-size:11px; color:#999; font-style:italic; }
+                .metric-value { font-size:18px; font-weight:bold; margin-top:5px; }
+                .status-hot { color: #d32f2f; background-color: #fce8e6; padding: 2px 6px; border-radius: 4px; font-size:12px; }
+                .status-cold { color: #1976d2; background-color: #e3f2fd; padding: 2px 6px; border-radius: 4px; font-size:12px; }
+                .status-good { color: #1b5e20; background-color: #e8f5e9; padding: 2px 6px; border-radius: 4px; font-size:12px; }
+            </style>
+            """, unsafe_allow_html=True)
 
-            # [3] 게이지 차트 시각화
-            c_chart, c_desc = st.columns([1.5, 1])
+            # (A) Underpricing (첫날 수익률)
+            ret = m_data['ipo_return']
+            if ret >= 20: label_ret = "🔥 과열 (평균 20% 이상 폭등)"
+            elif ret >= 0: label_ret = "✅ 적정 (건전한 상승)"
+            else: label_ret = "❄️ 침체 (공모가 하회)"
             
-            with c_chart:
-                fig = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = bubble_score,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "<b>Unicornfinder Market Index</b>", 'font': {'size': 18}},
-                    gauge = {
-                        'axis': {'range': [0, 100], 'tickwidth': 1},
-                        'bar': {'color': "#ff4b4b" if bubble_score > 75 else ("#00ff41" if bubble_score < 40 else "#f7cb15")},
-                        'bgcolor': "white",
-                        'steps': [
-                            {'range': [0, 40], 'color': '#e6f4ea'},  # 침체/저평가
-                            {'range': [40, 75], 'color': '#fff8e1'}, # 적정
-                            {'range': [75, 100], 'color': '#fce8e6'} # 과열
-                        ],
-                    }
-                ))
-                fig.update_layout(height=250, margin=dict(l=30, r=30, t=30, b=0))
-                st.plotly_chart(fig, use_container_width=True)
-
-            with c_desc:
-                st.write("<br>", unsafe_allow_html=True)
-                st.markdown(f"""
-                <div style='padding:15px; border-radius:10px; background-color:#f8f9fa; border:1px solid #eee;'>
-                    <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
-                        <span>😨 공포지수 (VIX)</span>
-                        <b>{real_vix:.2f}</b>
-                    </div>
-                    <div style='font-size:12px; color:#666; margin-bottom:15px;'>
-                        {"• 시장이 매우 안심하고 있습니다 (탐욕)" if real_vix < 15 else ("• 시장이 공포를 느끼고 있습니다" if real_vix > 25 else "• 변동성이 평이한 수준입니다")}
-                    </div>
-                    <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
-                        <span>🚀 최근 IPO 수익률</span>
-                        <span style='color:{"red" if real_ipo_return > 0 else "blue"}; font-weight:bold;'>{real_ipo_return:+.1f}%</span>
-                    </div>
-                    <div style='font-size:12px; color:#666;'>
-                        최근 상장된 5개 기업의 평균 손익입니다.
-                    </div>
+            st.markdown(f"""
+            <div class='metric-card'>
+                <div class='metric-title'>📈 First-Day Returns (Underpricing)</div>
+                <div class='metric-desc'>상장 첫날 시초가가 공모가 대비 얼마나 폭등했는지를 나타냅니다. 너무 높으면 투기적 자금이 쏠린 상태입니다.</div>
+                <div class='metric-source'>🎓 근거: Jay Ritter (Univ. of Florida), "Initial Public Offerings: Underpricing"</div>
+                <div style='margin-top:8px; border-top:1px solid #ddd; padding-top:8px;'>
+                    <span style='font-size:14px;'>실시간 판단 기준:</span> 
+                    <span class='metric-value' style='color: {"#d32f2f" if ret>=20 else "#333"};'>
+                        최근 평균 {ret:+.1f}% ▶ {label_ret}
+                    </span>
                 </div>
-                """, unsafe_allow_html=True)
+            </div>
+            """, unsafe_allow_html=True)
 
-            # [4] 상태 진단 메시지
-            if bubble_score > 75:
-                status_msg = "🔥 **'Extreme Greed (과열)'** 상태입니다. 신규 상장주에 거품이 꼈을 확률이 높으니 보수적으로 접근하세요."
-                bg_col = "#fce8e6"
-            elif bubble_score < 40:
-                status_msg = "❄️ **'Fear (공포)'** 상태입니다. IPO 시장이 얼어붙었지만, 옥석을 가린다면 저가 매수의 기회입니다."
-                bg_col = "#e6f4ea"
-            else:
-                status_msg = "⚖️ **'Neutral (적정)'** 상태입니다. 시장 분위기보다는 개별 기업의 가치에 집중할 때입니다."
-                bg_col = "#fff8e1"
+            # (B) Filing Volume (상장 예정 물량)
+            cnt = m_data['ipo_count']
+            label_cnt = "활발" if cnt >= 10 else "보통" if cnt >= 3 else "한산"
             
-            st.markdown(f"<div style='background:{bg_col}; padding:15px; border-radius:10px; text-align:center; font-weight:bold; color:#333; margin-top:10px;'>{status_msg}</div>", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class='metric-card'>
+                <div class='metric-title'>📑 Filings Volume (상장 예정 건수)</div>
+                <div class='metric-desc'>향후 30일 이내 상장 예정인 기업의 수입니다. IPO 건수가 급증하는 시기는 시장 고점일 가능성이 있습니다.</div>
+                <div class='metric-source'>🎓 근거: Ibbotson & Jaffe (1975), "'Hot Issue' Markets"</div>
+                <div style='margin-top:8px; border-top:1px solid #ddd; padding-top:8px;'>
+                    <span style='font-size:14px;'>실시간 판단 기준:</span> 
+                    <span class='metric-value'>
+                        30일 내 {cnt}개 예정 ▶ {label_cnt}
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.write("<br>", unsafe_allow_html=True)
+
+            # --- 섹션 2: 일반 주식 시장 지표 (Macro Market) ---
+            st.subheader("2. 🇺🇸 미국 일반 주식시장 과열 평가 (Macro Market)")
+
+            # (A) VIX (공포 지수)
+            vix = m_data['vix']
+            if vix == 0: label_vix = "데이터 없음"
+            elif vix <= 15: label_vix = "🔥 극도 탐욕 (조정 가능성 高)"
+            elif vix >= 25: label_vix = "❄️ 공포 (저점 매수 기회)"
+            else: label_vix = "⚖️ 중립 (안정적)"
+
+            st.markdown(f"""
+            <div class='metric-card' style='border-left: 5px solid #ff9800;'>
+                <div class='metric-title'>😨 VIX Index (Fear Gauge)</div>
+                <div class='metric-desc'>S&P 500 지수의 변동성을 나타냅니다. 수치가 낮을수록 투자자들이 과도하게 안심(탐욕)하고 있음을 의미합니다.</div>
+                <div class='metric-source'>🎓 근거: CBOE / Whaley (1993)</div>
+                <div style='margin-top:8px; border-top:1px solid #ddd; padding-top:8px;'>
+                    <span style='font-size:14px;'>실시간 판단 기준:</span> 
+                    <span class='metric-value' style='color: {"#d32f2f" if vix<=15 else "#333"};'>
+                        현재 {vix:.2f} ▶ {label_vix}
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # (B) Market Momentum (이격도)
+            trend = m_data.get('spx_trend', 0)
+            if trend >= 15: label_trend = "🔥 과열 (이평선 대비 급등)"
+            elif trend <= -10: label_trend = "❄️ 과매도 (반등 기대)"
+            else: label_trend = "✅ 정상 범위"
+
+            st.markdown(f"""
+            <div class='metric-card' style='border-left: 5px solid #ff9800;'>
+                <div class='metric-title'>📊 S&P 500 Momentum (200일 이격도)</div>
+                <div class='metric-desc'>현재 주가가 장기 평균(200일 이동평균선)보다 얼마나 높은지 측정합니다. 역사적으로 괴리율이 너무 크면 회귀하는 경향이 있습니다.</div>
+                <div class='metric-source'>🎓 근거: Technical Analysis of Financial Markets (Murphy)</div>
+                <div style='margin-top:8px; border-top:1px solid #ddd; padding-top:8px;'>
+                    <span style='font-size:14px;'>실시간 판단 기준:</span> 
+                    <span class='metric-value' style='color: {"#d32f2f" if trend>=15 else "#333"};'>
+                        + {trend:.1f}% 괴리 ▶ {label_trend}
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
-            st.write("---")
-            st.markdown("##### 📚 참고한 학술적 지표 (References)")
-            # (이전과 동일한 설명 카드 코드는 여기에 유지하시면 됩니다)
-            m_cols = st.columns(3)
-            # Jay Ritter (IPO Underpricing)
-            with m_cols[0]:
-                st.markdown("""
-                <div style="border:1px solid #eee; border-radius:10px; padding:15px; height:200px; background:#fafafa;">
-                    <div style="font-weight:bold; color:#004e92;">IPO Underpricing</div>
-                    <div style="font-size:12px; color:#555; margin-bottom:10px;">Jay Ritter (Univ. of Florida)</div>
-                    <div style="font-size:13px; line-height:1.4;">
-                        "상장 첫날 수익률이 높을수록 시장은 과열된 상태이다."<br>
-                        역사적으로 첫날 평균 수익률이 20%를 넘으면 버블 초입으로 봅니다.
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            # Robert Shiller (CAPE)
-            with m_cols[1]:
-                st.markdown("""
-                <div style="border:1px solid #eee; border-radius:10px; padding:15px; height:200px; background:#fafafa;">
-                    <div style="font-weight:bold; color:#004e92;">Irrational Exuberance</div>
-                    <div style="font-size:12px; color:#555; margin-bottom:10px;">Robert Shiller (Yale)</div>
-                    <div style="font-size:13px; line-height:1.4;">
-                        "가격이 펀더멘털을 벗어나 심리에 의해 움직이는 비이성적 과열."<br>
-                        Shiller PE 및 투자자 심리 설문을 주요 지표로 사용합니다.
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            # Warren Buffett Indicator
-            with m_cols[2]:
-                st.markdown("""
-                <div style="border:1px solid #eee; border-radius:10px; padding:15px; height:200px; background:#fafafa;">
-                    <div style="font-weight:bold; color:#004e92;">Buffett Indicator</div>
-                    <div style="font-size:12px; color:#555; margin-bottom:10px;">Warren Buffett</div>
-                    <div style="font-size:13px; line-height:1.4;">
-                        "GDP 대비 시가총액 비율이 120%를 넘으면 위험하다."<br>
-                        거시 경제 관점에서 주식 시장 전체의 고평가 여부를 판단합니다.
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+            # [종합 코멘트]
+            st.info("💡 **Tip:** IPO 시장은 거시 경제(Macro)가 과열될 때 수익률이 가장 높지만, 그만큼 하락 위험도 큽니다. VIX가 낮고(탐욕), IPO 수익률이 높을(과열) 때는 '단기 매매' 관점으로 접근하는 것이 유리합니다.")
 
         # --- Tab 3: 최종 투자 결정 ---
         with tab3:
@@ -1471,6 +1481,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
