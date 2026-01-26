@@ -325,9 +325,22 @@ if st.session_state.page == 'intro':
         if st.button("시작하기", key="start_app", use_container_width=True):
             st.session_state.page = 'login'; st.rerun()
 
-# 2. 로그인 화면
+# --- 2. 로그인 화면 ---
 elif st.session_state.page == 'login':
-    st.write("<br>" * 5, unsafe_allow_html=True)
+    st.write("<br>" * 2, unsafe_allow_html=True) # 여백 조절
+    
+    # [추가] 상단 타이틀 이미지 표시 영역
+    t_col1, t_col2, t_col3 = st.columns([1, 0.8, 1]) # 이미지 크기 조절을 위한 컬럼 분할
+    with t_col2:
+        img_path = "title_unicorn.png"
+        if os.path.exists(img_path):
+            st.image(img_path, use_container_width=True)
+        else:
+            # 로컬에 파일이 없을 경우를 대비해 GitHub Raw URL 방식을 사용할 수도 있습니다.
+            # st.image("https://raw.githubusercontent.com/사용자계정/저장소명/main/title_unicorn.png")
+            pass
+
+    st.write("<br>", unsafe_allow_html=True)
     _, col_m, _ = st.columns([1, 1.2, 1])
     
     # [가상 DB] 가입된 사용자 목록을 기억하기 위한 임시 저장소
@@ -1341,6 +1354,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
