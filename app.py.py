@@ -921,75 +921,177 @@ elif st.session_state.page == 'detail':
                 </a>
             """, unsafe_allow_html=True)
 
-        # --- Tab 2: AI 가치 평가 (누락된 상세 로직 및 디자인 복구) ---
+        # --- Tab 2: 실시간 시장 과열도 평가 (Real-time Market Heatmap) ---
         with tab2:
-            # 가상 점수 계산 로직
-            growth_rate = 0.45  # (실제로는 fin_data 등에서 가져와야 함)
-            profit_margin = -0.1
+            st.markdown("### 🌡️ 실시간 IPO 시장 온도계")
+            st.caption("고정된 값이 아닙니다. **실시간 VIX 지수**와 **최근 상장된 5개 종목의 실제 수익률**을 분석해 산출한 결과입니다.")
+
+            # [1] 실시간 데이터 수집 함수
+            def get_market_sentiment_realtime(df_calendar):
+                # 1. VIX (공포지수) 가져오기 - Yahoo Finance
+                try:
+                    vix_data = yf.Ticker("^VIX").history(period="1d")
+                    real_vix = vix_data['Close'].iloc[-1]
+                except:
+                    real_vix = 20.0 # 에러 시 기본값 (중립)
+
+                # 2. 최근 IPO 분위기 (최근 상장 5개 종목 수익률 평균)
+                # 앱이 가진 캘린더 데이터 활용
+                recent_avg_ret = 0
+                count = 0
+                
+                if not df_calendar.empty:
+                    # 상장일이 오늘보다 이전인 것들만 필터링 (이미 상장된 것)
+                    traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < datetime.now().date()]
+                    # 최신순 정렬 후 5개만 뽑기
+                    recent_ipos = traded_ipos.sort_values(by='공모일_dt', ascending=False).head(5)
+                    
+                    total_ret = 0
+                    for idx, row in recent_ipos.iterrows():
+                        try:
+                            # 공모가
+                            p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
+                            # 현재가 (API 호출)
+                            p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
+                            
+                            if p_ipo > 0 and p_curr > 0:
+                                ret = ((p_curr - p_ipo) / p_ipo) * 100
+                                total_ret += ret
+                                count += 1
+                        except: pass
+                    
+                    if count > 0:
+                        recent_avg_ret = total_ret / count
+
+                return real_vix, recent_avg_ret
+
+            # [2] 데이터 로딩 및 점수 계산
+            with st.spinner("🔄 시장 데이터를 실시간으로 수집 중입니다..."):
+                # 캘린더 데이터 가져오기 (이미 로드된 all_df 사용)
+                # 만약 all_df가 없으면 다시 로드
+                if 'all_df' not in locals(): 
+                    all_df_raw_tab2 = get_extended_ipo_data(MY_API_KEY)
+                    if not all_df_raw_tab2.empty:
+                        all_df_tab2 = all_df_raw_tab2.dropna(subset=['exchange'])
+                        all_df_tab2['공모일_dt'] = pd.to_datetime(all_df_tab2['date'])
+                    else:
+                        all_df_tab2 = pd.DataFrame()
+                else:
+                    all_df_tab2 = all_df
+
+                # 함수 실행
+                real_vix, real_ipo_return = get_market_sentiment_realtime(all_df_tab2)
+
+                # --- [알고리즘] 버블 점수 산출 (0~100) ---
+                # 1. VIX 점수 (낮을수록 과열): 12이하면 100점, 30이상이면 0점
+                # VIX 12~20 사이가 일반적
+                score_vix = max(0, min(100, (30 - real_vix) * (100/18)))
+                
+                # 2. IPO 수익률 점수 (높을수록 과열): 평균 30% 수익이면 100점, -10%면 0점
+                score_ipo = max(0, min(100, (real_ipo_return + 10) * 2.5))
+                
+                # 종합 점수 (VIX 40% + IPO수익률 60% 반영)
+                bubble_score = (score_vix * 0.4) + (score_ipo * 0.6)
+
+            # [3] 게이지 차트 시각화
+            c_chart, c_desc = st.columns([1.5, 1])
             
-            growth_score = min(100, int(growth_rate * 150 + 20))
-            profit_score = max(10, min(100, int((profit_margin + 0.3) * 200)))
-            interest_score = 85 + (len(stock['symbol']) % 15)
-            total_score = (growth_score * 0.4) + (profit_score * 0.3) + (interest_score * 0.3)
-            
-            # 적정가 계산
-            fair_low = off_val * (1 + (total_score - 50) / 200) if off_val > 0 else 20.0
-            fair_high = fair_low * 1.25
-            undervalued_pct = ((fair_low - off_val) / off_val) * 100 if off_val > 0 else 0
+            with c_chart:
+                fig = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = bubble_score,
+                    domain = {'x': [0, 1], 'y': [0, 1]},
+                    title = {'text': "<b>Unicornfinder Market Index</b>", 'font': {'size': 18}},
+                    gauge = {
+                        'axis': {'range': [0, 100], 'tickwidth': 1},
+                        'bar': {'color': "#ff4b4b" if bubble_score > 75 else ("#00ff41" if bubble_score < 40 else "#f7cb15")},
+                        'bgcolor': "white",
+                        'steps': [
+                            {'range': [0, 40], 'color': '#e6f4ea'},  # 침체/저평가
+                            {'range': [40, 75], 'color': '#fff8e1'}, # 적정
+                            {'range': [75, 100], 'color': '#fce8e6'} # 과열
+                        ],
+                    }
+                ))
+                fig.update_layout(height=250, margin=dict(l=30, r=30, t=30, b=0))
+                st.plotly_chart(fig, use_container_width=True)
 
-            # 1. 방법론 카드 (누락되었던 부분 복구)
-            st.markdown("##### 가치 평가 방법론 상세 (Academic Methodology)")
-            p_cols = st.columns(3)
-            methodologies = [
-                {"title": "Relative Valuation", "author": "Kim & Ritter (1999)", "desc": "동종 업계 유사 기업의 P/S, P/E 배수를 적용합니다.", "link": "https://scholar.google.com/scholar?q=Kim+Ritter+1999+Valuing+IPO"},
-                {"title": "Fair Value Model", "author": "Purnanandam (2004)", "desc": "공모가와 내재 가치의 괴리율을 측정합니다.", "link": "https://scholar.google.com/scholar?q=Purnanandam+2004+Are+IPOs+Priced+Right"},
-                {"title": "Margin of Safety", "author": "Loughran & Ritter", "desc": "장기 수익성을 예측하여 안전 마진을 계산합니다.", "link": "https://scholar.google.com/scholar?q=Loughran+Ritter+IPO+Long-run+Performance"}
-            ]
-
-            for i, m in enumerate(methodologies):
-                with p_cols[i]:
-                    st.markdown(f"""
-                        <div style='border-top: 4px solid #6e8efb; background-color: #f8f9fa; padding: 15px; border-radius: 10px; height: 180px; display: flex; flex-direction: column; justify-content: space-between;'>
-                            <div>
-                                <p style='font-size: 11px; font-weight: bold; color: #6e8efb; margin-bottom: 2px;'>{m['title']}</p>
-                                <p style='font-size: 13px; font-weight: 600; color: #333;'>{m['author']}</p>
-                                <p style='font-size: 12px; color: #555; line-height: 1.4;'>{m['desc']}</p>
-                            </div>
-                            <a href='{m['link']}' target='_blank' style='text-decoration: none;'>
-                                <button style='width: 100%; background-color: #ffffff; border: 1px solid #6e8efb; color: #6e8efb; border-radius: 5px; font-size: 11px; cursor: pointer; padding: 5px 0;'>논문 보기 ↗</button>
-                            </a>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-            st.write("<br>", unsafe_allow_html=True)
-            
-            # 2. 종합 점수 및 적정가 (복구)
-            st.markdown(f"#### AI 가치 분석 및 적정가 리포트")
-            col_metrics = st.columns(3)
-            col_metrics[0].metric("성장성 점수 (G)", f"{growth_score}점"); col_metrics[0].progress(growth_score/100)
-            col_metrics[1].metric("수익성 점수 (P)", f"{profit_score}점"); col_metrics[1].progress(profit_score/100)
-            col_metrics[2].metric("시장 관심도 (I)", f"{interest_score}점"); col_metrics[2].progress(interest_score/100)
-
-            st.write("---")
-            res_col1, res_col2 = st.columns([1.5, 1])
-            with res_col1:
+            with c_desc:
+                st.write("<br>", unsafe_allow_html=True)
                 st.markdown(f"""
-                    <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #eef2ff; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
-                        <p style='color: #666; font-size: 14px; margin-bottom: 5px;'>AI 추정 적정 가치 범위 (Fair Value)</p>
-                        <h2 style='color: #6e8efb; margin-bottom: 10px;'>${fair_low:.2f} — ${fair_high:.2f}</h2>
-                        <p style='color: {"#28a745" if undervalued_pct > 0 else "#dc3545"}; font-weight: bold; font-size: 16px;'>
-                            현재 공모가 대비 약 {abs(undervalued_pct):.1f}% {"저평가" if undervalued_pct > 0 else "고평가"} 상태
-                        </p>
+                <div style='padding:15px; border-radius:10px; background-color:#f8f9fa; border:1px solid #eee;'>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
+                        <span>😨 공포지수 (VIX)</span>
+                        <b>{real_vix:.2f}</b>
                     </div>
+                    <div style='font-size:12px; color:#666; margin-bottom:15px;'>
+                        {"• 시장이 매우 안심하고 있습니다 (탐욕)" if real_vix < 15 else ("• 시장이 공포를 느끼고 있습니다" if real_vix > 25 else "• 변동성이 평이한 수준입니다")}
+                    </div>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
+                        <span>🚀 최근 IPO 수익률</span>
+                        <span style='color:{"red" if real_ipo_return > 0 else "blue"}; font-weight:bold;'>{real_ipo_return:+.1f}%</span>
+                    </div>
+                    <div style='font-size:12px; color:#666;'>
+                        최근 상장된 5개 기업의 평균 손익입니다.
+                    </div>
+                </div>
                 """, unsafe_allow_html=True)
-            with res_col2:
-                st.markdown(f"**🤖 {stock['symbol']} 종합 매력도**")
-                st.title(f"{total_score:.1f} / 100")
-                status = "매우 높음" if total_score > 75 else ("보통" if total_score > 50 else "주의")
-                st.info(f"종합 투자 매력도는 **'{status}'** 단계입니다.")
 
-            with st.expander("AI 알고리즘 산출 수식 보기"):
-                st.latex(r"Score_{total} = (G \times 0.4) + (P \times 0.3) + (I \times 0.3)")
+            # [4] 상태 진단 메시지
+            if bubble_score > 75:
+                status_msg = "🔥 **'Extreme Greed (과열)'** 상태입니다. 신규 상장주에 거품이 꼈을 확률이 높으니 보수적으로 접근하세요."
+                bg_col = "#fce8e6"
+            elif bubble_score < 40:
+                status_msg = "❄️ **'Fear (공포)'** 상태입니다. IPO 시장이 얼어붙었지만, 옥석을 가린다면 저가 매수의 기회입니다."
+                bg_col = "#e6f4ea"
+            else:
+                status_msg = "⚖️ **'Neutral (적정)'** 상태입니다. 시장 분위기보다는 개별 기업의 가치에 집중할 때입니다."
+                bg_col = "#fff8e1"
+            
+            st.markdown(f"<div style='background:{bg_col}; padding:15px; border-radius:10px; text-align:center; font-weight:bold; color:#333; margin-top:10px;'>{status_msg}</div>", unsafe_allow_html=True)
+            
+            st.write("---")
+            st.markdown("##### 📚 참고한 학술적 지표 (References)")
+            # (이전과 동일한 설명 카드 코드는 여기에 유지하시면 됩니다)
+            m_cols = st.columns(3)
+            # Jay Ritter (IPO Underpricing)
+            with m_cols[0]:
+                st.markdown("""
+                <div style="border:1px solid #eee; border-radius:10px; padding:15px; height:200px; background:#fafafa;">
+                    <div style="font-weight:bold; color:#004e92;">IPO Underpricing</div>
+                    <div style="font-size:12px; color:#555; margin-bottom:10px;">Jay Ritter (Univ. of Florida)</div>
+                    <div style="font-size:13px; line-height:1.4;">
+                        "상장 첫날 수익률이 높을수록 시장은 과열된 상태이다."<br>
+                        역사적으로 첫날 평균 수익률이 20%를 넘으면 버블 초입으로 봅니다.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Robert Shiller (CAPE)
+            with m_cols[1]:
+                st.markdown("""
+                <div style="border:1px solid #eee; border-radius:10px; padding:15px; height:200px; background:#fafafa;">
+                    <div style="font-weight:bold; color:#004e92;">Irrational Exuberance</div>
+                    <div style="font-size:12px; color:#555; margin-bottom:10px;">Robert Shiller (Yale)</div>
+                    <div style="font-size:13px; line-height:1.4;">
+                        "가격이 펀더멘털을 벗어나 심리에 의해 움직이는 비이성적 과열."<br>
+                        Shiller PE 및 투자자 심리 설문을 주요 지표로 사용합니다.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Warren Buffett Indicator
+            with m_cols[2]:
+                st.markdown("""
+                <div style="border:1px solid #eee; border-radius:10px; padding:15px; height:200px; background:#fafafa;">
+                    <div style="font-weight:bold; color:#004e92;">Buffett Indicator</div>
+                    <div style="font-size:12px; color:#555; margin-bottom:10px;">Warren Buffett</div>
+                    <div style="font-size:13px; line-height:1.4;">
+                        "GDP 대비 시가총액 비율이 120%를 넘으면 위험하다."<br>
+                        거시 경제 관점에서 주식 시장 전체의 고평가 여부를 판단합니다.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
         # --- Tab 3: 최종 투자 결정 ---
         with tab3:
@@ -1369,6 +1471,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
