@@ -599,9 +599,15 @@ elif st.session_state.page == 'calendar':
                     label_visibility="collapsed")
                 
         
-            with col_f2:
-                sort_option = st.selectbox("🎯 리스트 정렬", ["최신순 (기본)", "🚀 수익률 높은순 (실시간)", "📈 매출 성장률순 (AI)"])
+           with col_f2:
+                # 라벨을 숨기고 선택지를 2개로 축소
+                sort_option = st.selectbox(
+                    label="🎯 리스트 정렬", 
+                    options=["최신순 (기본)", "🚀 수익률 높은순 (실시간)"],
+                    label_visibility="collapsed" # '🎯 리스트 정렬' 글자를 숨깁니다.
+                )
             
+            # [필터 로직]
             if period == "상장 예정 (90일)":
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
             elif period == "최근 6개월": 
@@ -611,7 +617,7 @@ elif st.session_state.page == 'calendar':
             elif period == "최근 18개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
-        # 정렬 로직
+        # [정렬 로직]
         display_df['live_price'] = 0.0
         if not display_df.empty:
             if sort_option == "최신순 (기본)":
@@ -629,17 +635,6 @@ elif st.session_state.page == 'calendar':
                         returns.append(ret); prices.append(p_curr)
                     display_df['temp_return'] = returns; display_df['live_price'] = prices
                     display_df = display_df.sort_values(by='temp_return', ascending=False)
-            elif sort_option == "📈 매출 성장률순 (AI)":
-                 with st.spinner("📊 재무 분석 중..."):
-                    growths = []
-                    for idx, row in display_df.iterrows():
-                        try:
-                            fins = get_financial_metrics(row['symbol'], MY_API_KEY)
-                            g = float(fins['growth']) if fins else -9999
-                        except: g = -9999
-                        growths.append(g)
-                    display_df['temp_growth'] = growths
-                    display_df = display_df.sort_values(by='temp_growth', ascending=False)
 
         # ----------------------------------------------------------------
         # [핵심] 리스트 레이아웃 (7 : 3 비율)
@@ -1345,6 +1340,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
