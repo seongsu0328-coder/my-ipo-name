@@ -619,12 +619,12 @@ elif st.session_state.page == 'calendar':
             display_df['live_price'] = 0.0
 
         if not display_df.empty:
-            # selectbox에서 선택한 값과 정확히 일치해야 합니다.
+            # 상단 selectbox의 options=["최신순", "수익률"] 와 이름을 맞춥니다.
             if sort_option == "최신순": 
                 display_df = display_df.sort_values(by='공모일_dt', ascending=False)
                 
-            elif sort_option == "🚀 수익률 높은순 (실시간)":
-                with st.spinner("🔄 실시간 시세 조회 및 수익률 계산 중..."):
+            elif sort_option == "수익률": # <--- "🚀 수익률..." 대신 "수익률"로 변경
+                with st.spinner("🔄 실시간 시세 조회 중..."):
                     returns = []
                     prices = []
                     for idx, row in display_df.iterrows():
@@ -633,7 +633,7 @@ elif st.session_state.page == 'calendar':
                             p_raw = str(row.get('price','0')).replace('$','').split('-')[0]
                             p_ipo = float(p_raw) if p_raw else 0
                             
-                            # 실시간가 API 호출
+                            # 실시간가 API 호출 (가장 중요한 부분)
                             p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
                             
                             # 수익률 계산
@@ -648,8 +648,8 @@ elif st.session_state.page == 'calendar':
                         prices.append(p_curr)
                     
                     display_df['temp_return'] = returns
-                    display_df['live_price'] = prices
-                    # 계산된 수익률(temp_return)로 내림차순 정렬
+                    display_df['live_price'] = prices # 계산된 가격을 데이터프레임에 삽입
+                    # 수익률 순으로 정렬
                     display_df = display_df.sort_values(by='temp_return', ascending=False)
 
         # ----------------------------------------------------------------
@@ -1356,6 +1356,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
