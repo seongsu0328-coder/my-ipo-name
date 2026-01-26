@@ -615,22 +615,41 @@ elif st.session_state.page == 'calendar':
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
         # [정렬 로직]
-        display_df['live_price'] = 0.0
+        if 'live_price' not in display_df.columns:
+            display_df['live_price'] = 0.0
+
         if not display_df.empty:
-            if sort_option == "최신순 (기본)":
+            # selectbox에서 선택한 값과 정확히 일치해야 합니다.
+            if sort_option == "최신순": 
                 display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+                
             elif sort_option == "🚀 수익률 높은순 (실시간)":
-                 with st.spinner("🔄 시세 조회 중..."):
+                with st.spinner("🔄 실시간 시세 조회 및 수익률 계산 중..."):
                     returns = []
                     prices = []
                     for idx, row in display_df.iterrows():
                         try:
-                            p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
+                            # 공모가 숫자 추출
+                            p_raw = str(row.get('price','0')).replace('$','').split('-')[0]
+                            p_ipo = float(p_raw) if p_raw else 0
+                            
+                            # 실시간가 API 호출
                             p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
-                            ret = ((p_curr - p_ipo) / p_ipo) * 100 if p_ipo > 0 and p_curr > 0 else -9999
-                        except: ret = -9999; p_curr = 0
-                        returns.append(ret); prices.append(p_curr)
-                    display_df['temp_return'] = returns; display_df['live_price'] = prices
+                            
+                            # 수익률 계산
+                            if p_ipo > 0 and p_curr > 0:
+                                ret = ((p_curr - p_ipo) / p_ipo) * 100
+                            else:
+                                ret = -9999
+                        except: 
+                            ret = -9999
+                            p_curr = 0
+                        returns.append(ret)
+                        prices.append(p_curr)
+                    
+                    display_df['temp_return'] = returns
+                    display_df['live_price'] = prices
+                    # 계산된 수익률(temp_return)로 내림차순 정렬
                     display_df = display_df.sort_values(by='temp_return', ascending=False)
 
         # ----------------------------------------------------------------
@@ -1337,6 +1356,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
