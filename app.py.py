@@ -1039,7 +1039,7 @@ elif st.session_state.page == 'detail':
             # =================================================================
             # 1. IPO 시장 지표 (IPO Specific Indicator)
             # =================================================================
-            st.subheader("1. IPO 시장 지표 (IPO Specific Indicator)")
+            st.subheader("IPO 시장 지표 (IPO Specific Indicator)")
             
             c1, c2, c3, c4 = st.columns(4)
 
@@ -1116,7 +1116,7 @@ elif st.session_state.page == 'detail':
             # =================================================================
             # 2. 🇺🇸 거시 시장 지표 (Macro Market)
             # =================================================================
-            st.subheader("2. 🇺🇸 Macro Market Indicators")
+            st.subheader("US Macro Market Indicators")
 
             m1, m2, m3, m4 = st.columns(4)
 
@@ -1656,6 +1656,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
