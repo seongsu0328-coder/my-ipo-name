@@ -489,7 +489,8 @@ elif st.session_state.page == 'calendar':
     st.markdown("""
         <style>
         /* 1. 기본 설정 */
-        * { box-sizing: border-box !important; color: #333333 !important; }
+        * { box-sizing: border-box !important; }
+body { color: #333333; } /* 기본 텍스트 색상만 지정 */
         
         /* 2. 상단 여백 확보 */
         .block-container {
@@ -1368,6 +1369,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
