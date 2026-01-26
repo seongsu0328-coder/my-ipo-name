@@ -591,23 +591,20 @@ elif st.session_state.page == 'calendar':
         else:
             col_f1, col_f2 = st.columns([2, 1])
             with col_f1:
-                # 'with' 문 바로 아랫줄은 반드시 들여쓰기가 되어야 합니다.
                 period = st.radio(
                     label="", 
                     options=["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], 
                     horizontal=True,
-                    label_visibility="collapsed")
-                
-        
-           with col_f2:
-                # 라벨을 숨기고 선택지를 2개로 축소
+                    label_visibility="collapsed"
+                )
+            with col_f2:
                 sort_option = st.selectbox(
-                    label="🎯 리스트 정렬", 
+                    label="", 
                     options=["최신순 (기본)", "🚀 수익률 높은순 (실시간)"],
-                    label_visibility="collapsed" # '🎯 리스트 정렬' 글자를 숨깁니다.
+                    label_visibility="collapsed"
                 )
             
-            # [필터 로직]
+            # [필터 로직] - 반드시 위 with 문들과 세로 시작선이 같아야 합니다.
             if period == "상장 예정 (90일)":
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
             elif period == "최근 6개월": 
@@ -1340,6 +1337,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
