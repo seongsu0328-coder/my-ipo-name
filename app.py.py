@@ -591,7 +591,13 @@ elif st.session_state.page == 'calendar':
         else:
             col_f1, col_f2 = st.columns([2, 1])
             with col_f1:
-                period = st.radio("📅 조회 기간", ["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], horizontal=True)
+    # 제목 없이 버튼들만 나옵니다.
+    period = st.radio(
+        "", 
+        ["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], 
+        horizontal=True,
+        label_visibility="collapsed"
+    )
             with col_f2:
                 sort_option = st.selectbox("🎯 리스트 정렬", ["최신순 (기본)", "🚀 수익률 높은순 (실시간)", "📈 매출 성장률순 (AI)"])
             
@@ -1338,6 +1344,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
