@@ -1189,6 +1189,95 @@ elif st.session_state.page == 'detail':
                     <div class='metric-footer'>Ref: CNN Business Logic</div>
                 </div>""", unsafe_allow_html=True)
 
+                st.write("<br>", unsafe_allow_html=True)
+            st.write("---")
+
+            # [5] 학술적 근거 및 원문 링크 섹션
+            with st.expander("📚 학술적 근거 및 원문 논문 (References)", expanded=False):
+                st.markdown("""
+                <style>
+                    .ref-container { margin-top: 5px; }
+                    .ref-item { 
+                        padding: 10px 0; 
+                        border-bottom: 1px solid #f0f0f0; 
+                        display: flex; 
+                        justify-content: space-between; 
+                        align-items: center; 
+                        transition: 0.2s;
+                    }
+                    .ref-item:hover { background-color: #fafafa; padding-left: 5px; padding-right: 5px; }
+                    .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
+                    .ref-title:hover { text-decoration: underline; }
+                    .ref-author { font-size: 12px; color: #666; margin-top: 2px; }
+                    .ref-btn { 
+                        background: #fff; 
+                        border: 1px solid #ddd; 
+                        padding: 4px 10px; 
+                        border-radius: 15px; 
+                        font-size: 11px; 
+                        color: #555; 
+                        text-decoration: none; 
+                        white-space: nowrap;
+                    }
+                    .ref-btn:hover { border-color: #004e92; color: #004e92; }
+                </style>
+                """, unsafe_allow_html=True)
+
+                # 논문 및 출처 데이터 리스트
+                references = [
+                    {
+                        "title": "Initial Public Offerings: Underpricing (Data Site)", 
+                        "author": "Jay R. Ritter (University of Florida)", 
+                        "link": "https://site.warrington.ufl.edu/ritter/ipo-data/"
+                    },
+                    {
+                        "title": "'Hot Issue' Markets (Filings Volume)", 
+                        "author": "Ibbotson & Jaffe (The Journal of Finance, 1975)", 
+                        "link": "https://www.jstor.org/stable/2326615"
+                    },
+                    {
+                        "title": "The Choice Between Firm-Commitment IPOs... (Withdrawal)", 
+                        "author": "Dunbar (Journal of Financial Economics, 1998)", 
+                        "link": "https://www.sciencedirect.com/science/article/abs/pii/S0304405X0000042X"
+                    },
+                    {
+                        "title": "The VIX Index Methodology (White Paper)", 
+                        "author": "CBOE (Chicago Board Options Exchange)", 
+                        "link": "https://www.cboe.com/micro/vix/vixwhite.pdf"
+                    },
+                    {
+                        "title": "Warren Buffett on the Stock Market (Buffett Indicator)", 
+                        "author": "Warren Buffett (Fortune Magazine, 2001)", 
+                        "link": "https://archive.fortune.com/magazines/fortune/fortune_archive/2001/12/10/314691/index.htm"
+                    },
+                    {
+                        "title": "Online Data: Robert Shiller (CAPE Ratio)", 
+                        "author": "Robert Shiller (Yale University)", 
+                        "link": "http://www.econ.yale.edu/~shiller/data.htm"
+                    },
+                    {
+                        "title": "Fear & Greed Index Methodology", 
+                        "author": "CNN Business", 
+                        "link": "https://edition.cnn.com/markets/fear-and-greed"
+                    }
+                ]
+
+                # 리스트 출력 루프
+                for ref in references:
+                    st.markdown(f"""
+                    <div class='ref-item'>
+                        <div>
+                            <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
+                            <div class='ref-author'>{ref['author']}</div>
+                        </div>
+                        <div>
+                            <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                st.caption("※ 클릭 시 해당 논문 또는 공식 데이터 제공 사이트로 이동합니다.")
+
         # --- Tab 3: 최종 투자 결정 ---
         with tab3:
             import uuid  # 고유 ID 생성을 위해 필요 (상단 import에 추가해도 됨)
@@ -1567,6 +1656,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
