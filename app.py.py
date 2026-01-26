@@ -600,7 +600,7 @@ elif st.session_state.page == 'calendar':
             with col_f2:
                 sort_option = st.selectbox(
                     label="", 
-                    options=["최신순 (기본)", "🚀 수익률 높은순 (실시간)"],
+                    options=["최신순", "수익률"],
                     label_visibility="collapsed"
                 )
             
@@ -1337,6 +1337,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
