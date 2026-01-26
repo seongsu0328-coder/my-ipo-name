@@ -1037,9 +1037,9 @@ elif st.session_state.page == 'detail':
             """, unsafe_allow_html=True)
 
             # =================================================================
-            # 1. 🦄 IPO 시장 지표 (IPO Specific)
+            # 1. IPO 시장 지표 (IPO Specific Indicator)
             # =================================================================
-            st.subheader("1. 🦄 IPO 시장 과열 평가 (IPO Specific)")
+            st.subheader("1. IPO 시장 지표 (IPO Specific Indicator)")
             
             c1, c2, c3, c4 = st.columns(4)
 
@@ -1656,6 +1656,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
