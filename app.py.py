@@ -666,33 +666,31 @@ elif st.session_state.page == 'calendar':
                 p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
                 p_val = p_val if p_val and p_val > 0 else 0
                 
-               # 가격 HTML (컬러 로직 추가)
+               # 가격 HTML (!important 추가하여 CSS 우선순위 해결)
                 live_p = row.get('live_price', 0)
                 if live_p > 0:
                     pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
                     
-                    # 상승/하락 컬러 결정
                     if pct > 0:
-                        change_color = "#e61919"  # 빨간색 (상승)
+                        change_color = "#e61919"  # 빨간색
                         arrow = "▲"
                     elif pct < 0:
-                        change_color = "#1919e6"  # 파란색 (하락)
+                        change_color = "#1919e6"  # 파란색
                         arrow = "▼"
                     else:
-                        change_color = "#333333"  # 검정색 (보합)
+                        change_color = "#333333"  # 검정색
                         arrow = ""
 
                     price_html = f"""
-                        <div class='price-main' style='color:{change_color};'>
+                        <div class='price-main' style='color:{change_color} !important;'>
                             ${live_p:,.2f} ({arrow}{pct:+.1f}%)
                         </div>
-                        <div class='price-sub'>IPO: ${p_val:,.2f}</div>
+                        <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
                     """
                 else:
-                    # 상장 전이거나 시세를 불러오지 못한 경우
                     price_html = f"""
-                        <div class='price-main' style='color:#333333;'>${p_val:,.2f}</div>
-                        <div class='price-sub'>공모가</div>
+                        <div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div>
+                        <div class='price-sub' style='color:#666666 !important;'>공모가</div>
                     """
                 
                 # 날짜 HTML
@@ -1370,6 +1368,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
