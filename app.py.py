@@ -25,7 +25,7 @@ st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 # --- 세션 초기화 ---
 for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock', 'watchlist', 'view_mode', 'news_topic']:
     if key not in st.session_state:
-        if key == 'page': st.session_state[key] = 'intro'
+        if key == 'page': st.session_state[key] = 'login'
         elif key == 'watchlist': st.session_state[key] = []
         elif key in ['vote_data', 'comment_data', 'user_votes']: st.session_state[key] = {}
         elif key == 'view_mode': st.session_state[key] = 'all'
@@ -308,25 +308,9 @@ def get_ai_summary(query):
         
 # --- 화면 제어 시작 ---
 
-# 1. 인트로
-if st.session_state.page == 'intro':
-    _, col_center, _ = st.columns([1, 10, 1])
-    with col_center:
-        st.markdown("""
-            <div class='intro-card'>
-                <div class='intro-title'>Unicornfinder</div>
-                <div class='feature-grid'>
-                    <div class='feature-item'><div style='font-size:28px;'>📅</div>IPO 스케줄</div>
-                    <div class='feature-item'><div style='font-size:28px;'>📊</div>AI 가격 예측</div>
-                    <div class='feature-item'><div style='font-size:28px;'>🗳️</div>관심기업 관리</div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-        if st.button("시작하기", key="start_app", use_container_width=True):
-            st.session_state.page = 'login'; st.rerun()
 
 # --- 2. 로그인 화면 ---
-elif st.session_state.page == 'login':
+if st.session_state.page == 'login':
     st.write("<br>" * 2, unsafe_allow_html=True) # 여백 조절
     
     # [추가] 상단 타이틀 이미지 표시 영역
@@ -1354,6 +1338,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
