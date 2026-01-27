@@ -1278,12 +1278,13 @@ elif st.session_state.page == 'detail':
             st.write("---")
 
             # [5] 학술적 근거 및 원문 링크 섹션
-            with st.expander("참고논문 (References)", expanded=False):
+            st.write("---")
+            with st.expander("참고논문 및 공식 출처 (References)", expanded=False):
                 st.markdown("""
                 <style>
                     .ref-container { margin-top: 5px; }
                     .ref-item { 
-                        padding: 10px 0; 
+                        padding: 12px 0; 
                         border-bottom: 1px solid #f0f0f0; 
                         display: flex; 
                         justify-content: space-between; 
@@ -1304,43 +1305,60 @@ elif st.session_state.page == 'detail':
                         text-decoration: none; 
                         white-space: nowrap;
                     }
-                    .ref-btn:hover { border-color: #004e92; color: #004e92; }
+                    .ref-btn:hover { border-color: #004e92; color: #004e92; background-color: #f0f7ff; }
+                    .ref-badge {
+                        display: inline-block;
+                        padding: 2px 8px;
+                        border-radius: 10px;
+                        background: #e9ecef;
+                        color: #495057;
+                        font-size: 10px;
+                        font-weight: bold;
+                        margin-bottom: 5px;
+                    }
                 </style>
                 """, unsafe_allow_html=True)
 
-                # 논문 및 출처 데이터 리스트
+                # 업데이트된 논문 및 출처 데이터 리스트 (label 추가)
                 references = [
                     {
+                        "label": "IPO 데이터 통계",
                         "title": "Initial Public Offerings: Underpricing (Data Site)", 
                         "author": "Jay R. Ritter (University of Florida)", 
                         "link": "https://site.warrington.ufl.edu/ritter/ipo-data/"
                     },
                     {
+                        "label": "시장 과열 분석",
                         "title": "'Hot Issue' Markets (Filings Volume)", 
                         "author": "Ibbotson & Jaffe (The Journal of Finance, 1975)", 
                         "link": "https://www.jstor.org/stable/2326615"
                     },
                     {
+                        "label": "상장 철회 연구",
                         "title": "The Choice Between Firm-Commitment IPOs... (Withdrawal)", 
                         "author": "Dunbar (Journal of Financial Economics, 1998)", 
                         "link": "https://www.sciencedirect.com/science/article/abs/pii/S0304405X0000042X"
                     },
                     {
+                        "label": "시장 변동성",
                         "title": "The VIX Index Methodology (White Paper)", 
                         "author": "CBOE (Chicago Board Options Exchange)", 
                         "link": "https://www.cboe.com/micro/vix/vixwhite.pdf"
                     },
                     {
+                        "label": "밸류에이션 지표",
                         "title": "Warren Buffett on the Stock Market (Buffett Indicator)", 
                         "author": "Warren Buffett (Fortune Magazine, 2001)", 
                         "link": "https://archive.fortune.com/magazines/fortune/fortune_archive/2001/12/10/314691/index.htm"
                     },
                     {
+                        "label": "기초 데이터",
                         "title": "Online Data: Robert Shiller (CAPE Ratio)", 
                         "author": "Robert Shiller (Yale University)", 
                         "link": "http://www.econ.yale.edu/~shiller/data.htm"
                     },
                     {
+                        "label": "투자자 심리",
                         "title": "Fear & Greed Index Methodology", 
                         "author": "CNN Business", 
                         "link": "https://edition.cnn.com/markets/fear-and-greed"
@@ -1352,6 +1370,7 @@ elif st.session_state.page == 'detail':
                     st.markdown(f"""
                     <div class='ref-item'>
                         <div>
+                            <div class='ref-badge'>{ref['label']}</div><br>
                             <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
                             <div class='ref-author'>{ref['author']}</div>
                         </div>
@@ -1361,6 +1380,7 @@ elif st.session_state.page == 'detail':
                     </div>
                     """, unsafe_allow_html=True)
                 
+                st.write("<br>", unsafe_allow_html=True)
                 st.caption("※ 클릭 시 해당 논문 또는 공식 데이터 제공 사이트로 이동합니다.")
 
         # --- Tab 3: 개별 기업 평가 ---
@@ -1802,6 +1822,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
