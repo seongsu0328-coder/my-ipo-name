@@ -916,16 +916,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 데이터가 부족할 수 있습니다)")
                 
-        # 구글 검색 링크 (보조)
-        st.markdown(f"""
-            <div style="text-align: right; margin-top: 5px;">
-                <a href="https://www.google.com/search?q={q_biz}" target="_blank" style="text-decoration:none; color:#666; font-size:14px;">
-                    👉 구글에서 원문 검색 결과 보기
-                </a>
-            </div>
-        """, unsafe_allow_html=True)
     
-        st.write("<br>", unsafe_allow_html=True)
     
         # [3] 뉴스 리스트 섹션
         st.markdown(f"""
@@ -1895,6 +1886,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
