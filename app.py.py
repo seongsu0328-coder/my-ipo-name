@@ -1274,7 +1274,7 @@ elif st.session_state.page == 'detail':
                     <div class='metric-footer'>Ref: CNN Business Logic</div>
                 </div>""", unsafe_allow_html=True)
 
-                st.write("<br>", unsafe_allow_html=True)
+                
             st.write("<br>", unsafe_allow_html=True)  # 한 줄 띄우기
 
             # =================================================================
@@ -1870,6 +1870,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
