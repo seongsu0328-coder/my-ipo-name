@@ -971,12 +971,21 @@ elif st.session_state.page == 'detail':
                     final_display_news.append(n)
                     used_indices.add(idx)
 
-            # 4. 화면 출력
+            # 4. 화면 출력 (중복 방지 및 HTML 버그 수정 버전)
             for i, n in enumerate(final_display_news[:5]):
                 tag = n['display_tag']
-                # 중복 노출 방지 처리된 배지 HTML
-                sentiment_badge = f'<span style="background:{n["bg"]}; color:{n["color"]}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n["sent_label"]}</span>' if n['sent_label'] != tag else ""
+                
+                # [수정] 배지 로직을 밖으로 빼서 안전하게 처리
+                sentiment_badge = ""
+                # 태그와 감성 레이블이 다를 때만 배지를 생성
+                if n['sent_label'] != tag:
+                    sentiment_badge = f"""
+                    <span style="background:{n['bg']}; color:{n['color']}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">
+                        {n['sent_label']}
+                    </span>
+                    """
 
+                # [출력] HTML 구조를 정밀하게 재정렬
                 st.markdown(f"""
                     <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
                         <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
@@ -988,12 +997,12 @@ elif st.session_state.page == 'detail':
                                 </div>
                                 <small style="color:#bbb;">{n['date']}</small>
                             </div>
-                            <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{n['title']}</div>
+                            <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">
+                                {n['title']}
+                            </div>
                         </div>
                     </a>
                 """, unsafe_allow_html=True)
-        else:
-            st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
         with tab1:
@@ -1930,6 +1939,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
