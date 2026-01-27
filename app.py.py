@@ -1424,7 +1424,7 @@ elif st.session_state.page == 'detail':
         with tab3:
             st.markdown("### 🔍 개별 기업 심층 평가 시스템") 
             st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 실시간 데이터를 진단합니다.")
-            st.write("---")
+            
 
             # [1] 실시간 데이터 호출 및 전처리
             live_data = get_us_ipo_analysis(stock['symbol'])
@@ -1868,6 +1868,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
