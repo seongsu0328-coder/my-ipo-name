@@ -396,21 +396,20 @@ def get_ai_summary(query):
         # 이 부분이 if문 보다 위에, 그리고 try와 같은 수직 선상에 있어야 합니다!
         return f"🚫 오류: {str(e)}"
 
-if st.session_state.page == 'login':
-    # 로그인 페이지 로직...
-        
-# --- 화면 제어 시작 ---
+# --- 화면 제어 및 로그인 화면 시작 ---
 
-# 1. 로그인 상태 확인 및 페이지 설정
 if st.session_state.page == 'login':
-    # 이 부분에 내용이 없으면 에러가 납니다. 
-    # 아래 로그인 화면 코드가 바로 이어지지 않는다면 'pass'라도 적어주어야 합니다.
-    pass 
-
-# --- 2. 로그인 화면 ---
-if st.session_state.page == 'login':
+    # 아래 코드들은 모두 동일하게 'Tab' 한 번(또는 공백 4칸) 안으로 들어가 있어야 합니다.
     st.write("<br>" * 2, unsafe_allow_html=True)  # 여백 조절
-    # 이후 로그인 관련 st.title이나 입력창 코드들이 올 자리입니다.
+    
+    # 여기에 로그인 관련 st.title이나 입력창 코드들이 위치합니다.
+    # 예: st.title("Welcome to IPO Tracker")
+    # 예: login_form() 
+    
+    # 만약 이 아래에 당장 넣을 코드가 없다면 아래 pass의 주석을 해제하세요.
+    # pass 
+
+# --- 로그인 화면 끝 ---
     
     # [추가] 상단 타이틀 이미지 표시 영역
     t_col1, t_col2, t_col3 = st.columns([1, 0.8, 1]) # 이미지 크기 조절을 위한 컬럼 분할
@@ -1888,6 +1887,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
