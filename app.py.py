@@ -1286,9 +1286,9 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 3: 개별 기업 평가 (Individual Stock Analysis) ---
         with tab3:
-    st.markdown("### 🔍 개별 기업 심층 평가 시스템") # 한 단계(4칸) 들여쓰기
-    st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 리스크와 잠재력을 진단합니다.")
-    st.write("---")
+            st.markdown("### 🔍 개별 기업 심층 평가 시스템") # 한 단계(4칸) 들여쓰기
+            st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 리스크와 잠재력을 진단합니다.")
+            st.write("---")
 
     # [1] 데이터 준비
     md_stock = {
@@ -1694,6 +1694,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
