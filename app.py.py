@@ -1387,7 +1387,8 @@ elif st.session_state.page == 'detail':
         st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과, 재무 건전성과 시장의 정보 대칭성이 양호한 수준으로 판단됩니다.")
 
 # --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
-        with tab4:
+with tab4:
+    # 아래 모든 줄이 오른쪽으로 4칸(Tab 1번) 들여쓰기 되어야 합니다.
     import uuid
     from datetime import datetime
 
@@ -1460,7 +1461,6 @@ elif st.session_state.page == 'detail':
 
     comments = st.session_state.comment_data.get(sid, [])
     if comments:
-        # 마이그레이션 및 정렬 (좋아요 순)
         for c in comments:
             if 'likes' not in c: c['likes'] = []
             if 'dislikes' not in c: c['dislikes'] = []
@@ -1470,7 +1470,6 @@ elif st.session_state.page == 'detail':
         
         delete_target_id = None 
         for c in comments:
-            # 댓글 카드 UI
             st.markdown(f"""
             <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 5px; border: 1px solid #eee;'>
                 <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
@@ -1480,7 +1479,6 @@ elif st.session_state.page == 'detail':
                 <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap;'>{c['t']}</div>
             </div>""", unsafe_allow_html=True)
 
-            # 액션 바 (좋아요/싫어요/삭제)
             col_spacer, col_like, col_dislike, col_del = st.columns([5.5, 1.5, 1.5, 1.5])
             with col_like:
                 if st.button(f"👍 {len(c['likes'])}", key=f"lk_{c['id']}", use_container_width=True):
@@ -1542,14 +1540,15 @@ elif st.session_state.page == 'detail':
                     del st.session_state.watchlist_predictions[sid]
                 st.rerun()
 
-# --- 페이지 분기 처리 (ERROR 발생 지점 해결) ---
-# with tab4: 블록이 위에서 완전히 끝났으므로, 이제 elif 문을 동일한 들여쓰기 수준에서 사용 가능합니다.
-# 만약 이 코드가 큰 if 문 안에 있다면 그에 맞춰 들여쓰기를 조절하세요.
+# ---------------------------------------------------------
+# 여기서부터는 with tab4 바깥입니다. (들여쓰기 끝)
+# ---------------------------------------------------------
 
-# if st.session_state.page == 'home':
-#     render_home()
-# elif st.session_state.page == 'board':
-#     st.write("게시판 페이지")
+# --- 5. 게시판 페이지 분기 ---
+# 앞선 if문들이 주석처리 되었다면 아래를 if로 시작하세요.
+if st.session_state.page == 'board':
+    st.write("### 📋 게시판 페이지")
+    # 여기에 게시판 관련 코드를 추가하세요.
 
 # --- 5. 게시판 페이지 ---
 if st.session_state.page == 'board':
@@ -1694,6 +1693,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
