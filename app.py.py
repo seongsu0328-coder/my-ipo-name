@@ -1400,6 +1400,7 @@ with tab4:
     if 'comment_data' not in st.session_state: st.session_state.comment_data = {}
     if 'user_votes' not in st.session_state: st.session_state.user_votes = {}
     if 'watchlist' not in st.session_state: st.session_state.watchlist = []
+    if 'watchlist_predictions' not in st.session_state: st.session_state.watchlist_predictions = {}
     
     if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
     if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
@@ -1409,7 +1410,7 @@ with tab4:
 
     # --- 1. 투표 기능 ---
     st.markdown("### 투자 매력도 투표")
-    if st.session_state.auth_status == 'user':
+    if st.session_state.get('auth_status') == 'user':
         if sid not in st.session_state.user_votes:
             v1, v2 = st.columns(2)
             if v1.button("🦄 Unicorn (상승 예측)", use_container_width=True, key=f"vu_{sid}"): 
@@ -1438,7 +1439,7 @@ with tab4:
 
     # --- 2. 커뮤니티 의견 ---
     st.markdown("### 주주 토론방")
-    if st.session_state.auth_status == 'user':
+    if st.session_state.get('auth_status') == 'user':
         with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
             user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
             btn_c1, btn_c2 = st.columns([3, 1])
@@ -1459,7 +1460,7 @@ with tab4:
 
     comments = st.session_state.comment_data.get(sid, [])
     if comments:
-        # 마이그레이션 및 정렬
+        # 마이그레이션 및 정렬 (좋아요 순)
         for c in comments:
             if 'likes' not in c: c['likes'] = []
             if 'dislikes' not in c: c['dislikes'] = []
@@ -1483,7 +1484,7 @@ with tab4:
             col_spacer, col_like, col_dislike, col_del = st.columns([5.5, 1.5, 1.5, 1.5])
             with col_like:
                 if st.button(f"👍 {len(c['likes'])}", key=f"lk_{c['id']}", use_container_width=True):
-                    if st.session_state.auth_status == 'user':
+                    if st.session_state.get('auth_status') == 'user':
                         if current_user in c['likes']: c['likes'].remove(current_user)
                         else:
                             c['likes'].append(current_user)
@@ -1491,7 +1492,7 @@ with tab4:
                         st.rerun()
             with col_dislike:
                 if st.button(f"👎 {len(c['dislikes'])}", key=f"dk_{c['id']}", use_container_width=True):
-                    if st.session_state.auth_status == 'user':
+                    if st.session_state.get('auth_status') == 'user':
                         if current_user in c['dislikes']: c['dislikes'].remove(current_user)
                         else:
                             c['dislikes'].append(current_user)
@@ -1513,8 +1514,6 @@ with tab4:
 
     # --- 3. 관심 종목 관리 ---
     st.markdown("### 관심 종목 관리")
-    if 'watchlist_predictions' not in st.session_state: st.session_state.watchlist_predictions = {}
-
     col_act1, col_act2 = st.columns([2.5, 1.5])
     with col_act1:
         if sid not in st.session_state.watchlist:
@@ -1527,20 +1526,30 @@ with tab4:
     with col_act2:
         if sid not in st.session_state.watchlist:
             c_up, c_down = st.columns(2)
-            if c_up.button("📈 UP", use_container_width=True):
+            if c_up.button("📈 UP", key=f"up_btn_{sid}", use_container_width=True):
                 st.session_state.watchlist.append(sid)
                 st.session_state.watchlist_predictions[sid] = "UP"
                 st.balloons()
                 st.rerun()
-            if c_down.button("📉 DOWN", use_container_width=True):
+            if c_down.button("📉 DOWN", key=f"down_btn_{sid}", use_container_width=True):
                 st.session_state.watchlist.append(sid)
                 st.session_state.watchlist_predictions[sid] = "DOWN"
                 st.rerun()
         else:
-            if st.button("🗑️ 보관 해제", use_container_width=True):
+            if st.button("🗑️ 보관 해제", key=f"remove_btn_{sid}", use_container_width=True):
                 st.session_state.watchlist.remove(sid)
-                if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
+                if sid in st.session_state.watchlist_predictions: 
+                    del st.session_state.watchlist_predictions[sid]
                 st.rerun()
+
+# --- 페이지 분기 처리 (ERROR 발생 지점 해결) ---
+# with tab4: 블록이 위에서 완전히 끝났으므로, 이제 elif 문을 동일한 들여쓰기 수준에서 사용 가능합니다.
+# 만약 이 코드가 큰 if 문 안에 있다면 그에 맞춰 들여쓰기를 조절하세요.
+
+# if st.session_state.page == 'home':
+#     render_home()
+# elif st.session_state.page == 'board':
+#     st.write("게시판 페이지")
 
 # --- 5. 게시판 페이지 ---
 elif st.session_state.page == 'board':
@@ -1685,6 +1694,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
