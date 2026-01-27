@@ -1008,9 +1008,7 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
-            st.markdown("### 🌡️ 실시간 시장 과열 진단 시스템")
-            st.caption("권위 있는 학술 지표를 실시간 데이터로 자체 분석하여 제시합니다.")
-            st.write("---")
+            
 
             # [1] 데이터 수집 및 계산 함수
             def get_market_status_internal(df_calendar):
@@ -1870,6 +1868,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
