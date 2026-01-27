@@ -1281,7 +1281,7 @@ elif st.session_state.page == 'detail':
             # 3. 🤖 시장 통합 AI 진단 리포트 (Market Analysis Report)
             # =================================================================
             st.write("<br>", unsafe_allow_html=True)
-            st.markdown("#### 🤖 시장 환경 실시간 AI 진단")
+            st.markdown("#### 시장 환경 실시간 AI 진단")
             
             with st.expander("시장 데이터 기반 학술적 분석 보기", expanded=True):
                 # [A] IPO 시장 상태 판정 (Hot vs Cold Market)
@@ -1316,7 +1316,7 @@ elif st.session_state.page == 'detail':
 
             st.write("---")
 
-            # [5] 학술적 근거 및 원문 링크 섹션
+            # [4] 학술적 근거 및 원문 링크 섹션
             st.write("---")
             with st.expander("참고논문 및 공식 출처 (References)", expanded=False):
                 st.markdown("""
@@ -1870,6 +1870,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
