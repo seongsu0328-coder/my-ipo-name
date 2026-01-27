@@ -960,25 +960,29 @@ elif st.session_state.page == 'detail':
                     final_display_news.append(n)
                     used_indices.add(idx)
 
-        # 4. 화면 출력 (번역 제목 복구 및 LaTeX 방지 버전)
+        # 4. 화면 출력 (한글 제목 유무에 따른 가변 레이아웃 적용)
             for i, n in enumerate(final_display_news[:5]):
                 tag = n['display_tag']
                 s_label = n['sent_label']
                 
-                # 원문 제목과 번역 제목 준비 (특수 기호 처리)
-                safe_title = n['title'].replace("$", "\$")
-                # 데이터에 번역본이 'title_ko' 등의 키로 들어있을 경우를 가정합니다.
-                # 만약 번역본이 별도의 필드에 있다면 그 변수명을 사용하세요.
-                translated_title = n.get('title_ko', '') # 또는 n.get('translated', '')
-                safe_translated = translated_title.replace("$", "\$")
+                # [1] 원문 제목 안전 처리 ($ 기호 이스케이프)
+                raw_title = n.get('title', 'No Title')
+                safe_title = raw_title.replace("$", "\$")
                 
-                # 번역본이 있을 경우 표시할 HTML 조각 생성
-                trans_html = f"<br><span style='font-size:14px; color:#555; font-weight:normal;'>🇰🇷 {safe_translated}</span>" if translated_title else ""
+                # [2] 한글 번역 제목 안전 처리
+                # 데이터 구조에 따라 'title_ko' 혹은 'translated' 등 키 이름을 확인해보세요.
+                ko_title = n.get('title_ko', '') 
                 
-                # 태그와 감성 레이블이 다를 때만 배지를 생성
+                # 한글 제목이 있을 경우에만 🇰🇷 아이콘과 함께 HTML 생성
+                trans_html = ""
+                if ko_title and ko_title.strip():
+                    safe_ko_title = ko_title.replace("$", "\$")
+                    trans_html = f"<br><span style='font-size:14px; color:#555; font-weight:normal;'>🇰🇷 {safe_ko_title}</span>"
+                
+                # [3] 감성 배지 생성 (태그와 라벨이 다를 때만)
                 s_badge = f'<span style="background:{n["bg"]}; color:{n["color"]}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{s_label}</span>' if s_label != tag else ""
                 
-                # HTML 구조 통합 (safe_title 아래에 trans_html 추가)
+                # [4] 전체 HTML 결합 (한 줄로 결합하여 렌더링 오류 방지)
                 html_content = (
                     f'<a href="{n["link"]}" target="_blank" style="text-decoration:none; color:inherit;">'
                     f'<div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">'
@@ -1925,6 +1929,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
