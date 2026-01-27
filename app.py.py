@@ -875,74 +875,74 @@ elif st.session_state.page == 'detail':
 ])
 
         # --- Tab 0: 뉴스 & 심층 분석 (비즈니스 모델 집중 모드) ---
-with tab0:
-    st.caption("Tavily AI 검색 엔진이 최신 웹 정보를 수집하고 AI가 핵심 내용을 요약합니다.")
-
-    # [1] 검색어 생성 (비즈니스 모델 심층 분석용)
-    q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
+    with tab0:
+        st.caption("Tavily AI 검색 엔진이 최신 웹 정보를 수집하고 AI가 핵심 내용을 요약합니다.")
     
-    # [2] 비즈니스 모델 섹션 제목
-    st.markdown(f"""
-    <div style="margin-top: 20px; margin-bottom:15px;">
-        <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-            비즈니스 모델 상세 분석
-        </h3>
-    </div>""", unsafe_allow_html=True)
-    
-    # 로딩 및 결과 표시
-    with st.spinner(f"🤖 AI가 {stock['name']}의 사업 구조와 재무 상태를 분석 중입니다..."):
-        # 개선된 프롬프트가 적용된 get_ai_summary 호출 (함수 내부 프롬프트는 아래 가이드 참고)
-        biz_info = get_ai_summary(q_biz)
+        # [1] 검색어 생성 (비즈니스 모델 심층 분석용)
+        q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
         
-        if biz_info:
-            # 정보를 깔끔한 박스에 표시
-            st.info(biz_info)
-        else:
-            st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 데이터가 부족할 수 있습니다)")
+        # [2] 비즈니스 모델 섹션 제목
+        st.markdown(f"""
+        <div style="margin-top: 20px; margin-bottom:15px;">
+            <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
+                비즈니스 모델 상세 분석
+            </h3>
+        </div>""", unsafe_allow_html=True)
+        
+        # 로딩 및 결과 표시
+        with st.spinner(f"🤖 AI가 {stock['name']}의 사업 구조와 재무 상태를 분석 중입니다..."):
+            # 개선된 프롬프트가 적용된 get_ai_summary 호출 (함수 내부 프롬프트는 아래 가이드 참고)
+            biz_info = get_ai_summary(q_biz)
             
-    # 구글 검색 링크 (보조)
-    st.markdown(f"""
-        <div style="text-align: right; margin-top: 5px;">
-            <a href="https://www.google.com/search?q={q_biz}" target="_blank" style="text-decoration:none; color:#666; font-size:14px;">
-                👉 구글에서 원문 검색 결과 보기
-            </a>
-        </div>
-    """, unsafe_allow_html=True)
-
-    st.write("<br>", unsafe_allow_html=True)
-
-    # [3] 뉴스 리스트 섹션
-    st.markdown(f"""
-    <div style="margin-top: 10px; margin-bottom:15px;">
-        <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-            {stock['name']} 최신 뉴스
-        </h3>
-    </div>""", unsafe_allow_html=True)
-    
-    rss_news = get_real_news_rss(stock['name'])
-    tags = ["분석", "시장", "전망", "전략", "수급"]
-    
-    if rss_news:
-        for i, n in enumerate(rss_news[:5]):
-            tag = tags[i] if i < len(tags) else "뉴스"
-            st.markdown(f"""
-                <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
-                    <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
-                                <span style="color:#888; font-size:12px;">| {tag}</span>
-                                <span style="background:{n['bg']}; color:{n['color']}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n['sent_label']}</span>
-                            </div>
-                            <small style="color:#bbb;">{n['date']}</small>
-                        </div>
-                        <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{n['title']}</div>
-                    </div>
+            if biz_info:
+                # 정보를 깔끔한 박스에 표시
+                st.info(biz_info)
+            else:
+                st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 데이터가 부족할 수 있습니다)")
+                
+        # 구글 검색 링크 (보조)
+        st.markdown(f"""
+            <div style="text-align: right; margin-top: 5px;">
+                <a href="https://www.google.com/search?q={q_biz}" target="_blank" style="text-decoration:none; color:#666; font-size:14px;">
+                    👉 구글에서 원문 검색 결과 보기
                 </a>
-            """, unsafe_allow_html=True)
-    else:
-        st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
-        st.markdown(f"[👉 구글 뉴스 검색 바로가기](https://www.google.com/search?q={stock['name']}&tbm=nws)")
+            </div>
+        """, unsafe_allow_html=True)
+    
+        st.write("<br>", unsafe_allow_html=True)
+    
+        # [3] 뉴스 리스트 섹션
+        st.markdown(f"""
+        <div style="margin-top: 10px; margin-bottom:15px;">
+            <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
+                {stock['name']} 최신 뉴스
+            </h3>
+        </div>""", unsafe_allow_html=True)
+        
+        rss_news = get_real_news_rss(stock['name'])
+        tags = ["분석", "시장", "전망", "전략", "수급"]
+        
+        if rss_news:
+            for i, n in enumerate(rss_news[:5]):
+                tag = tags[i] if i < len(tags) else "뉴스"
+                st.markdown(f"""
+                    <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
+                        <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
+                                    <span style="color:#888; font-size:12px;">| {tag}</span>
+                                    <span style="background:{n['bg']}; color:{n['color']}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n['sent_label']}</span>
+                                </div>
+                                <small style="color:#bbb;">{n['date']}</small>
+                            </div>
+                            <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{n['title']}</div>
+                        </div>
+                    </a>
+                """, unsafe_allow_html=True)
+        else:
+            st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
+            st.markdown(f"[👉 구글 뉴스 검색 바로가기](https://www.google.com/search?q={stock['name']}&tbm=nws)")
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
         with tab1:
@@ -1879,6 +1879,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
