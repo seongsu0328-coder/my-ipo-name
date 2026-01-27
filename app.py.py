@@ -1384,104 +1384,120 @@ elif st.session_state.page == 'detail':
                 st.caption("※ 클릭 시 해당 논문 또는 공식 데이터 제공 사이트로 이동합니다.")
 
         # --- Tab 3: 개별 기업 평가 ---
-        with tab3:
-            st.markdown("### 🔍 개별 기업 심층 평가 시스템") 
-            st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 실시간 데이터를 진단합니다.")
-            st.write("---")
+with tab3:
+    st.markdown("### 🔍 개별 기업 심층 평가 시스템") 
+    st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 실시간 데이터를 진단합니다.")
+    st.write("---")
 
-            # 실시간 데이터 호출
-            live_data = get_us_ipo_analysis(stock['symbol'])
-            is_success = live_data['status'] == "Success"
-            
-            # 데이터 처리
-            md_stock = {
-                "sales_growth": live_data.get('sales_growth') if is_success else None,
-                "ocf": live_data.get('ocf') if is_success else None,
-                "accruals": live_data.get('accruals') if is_success else None,
-                "vc_backed": "Yes (Tier 1)", 
-                "discount_rate": 15.4        
-            }
+    # [1] 실시간 데이터 호출 및 전처리
+    live_data = get_us_ipo_analysis(stock['symbol'])
+    is_success = live_data['status'] == "Success"
+    
+    md_stock = {
+        "sales_growth": live_data.get('sales_growth') if is_success else None,
+        "ocf": live_data.get('ocf') if is_success else None,
+        "accruals": live_data.get('accruals') if is_success else None,
+        "vc_backed": "Yes (Tier 1)", # 기본값 또는 실제 데이터 연동
+        "discount_rate": 15.4        
+    }
 
-            # 카드형 UI 레이아웃 (4열 구성으로 시장 지표와 통일감을 줌)
-            c1, c2, c3, c4 = st.columns(4)
+    # [2] 카드형 UI 레이아웃 (한 줄에 최대 4개 배치)
+    row1_c1, row1_c2, row1_c3, row1_c4 = st.columns(4)
+    row2_c1, row2_c2, row2_c3, row2_c4 = st.columns(4)
 
-            # (1) 장기 성과 리스크
-            with c1:
-                val = md_stock['sales_growth']
-                if val is not None:
-                    status, st_cls = ("🔥 과열", "st-hot") if val > 100 else ("✅ 안정", "st-good")
-                    display_val = f"{val:+.1f}%"
-                else:
-                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 없음")
-                
-                st.markdown(f"""
-                <div class='metric-card'>
-                    <div class='metric-header'>Sales Growth</div>
-                    <div class='metric-value-row'>
-                        <span class='metric-value'>{display_val}</span>
-                        <span class='st-badge {st_cls}'>{status}</span>
-                    </div>
-                    <div class='metric-desc'>최근 매출 성장률입니다. 100%를 초과하는 과도한 성장은 상장 후 장기 성과 저하 리스크가 있습니다.</div>
-                    <div class='metric-footer'>Ref: Jay Ritter (1991)</div>
-                </div>""", unsafe_allow_html=True)
+    # --- (1) 장기 성과 리스크 (Row 1) ---
+    with row1_c1:
+        val = md_stock['sales_growth']
+        if val is not None:
+            status, st_cls = ("🔥 과열", "st-hot") if val > 100 else ("✅ 안정", "st-good")
+            display_val = f"{val:+.1f}%"
+        else:
+            status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 없음")
+        
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>Sales Growth</div>
+            <div class='metric-value-row'>
+                <span class='metric-value'>{display_val}</span>
+                <span class='st-badge {st_cls}'>{status}</span>
+            </div>
+            <div class='metric-desc'>매출 성장률이 100%를 초과할 경우 상장 직후 '성장의 함정' 리스크가 발생할 수 있습니다.</div>
+            <div class='metric-footer'>Ref: Jay Ritter (1991)</div>
+        </div>""", unsafe_allow_html=True)
 
-            # (2) 현금 흐름 건전성
-            with c2:
-                val = md_stock['ocf']
-                if val is not None:
-                    status, st_cls = ("✅ 양호", "st-good") if val > 0 else ("🚨 위험", "st-hot")
-                    # 금액 단위 조정 (M단위 등)
-                    display_val = "${:,.0f}".format(val) if abs(val) < 1000000 else "${:,.1f}M".format(val/1000000)
-                else:
-                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 없음")
-                
-                st.markdown(f"""
-                <div class='metric-card'>
-                    <div class='metric-header'>Operating Cash Flow</div>
-                    <div class='metric-value-row'>
-                        <span class='metric-value'>{display_val}</span>
-                        <span class='st-badge {st_cls}'>{status}</span>
-                    </div>
-                    <div class='metric-desc'>영업활동현금흐름입니다. 음수(-)일 경우 비즈니스 모델의 지속 가능성을 주의 깊게 봐야 합니다.</div>
-                    <div class='metric-footer'>Ref: Fama & French (2004)</div>
-                </div>""", unsafe_allow_html=True)
+    # --- (2) 수익성 건전성 (Row 1) ---
+    with row1_c2:
+        val = md_stock['ocf']
+        if val is not None:
+            status, st_cls = ("✅ 양호", "st-good") if val > 0 else ("🚨 위험", "st-hot")
+            display_val = "${:,.0f}".format(val) if abs(val) < 1000000 else "${:,.1f}M".format(val/1000000)
+        else:
+            status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 없음")
+        
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>Operating Cash Flow</div>
+            <div class='metric-value-row'>
+                <span class='metric-value'>{display_val}</span>
+                <span class='st-badge {st_cls}'>{status}</span>
+            </div>
+            <div class='metric-desc'>실제 영업 활동으로 벌어들이는 현금입니다. 음수(-)는 자본 잠식 위험을 시사합니다.</div>
+            <div class='metric-footer'>Ref: Fama & French (2004)</div>
+        </div>""", unsafe_allow_html=True)
 
-            # (3) 경영진 신뢰도 (발생액)
-            with c3:
-                val = md_stock['accruals']
-                status, st_cls = ("✅ 건전", "st-good") if val == "Low" else ("🚨 주의", "st-hot")
-                display_val = "Clean" if val == "Low" else "High"
-                
-                st.markdown(f"""
-                <div class='metric-card'>
-                    <div class='metric-header'>Accruals Quality</div>
-                    <div class='metric-value-row'>
-                        <span class='metric-value'>{display_val}</span>
-                        <span class='st-badge {st_cls}'>{status}</span>
-                    </div>
-                    <div class='metric-desc'>순이익과 현금흐름의 차이입니다. 차이가 클수록(High) 회계적 이익 조정 가능성이 큽니다.</div>
-                    <div class='metric-footer'>Ref: Teoh et al. (1998)</div>
-                </div>""", unsafe_allow_html=True)
+    # --- (3) 경영진 신뢰도 (Row 1) ---
+    with row1_c3:
+        val = md_stock['accruals']
+        if val is not None:
+            status, st_cls = ("✅ 건전", "st-good") if val == "Low" else ("🚨 주의", "st-hot")
+            display_val = "Clean" if val == "Low" else "High"
+        else:
+            status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 없음")
+        
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>Accruals Quality</div>
+            <div class='metric-value-row'>
+                <span class='metric-value'>{display_val}</span>
+                <span class='st-badge {st_cls}'>{status}</span>
+            </div>
+            <div class='metric-desc'>회계적 이익과 실제 현금흐름의 괴리를 측정합니다. Low일수록 이익의 질이 높습니다.</div>
+            <div class='metric-footer'>Ref: Teoh et al. (1998)</div>
+        </div>""", unsafe_allow_html=True)
 
-            # (4) 언더프라이싱 매력도
-            with c4:
-                val = md_stock['discount_rate']
-                status, st_cls = ("✅ 매력", "st-good") if val > 15 else ("⚖️ 보통", "st-neutral")
-                
-                st.markdown(f"""
-                <div class='metric-card'>
-                    <div class='metric-header'>Underpricing Rate</div>
-                    <div class='metric-value-row'>
-                        <span class='metric-value'>{val:.1f}%</span>
-                        <span class='st-badge {st_cls}'>{status}</span>
-                    </div>
-                    <div class='metric-desc'>공모가가 기업 가치 대비 얼마나 할인되었는지 추정합니다. 높을수록 투자자에게 유리합니다.</div>
-                    <div class='metric-footer'>Ref: Kevin Rock (1986)</div>
-                </div>""", unsafe_allow_html=True)
+    # --- (4) VC 인증 효과 (Row 1 - 누락되었던 항목) ---
+    with row1_c4:
+        val = md_stock['vc_backed']
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>VC Certification</div>
+            <div class='metric-value-row'>
+                <span class='metric-value'>{val}</span>
+                <span class='st-badge st-good'>✅ 확인</span>
+            </div>
+            <div class='metric-desc'>대형 VC의 투자를 받은 기업은 외부 감시 효과로 인해 상장 후 생존율이 더 높습니다.</div>
+            <div class='metric-footer'>Ref: Barry et al. (1990)</div>
+        </div>""", unsafe_allow_html=True)
 
-            st.write("<br>", unsafe_allow_html=True)
-            
-            # 이후 AI 분석 리포트 및 논문 섹션 계속...
+    # --- (5) 언더프라이싱 매력도 (Row 2) ---
+    with row2_c1:
+        val = md_stock['discount_rate']
+        status, st_cls = ("✅ 매력", "st-good") if val > 15 else ("⚖️ 보통", "st-neutral")
+        
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>Underpricing Rate</div>
+            <div class='metric-value-row'>
+                <span class='metric-value'>{val:.1f}%</span>
+                <span class='st-badge {st_cls}'>{status}</span>
+            </div>
+            <div class='metric-desc'>공모가가 적정 가치 대비 할인된 비율입니다. 할인율이 높을수록 초기 상장 이익이 큽니다.</div>
+            <div class='metric-footer'>Ref: Kevin Rock (1986)</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.write("<br>", unsafe_allow_html=True)
+    
+    # [3] 이후 학술적 근거(References) 섹션 등으로 연결...
 
             # [3] AI 종합 판정 리포트
             st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
@@ -1856,6 +1872,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
