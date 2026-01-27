@@ -332,19 +332,38 @@ def get_real_news_rss(company_name):
             try: date_str = " ".join(pubDate.split(' ')[1:3])
             except: date_str = "Recent"
 
-            # 3. 한글 번역 (MyMemory API)
+            # 3. 한글 번역 (보강된 로직)
+            title_ko = ""
             try:
+                import time
+                time.sleep(0.2) # 연속 호출 방지
+                
                 trans_url = "https://api.mymemory.translated.net/get"
-                res = requests.get(trans_url, params={'q': title_en, 'langpair': 'en|ko'}, timeout=1).json()
-                if res['responseStatus'] == 200:
-                    title_ko = res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
-                    display_title = f"{title_en}<br><span style='font-size:14px; color:#555; font-weight:normal;'>🇰🇷 {title_ko}</span>"
-                else: display_title = title_en
-            except: display_title = title_en
+                params = {
+                    'q': title_en, 
+                    'langpair': 'en|ko',
+                    'de': 'your_email@example.com' # 실제 메일주소를 적으면 더 안정적입니다.
+                }
+                
+                res_raw = requests.get(trans_url, params=params, timeout=3)
+                
+                if res_raw.status_code == 200:
+                    res = res_raw.json()
+                    if res.get('responseStatus') == 200:
+                        raw_text = res['responseData']['translatedText']
+                        title_ko = raw_text.replace("&quot;", "'").replace("&amp;", "&").replace("&#39;", "'")
+            except:
+                title_ko = "" 
             
+            # [중요] news_items에 담는 형식을 출력부와 맞춥니다.
             news_items.append({
-                "title": display_title, "link": link, "date": date_str,
-                "sent_label": sent_label, "bg": bg, "color": color
+                "title": title_en,      # 원문 영어 제목
+                "title_ko": title_ko,   # 번역된 한글 제목 (실패 시 빈 문자열)
+                "link": link, 
+                "date": date_str,
+                "sent_label": sent_label, 
+                "bg": bg, 
+                "color": color
             })
         return news_items
     except: return []
@@ -1933,6 +1952,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
