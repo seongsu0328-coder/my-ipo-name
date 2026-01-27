@@ -1284,98 +1284,29 @@ elif st.session_state.page == 'detail':
                 
                 st.caption("※ 클릭 시 해당 논문 또는 공식 데이터 제공 사이트로 이동합니다.")
 
-        # --- Tab 3: 개별 기업 평가 ---
-with tab3:
-    # 1. 상단 헤더 및 데이터 호출 (Tab3의 가장 첫 줄부터 시작)
-    st.markdown("### 🔍 개별 기업 심층 평가 시스템")
-    st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 진단합니다.")
-    st.write("---")  # <--- 이 부분의 들여쓰기를 'st.markdown'과 똑같이 맞추세요!
+        # --- Tab 3: 개별 기업 평가 (Individual Stock Analysis) ---
+        with tab3:
+            st.markdown("### 🔍 개별 기업 심층 평가 시스템")
+            st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 리스크와 잠재력을 진단합니다.")
+            st.write("---") # 에러가 났던 지점: 이 줄의 왼쪽 끝을 윗줄들과 수직으로 맞추세요.
 
-    # 실시간 데이터 호출
-    live_data = get_us_ipo_analysis(stock['symbol'])
-    
-    # 데이터 처리 로직
-    is_success = live_data['status'] == "Success"
-    md_stock = {
-        "sales_growth": live_data.get('sales_growth') if is_success else None,
-        "ocf": live_data.get('ocf') if is_success else None,
-        "accruals": live_data.get('accruals') if is_success else None,
-        "vc_backed": "Yes (Tier 1)",
-        "discount_rate": 15.4
-    }
+            # [1] 데이터 준비 및 실시간 호출
+            live_data = get_us_ipo_analysis(stock['symbol'])
+            is_success = live_data['status'] == "Success"
+            
+            md_stock = {
+                "sales_growth": live_data.get('sales_growth') if is_success else None,
+                "ocf": live_data.get('ocf') if is_success else None,
+                "accruals": live_data.get('accruals') if is_success else None,
+                "vc_backed": "Yes (Tier 1)", 
+                "discount_rate": 15.4  
+            }
 
-    # 2. 레이아웃 구성
-    c1, c2, c3 = st.columns(3)
-    c4, c5, _ = st.columns(3)
-
-    # ... 이하 (1)~(5)번 지표 카드 코드들도 모두 동일한 들여쓰기 유지 ...
-
-            # [3] 학술적 근거 및 원문 논문 섹션
-            st.write("---")
-            with st.expander("참고논문(References)", expanded=False):
-                st.markdown("#### 🎓 진단 시스템의 학술적 토대")
-                st.write("본 시스템은 IPO의 변동성과 성과를 연구한 금융학계의 핵심 논문들을 기반으로 설계되었습니다.")
-                
-                # 논문 데이터 리스트
-                references = [
-                    {
-                        "label": "장기 수익률",
-                        "title": "The Long-Run Performance of Initial Public Offerings",
-                        "author": "Jay R. Ritter (1991)",
-                        "journal": "The Journal of Finance",
-                        "url": "https://scholar.google.com/scholar?q=The+Long-Run+Performance+of+Initial+Public+Offerings+Ritter+1991"
-                    },
-                    {
-                        "label": "수익성 및 생존",
-                        "title": "New lists: Fundamentals and survival rates",
-                        "author": "Eugene F. Fama & Kenneth R. French (2004)",
-                        "journal": "Journal of Financial Economics",
-                        "url": "https://scholar.google.com/scholar?q=New+lists+Fundamentals+and+survival+rates+Fama+French+2004"
-                    },
-                    {
-                        "label": "재무 건전성",
-                        "title": "Earnings Management and the Long-Run Market Performance of IPOs",
-                        "author": "S.H. Teoh, I. Welch, & T.J. Wong (1998)",
-                        "journal": "The Journal of Finance",
-                        "url": "https://scholar.google.com/scholar?q=Earnings+Management+and+the+Long-Run+Market+Performance+of+IPOs+Teoh"
-                    },
-                    {
-                        "label": "VC 인증 효과",
-                        "title": "The Role of Venture Capital in the Creation of Public Companies",
-                        "author": "C. Barry, C. Muscarella, J. Peavy, & M. Vetsuypens (1990)",
-                        "journal": "Journal of Financial Economics",
-                        "url": "https://scholar.google.com/scholar?q=The+Role+of+Venture+Capital+in+the+Creation+of+Public+Companies+Barry"
-                    },
-                    {
-                        "label": "역선택 방어",
-                        "title": "Why New Issues are Underpriced",
-                        "author": "Kevin Rock (1986)",
-                        "journal": "Journal of Financial Economics",
-                        "url": "https://scholar.google.com/scholar?q=Why+New+Issues+are+Underpriced+Kevin+Rock"
-                    }
-                ]
-
-                # 테이블 형태 출력
-                for ref in references:
-                    st.markdown(f"""
-                    <div style='border-bottom: 1px solid #f0f2f6; padding: 10px 0;'>
-                        <span style='color: #007bff; font-weight: bold; font-size: 0.8rem;'>[{ref['label']}]</span><br>
-                        <div style='margin-top: 5px;'>
-                            <b>{ref['title']}</b><br>
-                            <span style='color: #555; font-size: 0.9rem;'>{ref['author']} | <i>{ref['journal']}</i></span>
-                        </div>
-                        <div style='margin-top: 5px;'>
-                            <a href='{ref['url']}' target='_blank' style='text-decoration: none; color: #ff4b4b; font-size: 0.85rem;'>🔗 원문 검색(Google Scholar) →</a>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                st.info("💡 제공된 링크는 해당 논문의 학술적 검색 결과로 연결됩니다. 일부 유료 저널의 경우 전문 보기가 제한될 수 있습니다.")
-
-            # [4] AI 종합 판정 섹션
-            st.markdown("#### AI 종목 심층 진단 리포트")
-            with st.expander("논문 기반 AI 분석 보기", expanded=True):
-                st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과, 재무 건전성과 시장의 정보 대칭성이 양호한 수준으로 판단됩니다.")
+            # [2] 카드형 UI 렌더링
+            c1, c2, c3 = st.columns(3)
+            c4, c5, _ = st.columns(3)
+            
+            # 이후 코드들도 이 라인에 맞춰서 작성...
 
         # --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
         with tab4:
@@ -1679,6 +1610,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
