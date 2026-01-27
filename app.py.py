@@ -18,15 +18,16 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 # ==========================================
-# [1] 핵심 분석 함수 및 학술 데이터 (최상단 배치)
+# [1] 핵심 분석 함수 (최상단 배치)
 # ==========================================
-
 def get_us_ipo_analysis(ticker_symbol):
     """
     yfinance를 사용하여 실시간 재무 지표를 계산합니다.
+    데이터가 없으면 status: Error를 반환합니다.
     """
     try:
         tk = yf.Ticker(ticker_symbol)
+        # .info 데이터 가져오기 (시간 소요 대비 효율을 위해 변수 저장)
         info = tk.info
         
         # 1. Sales Growth (최근 매출 성장률)
@@ -37,6 +38,7 @@ def get_us_ipo_analysis(ticker_symbol):
         if not cashflow.empty and 'Operating Cash Flow' in cashflow.index:
             ocf_val = cashflow.loc['Operating Cash Flow'].iloc[0]
         else:
+            # cashflow 표가 비어있을 경우 info에서 시도
             ocf_val = info.get('operatingCashflow', 0)
             
         # 3. Accruals (발생액 계산: 당기순이익 - 영업현금흐름)
@@ -50,143 +52,8 @@ def get_us_ipo_analysis(ticker_symbol):
             "accruals": accruals_status,
             "status": "Success"
         }
-    except Exception:
+    except Exception as e:
         return {"status": "Error"}
-
-# [중요] 학술 논문 데이터 리스트 (NameError 방지)
-IPO_REFERENCES = [
-    {
-        "label": "장기 수익률",
-        "title": "The Long-Run Performance of Initial Public Offerings",
-        "author": "Jay R. Ritter (1991)",
-        "journal": "The Journal of Finance",
-        "url": "https://scholar.google.com/scholar?q=The+Long-Run+Performance+of+Initial+Public+Offerings+Ritter+1991"
-    },
-    {
-        "label": "수익성 및 생존",
-        "title": "New lists: Fundamentals and survival rates",
-        "author": "Eugene F. Fama & Kenneth R. French (2004)",
-        "journal": "Journal of Financial Economics",
-        "url": "https://scholar.google.com/scholar?q=New+lists+Fundamentals+and+survival+rates+Fama+French+2004"
-    },
-    {
-        "label": "재무 건전성",
-        "title": "Earnings Management and the Long-Run Market Performance of IPOs",
-        "author": "S.H. Teoh, I. Welch, & T.J. Wong (1998)",
-        "journal": "The Journal of Finance",
-        "url": "https://scholar.google.com/scholar?q=Earnings+Management+and+the+Long-Run+Market+Performance+of+IPOs+Teoh"
-    },
-    {
-        "label": "VC 인증 효과",
-        "title": "The Role of Venture Capital in the Creation of Public Companies",
-        "author": "C. Barry, C. Muscarella, J. Peavy, & M. Vetsuypens (1990)",
-        "journal": "Journal of Financial Economics",
-        "url": "https://scholar.google.com/scholar?q=The+Role+of+Venture+Capital+in+the+Creation+of+Public+Companies+Barry"
-    },
-    {
-        "label": "역선택 방어",
-        "title": "Why New Issues are Underpriced",
-        "author": "Kevin Rock (1986)",
-        "journal": "Journal of Financial Economics",
-        "url": "https://scholar.google.com/scholar?q=Why+New+Issues+are+Underpriced+Kevin+Rock"
-    }
-]
-
-# ... (중간 생략: Streamlit 탭 정의 부분) ...
-
-# ==========================================
-# [2] Tab 3: 개별 기업 평가 로직 (들여쓰기 교정 완료)
-# ==========================================
-with tab3:
-    st.markdown("### 🔍 개별 기업 심층 평가 시스템")
-    st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 리스크와 잠재력을 진단합니다.")
-    st.write("---")
-
-    # 실시간 데이터 호출
-    live_data = get_us_ipo_analysis(stock['symbol'])
-    is_success = live_data['status'] == "Success"
-    
-    # 데이터 처리
-    md_stock = {
-        "sales_growth": live_data.get('sales_growth') if is_success else None,
-        "ocf": live_data.get('ocf') if is_success else None,
-        "accruals": live_data.get('accruals') if is_success else None,
-        "vc_backed": "Yes (Tier 1)", 
-        "discount_rate": 15.4        
-    }
-
-    # 카드형 UI 레이아웃
-    c1, c2, c3 = st.columns(3)
-    c4, c5, _ = st.columns(3)
-
-    # (1) 장기 성과 리스크
-    with c1:
-        val = md_stock['sales_growth']
-        if val is not None:
-            status, st_cls = ("⚠️ Overheated", "st-hot") if val > 100 else ("✅ Stable", "st-good")
-            display_val = f"{val:+.1f}%"
-        else:
-            status, st_cls, display_val = ("🔍 판단 불가", "st-neutral", "Data N/A")
-        st.markdown(f"<div class='metric-card'><div class='metric-header'>Long-Run Performance</div><div class='metric-value'>{display_val}</div><div class='st-badge {st_cls}'>{status}</div><div class='metric-footer'>Ref: yfinance Real-time Data</div></div>", unsafe_allow_html=True)
-
-    # (2) 수익성 vs 성장성
-    with c2:
-        val = md_stock['ocf']
-        if val is not None:
-            status, st_cls = ("✅ Positive", "st-good") if val > 0 else ("🚨 Burning Cash", "st-hot")
-            display_val = "${:,.0f}".format(val)
-        else:
-            status, st_cls, display_val = ("🔍 판단 불가", "st-neutral", "Data N/A")
-        st.markdown(f"<div class='metric-card'><div class='metric-header'>OCF vs Growth</div><div class='metric-value'>{display_val}</div><div class='st-badge {st_cls}'>{status}</div><div class='metric-footer'>Ref: yfinance Financials</div></div>", unsafe_allow_html=True)
-
-    # (3) 경영진 신뢰도
-    with c3:
-        val = md_stock['accruals']
-        if val is not None:
-            status, st_cls = ("✅ Clean", "st-good") if val == "Low" else ("🚨 Risk", "st-hot")
-            display_val = f"{val} Accruals"
-        else:
-            status, st_cls, display_val = ("🔍 판단 불가", "st-neutral", "Data N/A")
-        st.markdown(f"<div class='metric-card'><div class='metric-header'>Earnings Management</div><div class='metric-value'>{display_val}</div><div class='st-badge {st_cls}'>{status}</div><div class='metric-footer'>Ref: Net Income - OCF Logic</div></div>", unsafe_allow_html=True)
-
-    # (4) VC 인증 효과
-    with c4:
-        st.markdown(f"<div class='metric-card'><div class='metric-header'>VC Certification</div><div class='metric-value'>{md_stock['vc_backed']}</div><div class='st-badge st-good'>Verified</div><div class='metric-footer'>Ref: Renaissance Capital IPO Center</div></div>", unsafe_allow_html=True)
-
-    # (5) 언더프라이싱
-    with c5:
-        val = md_stock['discount_rate']
-        status, st_cls = ("✅ Attractive", "st-good") if val > 15 else ("⚠️ Fair Value", "st-neutral")
-        st.markdown(f"<div class='metric-card'><div class='metric-header'>Rock's Underpricing</div><div class='metric-value'>{val:.1f}%</div><div class='st-badge {st_cls}'>{status}</div><div class='metric-footer'>Ref: Renaissance Capital Stats</div></div>", unsafe_allow_html=True)
-
-    st.write("<br>", unsafe_allow_html=True)
-
-    # [3] AI 종합 판정 리포트
-    st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
-    with st.expander("논문 기반 AI 분석 보기", expanded=True):
-        if is_success:
-            st.success(f"✅ {stock['name']}에 대한 학술적 검증이 완료되었습니다.")
-            st.write("학술적 지표를 분석한 결과, 재무적 건전성이 확인됩니다.")
-        else:
-            st.warning("⚠️ 신규 상장 초기 종목으로 실시간 데이터가 부족합니다. 외부 리포트를 참고하세요.")
-
-    # [4] 학술적 근거 및 원문 논문 (References)
-    st.write("---")
-    with st.expander("📚 학술적 근거 및 원문 논문(References) 확인", expanded=False):
-        st.markdown("#### 🎓 진단 시스템의 학술적 토대")
-        for ref in IPO_REFERENCES:
-            st.markdown(f"""
-            <div style='border-bottom: 1px solid #f0f2f6; padding: 10px 0;'>
-                <span style='color: #007bff; font-weight: bold; font-size: 0.8rem;'>[{ref['label']}]</span><br>
-                <div style='margin-top: 5px;'>
-                    <b>{ref['title']}</b><br>
-                    <span style='color: #555; font-size: 0.9rem;'>{ref['author']} | <i>{ref['journal']}</i></span>
-                </div>
-                <div style='margin-top: 5px;'>
-                    <a href='{ref['url']}' target='_blank' style='text-decoration: none; color: #ff4b4b; font-size: 0.85rem;'>🔗 원문 검색(Google Scholar) →</a>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
 
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
@@ -1851,8 +1718,6 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
-
-
 
 
 
