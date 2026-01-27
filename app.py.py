@@ -997,16 +997,32 @@ elif st.session_state.page == 'detail':
         rss_news = get_real_news_rss(stock['name'])
         
         if rss_news:
-            # --- [데이터 처리 로직] ---
+            # --- [데이터 처리 로직 통합 및 보강] ---
+            # 1. 제외할 키워드 (회사명과 혼동되는 노이즈 방지)
+            exclude_keywords = ['jewel', 'fashion', 'necklace', 'diamond', 'ring', 'crown royal', 'jewelry', 'pendant'] 
+            
             target_tags = ["분석", "시장", "전망", "전략", "수급"]
             final_display_news = []
             used_indices = set()
 
+            # [1단계] 필터링: 관련 없는 뉴스 미리 제거
+            filtered_news = []
+            for n in rss_news:
+                title_lower = n.get('title', '').lower()
+                # 제외 키워드가 제목에 하나도 포함되지 않은 경우만 리스트에 추가
+                if not any(ek in title_lower for ek in exclude_keywords):
+                    filtered_news.append(n)
+
+            # [2단계] 태그 분류 및 우선순위 정렬 (filtered_news 대상)
+            # 설정한 target_tags 순서대로 뉴스를 먼저 채웁니다.
             for target in target_tags:
-                for idx, n in enumerate(rss_news):
+                for idx, n in enumerate(filtered_news):
                     if idx in used_indices: continue
+                    
                     title_lower = n['title'].lower()
                     tag = "일반"
+                    
+                    # 키워드 기반 태그 할당
                     if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
                     elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): tag = "시장"
                     elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): tag = "전망"
@@ -1017,18 +1033,23 @@ elif st.session_state.page == 'detail':
                         n['display_tag'] = tag
                         final_display_news.append(n)
                         used_indices.add(idx)
-                        break
+                        break # 각 태그당 가장 적합한 뉴스 1개씩 먼저 선점
 
-            for idx, n in enumerate(rss_news):
+            # [3단계] 잔여 뉴스 채우기: 5개가 안 채워졌을 경우 나머지 뉴스 추가
+            for idx, n in enumerate(filtered_news):
                 if len(final_display_news) >= 5: break
                 if idx not in used_indices:
                     title_lower = n['title'].lower()
-                    if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): n['display_tag'] = "분석"
-                    elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): n['display_tag'] = "시장"
-                    elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): n['display_tag'] = "전망"
-                    elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): n['display_tag'] = "전략"
-                    elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): n['display_tag'] = "수급"
-                    else: n['display_tag'] = "일반"
+                    
+                    # 태그 재판별
+                    if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
+                    elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): tag = "시장"
+                    elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): tag = "전망"
+                    elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): tag = "전략"
+                    elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): tag = "수급"
+                    else: tag = "일반"
+                    
+                    n['display_tag'] = tag
                     final_display_news.append(n)
                     used_indices.add(idx)
 
@@ -1995,6 +2016,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
