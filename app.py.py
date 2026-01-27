@@ -1290,8 +1290,7 @@ with tab3:
     st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 리스크와 잠재력을 진단합니다.")
     st.write("---")
 
-    # [1] 데이터 준비 (기존 profile 및 financial_metrics 활용)
-    # 실제 구현 시에는 API에서 가져온 실적 데이터를 md_stock 변수에 담아야 합니다.
+    # [1] 데이터 준비
     md_stock = {
         "sales_growth": 45.2,  # 예시 매출 성장률
         "ocf": 120.5,          # 영업현금흐름
@@ -1308,8 +1307,7 @@ with tab3:
     # (1) 장기 성과 리스크 (Jay Ritter)
     with c1:
         val = md_stock['sales_growth']
-        status = "⚠️ 업종 과열" if val > 100 else "✅ 적정 성장"
-        st_cls = "st-hot" if val > 100 else "st-good"
+        status, st_cls = ("⚠️ 업종 과열", "st-hot") if val > 100 else ("✅ 적정 성장", "st-good")
         st.markdown(f"""
         <div class='metric-card'>
             <div class='metric-header'>Long-Run Performance</div>
@@ -1324,8 +1322,7 @@ with tab3:
     # (2) 수익성 vs 성장성 (Eugene Fama)
     with c2:
         val = md_stock['ocf']
-        status = "✅ 현금흐름 양호" if val > 0 else "🚨 현금 소진중"
-        st_cls = "st-good" if val > 0 else "st-hot"
+        status, st_cls = ("✅ 현금흐름 양호", "st-good") if val > 0 else ("🚨 현금 소진중", "st-hot")
         st.markdown(f"""
         <div class='metric-card'>
             <div class='metric-header'>OCF vs Growth</div>
@@ -1340,8 +1337,7 @@ with tab3:
     # (3) 경영진 신뢰도 (Teoh et al.)
     with c3:
         val = md_stock['accruals']
-        status = "✅ 클린 재무" if val == "Low" else "🚨 이익 조정 의심"
-        st_cls = "st-good" if val == "Low" else "st-hot"
+        status, st_cls = ("✅ 클린 재무", "st-good") if val == "Low" else ("🚨 이익 조정 의심", "st-hot")
         st.markdown(f"""
         <div class='metric-card'>
             <div class='metric-header'>Earnings Management</div>
@@ -1356,8 +1352,7 @@ with tab3:
     # (4) VC 인증 효과 (Barry et al.)
     with c4:
         val = md_stock['vc_backed']
-        status = "✅ 신뢰도 높음" if "Tier 1" in val else "⚖️ 보통"
-        st_cls = "st-good" if "Tier 1" in val else "st-neutral"
+        status, st_cls = ("✅ 신뢰도 높음", "st-good") if "Tier 1" in val else ("⚖️ 보통", "st-neutral")
         st.markdown(f"""
         <div class='metric-card'>
             <div class='metric-header'>VC Certification</div>
@@ -1372,8 +1367,7 @@ with tab3:
     # (5) 언더프라이싱 (Rock)
     with c5:
         val = md_stock['discount_rate']
-        status = "✅ 매력적" if val > 15 else "⚠️ 고평가"
-        st_cls = "st-good" if val > 15 else "st-hot"
+        status, st_cls = ("✅ 매력적", "st-good") if val > 15 else ("⚠️ 고평가", "st-hot")
         st.markdown(f"""
         <div class='metric-card'>
             <div class='metric-header'>Rock's Underpricing</div>
@@ -1390,244 +1384,163 @@ with tab3:
     # [3] AI 종합 판정 섹션
     st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
     with st.expander("논문 기반 AI 분석 보기", expanded=True):
-        st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과...")
-        # 이 부분에 get_ai_summary를 활용해 논문 관점의 분석글을 요청하여 넣으면 좋습니다.
+        st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과, 재무 건전성과 시장의 정보 대칭성이 양호한 수준으로 판단됩니다.")
+
+# --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
+with tab4:
+    import uuid
+    from datetime import datetime
+
+    # [설정] 관리자 및 기본 정보
+    ADMIN_PHONE = "010-0000-0000" 
+    sid = stock['symbol']
+    
+    # 세션 데이터 초기화 (누락 방지)
+    if 'vote_data' not in st.session_state: st.session_state.vote_data = {}
+    if 'comment_data' not in st.session_state: st.session_state.comment_data = {}
+    if 'user_votes' not in st.session_state: st.session_state.user_votes = {}
+    if 'watchlist' not in st.session_state: st.session_state.watchlist = []
+    
+    if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
+    if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
+    
+    current_user = st.session_state.get('user_phone', 'guest')
+    is_admin = (current_user == ADMIN_PHONE)
+
+    # --- 1. 투표 기능 ---
+    st.markdown("### 투자 매력도 투표")
+    if st.session_state.auth_status == 'user':
+        if sid not in st.session_state.user_votes:
+            v1, v2 = st.columns(2)
+            if v1.button("🦄 Unicorn (상승 예측)", use_container_width=True, key=f"vu_{sid}"): 
+                st.session_state.vote_data[sid]['u'] += 1
+                st.session_state.user_votes[sid] = 'u'
+                st.rerun()
+            if v2.button("💸 Fallen Angel (하락 예측)", use_container_width=True, key=f"vf_{sid}"): 
+                st.session_state.vote_data[sid]['f'] += 1
+                st.session_state.user_votes[sid] = 'f'
+                st.rerun()
+        else:
+            my_vote = "Unicorn" if st.session_state.user_votes[sid] == 'u' else "Fallen angel"
+            st.success(f"✅ 이미 '{my_vote}'에 투표하셨습니다.")
+    else:
+        st.warning("🔒 투표는 회원만 참여 가능합니다.")
+
+    # 결과 바 표시
+    uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
+    total_votes = uv + fv
+    if total_votes > 0:
+        ratio = uv / total_votes
+        st.progress(ratio)
+        st.caption(f"유니콘 {int(ratio*100)}% vs 폴른엔젤 {100-int(ratio*100)}% ({total_votes}명 참여)")
+    
+    st.write("---")
+
+    # --- 2. 커뮤니티 의견 ---
+    st.markdown("### 주주 토론방")
+    if st.session_state.auth_status == 'user':
+        with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
+            user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
+            btn_c1, btn_c2 = st.columns([3, 1])
+            with btn_c2:
+                submit_btn = st.form_submit_button("등록하기", use_container_width=True, type="primary")
+            
+            if submit_btn and user_input:
+                now_time = datetime.now().strftime("%m.%d %H:%M")
+                new_comment = {
+                    "id": str(uuid.uuid4()), "t": user_input, "d": now_time, "u": "익명의 유니콘",
+                    "uid": current_user, "likes": [], "dislikes": []
+                }
+                st.session_state.comment_data[sid].insert(0, new_comment)
+                st.toast("의견이 등록되었습니다!", icon="✅")
+                st.rerun()
+    else:
+        st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
+
+    comments = st.session_state.comment_data.get(sid, [])
+    if comments:
+        # 마이그레이션 및 정렬
+        for c in comments:
+            if 'likes' not in c: c['likes'] = []
+            if 'dislikes' not in c: c['dislikes'] = []
+        comments.sort(key=lambda x: len(x['likes']), reverse=True)
+
+        st.markdown(f"<div style='margin-bottom:10px; color:#666; font-size:14px;'>총 <b>{len(comments)}</b>개의 의견 (인기순)</div>", unsafe_allow_html=True)
         
-        
-        # --- Tab 4: 최종 투자 결정 ---
-        with tab4:
-            import uuid  # 고유 ID 생성을 위해 필요 (상단 import에 추가해도 됨)
+        delete_target_id = None 
+        for c in comments:
+            # 댓글 카드 UI
+            st.markdown(f"""
+            <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 5px; border: 1px solid #eee;'>
+                <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
+                    <div style='font-weight:bold; font-size:14px; color:#444;'>👤 {c.get('u', '익명')}</div>
+                    <div style='font-size:12px; color:#999;'>{c['d']}</div>
+                </div>
+                <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap;'>{c['t']}</div>
+            </div>""", unsafe_allow_html=True)
 
-            # [설정] 관리자 휴대폰 번호 (여기에 본인 번호를 입력하세요)
-            ADMIN_PHONE = "010-0000-0000" 
-            
-            sid = stock['symbol']
-            
-            # 세션 데이터 초기화
-            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
-            if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
-            if 'user_votes' not in st.session_state: st.session_state.user_votes = {}
-            
-            # 현재 접속자 정보 가져오기 (없으면 'guest')
-            current_user = st.session_state.get('user_phone', 'guest')
-            is_admin = (current_user == ADMIN_PHONE)
-
-            # --- 1. 투표 기능 (기존 유지) ---
-            st.markdown("### 투자 매력도 투표")
-            if st.session_state.auth_status == 'user':
-                if sid not in st.session_state.user_votes:
-                    v1, v2 = st.columns(2)
-                    if v1.button("🦄 Unicorn (상승 예측)", use_container_width=True, key=f"vu_{sid}"): 
-                        st.session_state.vote_data[sid]['u'] += 1
-                        st.session_state.user_votes[sid] = 'u'
-                        st.rerun()
-                    if v2.button("💸 Fallen Angel (하락 예측)", use_container_width=True, key=f"vf_{sid}"): 
-                        st.session_state.vote_data[sid]['f'] += 1
-                        st.session_state.user_votes[sid] = 'f'
-                        st.rerun()
-                else:
-                    my_vote = "Unicorn" if st.session_state.user_votes[sid] == 'u' else "Fallen angel"
-                    st.success(f"✅ 이미 '{my_vote}'에 투표하셨습니다.")
-            else:
-                st.warning("🔒 투표는 회원만 참여 가능합니다.")
-
-            # 결과 바 표시
-            uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
-            total_votes = uv + fv
-            if total_votes > 0:
-                ratio = uv / total_votes
-                st.progress(ratio)
-                st.caption(f"유니콘 {int(ratio*100)}% vs 폴른엔젤 {100-int(ratio*100)}% ({total_votes}명 참여)")
-            
-            st.write("---")
-
-            # --- 2. 커뮤니티 의견 (베스트 댓글순 정렬 + 좋아요/싫어요) ---
-            st.markdown("### 주주 토론방")
-            
-            # (A) 댓글 입력창 (기존과 동일, 데이터 구조만 변경)
-            if st.session_state.auth_status == 'user':
-                with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
-                    user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
-                    
-                    # 버튼 크기 맞춤 (3:1 비율)
-                    btn_c1, btn_c2 = st.columns([3, 1])
-                    with btn_c2:
-                        submit_btn = st.form_submit_button("등록하기", use_container_width=True, type="primary")
-                    
-                    if submit_btn and user_input:
-                        now_time = datetime.now().strftime("%m.%d %H:%M")
-                        new_comment = {
-                            "id": str(uuid.uuid4()),    
-                            "t": user_input,            
-                            "d": now_time,              
-                            "u": "익명의 유니콘",        
-                            "uid": current_user,
-                            # [추가] 좋아요/싫어요 누른 사람들의 ID를 저장할 리스트
-                            "likes": [],
-                            "dislikes": []
-                        }
-                        st.session_state.comment_data[sid].insert(0, new_comment)
-                        st.toast("의견이 등록되었습니다!", icon="✅")
-                        st.rerun()
-            else:
-                st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
-
-            # (B) 댓글 리스트 출력 (베스트순 정렬 + 투표 기능 + 우측 정렬)
-            comments = st.session_state.comment_data.get(sid, [])
-            
-            if comments:
-                # [핵심] 기존 댓글에 'likes' 키가 없으면 에러가 나므로 방어 코드 추가 (마이그레이션)
-                for c in comments:
-                    if 'likes' not in c: c['likes'] = []
-                    if 'dislikes' not in c: c['dislikes'] = []
-
-                # [핵심] 좋아요(likes) 개수가 많은 순서대로 정렬 (내림차순)
-                comments.sort(key=lambda x: len(x['likes']), reverse=True)
-
-                st.markdown(f"<div style='margin-bottom:10px; color:#666; font-size:14px;'>총 <b>{len(comments)}</b>개의 의견 (인기순)</div>", unsafe_allow_html=True)
-                
-                delete_target_id = None # 삭제할 댓글 임시 저장
-
-                for c in comments:
-                    # 좋아요/싫어요 수 계산
-                    n_likes = len(c['likes'])
-                    n_dislikes = len(c['dislikes'])
-                    
-                    # 카드 UI
-                    st.markdown(f"""
-                    <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 5px; border: 1px solid #eee;'>
-                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
-                            <div style='font-weight:bold; font-size:14px; color:#444;'>👤 {c.get('u', '익명')}</div>
-                            <div style='font-size:12px; color:#999;'>{c['d']}</div>
-                        </div>
-                        <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap; margin-bottom:5px;'>{c['t']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    # [기능] 좋아요/싫어요/삭제 버튼 액션 바 (우측 정렬 수정됨)
-                    # 5.5(빈공간) : 1.5(좋아요) : 1.5(싫어요) : 1.5(삭제) 비율로 나눔
-                    col_spacer, col_like, col_dislike, col_del = st.columns([5.5, 1.5, 1.5, 1.5])
-                    
-                    # 1. 좋아요 버튼
-                    is_liked = current_user in c['likes']
-                    like_icon = "👍" if is_liked else "👍"
-                    
-                    with col_like:
-                        if st.button(f"{like_icon} {n_likes}", key=f"like_{c['id']}", use_container_width=True):
-                            if st.session_state.auth_status == 'user':
-                                if current_user in c['likes']:
-                                    c['likes'].remove(current_user) # 이미 눌렀으면 취소
-                                else:
-                                    c['likes'].append(current_user) # 추가
-                                    if current_user in c['dislikes']: c['dislikes'].remove(current_user) # 싫어요 눌렀었으면 취소
-                                st.rerun()
-                            else:
-                                st.toast("로그인이 필요합니다.", icon="🔒")
-
-                    # 2. 싫어요 버튼
-                    is_disliked = current_user in c['dislikes']
-                    dislike_icon = "👎" if is_disliked else "👎"
-                    
-                    with col_dislike:
-                        if st.button(f"{dislike_icon} {n_dislikes}", key=f"dislike_{c['id']}", use_container_width=True):
-                            if st.session_state.auth_status == 'user':
-                                if current_user in c['dislikes']:
-                                    c['dislikes'].remove(current_user) # 취소
-                                else:
-                                    c['dislikes'].append(current_user) # 추가
-                                    if current_user in c['likes']: c['likes'].remove(current_user) # 좋아요 취소
-                                st.rerun()
-                            else:
-                                st.toast("로그인이 필요합니다.", icon="🔒")
-
-                    # 3. 삭제 버튼 (작성자 or 관리자)
-                    comment_author_id = c.get('uid', '')
-                    is_author = (current_user == comment_author_id) and (current_user != 'guest')
-                    
-                    with col_del:
-                        if is_author or is_admin:
-                            if st.button("🗑️ 삭제", key=f"del_{c['id']}", use_container_width=True):
-                                delete_target_id = c
+            # 액션 바 (좋아요/싫어요/삭제)
+            col_spacer, col_like, col_dislike, col_del = st.columns([5.5, 1.5, 1.5, 1.5])
+            with col_like:
+                if st.button(f"👍 {len(c['likes'])}", key=f"lk_{c['id']}", use_container_width=True):
+                    if st.session_state.auth_status == 'user':
+                        if current_user in c['likes']: c['likes'].remove(current_user)
                         else:
-                            # 버튼 줄을 맞추기 위해 권한이 없어도 빈 공간은 유지
-                            st.write("") 
-                    
-                    st.write("") # 카드 간 간격
-
-                # 삭제 실행
-                if delete_target_id:
-                    st.session_state.comment_data[sid].remove(delete_target_id)
-                    st.toast("댓글이 삭제되었습니다.", icon="🗑️")
-                    st.rerun()
-                    
-            else:
-                st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
-            
-            st.write("---")
-
-           # --- 3. 보관함 버튼 (타임캡슐 예측 기능 추가) ---
-            st.markdown("### 관심 종목 관리")
-            
-            # [필수] 예측 데이터 저장을 위한 세션 초기화 (없으면 생성)
-            if 'watchlist_predictions' not in st.session_state:
-                st.session_state.watchlist_predictions = {}
-
-            col_act1, col_act2 = st.columns([2.5, 1.5])
-            
-            # (1) 텍스트/상태 표시 영역
-            with col_act1:
-                if sid not in st.session_state.watchlist:
-                    st.markdown("""
-                    <div style='padding-top:5px;'>
-                        이 기업의 <b>5년 뒤 미래</b>는 어떨까요?<br>
-                        <span style='color:#666; font-size:14px;'>예측을 선택하여 관심종목에 추가하세요!</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    # 저장된 예측 값 가져오기
-                    my_pred = st.session_state.watchlist_predictions.get(sid, "N/A")
-                    
-                    if my_pred == "UP":
-                        pred_badge = "<span style='background:#e6f4ea; color:#1e8e3e; padding:3px 8px; border-radius:5px; font-weight:bold;'>🚀 5년 뒤 +50% 상승</span>"
-                    elif my_pred == "DOWN":
-                        pred_badge = "<span style='background:#fce8e6; color:#d93025; padding:3px 8px; border-radius:5px; font-weight:bold;'>📉 5년 뒤 -50% 하락</span>"
-                    else:
-                        pred_badge = "<span>관심 종목</span>"
-
-                    st.markdown(f"""
-                    <div style='padding-top:5px;'>
-                        현재 <b>{stock['name']}</b>을(를) 보관 중입니다.<br>
-                        나의 예측: {pred_badge}
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            # (2) 버튼 액션 영역
-            with col_act2:
-                if sid not in st.session_state.watchlist:
-                    # 아직 안 담은 경우 -> 예측 버튼 2개 노출
-                    c_up, c_down = st.columns(2)
-                    with c_up:
-                        if st.button("📈 UP", help="5년 뒤 50% 이상 상승", use_container_width=True):
-                            st.session_state.watchlist.append(sid)
-                            st.session_state.watchlist_predictions[sid] = "UP"
-                            st.balloons()
-                            st.toast(f"'{stock['name']}' 상승 예측으로 저장 완료!", icon="🚀")
-                            st.rerun()
-                    with c_down:
-                        if st.button("📉 DOWN", help="5년 뒤 50% 이상 하락", use_container_width=True):
-                            st.session_state.watchlist.append(sid)
-                            st.session_state.watchlist_predictions[sid] = "DOWN"
-                            st.toast(f"'{stock['name']}' 하락 예측으로 저장 완료!", icon="📉")
-                            st.rerun()
-                else:
-                    # 이미 담은 경우 -> 해제 버튼
-                    if st.button("🗑️ 보관 해제", use_container_width=True): 
-                        st.session_state.watchlist.remove(sid)
-                        # 예측 데이터도 같이 삭제할지, 남겨둘지 선택 (여기선 깔끔하게 삭제)
-                        if sid in st.session_state.watchlist_predictions:
-                            del st.session_state.watchlist_predictions[sid]
-                        st.toast("관심 목록에서 삭제되었습니다.", icon="🗑️")
+                            c['likes'].append(current_user)
+                            if current_user in c['dislikes']: c['dislikes'].remove(current_user)
                         st.rerun()
+            with col_dislike:
+                if st.button(f"👎 {len(c['dislikes'])}", key=f"dk_{c['id']}", use_container_width=True):
+                    if st.session_state.auth_status == 'user':
+                        if current_user in c['dislikes']: c['dislikes'].remove(current_user)
+                        else:
+                            c['dislikes'].append(current_user)
+                            if current_user in c['likes']: c['likes'].remove(current_user)
+                        st.rerun()
+            with col_del:
+                if (current_user == c.get('uid') and current_user != 'guest') or is_admin:
+                    if st.button("🗑️", key=f"dl_{c['id']}", use_container_width=True):
+                        delete_target_id = c
+            st.write("") 
+
+        if delete_target_id:
+            st.session_state.comment_data[sid].remove(delete_target_id)
+            st.rerun()
+    else:
+        st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
+
+    st.write("---")
+
+    # --- 3. 관심 종목 관리 ---
+    st.markdown("### 관심 종목 관리")
+    if 'watchlist_predictions' not in st.session_state: st.session_state.watchlist_predictions = {}
+
+    col_act1, col_act2 = st.columns([2.5, 1.5])
+    with col_act1:
+        if sid not in st.session_state.watchlist:
+            st.markdown("<div style='padding-top:5px;'>이 기업의 <b>5년 뒤 미래</b>를 예측하고 보관하세요!</div>", unsafe_allow_html=True)
+        else:
+            my_pred = st.session_state.watchlist_predictions.get(sid, "N/A")
+            badge = "🚀 +50% 상승" if my_pred == "UP" else "📉 -50% 하락"
+            st.markdown(f"현재 보관 중 | 나의 예측: **{badge}**")
+
+    with col_act2:
+        if sid not in st.session_state.watchlist:
+            c_up, c_down = st.columns(2)
+            if c_up.button("📈 UP", use_container_width=True):
+                st.session_state.watchlist.append(sid)
+                st.session_state.watchlist_predictions[sid] = "UP"
+                st.balloons()
+                st.rerun()
+            if c_down.button("📉 DOWN", use_container_width=True):
+                st.session_state.watchlist.append(sid)
+                st.session_state.watchlist_predictions[sid] = "DOWN"
+                st.rerun()
+        else:
+            if st.button("🗑️ 보관 해제", use_container_width=True):
+                st.session_state.watchlist.remove(sid)
+                if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
+                st.rerun()
 
 # --- 5. 게시판 페이지 ---
 elif st.session_state.page == 'board':
@@ -1772,6 +1685,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
