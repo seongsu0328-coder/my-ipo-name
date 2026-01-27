@@ -929,24 +929,53 @@ elif st.session_state.page == 'detail':
         rss_news = get_real_news_rss(stock['name'])
         
         if rss_news:
-            for i, n in enumerate(rss_news[:5]):
-                # --- [태그 자동 매칭 로직 보강] ---
-                title_lower = n['title'].lower()
-                
-                # IPO 과정 단어들을 성격별로 재분류
-                if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', 'why', 'investing', '분석']):
-                    tag = "분석"
-                elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']):
-                    tag = "시장"  # 상장 절차 관련은 '시장'으로 분류
-                elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']):
-                    tag = "전망"
-                elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', 'clinical', '전략']):
-                    tag = "전략"  # 제약사의 경우 약물 개발 단계는 '전략'
-                elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']):
-                    tag = "수급"  # 자금 조달, 가격 책정은 '수급'으로 분류
-                else:
+            # 1. 태그 정의 및 뉴스 분류 준비
+            target_tags = ["분석", "시장", "전망", "전략", "수급"]
+            final_display_news = []
+            used_indices = set()
+
+            # 2. 우선순위 태그별로 뉴스 매칭 (분석 -> 시장 -> 전망 -> 전략 -> 수급 순)
+            for target in target_tags:
+                for idx, n in enumerate(rss_news):
+                    if idx in used_indices: continue
+                    
+                    title_lower = n['title'].lower()
                     tag = "일반"
-                # -----------------------------------
+                    
+                    # 태그 판별 로직
+                    if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
+                    elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): tag = "시장"
+                    elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): tag = "전망"
+                    elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): tag = "전략"
+                    elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): tag = "수급"
+                    
+                    if tag == target:
+                        n['display_tag'] = tag
+                        final_display_news.append(n)
+                        used_indices.add(idx)
+                        break # 태그당 하나씩만 우선 배치
+
+            # 3. 남은 자리가 있다면 아직 사용 안 된 뉴스들로 채우기
+            for idx, n in enumerate(rss_news):
+                if len(final_display_news) >= 5: break
+                if idx not in used_indices:
+                    title_lower = n['title'].lower()
+                    # 남은 뉴스들도 태그 판별은 진행
+                    if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): n['display_tag'] = "분석"
+                    elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): n['display_tag'] = "시장"
+                    elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): n['display_tag'] = "전망"
+                    elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): n['display_tag'] = "전략"
+                    elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): n['display_tag'] = "수급"
+                    else: n['display_tag'] = "일반"
+                    
+                    final_display_news.append(n)
+                    used_indices.add(idx)
+
+            # 4. 화면 출력
+            for i, n in enumerate(final_display_news[:5]):
+                tag = n['display_tag']
+                # 중복 노출 방지 처리된 배지 HTML
+                sentiment_badge = f'<span style="background:{n["bg"]}; color:{n["color"]}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n["sent_label"]}</span>' if n['sent_label'] != tag else ""
 
                 st.markdown(f"""
                     <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
@@ -955,8 +984,7 @@ elif st.session_state.page == 'detail':
                                 <div>
                                     <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
                                     <span style="color:#888; font-size:12px;">| {tag}</span>
-                                    # 여기서 {n['sent_label']}이 '일반'일 경우 중복 노출을 피하기 위해 조건 처리
-                                    {" " if n['sent_label'] == tag else f'<span style="background:{n['bg']}; color:{n['color']}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n["sent_label"]}</span>'}
+                                    {sentiment_badge}
                                 </div>
                                 <small style="color:#bbb;">{n['date']}</small>
                             </div>
@@ -1902,6 +1930,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
