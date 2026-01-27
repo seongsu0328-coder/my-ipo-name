@@ -1444,7 +1444,7 @@ elif st.session_state.page == 'detail':
                 st.info("💡 제공된 링크는 해당 논문의 학술적 검색 결과로 연결됩니다. 일부 유료 저널의 경우 전문 보기가 제한될 수 있습니다.")
 
             # [4] AI 종합 판정 섹션
-            st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
+            st.markdown("#### AI 종목 심층 진단 리포트")
             with st.expander("논문 기반 AI 분석 보기", expanded=True):
                 st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과, 재무 건전성과 시장의 정보 대칭성이 양호한 수준으로 판단됩니다.")
 
@@ -1750,6 +1750,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
