@@ -1387,7 +1387,7 @@ elif st.session_state.page == 'detail':
         st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과, 재무 건전성과 시장의 정보 대칭성이 양호한 수준으로 판단됩니다.")
 
 # --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
-with tab4:
+        with tab4:
     import uuid
     from datetime import datetime
 
@@ -1694,6 +1694,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
