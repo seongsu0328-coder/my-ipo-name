@@ -1552,7 +1552,7 @@ with tab4:
 #     st.write("게시판 페이지")
 
 # --- 5. 게시판 페이지 ---
-elif st.session_state.page == 'board':
+if st.session_state.page == 'board':
     # [Top Menu] 상단 메뉴 버튼 (stats 페이지로 이동)
     m_col1, m_col2 = st.columns([8.5, 1.5])
     with m_col2:
@@ -1694,6 +1694,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
