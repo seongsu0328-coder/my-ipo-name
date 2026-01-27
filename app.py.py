@@ -1397,80 +1397,75 @@ elif st.session_state.page == 'detail':
                 "sales_growth": live_data.get('sales_growth') if is_success else None,
                 "ocf": live_data.get('ocf') if is_success else None,
                 "accruals": live_data.get('accruals') if is_success else None,
-                "vc_backed": "Yes (Tier 1)", # 실시간 연동이 어려울 경우 기본값 유지
+                "vc_backed": "Yes (Tier 1)", 
                 "discount_rate": 15.4        
             }
 
-            # [2] 카드형 UI 레이아웃 (4열 그리드)
+            # [2] 카드형 UI 레이아웃
             r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
-            r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
+            r2_c1, r2_c2, _, _ = st.columns(4)
 
-            # (1) 장기 성과 리스크
+            # (1) 매출 성장
             with r1_c1:
                 val = md_stock['sales_growth']
                 status, st_cls = (("🔥 과열", "st-hot") if val > 100 else ("✅ 안정", "st-good")) if val else ("🔍 N/A", "st-neutral")
                 display_val = f"{val:+.1f}%" if val else "데이터 없음"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>매출 성장률이 100%를 초과할 경우 장기 수익성 저하 리스크가 있습니다.</div><div class='metric-footer'>Ref: Jay Ritter (1991)</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-footer'>Ref: Jay Ritter (1991)</div></div>", unsafe_allow_html=True)
 
-            # (2) 현금 흐름 건전성
+            # (2) 현금 흐름
             with r1_c2:
                 val = md_stock['ocf']
                 status, st_cls = (("✅ 양호", "st-good") if val > 0 else ("🚨 위험", "st-hot")) if val else ("🔍 N/A", "st-neutral")
                 display_val = ("${:,.0f}".format(val) if abs(val) < 1000000 else "${:,.1f}M".format(val/1000000)) if val else "데이터 없음"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Operating Cash Flow</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>실제 영업 활동으로 벌어들이는 현금입니다. 음수는 자본 잠식을 시사합니다.</div><div class='metric-footer'>Ref: Fama & French (2004)</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='metric-card'><div class='metric-header'>Operating Cash Flow</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-footer'>Ref: Fama & French (2004)</div></div>", unsafe_allow_html=True)
 
-            # (3) 경영진 신뢰도
+            # (3) 발생액 품질
             with r1_c3:
                 val = md_stock['accruals']
                 status, st_cls = (("✅ 건전", "st-good") if val == "Low" else ("🚨 주의", "st-hot")) if val else ("🔍 N/A", "st-neutral")
                 display_val = val if val else "데이터 없음"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>회계적 이익과 실제 현금흐름의 괴리를 측정합니다. Low일수록 안전합니다.</div><div class='metric-footer'>Ref: Teoh et al. (1998)</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-footer'>Ref: Teoh et al. (1998)</div></div>", unsafe_allow_html=True)
 
-            # (4) VC 인증 효과
+            # (4) VC 인증
             with r1_c4:
                 val = md_stock['vc_backed']
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>VC Certification</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge st-good'>✅ 확인</span></div><div class='metric-desc'>대형 VC의 투자를 받은 기업은 외부 감시 효과로 생존율이 더 높습니다.</div><div class='metric-footer'>Ref: Barry et al. (1990)</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='metric-card'><div class='metric-header'>VC Certification</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge st-good'>Verified</span></div><div class='metric-footer'>Ref: Barry et al. (1990)</div></div>", unsafe_allow_html=True)
 
-            # (5) 언더프라이싱 매력도 (Row 2에 배치)
+            # (5) 언더프라이싱
             with r2_c1:
                 val = md_stock['discount_rate']
                 status, st_cls = ("✅ 매력", "st-good") if val > 15 else ("⚖️ 보통", "st-neutral")
-                st.markdown(f"""
-                <div class='metric-card'>
-                    <div class='metric-header'>Underpricing Rate</div>
-                    <div class='metric-value-row'>
-                        <span class='metric-value'>{val:.1f}%</span>
-                        <span class='st-badge {st_cls}'>{status}</span>
-                    </div>
-                    <div class='metric-desc'>공모가가 내재 가치 대비 할인된 비율입니다. 높을수록 수익 기회가 큽니다.</div>
-                    <div class='metric-footer'>Ref: Kevin Rock (1986)</div>
-                </div>""", unsafe_allow_html=True)
+                st.markdown(f"<div class='metric-card'><div class='metric-header'>Underpricing Rate</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-footer'>Ref: Kevin Rock (1986)</div></div>", unsafe_allow_html=True)
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # [3] AI 종합 판정 리포트 (동적 분석 로직 예시)
-st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
-with st.expander("논문 기반 AI 분석 보기", expanded=True):
-    if is_success:
-        # 1. 성격에 따른 분석 멘트 생성
-        if md_stock['sales_growth'] > 100:
-            growth_analysis = "매출이 폭발적으로 성장 중이나, Ritter(1991) 이론에 따르면 상장 초기 과도한 기대감이 향후 주가 조정으로 이어질 위험이 있습니다."
-        else:
-            growth_analysis = "매출 성장세가 안정적입니다. 이는 상장 이후 급격한 주가 변동성을 낮추는 긍정적인 요인입니다."
+            # [3] AI 종합 판정 리포트 (동적 분석 로직)
+            st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
+            with st.expander("논문 기반 AI 분석 보기", expanded=True):
+                if is_success:
+                    # 1. 성격에 따른 분석 멘트 생성
+                    g_val = md_stock['sales_growth']
+                    if g_val and g_val > 100:
+                        growth_analysis = "매출이 폭발적으로 성장 중이나, Ritter(1991) 이론에 따르면 상장 초기 과도한 기대감이 향후 주가 조정으로 이어질 위험이 있습니다."
+                    else:
+                        growth_analysis = "매출 성장세가 안정적입니다. 이는 상장 이후 급격한 주가 변동성을 낮추는 긍정적인 요인입니다."
 
-        if md_stock['ocf'] < 0:
-            cash_analysis = "현재 영업 현금이 유출되는 상태(Burn rate 발생)이므로, 추가 펀딩이나 빠른 흑자 전환 여부가 핵심 관건입니다."
-        else:
-            cash_analysis = "영업활동으로 현금을 창출하고 있어 재무적 완충 지대가 확보된 상태입니다."
+                    o_val = md_stock['ocf']
+                    if o_val and o_val < 0:
+                        cash_analysis = "현재 영업 현금이 유출되는 상태(Burn rate 발생)이므로, 추가 펀딩이나 빠른 흑자 전환 여부가 핵심 관건입니다."
+                    else:
+                        cash_analysis = "영업활동으로 현금을 창출하고 있어 재무적 완충 지대가 확보된 상태입니다."
 
-        # 2. 결과 출력
-        st.success(f"✅ {stock['name']}에 대한 실시간 데이터 검증 완료")
-        st.write(f"**{stock['symbol']} 종합 평가:**")
-        st.write(f"📈 **성장성:** {growth_analysis}")
-        st.write(f"💰 **현금흐름:** {cash_analysis}")
-        st.write(f"🛡️ **기관 검증:** {md_stock['vc_backed']}로 확인되어 정보 비대칭 리스크가 비교적 낮습니다.")
-    else:
-        st.warning("⚠️ 실시간 데이터 부족으로 상세 분석이 어렵습니다.")
+                    # 2. 결과 출력
+                    st.success(f"✅ {stock['name']}에 대한 실시간 데이터 검증 완료")
+                    st.write(f"**{stock['symbol']} 종합 평가:**")
+                    st.write(f"📈 **성장성 분석:** {growth_analysis}")
+                    st.write(f"💰 **자금 건전성:** {cash_analysis}")
+                    st.write(f"🛡️ **기관 검증:** {md_stock['vc_backed']}로 확인되어 정보 비대칭 리스크가 비교적 낮습니다.")
+                else:
+                    st.warning("⚠️ 실시간 데이터 부족으로 상세 분석이 어렵습니다. 재무제표 업데이트를 기다려주세요.")
+
+            st.write("<br>", unsafe_allow_html=True)
 
             # [5] 학술적 근거 및 원문 링크 섹션
             st.write("---")
@@ -1836,6 +1831,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
