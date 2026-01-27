@@ -891,7 +891,7 @@ elif st.session_state.page == 'detail':
 ])
 
         # --- Tab 0: 뉴스 & 심층 분석 (비즈니스 모델 집중 모드) ---
-with tab0:
+    with tab0:
     # [1] 기업 소개 섹션
     st.markdown(f"""
     <div style="margin-top: 20px; margin-bottom:5px;">
@@ -1925,6 +1925,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
