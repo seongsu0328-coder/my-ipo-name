@@ -892,7 +892,7 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 0: 뉴스 & 심층 분석 (비즈니스 모델 집중 모드) ---
     with tab0:
-        st.caption("Tavily AI 검색 엔진이 최신 웹 정보를 수집하고 AI가 핵심 내용을 요약합니다.")
+        st.caption("Tavily AI 검색 엔진과 자체 알고리즘으로 검색한 정보를 요약해 제공합니다.")
     
         # [1] 검색어 생성 (비즈니스 모델 심층 분석용)
         q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
@@ -1895,6 +1895,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
