@@ -347,7 +347,7 @@ def get_real_news_rss(company_name):
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_ai_summary(query):
     """
-    Tavily API로 검색하고, Groq(무료 LLM)로 요약하는 함수
+    Tavily API로 검색하고, Groq(Llama 3.3)로 비즈니스 모델을 정밀 요약하는 함수
     """
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     groq_key = st.secrets.get("GROQ_API_KEY") 
@@ -358,10 +358,11 @@ def get_ai_summary(query):
     try:
         # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
-        search_result = tavily.search(query=query, search_depth="basic", max_results=3)
+        # 검색 품질을 위해 search_depth를 'advanced'로 높여보시는 것도 좋습니다.
+        search_result = tavily.search(query=query, search_depth="basic", max_results=5)
         
         if not search_result.get('results'):
-            return None # 결과 없으면 조용히 넘어감 (UI에서 처리)
+            return None 
 
         context = "\n".join([r['content'] for r in search_result['results']])
         
@@ -372,17 +373,27 @@ def get_ai_summary(query):
         )
         
         response = client.chat.completions.create(
-            # 여기가 변경되었습니다! (최신 고성능 모델)
             model="llama-3.3-70b-versatile", 
             messages=[
-                {"role": "system", "content": "You are a financial expert. Summarize the key facts in Korean within 3 sentences."},
-                {"role": "user", "content": f"Context:\n{context}\n\nQuery: {query}\n\nPlease summarize appropriately."}
-            ]
+                {
+                    "role": "system", 
+                    "content": """당신은 미국 IPO 기업 분석 전문가입니다. 다음 규칙을 엄수하여 한국어로 답변하세요:
+                    1. 한국어로만 답변할 것.
+                    2. 정보가 불분명하거나 숫자가 깨진 데이터(예: 12 17.5% 등)는 무시하고 절대 출력하지 말 것.
+                    3. 검색 결과에 기반하여 [창업주 소개, 기업 소개, 핵심 비즈니스 모델 및 회사 목표, 주요 매출원 및 시장, 경쟁 우위, 최근 재무제표(매출/이익 등)] 정보를 포함하여 요약할 것.
+                    4. 반드시 전체 내용을 '5문장 이내'로 요약할 것.
+                    5. 만약 검색 결과에 구체적인 기업 정보가 없다면 반드시 '현재 해당 기업의 상세 비즈니스 모델 정보를 수집 중입니다'라고만 답변할 것."""
+                },
+                {
+                    "role": "user", 
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\nPlease summarize appropriately."
+                }
+            ],
+            temperature=0.3 # 답변의 일관성을 위해 온도를 낮게 설정
         )
         return response.choices[0].message.content
 
     except Exception as e:
-        # 에러가 나면 화면에 보여줌
         return f"🚫 오류: {str(e)}"
         
 # --- 화면 제어 시작 ---
@@ -863,75 +874,75 @@ elif st.session_state.page == 'detail':
     "🎯 투자 결정"
 ])
 
-        # --- Tab 0: 뉴스 & 심층 분석 (수정: 비즈니스 모델 집중 모드) ---
-        with tab0:
-            
-            st.caption("Tavily AI 검색 엔진이 최신 웹 정보를 수집하고 AI가 핵심 내용을 요약합니다.")
+        # --- Tab 0: 뉴스 & 심층 분석 (비즈니스 모델 집중 모드) ---
+with tab0:
+    st.caption("Tavily AI 검색 엔진이 최신 웹 정보를 수집하고 AI가 핵심 내용을 요약합니다.")
 
-            # [1] 검색어 생성 (비즈니스 모델만 설정)
-            q_biz = f"{stock['name']} IPO stock company business model revenue stream competitive advantage"
-            
-            # [2] 비즈니스 모델 섹션 (화면 전체 너비 사용)
-            st.markdown(f"""
+    # [1] 검색어 생성 (비즈니스 모델 심층 분석용)
+    q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
+    
+    # [2] 비즈니스 모델 섹션 제목
+    st.markdown(f"""
     <div style="margin-top: 20px; margin-bottom:15px;">
         <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-            비지니스 모델
+            비즈니스 모델 상세 분석
         </h3>
     </div>""", unsafe_allow_html=True)
+    
+    # 로딩 및 결과 표시
+    with st.spinner(f"🤖 AI가 {stock['name']}의 사업 구조와 재무 상태를 분석 중입니다..."):
+        # 개선된 프롬프트가 적용된 get_ai_summary 호출 (함수 내부 프롬프트는 아래 가이드 참고)
+        biz_info = get_ai_summary(q_biz)
+        
+        if biz_info:
+            # 정보를 깔끔한 박스에 표시
+            st.info(biz_info)
+        else:
+            st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 데이터가 부족할 수 있습니다)")
             
-            # 로딩 및 결과 표시
-            with st.spinner(f"🤖 AI가 {stock['name']}의 사업 구조를 분석하고 있습니다..."):
-                # 아까 수정한 Tavily+Groq 함수 호출
-                biz_info = get_ai_summary(q_biz)
-                
-                if biz_info:
-                    # 초록색 박스로 깔끔하게 표시
-                    st.success(biz_info)
-                else:
-                    st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 정보가 부족할 수 있습니다)")
-                    
-            # 구글 검색 링크 (보조)
-            st.markdown(f"""
-                <div style="text-align: right; margin-top: 5px;">
-                    <a href="https://www.google.com/search?q={q_biz}" target="_blank" style="text-decoration:none; color:#666; font-size:14px;">
-                        👉 구글에서 원문 검색 결과 보기
-                    </a>
-                </div>
-            """, unsafe_allow_html=True)
+    # 구글 검색 링크 (보조)
+    st.markdown(f"""
+        <div style="text-align: right; margin-top: 5px;">
+            <a href="https://www.google.com/search?q={q_biz}" target="_blank" style="text-decoration:none; color:#666; font-size:14px;">
+                👉 구글에서 원문 검색 결과 보기
+            </a>
+        </div>
+    """, unsafe_allow_html=True)
 
-            
-            
-            # [3] 뉴스 리스트 (기존 기능 유지)
-            st.markdown(f"""
+    st.write("<br>", unsafe_allow_html=True)
+
+    # [3] 뉴스 리스트 섹션
+    st.markdown(f"""
     <div style="margin-top: 10px; margin-bottom:15px;">
         <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-            {stock['name']} 뉴스
+            {stock['name']} 최신 뉴스
         </h3>
     </div>""", unsafe_allow_html=True)
-            
-            rss_news = get_real_news_rss(stock['name'])
-            tags = ["분석", "시장", "전망", "전략", "수급"]
-            
-            for i in range(5):
-                if rss_news and i < len(rss_news):
-                    n = rss_news[i]
-                    tag = tags[i]
-                    st.markdown(f"""
-                        <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
-                            <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03); transition: transform 0.2s;">
-                                <div style="display:flex; justify-content:space-between;">
-                                    <div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> | {tag} <span style="background:{n['bg']}; color:{n['color']}; padding:2px 5px; border-radius:4px; font-size:11px;">{n['sent_label']}</span></div>
-                                    <small style="color:#888;">{n['date']}</small>
-                                </div>
-                                <div style="margin-top:5px; font-weight:600; font-size:15px;">{n['title']}</div>
+    
+    rss_news = get_real_news_rss(stock['name'])
+    tags = ["분석", "시장", "전망", "전략", "수급"]
+    
+    if rss_news:
+        for i, n in enumerate(rss_news[:5]):
+            tag = tags[i] if i < len(tags) else "뉴스"
+            st.markdown(f"""
+                <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
+                    <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
+                                <span style="color:#888; font-size:12px;">| {tag}</span>
+                                <span style="background:{n['bg']}; color:{n['color']}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n['sent_label']}</span>
                             </div>
-                        </a>
-                    """, unsafe_allow_html=True)
-                else:
-                    if i == 0: 
-                        st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
-                        st.markdown(f"[👉 구글 뉴스 검색 바로가기](https://www.google.com/search?q={stock['name']}&tbm=nws)")
-                        break
+                            <small style="color:#bbb;">{n['date']}</small>
+                        </div>
+                        <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{n['title']}</div>
+                    </div>
+                </a>
+            """, unsafe_allow_html=True)
+    else:
+        st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
+        st.markdown(f"[👉 구글 뉴스 검색 바로가기](https://www.google.com/search?q={stock['name']}&tbm=nws)")
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
         with tab1:
@@ -1868,6 +1879,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
