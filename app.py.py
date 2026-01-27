@@ -1438,23 +1438,67 @@ elif st.session_state.page == 'detail':
                 else:
                     st.warning("⚠️ 신규 상장 초기 종목으로 실시간 데이터가 부족합니다. 외부 리포트를 참고하세요.")
 
-            # [4] 학술적 근거 및 원문 논문 (References)
+            # [5] 학술적 근거 및 원문 링크 섹션
             st.write("---")
-            with st.expander("📚 학술적 근거 및 원문 논문(References) 확인", expanded=False):
-                st.markdown("#### 🎓 진단 시스템의 학술적 토대")
+            with st.expander("📚 참고논문 및 학술적 근거 (References)", expanded=False):
+                # 공통 디자인 스타일 적용
+                st.markdown("""
+                <style>
+                    .ref-container { margin-top: 5px; }
+                    .ref-item { 
+                        padding: 12px 0; 
+                        border-bottom: 1px solid #f0f0f0; 
+                        display: flex; 
+                        justify-content: space-between; 
+                        align-items: center; 
+                        transition: 0.2s;
+                    }
+                    .ref-item:hover { background-color: #fafafa; padding-left: 10px; padding-right: 10px; }
+                    .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
+                    .ref-title:hover { text-decoration: underline; }
+                    .ref-author { font-size: 12px; color: #666; margin-top: 4px; }
+                    .ref-btn { 
+                        background: #fff; 
+                        border: 1px solid #ddd; 
+                        padding: 4px 12px; 
+                        border-radius: 15px; 
+                        font-size: 11px; 
+                        color: #555; 
+                        text-decoration: none; 
+                        white-space: nowrap;
+                    }
+                    .ref-btn:hover { border-color: #004e92; color: #004e92; background-color: #f0f7ff; }
+                    .ref-badge {
+                        display: inline-block;
+                        padding: 2px 8px;
+                        border-radius: 10px;
+                        background: #e9ecef;
+                        color: #495057;
+                        font-size: 10px;
+                        font-weight: bold;
+                        margin-bottom: 5px;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+
+                # 진단 시스템용 논문 데이터 리스트 (기존 IPO_REFERENCES 활용)
+                # 만약 IPO_REFERENCES 전역 변수를 사용 중이라면 아래 루프를 그대로 쓰시면 됩니다.
                 for ref in IPO_REFERENCES:
                     st.markdown(f"""
-                    <div style='border-bottom: 1px solid #f0f2f6; padding: 10px 0;'>
-                        <span style='color: #007bff; font-weight: bold; font-size: 0.8rem;'>[{ref['label']}]</span><br>
-                        <div style='margin-top: 5px;'>
-                            <b>{ref['title']}</b><br>
-                            <span style='color: #555; font-size: 0.9rem;'>{ref['author']} | <i>{ref['journal']}</i></span>
+                    <div class='ref-item'>
+                        <div>
+                            <div class='ref-badge'>{ref['label']}</div><br>
+                            <a href='{ref['url']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
+                            <div class='ref-author'>{ref['author']} | {ref['journal']}</div>
                         </div>
-                        <div style='margin-top: 5px;'>
-                            <a href='{ref['url']}' target='_blank' style='text-decoration: none; color: #ff4b4b; font-size: 0.85rem;'>🔗 원문 검색(Google Scholar) →</a>
+                        <div>
+                            <a href='{ref['url']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
+                
+                st.write("<br>", unsafe_allow_html=True)
+                st.caption("※ 클릭 시 해당 논문의 학술적 검색 결과(Google Scholar) 또는 데이터 사이트로 이동합니다.")
 
         # --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
         with tab4:
@@ -1758,6 +1802,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
