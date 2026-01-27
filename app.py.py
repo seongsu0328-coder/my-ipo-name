@@ -918,13 +918,21 @@ elif st.session_state.page == 'detail':
                 
     
     
-        # [3] 뉴스 리스트 섹션 - 이 블록 전체를 교체하세요
-        st.markdown(f'<div style="margin-top: 10px; margin-bottom:15px;"><h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">{stock["name"]} 최신 뉴스</h3></div>', unsafe_allow_html=True)
+        # [3] 뉴스 리스트 섹션
+        # 제목 위에 자체 알고리즘 안내 문구 추가
+        st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
+        
+        st.markdown(f"""
+        <div style="margin-top: 5px; margin-bottom:15px;">
+            <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
+                {stock['name']} 최신 뉴스
+            </h3>
+        </div>""", unsafe_allow_html=True)
         
         rss_news = get_real_news_rss(stock['name'])
         
         if rss_news:
-            # 태그 우선순위 정렬 로직
+            # --- [데이터 처리 로직 시작] ---
             target_tags = ["분석", "시장", "전망", "전략", "수급"]
             final_display_news = []
             used_indices = set()
@@ -946,7 +954,6 @@ elif st.session_state.page == 'detail':
                         used_indices.add(idx)
                         break
 
-            # 남은 뉴스 채우기
             for idx, n in enumerate(rss_news):
                 if len(final_display_news) >= 5: break
                 if idx not in used_indices:
@@ -960,29 +967,21 @@ elif st.session_state.page == 'detail':
                     final_display_news.append(n)
                     used_indices.add(idx)
 
-        # 4. 화면 출력 (한글 제목 유무에 따른 가변 레이아웃 적용)
+            # --- [화면 출력 로직 시작] ---
             for i, n in enumerate(final_display_news[:5]):
                 tag = n['display_tag']
                 s_label = n['sent_label']
                 
-                # [1] 원문 제목 안전 처리 ($ 기호 이스케이프)
-                raw_title = n.get('title', 'No Title')
-                safe_title = raw_title.replace("$", "\$")
-                
-                # [2] 한글 번역 제목 안전 처리
-                # 데이터 구조에 따라 'title_ko' 혹은 'translated' 등 키 이름을 확인해보세요.
+                safe_title = n.get('title', 'No Title').replace("$", "\$")
                 ko_title = n.get('title_ko', '') 
                 
-                # 한글 제목이 있을 경우에만 🇰🇷 아이콘과 함께 HTML 생성
                 trans_html = ""
                 if ko_title and ko_title.strip():
                     safe_ko_title = ko_title.replace("$", "\$")
                     trans_html = f"<br><span style='font-size:14px; color:#555; font-weight:normal;'>🇰🇷 {safe_ko_title}</span>"
                 
-                # [3] 감성 배지 생성 (태그와 라벨이 다를 때만)
                 s_badge = f'<span style="background:{n["bg"]}; color:{n["color"]}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{s_label}</span>' if s_label != tag else ""
                 
-                # [4] 전체 HTML 결합 (한 줄로 결합하여 렌더링 오류 방지)
                 html_content = (
                     f'<a href="{n["link"]}" target="_blank" style="text-decoration:none; color:inherit;">'
                     f'<div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">'
@@ -993,6 +992,8 @@ elif st.session_state.page == 'detail':
                     f'</div></a>'
                 )
                 st.markdown(html_content, unsafe_allow_html=True)
+        else:
+            st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
         with tab1:
@@ -1929,6 +1930,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
