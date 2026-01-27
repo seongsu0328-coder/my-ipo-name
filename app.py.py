@@ -8,16 +8,52 @@ import time
 import uuid
 import random
 
-# 게시판 기능을 위한 추가 설정 (이미 위에 포함됨)
-
 # --- [AI 및 검색 기능] ---
-from tavily import TavilyClient   # (필수) 검색 담당
-from openai import OpenAI         # (필수) 요약 담당 -> 이게 꼭 있어야 해요!
-from duckduckgo_search import DDGS # (선택) 혹시 모를 비상용
+from tavily import TavilyClient
+from openai import OpenAI
+from duckduckgo_search import DDGS
 
-# --- [주식 및 차트 기능 (기존 기능 유지)] ---
-import yfinance as yf             # 주가 데이터
-import plotly.graph_objects as go # 차트 그리기
+# --- [주식 및 차트 기능] ---
+import yfinance as yf
+import plotly.graph_objects as go
+
+# ==========================================
+# [1] 핵심 분석 함수 (최상단 배치)
+# ==========================================
+def get_us_ipo_analysis(ticker_symbol):
+    """
+    yfinance를 사용하여 실시간 재무 지표를 계산합니다.
+    데이터가 없으면 status: Error를 반환합니다.
+    """
+    try:
+        tk = yf.Ticker(ticker_symbol)
+        # .info 데이터 가져오기 (시간 소요 대비 효율을 위해 변수 저장)
+        info = tk.info
+        
+        # 1. Sales Growth (최근 매출 성장률)
+        sales_growth = info.get('revenueGrowth', 0) * 100 
+        
+        # 2. OCF (영업현금흐름)
+        cashflow = tk.cashflow
+        if not cashflow.empty and 'Operating Cash Flow' in cashflow.index:
+            ocf_val = cashflow.loc['Operating Cash Flow'].iloc[0]
+        else:
+            # cashflow 표가 비어있을 경우 info에서 시도
+            ocf_val = info.get('operatingCashflow', 0)
+            
+        # 3. Accruals (발생액 계산: 당기순이익 - 영업현금흐름)
+        net_income = info.get('netIncomeToCommon', 0)
+        accruals_amt = net_income - ocf_val
+        accruals_status = "Low" if accruals_amt <= 0 else "High"
+
+        return {
+            "sales_growth": sales_growth,
+            "ocf": ocf_val,
+            "accruals": accruals_status,
+            "status": "Success"
+        }
+    except Exception as e:
+        return {"status": "Error"}
 
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
@@ -1610,6 +1646,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
