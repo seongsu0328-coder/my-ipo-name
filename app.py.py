@@ -1615,7 +1615,7 @@ elif st.session_state.page == 'detail':
                 st.progress(ratio)
                 st.caption(f"유니콘 {int(ratio*100)}% vs 폴른엔젤 {100-int(ratio*100)}% ({total_votes}명 참여)")
             
-            st.write("---")
+            
 
             # --- 2. 커뮤니티 의견 ---
             st.markdown("### 주주 토론방")
@@ -1687,7 +1687,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
 
-            st.write("---")
+            
 
             # --- 3. 관심 종목 관리 ---
             st.markdown("### 관심 종목 관리")
@@ -1868,6 +1868,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
