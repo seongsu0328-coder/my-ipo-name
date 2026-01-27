@@ -1275,7 +1275,7 @@ elif st.session_state.page == 'detail':
                 </div>""", unsafe_allow_html=True)
 
                 st.write("<br>", unsafe_allow_html=True)
-            st.write("---")
+            st.write("<br>", unsafe_allow_html=True)  # 한 줄 띄우기
 
             # =================================================================
             # 3. 🤖 시장 통합 AI 진단 리포트 (Market Analysis Report)
@@ -1870,6 +1870,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
