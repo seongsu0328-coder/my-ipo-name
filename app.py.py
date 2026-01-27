@@ -927,11 +927,26 @@ elif st.session_state.page == 'detail':
         </div>""", unsafe_allow_html=True)
         
         rss_news = get_real_news_rss(stock['name'])
-        tags = ["분석", "시장", "전망", "전략", "수급"]
         
         if rss_news:
             for i, n in enumerate(rss_news[:5]):
-                tag = tags[i] if i < len(tags) else "뉴스"
+                # --- [태그 자동 매칭 로직 추가] ---
+                title_lower = n['title'].lower()
+                
+                if any(k in title_lower for k in ['analysis', 'valuation', 'report', '분석', '가치']):
+                    tag = "분석"
+                elif any(k in title_lower for k in ['market', 'industry', 'sector', '시장', '업계']):
+                    tag = "시장"
+                elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'will', '전망', '향후']):
+                    tag = "전망"
+                elif any(k in title_lower for k in ['strategy', 'plan', 'expand', 'growth', '전략', '계획']):
+                    tag = "전략"
+                elif any(k in title_lower for k in ['buy', 'sell', 'volume', 'institutional', '수급', '매수']):
+                    tag = "수급"
+                else:
+                    tag = "일반" # 매칭되는 키워드가 없을 경우
+                # -----------------------------------
+
                 st.markdown(f"""
                     <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
                         <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
@@ -949,7 +964,6 @@ elif st.session_state.page == 'detail':
                 """, unsafe_allow_html=True)
         else:
             st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
-            st.markdown(f"[👉 구글 뉴스 검색 바로가기](https://www.google.com/search?q={stock['name']}&tbm=nws)")
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
         with tab1:
@@ -1886,6 +1900,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
