@@ -899,7 +899,7 @@ elif st.session_state.page == 'detail':
                 </div>
             """, unsafe_allow_html=True)
 
-            st.write("---")
+            
             
             # [3] 뉴스 리스트 (기존 기능 유지)
             st.markdown(f"""
@@ -1868,6 +1868,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
