@@ -1286,269 +1286,264 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 3: 개별 기업 평가 (Individual Stock Analysis) ---
         with tab3:
-            st.markdown("### 🔍 개별 기업 심층 평가 시스템") # 한 단계(4칸) 들여쓰기
+            st.markdown("### 🔍 개별 기업 심층 평가 시스템")
             st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 리스크와 잠재력을 진단합니다.")
             st.write("---")
 
-    # [1] 데이터 준비
-    md_stock = {
-        "sales_growth": 45.2,  # 예시 매출 성장률
-        "ocf": 120.5,          # 영업현금흐름
-        "vc_backed": "Yes (Tier 1)", # VC 참여 여부
-        "lockup_period": 180,  # 보호예수 기간
-        "accruals": "Low",      # 발생액 수준
-        "discount_rate": 15.4  # 공모가 할인율
-    }
+            # [1] 데이터 준비
+            md_stock = {
+                "sales_growth": 45.2,  # 예시 매출 성장률
+                "ocf": 120.5,          # 영업현금흐름
+                "vc_backed": "Yes (Tier 1)", # VC 참여 여부
+                "lockup_period": 180,  # 보호예수 기간
+                "accruals": "Low",      # 발생액 수준
+                "discount_rate": 15.4  # 공모가 할인율
+            }
 
-    # [2] 카드형 UI 렌더링
-    c1, c2, c3 = st.columns(3)
-    c4, c5, _ = st.columns(3)
+            # [2] 카드형 UI 렌더링
+            c1, c2, c3 = st.columns(3)
+            c4, c5, _ = st.columns(3)
 
-    # (1) 장기 성과 리스크 (Jay Ritter)
-    with c1:
-        val = md_stock['sales_growth']
-        status, st_cls = ("⚠️ 업종 과열", "st-hot") if val > 100 else ("✅ 적정 성장", "st-good")
-        st.markdown(f"""
-        <div class='metric-card'>
-            <div class='metric-header'>Long-Run Performance</div>
-            <div class='metric-value-row'>
-                <span class='metric-value'>{val:+.1f}%</span>
-                <span class='st-badge {st_cls}'>{status}</span>
-            </div>
-            <div class='metric-desc'>과도하게 섹터가 과열된 경우 상장 후 3년 내 시장 평균보다 낮은 수익률을 보일 위험이 큽니다.</div>
-            <div class='metric-footer'>Ref: Jay Ritter (1991)</div>
-        </div>""", unsafe_allow_html=True)
+            # (1) 장기 성과 리스크 (Jay Ritter)
+            with c1:
+                val = md_stock['sales_growth']
+                status, st_cls = ("⚠️ 업종 과열", "st-hot") if val > 100 else ("✅ 적정 성장", "st-good")
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-header'>Long-Run Performance</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val:+.1f}%</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>과도하게 섹터가 과열된 경우 상장 후 3년 내 시장 평균보다 낮은 수익률을 보일 위험이 큽니다.</div>
+                    <div class='metric-footer'>Ref: Jay Ritter (1991)</div>
+                </div>""", unsafe_allow_html=True)
 
-    # (2) 수익성 vs 성장성 (Eugene Fama)
-    with c2:
-        val = md_stock['ocf']
-        status, st_cls = ("✅ 현금흐름 양호", "st-good") if val > 0 else ("🚨 현금 소진중", "st-hot")
-        st.markdown(f"""
-        <div class='metric-card'>
-            <div class='metric-header'>OCF vs Growth</div>
-            <div class='metric-value-row'>
-                <span class='metric-value'>{"Positive" if val > 0 else "Negative"}</span>
-                <span class='st-badge {st_cls}'>{status}</span>
-            </div>
-            <div class='metric-desc'>매출뿐 아니라 영업 현금흐름(OCF)이 실제 돈을 벌어들이는 구조인지가 장기 생존의 핵심입니다.</div>
-            <div class='metric-footer'>Ref: Fama & French (2004)</div>
-        </div>""", unsafe_allow_html=True)
+            # (2) 수익성 vs 성장성 (Eugene Fama)
+            with c2:
+                val = md_stock['ocf']
+                status, st_cls = ("✅ 현금흐름 양호", "st-good") if val > 0 else ("🚨 현금 소진중", "st-hot")
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-header'>OCF vs Growth</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{"Positive" if val > 0 else "Negative"}</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>매출뿐 아니라 영업 현금흐름(OCF)이 실제 돈을 벌어들이는 구조인지가 장기 생존의 핵심입니다.</div>
+                    <div class='metric-footer'>Ref: Fama & French (2004)</div>
+                </div>""", unsafe_allow_html=True)
 
-    # (3) 경영진 신뢰도 (Teoh et al.)
-    with c3:
-        val = md_stock['accruals']
-        status, st_cls = ("✅ 클린 재무", "st-good") if val == "Low" else ("🚨 이익 조정 의심", "st-hot")
-        st.markdown(f"""
-        <div class='metric-card'>
-            <div class='metric-header'>Earnings Management</div>
-            <div class='metric-value-row'>
-                <span class='metric-value'>{val}</span>
-                <span class='st-badge {st_cls}'>{status}</span>
-            </div>
-            <div class='metric-desc'>발생액(Accruals)이 비정상적으로 높으면 상장 전 실적을 부풀렸을 가능성이 있어 주가 급락에 유의해야 합니다.</div>
-            <div class='metric-footer'>Ref: Teoh, Welch & Wong (1998)</div>
-        </div>""", unsafe_allow_html=True)
+            # (3) 경영진 신뢰도 (Teoh et al.)
+            with c3:
+                val = md_stock['accruals']
+                status, st_cls = ("✅ 클린 재무", "st-good") if val == "Low" else ("🚨 이익 조정 의심", "st-hot")
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-header'>Earnings Management</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val}</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>발생액(Accruals)이 비정상적으로 높으면 상장 전 실적을 부풀렸을 가능성이 있어 주가 급락에 유의해야 합니다.</div>
+                    <div class='metric-footer'>Ref: Teoh, Welch & Wong (1998)</div>
+                </div>""", unsafe_allow_html=True)
 
-    # (4) VC 인증 효과 (Barry et al.)
-    with c4:
-        val = md_stock['vc_backed']
-        status, st_cls = ("✅ 신뢰도 높음", "st-good") if "Tier 1" in val else ("⚖️ 보통", "st-neutral")
-        st.markdown(f"""
-        <div class='metric-card'>
-            <div class='metric-header'>VC Certification</div>
-            <div class='metric-value-row'>
-                <span class='metric-value'>{val}</span>
-                <span class='st-badge {st_cls}'>{status}</span>
-            </div>
-            <div class='metric-desc'>유명 VC의 참여는 기업의 질을 간접적으로 보증하며, 상장 초기 변동성을 방어해주는 역할을 합니다.</div>
-            <div class='metric-footer'>Ref: Barry, Muscarella et al. (1990)</div>
-        </div>""", unsafe_allow_html=True)
+            # (4) VC 인증 효과 (Barry et al.)
+            with c4:
+                val = md_stock['vc_backed']
+                status, st_cls = ("✅ 신뢰도 높음", "st-good") if "Tier 1" in val else ("⚖️ 보통", "st-neutral")
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-header'>VC Certification</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val}</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>유명 VC의 참여는 기업의 질을 간접적으로 보증하며, 상장 초기 변동성을 방어해주는 역할을 합니다.</div>
+                    <div class='metric-footer'>Ref: Barry, Muscarella et al. (1990)</div>
+                </div>""", unsafe_allow_html=True)
 
-    # (5) 언더프라이싱 (Rock)
-    with c5:
-        val = md_stock['discount_rate']
-        status, st_cls = ("✅ 매력적", "st-good") if val > 15 else ("⚠️ 고평가", "st-hot")
-        st.markdown(f"""
-        <div class='metric-card'>
-            <div class='metric-header'>Rock's Underpricing</div>
-            <div class='metric-value-row'>
-                <span class='metric-value'>{val:.1f}%</span>
-                <span class='st-badge {st_cls}'>{status}</span>
-            </div>
-            <div class='metric-desc'>공모가가 내재 가치 대비 충분히 할인되었는지가 중요합니다. 정보 비대칭에 따른 '역선택' 위험을 확인하세요.</div>
-            <div class='metric-footer'>Ref: Kevin Rock (1986)</div>
-        </div>""", unsafe_allow_html=True)
+            # (5) 언더프라이싱 (Rock)
+            with c5:
+                val = md_stock['discount_rate']
+                status, st_cls = ("✅ 매력적", "st-good") if val > 15 else ("⚠️ 고평가", "st-hot")
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-header'>Rock's Underpricing</div>
+                    <div class='metric-value-row'>
+                        <span class='metric-value'>{val:.1f}%</span>
+                        <span class='st-badge {st_cls}'>{status}</span>
+                    </div>
+                    <div class='metric-desc'>공모가가 내재 가치 대비 충분히 할인되었는지가 중요합니다. 정보 비대칭에 따른 '역선택' 위험을 확인하세요.</div>
+                    <div class='metric-footer'>Ref: Kevin Rock (1986)</div>
+                </div>""", unsafe_allow_html=True)
 
-    st.write("<br>", unsafe_allow_html=True)
-    
-    # [3] AI 종합 판정 섹션
-    st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
-    with st.expander("논문 기반 AI 분석 보기", expanded=True):
-        st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과, 재무 건전성과 시장의 정보 대칭성이 양호한 수준으로 판단됩니다.")
-
-# --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
-with tab4:
-    # 아래 모든 줄이 오른쪽으로 4칸(Tab 1번) 들여쓰기 되어야 합니다.
-    import uuid
-    from datetime import datetime
-
-    # [설정] 관리자 및 기본 정보
-    ADMIN_PHONE = "010-0000-0000" 
-    sid = stock['symbol']
-    
-    # 세션 데이터 초기화 (누락 방지)
-    if 'vote_data' not in st.session_state: st.session_state.vote_data = {}
-    if 'comment_data' not in st.session_state: st.session_state.comment_data = {}
-    if 'user_votes' not in st.session_state: st.session_state.user_votes = {}
-    if 'watchlist' not in st.session_state: st.session_state.watchlist = []
-    if 'watchlist_predictions' not in st.session_state: st.session_state.watchlist_predictions = {}
-    
-    if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
-    if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
-    
-    current_user = st.session_state.get('user_phone', 'guest')
-    is_admin = (current_user == ADMIN_PHONE)
-
-    # --- 1. 투표 기능 ---
-    st.markdown("### 투자 매력도 투표")
-    if st.session_state.get('auth_status') == 'user':
-        if sid not in st.session_state.user_votes:
-            v1, v2 = st.columns(2)
-            if v1.button("🦄 Unicorn (상승 예측)", use_container_width=True, key=f"vu_{sid}"): 
-                st.session_state.vote_data[sid]['u'] += 1
-                st.session_state.user_votes[sid] = 'u'
-                st.rerun()
-            if v2.button("💸 Fallen Angel (하락 예측)", use_container_width=True, key=f"vf_{sid}"): 
-                st.session_state.vote_data[sid]['f'] += 1
-                st.session_state.user_votes[sid] = 'f'
-                st.rerun()
-        else:
-            my_vote = "Unicorn" if st.session_state.user_votes[sid] == 'u' else "Fallen angel"
-            st.success(f"✅ 이미 '{my_vote}'에 투표하셨습니다.")
-    else:
-        st.warning("🔒 투표는 회원만 참여 가능합니다.")
-
-    # 결과 바 표시
-    uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
-    total_votes = uv + fv
-    if total_votes > 0:
-        ratio = uv / total_votes
-        st.progress(ratio)
-        st.caption(f"유니콘 {int(ratio*100)}% vs 폴른엔젤 {100-int(ratio*100)}% ({total_votes}명 참여)")
-    
-    st.write("---")
-
-    # --- 2. 커뮤니티 의견 ---
-    st.markdown("### 주주 토론방")
-    if st.session_state.get('auth_status') == 'user':
-        with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
-            user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
-            btn_c1, btn_c2 = st.columns([3, 1])
-            with btn_c2:
-                submit_btn = st.form_submit_button("등록하기", use_container_width=True, type="primary")
+            st.write("<br>", unsafe_allow_html=True)
             
-            if submit_btn and user_input:
-                now_time = datetime.now().strftime("%m.%d %H:%M")
-                new_comment = {
-                    "id": str(uuid.uuid4()), "t": user_input, "d": now_time, "u": "익명의 유니콘",
-                    "uid": current_user, "likes": [], "dislikes": []
-                }
-                st.session_state.comment_data[sid].insert(0, new_comment)
-                st.toast("의견이 등록되었습니다!", icon="✅")
-                st.rerun()
-    else:
-        st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
+            # [3] AI 종합 판정 섹션
+            st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
+            with st.expander("논문 기반 AI 분석 보기", expanded=True):
+                st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과, 재무 건전성과 시장의 정보 대칭성이 양호한 수준으로 판단됩니다.")
 
-    comments = st.session_state.comment_data.get(sid, [])
-    if comments:
-        for c in comments:
-            if 'likes' not in c: c['likes'] = []
-            if 'dislikes' not in c: c['dislikes'] = []
-        comments.sort(key=lambda x: len(x['likes']), reverse=True)
+        # --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
+        with tab4:
+            import uuid
+            from datetime import datetime
 
-        st.markdown(f"<div style='margin-bottom:10px; color:#666; font-size:14px;'>총 <b>{len(comments)}</b>개의 의견 (인기순)</div>", unsafe_allow_html=True)
-        
-        delete_target_id = None 
-        for c in comments:
-            st.markdown(f"""
-            <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 5px; border: 1px solid #eee;'>
-                <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
-                    <div style='font-weight:bold; font-size:14px; color:#444;'>👤 {c.get('u', '익명')}</div>
-                    <div style='font-size:12px; color:#999;'>{c['d']}</div>
-                </div>
-                <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap;'>{c['t']}</div>
-            </div>""", unsafe_allow_html=True)
+            # [설정] 관리자 및 기본 정보
+            ADMIN_PHONE = "010-0000-0000" 
+            sid = stock['symbol']
+            
+            # 세션 데이터 초기화 (누락 방지)
+            if 'vote_data' not in st.session_state: st.session_state.vote_data = {}
+            if 'comment_data' not in st.session_state: st.session_state.comment_data = {}
+            if 'user_votes' not in st.session_state: st.session_state.user_votes = {}
+            if 'watchlist' not in st.session_state: st.session_state.watchlist = []
+            if 'watchlist_predictions' not in st.session_state: st.session_state.watchlist_predictions = {}
+            
+            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
+            if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
+            
+            current_user = st.session_state.get('user_phone', 'guest')
+            is_admin = (current_user == ADMIN_PHONE)
 
-            col_spacer, col_like, col_dislike, col_del = st.columns([5.5, 1.5, 1.5, 1.5])
-            with col_like:
-                if st.button(f"👍 {len(c['likes'])}", key=f"lk_{c['id']}", use_container_width=True):
-                    if st.session_state.get('auth_status') == 'user':
-                        if current_user in c['likes']: c['likes'].remove(current_user)
-                        else:
-                            c['likes'].append(current_user)
-                            if current_user in c['dislikes']: c['dislikes'].remove(current_user)
+            # --- 1. 투표 기능 ---
+            st.markdown("### 투자 매력도 투표")
+            if st.session_state.get('auth_status') == 'user':
+                if sid not in st.session_state.user_votes:
+                    v1, v2 = st.columns(2)
+                    if v1.button("🦄 Unicorn (상승 예측)", use_container_width=True, key=f"vu_{sid}"): 
+                        st.session_state.vote_data[sid]['u'] += 1
+                        st.session_state.user_votes[sid] = 'u'
                         st.rerun()
-            with col_dislike:
-                if st.button(f"👎 {len(c['dislikes'])}", key=f"dk_{c['id']}", use_container_width=True):
-                    if st.session_state.get('auth_status') == 'user':
-                        if current_user in c['dislikes']: c['dislikes'].remove(current_user)
-                        else:
-                            c['dislikes'].append(current_user)
-                            if current_user in c['likes']: c['likes'].remove(current_user)
+                    if v2.button("💸 Fallen Angel (하락 예측)", use_container_width=True, key=f"vf_{sid}"): 
+                        st.session_state.vote_data[sid]['f'] += 1
+                        st.session_state.user_votes[sid] = 'f'
                         st.rerun()
-            with col_del:
-                if (current_user == c.get('uid') and current_user != 'guest') or is_admin:
-                    if st.button("🗑️", key=f"dl_{c['id']}", use_container_width=True):
-                        delete_target_id = c
-            st.write("") 
+                else:
+                    my_vote = "Unicorn" if st.session_state.user_votes[sid] == 'u' else "Fallen angel"
+                    st.success(f"✅ 이미 '{my_vote}'에 투표하셨습니다.")
+            else:
+                st.warning("🔒 투표는 회원만 참여 가능합니다.")
 
-        if delete_target_id:
-            st.session_state.comment_data[sid].remove(delete_target_id)
-            st.rerun()
-    else:
-        st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
+            # 결과 바 표시
+            uv, fv = st.session_state.vote_data[sid]['u'], st.session_state.vote_data[sid]['f']
+            total_votes = uv + fv
+            if total_votes > 0:
+                ratio = uv / total_votes
+                st.progress(ratio)
+                st.caption(f"유니콘 {int(ratio*100)}% vs 폴른엔젤 {100-int(ratio*100)}% ({total_votes}명 참여)")
+            
+            st.write("---")
 
-    st.write("---")
+            # --- 2. 커뮤니티 의견 ---
+            st.markdown("### 주주 토론방")
+            if st.session_state.get('auth_status') == 'user':
+                with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
+                    user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
+                    btn_c1, btn_c2 = st.columns([3, 1])
+                    with btn_c2:
+                        submit_btn = st.form_submit_button("등록하기", use_container_width=True, type="primary")
+                    
+                    if submit_btn and user_input:
+                        now_time = datetime.now().strftime("%m.%d %H:%M")
+                        new_comment = {
+                            "id": str(uuid.uuid4()), "t": user_input, "d": now_time, "u": "익명의 유니콘",
+                            "uid": current_user, "likes": [], "dislikes": []
+                        }
+                        st.session_state.comment_data[sid].insert(0, new_comment)
+                        st.toast("의견이 등록되었습니다!", icon="✅")
+                        st.rerun()
+            else:
+                st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
 
-    # --- 3. 관심 종목 관리 ---
-    st.markdown("### 관심 종목 관리")
-    col_act1, col_act2 = st.columns([2.5, 1.5])
-    with col_act1:
-        if sid not in st.session_state.watchlist:
-            st.markdown("<div style='padding-top:5px;'>이 기업의 <b>5년 뒤 미래</b>를 예측하고 보관하세요!</div>", unsafe_allow_html=True)
-        else:
-            my_pred = st.session_state.watchlist_predictions.get(sid, "N/A")
-            badge = "🚀 +50% 상승" if my_pred == "UP" else "📉 -50% 하락"
-            st.markdown(f"현재 보관 중 | 나의 예측: **{badge}**")
+            comments = st.session_state.comment_data.get(sid, [])
+            if comments:
+                for c in comments:
+                    if 'likes' not in c: c['likes'] = []
+                    if 'dislikes' not in c: c['dislikes'] = []
+                comments.sort(key=lambda x: len(x['likes']), reverse=True)
 
-    with col_act2:
-        if sid not in st.session_state.watchlist:
-            c_up, c_down = st.columns(2)
-            if c_up.button("📈 UP", key=f"up_btn_{sid}", use_container_width=True):
-                st.session_state.watchlist.append(sid)
-                st.session_state.watchlist_predictions[sid] = "UP"
-                st.balloons()
-                st.rerun()
-            if c_down.button("📉 DOWN", key=f"down_btn_{sid}", use_container_width=True):
-                st.session_state.watchlist.append(sid)
-                st.session_state.watchlist_predictions[sid] = "DOWN"
-                st.rerun()
-        else:
-            if st.button("🗑️ 보관 해제", key=f"remove_btn_{sid}", use_container_width=True):
-                st.session_state.watchlist.remove(sid)
-                if sid in st.session_state.watchlist_predictions: 
-                    del st.session_state.watchlist_predictions[sid]
-                st.rerun()
+                st.markdown(f"<div style='margin-bottom:10px; color:#666; font-size:14px;'>총 <b>{len(comments)}</b>개의 의견 (인기순)</div>", unsafe_allow_html=True)
+                
+                delete_target_id = None 
+                for c in comments:
+                    st.markdown(f"""
+                    <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 5px; border: 1px solid #eee;'>
+                        <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;'>
+                            <div style='font-weight:bold; font-size:14px; color:#444;'>👤 {c.get('u', '익명')}</div>
+                            <div style='font-size:12px; color:#999;'>{c['d']}</div>
+                        </div>
+                        <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap;'>{c['t']}</div>
+                    </div>""", unsafe_allow_html=True)
+
+                    col_spacer, col_like, col_dislike, col_del = st.columns([5.5, 1.5, 1.5, 1.5])
+                    with col_like:
+                        if st.button(f"👍 {len(c['likes'])}", key=f"lk_{c['id']}", use_container_width=True):
+                            if st.session_state.get('auth_status') == 'user':
+                                if current_user in c['likes']: c['likes'].remove(current_user)
+                                else:
+                                    c['likes'].append(current_user)
+                                    if current_user in c['dislikes']: c['dislikes'].remove(current_user)
+                                st.rerun()
+                    with col_dislike:
+                        if st.button(f"👎 {len(c['dislikes'])}", key=f"dk_{c['id']}", use_container_width=True):
+                            if st.session_state.get('auth_status') == 'user':
+                                if current_user in c['dislikes']: c['dislikes'].remove(current_user)
+                                else:
+                                    c['dislikes'].append(current_user)
+                                    if current_user in c['likes']: c['likes'].remove(current_user)
+                                st.rerun()
+                    with col_del:
+                        if (current_user == c.get('uid') and current_user != 'guest') or is_admin:
+                            if st.button("🗑️", key=f"dl_{c['id']}", use_container_width=True):
+                                delete_target_id = c
+                    st.write("") 
+
+                if delete_target_id:
+                    st.session_state.comment_data[sid].remove(delete_target_id)
+                    st.rerun()
+            else:
+                st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
+
+            st.write("---")
+
+            # --- 3. 관심 종목 관리 ---
+            st.markdown("### 관심 종목 관리")
+            col_act1, col_act2 = st.columns([2.5, 1.5])
+            with col_act1:
+                if sid not in st.session_state.watchlist:
+                    st.markdown("<div style='padding-top:5px;'>이 기업의 <b>5년 뒤 미래</b>를 예측하고 보관하세요!</div>", unsafe_allow_html=True)
+                else:
+                    my_pred = st.session_state.watchlist_predictions.get(sid, "N/A")
+                    badge = "🚀 +50% 상승" if my_pred == "UP" else "📉 -50% 하락"
+                    st.markdown(f"현재 보관 중 | 나의 예측: **{badge}**")
+
+            with col_act2:
+                if sid not in st.session_state.watchlist:
+                    c_up, c_down = st.columns(2)
+                    if c_up.button("📈 UP", key=f"up_btn_{sid}", use_container_width=True):
+                        st.session_state.watchlist.append(sid)
+                        st.session_state.watchlist_predictions[sid] = "UP"
+                        st.balloons()
+                        st.rerun()
+                    if c_down.button("📉 DOWN", key=f"down_btn_{sid}", use_container_width=True):
+                        st.session_state.watchlist.append(sid)
+                        st.session_state.watchlist_predictions[sid] = "DOWN"
+                        st.rerun()
+                else:
+                    if st.button("🗑️ 보관 해제", key=f"remove_btn_{sid}", use_container_width=True):
+                        st.session_state.watchlist.remove(sid)
+                        if sid in st.session_state.watchlist_predictions: 
+                            del st.session_state.watchlist_predictions[sid]
+                        st.rerun()
 
 # ---------------------------------------------------------
-# 여기서부터는 with tab4 바깥입니다. (들여쓰기 끝)
+# 여기서부터는 전체 탭 또는 메인 영역 바깥입니다. (들여쓰기 주의)
 # ---------------------------------------------------------
-
-# --- 5. 게시판 페이지 분기 ---
-# 앞선 if문들이 주석처리 되었다면 아래를 if로 시작하세요.
 if st.session_state.page == 'board':
     st.write("### 📋 게시판 페이지")
-    # 여기에 게시판 관련 코드를 추가하세요.
 
 # --- 5. 게시판 페이지 ---
 if st.session_state.page == 'board':
@@ -1693,6 +1688,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
