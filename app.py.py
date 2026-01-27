@@ -960,25 +960,32 @@ elif st.session_state.page == 'detail':
                     final_display_news.append(n)
                     used_indices.add(idx)
 
-        # 4. 화면 출력 (LaTeX 폰트 깨짐 및 HTML 버그 수정 버전)
+        # 4. 화면 출력 (번역 제목 복구 및 LaTeX 방지 버전)
             for i, n in enumerate(final_display_news[:5]):
                 tag = n['display_tag']
                 s_label = n['sent_label']
                 
-                # [핵심] 제목에 $ 기호가 있으면 \$로 치환하여 폰트가 깨지는 것을 방지합니다.
+                # 원문 제목과 번역 제목 준비 (특수 기호 처리)
                 safe_title = n['title'].replace("$", "\$")
+                # 데이터에 번역본이 'title_ko' 등의 키로 들어있을 경우를 가정합니다.
+                # 만약 번역본이 별도의 필드에 있다면 그 변수명을 사용하세요.
+                translated_title = n.get('title_ko', '') # 또는 n.get('translated', '')
+                safe_translated = translated_title.replace("$", "\$")
+                
+                # 번역본이 있을 경우 표시할 HTML 조각 생성
+                trans_html = f"<br><span style='font-size:14px; color:#555; font-weight:normal;'>🇰🇷 {safe_translated}</span>" if translated_title else ""
                 
                 # 태그와 감성 레이블이 다를 때만 배지를 생성
                 s_badge = f'<span style="background:{n["bg"]}; color:{n["color"]}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{s_label}</span>' if s_label != tag else ""
                 
-                # HTML 구조를 줄바꿈 없이 한 줄로 결합하여 렌더링 오류 방지
+                # HTML 구조 통합 (safe_title 아래에 trans_html 추가)
                 html_content = (
                     f'<a href="{n["link"]}" target="_blank" style="text-decoration:none; color:inherit;">'
                     f'<div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">'
                     f'<div style="display:flex; justify-content:space-between; align-items:center;">'
                     f'<div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> <span style="color:#888; font-size:12px;">| {tag}</span>{s_badge}</div>'
                     f'<small style="color:#bbb;">{n["date"]}</small></div>'
-                    f'<div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{safe_title}</div>'
+                    f'<div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{safe_title}{trans_html}</div>'
                     f'</div></a>'
                 )
                 st.markdown(html_content, unsafe_allow_html=True)
@@ -1918,6 +1925,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
