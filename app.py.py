@@ -251,49 +251,92 @@ def analyze_sentiment(text):
     else: return "일반", "#f1f3f4", "#5f6368"
 
 @st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
-def get_real_news_rss(company_name):
-    """구글 뉴스 RSS + 한글 번역 + 감성 분석"""
+@st.cache_data(ttl=3600)
+def get_real_news_rss(company_name, ticker=""):
+    """
+    구글 뉴스 RSS + 쿼리 최적화 + 한글 번역 + 감성 분석 통합 버전
+    """
+    import re
+    import requests
+    import xml.etree.ElementTree as ET
+    import urllib.parse
+    import time
+
     try:
-        query = f"{company_name} stock news"
-        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
-        response = requests.get(url, timeout=3)
+        # 1. 검색어 정교화: 불필요한 수식어 제거 및 핵심 키워드 추출
+        # Corp, Inc, Acquisition 등을 제거하여 'Crown Reserve' 같은 핵심 이름만 남깁니다.
+        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE).strip()
+        
+        # 2. 고급 검색 쿼리 조합
+        # 큰따옴표를 사용하여 단어 뭉치가 반드시 포함되게 하고, 주식 관련 문맥을 강제합니다.
+        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
+        enc_query = urllib.parse.quote(query)
+        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
+
+        response = requests.get(url, timeout=5)
         root = ET.fromstring(response.content)
         
         news_items = []
-        for item in root.findall('./channel/item')[:5]:
+        # 상위 10개를 가져와서 필터링 후 최종 5개를 선택할 수 있도록 여유 있게 가져옵니다.
+        items = root.findall('./channel/item')
+        
+        for item in items[:8]:
             title_en = item.find('title').text
             link = item.find('link').text
             pubDate = item.find('pubDate').text
             
+            # [추가 필터링] 제목에 회사 이름의 핵심 단어가 포함되어 있는지 재확인 (정확도 향상)
+            if clean_name.lower() not in title_en.lower():
+                continue
+
             # 1. 감성 분석
             sent_label, bg, color = analyze_sentiment(title_en)
             
             # 2. 날짜 포맷
-            try: date_str = " ".join(pubDate.split(' ')[1:3])
-            except: date_str = "Recent"
+            try:
+                date_str = " ".join(pubDate.split(' ')[1:3])
+            except:
+                date_str = "Recent"
 
-            # 3. 한글 번역 (MyMemory API)
+            # 3. 한글 번역 (보강된 로직)
             title_ko = ""
             try:
+                # API 연속 호출로 인한 차단 방지 (0.1초 대기)
+                time.sleep(0.1)
                 trans_url = "https://api.mymemory.translated.net/get"
-                # timeout을 2초로 약간 늘려 안정성을 높입니다.
-                res = requests.get(trans_url, params={'q': title_en, 'langpair': 'en|ko'}, timeout=2).json()
-                if res['responseStatus'] == 200:
-                    title_ko = res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
+                params = {
+                    'q': title_en, 
+                    'langpair': 'en|ko',
+                    'de': 'your_email@example.com' # 실제 메일 주소를 넣으면 더 안정적입니다.
+                }
+                res_raw = requests.get(trans_url, params=params, timeout=3)
+                if res_raw.status_code == 200:
+                    res = res_raw.json()
+                    if res.get('responseStatus') == 200:
+                        raw_ko = res['responseData']['translatedText']
+                        title_ko = raw_ko.replace("&quot;", "'").replace("&amp;", "&").replace("&#39;", "'")
             except:
-                title_ko = "" # 번역 실패 시 빈값
-            
+                title_ko = "" # 번역 실패 시 영어만 노출되도록 빈값 처리
+
             news_items.append({
-                "title": title_en,      # 원문만 저장
-                "title_ko": title_ko,   # 번역본 별도 저장
+                "title": title_en,      # 원문 영어 제목
+                "title_ko": title_ko,   # 번역된 한글 제목
                 "link": link, 
                 "date": date_str,
                 "sent_label": sent_label, 
                 "bg": bg, 
                 "color": color
             })
+            
+            # 최종 5개만 수집
+            if len(news_items) >= 5:
+                break
+                
         return news_items
-    except: return []
+
+    except Exception as e:
+        print(f"RSS Fetch Error: {e}")
+        return []
 
 # [추가: 뉴스 감성 분석 함수]
 def analyze_sentiment(text):
@@ -1952,6 +1995,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
