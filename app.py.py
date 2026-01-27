@@ -1440,7 +1440,7 @@ elif st.session_state.page == 'detail':
 
             # [5] 학술적 근거 및 원문 링크 섹션
             st.write("---")
-            with st.expander("📚 참고논문 및 학술적 근거 (References)", expanded=False):
+            with st.expander("참고논문(References)", expanded=False):
                 # 공통 디자인 스타일 적용
                 st.markdown("""
                 <style>
@@ -1802,6 +1802,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
