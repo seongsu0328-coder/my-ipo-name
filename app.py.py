@@ -401,10 +401,16 @@ if st.session_state.page == 'login':
         
 # --- 화면 제어 시작 ---
 
+# 1. 로그인 상태 확인 및 페이지 설정
+if st.session_state.page == 'login':
+    # 이 부분에 내용이 없으면 에러가 납니다. 
+    # 아래 로그인 화면 코드가 바로 이어지지 않는다면 'pass'라도 적어주어야 합니다.
+    pass 
 
 # --- 2. 로그인 화면 ---
 if st.session_state.page == 'login':
-    st.write("<br>" * 2, unsafe_allow_html=True) # 여백 조절
+    st.write("<br>" * 2, unsafe_allow_html=True)  # 여백 조절
+    # 이후 로그인 관련 st.title이나 입력창 코드들이 올 자리입니다.
     
     # [추가] 상단 타이틀 이미지 표시 영역
     t_col1, t_col2, t_col3 = st.columns([1, 0.8, 1]) # 이미지 크기 조절을 위한 컬럼 분할
@@ -1882,6 +1888,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
