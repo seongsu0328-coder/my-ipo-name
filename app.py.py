@@ -939,7 +939,7 @@ elif st.session_state.page == 'detail':
             if profile:
                 st.markdown(f"**🏢 {stock['name']}** | {profile.get('finnhubIndustry','-')} | {profile.get('currency','USD')}")
             
-            st.write("---")
+            
 
             # 1. 문서 선택 버튼 그리드
             if 'core_topic' not in st.session_state or st.session_state.core_topic == "financial":
@@ -1868,6 +1868,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
