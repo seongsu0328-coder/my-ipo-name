@@ -1383,7 +1383,7 @@ elif st.session_state.page == 'detail':
 
             # [3] 학술적 근거 및 원문 논문 섹션
             st.write("---")
-            with st.expander("참고논문(References) 확인", expanded=False):
+            with st.expander("참고논문(References)", expanded=False):
                 st.markdown("#### 🎓 진단 시스템의 학술적 토대")
                 st.write("본 시스템은 IPO의 변동성과 성과를 연구한 금융학계의 핵심 논문들을 기반으로 설계되었습니다.")
                 
@@ -1750,6 +1750,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
