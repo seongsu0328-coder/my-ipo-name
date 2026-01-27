@@ -273,18 +273,24 @@ def get_real_news_rss(company_name):
             except: date_str = "Recent"
 
             # 3. 한글 번역 (MyMemory API)
+            title_ko = ""
             try:
                 trans_url = "https://api.mymemory.translated.net/get"
-                res = requests.get(trans_url, params={'q': title_en, 'langpair': 'en|ko'}, timeout=1).json()
+                # timeout을 2초로 약간 늘려 안정성을 높입니다.
+                res = requests.get(trans_url, params={'q': title_en, 'langpair': 'en|ko'}, timeout=2).json()
                 if res['responseStatus'] == 200:
                     title_ko = res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
-                    display_title = f"{title_en}<br><span style='font-size:14px; color:#555; font-weight:normal;'>🇰🇷 {title_ko}</span>"
-                else: display_title = title_en
-            except: display_title = title_en
+            except:
+                title_ko = "" # 번역 실패 시 빈값
             
             news_items.append({
-                "title": display_title, "link": link, "date": date_str,
-                "sent_label": sent_label, "bg": bg, "color": color
+                "title": title_en,      # 원문만 저장
+                "title_ko": title_ko,   # 번역본 별도 저장
+                "link": link, 
+                "date": date_str,
+                "sent_label": sent_label, 
+                "bg": bg, 
+                "color": color
             })
         return news_items
     except: return []
@@ -1927,6 +1933,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
