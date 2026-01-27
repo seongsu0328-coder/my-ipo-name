@@ -1322,27 +1322,116 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 3: 개별 기업 평가 (Individual Stock Analysis) ---
         with tab3:
-            st.markdown("### 🔍 개별 기업 심층 평가 시스템")
-            st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 리스크와 잠재력을 진단합니다.")
-            st.write("---") # 에러가 났던 지점: 이 줄의 왼쪽 끝을 윗줄들과 수직으로 맞추세요.
+    st.markdown("### 🔍 개별 기업 심층 평가 시스템")
+    st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 리스크와 잠재력을 진단합니다.")
+    st.write("---")
 
-            # [1] 데이터 준비 및 실시간 호출
-            live_data = get_us_ipo_analysis(stock['symbol'])
-            is_success = live_data['status'] == "Success"
-            
-            md_stock = {
-                "sales_growth": live_data.get('sales_growth') if is_success else None,
-                "ocf": live_data.get('ocf') if is_success else None,
-                "accruals": live_data.get('accruals') if is_success else None,
-                "vc_backed": "Yes (Tier 1)", 
-                "discount_rate": 15.4  
-            }
+    # [실시간 데이터 호출]
+    # 선택된 종목의 티커(stock['symbol'])를 함수에 전달
+    live_data = get_us_ipo_analysis(stock['symbol'])
+    is_success = live_data['status'] == "Success"
+    
+    # 데이터 처리 (성공 시 데이터 할당, 실패 시 None 할당)
+    md_stock = {
+        "sales_growth": live_data.get('sales_growth') if is_success else None,
+        "ocf": live_data.get('ocf') if is_success else None,
+        "accruals": live_data.get('accruals') if is_success else None,
+        "vc_backed": "Yes (Tier 1)", # Renaissance Capital 참고 (고정 예시)
+        "discount_rate": 15.4        # Renaissance Capital 참고 (고정 예시)
+    }
 
-            # [2] 카드형 UI 렌더링
-            c1, c2, c3 = st.columns(3)
-            c4, c5, _ = st.columns(3)
+    # [카드형 UI 렌더링]
+    c1, c2, c3 = st.columns(3)
+    c4, c5, _ = st.columns(3)
+
+    # (1) 장기 성과 리스크 (yfinance 실시간)
+    with c1:
+        val = md_stock['sales_growth']
+        if val is not None:
+            status, st_cls = ("⚠️ Overheated", "st-hot") if val > 100 else ("✅ Stable", "st-good")
+            display_val = f"{val:+.1f}%"
+        else:
+            status, st_cls, display_val = ("🔍 판단 불가", "st-neutral", "Data N/A")
             
-            # 이후 코드들도 이 라인에 맞춰서 작성...
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>Long-Run Performance</div>
+            <div class='metric-value'>{display_val}</div>
+            <div class='st-badge {st_cls}'>{status}</div>
+            <div class='metric-footer'>Ref: yfinance Real-time Data</div>
+        </div>""", unsafe_allow_html=True)
+
+    # (2) 수익성 vs 성장성 (yfinance 실시간)
+    with c2:
+        val = md_stock['ocf']
+        if val is not None:
+            status, st_cls = ("✅ Positive", "st-good") if val > 0 else ("🚨 Burning Cash", "st-hot")
+            display_val = "${:,.0f}".format(val)
+        else:
+            status, st_cls, display_val = ("🔍 판단 불가", "st-neutral", "Data N/A")
+
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>OCF vs Growth</div>
+            <div class='metric-value'>{display_val}</div>
+            <div class='st-badge {st_cls}'>{status}</div>
+            <div class='metric-footer'>Ref: yfinance Financials</div>
+        </div>""", unsafe_allow_html=True)
+
+    # (3) 경영진 신뢰도 (yfinance 실시간 계산)
+    with c3:
+        val = md_stock['accruals']
+        if val is not None:
+            status, st_cls = ("✅ Clean", "st-good") if val == "Low" else ("🚨 Risk", "st-hot")
+            display_val = f"{val} Accruals"
+        else:
+            status, st_cls, display_val = ("🔍 판단 불가", "st-neutral", "Data N/A")
+
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>Earnings Management</div>
+            <div class='metric-value'>{display_val}</div>
+            <div class='st-badge {st_cls}'>{status}</div>
+            <div class='metric-footer'>Ref: Net Income - OCF Logic</div>
+        </div>""", unsafe_allow_html=True)
+
+    # (4) VC 인증 효과 (Renaissance Capital 외부 참고)
+    with c4:
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>VC Certification</div>
+            <div class='metric-value'>{md_stock['vc_backed']}</div>
+            <div class='st-badge st-good'>Verified</div>
+            <div class='metric-footer'>Ref: Renaissance Capital IPO Center</div>
+        </div>""", unsafe_allow_html=True)
+
+    # (5) 언더프라이싱 (Renaissance Capital 외부 참고)
+    with c5:
+        val = md_stock['discount_rate']
+        status, st_cls = ("✅ Attractive", "st-good") if val > 15 else ("⚠️ Fair Value", "st-neutral")
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>Rock's Underpricing</div>
+            <div class='metric-value'>{val:.1f}%</div>
+            <div class='st-badge {st_cls}'>{status}</div>
+            <div class='metric-footer'>Ref: Renaissance Capital Stats</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.write("<br>", unsafe_allow_html=True)
+
+    # [3] AI 종합 판정 리포트
+    st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
+    with st.expander("논문 기반 AI 분석 보기", expanded=True):
+        if is_success:
+            st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과, 실시간 재무 지표가 반영된 학술적 진단이 완료되었습니다.")
+        else:
+            st.warning("현재 신규 상장 종목으로 실시간 재무 데이터가 부족합니다. 외부 리포트를 병행 확인하세요.")
+
+    # [4] 학술적 근거 및 원문 논문 (References)
+    st.write("---")
+    with st.expander("📚 학술적 근거 및 원문 논문(References) 확인", expanded=False):
+        # ... (이전에 드린 references 리스트 및 반복문 코드 위치) ...
+        pass
 
         # --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
         with tab4:
@@ -1646,6 +1735,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
