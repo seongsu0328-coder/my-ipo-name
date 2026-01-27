@@ -18,7 +18,48 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 # ==========================================
-# [1] 핵심 분석 함수 (최상단 배치)
+# [1] 학술 논문 데이터 리스트 (NameError 방지용 전역 변수)
+# ==========================================
+IPO_REFERENCES = [
+    {
+        "label": "장기 수익률",
+        "title": "The Long-Run Performance of Initial Public Offerings",
+        "author": "Jay R. Ritter (1991)",
+        "journal": "The Journal of Finance",
+        "url": "https://scholar.google.com/scholar?q=The+Long-Run+Performance+of+Initial+Public+Offerings+Ritter+1991"
+    },
+    {
+        "label": "수익성 및 생존",
+        "title": "New lists: Fundamentals and survival rates",
+        "author": "Eugene F. Fama & Kenneth R. French (2004)",
+        "journal": "Journal of Financial Economics",
+        "url": "https://scholar.google.com/scholar?q=New+lists+Fundamentals+and+survival+rates+Fama+French+2004"
+    },
+    {
+        "label": "재무 건전성",
+        "title": "Earnings Management and the Long-Run Market Performance of IPOs",
+        "author": "S.H. Teoh, I. Welch, & T.J. Wong (1998)",
+        "journal": "The Journal of Finance",
+        "url": "https://scholar.google.com/scholar?q=Earnings+Management+and+the+Long-Run+Market+Performance+of+IPOs+Teoh"
+    },
+    {
+        "label": "VC 인증 효과",
+        "title": "The Role of Venture Capital in the Creation of Public Companies",
+        "author": "C. Barry, C. Muscarella, J. Peavy, & M. Vetsuypens (1990)",
+        "journal": "Journal of Financial Economics",
+        "url": "https://scholar.google.com/scholar?q=The+Role+of+Venture+Capital+in+the+Creation+of+Public+Companies+Barry"
+    },
+    {
+        "label": "역선택 방어",
+        "title": "Why New Issues are Underpriced",
+        "author": "Kevin Rock (1986)",
+        "journal": "Journal of Financial Economics",
+        "url": "https://scholar.google.com/scholar?q=Why+New+Issues+are+Underpriced+Kevin+Rock"
+    }
+]
+
+# ==========================================
+# [2] 핵심 분석 함수 (yfinance 실시간 연동)
 # ==========================================
 def get_us_ipo_analysis(ticker_symbol):
     """
@@ -27,7 +68,7 @@ def get_us_ipo_analysis(ticker_symbol):
     """
     try:
         tk = yf.Ticker(ticker_symbol)
-        # .info 데이터 가져오기 (시간 소요 대비 효율을 위해 변수 저장)
+        # .info 데이터 가져오기 (성능 최적화를 위해 변수 저장)
         info = tk.info
         
         # 1. Sales Growth (최근 매출 성장률)
@@ -38,10 +79,11 @@ def get_us_ipo_analysis(ticker_symbol):
         if not cashflow.empty and 'Operating Cash Flow' in cashflow.index:
             ocf_val = cashflow.loc['Operating Cash Flow'].iloc[0]
         else:
-            # cashflow 표가 비어있을 경우 info에서 시도
+            # cashflow 데이터가 잡히지 않을 경우 info에서 대체값 확인
             ocf_val = info.get('operatingCashflow', 0)
             
         # 3. Accruals (발생액 계산: 당기순이익 - 영업현금흐름)
+        # 학술적으로 이익의 질을 평가하는 지표
         net_income = info.get('netIncomeToCommon', 0)
         accruals_amt = net_income - ocf_val
         accruals_status = "Low" if accruals_amt <= 0 else "High"
@@ -53,6 +95,7 @@ def get_us_ipo_analysis(ticker_symbol):
             "status": "Success"
         }
     except Exception as e:
+        # 로그가 필요한 경우 st.error(f"Error: {e}")를 사용할 수 있습니다.
         return {"status": "Error"}
 
 # 1. 페이지 설정
@@ -1715,6 +1758,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
