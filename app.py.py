@@ -852,7 +852,7 @@ elif st.session_state.page == 'detail':
             p_html = f"({date_str} / 공모 ${off_val} / 상장 대기)"
 
         st.markdown(f"<h1>{status_emoji} {stock['name']} <small>{p_html}</small></h1>", unsafe_allow_html=True)
-        st.write("---")
+        
 
         # [3. 탭 메뉴 구성]
         tab0, tab1, tab2, tab3, tab4 = st.tabs([
@@ -1868,6 +1868,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
