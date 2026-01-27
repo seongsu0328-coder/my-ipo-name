@@ -960,24 +960,28 @@ elif st.session_state.page == 'detail':
                     final_display_news.append(n)
                     used_indices.add(idx)
 
-            # 화면 출력 (HTML 한 줄 결합 버전)
+        # 4. 화면 출력 (LaTeX 폰트 깨짐 및 HTML 버그 수정 버전)
             for i, n in enumerate(final_display_news[:5]):
                 tag = n['display_tag']
                 s_label = n['sent_label']
+                
+                # [핵심] 제목에 $ 기호가 있으면 \$로 치환하여 폰트가 깨지는 것을 방지합니다.
+                safe_title = n['title'].replace("$", "\$")
+                
+                # 태그와 감성 레이블이 다를 때만 배지를 생성
                 s_badge = f'<span style="background:{n["bg"]}; color:{n["color"]}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{s_label}</span>' if s_label != tag else ""
                 
+                # HTML 구조를 줄바꿈 없이 한 줄로 결합하여 렌더링 오류 방지
                 html_content = (
                     f'<a href="{n["link"]}" target="_blank" style="text-decoration:none; color:inherit;">'
                     f'<div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">'
                     f'<div style="display:flex; justify-content:space-between; align-items:center;">'
                     f'<div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> <span style="color:#888; font-size:12px;">| {tag}</span>{s_badge}</div>'
                     f'<small style="color:#bbb;">{n["date"]}</small></div>'
-                    f'<div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{n["title"]}</div>'
+                    f'<div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{safe_title}</div>'
                     f'</div></a>'
                 )
                 st.markdown(html_content, unsafe_allow_html=True)
-        else:
-            st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
         with tab1:
@@ -1914,6 +1918,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
