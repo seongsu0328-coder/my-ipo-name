@@ -918,31 +918,22 @@ elif st.session_state.page == 'detail':
                 
     
     
-        # [3] 뉴스 리스트 섹션
-        st.markdown(f"""
-        <div style="margin-top: 10px; margin-bottom:15px;">
-            <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-                {stock['name']} 최신 뉴스
-            </h3>
-        </div>""", unsafe_allow_html=True)
+        # [3] 뉴스 리스트 섹션 - 이 블록 전체를 교체하세요
+        st.markdown(f'<div style="margin-top: 10px; margin-bottom:15px;"><h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">{stock["name"]} 최신 뉴스</h3></div>', unsafe_allow_html=True)
         
         rss_news = get_real_news_rss(stock['name'])
         
         if rss_news:
-            # 1. 태그 정의 및 뉴스 분류 준비
+            # 태그 우선순위 정렬 로직
             target_tags = ["분석", "시장", "전망", "전략", "수급"]
             final_display_news = []
             used_indices = set()
 
-            # 2. 우선순위 태그별로 뉴스 매칭 (분석 -> 시장 -> 전망 -> 전략 -> 수급 순)
             for target in target_tags:
                 for idx, n in enumerate(rss_news):
                     if idx in used_indices: continue
-                    
                     title_lower = n['title'].lower()
                     tag = "일반"
-                    
-                    # 태그 판별 로직
                     if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
                     elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): tag = "시장"
                     elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): tag = "전망"
@@ -953,56 +944,40 @@ elif st.session_state.page == 'detail':
                         n['display_tag'] = tag
                         final_display_news.append(n)
                         used_indices.add(idx)
-                        break # 태그당 하나씩만 우선 배치
+                        break
 
-            # 3. 남은 자리가 있다면 아직 사용 안 된 뉴스들로 채우기
+            # 남은 뉴스 채우기
             for idx, n in enumerate(rss_news):
                 if len(final_display_news) >= 5: break
                 if idx not in used_indices:
                     title_lower = n['title'].lower()
-                    # 남은 뉴스들도 태그 판별은 진행
                     if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): n['display_tag'] = "분석"
                     elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): n['display_tag'] = "시장"
                     elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): n['display_tag'] = "전망"
                     elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): n['display_tag'] = "전략"
                     elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): n['display_tag'] = "수급"
                     else: n['display_tag'] = "일반"
-                    
                     final_display_news.append(n)
                     used_indices.add(idx)
 
-            # 4. 화면 출력 (중복 방지 및 HTML 버그 수정 버전)
+            # 화면 출력 (HTML 한 줄 결합 버전)
             for i, n in enumerate(final_display_news[:5]):
                 tag = n['display_tag']
+                s_label = n['sent_label']
+                s_badge = f'<span style="background:{n["bg"]}; color:{n["color"]}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{s_label}</span>' if s_label != tag else ""
                 
-                # [수정] 배지 로직을 밖으로 빼서 안전하게 처리
-                sentiment_badge = ""
-                # 태그와 감성 레이블이 다를 때만 배지를 생성
-                if n['sent_label'] != tag:
-                    sentiment_badge = f"""
-                    <span style="background:{n['bg']}; color:{n['color']}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">
-                        {n['sent_label']}
-                    </span>
-                    """
-
-                # [출력] HTML 구조를 정밀하게 재정렬
-                st.markdown(f"""
-                    <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
-                        <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <div>
-                                    <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
-                                    <span style="color:#888; font-size:12px;">| {tag}</span>
-                                    {sentiment_badge}
-                                </div>
-                                <small style="color:#bbb;">{n['date']}</small>
-                            </div>
-                            <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">
-                                {n['title']}
-                            </div>
-                        </div>
-                    </a>
-                """, unsafe_allow_html=True)
+                html_content = (
+                    f'<a href="{n["link"]}" target="_blank" style="text-decoration:none; color:inherit;">'
+                    f'<div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">'
+                    f'<div style="display:flex; justify-content:space-between; align-items:center;">'
+                    f'<div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> <span style="color:#888; font-size:12px;">| {tag}</span>{s_badge}</div>'
+                    f'<small style="color:#bbb;">{n["date"]}</small></div>'
+                    f'<div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{n["title"]}</div>'
+                    f'</div></a>'
+                )
+                st.markdown(html_content, unsafe_allow_html=True)
+        else:
+            st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
         with tab1:
@@ -1939,6 +1914,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
