@@ -1448,19 +1448,29 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # [3] AI 종합 판정 리포트
-            st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
-            with st.expander("논문 기반 AI 분석 보기", expanded=True):
-                if is_success:
-                    st.success(f"✅ {stock['name']}에 대한 학술적 검증이 완료되었습니다.")
-                    st.write(f"**{stock['symbol']} 종합 평가:**")
-                    st.write(f"- 본 종목은 {md_stock['vc_backed']}로 분류되어 기관 투자자의 검증을 거친 것으로 보입니다.")
-                    st.write(f"- 발생액 품질이 {md_stock['accruals']}인 점을 고려할 때, 재무 제표의 투명성이 확보된 상태입니다.")
-                    st.write("- 과거 Jay Ritter의 연구에 따르면, 이러한 지표를 가진 기업은 상장 후 3년간 시장 대비 양호한 성과를 보일 가능성이 높습니다.")
-                else:
-                    st.warning("⚠️ 신규 상장 초기 종목으로 실시간 데이터가 부족합니다. 외부 리포트를 참고하세요.")
+            # [3] AI 종합 판정 리포트 (동적 분석 로직 예시)
+st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
+with st.expander("논문 기반 AI 분석 보기", expanded=True):
+    if is_success:
+        # 1. 성격에 따른 분석 멘트 생성
+        if md_stock['sales_growth'] > 100:
+            growth_analysis = "매출이 폭발적으로 성장 중이나, Ritter(1991) 이론에 따르면 상장 초기 과도한 기대감이 향후 주가 조정으로 이어질 위험이 있습니다."
+        else:
+            growth_analysis = "매출 성장세가 안정적입니다. 이는 상장 이후 급격한 주가 변동성을 낮추는 긍정적인 요인입니다."
 
-            st.write("<br>", unsafe_allow_html=True)
+        if md_stock['ocf'] < 0:
+            cash_analysis = "현재 영업 현금이 유출되는 상태(Burn rate 발생)이므로, 추가 펀딩이나 빠른 흑자 전환 여부가 핵심 관건입니다."
+        else:
+            cash_analysis = "영업활동으로 현금을 창출하고 있어 재무적 완충 지대가 확보된 상태입니다."
+
+        # 2. 결과 출력
+        st.success(f"✅ {stock['name']}에 대한 실시간 데이터 검증 완료")
+        st.write(f"**{stock['symbol']} 종합 평가:**")
+        st.write(f"📈 **성장성:** {growth_analysis}")
+        st.write(f"💰 **현금흐름:** {cash_analysis}")
+        st.write(f"🛡️ **기관 검증:** {md_stock['vc_backed']}로 확인되어 정보 비대칭 리스크가 비교적 낮습니다.")
+    else:
+        st.warning("⚠️ 실시간 데이터 부족으로 상세 분석이 어렵습니다.")
 
             # [5] 학술적 근거 및 원문 링크 섹션
             st.write("---")
@@ -1826,6 +1836,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
