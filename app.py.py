@@ -776,7 +776,7 @@ elif st.session_state.page == 'detail':
         st.write("---")
 
         # [3. 탭 메뉴 구성]
-        tab0, tab1, tab2, tab3 = st.tabs(["📰 주요 뉴스", "📋 주요 공시", "⚖️ 버블 평가", "🎯 투자 결정"])
+        tab0, tab1, tab2, tab3, tab4 = st.tabs(["📰 주요 뉴스", "📋 주요 공시", "⚖️ 버블 평가", "🔍 개별 기업 평가", "🎯 투자 결정"])
 
         # --- Tab 0: 뉴스 & 심층 분석 (수정: 비즈니스 모델 집중 모드) ---
         with tab0:
@@ -1278,8 +1278,117 @@ elif st.session_state.page == 'detail':
                 
                 st.caption("※ 클릭 시 해당 논문 또는 공식 데이터 제공 사이트로 이동합니다.")
 
-        # --- Tab 3: 최종 투자 결정 ---
-        with tab3:
+        # --- Tab 3: 개별 기업 평가 (Individual Stock Analysis) ---
+with tab3:
+    st.markdown("### 🔍 개별 기업 심층 평가 시스템")
+    st.caption("재무 금융학계의 권위 있는 IPO 논문들을 기반으로 해당 종목의 리스크와 잠재력을 진단합니다.")
+    st.write("---")
+
+    # [1] 데이터 준비 (기존 profile 및 financial_metrics 활용)
+    # 실제 구현 시에는 API에서 가져온 실적 데이터를 md_stock 변수에 담아야 합니다.
+    md_stock = {
+        "sales_growth": 45.2,  # 예시 매출 성장률
+        "ocf": 120.5,          # 영업현금흐름
+        "vc_backed": "Yes (Tier 1)", # VC 참여 여부
+        "lockup_period": 180,  # 보호예수 기간
+        "accruals": "Low",      # 발생액 수준
+        "discount_rate": 15.4  # 공모가 할인율
+    }
+
+    # [2] 카드형 UI 렌더링
+    c1, c2, c3 = st.columns(3)
+    c4, c5, _ = st.columns(3)
+
+    # (1) 장기 성과 리스크 (Jay Ritter)
+    with c1:
+        val = md_stock['sales_growth']
+        status = "⚠️ 업종 과열" if val > 100 else "✅ 적정 성장"
+        st_cls = "st-hot" if val > 100 else "st-good"
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>Long-Run Performance</div>
+            <div class='metric-value-row'>
+                <span class='metric-value'>{val:+.1f}%</span>
+                <span class='st-badge {st_cls}'>{status}</span>
+            </div>
+            <div class='metric-desc'>과도하게 섹터가 과열된 경우 상장 후 3년 내 시장 평균보다 낮은 수익률을 보일 위험이 큽니다.</div>
+            <div class='metric-footer'>Ref: Jay Ritter (1991)</div>
+        </div>""", unsafe_allow_html=True)
+
+    # (2) 수익성 vs 성장성 (Eugene Fama)
+    with c2:
+        val = md_stock['ocf']
+        status = "✅ 현금흐름 양호" if val > 0 else "🚨 현금 소진중"
+        st_cls = "st-good" if val > 0 else "st-hot"
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>OCF vs Growth</div>
+            <div class='metric-value-row'>
+                <span class='metric-value'>{"Positive" if val > 0 else "Negative"}</span>
+                <span class='st-badge {st_cls}'>{status}</span>
+            </div>
+            <div class='metric-desc'>매출뿐 아니라 영업 현금흐름(OCF)이 실제 돈을 벌어들이는 구조인지가 장기 생존의 핵심입니다.</div>
+            <div class='metric-footer'>Ref: Fama & French (2004)</div>
+        </div>""", unsafe_allow_html=True)
+
+    # (3) 경영진 신뢰도 (Teoh et al.)
+    with c3:
+        val = md_stock['accruals']
+        status = "✅ 클린 재무" if val == "Low" else "🚨 이익 조정 의심"
+        st_cls = "st-good" if val == "Low" else "st-hot"
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>Earnings Management</div>
+            <div class='metric-value-row'>
+                <span class='metric-value'>{val}</span>
+                <span class='st-badge {st_cls}'>{status}</span>
+            </div>
+            <div class='metric-desc'>발생액(Accruals)이 비정상적으로 높으면 상장 전 실적을 부풀렸을 가능성이 있어 주가 급락에 유의해야 합니다.</div>
+            <div class='metric-footer'>Ref: Teoh, Welch & Wong (1998)</div>
+        </div>""", unsafe_allow_html=True)
+
+    # (4) VC 인증 효과 (Barry et al.)
+    with c4:
+        val = md_stock['vc_backed']
+        status = "✅ 신뢰도 높음" if "Tier 1" in val else "⚖️ 보통"
+        st_cls = "st-good" if "Tier 1" in val else "st-neutral"
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>VC Certification</div>
+            <div class='metric-value-row'>
+                <span class='metric-value'>{val}</span>
+                <span class='st-badge {st_cls}'>{status}</span>
+            </div>
+            <div class='metric-desc'>유명 VC의 참여는 기업의 질을 간접적으로 보증하며, 상장 초기 변동성을 방어해주는 역할을 합니다.</div>
+            <div class='metric-footer'>Ref: Barry, Muscarella et al. (1990)</div>
+        </div>""", unsafe_allow_html=True)
+
+    # (5) 언더프라이싱 (Rock)
+    with c5:
+        val = md_stock['discount_rate']
+        status = "✅ 매력적" if val > 15 else "⚠️ 고평가"
+        st_cls = "st-good" if val > 15 else "st-hot"
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-header'>Rock's Underpricing</div>
+            <div class='metric-value-row'>
+                <span class='metric-value'>{val:.1f}%</span>
+                <span class='st-badge {st_cls}'>{status}</span>
+            </div>
+            <div class='metric-desc'>공모가가 내재 가치 대비 충분히 할인되었는지가 중요합니다. 정보 비대칭에 따른 '역선택' 위험을 확인하세요.</div>
+            <div class='metric-footer'>Ref: Kevin Rock (1986)</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.write("<br>", unsafe_allow_html=True)
+    
+    # [3] AI 종합 판정 섹션
+    st.markdown("#### 🤖 AI 종목 심층 진단 리포트")
+    with st.expander("논문 기반 AI 분석 보기", expanded=True):
+        st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과...")
+        # 이 부분에 get_ai_summary를 활용해 논문 관점의 분석글을 요청하여 넣으면 좋습니다.
+        
+        # --- Tab 4: 최종 투자 결정 ---
+        with tab4:
             import uuid  # 고유 ID 생성을 위해 필요 (상단 import에 추가해도 됨)
 
             # [설정] 관리자 휴대폰 번호 (여기에 본인 번호를 입력하세요)
@@ -1656,6 +1765,7 @@ elif st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
