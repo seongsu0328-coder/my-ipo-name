@@ -358,7 +358,7 @@ def get_ai_summary(query):
     try:
         # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
-        search_result = tavily.search(query=query, search_depth="basic", max_results=5)
+        search_result = tavily.search(query=query, search_depth="basic", max_results=7)
         
         if not search_result.get('results'):
             return None 
@@ -1895,6 +1895,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
