@@ -901,7 +901,7 @@ elif st.session_state.page == 'detail':
         st.markdown(f"""
         <div style="margin-top: 20px; margin-bottom:15px;">
             <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-                비즈니스 모델 상세 분석
+                기업 소개 
             </h3>
         </div>""", unsafe_allow_html=True)
         
@@ -1895,6 +1895,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
