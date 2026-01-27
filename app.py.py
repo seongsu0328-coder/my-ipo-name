@@ -930,21 +930,22 @@ elif st.session_state.page == 'detail':
         
         if rss_news:
             for i, n in enumerate(rss_news[:5]):
-                # --- [태그 자동 매칭 로직 추가] ---
+                # --- [태그 자동 매칭 로직 보강] ---
                 title_lower = n['title'].lower()
                 
-                if any(k in title_lower for k in ['analysis', 'valuation', 'report', '분석', '가치']):
+                # IPO 과정 단어들을 성격별로 재분류
+                if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', 'why', 'investing', '분석']):
                     tag = "분석"
-                elif any(k in title_lower for k in ['market', 'industry', 'sector', '시장', '업계']):
-                    tag = "시장"
-                elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'will', '전망', '향후']):
+                elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']):
+                    tag = "시장"  # 상장 절차 관련은 '시장'으로 분류
+                elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']):
                     tag = "전망"
-                elif any(k in title_lower for k in ['strategy', 'plan', 'expand', 'growth', '전략', '계획']):
-                    tag = "전략"
-                elif any(k in title_lower for k in ['buy', 'sell', 'volume', 'institutional', '수급', '매수']):
-                    tag = "수급"
+                elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', 'clinical', '전략']):
+                    tag = "전략"  # 제약사의 경우 약물 개발 단계는 '전략'
+                elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']):
+                    tag = "수급"  # 자금 조달, 가격 책정은 '수급'으로 분류
                 else:
-                    tag = "일반" # 매칭되는 키워드가 없을 경우
+                    tag = "일반"
                 # -----------------------------------
 
                 st.markdown(f"""
@@ -954,7 +955,8 @@ elif st.session_state.page == 'detail':
                                 <div>
                                     <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
                                     <span style="color:#888; font-size:12px;">| {tag}</span>
-                                    <span style="background:{n['bg']}; color:{n['color']}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n['sent_label']}</span>
+                                    # 여기서 {n['sent_label']}이 '일반'일 경우 중복 노출을 피하기 위해 조건 처리
+                                    {" " if n['sent_label'] == tag else f'<span style="background:{n['bg']}; color:{n['color']}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n["sent_label"]}</span>'}
                                 </div>
                                 <small style="color:#bbb;">{n['date']}</small>
                             </div>
@@ -1900,6 +1902,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
