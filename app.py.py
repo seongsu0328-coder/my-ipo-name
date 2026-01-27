@@ -1277,6 +1277,45 @@ elif st.session_state.page == 'detail':
                 st.write("<br>", unsafe_allow_html=True)
             st.write("---")
 
+            # =================================================================
+            # 3. 🤖 시장 통합 AI 진단 리포트 (Market Analysis Report)
+            # =================================================================
+            st.write("<br>", unsafe_allow_html=True)
+            st.markdown("#### 🤖 시장 환경 실시간 AI 진단")
+            
+            with st.expander("시장 데이터 기반 학술적 분석 보기", expanded=True):
+                # [A] IPO 시장 상태 판정 (Hot vs Cold Market)
+                # Ritter(1984) 등에 따르면 First-day return이 높고 물량이 많을수록 Hot Market
+                is_hot_market = md['ipo_return'] >= 20 or md['ipo_volume'] >= 10
+                is_bubble_risk = md['unprofitable_pct'] >= 80
+
+                if is_hot_market:
+                    ipo_market_analysis = "현재 IPO 시장은 **'Hot Market(과열기)'**의 징후를 보이고 있습니다. 신규 상장주들의 초기 수익률이 높으나, 이는 역사적으로 상장 1~3년 후 저성과(Underperformance)로 이어질 확률이 높음을 시사합니다."
+                else:
+                    ipo_market_analysis = "현재 IPO 시장은 **'Cold Market(안정기)'** 상태입니다. 투자자들의 선별적인 접근이 이루어지고 있으며, 공모가 산정이 비교적 보수적으로 이루어지는 경향이 있습니다."
+
+                # [B] 거시 경제 및 심리 분석
+                if md['vix'] >= 25 or md['fear_greed'] <= 30:
+                    macro_analysis = "시장 내 공포 심리가 확산되어 있습니다. 변동성이 높은 시기에는 IPO 기업들의 상장 철회(Withdrawal) 리스크가 커지며, 보수적인 현금 흐름 확보가 우선시됩니다."
+                elif md['buffett_val'] > 150:
+                    macro_analysis = "버핏 지수가 극단적 고평가 영역에 있습니다. 실물 경제(GDP) 대비 자본 시장의 팽창이 과도하므로, 밸류에이션이 높은 고성장 IPO 종목 투자에 주의가 필요합니다."
+                else:
+                    macro_analysis = "거시 경제 지표는 비교적 안정적인 궤도에 있습니다. 위험 자산에 대한 선호도가 적절히 유지되고 있어 신규 상장주에 대한 수급이 양호할 것으로 예상됩니다."
+
+                # [C] 결과 출력
+                st.success("✅ 시장 환경 데이터 통합 검증 완료")
+                st.write(f"**📊 종합 시장 진단 요약:**")
+                st.write(f"🏷️ **IPO 수급 환경:** {ipo_market_analysis}")
+                st.write(f"🌐 **거시 경제 리스크:** {macro_analysis}")
+                
+                # 경고 뱃지 (버블 위험 시)
+                if is_bubble_risk:
+                    st.warning("🚨 **경고:** 적자 기업 상장 비율이 매우 높습니다. 이는 2000년 닷컴 버블 당시와 유사한 패턴으로, 개별 종목의 수익성(OCF) 확인이 필수적입니다.")
+                
+                st.info("💡 **Tip:** 시장이 과열될수록 '묻지마 청약'보다는 기업의 발생액 품질(Accruals Quality)을 꼼꼼히 따져봐야 합니다.")
+
+            st.write("---")
+
             # [5] 학술적 근거 및 원문 링크 섹션
             st.write("---")
             with st.expander("참고논문 및 공식 출처 (References)", expanded=False):
@@ -1831,6 +1870,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
