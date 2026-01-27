@@ -1386,6 +1386,45 @@ elif st.session_state.page == 'detail':
             with st.expander("논문 기반 AI 분석 보기", expanded=True):
                 st.write(f"위 5대 지표를 기반으로 {stock['name']}를 분석한 결과, 재무 건전성과 시장의 정보 대칭성이 양호한 수준으로 판단됩니다.")
 
+            # [4] 학술적 근거 및 원문 논문 섹션
+            st.write("---")
+            with st.expander("📚 학술적 근거 및 인용 논문 확인", expanded=False):
+                st.markdown("""
+                <div style='background-color: #f1f3f5; padding: 20px; border-radius: 10px;'>
+                    <p style='font-size: 14px; color: #666; line-height: 1.6;'>
+                        본 진단 시스템은 IPO 시장의 비효율성과 장기 성과를 연구한 금융경제학의 대표적인 논문들을 기반으로 설계되었습니다.
+                    </p>
+                    <table style='width: 100%; border-collapse: collapse; font-size: 13px;'>
+                        <tr style='border-bottom: 1px solid #ddd;'>
+                            <th style='text-align: left; padding: 10px; width: 30%;'>구분</th>
+                            <th style='text-align: left; padding: 10px;'>핵심 이론 및 논문 근거</th>
+                        </tr>
+                        <tr>
+                            <td style='padding: 10px;'><b>장기 성과 하락</b></td>
+                            <td style='padding: 10px;'>Ritter(1991)는 IPO 종목들이 상장 초기 과열로 인해 이후 3년간 시장 수익률을 하회하는 'Underperformance' 현상을 입증했습니다.</td>
+                        </tr>
+                        <tr>
+                            <td style='padding: 10px;'><b>수익성 필터링</b></td>
+                            <td style='padding: 10px;'>Fama & French(2004)는 신규 상장 기업의 생존율이 영업현금흐름(OCF) 강도에 따라 결정됨을 보여주었습니다.</td>
+                        </tr>
+                        <tr>
+                            <td style='padding: 10px;'><b>이익 조정 리스크</b></td>
+                            <td style='padding: 10px;'>Teoh et al.(1998)은 상장 전 비정상 발생액(Accruals)을 통해 이익을 부풀린 기업은 상장 후 주가 낙폭이 크다는 점을 경고했습니다.</td>
+                        </tr>
+                        <tr>
+                            <td style='padding: 10px;'><b>VC 모니터링</b></td>
+                            <td style='padding: 10px;'>Barry et al.(1990)은 벤처캐피탈의 참여가 기업 가치에 대한 '인증(Certification)' 역할을 하여 정보 비대칭을 줄인다고 분석했습니다.</td>
+                        </tr>
+                        <tr>
+                            <td style='padding: 10px;'><b>역선택 문제</b></td>
+                            <td style='padding: 10px;'>Rock(1986)은 정보가 부족한 일반 투자자를 보호하기 위해 공모가가 저평가(Underpricing)되어야 함을 수학적으로 증명했습니다.</td>
+                        </tr>
+                    </table>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.info("💡 위 분석은 과거 데이터를 기반으로 한 학술적 모델이며, 실제 투자 수익을 보장하지 않습니다.")
+
         # --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
         with tab4:
             import uuid
@@ -1688,6 +1727,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
