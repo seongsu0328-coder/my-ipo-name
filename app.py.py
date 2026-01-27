@@ -1388,42 +1388,65 @@ elif st.session_state.page == 'detail':
 
             # [4] 학술적 근거 및 원문 논문 섹션
             st.write("---")
-            with st.expander("📚 학술적 근거 및 인용 논문 확인", expanded=False):
-                st.markdown("""
-                <div style='background-color: #f1f3f5; padding: 20px; border-radius: 10px;'>
-                    <p style='font-size: 14px; color: #666; line-height: 1.6;'>
-                        본 진단 시스템은 IPO 시장의 비효율성과 장기 성과를 연구한 금융경제학의 대표적인 논문들을 기반으로 설계되었습니다.
-                    </p>
-                    <table style='width: 100%; border-collapse: collapse; font-size: 13px;'>
-                        <tr style='border-bottom: 1px solid #ddd;'>
-                            <th style='text-align: left; padding: 10px; width: 30%;'>구분</th>
-                            <th style='text-align: left; padding: 10px;'>핵심 이론 및 논문 근거</th>
-                        </tr>
-                        <tr>
-                            <td style='padding: 10px;'><b>장기 성과 하락</b></td>
-                            <td style='padding: 10px;'>Ritter(1991)는 IPO 종목들이 상장 초기 과열로 인해 이후 3년간 시장 수익률을 하회하는 'Underperformance' 현상을 입증했습니다.</td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 10px;'><b>수익성 필터링</b></td>
-                            <td style='padding: 10px;'>Fama & French(2004)는 신규 상장 기업의 생존율이 영업현금흐름(OCF) 강도에 따라 결정됨을 보여주었습니다.</td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 10px;'><b>이익 조정 리스크</b></td>
-                            <td style='padding: 10px;'>Teoh et al.(1998)은 상장 전 비정상 발생액(Accruals)을 통해 이익을 부풀린 기업은 상장 후 주가 낙폭이 크다는 점을 경고했습니다.</td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 10px;'><b>VC 모니터링</b></td>
-                            <td style='padding: 10px;'>Barry et al.(1990)은 벤처캐피탈의 참여가 기업 가치에 대한 '인증(Certification)' 역할을 하여 정보 비대칭을 줄인다고 분석했습니다.</td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 10px;'><b>역선택 문제</b></td>
-                            <td style='padding: 10px;'>Rock(1986)은 정보가 부족한 일반 투자자를 보호하기 위해 공모가가 저평가(Underpricing)되어야 함을 수학적으로 증명했습니다.</td>
-                        </tr>
-                    </table>
-                </div>
-                """, unsafe_allow_html=True)
+            with st.expander("📚 학술적 근거 및 원문 논문(References) 확인", expanded=False):
+                st.markdown("#### 🎓 진단 시스템의 학술적 토대")
+                st.write("본 시스템은 IPO의 변동성과 성과를 연구한 금융학계의 핵심 논문들을 기반으로 설계되었습니다.")
                 
-                st.info("💡 위 분석은 과거 데이터를 기반으로 한 학술적 모델이며, 실제 투자 수익을 보장하지 않습니다.")
+                # 논문 데이터 리스트
+                references = [
+                    {
+                        "label": "장기 수익률",
+                        "title": "The Long-Run Performance of Initial Public Offerings",
+                        "author": "Jay R. Ritter (1991)",
+                        "journal": "The Journal of Finance",
+                        "url": "https://scholar.google.com/scholar?q=The+Long-Run+Performance+of+Initial+Public+Offerings+Ritter+1991"
+                    },
+                    {
+                        "label": "수익성 및 생존",
+                        "title": "New lists: Fundamentals and survival rates",
+                        "author": "Eugene F. Fama & Kenneth R. French (2004)",
+                        "journal": "Journal of Financial Economics",
+                        "url": "https://scholar.google.com/scholar?q=New+lists+Fundamentals+and+survival+rates+Fama+French+2004"
+                    },
+                    {
+                        "label": "재무 건전성",
+                        "title": "Earnings Management and the Long-Run Market Performance of IPOs",
+                        "author": "S.H. Teoh, I. Welch, & T.J. Wong (1998)",
+                        "journal": "The Journal of Finance",
+                        "url": "https://scholar.google.com/scholar?q=Earnings+Management+and+the+Long-Run+Market+Performance+of+IPOs+Teoh"
+                    },
+                    {
+                        "label": "VC 인증 효과",
+                        "title": "The Role of Venture Capital in the Creation of Public Companies",
+                        "author": "C. Barry, C. Muscarella, J. Peavy, & M. Vetsuypens (1990)",
+                        "journal": "Journal of Financial Economics",
+                        "url": "https://scholar.google.com/scholar?q=The+Role+of+Venture+Capital+in+the+Creation+of+Public+Companies+Barry"
+                    },
+                    {
+                        "label": "역선택 방어",
+                        "title": "Why New Issues are Underpriced",
+                        "author": "Kevin Rock (1986)",
+                        "journal": "Journal of Financial Economics",
+                        "url": "https://scholar.google.com/scholar?q=Why+New+Issues+are+Underpriced+Kevin+Rock"
+                    }
+                ]
+
+                # 테이블 형태 출력
+                for ref in references:
+                    st.markdown(f"""
+                    <div style='border-bottom: 1px solid #f0f2f6; padding: 10px 0;'>
+                        <span style='color: #007bff; font-weight: bold; font-size: 0.8rem;'>[{ref['label']}]</span><br>
+                        <div style='margin-top: 5px;'>
+                            <b>{ref['title']}</b><br>
+                            <span style='color: #555; font-size: 0.9rem;'>{ref['author']} | <i>{ref['journal']}</i></span>
+                        </div>
+                        <div style='margin-top: 5px;'>
+                            <a href='{ref['url']}' target='_blank' style='text-decoration: none; color: #ff4b4b; font-size: 0.85rem;'>🔗 원문 검색(Google Scholar) →</a>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                st.info("💡 제공된 링크는 해당 논문의 학술적 검색 결과로 연결됩니다. 일부 유료 저널의 경우 전문 보기가 제한될 수 있습니다.")
 
         # --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
         with tab4:
@@ -1727,6 +1750,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
