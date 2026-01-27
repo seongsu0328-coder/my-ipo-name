@@ -1303,16 +1303,16 @@ elif st.session_state.page == 'detail':
                     macro_analysis = "거시 경제 지표는 비교적 안정적인 궤도에 있습니다. 위험 자산에 대한 선호도가 적절히 유지되고 있어 신규 상장주에 대한 수급이 양호할 것으로 예상됩니다."
 
                 # [C] 결과 출력
-                st.success("✅ 시장 환경 데이터 통합 검증 완료")
-                st.write(f"**📊 종합 시장 진단 요약:**")
-                st.write(f"🏷️ **IPO 수급 환경:** {ipo_market_analysis}")
-                st.write(f"🌐 **거시 경제 리스크:** {macro_analysis}")
+                st.success("시장 환경 데이터 통합 검증 완료")
+                st.write(f"**종합 시장 진단 요약:**")
+                st.write(f"**IPO 수급 환경:** {ipo_market_analysis}")
+                st.write(f"**거시 경제 리스크:** {macro_analysis}")
                 
                 # 경고 뱃지 (버블 위험 시)
                 if is_bubble_risk:
                     st.warning("🚨 **경고:** 적자 기업 상장 비율이 매우 높습니다. 이는 2000년 닷컴 버블 당시와 유사한 패턴으로, 개별 종목의 수익성(OCF) 확인이 필수적입니다.")
                 
-                st.info("💡 **Tip:** 시장이 과열될수록 '묻지마 청약'보다는 기업의 발생액 품질(Accruals Quality)을 꼼꼼히 따져봐야 합니다.")
+                st.info("**Tip:** 시장이 과열될수록 '묻지마 청약'보다는 기업의 발생액 품질(Accruals Quality)을 꼼꼼히 따져봐야 합니다.")
 
             st.write("---")
 
@@ -1870,6 +1870,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
