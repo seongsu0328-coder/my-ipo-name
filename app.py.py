@@ -1731,8 +1731,8 @@ elif st.session_state.page == 'detail':
             # 3. 조건에 따른 메시지 및 스타일 설정
             if len(missing_steps) > 0:
                 # [Condition 1] 미완료 시 -> 심플한 안내 메시지 (회색톤)
-                # [수정] 들여쓰기로 인한 코드 블록 인식 방지를 위해 한 줄로 작성하거나 textwrap 사용
-                summary_text = "<div style='text-align: center; font-weight: 600; font-size: 15px; color: #444;'>⏳ 의견 보류 중입니다.</div>"
+                # [수정] 텍스트 정렬을 좌측(left)으로 변경하여 통일감 부여
+                summary_text = "<div style='text-align: left; font-weight: 600; font-size: 15px; color: #444;'>⏳ 의견 보류 중입니다.</div>"
                 
                 box_bg = "#f8f9fa"     # 아주 연한 회색 (깔끔함)
                 box_border = "#ced4da" # 회색 테두리 (중립적)
@@ -1946,6 +1946,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
