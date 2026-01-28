@@ -1731,8 +1731,11 @@ elif st.session_state.page == 'detail':
             # 3. 조건에 따른 메시지 및 스타일 설정
             if len(missing_steps) > 0:
                 # [Condition 1] 미완료 시 -> 심플한 안내 메시지 (회색톤)
+                # 텍스트 스타일을 st.info와 유사하게 맞춤 (중앙 정렬, 약간 굵게, 15px)
                 summary_text = f"""
-                의견 보류 중입니다.
+                <div style='text-align: center; font-weight: 600; font-size: 15px; color: #444;'>
+                    ⏳ 의견 보류 중입니다.
+                </div>
                 """
                 box_bg = "#f8f9fa"     # 아주 연한 회색 (깔끔함)
                 box_border = "#ced4da" # 회색 테두리 (중립적)
@@ -1755,7 +1758,6 @@ elif st.session_state.page == 'detail':
                 """
                 box_bg = "#eef2ff"     # 연한 파랑 (강조)
                 box_border = "#6e8efb" # 파란색 포인트
-
             # 4. 결과 출력
             st.markdown(f"""
             <div style="background-color:{box_bg}; padding:20px; border-radius:12px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">
@@ -1945,6 +1947,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
