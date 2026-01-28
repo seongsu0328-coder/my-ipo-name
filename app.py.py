@@ -1584,10 +1584,49 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # [4] 참고문헌
+            # [4] 학술적 근거 및 원문 링크 섹션 (복구됨)
             with st.expander("참고논문(References)", expanded=False):
-                # (참고문헌 리스트 로직 동일)
-                st.caption("※ 클릭 시 해당 논문으로 이동합니다.")
+                # CSS 스타일 적용
+                st.markdown("""
+                <style>
+                    .ref-container { margin-top: 5px; }
+                    .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+                    .ref-item:hover { background-color: #fafafa; padding-left: 10px; padding-right: 10px; }
+                    .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
+                    .ref-title:hover { text-decoration: underline; }
+                    .ref-author { font-size: 12px; color: #666; margin-top: 4px; }
+                    .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; white-space: nowrap; }
+                    .ref-btn:hover { border-color: #004e92; color: #004e92; background-color: #f0f7ff; }
+                    .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 10px; font-weight: bold; margin-bottom: 5px; }
+                </style>
+                """, unsafe_allow_html=True)
+
+                # Tab 3 (기업 분석)에 맞는 논문 리스트
+                references_tab3 = [
+                    {"label": "성장성 분석", "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "link": "https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1540-6261.1991.tb02685.x"},
+                    {"label": "현금흐름", "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=464062"},
+                    {"label": "회계 품질", "title": "Earnings Management and the Long-Run Market Performance", "author": "Teoh, Welch, & Wong (1998)", "link": "https://onlinelibrary.wiley.com/doi/abs/10.1111/0022-1082.00079"},
+                    {"label": "VC 인증", "title": "The Role of Venture Capital in the Creation of Public Companies", "author": "Barry et al. (1990)", "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
+                    {"label": "저평가 이론", "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
+                ]
+
+                # 리스트 출력 루프
+                for ref in references_tab3:
+                    st.markdown(f"""
+                    <div class='ref-item'>
+                        <div>
+                            <div class='ref-badge'>{ref['label']}</div><br>
+                            <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
+                            <div class='ref-author'>{ref['author']}</div>
+                        </div>
+                        <div>
+                            <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                st.write("<br>", unsafe_allow_html=True)
+                st.caption("※ 클릭 시 해당 논문의 학술적 검색 결과 또는 데이터 사이트로 이동합니다.")
 
             # [✅ 추가됨] 4단계 사용자 판단
             draw_decision_box("company", "Step 4. 기업 가치평가는(Valusation)?", ["버블", "중립", "안정적"])
@@ -1944,6 +1983,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
