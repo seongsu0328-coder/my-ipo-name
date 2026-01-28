@@ -997,130 +997,115 @@ elif st.session_state.page == 'detail':
     "🎯 투자 결정"
 ])
 
-        # --- Tab 0: 뉴스 & 심층 분석 (비즈니스 모델 집중 모드) ---
-    with tab0:
-        # [중요] 여기서부터는 with tab0보다 무조건 한 단계 더 들여쓰기 되어야 합니다.
-        
-        # [1] 기업 소개 섹션
-        st.markdown(f"""
-        <div style="margin-top: 20px; margin-bottom:5px;">
-            <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-                기업 소개 
-            </h3>
-        </div>""", unsafe_allow_html=True)
-        
-        # 기업 소개 제목 바로 아래로 이동
-        st.caption("Tavily AI 검색 엔진과 자체 알고리즘으로 검색한 정보를 요약해 제공합니다.")
-        
-        # 검색어 생성 및 분석 로딩
-        q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
-        
-        with st.spinner(f"🤖 AI가 {stock['name']}의 사업 구조와 재무 상태를 분석 중입니다..."):
-            biz_info = get_ai_summary(q_biz)
-            if biz_info:
-                st.info(biz_info)
-            else:
-                st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 데이터가 부족할 수 있습니다)")
-
-        # [2] 뉴스 리스트 섹션
-        st.markdown(f"""
-        <div style="margin-top: 30px; margin-bottom:5px;">
-            <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-                {stock['name']} 최신 뉴스
-            </h3>
-        </div>""", unsafe_allow_html=True)
-        
-        # 최신 뉴스 제목 바로 아래로 이동
-        st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
-        
-        rss_news = get_real_news_rss(stock['name'])
-        
-        if rss_news:
-            # --- [데이터 처리 로직 통합 및 보강] ---
-            # 1. 제외할 키워드 (회사명과 혼동되는 노이즈 방지)
-            exclude_keywords = ['jewel', 'fashion', 'necklace', 'diamond', 'ring', 'crown royal', 'jewelry', 'pendant'] 
+        # --- Tab 0: 뉴스 & 심층 분석 ---
+        with tab0:
+            # [1] 기업 소개 섹션
+            st.markdown(f"""
+            <div style="margin-top: 20px; margin-bottom:5px;">
+                <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
+                    기업 소개 
+                </h3>
+            </div>""", unsafe_allow_html=True)
             
-            target_tags = ["분석", "시장", "전망", "전략", "수급"]
-            final_display_news = []
-            used_indices = set()
+            st.caption("Tavily AI 검색 엔진과 자체 알고리즘으로 검색한 정보를 요약해 제공합니다.")
+            
+            q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
+            
+            with st.spinner(f"🤖 AI가 {stock['name']}의 사업 구조와 재무 상태를 분석 중입니다..."):
+                biz_info = get_ai_summary(q_biz)
+                if biz_info:
+                    st.info(biz_info)
+                else:
+                    st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 데이터가 부족할 수 있습니다)")
 
-            # [1단계] 필터링: 관련 없는 뉴스 미리 제거
-            filtered_news = []
-            for n in rss_news:
-                title_lower = n.get('title', '').lower()
-                # 제외 키워드가 제목에 하나도 포함되지 않은 경우만 리스트에 추가
-                if not any(ek in title_lower for ek in exclude_keywords):
-                    filtered_news.append(n)
+            # [2] 뉴스 리스트 섹션
+            st.markdown(f"""
+            <div style="margin-top: 30px; margin-bottom:5px;">
+                <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
+                    {stock['name']} 최신 뉴스
+                </h3>
+            </div>""", unsafe_allow_html=True)
+            
+            st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
+            
+            rss_news = get_real_news_rss(stock['name'])
+            
+            if rss_news:
+                # --- [데이터 처리 로직] ---
+                exclude_keywords = ['jewel', 'fashion', 'necklace', 'diamond', 'ring', 'crown royal', 'jewelry', 'pendant'] 
+                target_tags = ["분석", "시장", "전망", "전략", "수급"]
+                final_display_news = []
+                used_indices = set()
 
-            # [2단계] 태그 분류 및 우선순위 정렬 (filtered_news 대상)
-            # 설정한 target_tags 순서대로 뉴스를 먼저 채웁니다.
-            for target in target_tags:
+                # 1단계: 필터링
+                filtered_news = []
+                for n in rss_news:
+                    title_lower = n.get('title', '').lower()
+                    if not any(ek in title_lower for ek in exclude_keywords):
+                        filtered_news.append(n)
+
+                # 2단계: 태그 매칭
+                for target in target_tags:
+                    for idx, n in enumerate(filtered_news):
+                        if idx in used_indices: continue
+                        title_lower = n['title'].lower()
+                        tag = "일반"
+                        
+                        if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
+                        elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): tag = "시장"
+                        elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): tag = "전망"
+                        elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): tag = "전략"
+                        elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): tag = "수급"
+                        
+                        if tag == target:
+                            n['display_tag'] = tag
+                            final_display_news.append(n)
+                            used_indices.add(idx)
+                            break 
+
+                # 3단계: 잔여 뉴스 채우기
                 for idx, n in enumerate(filtered_news):
-                    if idx in used_indices: continue
-                    
-                    title_lower = n['title'].lower()
-                    tag = "일반"
-                    
-                    # 키워드 기반 태그 할당
-                    if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
-                    elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): tag = "시장"
-                    elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): tag = "전망"
-                    elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): tag = "전략"
-                    elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): tag = "수급"
-                    
-                    if tag == target:
+                    if len(final_display_news) >= 5: break
+                    if idx not in used_indices:
+                        title_lower = n['title'].lower()
+                        if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
+                        elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): tag = "시장"
+                        elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): tag = "전망"
+                        elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): tag = "전략"
+                        elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): tag = "수급"
+                        else: tag = "일반"
                         n['display_tag'] = tag
                         final_display_news.append(n)
                         used_indices.add(idx)
-                        break # 각 태그당 가장 적합한 뉴스 1개씩 먼저 선점
 
-            # [3단계] 잔여 뉴스 채우기: 5개가 안 채워졌을 경우 나머지 뉴스 추가
-            for idx, n in enumerate(filtered_news):
-                if len(final_display_news) >= 5: break
-                if idx not in used_indices:
-                    title_lower = n['title'].lower()
+                # 화면 출력
+                for i, n in enumerate(final_display_news[:5]):
+                    tag = n['display_tag']
+                    s_label = n['sent_label']
+                    safe_title = n.get('title', 'No Title').replace("$", "\$")
+                    ko_title = n.get('title_ko', '') 
                     
-                    # 태그 재판별
-                    if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
-                    elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): tag = "시장"
-                    elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): tag = "전망"
-                    elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): tag = "전략"
-                    elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): tag = "수급"
-                    else: tag = "일반"
+                    trans_html = ""
+                    if ko_title and ko_title.strip():
+                        safe_ko_title = ko_title.replace("$", "\$")
+                        trans_html = f"<br><span style='font-size:14px; color:#555; font-weight:normal;'>🇰🇷 {safe_ko_title}</span>"
                     
-                    n['display_tag'] = tag
-                    final_display_news.append(n)
-                    used_indices.add(idx)
-
-            # --- [화면 출력 로직] ---
-            for i, n in enumerate(final_display_news[:5]):
-                tag = n['display_tag']
-                s_label = n['sent_label']
-                
-                safe_title = n.get('title', 'No Title').replace("$", "\$")
-                ko_title = n.get('title_ko', '') 
-                
-                trans_html = ""
-                if ko_title and ko_title.strip():
-                    safe_ko_title = ko_title.replace("$", "\$")
-                    trans_html = f"<br><span style='font-size:14px; color:#555; font-weight:normal;'>🇰🇷 {safe_ko_title}</span>"
-                
-                s_badge = f'<span style="background:{n["bg"]}; color:{n["color"]}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{s_label}</span>' if s_label != tag else ""
-                
-                html_content = (
-                    f'<a href="{n["link"]}" target="_blank" style="text-decoration:none; color:inherit;">'
-                    f'<div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">'
-                    f'<div style="display:flex; justify-content:space-between; align-items:center;">'
-                    f'<div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> <span style="color:#888; font-size:12px;">| {tag}</span>{s_badge}</div>'
-                    f'<small style="color:#bbb;">{n["date"]}</small></div>'
-                    f'<div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{safe_title}{trans_html}</div>'
-                    f'</div></a>'
-                )
-                st.markdown(html_content, unsafe_allow_html=True)
-        else:
+                    s_badge = f'<span style="background:{n["bg"]}; color:{n["color"]}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{s_label}</span>' if s_label != tag else ""
+                    
+                    html_content = (
+                        f'<a href="{n["link"]}" target="_blank" style="text-decoration:none; color:inherit;">'
+                        f'<div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">'
+                        f'<div style="display:flex; justify-content:space-between; align-items:center;">'
+                        f'<div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> <span style="color:#888; font-size:12px;">| {tag}</span>{s_badge}</div>'
+                        f'<small style="color:#bbb;">{n["date"]}</small></div>'
+                        f'<div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{safe_title}{trans_html}</div>'
+                        f'</div></a>'
+                    )
+                    st.markdown(html_content, unsafe_allow_html=True)
+            else:
                 st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
 
-            # [✅ 수정됨] 1단계 사용자 판단 (if/else 블록 바깥으로 빼서 항상 표시되게 함)
+            # [수정 완료] draw_decision_box가 if/else와 같은 레벨에 위치해야 합니다.
             draw_decision_box("news", "Step 1. 뉴스/기업소개에 대한 인상은?", ["긍정적", "중립적", "부정적"])
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
@@ -2145,6 +2130,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
