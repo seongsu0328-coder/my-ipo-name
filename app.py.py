@@ -1715,33 +1715,32 @@ elif st.session_state.page == 'detail':
             else:
                 st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
 
-            # --- [✨ 기능 개선] 사용자 판단 종합 리포트 생성 (Validation Logic 적용) ---
+            # --- [✨ 기능 개선] 사용자 판단 종합 리포트 생성 (Simple & Clean Version) ---
             st.markdown("### 🧠 나의 투자 판단 종합")
             
             # 1. 저장된 선택값 가져오기
             ud = st.session_state.user_decisions.get(sid, {})
             
-            # 2. 누락된 단계 확인 (Validation)
+            # 2. 누락된 단계 확인
             missing_steps = []
-            if not ud.get('news'): missing_steps.append("Step 1 (뉴스)")
-            if not ud.get('filing'): missing_steps.append("Step 2 (공시)")
-            if not ud.get('macro'): missing_steps.append("Step 3 (시장)")
-            if not ud.get('company'): missing_steps.append("Step 4 (기업)")
+            if not ud.get('news'): missing_steps.append("Step 1")
+            if not ud.get('filing'): missing_steps.append("Step 2")
+            if not ud.get('macro'): missing_steps.append("Step 3")
+            if not ud.get('company'): missing_steps.append("Step 4")
 
             # 3. 조건에 따른 메시지 및 스타일 설정
             if len(missing_steps) > 0:
-                # [Condition 1] 하나라도 선택하지 않은 경우
-                missing_str = ", ".join(missing_steps)
+                # [Condition 1] 미완료 시 -> 심플한 안내 메시지 (회색톤)
                 summary_text = f"""
-                ⚠️ <b>판단이 보류된 항목이 있습니다.</b>
+                ⏳ <b>의견 보류 중입니다.</b>
                 <br><br>
-                현재 <b>{missing_str}</b>에 대한 사용자의 판단이 입력되지 않았습니다.<br>
-                이전 탭(Tab 0~3)의 하단에서 판단을 완료해야 최종 의사결정 리포트가 생성됩니다.
+                아직 판단하지 않은 항목이 있어 최종 리포트를 생성할 수 없습니다.<br>
+                모든 탭(Tab 0~3)의 하단에서 판단을 완료해주세요.
                 """
-                box_bg = "#fff8e1"     # 연한 노란색 (Warning)
-                box_border = "#ffc107" # 진한 노란색
+                box_bg = "#f8f9fa"     # 아주 연한 회색 (깔끔함)
+                box_border = "#ced4da" # 회색 테두리 (중립적)
             else:
-                # [Condition 2] 모든 단계를 완료한 경우 (Full Report)
+                # [Condition 2] 완료 시 -> 상세 리포트 (파란색톤)
                 d_news = ud.get('news')
                 d_filing = ud.get('filing')
                 d_macro = ud.get('macro')
@@ -1757,12 +1756,12 @@ elif st.session_state.page == 'detail':
                 현재 최종 판단에 앞서 IPO 당사자들이 제공한 정보들과, 이에 대해 특정한 스탠스를 가지고 쓰여진 기사들, 
                 마지막으로 기업과 거시경제 상황에 대한 학술적 평가를 기초로 <b>최종 의사결정을 내릴 준비가 되어 있습니다.</b>
                 """
-                box_bg = "#f0f2f6"     # 연한 회색/파랑 (Success)
-                box_border = "#6e8efb" # 파란색
+                box_bg = "#eef2ff"     # 연한 파랑 (강조)
+                box_border = "#6e8efb" # 파란색 포인트
 
             # 4. 결과 출력
             st.markdown(f"""
-            <div style="background-color:{box_bg}; padding:20px; border-radius:15px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">
+            <div style="background-color:{box_bg}; padding:20px; border-radius:12px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">
                 {summary_text}
             </div>
             """, unsafe_allow_html=True)
@@ -1949,6 +1948,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
