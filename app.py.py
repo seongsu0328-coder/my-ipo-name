@@ -1716,7 +1716,7 @@ elif st.session_state.page == 'detail':
                 st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
 
             # --- [✨ 기능 개선] 사용자 판단 종합 리포트 생성 (Simple & Clean Version) ---
-            st.markdown("### 🧠 나의 투자 판단 종합")
+            st.markdown("### 나의 투자 판단 종합")
             
             # 1. 저장된 선택값 가져오기
             ud = st.session_state.user_decisions.get(sid, {})
@@ -1945,6 +1945,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
