@@ -1731,12 +1731,9 @@ elif st.session_state.page == 'detail':
             # 3. 조건에 따른 메시지 및 스타일 설정
             if len(missing_steps) > 0:
                 # [Condition 1] 미완료 시 -> 심플한 안내 메시지 (회색톤)
-                # 텍스트 스타일을 st.info와 유사하게 맞춤 (중앙 정렬, 약간 굵게, 15px)
-                summary_text = f"""
-                <div style='text-align: center; font-weight: 600; font-size: 15px; color: #444;'>
-                    ⏳ 의견 보류 중입니다.
-                </div>
-                """
+                # [수정] 들여쓰기로 인한 코드 블록 인식 방지를 위해 한 줄로 작성하거나 textwrap 사용
+                summary_text = "<div style='text-align: center; font-weight: 600; font-size: 15px; color: #444;'>⏳ 의견 보류 중입니다.</div>"
+                
                 box_bg = "#f8f9fa"     # 아주 연한 회색 (깔끔함)
                 box_border = "#ced4da" # 회색 테두리 (중립적)
             else:
@@ -1746,6 +1743,7 @@ elif st.session_state.page == 'detail':
                 d_macro = ud.get('macro')
                 d_company = ud.get('company')
                 
+                # 가독성을 위해 줄바꿈을 하되, HTML 태그 앞의 공백을 최소화
                 summary_text = f"""
                 사용자는 해당 기업소개와 뉴스에 대해 <b>"{d_news}"</b>인 인상을 받았고, 
                 주요 공시정보에 대해서는 <b>"{d_filing}"</b>인 스탠스입니다.
@@ -1758,6 +1756,7 @@ elif st.session_state.page == 'detail':
                 """
                 box_bg = "#eef2ff"     # 연한 파랑 (강조)
                 box_border = "#6e8efb" # 파란색 포인트
+
             # 4. 결과 출력
             st.markdown(f"""
             <div style="background-color:{box_bg}; padding:20px; border-radius:12px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">
@@ -1947,6 +1946,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
