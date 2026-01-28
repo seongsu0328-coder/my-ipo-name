@@ -1186,9 +1186,7 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
-            st.markdown("### 🌡️ 실시간 시장 과열 진단 시스템")
-            st.caption("권위 있는 학술 지표를 실시간 데이터로 자체 분석하여 시장의 온도를 측정합니다.")
-            st.write("---")
+            
 
             # [1] 데이터 수집 및 계산 함수
             def get_market_status_internal(df_calendar):
@@ -1300,7 +1298,7 @@ elif st.session_state.page == 'detail':
             # =================================================================
             # 1. 🦄 IPO 시장 지표
             # =================================================================
-            st.subheader("1. 🦄 IPO 시장 과열 평가 (IPO Specific)")
+            st.subheader("1. IPO 시장 과열 평가 (IPO Specific)")
             
             c1, c2, c3, c4 = st.columns(4)
 
@@ -1357,7 +1355,7 @@ elif st.session_state.page == 'detail':
             # =================================================================
             # 2. 🇺🇸 거시 시장 지표
             # =================================================================
-            st.subheader("2. 🇺🇸 Macro Market Indicators")
+            st.subheader("US Macro Market Indicators")
 
             m1, m2, m3, m4 = st.columns(4)
 
@@ -1946,6 +1944,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
