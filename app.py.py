@@ -1715,38 +1715,57 @@ elif st.session_state.page == 'detail':
             else:
                 st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
 
-            # [✨ 추가된 기능] 사용자 판단 종합 리포트 생성
+            # --- [✨ 기능 개선] 사용자 판단 종합 리포트 생성 (Validation Logic 적용) ---
             st.markdown("### 🧠 나의 투자 판단 종합")
             
-            # 저장된 선택값 가져오기 (없으면 '판단 보류' 처리)
+            # 1. 저장된 선택값 가져오기
             ud = st.session_state.user_decisions.get(sid, {})
-            d_news = ud.get('news', '판단 보류')
-            d_filing = ud.get('filing', '판단 보류')
-            d_macro = ud.get('macro', '판단 보류')
-            d_company = ud.get('company', '판단 보류')
+            
+            # 2. 누락된 단계 확인 (Validation)
+            missing_steps = []
+            if not ud.get('news'): missing_steps.append("Step 1 (뉴스)")
+            if not ud.get('filing'): missing_steps.append("Step 2 (공시)")
+            if not ud.get('macro'): missing_steps.append("Step 3 (시장)")
+            if not ud.get('company'): missing_steps.append("Step 4 (기업)")
 
-            # 종합 멘트 생성
-            summary_text = f"""
-            사용자는 해당 기업소개와 뉴스에 대해 **"{d_news}"**인 인상을 받았고, 
-            주요 공시정보에 대해서는 **"{d_filing}"**인 스탠스입니다.
-            <br><br>
-            학술논문을 기반으로 제시된 현재 거시경제 상황에 대해서 **"{d_macro}"**이라 판단하고 있고, 
-            현 기업의 상장시점 Valuation에 대해서는 **"{d_company}"**이라는 판단을 존중하고 있습니다.
-            <br><br>
-            현재 최종 판단에 앞서 IPO 당사자들이 제공한 정보들과, 이에 대해 특정한 스탠스를 가지고 쓰여진 기사들, 
-            마지막으로 기업과 거시경제 상황에 대한 학술적 평가를 기초로 **최종 의사결정을 내릴 준비가 되어 있습니다.**
-            """
+            # 3. 조건에 따른 메시지 및 스타일 설정
+            if len(missing_steps) > 0:
+                # [Condition 1] 하나라도 선택하지 않은 경우
+                missing_str = ", ".join(missing_steps)
+                summary_text = f"""
+                ⚠️ <b>판단이 보류된 항목이 있습니다.</b>
+                <br><br>
+                현재 <b>{missing_str}</b>에 대한 사용자의 판단이 입력되지 않았습니다.<br>
+                이전 탭(Tab 0~3)의 하단에서 판단을 완료해야 최종 의사결정 리포트가 생성됩니다.
+                """
+                box_bg = "#fff8e1"     # 연한 노란색 (Warning)
+                box_border = "#ffc107" # 진한 노란색
+            else:
+                # [Condition 2] 모든 단계를 완료한 경우 (Full Report)
+                d_news = ud.get('news')
+                d_filing = ud.get('filing')
+                d_macro = ud.get('macro')
+                d_company = ud.get('company')
+                
+                summary_text = f"""
+                사용자는 해당 기업소개와 뉴스에 대해 <b>"{d_news}"</b>인 인상을 받았고, 
+                주요 공시정보에 대해서는 <b>"{d_filing}"</b>인 스탠스입니다.
+                <br><br>
+                학술논문을 기반으로 제시된 현재 거시경제 상황에 대해서 <b>"{d_macro}"</b>이라 판단하고 있고, 
+                현 기업의 상장시점 Valuation에 대해서는 <b>"{d_company}"</b>이라는 판단을 존중하고 있습니다.
+                <br><br>
+                현재 최종 판단에 앞서 IPO 당사자들이 제공한 정보들과, 이에 대해 특정한 스탠스를 가지고 쓰여진 기사들, 
+                마지막으로 기업과 거시경제 상황에 대한 학술적 평가를 기초로 <b>최종 의사결정을 내릴 준비가 되어 있습니다.</b>
+                """
+                box_bg = "#f0f2f6"     # 연한 회색/파랑 (Success)
+                box_border = "#6e8efb" # 파란색
 
-            # 예쁜 박스에 담아서 출력
+            # 4. 결과 출력
             st.markdown(f"""
-            <div style="background-color:#f0f2f6; padding:20px; border-radius:15px; border-left:5px solid #6e8efb; line-height:1.6; font-size:15px; color:#333;">
+            <div style="background-color:{box_bg}; padding:20px; border-radius:15px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">
                 {summary_text}
             </div>
             """, unsafe_allow_html=True)
-            
-            # 아직 선택하지 않은 항목이 있다면 안내 메시지 (선택적)
-            if '판단 보류' in [d_news, d_filing, d_macro, d_company]:
-                st.caption("※ 이전 탭(Tab 0~3) 하단에서 판단을 선택하시면 빈칸이 채워집니다.")
 
             st.write("<br>", unsafe_allow_html=True)
             
@@ -1930,6 +1949,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
