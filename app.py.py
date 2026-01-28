@@ -1196,6 +1196,9 @@ elif st.session_state.page == 'detail':
                 </a>
             """, unsafe_allow_html=True)
 
+            # [추가] 2단계 판단
+            draw_decision_box("filing", "Step 2. 공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
+
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
             
@@ -1610,6 +1613,9 @@ elif st.session_state.page == 'detail':
                 st.write("<br>", unsafe_allow_html=True)
                 st.caption("※ 클릭 시 해당 논문 또는 공식 데이터 제공 사이트로 이동합니다.")
 
+                # [추가] 3단계 판단
+                draw_decision_box("macro", "Step 3. 현재 거시경제(Macro) 상황은?", ["버블", "중립", "침체"]) 
+
         # --- Tab 3: 개별 기업 평가 ---
         with tab3:
           
@@ -1800,6 +1806,9 @@ elif st.session_state.page == 'detail':
                 st.write("<br>", unsafe_allow_html=True)
                 st.caption("※ 클릭 시 해당 논문의 학술적 검색 결과(Google Scholar) 또는 데이터 사이트로 이동합니다.")
 
+                # [추가] 4단계 판단
+                draw_decision_box("company", "Step 4. 기업 밸류에이션 평가는?", ["버블", "중립", "안정적"])
+
         # --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
         with tab4:
             import uuid
@@ -1921,6 +1930,40 @@ elif st.session_state.page == 'detail':
             else:
                 st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
 
+            # [✨ 추가된 기능] 사용자 판단 종합 리포트 생성
+            st.markdown("### 🧠 나의 투자 판단 종합")
+            
+            # 저장된 선택값 가져오기 (없으면 '판단 보류' 처리)
+            ud = st.session_state.user_decisions.get(sid, {})
+            d_news = ud.get('news', '판단 보류')
+            d_filing = ud.get('filing', '판단 보류')
+            d_macro = ud.get('macro', '판단 보류')
+            d_company = ud.get('company', '판단 보류')
+
+            # 종합 멘트 생성
+            summary_text = f"""
+            사용자는 해당 기업소개와 뉴스에 대해 **"{d_news}"**인 인상을 받았고, 
+            주요 공시정보에 대해서는 **"{d_filing}"**인 스탠스입니다.
+            <br><br>
+            학술논문을 기반으로 제시된 현재 거시경제 상황에 대해서 **"{d_macro}"**이라 판단하고 있고, 
+            현 기업의 상장시점 Valuation에 대해서는 **"{d_company}"**이라는 판단을 존중하고 있습니다.
+            <br><br>
+            현재 최종 판단에 앞서 IPO 당사자들이 제공한 정보들과, 이에 대해 특정한 스탠스를 가지고 쓰여진 기사들, 
+            마지막으로 기업과 거시경제 상황에 대한 학술적 평가를 기초로 **최종 의사결정을 내릴 준비가 되어 있습니다.**
+            """
+
+            # 예쁜 박스에 담아서 출력
+            st.markdown(f"""
+            <div style="background-color:#f0f2f6; padding:20px; border-radius:15px; border-left:5px solid #6e8efb; line-height:1.6; font-size:15px; color:#333;">
+                {summary_text}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # 아직 선택하지 않은 항목이 있다면 안내 메시지 (선택적)
+            if '판단 보류' in [d_news, d_filing, d_macro, d_company]:
+                st.caption("※ 이전 탭(Tab 0~3) 하단에서 판단을 선택하시면 빈칸이 채워집니다.")
+
+            st.write("<br>", unsafe_allow_html=True)
             
 
             # --- 3. 관심 종목 관리 ---
@@ -2102,6 +2145,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
