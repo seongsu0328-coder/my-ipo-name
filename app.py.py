@@ -1118,9 +1118,9 @@ elif st.session_state.page == 'detail':
                 )
                 st.markdown(html_content, unsafe_allow_html=True)
         else:
-            st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
+                st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
 
-            # [✨ 추가된 부분] 1단계 사용자 판단
+            # [✅ 수정됨] 1단계 사용자 판단 (if/else 블록 바깥으로 빼서 항상 표시되게 함)
             draw_decision_box("news", "Step 1. 뉴스/기업소개에 대한 인상은?", ["긍정적", "중립적", "부정적"])
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
@@ -2145,6 +2145,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
