@@ -929,7 +929,7 @@ elif st.session_state.page == 'detail':
         # [공통 함수] 각 탭 하단 평가 선택창 그리기
         def draw_decision_box(step_key, title, options):
             st.write("---")
-            st.markdown(f"##### 🤔 {title}")
+            st.markdown(f"#####  {title}")
             
             # 현재 저장된 값 가져오기
             current_val = st.session_state.user_decisions[sid].get(step_key)
@@ -1946,6 +1946,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
