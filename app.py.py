@@ -900,7 +900,7 @@ body { color: #333333; } /* 기본 텍스트 색상만 지정 */
 
         
 
-# 5. 상세 페이지 (기능/디자인 100% 복구 + 에러 수정 완료)
+# 5. 상세 페이지 (기능/디자인 100% 복구 + 에러 수정 완료 + 사용자 판단 기능 추가)
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     
@@ -911,6 +911,44 @@ elif st.session_state.page == 'detail':
     off_val = 0
 
     if stock:
+        # -------------------------------------------------------------------------
+        # [✨ 추가된 부분] 사용자 판단 상태 관리 및 공통 함수 정의
+        # -------------------------------------------------------------------------
+        
+        # [상태 관리] 사용자 판단 저장을 위한 세션 초기화
+        if 'user_decisions' not in st.session_state:
+            st.session_state.user_decisions = {}
+        
+        # 종목별 초기화 (sid 정의)
+        sid = stock['symbol']
+        if sid not in st.session_state.user_decisions:
+            st.session_state.user_decisions[sid] = {
+                "news": None, "filing": None, "macro": None, "company": None
+            }
+
+        # [공통 함수] 각 탭 하단 평가 선택창 그리기
+        def draw_decision_box(step_key, title, options):
+            st.write("---")
+            st.markdown(f"##### 🤔 {title}")
+            
+            # 현재 저장된 값 가져오기
+            current_val = st.session_state.user_decisions[sid].get(step_key)
+            
+            # 라디오 버튼으로 선택 (가로 배열)
+            choice = st.radio(
+                label="판단 선택",
+                options=options,
+                index=options.index(current_val) if current_val in options else None,
+                key=f"dec_{sid}_{step_key}",
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+            
+            # 값이 변경되면 세션에 저장
+            if choice:
+                st.session_state.user_decisions[sid][step_key] = choice
+        # -------------------------------------------------------------------------
+
         # [1. 데이터 로딩 및 초기 설정]
         today = datetime.now().date()
         try: 
@@ -947,6 +985,7 @@ elif st.session_state.page == 'detail':
             p_html = f"({date_str} / 공모 ${off_val} / 상장 대기)"
 
         st.markdown(f"<h1>{status_emoji} {stock['name']} <small>{p_html}</small></h1>", unsafe_allow_html=True)
+        st.write("---")
         
 
         # [3. 탭 메뉴 구성]
@@ -2060,6 +2099,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
