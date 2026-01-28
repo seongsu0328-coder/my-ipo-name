@@ -1106,7 +1106,7 @@ elif st.session_state.page == 'detail':
                 st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
 
             # [수정 완료] draw_decision_box가 if/else와 같은 레벨에 위치해야 합니다.
-            draw_decision_box("news", "Step 1. 신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
+            draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
         with tab1:
@@ -1182,7 +1182,7 @@ elif st.session_state.page == 'detail':
             """, unsafe_allow_html=True)
 
             # [추가] 2단계 판단
-            draw_decision_box("filing", "Step 2. 공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
+            draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
@@ -1481,7 +1481,7 @@ elif st.session_state.page == 'detail':
                 st.caption("※ 클릭 시 해당 논문 또는 공식 데이터 제공 사이트로 이동합니다.")
 
             # [✅ 수정 완료] 3단계 판단 (expander 바깥쪽으로 빼냄)
-            draw_decision_box("macro", "Step 3. 현재 거시경제(Macro) 상황에 대한 판단은?", ["버블", "중립", "침체"])
+            draw_decision_box("macro", "현재 거시경제(Macro) 상황에 대한 판단은?", ["버블", "중립", "침체"])
 
 
         # --- Tab 3: 개별 기업 평가 ---
@@ -1629,7 +1629,7 @@ elif st.session_state.page == 'detail':
                 st.caption("※ 클릭 시 해당 논문의 학술적 검색 결과 또는 데이터 사이트로 이동합니다.")
 
             # [✅ 추가됨] 4단계 사용자 판단
-            draw_decision_box("company", "Step 4. 기업 가치평가는(Valusation)?", ["버블", "중립", "안정적"])
+            draw_decision_box("company", "기업 가치평가는(Valusation)?", ["버블", "중립", "안정적"])
 
         # --- Tab 4: 최종 투자 결정 (Community & Decisions) ---
         with tab4:
@@ -1983,6 +1983,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
