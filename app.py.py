@@ -1732,10 +1732,7 @@ elif st.session_state.page == 'detail':
             if len(missing_steps) > 0:
                 # [Condition 1] 미완료 시 -> 심플한 안내 메시지 (회색톤)
                 summary_text = f"""
-                ⏳ <b>의견 보류 중입니다.</b>
-                <br><br>
-                아직 판단하지 않은 항목이 있어 최종 리포트를 생성할 수 없습니다.<br>
-                모든 탭(Tab 0~3)의 하단에서 판단을 완료해주세요.
+                의견 보류 중입니다.
                 """
                 box_bg = "#f8f9fa"     # 아주 연한 회색 (깔끔함)
                 box_border = "#ced4da" # 회색 테두리 (중립적)
@@ -1948,6 +1945,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
