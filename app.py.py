@@ -1780,26 +1780,22 @@ elif st.session_state.page == 'detail':
                 d_macro = ud.get('macro')
                 d_company = ud.get('company')
                 
-                # [수정] 따옴표(") 제거 및 폰트 스타일(15px, #333) 적용
-                summary_text = f"""
-                사용자는 해당 기업소개와 뉴스에 대해 <b>{d_news}</b>인 인상을 받았고, 
-                주요 공시정보에 대해서는 <b>{d_filing}</b>인 스탠스입니다.
-                <br><br>
-                학술논문을 기반으로 제시된 현재 거시경제 상황에 대해서 <b>{d_macro}</b>이라 판단하고 있고, 
-                현 기업의 상장시점 Valuation에 대해서는 <b>{d_company}</b>이라는 판단을 존중하고 있습니다.
-                <br><br>
-                현재 최종 판단에 앞서 IPO 당사자들이 제공한 정보들과, 이에 대해 특정한 스탠스를 가지고 쓰여진 기사들, 
-                마지막으로 기업과 거시경제 상황에 대한 학술적 평가를 기초로 <b>최종 의사결정을 내릴 준비가 되어 있습니다.</b>
-                """
+                # [수정 핵심] 들여쓰기를 제거하여 HTML이 정상적으로 렌더링되게 함
+                summary_text = f"""사용자는 해당 기업소개와 뉴스에 대해 <b>{d_news}</b>인 인상을 받았고, 
+주요 공시정보에 대해서는 <b>{d_filing}</b>인 스탠스입니다.
+<br><br>
+학술논문을 기반으로 제시된 현재 거시경제 상황에 대해서 <b>{d_macro}</b>이라 판단하고 있고, 
+현 기업의 상장시점 Valuation에 대해서는 <b>{d_company}</b>이라는 판단을 존중하고 있습니다.
+<br><br>
+현재 최종 판단에 앞서 IPO 당사자들이 제공한 정보들과, 이에 대해 특정한 스탠스를 가지고 쓰여진 기사들, 
+마지막으로 기업과 거시경제 상황에 대한 학술적 평가를 기초로 <b>최종 의사결정을 내릴 준비가 되어 있습니다.</b>"""
+                
                 box_bg = "#eef2ff"     # 연한 파랑 (강조)
                 box_border = "#6e8efb" # 파란색 포인트
 
-            # 4. 결과 출력 (폰트 사이즈 15px로 고정)
-            st.markdown(f"""
-            <div style="background-color:{box_bg}; padding:20px; border-radius:12px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">
-                {summary_text}
-            </div>
-            """, unsafe_allow_html=True)
+            # 4. 결과 출력
+            # [수정] HTML 태그 사이의 불필요한 공백 제거
+            st.markdown(f"""<div style="background-color:{box_bg}; padding:20px; border-radius:12px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">{summary_text}</div>""", unsafe_allow_html=True)
 
             st.write("<br>", unsafe_allow_html=True)
             
@@ -1983,6 +1979,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
