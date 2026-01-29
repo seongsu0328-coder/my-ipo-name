@@ -711,7 +711,7 @@ elif st.session_state.page == 'calendar':
                 st.session_state.watchlist = []
                 st.rerun()
         else:
-            if st.button("🔑 로그인", use_container_width=True):
+            if st.button("로그인", use_container_width=True):
                 st.session_state.page = 'login'
                 st.rerun()
 
@@ -720,13 +720,13 @@ elif st.session_state.page == 'calendar':
         watch_count = len(st.session_state.watchlist)
         # 현재 보고 있는 모드에 따라 버튼 색상 변경 (primary vs secondary)
         btn_type = "primary" if st.session_state.view_mode == 'watchlist' else "secondary"
-        if st.button(f"⭐ 나의 관심\n({watch_count})", use_container_width=True, type=btn_type):
+        if st.button(f"나의 관심\n({watch_count})", use_container_width=True, type=btn_type):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
     # 3. 토론 게시판
     with nav_c3:
-        if st.button("💬 토론\n게시판", use_container_width=True):
+        if st.button("토론\n게시판", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
             
@@ -1958,6 +1958,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
