@@ -696,62 +696,63 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [FINAL SOLUTION] 버튼 박스 크기 강제 축소 및 한 줄 고정
+    # [ULTIMATE FIX] 모든 모바일 환경 가로 한 줄 고정
     # =========================================================
     
     st.markdown("""
         <style>
-        /* 1. 컬럼들이 들어가는 컨테이너의 줄바꿈을 절대 차단 */
-        [data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            justify-content: flex-start !important;
-            gap: 4px !important; /* 버튼 사이 간격 */
+        /* 1. 최상위 블록을 가로 3칸 그리드로 강제 전환 */
+        div[data-testid="stHorizontalBlock"] {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr 1fr !important; /* 무조건 3등분 */
+            gap: 5px !important;
+            width: 100% !important;
+            flex-direction: row !important; /* 혹시 모를 flex 방어 */
         }
         
-        /* 2. 각 컬럼(박스)이 가로로 길어지는 것을 강제 차단 */
-        /* 이 부분이 핵심입니다: 너비를 글자 크기에 가깝게 제한 */
-        [data-testid="column"] {
-            width: fit-content !important; /* 내용물만큼만 너비 차지 */
-            flex: 0 1 auto !important;     /* 남는 공간을 채우지 않음 */
+        /* 2. 컬럼이 한 줄을 다 차지하려는 성질 제거 */
+        div[data-testid="column"] {
+            width: 100% !important;
+            max-width: 100% !important;
             min-width: 0px !important;
         }
 
-        /* 3. 버튼 자체의 가로 길이를 글자 크기에 맞게 축소 */
+        /* 3. 버튼 크기를 글자에 맞게, 그리고 박스 크기 최소화 */
         div[data-testid="stButton"] > button {
-            width: auto !important;        /* 상자가 가로로 길어지는 것 방지 */
-            padding: 4px 10px !important;  /* 버튼 내부 여백 축소 */
-            height: 40px !important;       /* 버튼 높이 축소 */
-            min-width: 60px !important;    /* 최소 너비만 유지 */
+            width: 100% !important;
+            min-width: 0px !important;
+            padding: 5px 2px !important;
+            height: 50px !important;
             border-radius: 4px !important;
+            /* 기존의 거대한 상자를 제거하기 위해 배경/테두리 최적화 */
+            border: 1px solid #e0e0e0 !important;
+            background-color: white !important;
         }
         
-        /* 4. 버튼 텍스트가 삐져나가지 않게 조정 */
+        /* 4. 버튼 내 글자 크기 조정 및 줄바꿈 방지 */
         div[data-testid="stButton"] button p {
-            font-size: 12px !important;
+            font-size: 11px !important;
             font-weight: 600 !important;
-            white-space: nowrap !important; /* 한 줄에 글자가 다 나오게 함 */
+            white-space: nowrap !important;
+            margin: 0 !important;
+            color: #333 !important;
         }
 
-        /* 스마트폰 화면(폭 600px 이하)에서만 적용되는 강제 한 줄 룰 */
-        @media (max-width: 600px) {
-            [data-testid="stHorizontalBlock"] {
-                justify-content: space-between !important;
-            }
-            [data-testid="column"] {
-                flex: 1 1 30% !important; /* 모바일에서만 3분할 */
-                max-width: 33% !important;
+        /* 모바일에서 Streamlit이 강제로 넣는 여백 제거 */
+        @media (max-width: 640px) {
+            div[data-testid="stHorizontalBlock"] {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr 1fr !important;
             }
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 3개의 컬럼 생성
-    nav_c1, nav_c2, nav_c3 = st.columns(3)
+    # st.columns(3)를 사용하지만 CSS가 이를 강제로 grid로 만듭니다.
+    n1, n2, n3 = st.columns(3)
     
-    with nav_c1:
-        # 텍스트를 최대한 짧게 해서 상자가 커지는 것을 방지
+    with n1:
+        # 텍스트가 길면 깨질 수 있으니 최대한 간결하게
         btn_label = "로그아웃" if st.session_state.auth_status == 'user' else "로그인"
         if st.button(btn_label, key="n_log", use_container_width=True):
             if st.session_state.auth_status == 'user':
@@ -762,13 +763,14 @@ elif st.session_state.page == 'calendar':
                 st.session_state.page = 'login'
                 st.rerun()
 
-    with nav_c2:
+    with n2:
+        # 관심기업 대신 '관심'으로 줄여서 공간 확보
         watch_cnt = len(st.session_state.watchlist)
-        if st.button(f"관심기업({watch_cnt})", key="n_wat", use_container_width=True):
+        if st.button(f"관심({watch_cnt})", key="n_wat", use_container_width=True):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
-    with nav_c3:
+    with n3:
         if st.button("게시판", key="n_brd", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
@@ -2001,6 +2003,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
