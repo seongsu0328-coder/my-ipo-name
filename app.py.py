@@ -696,54 +696,54 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [FINAL] 상단 메뉴: 버튼 여백 최소화 및 가로 강제 고정
+    # [FINAL-FIX] 상단 메뉴: 모바일 가로 배열 강제 고정
     # =========================================================
     
     st.markdown("""
         <style>
-        /* 1. 컬럼 컨테이너: 모바일에서 세로로 꺾이는 현상 절대 방지 */
+        /* 1. 컨테이너: 라디오 버튼처럼 가로로 길게 나열되도록 강제 */
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 2px !important; /* 버튼 사이 간격 최소화 */
+            flex-wrap: nowrap !important; /* 절대 다음 줄로 넘기지 않음 */
+            align-items: stretch !important;
+            gap: 4px !important; /* 버튼 사이 간격 */
         }
         
-        /* 2. 각 컬럼: 너비를 33%로 강제 고정 */
+        /* 2. 개별 컬럼: 반응형 너비 해제 및 균등 분할 */
         [data-testid="column"] {
-            width: 33.33% !important;
-            flex: 1 1 33.33% !important;
-            min-width: 30% !important;
+            flex: 1 1 0% !important; /* 세 컬럼이 똑같은 너비를 가짐 */
+            min-width: 0px !important; /* 최소 너비 제한 해제 */
         }
 
-        /* 3. 버튼 크기 축소: 여백(Padding)을 줄여 글자 크기에 맞춤 */
+        /* 3. 버튼 크기 최적화: 여백을 없애고 글자 크기에 집중 */
         div[data-testid="stButton"] > button {
             width: 100% !important;
-            padding-left: 0px !important;
-            padding-right: 0px !important;
-            padding-top: 5px !important;
-            padding-bottom: 5px !important;
-            min-height: 45px !important; /* 높이도 글자 높이에 맞춰 축소 */
-            border-radius: 4px !important;
+            padding: 8px 1px !important; /* 내부 여백 최소화 */
+            min-height: 50px !important;
+            border-radius: 6px !important;
+            border: 1px solid #f0f2f6 !important;
+            background-color: transparent !important;
         }
         
-        /* 4. 글자 스타일: 버튼 크기에 맞춰 최적화 */
+        /* 4. 버튼 내 텍스트: 줄바꿈 없이 한 줄 혹은 두 줄 고정 */
         div[data-testid="stButton"] button p {
             font-size: 12px !important;
-            margin: 0 !important;
-            white-space: nowrap !important; /* 글자가 버튼 밖으로 안 나가게 함 */
-            letter-spacing: -0.5px !important; /* 글자 간격 좁힘 */
+            font-weight: 600 !important;
+            white-space: pre-line !important; /* \n 사용 시 줄바꿈 허용 */
+            line-height: 1.2 !important;
+            word-break: keep-all !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 메뉴 구성
+    # 메뉴 구성 (gap을 없애서 더 밀착시킴)
     nav_c1, nav_c2, nav_c3 = st.columns(3)
     
     with nav_c1:
         if st.session_state.auth_status == 'user':
             u_phone = st.session_state.get('user_phone', '')
-            label = f"{u_phone[-4:]} 로그아웃" # 텍스트 최소화
+            label = f"{u_phone[-4:]}\n로그아웃"
             if st.button(label, key="n_log", use_container_width=True):
                 st.session_state.auth_status = None
                 st.session_state.page = 'login'
@@ -755,23 +755,19 @@ elif st.session_state.page == 'calendar':
 
     with nav_c2:
         watch_cnt = len(st.session_state.watchlist)
-        # 텍스트 길이를 줄여서 한 줄 배치 유도
-        label = f"관심({watch_cnt})"
+        # 라디오 버튼처럼 간결한 레이아웃 유지
+        label = f"관심기업\n({watch_cnt})"
         is_watch = st.session_state.view_mode == 'watchlist'
         if st.button(label, key="n_wat", use_container_width=True, type="primary" if is_watch else "secondary"):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
     with nav_c3:
-        if st.button("게시판", key="n_brd", use_container_width=True):
+        if st.button("토론\n게시판", key="n_brd", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
             
     st.write("---")
-
-    # [이후 캘린더 리스트 로직은 기존 코드 그대로 유지]
-    # c1, c2 = st.columns([7, 3]) 로직이 아래에 나와도 
-    # 위에서 .nav-wrapper로 한정했기 때문에 서로 간섭하지 않습니다.
 
     # =========================================================
     # [캘린더 리스트 로직] (기존 코드 100% 유지)
@@ -1999,6 +1995,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
