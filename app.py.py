@@ -696,53 +696,53 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [FINAL-FIX] 상단 메뉴: 모바일 가로 배열 강제 고정
+    # [ULTIMATE-FIX] 상단 메뉴: 어떤 모바일에서도 가로 한 줄 고정
     # =========================================================
     
     st.markdown("""
         <style>
-        /* 1. 컨테이너: 라디오 버튼처럼 가로로 길게 나열되도록 강제 */
-        [data-testid="stHorizontalBlock"] {
+        /* 1. 최상위 부모 컨테이너의 모바일 수직 쌓임 강제 해제 */
+        div[data-testid="stHorizontalBlock"] {
             display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important; /* 절대 다음 줄로 넘기지 않음 */
-            align-items: stretch !important;
-            gap: 4px !important; /* 버튼 사이 간격 */
+            flex-direction: row !important; /* 수평 정렬 강제 */
+            flex-wrap: nowrap !important;   /* 줄바꿈 절대 금지 */
+            width: 100% !important;
+            gap: 6px !important;            /* 버튼 사이 간격 */
         }
         
-        /* 2. 개별 컬럼: 반응형 너비 해제 및 균등 분할 */
-        [data-testid="column"] {
-            flex: 1 1 0% !important; /* 세 컬럼이 똑같은 너비를 가짐 */
-            min-width: 0px !important; /* 최소 너비 제한 해제 */
+        /* 2. 각 컬럼의 최소 너비 제한(모바일 꺾임의 주범) 제거 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            width: 33.33% !important;
+            min-width: 0px !important;      /* 매우 중요: 0으로 설정해야 안 꺾임 */
+            flex: 1 1 0% !important;
         }
 
-        /* 3. 버튼 크기 최적화: 여백을 없애고 글자 크기에 집중 */
+        /* 3. 버튼 크기 및 텍스트 정렬 최적화 */
         div[data-testid="stButton"] > button {
             width: 100% !important;
-            padding: 8px 1px !important; /* 내부 여백 최소화 */
-            min-height: 50px !important;
-            border-radius: 6px !important;
-            border: 1px solid #f0f2f6 !important;
-            background-color: transparent !important;
+            padding: 4px 2px !important;
+            min-height: 54px !important;    /* 버튼 높이 고정 */
+            border-radius: 8px !important;
         }
         
-        /* 4. 버튼 내 텍스트: 줄바꿈 없이 한 줄 혹은 두 줄 고정 */
+        /* 4. 버튼 안의 텍스트 스타일 */
         div[data-testid="stButton"] button p {
-            font-size: 12px !important;
-            font-weight: 600 !important;
-            white-space: pre-line !important; /* \n 사용 시 줄바꿈 허용 */
+            font-size: 11px !important;     /* 글자 크기 살짝 축소하여 한 줄 확보 */
+            font-weight: 700 !important;
             line-height: 1.2 !important;
             word-break: keep-all !important;
+            white-space: pre-line !important; /* 줄바꿈(\n) 허용 */
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 메뉴 구성 (gap을 없애서 더 밀착시킴)
+    # 메뉴 구성 (gap="small"을 명시하여 Streamlit의 기본 여백 계산 방해)
     nav_c1, nav_c2, nav_c3 = st.columns(3)
     
     with nav_c1:
         if st.session_state.auth_status == 'user':
             u_phone = st.session_state.get('user_phone', '')
+            # 번호가 길면 줄이 바뀔 수 있으므로 뒷번호만 짧게 표시
             label = f"{u_phone[-4:]}\n로그아웃"
             if st.button(label, key="n_log", use_container_width=True):
                 st.session_state.auth_status = None
@@ -755,10 +755,9 @@ elif st.session_state.page == 'calendar':
 
     with nav_c2:
         watch_cnt = len(st.session_state.watchlist)
-        # 라디오 버튼처럼 간결한 레이아웃 유지
-        label = f"관심기업\n({watch_cnt})"
         is_watch = st.session_state.view_mode == 'watchlist'
-        if st.button(label, key="n_wat", use_container_width=True, type="primary" if is_watch else "secondary"):
+        # 관심기업 글자수를 최적화하여 버튼 안에 안착
+        if st.button(f"관심기업\n({watch_cnt})", key="n_wat", use_container_width=True, type="primary" if is_watch else "secondary"):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
@@ -1995,6 +1994,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
