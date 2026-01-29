@@ -767,7 +767,7 @@ elif st.session_state.page == 'calendar':
             st.rerun()
             
     st.markdown('</div>', unsafe_allow_html=True)
-    st.write("---").
+    st.write("---")
 
     # =========================================================
     # [캘린더 리스트 로직] (기존 코드 100% 유지)
@@ -1995,6 +1995,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
