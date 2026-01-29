@@ -478,15 +478,6 @@ if st.session_state.page == 'login':
     # 아래 코드들은 모두 동일하게 'Tab' 한 번(또는 공백 4칸) 안으로 들어가 있어야 합니다.
     st.write("<br>" * 2, unsafe_allow_html=True)  # 여백 조절
     
-    # 여기에 로그인 관련 st.title이나 입력창 코드들이 위치합니다.
-    # 예: st.title("Welcome to IPO Tracker")
-    # 예: login_form() 
-    
-    # 만약 이 아래에 당장 넣을 코드가 없다면 아래 pass의 주석을 해제하세요.
-    # pass 
-
-# --- 로그인 화면 끝 ---
-    
     # [추가] 상단 타이틀 이미지 표시 영역
     t_col1, t_col2, t_col3 = st.columns([1, 0.8, 1]) # 이미지 크기 조절을 위한 컬럼 분할
     with t_col2:
@@ -495,14 +486,12 @@ if st.session_state.page == 'login':
             st.image(img_path, use_container_width=True)
         else:
             # 로컬에 파일이 없을 경우를 대비해 GitHub Raw URL 방식을 사용할 수도 있습니다.
-            # st.image("https://raw.githubusercontent.com/사용자계정/저장소명/main/title_unicorn.png")
             pass
 
     st.write("<br>", unsafe_allow_html=True)
     _, col_m, _ = st.columns([1, 1.2, 1])
     
     # [가상 DB] 가입된 사용자 목록을 기억하기 위한 임시 저장소
-    # 앱을 새로고침하면 초기화되지만, 사용하는 동안은 기억합니다.
     if 'db_users' not in st.session_state:
         st.session_state.db_users = ["010-0000-0000"] # 테스트용: 관리자 번호는 이미 가입된 것으로 간주
     
@@ -527,7 +516,7 @@ if st.session_state.page == 'login':
             # 버튼 3: 비회원 둘러보기
             if st.button("구경하기", use_container_width=True):
                 st.session_state.auth_status = 'guest'
-                st.session_state.page = 'stats'
+                st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
                 st.rerun()
 
         # [Step 2-A] 로그인 입력 화면 (기존 회원용)
@@ -543,7 +532,7 @@ if st.session_state.page == 'login':
                         st.session_state.auth_status = 'user'
                         st.session_state.user_phone = phone_login # 세션에 정보 저장
                         st.success(f"반갑습니다! {phone_login}님")
-                        st.session_state.page = 'stats'
+                        st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
                         st.session_state.login_step = 'choice'
                         st.rerun()
                     else:
@@ -584,7 +573,7 @@ if st.session_state.page == 'login':
                             st.session_state.user_phone = phone_signup
                             st.balloons() # 가입 축하 효과
                             st.toast("회원가입을 축하합니다!", icon="🎉")
-                            st.session_state.page = 'stats'
+                            st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
                             st.session_state.login_step = 'choice'
                             st.rerun()
                     else: st.error("올바른 번호를 입력해주세요.")
@@ -1979,6 +1968,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
