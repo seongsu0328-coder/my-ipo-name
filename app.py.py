@@ -696,80 +696,78 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [FINAL-FIX] 상단 메뉴 전용 강제 그리드 (리스트 영향 0%)
+    # [ULTIMATE] 상단 메뉴 전용 강제 가로 정렬 (격리형)
     # =========================================================
     
     st.markdown("""
         <style>
-        /* 1. nav-container 내부의 stHorizontalBlock만 골라서 3등분 그리드로 강제 전환 */
-        .nav-container [data-testid="stHorizontalBlock"] {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr 1fr !important; /* 무조건 3등분 */
-            gap: 8px !important;
+        /* 상단 메뉴 전용 컨테이너 */
+        .nav-group {
+            display: flex !important;
+            flex-direction: row !important; /* 가로 방향 고정 */
+            flex-wrap: nowrap !important;   /* 줄바꿈 절대 금지 */
+            justify-content: space-between !important; /* 간격 균등 분배 */
             width: 100% !important;
-            align-items: start !important;
+            gap: 5px !important;
+            margin-bottom: 20px !important;
         }
 
-        /* 2. 상단 메뉴 내부 컬럼들의 모바일 수직 쌓임 현상(flex) 무력화 */
-        .nav-container [data-testid="column"] {
-            width: 100% !important;
+        /* 이 컨테이너 안에 있는 모든 '버튼 칸'을 강제 가로 배치 */
+        .nav-group > div {
+            flex: 1 1 33% !important; /* 무조건 너비의 1/3 차지 */
             min-width: 0px !important;
-            flex: 1 1 0% !important;
         }
 
-        /* 3. 버튼 스타일: 상자를 글자 크기에 맞춰 콤팩트하게 조절 */
-        .nav-container div[data-testid="stButton"] > button {
+        /* 버튼 자체의 디자인: 상자가 길어지지 않게 고정 */
+        .nav-group button {
             width: 100% !important;
-            padding: 4px 1px !important;
-            min-height: 48px !important;
-            border-radius: 6px !important;
-            border: 1px solid #ddd !important;
-            background-color: white !important;
+            height: 50px !important;
+            padding: 0px !important;
+            border-radius: 8px !important;
+            background-color: #ffffff !important;
+            border: 1px solid #e0e0e0 !important;
         }
-        
-        /* 4. 버튼 텍스트: 작고 굵게 하여 상자가 커지는 것 방지 */
-        .nav-container div[data-testid="stButton"] button p {
+
+        /* 버튼 안의 글자 */
+        .nav-group button p {
             font-size: 11px !important;
             font-weight: 700 !important;
             white-space: nowrap !important;
             color: #333 !important;
         }
-
-        /* 하단 리스트(c1, c2)는 .nav-container 밖에 있으므로 이 규칙들이 적용되지 않습니다. */
         </style>
     """, unsafe_allow_html=True)
 
-    # 상단 전용 컨테이너 시작
-    st.markdown('<div class="nav-container">', unsafe_allow_html=True)
-    n1, n2, n3 = st.columns(3)
+    # st.columns 대신 위에서 정의한 .nav-group 클래스를 직접 사용합니다.
+    # 이렇게 하면 하단의 다른 st.columns들과는 완전히 다른 세상을 살게 됩니다.
+    st.markdown('<div class="nav-group">', unsafe_allow_html=True)
     
-    with n1:
-        # 로그인/로그아웃 텍스트 최적화
-        is_logged_in = st.session_state.auth_status == 'user'
-        btn_label = "로그아웃" if is_logged_in else "로그인"
+    # 각 버튼을 감싸는 div를 만들어줍니다. (CSS에서 1/3씩 나누게 설정됨)
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        btn_label = "로그아웃" if st.session_state.auth_status == 'user' else "로그인"
         if st.button(btn_label, key="n_log", use_container_width=True):
-            if is_logged_in:
+            if st.session_state.auth_status == 'user':
                 st.session_state.auth_status = None
                 st.session_state.page = 'login'
             else:
                 st.session_state.page = 'login'
             st.rerun()
 
-    with n2:
+    with col2:
         watch_cnt = len(st.session_state.watchlist)
         if st.button(f"관심기업({watch_cnt})", key="n_wat", use_container_width=True):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
-    with n3:
+    with col3:
         if st.button("게시판", key="n_brd", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True) # 상단 전용 컨테이너 끝
             
-    st.write("---")
-
-    # 이후 나오는 c1, c2 = st.columns([7, 3]) 리스트 로직은 위 스타일의 영향을 받지 않습니다.
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.write("---").
 
     # =========================================================
     # [캘린더 리스트 로직] (기존 코드 100% 유지)
@@ -1997,6 +1995,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
