@@ -1817,11 +1817,11 @@ if st.session_state.page == 'board':
 
 # --- 5. 게시판 페이지 ---
 if st.session_state.page == 'board':
-    # [Top Menu] 상단 메뉴 버튼 (stats 페이지로 이동)
+    # [Top Menu] 상단 메뉴 버튼 (calendar 페이지로 이동)
     m_col1, m_col2 = st.columns([8.5, 1.5])
     with m_col2:
-        if st.button("🏠 메뉴", use_container_width=True):
-            st.session_state.page = 'stats'
+        if st.button("🏠 홈", use_container_width=True): # 메뉴 -> 홈으로 텍스트 변경 추천
+            st.session_state.page = 'calendar' # [수정됨] stats -> calendar
             st.rerun()
 
     st.markdown("### 💬 투자자 토론 게시판")
@@ -1958,6 +1958,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
