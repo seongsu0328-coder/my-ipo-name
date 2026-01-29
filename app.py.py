@@ -696,45 +696,52 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [NEW] 상단 통합 메뉴 (모바일 한 줄 고정 버전)
+    # [NEW] 상단 통합 메뉴 (모바일 절대 한 줄 고정 버전)
     # =========================================================
-    # 1. CSS 주입: 버튼들을 한 줄에 가로로 강제 배치
+    
+    # 1. CSS 주입: 가로 배열 강제 및 버튼 높이 조정
     st.markdown("""
         <style>
-        .nav-container {
-            display: flex;
-            gap: 8px;
-            justify-content: space-between;
-            margin-bottom: 20px;
+        /* 핵심: 컬럼 컨테이너를 가로 flex로 강제 고정 */
+        [data-testid="column"] {
+            width: calc(33.3333% - 10px) !important;
+            flex: 1 1 calc(33.3333% - 10px) !important;
+            min-width: calc(33.3333% - 10px) !important;
         }
-        .nav-item {
-            flex: 1; /* 1:1:1 비율로 균등 배분 */
-        }
-        /* 스트림릿 기본 버튼 패딩 최적화 */
+        
+        /* 버튼 내부 텍스트 크기 및 간격 최적화 */
         div[data-testid="stButton"] > button {
-            padding: 8px 2px !important;
-            min-height: 60px !important;
-            font-size: 13px !important;
-            white-space: pre-line !important; /* 줄바꿈 허용 */
+            width: 100% !important;
+            padding: 5px 1px !important;
+            font-size: 12px !important; /* 모바일 대응 글자 크기 */
+            height: 65px !important;
+            white-space: pre-line !important;
+            line-height: 1.2 !important;
+        }
+
+        /* 모바일에서 컬럼이 수직으로 쌓이는 기본 스타일 무력화 */
+        [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            gap: 5px !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. 메뉴 구성
-    # st.columns 대신 div 컨테이너를 활용해 버튼을 배치하면 모바일에서도 한 줄이 유지됩니다.
+    # 2. 메뉴 구성 (st.columns를 사용하지만 위 CSS가 이를 한 줄로 강제합니다)
     nav_c1, nav_c2, nav_c3 = st.columns(3)
     
     # 1. 로그인 정보 / 로그아웃
     with nav_c1:
         if st.session_state.auth_status == 'user':
             user_phone = st.session_state.get('user_phone', '')
-            # 전화번호 뒷자리만 표시하거나 줄바꿈 처리하여 공간 확보
-            btn_label = f"👤 {user_phone}\n(로그아웃)"
-            if st.button(btn_label, use_container_width=True, key="nav_login"):
+            # 공간 확보를 위해 번호 뒤 4자리만 표시하는 등의 센스
+            display_phone = user_phone[-4:] if len(user_phone) > 4 else user_phone
+            if st.button(f"👤 {display_phone}\n(로그아웃)", use_container_width=True, key="nav_login"):
                 st.session_state.auth_status = None
-                st.session_state.user_phone = None
                 st.session_state.page = 'login'
-                st.session_state.watchlist = []
                 st.rerun()
         else:
             if st.button("👤\n로그인", use_container_width=True, key="nav_login"):
@@ -745,13 +752,13 @@ elif st.session_state.page == 'calendar':
     with nav_c2:
         watch_count = len(st.session_state.watchlist)
         btn_type = "primary" if st.session_state.view_mode == 'watchlist' else "secondary"
-        if st.button(f"⭐ 나의 관심\n({watch_count})", use_container_width=True, type=btn_type, key="nav_watch"):
+        if st.button(f"⭐ 관심\n({watch_count})", use_container_width=True, type=btn_type, key="nav_watch"):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
     # 3. 토론 게시판
     with nav_c3:
-        if st.button("💬\n토론 게시판", use_container_width=True, key="nav_board"):
+        if st.button("💬\n토론", use_container_width=True, key="nav_board"):
             st.session_state.page = 'board'
             st.rerun()
             
@@ -1983,6 +1990,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
