@@ -598,16 +598,16 @@ if st.session_state.page == 'login':
 
 
 
-# 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
+# 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트 + 모바일 최적화)
 elif st.session_state.page == 'calendar':
-    # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
+    # [CSS] 스타일 정의 (모바일 1줄 강제 정렬 기능 추가됨)
     st.markdown("""
         <style>
         /* 1. 기본 설정 */
         * { box-sizing: border-box !important; }
         body { color: #333333; }
         
-        /* 2. 상단 여백 확보 (메인 페이지라 여백을 조금 줄임) */
+        /* 2. 상단 여백 확보 */
         .block-container { 
             padding-top: 2rem !important; 
             padding-left: 0.5rem !important; 
@@ -615,14 +615,14 @@ elif st.session_state.page == 'calendar':
             max-width: 100% !important; 
         }
 
-        /* [NEW] 상단 메뉴 버튼 스타일 (둥글고 크게) */
+        /* [PC] 상단 메뉴 버튼 스타일 */
         div[data-testid="column"] button {
             border-radius: 12px !important;
             height: 50px !important;
             font-weight: bold !important;
         }
 
-        /* 3. 버튼 스타일 (리스트용 타이트한 스타일) */
+        /* 3. 버튼 스타일 (리스트용) */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
@@ -633,7 +633,6 @@ elif st.session_state.page == 'calendar':
             box-shadow: none !important;
             width: 100% !important;
             display: block !important;
-            overflow: hidden !important;
             white-space: nowrap !important;
             text-overflow: ellipsis !important;
             height: auto !important;
@@ -641,56 +640,64 @@ elif st.session_state.page == 'calendar':
         }
         .stButton button p { font-weight: bold; font-size: 14px; margin-bottom: 0px; }
 
-        /* 4. [모바일 레이아웃 핵심] */
+        /* 4. [모바일 레이아웃 핵심 수정] */
         @media (max-width: 640px) {
             
-            /* (A) 상단 필터: 줄바꿈 허용 */
+            /* (A) 상단 네비게이션 (첫 번째 블록) -> ★강제 1줄 배치★ */
             div[data-testid="stHorizontalBlock"]:nth-of-type(1) {
+                flex-direction: row !important;
+                flex-wrap: nowrap !important; /* 줄바꿈 금지 */
+                gap: 5px !important;          /* 버튼 사이 간격 좁힘 */
+                overflow-x: auto !important;  /* 화면 넘치면 스크롤 */
+            }
+            
+            /* 네비게이션 내부 컬럼들을 1:1:1 비율로 강제 */
+            div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div[data-testid="column"] {
+                flex: 1 1 0% !important; 
+                min-width: 0 !important; /* 내용이 길어도 찌그러지게 허용 */
+            }
+
+            /* 네비게이션 버튼 폰트 줄임 (모바일용) */
+            div[data-testid="stHorizontalBlock"]:nth-of-type(1) button {
+                font-size: 11px !important;
+                padding: 0px !important;
+                height: 45px !important;
+            }
+
+            /* (B) 필터 영역 (두 번째 블록) -> 줄바꿈 허용 (기존 유지) */
+            div[data-testid="stHorizontalBlock"]:nth-of-type(2) {
                 flex-wrap: wrap !important;
                 gap: 10px !important;
                 padding-bottom: 5px !important;
+                margin-top: 10px !important;
             }
-            div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div {
+            div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div {
                 min-width: 100% !important;
-                max-width: 100% !important;
                 flex: 1 1 100% !important;
             }
 
-            /* (B) 리스트 구역: 가로 고정 & 수직 중앙 정렬 */
-            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) {
+            /* (C) 리스트 구역 (세 번째 이후 블록) -> 가로 고정 & 7:3 유지 */
+            div[data-testid="stHorizontalBlock"]:nth-of-type(n+3) {
                 flex-direction: row !important;
                 flex-wrap: nowrap !important;
                 gap: 0px !important;
-                width: 100% !important;
                 align-items: center !important; 
             }
 
-            /* (C) 컬럼 내부 정렬 강제 */
-            div[data-testid="column"] {
-                display: flex !important;
-                flex-direction: column !important;
-                justify-content: center !important; 
-                min-width: 0px !important;
-                padding: 0px 2px !important;
-            }
-
-            /* (D) 리스트 컬럼 비율 (7:3) */
-            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(1) {
+            div[data-testid="stHorizontalBlock"]:nth-of-type(n+3) > div[data-testid="column"]:nth-of-type(1) {
                 flex: 0 0 70% !important;
                 max-width: 70% !important;
-                overflow: hidden !important;
             }
-            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(2) {
+            div[data-testid="stHorizontalBlock"]:nth-of-type(n+3) > div[data-testid="column"]:nth-of-type(2) {
                 flex: 0 0 30% !important;
                 max-width: 30% !important;
             }
 
-            /* (E) 폰트 및 간격 미세 조정 */
+            /* (D) 폰트 스타일 */
             .mobile-sub { font-size: 10px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px; line-height: 1.1; }
             .price-main { font-size: 13px !important; font-weight: bold; white-space: nowrap; line-height: 1.1; }
             .price-sub { font-size: 10px !important; color: #666 !important; white-space: nowrap; line-height: 1.1; }
             .date-text { font-size: 10px !important; color: #888 !important; margin-top: 1px; line-height: 1.1; }
-            .header-text { font-size: 12px !important; line-height: 1.0; }
         }
         </style>
     """, unsafe_allow_html=True)
@@ -711,32 +718,31 @@ elif st.session_state.page == 'calendar':
                 st.session_state.watchlist = []
                 st.rerun()
         else:
-            if st.button("로그인", use_container_width=True):
+            if st.button("🔑 로그인", use_container_width=True):
                 st.session_state.page = 'login'
                 st.rerun()
 
-    # 2. 나의 관심 (Tab 4 데이터 연동)
+    # 2. 나의 관심
     with nav_c2:
         watch_count = len(st.session_state.watchlist)
-        # 현재 보고 있는 모드에 따라 버튼 색상 변경 (primary vs secondary)
         btn_type = "primary" if st.session_state.view_mode == 'watchlist' else "secondary"
-        if st.button(f"나의 관심\n({watch_count})", use_container_width=True, type=btn_type):
+        # 모바일 공간 절약을 위해 '나의 관심' 글자를 줄바꿈 처리
+        if st.button(f"⭐ 나의 관심\n({watch_count})", use_container_width=True, type=btn_type):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
     # 3. 토론 게시판
     with nav_c3:
-        if st.button("토론\n게시판", use_container_width=True):
+        if st.button("💬 토론\n게시판", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
             
     st.write("---")
 
     # =========================================================
-    # [캘린더 리스트 로직] (기존 코드 100% 유지)
+    # [캘린더 리스트 로직]
     # =========================================================
     
-    # 1. 데이터 가져오기
     all_df_raw = get_extended_ipo_data(MY_API_KEY)
     view_mode = st.session_state.get('view_mode', 'all')
     
@@ -746,21 +752,20 @@ elif st.session_state.page == 'calendar':
         all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
         today = datetime.now().date()
         
-        # 2. 필터 로직
+        # 필터 로직
         if view_mode == 'watchlist':
             st.markdown("### ⭐ 내가 찜한 유니콘")
-            # 전체 목록으로 돌아가는 버튼 추가
             if st.button("🔄 전체 목록 보기", use_container_width=True):
                 st.session_state.view_mode = 'all'
                 st.rerun()
-                
+            
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
             
             if display_df.empty:
                 st.info("아직 관심 종목에 담은 기업이 없습니다.\n\n기업 상세 페이지 > '투자 결정(Tab 4)'에서 기업을 담아보세요!")
 
         else:
-            # 일반 캘린더 모드 (기존 필터 유지)
+            # 일반 캘린더 모드
             col_f1, col_f2 = st.columns([2, 1])
             with col_f1:
                 period = st.radio(
@@ -786,7 +791,7 @@ elif st.session_state.page == 'calendar':
             elif period == "최근 18개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
-        # [정렬 로직]
+        # 정렬 로직
         if 'live_price' not in display_df.columns:
             display_df['live_price'] = 0.0
 
@@ -818,9 +823,7 @@ elif st.session_state.page == 'calendar':
                     display_df['live_price'] = prices
                     display_df = display_df.sort_values(by='temp_return', ascending=False)
 
-        # ----------------------------------------------------------------
-        # [핵심] 리스트 레이아웃 (7 : 3 비율) - 기존 디자인 유지
-        # ----------------------------------------------------------------
+        # 리스트 출력
         if not display_df.empty:
             for i, row in display_df.iterrows():
                 p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
@@ -857,7 +860,6 @@ elif st.session_state.page == 'calendar':
                 c1, c2 = st.columns([7, 3])
                 
                 with c1:
-                    # 기업명 버튼
                     if st.button(f"{row['name']}", key=f"btn_list_{i}"):
                         st.session_state.selected_stock = row.to_dict()
                         st.session_state.page = 'detail'
@@ -1958,6 +1960,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
