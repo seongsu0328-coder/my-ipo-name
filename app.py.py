@@ -696,78 +696,81 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [ULTIMATE] 상단 메뉴 전용 강제 가로 정렬 (격리형)
+    # [ULTIMATE-FIX] 상단 메뉴 전용 강제 가로 정렬
     # =========================================================
     
     st.markdown("""
         <style>
-        /* 상단 메뉴 전용 컨테이너 */
-        .nav-group {
+        /* 1. 오직 nav-group 안에 있는 columns만 타겟팅 */
+        .nav-group div[data-testid="stHorizontalBlock"] {
             display: flex !important;
-            flex-direction: row !important; /* 가로 방향 고정 */
-            flex-wrap: nowrap !important;   /* 줄바꿈 절대 금지 */
-            justify-content: space-between !important; /* 간격 균등 분배 */
+            flex-direction: row !important; /* 모바일 세로 쌓기 방지 */
+            flex-wrap: nowrap !important;   /* 줄바꿈 절대 방지 */
+            align-items: center !important;
+            justify-content: space-between !important;
             width: 100% !important;
-            gap: 5px !important;
-            margin-bottom: 20px !important;
+            gap: 8px !important;
         }
 
-        /* 이 컨테이너 안에 있는 모든 '버튼 칸'을 강제 가로 배치 */
-        .nav-group > div {
-            flex: 1 1 33% !important; /* 무조건 너비의 1/3 차지 */
+        /* 2. 각 컬럼의 최소 너비를 0으로 만들어 좁은 폭에서도 나란히 배치 */
+        .nav-group div[data-testid="column"] {
             min-width: 0px !important;
+            flex: 1 1 0% !important;
         }
 
-        /* 버튼 자체의 디자인: 상자가 길어지지 않게 고정 */
+        /* 3. 버튼 디자인: 상자가 커지지 않게 높이와 여백 고정 */
         .nav-group button {
             width: 100% !important;
-            height: 50px !important;
+            height: 48px !important;
             padding: 0px !important;
             border-radius: 8px !important;
-            background-color: #ffffff !important;
-            border: 1px solid #e0e0e0 !important;
+            background-color: white !important;
+            border: 1px solid #ddd !important;
         }
 
-        /* 버튼 안의 글자 */
         .nav-group button p {
             font-size: 11px !important;
             font-weight: 700 !important;
             white-space: nowrap !important;
-            color: #333 !important;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
+
+        /* 4. 하단 리스트 영역(7:3)을 보호하기 위해 nav-group 바깥은 건드리지 않음 */
         </style>
     """, unsafe_allow_html=True)
 
-    # st.columns 대신 위에서 정의한 .nav-group 클래스를 직접 사용합니다.
-    # 이렇게 하면 하단의 다른 st.columns들과는 완전히 다른 세상을 살게 됩니다.
+    # 상단 메뉴 영역 시작
     st.markdown('<div class="nav-group">', unsafe_allow_html=True)
+    # gap="small"을 주어 Streamlit의 기본 여백 계산을 최소화합니다.
+    n1, n2, n3 = st.columns(3, gap="small")
     
-    # 각 버튼을 감싸는 div를 만들어줍니다. (CSS에서 1/3씩 나누게 설정됨)
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        btn_label = "로그아웃" if st.session_state.auth_status == 'user' else "로그인"
+    with n1:
+        is_logged_in = st.session_state.auth_status == 'user'
+        btn_label = "로그아웃" if is_logged_in else "로그인"
         if st.button(btn_label, key="n_log", use_container_width=True):
-            if st.session_state.auth_status == 'user':
+            if is_logged_in:
                 st.session_state.auth_status = None
                 st.session_state.page = 'login'
             else:
                 st.session_state.page = 'login'
             st.rerun()
 
-    with col2:
+    with n2:
         watch_cnt = len(st.session_state.watchlist)
         if st.button(f"관심기업({watch_cnt})", key="n_wat", use_container_width=True):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
-    with col3:
+    with n3:
         if st.button("게시판", key="n_brd", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True) # 상단 메뉴 끝
             
-    st.markdown('</div>', unsafe_allow_html=True)
     st.write("---")
+
+    # 여기서부터는 질문자님의 기존 리스트 로직 (c1, c2 = st.columns([7, 3]))이 이어집니다.
 
     # =========================================================
     # [캘린더 리스트 로직] (기존 코드 100% 유지)
@@ -1995,6 +1998,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
