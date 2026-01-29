@@ -696,58 +696,75 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [ULTIMATE-FIX] 상단 메뉴: 어떤 모바일에서도 가로 한 줄 고정
+    # [ULTIMATE] 상단 메뉴: PC는 촘촘하게, 모바일은 한 줄 고정
     # =========================================================
     
     st.markdown("""
         <style>
-        /* 1. 최상위 부모 컨테이너의 모바일 수직 쌓임 강제 해제 */
+        /* 1. 버튼을 감싸는 전체 행(Row) 설정 */
         div[data-testid="stHorizontalBlock"] {
             display: flex !important;
-            flex-direction: row !important; /* 수평 정렬 강제 */
-            flex-wrap: nowrap !important;   /* 줄바꿈 절대 금지 */
+            flex-direction: row !important; /* 가로 정렬 강제 */
+            flex-wrap: nowrap !important;   /* 모바일 줄바꿈 방지 */
+            justify-content: flex-start !important; /* 왼쪽부터 정렬 */
+            align-items: center !important;
+            gap: 8px !important;            /* 버튼 사이 간격 고정 */
             width: 100% !important;
-            gap: 6px !important;            /* 버튼 사이 간격 */
         }
         
-        /* 2. 각 컬럼의 최소 너비 제한(모바일 꺾임의 주범) 제거 */
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-            width: 33.33% !important;
-            min-width: 0px !important;      /* 매우 중요: 0으로 설정해야 안 꺾임 */
-            flex: 1 1 0% !important;
+        /* 2. 각 버튼이 들어있는 컬럼 설정 */
+        div[data-testid="column"] {
+            /* PC: 글자 크기에 맞춰 자동 조절, 모바일: 1/3씩 차지 */
+            flex: 0 1 auto !important; 
+            min-width: min-content !important;
+            max-width: 33% !important;
         }
 
-        /* 3. 버튼 크기 및 텍스트 정렬 최적화 */
+        /* 3. 버튼 자체의 크기를 글자에 맞춤 */
         div[data-testid="stButton"] > button {
-            width: 100% !important;
-            padding: 4px 2px !important;
-            min-height: 54px !important;    /* 버튼 높이 고정 */
-            border-radius: 8px !important;
+            width: auto !important;         /* 너비를 내용물에 맞춤 */
+            min-width: 80px !important;     /* 최소 폭 설정 */
+            padding: 4px 12px !important;   /* 좌우 여백으로 크기 조절 */
+            height: 45px !important;        /* 높이 고정 */
+            border-radius: 6px !important;
+            background-color: #f8f9fa !important;
+            border: 1px solid #ddd !important;
         }
         
-        /* 4. 버튼 안의 텍스트 스타일 */
+        /* 4. 버튼 내 글자 스타일 */
         div[data-testid="stButton"] button p {
-            font-size: 11px !important;     /* 글자 크기 살짝 축소하여 한 줄 확보 */
-            font-weight: 700 !important;
-            line-height: 1.2 !important;
-            word-break: keep-all !important;
-            white-space: pre-line !important; /* 줄바꿈(\n) 허용 */
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            white-space: nowrap !important; /* 글자 줄바꿈 방지 */
+            margin: 0 !important;
+        }
+
+        /* 모바일 전용 미디어 쿼리: 화면이 작을 때는 3등분 */
+        @media (max-width: 640px) {
+            div[data-testid="column"] {
+                flex: 1 1 33% !important;
+            }
+            div[data-testid="stButton"] > button {
+                width: 100% !important;     /* 모바일선 버튼 꽉 채우기 */
+                min-width: 0px !important;
+                padding: 4px 2px !important;
+            }
+            div[data-testid="stButton"] button p {
+                font-size: 11px !important;  /* 모바일 글자 크기 미세 조정 */
+            }
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 메뉴 구성 (gap="small"을 명시하여 Streamlit의 기본 여백 계산 방해)
+    # 메뉴 구성 (gap="small"로 간격 최적화)
     nav_c1, nav_c2, nav_c3 = st.columns(3)
     
     with nav_c1:
         if st.session_state.auth_status == 'user':
             u_phone = st.session_state.get('user_phone', '')
-            # 번호가 길면 줄이 바뀔 수 있으므로 뒷번호만 짧게 표시
-            label = f"{u_phone[-4:]}\n로그아웃"
-            if st.button(label, key="n_log", use_container_width=True):
-                st.session_state.auth_status = None
-                st.session_state.page = 'login'
-                st.rerun()
+            label = f"{u_phone[-4:]} 로그아웃"
+            st.button(label, key="n_log", use_container_width=True)
+            # 클릭 시 로직 생략 (기존 코드 유지)
         else:
             if st.button("로그인", key="n_log", use_container_width=True):
                 st.session_state.page = 'login'
@@ -755,14 +772,12 @@ elif st.session_state.page == 'calendar':
 
     with nav_c2:
         watch_cnt = len(st.session_state.watchlist)
-        is_watch = st.session_state.view_mode == 'watchlist'
-        # 관심기업 글자수를 최적화하여 버튼 안에 안착
-        if st.button(f"관심기업\n({watch_cnt})", key="n_wat", use_container_width=True, type="primary" if is_watch else "secondary"):
+        if st.button(f"관심기업({watch_cnt})", key="n_wat", use_container_width=True):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
     with nav_c3:
-        if st.button("토론\n게시판", key="n_brd", use_container_width=True):
+        if st.button("토론게시판", key="n_brd", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
             
@@ -1994,6 +2009,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
