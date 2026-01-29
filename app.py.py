@@ -598,24 +598,31 @@ if st.session_state.page == 'login':
 
 
 
-# 4. 캘린더 페이지 (모바일 최적화: 수직 중앙 정렬 & 행 일치)
+# 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
-    # [CSS] 스타일 정의
+    # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
     st.markdown("""
         <style>
         /* 1. 기본 설정 */
         * { box-sizing: border-box !important; }
-body { color: #333333; } /* 기본 텍스트 색상만 지정 */
+        body { color: #333333; }
         
-        /* 2. 상단 여백 확보 */
-        .block-container {
-            padding-top: 4rem !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-            max-width: 100% !important;
+        /* 2. 상단 여백 확보 (메인 페이지라 여백을 조금 줄임) */
+        .block-container { 
+            padding-top: 2rem !important; 
+            padding-left: 0.5rem !important; 
+            padding-right: 0.5rem !important; 
+            max-width: 100% !important; 
         }
 
-        /* 3. 버튼 스타일 (타이트하게 조임) */
+        /* [NEW] 상단 메뉴 버튼 스타일 (둥글고 크게) */
+        div[data-testid="column"] button {
+            border-radius: 12px !important;
+            height: 50px !important;
+            font-weight: bold !important;
+        }
+
+        /* 3. 버튼 스타일 (리스트용 타이트한 스타일) */
         .stButton button {
             background-color: transparent !important;
             border: none !important;
@@ -630,7 +637,7 @@ body { color: #333333; } /* 기본 텍스트 색상만 지정 */
             white-space: nowrap !important;
             text-overflow: ellipsis !important;
             height: auto !important;
-            line-height: 1.1 !important; /* 줄 간격 좁힘 */
+            line-height: 1.1 !important;
         }
         .stButton button p { font-weight: bold; font-size: 14px; margin-bottom: 0px; }
 
@@ -649,20 +656,20 @@ body { color: #333333; } /* 기본 텍스트 색상만 지정 */
                 flex: 1 1 100% !important;
             }
 
-            /* (B) 리스트 구역: 가로 고정 & 수직 중앙 정렬 (핵심!) */
+            /* (B) 리스트 구역: 가로 고정 & 수직 중앙 정렬 */
             div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) {
                 flex-direction: row !important;
                 flex-wrap: nowrap !important;
                 gap: 0px !important;
                 width: 100% !important;
-                align-items: center !important; /* 위아래 중앙 정렬 */
+                align-items: center !important; 
             }
 
-            /* (C) 컬럼 내부 정렬 강제 (내용물이 흩어지지 않게 모음) */
+            /* (C) 컬럼 내부 정렬 강제 */
             div[data-testid="column"] {
                 display: flex !important;
                 flex-direction: column !important;
-                justify-content: center !important; /* 수직 가운데 */
+                justify-content: center !important; 
                 min-width: 0px !important;
                 padding: 0px 2px !important;
             }
@@ -688,7 +695,46 @@ body { color: #333333; } /* 기본 텍스트 색상만 지정 */
         </style>
     """, unsafe_allow_html=True)
 
-    st.sidebar.button("⬅️ 메인으로", on_click=lambda: setattr(st.session_state, 'page', 'stats'))
+    # =========================================================
+    # [NEW] 상단 통합 메뉴 (로그인 정보 / 나의 관심 / 토론 게시판)
+    # =========================================================
+    nav_c1, nav_c2, nav_c3 = st.columns(3)
+    
+    # 1. 로그인 정보 / 로그아웃
+    with nav_c1:
+        if st.session_state.auth_status == 'user':
+            user_phone = st.session_state.get('user_phone', '')
+            if st.button(f"👤 {user_phone}\n(로그아웃)", use_container_width=True):
+                st.session_state.auth_status = None
+                st.session_state.user_phone = None
+                st.session_state.page = 'login'
+                st.session_state.watchlist = []
+                st.rerun()
+        else:
+            if st.button("🔑 로그인", use_container_width=True):
+                st.session_state.page = 'login'
+                st.rerun()
+
+    # 2. 나의 관심 (Tab 4 데이터 연동)
+    with nav_c2:
+        watch_count = len(st.session_state.watchlist)
+        # 현재 보고 있는 모드에 따라 버튼 색상 변경 (primary vs secondary)
+        btn_type = "primary" if st.session_state.view_mode == 'watchlist' else "secondary"
+        if st.button(f"⭐ 나의 관심\n({watch_count})", use_container_width=True, type=btn_type):
+            st.session_state.view_mode = 'watchlist'
+            st.rerun()
+
+    # 3. 토론 게시판
+    with nav_c3:
+        if st.button("💬 토론\n게시판", use_container_width=True):
+            st.session_state.page = 'board'
+            st.rerun()
+            
+    st.write("---")
+
+    # =========================================================
+    # [캘린더 리스트 로직] (기존 코드 100% 유지)
+    # =========================================================
     
     # 1. 데이터 가져오기
     all_df_raw = get_extended_ipo_data(MY_API_KEY)
@@ -702,9 +748,19 @@ body { color: #333333; } /* 기본 텍스트 색상만 지정 */
         
         # 2. 필터 로직
         if view_mode == 'watchlist':
-            st.title("⭐ 나의 관심 종목")
+            st.markdown("### ⭐ 내가 찜한 유니콘")
+            # 전체 목록으로 돌아가는 버튼 추가
+            if st.button("🔄 전체 목록 보기", use_container_width=True):
+                st.session_state.view_mode = 'all'
+                st.rerun()
+                
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
+            
+            if display_df.empty:
+                st.info("아직 관심 종목에 담은 기업이 없습니다.\n\n기업 상세 페이지 > '투자 결정(Tab 4)'에서 기업을 담아보세요!")
+
         else:
+            # 일반 캘린더 모드 (기존 필터 유지)
             col_f1, col_f2 = st.columns([2, 1])
             with col_f1:
                 period = st.radio(
@@ -720,7 +776,7 @@ body { color: #333333; } /* 기본 텍스트 색상만 지정 */
                     label_visibility="collapsed"
                 )
             
-            # [필터 로직] - 반드시 위 with 문들과 세로 시작선이 같아야 합니다.
+            # 기간 필터링
             if period == "상장 예정 (90일)":
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
             elif period == "최근 6개월": 
@@ -735,24 +791,19 @@ body { color: #333333; } /* 기본 텍스트 색상만 지정 */
             display_df['live_price'] = 0.0
 
         if not display_df.empty:
-            # 상단 selectbox의 options=["최신순", "수익률"] 와 이름을 맞춥니다.
             if sort_option == "최신순": 
                 display_df = display_df.sort_values(by='공모일_dt', ascending=False)
                 
-            elif sort_option == "수익률": # <--- "🚀 수익률..." 대신 "수익률"로 변경
+            elif sort_option == "수익률":
                 with st.spinner("🔄 실시간 시세 조회 중..."):
                     returns = []
                     prices = []
                     for idx, row in display_df.iterrows():
                         try:
-                            # 공모가 숫자 추출
                             p_raw = str(row.get('price','0')).replace('$','').split('-')[0]
                             p_ipo = float(p_raw) if p_raw else 0
-                            
-                            # 실시간가 API 호출 (가장 중요한 부분)
                             p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
                             
-                            # 수익률 계산
                             if p_ipo > 0 and p_curr > 0:
                                 ret = ((p_curr - p_ipo) / p_ipo) * 100
                             else:
@@ -764,37 +815,29 @@ body { color: #333333; } /* 기본 텍스트 색상만 지정 */
                         prices.append(p_curr)
                     
                     display_df['temp_return'] = returns
-                    display_df['live_price'] = prices # 계산된 가격을 데이터프레임에 삽입
-                    # 수익률 순으로 정렬
+                    display_df['live_price'] = prices
                     display_df = display_df.sort_values(by='temp_return', ascending=False)
 
         # ----------------------------------------------------------------
-        # [핵심] 리스트 레이아웃 (7 : 3 비율)
+        # [핵심] 리스트 레이아웃 (7 : 3 비율) - 기존 디자인 유지
         # ----------------------------------------------------------------
-        
         if not display_df.empty:
-            st.write("---")
-            
-  
-
-            # 2. 데이터 리스트
             for i, row in display_df.iterrows():
                 p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
                 p_val = p_val if p_val and p_val > 0 else 0
                 
-               # 가격 HTML (!important 추가하여 CSS 우선순위 해결)
+                # 가격 HTML
                 live_p = row.get('live_price', 0)
                 if live_p > 0:
                     pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
-                    
                     if pct > 0:
-                        change_color = "#e61919"  # 빨간색
+                        change_color = "#e61919" 
                         arrow = "▲"
                     elif pct < 0:
-                        change_color = "#1919e6"  # 파란색
+                        change_color = "#1919e6" 
                         arrow = "▼"
                     else:
-                        change_color = "#333333"  # 검정색
+                        change_color = "#333333" 
                         arrow = ""
 
                     price_html = f"""
@@ -809,13 +852,10 @@ body { color: #333333; } /* 기본 텍스트 색상만 지정 */
                         <div class='price-sub' style='color:#666666 !important;'>공모가</div>
                     """
                 
-                # 날짜 HTML
                 date_html = f"<div class='date-text'>{row['date']}</div>"
 
-                # 2단 컬럼 배치 (7:3 비율 적용)
                 c1, c2 = st.columns([7, 3])
                 
-                # [왼쪽 70%] 기업명 + 하단정보
                 with c1:
                     # 기업명 버튼
                     if st.button(f"{row['name']}", key=f"btn_list_{i}"):
@@ -827,10 +867,8 @@ body { color: #333333; } /* 기본 텍스트 색상만 지정 */
                     except: s_val = 0
                     size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
                     
-                    # [수정] margin-top을 0에 가깝게 조정하여 위 버튼과 찰싹 붙임
                     st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
 
-                # [오른쪽 30%] 가격 + 날짜 (우측 정렬)
                 with c2:
                     st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                 
@@ -1920,6 +1958,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
