@@ -696,73 +696,76 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [NEW] 상단 통합 메뉴 (모바일 절대 한 줄 고정 버전)
+    # [NEW] 상단 통합 메뉴 (다른 영역 간섭 없는 고정 버전)
     # =========================================================
     
-    # 1. CSS 주입: 가로 배열 강제 및 버튼 높이 조정
+    # 1. CSS 주입: 상단 메뉴(nav-container)만 타겟팅하여 한 줄 강제 고정
     st.markdown("""
         <style>
-        /* 핵심: 컬럼 컨테이너를 가로 flex로 강제 고정 */
-        [data-testid="column"] {
-            width: calc(33.3333% - 10px) !important;
-            flex: 1 1 calc(33.3333% - 10px) !important;
-            min-width: calc(33.3333% - 10px) !important;
-        }
-        
-        /* 버튼 내부 텍스트 크기 및 간격 최적화 */
-        div[data-testid="stButton"] > button {
-            width: 100% !important;
-            padding: 5px 1px !important;
-            font-size: 12px !important; /* 모바일 대응 글자 크기 */
-            height: 65px !important;
-            white-space: pre-line !important;
-            line-height: 1.2 !important;
-        }
-
-        /* 모바일에서 컬럼이 수직으로 쌓이는 기본 스타일 무력화 */
-        [data-testid="stHorizontalBlock"] {
+        /* 상단 메뉴 전용 컨테이너 레이아웃 */
+        .nav-wrapper [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: center !important;
             gap: 5px !important;
         }
+        
+        /* 상단 메뉴 내의 컬럼 너비 강제 지정 */
+        .nav-wrapper [data-testid="column"] {
+            width: 33.33% !important;
+            flex: 1 1 33.33% !important;
+            min-width: 33.33% !important;
+        }
+
+        /* 버튼 디자인 미세 조정 */
+        .nav-wrapper div[data-testid="stButton"] > button {
+            width: 100% !important;
+            padding: 8px 1px !important;
+            height: 60px !important;
+            font-size: 12px !important;
+            white-space: pre-line !important;
+            line-height: 1.1 !important;
+            border-radius: 8px !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. 메뉴 구성 (st.columns를 사용하지만 위 CSS가 이를 한 줄로 강제합니다)
+    # 2. 메뉴 구성 (고유 div인 nav-wrapper로 감쌉니다)
+    st.markdown('<div class="nav-wrapper">', unsafe_allow_html=True)
     nav_c1, nav_c2, nav_c3 = st.columns(3)
     
-    # 1. 로그인 정보 / 로그아웃
     with nav_c1:
         if st.session_state.auth_status == 'user':
-            user_phone = st.session_state.get('user_phone', '')
-            # 공간 확보를 위해 번호 뒤 4자리만 표시하는 등의 센스
-            display_phone = user_phone[-4:] if len(user_phone) > 4 else user_phone
-            if st.button(f"👤 {display_phone}\n(로그아웃)", use_container_width=True, key="nav_login"):
+            u_phone = st.session_state.get('user_phone', '')
+            display_phone = u_phone[-4:] if len(u_phone) > 4 else u_phone
+            if st.button(f"👤 {display_phone}\n로그아웃", key="nav_login", use_container_width=True):
                 st.session_state.auth_status = None
                 st.session_state.page = 'login'
                 st.rerun()
         else:
-            if st.button("👤\n로그인", use_container_width=True, key="nav_login"):
+            if st.button("👤\n로그인", key="nav_login", use_container_width=True):
                 st.session_state.page = 'login'
                 st.rerun()
 
-    # 2. 나의 관심
     with nav_c2:
         watch_count = len(st.session_state.watchlist)
         btn_type = "primary" if st.session_state.view_mode == 'watchlist' else "secondary"
-        if st.button(f"⭐ 관심\n({watch_count})", use_container_width=True, type=btn_type, key="nav_watch"):
+        if st.button(f"⭐ 관심\n({watch_count})", key="nav_watch", use_container_width=True, type=btn_type):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
-    # 3. 토론 게시판
     with nav_c3:
-        if st.button("💬\n토론", use_container_width=True, key="nav_board"):
+        if st.button("💬\n토론", key="nav_board", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True) # nav-wrapper 닫기
             
     st.write("---")
+
+    # [이후 캘린더 리스트 로직은 기존 코드 그대로 유지]
+    # c1, c2 = st.columns([7, 3]) 로직이 아래에 나와도 
+    # 위에서 .nav-wrapper로 한정했기 때문에 서로 간섭하지 않습니다.
 
     # =========================================================
     # [캘린더 리스트 로직] (기존 코드 100% 유지)
@@ -1990,6 +1993,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
