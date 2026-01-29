@@ -696,58 +696,64 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [FINAL-PERFECT] 상단 메뉴 전용 스타일 (리스트 간섭 차단)
+    # [FINAL-FIX] 상단 메뉴 전용 강제 그리드 (리스트 영향 0%)
     # =========================================================
     
     st.markdown("""
         <style>
-        /* 1. 상단 메뉴 컨테이너(nav-wrapper) 내부의 블록만 그리드로 변경 */
-        .nav-wrapper div[data-testid="stHorizontalBlock"] {
+        /* 1. nav-container 내부의 stHorizontalBlock만 골라서 3등분 그리드로 강제 전환 */
+        .nav-container [data-testid="stHorizontalBlock"] {
             display: grid !important;
-            grid-template-columns: 1fr 1fr 1fr !important; /* 3등분 고정 */
+            grid-template-columns: 1fr 1fr 1fr !important; /* 무조건 3등분 */
             gap: 8px !important;
             width: 100% !important;
+            align-items: start !important;
         }
-        
-        /* 2. 상단 메뉴 내의 컬럼만 너비 제한 해제 */
-        .nav-wrapper div[data-testid="column"] {
+
+        /* 2. 상단 메뉴 내부 컬럼들의 모바일 수직 쌓임 현상(flex) 무력화 */
+        .nav-container [data-testid="column"] {
             width: 100% !important;
             min-width: 0px !important;
+            flex: 1 1 0% !important;
         }
 
-        /* 3. 상단 메뉴 전용 버튼 스타일 */
-        .nav-wrapper div[data-testid="stButton"] > button {
+        /* 3. 버튼 스타일: 상자를 글자 크기에 맞춰 콤팩트하게 조절 */
+        .nav-container div[data-testid="stButton"] > button {
             width: 100% !important;
-            padding: 8px 2px !important;
-            height: 52px !important;
-            border-radius: 8px !important;
-            border: 1px solid #e0e0e0 !important;
+            padding: 4px 1px !important;
+            min-height: 48px !important;
+            border-radius: 6px !important;
+            border: 1px solid #ddd !important;
+            background-color: white !important;
         }
         
-        .nav-wrapper div[data-testid="stButton"] button p {
-            font-size: 12px !important;
-            font-weight: 600 !important;
+        /* 4. 버튼 텍스트: 작고 굵게 하여 상자가 커지는 것 방지 */
+        .nav-container div[data-testid="stButton"] button p {
+            font-size: 11px !important;
+            font-weight: 700 !important;
             white-space: nowrap !important;
+            color: #333 !important;
         }
 
-        /* 하단 리스트용 스타일은 별도로 건드리지 않음 */
+        /* 하단 리스트(c1, c2)는 .nav-container 밖에 있으므로 이 규칙들이 적용되지 않습니다. */
         </style>
     """, unsafe_allow_html=True)
 
-    # 상단 메뉴를 'nav-wrapper'라는 이름의 상자 안에 가둡니다.
-    st.markdown('<div class="nav-wrapper">', unsafe_allow_html=True)
+    # 상단 전용 컨테이너 시작
+    st.markdown('<div class="nav-container">', unsafe_allow_html=True)
     n1, n2, n3 = st.columns(3)
     
     with n1:
-        btn_label = "로그아웃" if st.session_state.auth_status == 'user' else "로그인"
+        # 로그인/로그아웃 텍스트 최적화
+        is_logged_in = st.session_state.auth_status == 'user'
+        btn_label = "로그아웃" if is_logged_in else "로그인"
         if st.button(btn_label, key="n_log", use_container_width=True):
-            if st.session_state.auth_status == 'user':
+            if is_logged_in:
                 st.session_state.auth_status = None
                 st.session_state.page = 'login'
-                st.rerun()
             else:
                 st.session_state.page = 'login'
-                st.rerun()
+            st.rerun()
 
     with n2:
         watch_cnt = len(st.session_state.watchlist)
@@ -759,12 +765,11 @@ elif st.session_state.page == 'calendar':
         if st.button("게시판", key="n_brd", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True) # nav-wrapper 닫기
+    st.markdown('</div>', unsafe_allow_html=True) # 상단 전용 컨테이너 끝
             
     st.write("---")
 
-    # 여기서부터는 기존의 하단 리스트 로직(c1, c2 = st.columns([7, 3]))이 실행됩니다.
-    # 위에서 .nav-wrapper로 스타일을 가뒀기 때문에 하단 컬럼들은 영향을 받지 않습니다.
+    # 이후 나오는 c1, c2 = st.columns([7, 3]) 리스트 로직은 위 스타일의 영향을 받지 않습니다.
 
     # =========================================================
     # [캘린더 리스트 로직] (기존 코드 100% 유지)
@@ -1992,6 +1997,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
