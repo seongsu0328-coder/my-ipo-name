@@ -696,70 +696,76 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [NEW] 상단 통합 메뉴 (다른 영역 간섭 없는 고정 버전)
+    # [FINAL] 상단 통합 메뉴 (텍스트 전용 + 모바일 한 줄 고정)
     # =========================================================
     
-    # 1. CSS 주입: 상단 메뉴(nav-container)만 타겟팅하여 한 줄 강제 고정
+    # 1. 강력한 CSS 주입: 이모지 없이도 텍스트가 버튼 안에 꽉 차도록 설정
     st.markdown("""
         <style>
-        /* 상단 메뉴 전용 컨테이너 레이아웃 */
-        .nav-wrapper [data-testid="stHorizontalBlock"] {
+        /* 모든 화면에서 가로 flex 유지 */
+        div[data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
-            align-items: center !important;
-            gap: 5px !important;
+            width: 100% !important;
+            gap: 4px !important; /* 간격을 최소화하여 공간 확보 */
         }
         
-        /* 상단 메뉴 내의 컬럼 너비 강제 지정 */
-        .nav-wrapper [data-testid="column"] {
-            width: 33.33% !important;
-            flex: 1 1 33.33% !important;
-            min-width: 33.33% !important;
+        /* 컬럼 너비 강제 고정 */
+        div[data-testid="column"] {
+            flex: 1 1 33% !important;
+            min-width: 30% !important;
+            max-width: 33.33% !important;
         }
 
-        /* 버튼 디자인 미세 조정 */
-        .nav-wrapper div[data-testid="stButton"] > button {
-            width: 100% !important;
-            padding: 8px 1px !important;
-            height: 60px !important;
-            font-size: 12px !important;
+        /* 버튼 내부 텍스트 스타일 */
+        button[data-testid="baseButton-secondary"], 
+        button[data-testid="baseButton-primary"] {
+            padding: 2px !important;
+            height: 55px !important;
+            line-height: 1.2 !important;
+            border-radius: 6px !important;
+        }
+        
+        /* 텍스트 크기 최적화 (이모지 없이 텍스트만 강조) */
+        button p {
+            font-size: 13px !important;
+            font-weight: 600 !important;
             white-space: pre-line !important;
-            line-height: 1.1 !important;
-            border-radius: 8px !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. 메뉴 구성 (고유 div인 nav-wrapper로 감쌉니다)
-    st.markdown('<div class="nav-wrapper">', unsafe_allow_html=True)
-    nav_c1, nav_c2, nav_c3 = st.columns(3)
+    # 2. 메뉴 구성
+    nav_c1, nav_c2, nav_c3 = st.columns(3, gap="small")
     
     with nav_c1:
         if st.session_state.auth_status == 'user':
             u_phone = st.session_state.get('user_phone', '')
-            display_phone = u_phone[-4:] if len(u_phone) > 4 else u_phone
-            if st.button(f"👤 {display_phone}\n로그아웃", key="nav_login", use_container_width=True):
+            # 전화번호가 길면 레이아웃이 깨질 수 있으므로 '로그아웃' 강조
+            btn_label = f"{u_phone[-4:]}\n로그아웃"
+            if st.button(btn_label, key="n_log", use_container_width=True):
                 st.session_state.auth_status = None
                 st.session_state.page = 'login'
                 st.rerun()
         else:
-            if st.button("👤\n로그인", key="nav_login", use_container_width=True):
+            if st.button("로그인", key="n_log", use_container_width=True):
                 st.session_state.page = 'login'
                 st.rerun()
 
     with nav_c2:
-        watch_count = len(st.session_state.watchlist)
-        btn_type = "primary" if st.session_state.view_mode == 'watchlist' else "secondary"
-        if st.button(f"⭐ 관심\n({watch_count})", key="nav_watch", use_container_width=True, type=btn_type):
+        watch_cnt = len(st.session_state.watchlist)
+        is_watch = st.session_state.view_mode == 'watchlist'
+        # '관심기업' 텍스트 사용
+        if st.button(f"관심기업\n({watch_cnt})", key="n_wat", use_container_width=True, type="primary" if is_watch else "secondary"):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
     with nav_c3:
-        if st.button("💬\n토론", key="nav_board", use_container_width=True):
+        # '게시판' 텍스트 사용
+        if st.button("토론\n게시판", key="n_brd", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True) # nav-wrapper 닫기
             
     st.write("---")
 
@@ -1993,6 +1999,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
