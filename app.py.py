@@ -696,73 +696,73 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
    # ---------------------------------------------------------
-    # [FINAL-NO-REFRESH] 새로고침 없는 가로 한 줄 메뉴
+    # [ULTIMATE-FIX] 새로고침 X + 모바일 가로 고정 완전 정복
     # ---------------------------------------------------------
     
-    # 1. CSS 설정: 모바일에서 컬럼이 세로로 꺾이는 것을 '절대' 방어
+    # 1. CSS 설정: Streamlit의 모바일 레이아웃 엔진을 강제로 제어
     st.markdown("""
         <style>
-        /* 버튼을 감싸는 컨테이너(nav-container) 생성 */
-        .nav-container div[data-testid="stHorizontalBlock"] {
+        /* 1) 상단 메뉴 영역이 모바일에서 세로로 변하는 것을 원천 차단 */
+        div[data-testid="stVerticalBlock"] > div.element-container:has(div.custom-row) + div[data-testid="stHorizontalBlock"],
+        .custom-row + div[data-testid="stHorizontalBlock"] {
             display: flex !important;
-            flex-direction: row !important; /* 무조건 가로 정렬 */
-            flex-wrap: nowrap !important;   /* 줄바꿈 금지 */
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: flex-start !important;
             width: 100% !important;
-            gap: 8px !important;
         }
 
-        /* 각 컬럼이 화면의 1/3을 넘거나 모자라지 않게 고정 */
-        .nav-container div[data-testid="column"] {
-            flex: 1 1 33.333% !important;
-            max-width: 33.333% !important;
+        /* 2) 컬럼 너비를 무조건 33%로 강제 (모바일 100% 방지) */
+        div[data-testid="stHorizontalBlock"] div[data-testid="column"] {
+            flex: 1 1 0% !important;
             min-width: 0px !important;
+            max-width: 33.3333% !important;
         }
 
-        /* 버튼 디자인 최적화 */
-        .nav-container button {
-            height: 46px !important;
+        /* 3) 버튼 스타일링 */
+        .stButton > button {
+            height: 48px !important;
             padding: 0px !important;
             border-radius: 8px !important;
             border: 1px solid #ddd !important;
         }
 
-        .nav-container button p {
+        .stButton > button p {
             font-size: 11px !important;
             font-weight: bold !important;
-            white-space: nowrap !important; /* 글자 줄바꿈 방지 */
+            white-space: nowrap !important;
         }
         </style>
+        <div class="custom-row"></div>
     """, unsafe_allow_html=True)
 
-    # 2. 버튼 라벨 데이터 준비
+    # 2. 버튼 라벨 준비
     is_logged_in = st.session_state.auth_status == 'user'
     btn1_label = "로그아웃" if is_logged_in else "로그인"
     btn2_label = f"관심({len(st.session_state.watchlist)})"
     btn3_label = "게시판"
 
-    # 3. 레이아웃 실행 (전용 클래스 'nav-container'로 감싸기)
-    st.markdown('<div class="nav-container">', unsafe_allow_html=True)
+    # 3. 레이아웃 실행
     m1, m2, m3 = st.columns(3)
     
     with m1:
-        if st.button(btn1_label, key="m_login", use_container_width=True):
+        if st.button(btn1_label, key="f_login", use_container_width=True):
             if is_logged_in:
                 st.session_state.auth_status = None
                 st.session_state.page = 'login'
             else:
                 st.session_state.page = 'login'
-            st.rerun() # 새로고침이 아니라 내부 상태값 변경 후 즉시 재렌더링
+            st.rerun()
 
     with m2:
-        if st.button(btn2_label, key="m_watch", use_container_width=True):
+        if st.button(btn2_label, key="f_watch", use_container_width=True):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
     with m3:
-        if st.button(btn3_label, key="m_board", use_container_width=True):
+        if st.button(btn3_label, key="f_board", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
     st.write("---") # 메뉴와 리스트 사이 구분선
     
@@ -1990,6 +1990,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
