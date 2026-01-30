@@ -695,48 +695,50 @@ elif st.session_state.page == 'calendar':
         </style>
     """, unsafe_allow_html=True)
 
-   # ---------------------------------------------------------
-    # [NEW] 상단 메뉴 셀렉트 박스 버전 (모바일 최적화)
+    # ---------------------------------------------------------
+    # [FIXED] 상단 메뉴 셀렉트 박스 (무한 루프 방지)
     # ---------------------------------------------------------
     
-    # 1. 상태에 따른 메뉴 옵션 설정
     is_logged_in = st.session_state.auth_status == 'user'
     login_text = "🔓 로그아웃" if is_logged_in else "🔒 로그인"
     watch_text = f"⭐ 관심기업 ({len(st.session_state.watchlist)})"
     board_text = "📋 게시판"
+    home_text = "🏠 홈 (전체목록)"
     
-    # 현재 위치를 표시하기 위한 기본값 설정 로직
-    # (사용자가 메뉴를 선택하면 리스트의 첫 번째 칸으로 돌아가지 않게 하기 위함)
-    menu_options = ["🏠 홈 (전체목록)", login_text, watch_text, board_text]
-    
-    # 2. 셀렉트 박스 출력
-    # 'label_visibility="collapsed"'를 써서 디자인을 더 콤팩트하게 만듭니다.
+    menu_options = [home_text, login_text, watch_text, board_text]
+
+    # 현재 상태에 맞는 index 자동 설정 (화면이 새로고침되어도 멈추지 않게 함)
+    current_index = 0
+    if st.session_state.get('page') == 'login': current_index = 1
+    elif st.session_state.get('view_mode') == 'watchlist': current_index = 2
+    elif st.session_state.get('page') == 'board': current_index = 3
+
+    # on_change를 사용하지 않고 값의 변화를 감지하는 정석적인 방법
     selected_menu = st.selectbox(
         label="메뉴 선택",
         options=menu_options,
-        index=0,  # 기본값은 홈
-        key="top_nav_menu",
+        index=current_index,
+        key="top_nav_menu_new", # 키를 바꿔서 캐시 충돌 방지
         label_visibility="collapsed"
     )
 
-    # 3. 메뉴 선택에 따른 동작 (선택 즉시 실행)
-    if selected_menu == login_text:
-        if is_logged_in:
-            st.session_state.auth_status = None
-            st.session_state.page = 'login'
-        else:
-            st.session_state.page = 'login'
+    # 핵심: 실제로 현재 상태와 다른 메뉴를 눌렀을 때만 rerun을 수행
+    if selected_menu == login_text and st.session_state.get('page') != 'login':
+        if is_logged_in: st.session_state.auth_status = None
+        st.session_state.page = 'login'
         st.rerun()
         
-    elif selected_menu == watch_text:
+    elif selected_menu == watch_text and st.session_state.get('view_mode') != 'watchlist':
         st.session_state.view_mode = 'watchlist'
+        st.session_state.page = 'main' # 메인 페이지 내에서 모드만 변경
         st.rerun()
         
-    elif selected_menu == board_text:
+    elif selected_menu == board_text and st.session_state.get('page') != 'board':
         st.session_state.page = 'board'
         st.rerun()
         
-    elif selected_menu == "🏠 홈 (전체목록)":
+    elif selected_menu == home_text:
+        # 홈을 눌렀는데 현재 상태가 홈이 아닐 때만 작동
         if st.session_state.get('view_mode') == 'watchlist' or st.session_state.get('page') != 'main':
             st.session_state.view_mode = 'all'
             st.session_state.page = 'main'
@@ -1972,6 +1974,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
