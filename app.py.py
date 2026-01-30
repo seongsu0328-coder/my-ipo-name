@@ -745,9 +745,7 @@ elif st.session_state.page == 'calendar':
             st.session_state.page = 'main'
             st.rerun()
 
-    st.write("---")
-
-    st.write("---") # 메뉴와 리스트 사이 구분선 # 메뉴와 리스트 사이 구분선
+    # 메뉴와 리스트 사이 구분선 # 메뉴와 리스트 사이 구분선
     
     # ---------------------------------------------------------
     # [기존 데이터 로직] (이 아래는 손댈 필요 없습니다)
@@ -1977,6 +1975,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
