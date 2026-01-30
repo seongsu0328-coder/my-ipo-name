@@ -722,9 +722,26 @@ elif st.session_state.page == 'calendar':
      
 
     # ---------------------------------------------------------
-    # [FINAL-OPTION] 안드로이드 최강자: st.pills (드롭다운 없음)
+    # [STYLE] 메뉴를 글씨 위주로 깔끔하게 변경
     # ---------------------------------------------------------
-    
+    st.markdown("""
+        <style>
+        /* 테두리 없애고 글자색 검정으로 */
+        div[data-testid="stPills"] button {
+            border: none !important;
+            background-color: transparent !important;
+            color: #000000 !important;
+            padding: 2px 8px !important;
+            box-shadow: none !important;
+        }
+        /* 선택된 항목만 굵게 표시 (구분용) */
+        div[data-testid="stPills"] button[aria-selected="true"] {
+            font-weight: 800 !important;
+            background-color: rgba(0,0,0,0.05) !important; /* 미세한 회색 배경 */
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     # 1. 메뉴 옵션 및 아이콘 설정
     is_logged_in = st.session_state.auth_status == 'user'
     login_text = "로그아웃" if is_logged_in else "로그인"
@@ -734,23 +751,23 @@ elif st.session_state.page == 'calendar':
     
     menu_options = [home_text, login_text, watch_text, board_text]
 
-    # 2. 현재 상태에 따른 기본 선택값(Default) 결정
+    # 2. 현재 상태에 따른 기본 선택값 결정
     default_sel = home_text
     if st.session_state.get('page') == 'login': default_sel = login_text
     elif st.session_state.get('view_mode') == 'watchlist': default_sel = watch_text
     elif st.session_state.get('page') == 'board': default_sel = board_text
 
-    # 3. 가로 칩 형태의 메뉴 출력 (클릭 즉시 값이 반환됨)
+    # 3. Pills 메뉴 (테두리 없는 버전)
     selected_menu = st.pills(
         label="내비게이션",
         options=menu_options,
         selection_mode="single",
         default=default_sel,
-        key="top_nav_pills",
+        key="top_nav_pills_v4", # 키값 한번 갱신
         label_visibility="collapsed"
     )
 
-    # 4. 클릭 감지 및 페이지 이동 로시 (값이 변경되었을 때만 rerun)
+    # 4. 클릭 감지 및 페이지 이동 로직
     if selected_menu and selected_menu != default_sel:
         if selected_menu == login_text:
             if is_logged_in: st.session_state.auth_status = None
@@ -1998,6 +2015,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
