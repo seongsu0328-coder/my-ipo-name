@@ -754,18 +754,19 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # ---------------------------------------------------------
-    # 2. 메뉴 텍스트 및 현재 상태 정의
+    # 2. 메뉴 텍스트 및 현재 상태 정의 (명칭 및 순서 변경)
     # ---------------------------------------------------------
     is_logged_in = st.session_state.auth_status == 'user'
     login_text = "로그아웃" if is_logged_in else "로그인"
+    main_text = "메인"  # '홈'에서 '메인'으로 변경
     watch_text = f"관심 ({len(st.session_state.watchlist)})"
     board_text = "게시판"
-    home_text = "홈"
     
-    menu_options = [home_text, login_text, watch_text, board_text]
+    # 순서 조정: 로그인 -> 메인 -> 관심 -> 게시판
+    menu_options = [login_text, main_text, watch_text, board_text]
 
     # 현재 어떤 페이지에 있는지 계산하여 기본 선택값(Default) 설정
-    default_sel = home_text
+    default_sel = main_text
     if st.session_state.get('page') == 'login': 
         default_sel = login_text
     elif st.session_state.get('view_mode') == 'watchlist': 
@@ -781,12 +782,12 @@ elif st.session_state.page == 'calendar':
         options=menu_options,
         selection_mode="single",
         default=default_sel,
-        key="top_nav_pills_final",
+        key="top_nav_pills_v10", # 키값 갱신
         label_visibility="collapsed"
     )
 
     # ---------------------------------------------------------
-    # 4. 클릭 감지 및 페이지 이동 로직 (핵심 코드)
+    # 4. 클릭 감지 및 페이지 이동 로직 (보정 완료)
     # ---------------------------------------------------------
     if selected_menu and selected_menu != default_sel:
         if selected_menu == login_text:
@@ -794,16 +795,17 @@ elif st.session_state.page == 'calendar':
                 st.session_state.auth_status = None # 로그아웃 처리
             st.session_state.page = 'login'
             
+        elif selected_menu == main_text:
+            st.session_state.view_mode = 'all'
+            # 메인 목록 페이지 이름이 'calendar'라면 'calendar'로, 'main'이라면 'main'으로 맞춰주세요.
+            st.session_state.page = 'calendar' 
+            
         elif selected_menu == watch_text:
             st.session_state.view_mode = 'watchlist'
-            st.session_state.page = 'main'
+            st.session_state.page = 'calendar' 
             
         elif selected_menu == board_text:
             st.session_state.page = 'board'
-            
-        elif selected_menu == home_text:
-            st.session_state.view_mode = 'all'
-            st.session_state.page = 'main'
         
         # 설정 변경 후 화면 즉시 갱신
         st.rerun()
@@ -2083,6 +2085,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
