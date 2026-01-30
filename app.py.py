@@ -739,86 +739,66 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # ---------------------------------------------------------
-    # [ULTIMATE-FORCE] HTML로 직접 버튼 그룹 만들기
+    # [FINAL-STEP] 상단 메뉴: 모바일 꺾임 완전 방지
     # ---------------------------------------------------------
     
-    # 1. 디자인 정의 (절대 세로로 꺾이지 않는 Flexbox)
+    # 1. CSS 설정: 모든 기기에서 columns가 무조건 가로로 나오게 강제
     st.markdown("""
         <style>
-        .ultra-nav-container {
-            display: flex !important;
+        /* [핵심] 상단 메뉴 영역을 감싸는 컨테이너 지정 */
+        [data-testid="column"] {
+            width: calc(33.3333% - 8px) !important;
+            flex: 1 1 calc(33.3333% - 8px) !important;
+            min-width: calc(33.3333% - 8px) !important;
+        }
+
+        /* [핵심] 모바일에서 flex-direction이 column으로 변하는 것을 차단 */
+        [data-testid="stHorizontalBlock"] {
             flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            width: 100% !important;
-            gap: 8px !important;
-            margin-bottom: 15px !important;
+            display: flex !important;
+            align-items: flex-start !important;
         }
-        .ultra-nav-item {
-            flex: 1 !important;
-            min-width: 0 !important;
-        }
-        /* 버튼 스타일링 (Streamlit 기본 버튼과 유사하게) */
-        .ultra-nav-item button {
-            width: 100% !important;
-            height: 45px !important;
-            border-radius: 8px !important;
-            border: 1px solid #ddd !important;
-            background-color: white !important;
+
+        /* 버튼 글자 크기 및 줄바꿈 방지 */
+        .stButton > button p {
             font-size: 11px !important;
-            font-weight: bold !important;
-            cursor: pointer !important;
+            white-space: nowrap !important;
+        }
+        
+        /* 버튼 높이 고정 */
+        .stButton > button {
+            height: 45px !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. 버튼 라벨 데이터
+    # 2. 버튼 라벨 데이터 준비
     is_logged_in = st.session_state.auth_status == 'user'
     btn1_label = "로그아웃" if is_logged_in else "로그인"
     btn2_label = f"관심({len(st.session_state.watchlist)})"
     btn3_label = "게시판"
 
-    # 3. HTML 레이아웃 (여기는 st.columns를 쓰지 않습니다)
-    # 버튼을 감싸는 div만 만들고, 실제 기능은 아래에서 'invisible' 버튼으로 처리합니다.
-    st.markdown(f"""
-        <div class="ultra-nav-container">
-            <div class="ultra-nav-item"><button onclick="document.getElementById('hidden_btn_1').click()">{btn1_label}</button></div>
-            <div class="ultra-nav-item"><button onclick="document.getElementById('hidden_btn_2').click()">{btn2_label}</button></div>
-            <div class="ultra-nav-item"><button onclick="document.getElementById('hidden_btn_3').click()">{btn3_label}</button></div>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # 4. 실제 작동하는 숨겨진 버튼들 (위 HTML 버튼과 연결됨)
-    # 이 버튼들은 보이지 않지만 HTML 버튼이 클릭되면 대신 눌러집니다.
-    col_h1, col_h2, col_h3 = st.columns(3)
-    with col_h1:
-        if st.button("hidden1", key="h_btn1", help="none"):
-            st.session_state.page = 'login'
-            if is_logged_in: st.session_state.auth_status = None
+    # 3. 실제 버튼 배치 (가장 심플한 방식)
+    m1, m2, m3 = st.columns(3)
+    
+    with m1:
+        if st.button(btn1_label, key="menu_login", use_container_width=True):
+            if is_logged_in:
+                st.session_state.auth_status = None
+                st.session_state.page = 'login'
+            else:
+                st.session_state.page = 'login'
             st.rerun()
-    with col_h2:
-        if st.button("hidden2", key="h_btn2", help="none"):
+
+    with m2:
+        if st.button(btn2_label, key="menu_watch", use_container_width=True):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
-    with col_h3:
-        if st.button("hidden3", key="h_btn3", help="none"):
+
+    with m3:
+        if st.button(btn3_label, key="menu_board", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
-
-    # 숨겨진 버튼들을 화면에서 완전히 안 보이게 처리
-    st.markdown("""
-        <style>
-        div[data-testid="column"] { visibility: hidden; height: 0; margin: 0; padding: 0; }
-        /* 위에서 만든 ultra-nav-container는 다시 보이게 설정 */
-        .ultra-nav-container { visibility: visible !important; height: auto !important; }
-        .ultra-nav-container button { visibility: visible !important; }
-        </style>
-        <script>
-        // HTML 버튼 클릭 시 실제 Streamlit 버튼 클릭 이벤트 발생시킴
-        document.querySelectorAll('.ultra-nav-item button')[0].id = 'hidden_btn_1';
-        document.querySelectorAll('.ultra-nav-item button')[1].id = 'hidden_btn_2';
-        document.querySelectorAll('.ultra-nav-item button')[2].id = 'hidden_btn_3';
-        </script>
-    """, unsafe_allow_html=True)
 
     st.write("---") # 메뉴와 리스트 사이 구분선
     
@@ -2046,6 +2026,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
