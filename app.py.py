@@ -1153,20 +1153,20 @@ with tab0:
     rss_news = get_real_news_rss(stock['name'])
     
     if rss_news:
-        # --- [데이터 처리 로직] ---
+        # --- [데이터 처리 로직] --- (if문 바로 아래 똑같은 간격으로 정렬)
         exclude_keywords = ['jewel', 'fashion', 'necklace', 'diamond', 'ring', 'crown royal', 'jewelry', 'pendant'] 
         target_tags = ["분석", "시장", "전망", "전략", "수급"]
         final_display_news = []
         used_indices = set()
         
-        # 이후 뉴스 출력 반복문 등 로직 작성...
-
-                # 1단계: 필터링
-                filtered_news = []
-                for n in rss_news:
-                    title_lower = n.get('title', '').lower()
-                    if not any(ek in title_lower for ek in exclude_keywords):
-                        filtered_news.append(n)
+        # 1단계: 필터링 (위 변수들과 시작 세로줄을 맞춰야 합니다)
+        filtered_news = []
+        for n in rss_news:
+            title_lower = n.get('title', '').lower()
+            # 제외 키워드가 제목에 없는 경우만 리스트에 추가
+            if not any(ek in title_lower for ek in exclude_keywords):
+                filtered_news.append(n)
+        
 
                 # 2단계: 태그 매칭
                 for target in target_tags:
@@ -2103,6 +2103,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
