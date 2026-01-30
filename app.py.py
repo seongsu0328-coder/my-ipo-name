@@ -696,54 +696,51 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # =========================================================
-    # [ULTIMATE-FIX] 상단 메뉴 전용 강제 가로 정렬
+    # [FINAL-FIX] 상단 메뉴 전용 강제 가로 정렬
     # =========================================================
     
     st.markdown("""
         <style>
-        /* 1. 오직 nav-group 안에 있는 columns만 타겟팅 */
+        /* 1. 상단 메뉴 컨테이너의 flex 방향을 가로로 고정 */
         .nav-group div[data-testid="stHorizontalBlock"] {
             display: flex !important;
-            flex-direction: row !important; /* 모바일 세로 쌓기 방지 */
-            flex-wrap: nowrap !important;   /* 줄바꿈 절대 방지 */
-            align-items: center !important;
-            justify-content: space-between !important;
+            flex-direction: row !important; 
+            flex-wrap: nowrap !important;
             width: 100% !important;
-            gap: 8px !important;
+            gap: 4px !important;
         }
 
-        /* 2. 각 컬럼의 최소 너비를 0으로 만들어 좁은 폭에서도 나란히 배치 */
+        /* 2. 각 컬럼이 모바일에서 100%로 늘어나는 것을 방지 (핵심) */
         .nav-group div[data-testid="column"] {
-            min-width: 0px !important;
-            flex: 1 1 0% !important;
+            flex: 1 1 33.33% !important; /* 3등분 강제 */
+            max-width: 33.33% !important; /* 최대 폭 제한 */
+            min-width: 0px !important;    /* 최소 폭 해제 */
         }
 
-        /* 3. 버튼 디자인: 상자가 커지지 않게 높이와 여백 고정 */
-        .nav-group button {
+        /* 3. 버튼 크기 및 상자 여백 최소화 */
+        .nav-group div[data-testid="stButton"] > button {
             width: 100% !important;
-            height: 48px !important;
             padding: 0px !important;
-            border-radius: 8px !important;
-            background-color: white !important;
+            height: 46px !important; /* 버튼 높이 살짝 축소 */
+            border-radius: 6px !important;
             border: 1px solid #ddd !important;
         }
 
-        .nav-group button p {
+        /* 4. 버튼 내부 글자 크기 및 줄바꿈 방지 */
+        .nav-group div[data-testid="stButton"] button p {
             font-size: 11px !important;
             font-weight: 700 !important;
             white-space: nowrap !important;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            margin: 0 !important;
         }
 
-        /* 4. 하단 리스트 영역(7:3)을 보호하기 위해 nav-group 바깥은 건드리지 않음 */
+        /* 하단 리스트는 .nav-group 밖에 있으므로 7:3 비율이 그대로 유지됩니다. */
         </style>
     """, unsafe_allow_html=True)
 
-    # 상단 메뉴 영역 시작
+    # 상단 메뉴 배치
     st.markdown('<div class="nav-group">', unsafe_allow_html=True)
-    # gap="small"을 주어 Streamlit의 기본 여백 계산을 최소화합니다.
-    n1, n2, n3 = st.columns(3, gap="small")
+    n1, n2, n3 = st.columns(3)
     
     with n1:
         is_logged_in = st.session_state.auth_status == 'user'
@@ -766,7 +763,7 @@ elif st.session_state.page == 'calendar':
         if st.button("게시판", key="n_brd", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True) # 상단 메뉴 끝
+    st.markdown('</div>', unsafe_allow_html=True) 
             
     st.write("---")
 
@@ -1998,6 +1995,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
