@@ -1198,20 +1198,27 @@ elif st.session_state.page == 'detail':
         if profile:
             st.markdown(f"**🏢 {stock['name']}** | {profile.get('finnhubIndustry','-')} | {profile.get('currency','USD')}")
 
-            # 1. 문서 선택 로직
+            # [세션 상태 관리] 버튼 클릭 시 상태가 유지되도록 설정
             if 'core_topic' not in st.session_state:
                 st.session_state.core_topic = "S-1"
 
+            # 1. 문서 선택 버튼 그리드
             r1_c1, r1_c2, r1_c3 = st.columns(3)
             r2_c1, r2_c2 = st.columns(2)
 
-            if r1_c1.button("S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
-            if r1_c2.button("S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
-            if r1_c3.button("F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
-            if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
-            if r2_c2.button("424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
+            # 클릭 시 세션 상태를 변경하여 리런(Rerun)되어도 값이 유지되게 함
+            if r1_c1.button("S-1 (최초신고서)", use_container_width=True): 
+                st.session_state.core_topic = "S-1"
+            if r1_c2.button("S-1/A (수정신고)", use_container_width=True): 
+                st.session_state.core_topic = "S-1/A"
+            if r1_c3.button("F-1 (해외기업)", use_container_width=True): 
+                st.session_state.core_topic = "F-1"
+            if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): 
+                st.session_state.core_topic = "FWP"
+            if r2_c2.button("424B4 (최종확정)", use_container_width=True): 
+                st.session_state.core_topic = "424B4"
 
-            # 2. 메타데이터 정의
+            # 2. 메타데이터 및 UI 렌더링 (이 부분은 if profile 안에 반드시 포함되어야 함)
             topic = st.session_state.core_topic
             def_meta = {
                 "S-1": {"t": "증권신고서 (S-1)", "d": "상장을 위해 최초로 제출하는 서류입니다."},
@@ -1222,7 +1229,8 @@ elif st.session_state.page == 'detail':
             }
             curr_meta = def_meta.get(topic, def_meta["S-1"])
 
-            st.info(f"💡 **{curr_meta['t']}란?**\n\n{curr_meta['d']}")
+            # 정보 박스 출력
+            st.info(f"💡 **현재 선택: {curr_meta['t']}**\n\n{curr_meta['d']}")
 
             # 3. SEC URL 생성 로직
             import urllib.parse
@@ -1238,15 +1246,21 @@ elif st.session_state.page == 'detail':
                 query = f'"{clean_name}" {topic}'
                 sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
 
+            # 원문공시 버튼
             st.markdown(f"""
                 <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                     <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer;'>
-                        🏛️ SEC 원문공시 ↗
+                        🏛️ {topic} 원문공시 확인하기 ↗
                     </button>
                 </a>
             """, unsafe_allow_html=True)
 
-            draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
+            st.write("") # 간격 조절
+
+            # [수정] 결정 박스가 if profile 내부에 정확히 위치해야 함
+            draw_decision_box("filing_decision", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
+        else:
+            st.warning("⚠️ 기업 프로필 정보를 불러올 수 없어 공시 링크를 생성할 수 없습니다.")
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
@@ -2043,6 +2057,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
