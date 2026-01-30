@@ -1108,58 +1108,44 @@ elif st.session_state.page == 'detail':
         ])
 
         # --- Tab 0: 뉴스 & 심층 분석 ---
-with tab0:
-    # ---------------------------------------------------------
-    # [1] 기업 소개 섹션 (Expander)
-    # ---------------------------------------------------------
-    st.markdown("""
-        <div style="margin-top: 20px; margin-bottom:10px;">
-            <h3 style="margin:0; color:#333; font-size:20px; font-weight:700;">
-                🏢 기업 심층 분석
-            </h3>
-        </div>""", unsafe_allow_html=True)
-    
-    with st.expander(f"✨ {stock['name']}의 사업 모델 및 재무 요약 보기", expanded=False):
-        st.caption("🚀 Tavily AI 검색 엔진과 자체 알고리즘으로 분석한 실시간 정보입니다.")
-        
-        q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
-        
-        with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
-            biz_info = get_ai_summary(q_biz)
-            if biz_info:
-                st.markdown(f"""
-                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 5px solid #004e92; color: #333; line-height: 1.6;">
-                    {biz_info}
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.error("⚠️ 정보를 찾을 수 없습니다. (데이터가 부족하거나 검색 제한일 수 있습니다)")
+        with tab0:
+            # [1] 기업 소개 섹션
+            st.markdown(f"""
+            <div style="margin-top: 20px; margin-bottom:5px;">
+                <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
+                    기업 소개 
+                </h3>
+            </div>""", unsafe_allow_html=True)
+            
+            st.caption("Tavily AI 검색 엔진과 자체 알고리즘으로 검색한 정보를 요약해 제공합니다.")
+            
+            q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
+            
+            with st.spinner(f"🤖 AI가 {stock['name']}의 사업 구조와 재무 상태를 분석 중입니다..."):
+                biz_info = get_ai_summary(q_biz)
+                if biz_info:
+                    st.info(biz_info)
+                else:
+                    st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 데이터가 부족할 수 있습니다)")
 
-    st.write("---")
-
-    # ---------------------------------------------------------
-    # [2] 뉴스 리스트 섹션 (들여쓰기 교정 완료)
-    # ---------------------------------------------------------
-    # 여기서부터는 with tab0: 바로 안쪽인 '4칸(또는 1탭)' 들여쓰기로 통일합니다.
-    st.markdown(f"""
-        <div style="margin-top: 30px; margin-bottom:5px;">
-            <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-                {stock['name']} 최신 뉴스
-            </h3>
-        </div>""", unsafe_allow_html=True)
-    
-    st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
-    
-    rss_news = get_real_news_rss(stock['name'])
-    
-    if rss_news:
-        # --- [데이터 처리 로직] ---
-        exclude_keywords = ['jewel', 'fashion', 'necklace', 'diamond', 'ring', 'crown royal', 'jewelry', 'pendant'] 
-        target_tags = ["분석", "시장", "전망", "전략", "수급"]
-        final_display_news = []
-        used_indices = set()
-        
-        # 이후 뉴스 출력 반복문 등 로직 작성...
+            # [2] 뉴스 리스트 섹션
+            st.markdown(f"""
+            <div style="margin-top: 30px; margin-bottom:5px;">
+                <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
+                    {stock['name']} 최신 뉴스
+                </h3>
+            </div>""", unsafe_allow_html=True)
+            
+            st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
+            
+            rss_news = get_real_news_rss(stock['name'])
+            
+            if rss_news:
+                # --- [데이터 처리 로직] ---
+                exclude_keywords = ['jewel', 'fashion', 'necklace', 'diamond', 'ring', 'crown royal', 'jewelry', 'pendant'] 
+                target_tags = ["분석", "시장", "전망", "전략", "수급"]
+                final_display_news = []
+                used_indices = set()
 
                 # 1단계: 필터링
                 filtered_news = []
@@ -2103,9 +2089,6 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
-
-
-
 
 
 
