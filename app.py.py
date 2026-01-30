@@ -1055,7 +1055,7 @@ elif st.session_state.page == 'detail':
                 st.session_state.user_decisions[sid][step_key] = choice
 
         # -------------------------------------------------------------------------
-        # [4] 데이터 로딩 및 헤더 구성
+        # [4] 데이터 로딩 및 헤더 구성 (폰트 크기 최적화 버전)
         # -------------------------------------------------------------------------
         today = datetime.now().date()
         try: 
@@ -1075,30 +1075,35 @@ elif st.session_state.page == 'detail':
                 fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
             except: pass
 
+        # 수익률 계산 및 HTML 구성
         if current_p > 0 and off_val > 0:
             pct = ((current_p - off_val) / off_val) * 100
             color = "#00ff41" if pct >= 0 else "#ff4b4b"
             icon = "▲" if pct >= 0 else "▼"
-            p_html = f"({date_str} / 공모 ${off_val} / 현재 ${current_p} <span style='color:{color}'><b>{icon} {abs(pct):.1f}%</b></span>)"
+            # 폰트 크기를 탭 메뉴와 맞추기 위해 1.1rem 정도로 설정
+            p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 현재 ${current_p} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
         else:
-            p_html = f"({date_str} / 공모 ${off_val} / 상장 대기)"
+            p_info = f<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 상장 대기)</span>"
 
-        st.markdown(f"<h1>{status_emoji} {stock['name']} <small>{p_html}</small></h1>", unsafe_allow_html=True)
-      
-        # -------------------------------------------------------------------------
-        # [5] 탭 구성 및 상세 내용 (예시: 여기서부터 기존 탭 코드를 사용하세요)
-        # -------------------------------------------------------------------------
-        # tab1, tab2, tab3, tab4 = st.tabs(["기업정보", "재무지표", "최신뉴스", "판단하기"])
-        # ...
+        # 기업명 출력 (h3 급 크기로 줄여서 탭 메뉴와 조화롭게 변경)
+        st.markdown(f"""
+            <div style='margin-bottom: -10px;'>
+                <span style='font-size: 1.25rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> 
+                {p_info}
+            </div>
+        """, unsafe_allow_html=True)
         
+        st.write("") # 미세 여백
 
-        # [3. 탭 메뉴 구성]
+        # -------------------------------------------------------------------------
+        # [5] 탭 메뉴 구성 (폰트 및 아이콘 정렬)
+        # -------------------------------------------------------------------------
         tab0, tab1, tab2, tab3, tab4 = st.tabs([
-    "📰 주요 뉴스", 
-    "📋 주요 공시", 
-    "⚖️ 버블 평가", 
-    "🔍 심층 진단", 
-    "🎯 투자 결정"
+            "📰 주요 뉴스", 
+            "📋 주요 공시", 
+            "⚖️ 버블 평가", 
+            "🔍 심층 진단", 
+            "🎯 투자 결정"
 ])
 
         # --- Tab 0: 뉴스 & 심층 분석 ---
@@ -2083,6 +2088,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
