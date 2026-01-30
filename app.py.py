@@ -696,75 +696,53 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
    # ---------------------------------------------------------
-    # [ULTIMATE-FIX] 새로고침 X + 모바일 가로 고정 완전 정복
+    # [NEW] 상단 메뉴 셀렉트 박스 버전 (모바일 최적화)
     # ---------------------------------------------------------
     
-    # 1. CSS 설정: Streamlit의 모바일 레이아웃 엔진을 강제로 제어
-    st.markdown("""
-        <style>
-        /* 1) 상단 메뉴 영역이 모바일에서 세로로 변하는 것을 원천 차단 */
-        div[data-testid="stVerticalBlock"] > div.element-container:has(div.custom-row) + div[data-testid="stHorizontalBlock"],
-        .custom-row + div[data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: flex-start !important;
-            width: 100% !important;
-        }
-
-        /* 2) 컬럼 너비를 무조건 33%로 강제 (모바일 100% 방지) */
-        div[data-testid="stHorizontalBlock"] div[data-testid="column"] {
-            flex: 1 1 0% !important;
-            min-width: 0px !important;
-            max-width: 33.3333% !important;
-        }
-
-        /* 3) 버튼 스타일링 */
-        .stButton > button {
-            height: 48px !important;
-            padding: 0px !important;
-            border-radius: 8px !important;
-            border: 1px solid #ddd !important;
-        }
-
-        .stButton > button p {
-            font-size: 11px !important;
-            font-weight: bold !important;
-            white-space: nowrap !important;
-        }
-        </style>
-        <div class="custom-row"></div>
-    """, unsafe_allow_html=True)
-
-    # 2. 버튼 라벨 준비
+    # 1. 상태에 따른 메뉴 옵션 설정
     is_logged_in = st.session_state.auth_status == 'user'
-    btn1_label = "로그아웃" if is_logged_in else "로그인"
-    btn2_label = f"관심({len(st.session_state.watchlist)})"
-    btn3_label = "게시판"
-
-    # 3. 레이아웃 실행
-    m1, m2, m3 = st.columns(3)
+    login_text = "🔓 로그아웃" if is_logged_in else "🔒 로그인"
+    watch_text = f"⭐ 관심기업 ({len(st.session_state.watchlist)})"
+    board_text = "📋 게시판"
     
-    with m1:
-        if st.button(btn1_label, key="f_login", use_container_width=True):
-            if is_logged_in:
-                st.session_state.auth_status = None
-                st.session_state.page = 'login'
-            else:
-                st.session_state.page = 'login'
+    # 현재 위치를 표시하기 위한 기본값 설정 로직
+    # (사용자가 메뉴를 선택하면 리스트의 첫 번째 칸으로 돌아가지 않게 하기 위함)
+    menu_options = ["🏠 홈 (전체목록)", login_text, watch_text, board_text]
+    
+    # 2. 셀렉트 박스 출력
+    # 'label_visibility="collapsed"'를 써서 디자인을 더 콤팩트하게 만듭니다.
+    selected_menu = st.selectbox(
+        label="메뉴 선택",
+        options=menu_options,
+        index=0,  # 기본값은 홈
+        key="top_nav_menu",
+        label_visibility="collapsed"
+    )
+
+    # 3. 메뉴 선택에 따른 동작 (선택 즉시 실행)
+    if selected_menu == login_text:
+        if is_logged_in:
+            st.session_state.auth_status = None
+            st.session_state.page = 'login'
+        else:
+            st.session_state.page = 'login'
+        st.rerun()
+        
+    elif selected_menu == watch_text:
+        st.session_state.view_mode = 'watchlist'
+        st.rerun()
+        
+    elif selected_menu == board_text:
+        st.session_state.page = 'board'
+        st.rerun()
+        
+    elif selected_menu == "🏠 홈 (전체목록)":
+        if st.session_state.get('view_mode') == 'watchlist' or st.session_state.get('page') != 'main':
+            st.session_state.view_mode = 'all'
+            st.session_state.page = 'main'
             st.rerun()
 
-    with m2:
-        if st.button(btn2_label, key="f_watch", use_container_width=True):
-            st.session_state.view_mode = 'watchlist'
-            st.rerun()
-
-    with m3:
-        if st.button(btn3_label, key="f_board", use_container_width=True):
-            st.session_state.page = 'board'
-            st.rerun()
-
-    st.write("---") # 메뉴와 리스트 사이 구분선
+    st.write("---") # 메뉴와 리스트 사이 구분선 # 메뉴와 리스트 사이 구분선
     
     # ---------------------------------------------------------
     # [기존 데이터 로직] (이 아래는 손댈 필요 없습니다)
@@ -1994,6 +1972,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
