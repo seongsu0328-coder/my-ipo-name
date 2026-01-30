@@ -695,76 +695,74 @@ elif st.session_state.page == 'calendar':
         </style>
     """, unsafe_allow_html=True)
 
-    # ---------------------------------------------------------
-    # [ULTIMATE] 가로 고정 메뉴 (클릭 작동 보장)
+   # ---------------------------------------------------------
+    # [FINAL-NO-REFRESH] 새로고침 없는 가로 한 줄 메뉴
     # ---------------------------------------------------------
     
-    # 1. 디자인: 절대 꺾이지 않는 3분할 가로 메뉴
+    # 1. CSS 설정: 모바일에서 컬럼이 세로로 꺾이는 것을 '절대' 방어
     st.markdown("""
         <style>
-        .nav-wrapper {
+        /* 버튼을 감싸는 컨테이너(nav-container) 생성 */
+        .nav-container div[data-testid="stHorizontalBlock"] {
             display: flex !important;
-            flex-direction: row !important;
-            justify-content: space-between !important;
+            flex-direction: row !important; /* 무조건 가로 정렬 */
+            flex-wrap: nowrap !important;   /* 줄바꿈 금지 */
+            width: 100% !important;
             gap: 8px !important;
-            width: 100% !important;
-            margin-bottom: 20px !important;
         }
-        .nav-item {
-            flex: 1 !important;
-            text-align: center !important;
+
+        /* 각 컬럼이 화면의 1/3을 넘거나 모자라지 않게 고정 */
+        .nav-container div[data-testid="column"] {
+            flex: 1 1 33.333% !important;
+            max-width: 33.333% !important;
+            min-width: 0px !important;
         }
-        .nav-item a {
-            display: block !important;
-            width: 100% !important;
-            height: 45px !important;
-            line-height: 45px !important;
-            background-color: white !important;
-            border: 1px solid #ddd !important;
+
+        /* 버튼 디자인 최적화 */
+        .nav-container button {
+            height: 46px !important;
+            padding: 0px !important;
             border-radius: 8px !important;
-            color: black !important;
-            text-decoration: none !important;
+            border: 1px solid #ddd !important;
+        }
+
+        .nav-container button p {
             font-size: 11px !important;
             font-weight: bold !important;
-        }
-        .nav-item a:active {
-            background-color: #f0f0f0 !important;
+            white-space: nowrap !important; /* 글자 줄바꿈 방지 */
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. 버튼 라벨 준비
+    # 2. 버튼 라벨 데이터 준비
     is_logged_in = st.session_state.auth_status == 'user'
-    label1 = "로그아웃" if is_logged_in else "로그인"
-    label2 = f"관심({len(st.session_state.watchlist)})"
-    label3 = "게시판"
+    btn1_label = "로그아웃" if is_logged_in else "로그인"
+    btn2_label = f"관심({len(st.session_state.watchlist)})"
+    btn3_label = "게시판"
 
-    # 3. HTML 메뉴 출력 (링크 클릭 시 URL 뒤에 ?menu=... 가 붙음)
-    st.markdown(f"""
-        <div class="nav-wrapper">
-            <div class="nav-item"><a href="/?menu=login">{label1}</a></div>
-            <div class="nav-item"><a href="/?menu=watch">{label2}</a></div>
-            <div class="nav-item"><a href="/?menu=board">{label3}</a></div>
-        </div>
-    """, unsafe_allow_html=True)
+    # 3. 레이아웃 실행 (전용 클래스 'nav-container'로 감싸기)
+    st.markdown('<div class="nav-container">', unsafe_allow_html=True)
+    m1, m2, m3 = st.columns(3)
+    
+    with m1:
+        if st.button(btn1_label, key="m_login", use_container_width=True):
+            if is_logged_in:
+                st.session_state.auth_status = None
+                st.session_state.page = 'login'
+            else:
+                st.session_state.page = 'login'
+            st.rerun() # 새로고침이 아니라 내부 상태값 변경 후 즉시 재렌더링
 
-    # 4. 클릭 감지 및 로직 실행
-    # URL에 붙은 파라미터를 읽어서 페이지를 이동시킵니다.
-    query_params = st.query_params
-    if "menu" in query_params:
-        clicked = query_params["menu"]
-        st.query_params.clear() # 파라미터 무한 루프 방지
-        
-        if clicked == "login":
-            if is_logged_in: st.session_state.auth_status = None
-            st.session_state.page = 'login'
-            st.rerun()
-        elif clicked == "watch":
+    with m2:
+        if st.button(btn2_label, key="m_watch", use_container_width=True):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
-        elif clicked == "board":
+
+    with m3:
+        if st.button(btn3_label, key="m_board", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     st.write("---") # 메뉴와 리스트 사이 구분선
     
@@ -1992,6 +1990,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
