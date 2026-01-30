@@ -1193,74 +1193,72 @@ elif st.session_state.page == 'detail':
 
         draw_decision_box("tab0_news_summary", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
-    # --- Tab 1: 핵심 정보 (수정 완료) ---
+    # --- Tab 1: 핵심 정보 (profile 부재 대비 완료) ---
     with tab1:
+        # 1. 상단 기업 정보 표시
         if profile:
             st.markdown(f"**🏢 {stock['name']}** | {profile.get('finnhubIndustry','-')} | {profile.get('currency','USD')}")
-
-            # [세션 상태 관리] 버튼 클릭 시 상태가 유지되도록 설정
-            if 'core_topic' not in st.session_state:
-                st.session_state.core_topic = "S-1"
-
-            # 1. 문서 선택 버튼 그리드
-            r1_c1, r1_c2, r1_c3 = st.columns(3)
-            r2_c1, r2_c2 = st.columns(2)
-
-            # 클릭 시 세션 상태를 변경하여 리런(Rerun)되어도 값이 유지되게 함
-            if r1_c1.button("S-1 (최초신고서)", use_container_width=True): 
-                st.session_state.core_topic = "S-1"
-            if r1_c2.button("S-1/A (수정신고)", use_container_width=True): 
-                st.session_state.core_topic = "S-1/A"
-            if r1_c3.button("F-1 (해외기업)", use_container_width=True): 
-                st.session_state.core_topic = "F-1"
-            if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): 
-                st.session_state.core_topic = "FWP"
-            if r2_c2.button("424B4 (최종확정)", use_container_width=True): 
-                st.session_state.core_topic = "424B4"
-
-            # 2. 메타데이터 및 UI 렌더링 (이 부분은 if profile 안에 반드시 포함되어야 함)
-            topic = st.session_state.core_topic
-            def_meta = {
-                "S-1": {"t": "증권신고서 (S-1)", "d": "상장을 위해 최초로 제출하는 서류입니다."},
-                "S-1/A": {"t": "정정신고서 (S-1/A)", "d": "공모가 밴드와 발행 주식 수가 확정되는 수정 문서입니다."},
-                "FWP": {"t": "투자설명회 (FWP)", "d": "기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다."},
-                "424B4": {"t": "최종설명서 (Prospectus)", "d": "공모가가 확정된 후 발행되는 최종 문서입니다."},
-                "F-1": {"t": "해외기업 신고서 (F-1)", "d": "미국 외 기업이 상장할 때 제출하는 서류입니다."},
-            }
-            curr_meta = def_meta.get(topic, def_meta["S-1"])
-
-            # 정보 박스 출력
-            st.info(f"💡 **현재 선택: {curr_meta['t']}**\n\n{curr_meta['d']}")
-
-            # 3. SEC URL 생성 로직
-            import urllib.parse
-            import re
-            
-            cik = profile.get('cik', '')
-            clean_name = re.sub(r'[,.]', '', stock['name'])
-            clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
-            
-            if cik:
-                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
-            else:
-                query = f'"{clean_name}" {topic}'
-                sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
-
-            # 원문공시 버튼
-            st.markdown(f"""
-                <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                    <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer;'>
-                        🏛️ {topic} 원문공시 확인하기 ↗
-                    </button>
-                </a>
-            """, unsafe_allow_html=True)
-
-            st.write("") # 간격 조절
-
-            # [수정] 결정 박스가 if profile 내부에 정확히 위치해야 함
-            draw_decision_box("filing_decision", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
         else:
-            st.warning("⚠️ 기업 프로필 정보를 불러올 수 없어 공시 링크를 생성할 수 없습니다.")
+            st.markdown(f"**🏢 {stock['name']}** | 기업 정보를 불러오는 중...")
+
+        # [세션 상태 관리]
+        if 'core_topic' not in st.session_state:
+            st.session_state.core_topic = "S-1"
+
+        # 2. 문서 선택 버튼 그리드
+        r1_c1, r1_c2, r1_c3 = st.columns(3)
+        r2_c1, r2_c2 = st.columns(2)
+
+        if r1_c1.button("S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
+        if r1_c2.button("S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
+        if r1_c3.button("F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
+        if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
+        if r2_c2.button("424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
+
+        # 3. 메타데이터 설정
+        topic = st.session_state.core_topic
+        def_meta = {
+            "S-1": {"t": "증권신고서 (S-1)", "d": "상장을 위해 최초로 제출하는 서류입니다."},
+            "S-1/A": {"t": "정정신고서 (S-1/A)", "d": "공모가 밴드와 발행 주식 수가 확정되는 수정 문서입니다."},
+            "FWP": {"t": "투자설명회 (FWP)", "d": "기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다."},
+            "424B4": {"t": "최종설명서 (Prospectus)", "d": "공모가가 확정된 후 발행되는 최종 문서입니다."},
+            "F-1": {"t": "해외기업 신고서 (F-1)", "d": "미국 외 기업이 상장할 때 제출하는 서류입니다."},
+        }
+        curr_meta = def_meta.get(topic, def_meta["S-1"])
+
+        st.info(f"💡 **현재 선택: {curr_meta['t']}**\n\n{curr_meta['d']}")
+
+        # 4. SEC URL 생성 로직 (profile이 없어도 stock['name']으로 검색)
+        import urllib.parse
+        import re
+        
+        # CIK 정보가 있으면 사용, 없으면 빈값
+        cik = profile.get('cik', '') if profile else ''
+        
+        # 이름 정제 (검색 정확도 향상)
+        clean_name = re.sub(r'[,.]', '', stock['name'])
+        clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
+        
+        if cik:
+            sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
+        else:
+            # CIK가 없으면 회사 이름으로 직접 검색하는 URL 생성
+            query = f'"{clean_name}" {topic}'
+            sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
+
+        # 원문공시 버튼 출력
+        st.markdown(f"""
+            <a href="{sec_url}" target="_blank" style="text-decoration:none;">
+                <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer;'>
+                    🏛️ {topic} 원문공시 확인하기 ↗
+                </button>
+            </a>
+        """, unsafe_allow_html=True)
+
+        st.write("") 
+
+        # 5. 결정 박스 (profile 여부와 상관없이 출력)
+        draw_decision_box("filing_decision", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
@@ -2057,6 +2055,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
