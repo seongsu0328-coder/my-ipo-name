@@ -792,23 +792,27 @@ elif st.session_state.page == 'calendar':
                 st.info("아직 관심 종목에 담은 기업이 없습니다.\n\n기업 상세 페이지 > '투자 결정(Tab 4)'에서 기업을 담아보세요!")
 
         else:
-            # 일반 캘린더 모드 (기존 필터 유지)
-            col_f1, col_f2 = st.columns([2, 1])
+            # 일반 캘린더 모드 - 두 개의 필터를 모두 selectbox로 통일
+            col_f1, col_f2 = st.columns([1, 1]) # 1:1 비율로 배치
+            
             with col_f1:
-                period = st.radio(
-                    label="", 
-                    options=["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"], 
-                    horizontal=True,
-                    label_visibility="collapsed"
+                # 라디오 버튼 대신 셀렉트박스로 변경
+                period = st.selectbox(
+                    label="조회 기간", 
+                    options=["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"],
+                    key="filter_period",
+                    label_visibility="collapsed" # UI를 깔끔하게 하기 위해 라벨 숨김
                 )
+                
             with col_f2:
                 sort_option = st.selectbox(
-                    label="", 
+                    label="정렬 순서", 
                     options=["최신순", "수익률"],
+                    key="filter_sort",
                     label_visibility="collapsed"
                 )
             
-            # 기간 필터링
+            # 기간 필터링 로직 (기존과 동일)
             if period == "상장 예정 (90일)":
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
             elif period == "최근 6개월": 
@@ -1990,6 +1994,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
