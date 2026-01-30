@@ -696,9 +696,10 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # ---------------------------------------------------------
-    # [FIXED] 상단 메뉴 셀렉트 박스 (무한 루프 방지)
+    # [FIXED-FINAL] 무한 루프 방지형 상단 메뉴
     # ---------------------------------------------------------
     
+    # 1. 메뉴 텍스트 정의
     is_logged_in = st.session_state.auth_status == 'user'
     login_text = "🔓 로그아웃" if is_logged_in else "🔒 로그인"
     watch_text = f"⭐ 관심기업 ({len(st.session_state.watchlist)})"
@@ -707,42 +708,44 @@ elif st.session_state.page == 'calendar':
     
     menu_options = [home_text, login_text, watch_text, board_text]
 
-    # 현재 상태에 맞는 index 자동 설정 (화면이 새로고침되어도 멈추지 않게 함)
-    current_index = 0
-    if st.session_state.get('page') == 'login': current_index = 1
-    elif st.session_state.get('view_mode') == 'watchlist': current_index = 2
-    elif st.session_state.get('page') == 'board': current_index = 3
+    # 2. 현재 앱 상태를 기반으로 '초기 선택값' 결정
+    # 루프 방지를 위해 세션에 저장된 값을 우선 참조합니다.
+    if 'current_menu_label' not in st.session_state:
+        st.session_state.current_menu_label = home_text
 
-    # on_change를 사용하지 않고 값의 변화를 감지하는 정석적인 방법
+    # 3. 셀렉트 박스 (핵심: index를 직접 넣지 않고 선택 이벤트만 감지)
     selected_menu = st.selectbox(
         label="메뉴 선택",
         options=menu_options,
-        index=current_index,
-        key="top_nav_menu_new", # 키를 바꿔서 캐시 충돌 방지
+        key="top_nav_menu_v3",
         label_visibility="collapsed"
     )
 
-    # 핵심: 실제로 현재 상태와 다른 메뉴를 눌렀을 때만 rerun을 수행
-    if selected_menu == login_text and st.session_state.get('page') != 'login':
-        if is_logged_in: st.session_state.auth_status = None
-        st.session_state.page = 'login'
-        st.rerun()
+    # 4. 상태 변경 로직 (실제로 '클릭'해서 값이 변했을 때만 실행)
+    # 현재 저장된 라벨과 방금 선택된 라벨이 다를 때만 리런(rerun) 수행
+    if selected_menu != st.session_state.current_menu_label:
+        st.session_state.current_menu_label = selected_menu # 상태 업데이트
         
-    elif selected_menu == watch_text and st.session_state.get('view_mode') != 'watchlist':
-        st.session_state.view_mode = 'watchlist'
-        st.session_state.page = 'main' # 메인 페이지 내에서 모드만 변경
-        st.rerun()
-        
-    elif selected_menu == board_text and st.session_state.get('page') != 'board':
-        st.session_state.page = 'board'
-        st.rerun()
-        
-    elif selected_menu == home_text:
-        # 홈을 눌렀는데 현재 상태가 홈이 아닐 때만 작동
-        if st.session_state.get('view_mode') == 'watchlist' or st.session_state.get('page') != 'main':
+        if selected_menu == login_text:
+            if is_logged_in: st.session_status = None
+            st.session_state.page = 'login'
+            st.rerun()
+            
+        elif selected_menu == watch_text:
+            st.session_state.view_mode = 'watchlist'
+            st.session_state.page = 'main'
+            st.rerun()
+            
+        elif selected_menu == board_text:
+            st.session_state.page = 'board'
+            st.rerun()
+            
+        elif selected_menu == home_text:
             st.session_state.view_mode = 'all'
             st.session_state.page = 'main'
             st.rerun()
+
+    st.write("---")
 
     st.write("---") # 메뉴와 리스트 사이 구분선 # 메뉴와 리스트 사이 구분선
     
@@ -1974,6 +1977,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
