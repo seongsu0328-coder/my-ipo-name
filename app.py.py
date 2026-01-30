@@ -1132,7 +1132,6 @@ elif st.session_state.page == 'detail':
                 else:
                     st.error("⚠️ 정보를 찾을 수 없습니다.")
 
-
         # [2] 뉴스 리스트 섹션
         st.markdown(f"""
             <div style="margin-top: 30px; margin-bottom:5px;">
@@ -1173,12 +1172,10 @@ elif st.session_state.page == 'detail':
 
             for i, n in enumerate(final_display_news):
                 tag = n['display_tag']
-                s_label = n.get('sent_label', '')
+                s_badge = f'<span style="background:{n.get("bg","#eee")}; color:{n.get("color","#333")}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n.get("sent_label","")}</span>' if n.get("sent_label") else ""
                 safe_title = n.get('title', 'No Title').replace("$", "\$")
                 ko_title = n.get('title_ko', '') 
-                
                 trans_html = f"<br><span style='font-size:14px; color:#555;'>🇰🇷 {ko_title.replace('$', '\$')}</span>" if ko_title else ""
-                s_badge = f'<span style="background:{n.get("bg","#eee")}; color:{n.get("color","#333")}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{s_label}</span>' if s_label else ""
                 
                 st.markdown(f"""
                     <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
@@ -1196,15 +1193,13 @@ elif st.session_state.page == 'detail':
 
         draw_decision_box("tab0_news_summary", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
-    # --- Tab 1: 핵심 정보 (기존 코드 시작) ---
+    # --- Tab 1: 핵심 정보 (수정 완료) ---
     with tab1:
         if profile:
             st.markdown(f"**🏢 {stock['name']}** | {profile.get('finnhubIndustry','-')} | {profile.get('currency','USD')}")
-            
-            
 
-            # 1. 문서 선택 버튼 그리드
-            if 'core_topic' not in st.session_state or st.session_state.core_topic == "financial":
+            # 1. 문서 선택 로직
+            if 'core_topic' not in st.session_state:
                 st.session_state.core_topic = "S-1"
 
             r1_c1, r1_c2, r1_c3 = st.columns(3)
@@ -1213,62 +1208,44 @@ elif st.session_state.page == 'detail':
             if r1_c1.button("S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
             if r1_c2.button("S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
             if r1_c3.button("F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
-            
             if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
             if r2_c2.button("424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
 
-            # 2. 콘텐츠 설정
+            # 2. 메타데이터 정의
             topic = st.session_state.core_topic
-            
             def_meta = {
-                "S-1": {"t": "증권신고서 (S-1)", "d": "상장을 위해 최초로 제출하는 서류입니다. 사업 모델과 리스크가 상세히 적혀있습니다.", "is_doc": True},
-                "S-1/A": {"t": "정정신고서 (S-1/A)", "d": "공모가 밴드와 발행 주식 수가 확정되는 수정 문서입니다.", "is_doc": True},
-                "FWP": {"t": "투자설명회 (FWP)", "d": "기관 투자자 대상 로드쇼(Roadshow)에서 사용된 PPT 자료입니다.", "is_doc": True},
-                "424B4": {"t": "최종설명서 (Prospectus)", "d": "공모가가 확정된 후 발행되는 최종 문서로, 조달 자금 규모를 확정합니다.", "is_doc": True},
-                "F-1": {"t": "해외기업 신고서 (F-1)", "d": "미국 외 기업이 상장할 때 S-1 대신 제출하는 서류입니다.", "is_doc": True},
+                "S-1": {"t": "증권신고서 (S-1)", "d": "상장을 위해 최초로 제출하는 서류입니다."},
+                "S-1/A": {"t": "정정신고서 (S-1/A)", "d": "공모가 밴드와 발행 주식 수가 확정되는 수정 문서입니다."},
+                "FWP": {"t": "투자설명회 (FWP)", "d": "기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다."},
+                "424B4": {"t": "최종설명서 (Prospectus)", "d": "공모가가 확정된 후 발행되는 최종 문서입니다."},
+                "F-1": {"t": "해외기업 신고서 (F-1)", "d": "미국 외 기업이 상장할 때 제출하는 서류입니다."},
             }
-            
-            if topic not in def_meta: topic = "S-1"
-            curr_meta = def_meta[topic]
+            curr_meta = def_meta.get(topic, def_meta["S-1"])
 
-            # --- UI 렌더링 ---
-            
-            # (1) 문서 정의 설명 (파란 박스)
             st.info(f"💡 **{curr_meta['t']}란?**\n\n{curr_meta['d']}")
 
-            # (2) 하단: 원문 링크 버튼
+            # 3. SEC URL 생성 로직
             import urllib.parse
             import re
-
-            cik = profile.get('cik', '') if profile else ''
-            raw_name = stock['name']
             
-            # 이름 정제 로직
-            clean_name = re.sub(r'[,.]', '', raw_name)
+            cik = profile.get('cik', '')
+            clean_name = re.sub(r'[,.]', '', stock['name'])
             clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
-            if len(clean_name) < 2: clean_name = raw_name
-
-            # URL 생성
+            
             if cik:
-                enc_topic = urllib.parse.quote(topic)
-                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={enc_topic}&owner=include&count=40"
+                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
             else:
                 query = f'"{clean_name}" {topic}'
-                enc_query = urllib.parse.quote(query)
-                sec_url = f"https://www.sec.gov/edgar/search/#/q={enc_query}&dateRange=all"
-
-            # [수정] 버튼 텍스트를 심플하게 'SEC 원문공시'로 통일
-            btn_text = "🏛️ SEC 원문공시 ↗"
+                sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
 
             st.markdown(f"""
                 <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                    <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; transition:0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>
-                        {btn_text}
+                    <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer;'>
+                        🏛️ SEC 원문공시 ↗
                     </button>
                 </a>
             """, unsafe_allow_html=True)
 
-            # [추가] 2단계 판단
             draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
@@ -2066,6 +2043,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
