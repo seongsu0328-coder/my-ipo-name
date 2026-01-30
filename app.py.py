@@ -696,6 +696,32 @@ elif st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # ---------------------------------------------------------
+    # [ANDROID-FIX] 안드로이드 셀렉트박스 닫힘 강제 패치
+    # ---------------------------------------------------------
+    st.markdown("""
+        <style>
+        /* 1. 선택 후 파란색 테두리(포커스) 제거 */
+        .stSelectbox div[data-baseweb="select"]:focus-within {
+            border-color: transparent !important;
+            box-shadow: none !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # 2. 자바스크립트를 이용해 현재 활성화된(Focus) 입력창을 강제로 닫음
+    # 화면이 로드될 때마다 실행되어 모바일 키보드나 드롭다운을 숨깁니다.
+    st.components.v1.html("""
+        <script>
+            var mainDoc = window.parent.document;
+            var activeEl = mainDoc.activeElement;
+            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.getAttribute('role') === 'combobox')) {
+                activeEl.blur();
+            }
+        </script>
+    """, height=0)
+     
+
+    # ---------------------------------------------------------
     # [FIXED-FINAL] 무한 루프 방지형 상단 메뉴
     # ---------------------------------------------------------
     
@@ -1975,6 +2001,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
