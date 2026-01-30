@@ -701,10 +701,10 @@ elif st.session_state.page == 'calendar':
     
     # 1. 메뉴 텍스트 정의
     is_logged_in = st.session_state.auth_status == 'user'
-    login_text = "🔓 로그아웃" if is_logged_in else "🔒 로그인"
-    watch_text = f"⭐ 관심기업 ({len(st.session_state.watchlist)})"
-    board_text = "📋 게시판"
-    home_text = "🏠 홈 (전체목록)"
+    login_text = "로그아웃" if is_logged_in else "로그인"
+    watch_text = f"관심기업 ({len(st.session_state.watchlist)})"
+    board_text = "게시판"
+    home_text = "홈 (전체목록)"
     
     menu_options = [home_text, login_text, watch_text, board_text]
 
@@ -1975,6 +1975,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
