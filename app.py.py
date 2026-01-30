@@ -722,53 +722,51 @@ elif st.session_state.page == 'calendar':
      
 
     # ---------------------------------------------------------
-    # [FINAL-FIX] 안드로이드 닫힘 문제 해결 버전 (on_change 방식)
+    # [FINAL-OPTION] 안드로이드 최강자: st.pills (드롭다운 없음)
     # ---------------------------------------------------------
     
-    # 1. 메뉴 변경 시 실행될 함수 (on_change 콜백)
-    def handle_menu_change():
-        # 사용자가 선택한 값 가져오기
-        new_val = st.session_state.top_nav_key
-        
-        if "로그아웃" in new_val or "로그인" in new_val:
-            if st.session_state.auth_status == 'user':
-                st.session_state.auth_status = None
+    # 1. 메뉴 옵션 및 아이콘 설정
+    is_logged_in = st.session_state.auth_status == 'user'
+    login_text = "🔓 로그아웃" if is_logged_in else "🔒 로그인"
+    watch_text = f"⭐ 관심 ({len(st.session_state.watchlist)})"
+    board_text = "📋 게시판"
+    home_text = "🏠 홈"
+    
+    menu_options = [home_text, login_text, watch_text, board_text]
+
+    # 2. 현재 상태에 따른 기본 선택값(Default) 결정
+    default_sel = home_text
+    if st.session_state.get('page') == 'login': default_sel = login_text
+    elif st.session_state.get('view_mode') == 'watchlist': default_sel = watch_text
+    elif st.session_state.get('page') == 'board': default_sel = board_text
+
+    # 3. 가로 칩 형태의 메뉴 출력 (클릭 즉시 값이 반환됨)
+    selected_menu = st.pills(
+        label="내비게이션",
+        options=menu_options,
+        selection_mode="single",
+        default=default_sel,
+        key="top_nav_pills",
+        label_visibility="collapsed"
+    )
+
+    # 4. 클릭 감지 및 페이지 이동 로시 (값이 변경되었을 때만 rerun)
+    if selected_menu and selected_menu != default_sel:
+        if selected_menu == login_text:
+            if is_logged_in: st.session_state.auth_status = None
             st.session_state.page = 'login'
-        elif "관심기업" in new_val:
+        elif selected_menu == watch_text:
             st.session_state.view_mode = 'watchlist'
             st.session_state.page = 'main'
-        elif "게시판" in new_val:
+        elif selected_menu == board_text:
             st.session_state.page = 'board'
-        elif "홈" in new_val:
+        elif selected_menu == home_text:
             st.session_state.view_mode = 'all'
             st.session_state.page = 'main'
         
-        # 현재 메뉴 라벨 업데이트 (무한 루프 방지용)
-        st.session_state.current_menu_label = new_val
+        st.rerun()
 
-    # 2. 메뉴 텍스트 정의
-    is_logged_in = st.session_state.auth_status == 'user'
-    login_text = "🔓 로그아웃" if is_logged_in else "🔒 로그인"
-    watch_text = f"⭐ 관심기업 ({len(st.session_state.watchlist)})"
-    board_text = "📋 게시판"
-    home_text = "🏠 홈 (전체목록)"
-    menu_options = [home_text, login_text, watch_text, board_text]
-
-    # 3. 현재 상태에 맞는 index 자동 설정
-    current_idx = 0
-    if st.session_state.get('page') == 'login': current_idx = 1
-    elif st.session_state.get('view_mode') == 'watchlist': current_idx = 2
-    elif st.session_state.get('page') == 'board': current_idx = 3
-
-    # 4. 셀렉트 박스 (핵심: on_change를 사용하여 선택 즉시 UI 강제 갱신)
-    st.selectbox(
-        label="메뉴 선택",
-        options=menu_options,
-        index=current_idx,
-        key="top_nav_key", # 새로운 키 사용
-        on_change=handle_menu_change, # 값이 바뀌는 순간 즉시 함수 실행
-        label_visibility="collapsed"
-    )
+    st.write("---")
 
     # 메뉴와 리스트 사이 구분선 # 메뉴와 리스트 사이 구분선
     
@@ -2000,6 +1998,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
