@@ -1132,7 +1132,6 @@ elif st.session_state.page == 'detail':
                 else:
                     st.error("⚠️ 정보를 찾을 수 없습니다.")
 
-        st.write("---")
 
         # [2] 뉴스 리스트 섹션
         st.markdown(f"""
@@ -2067,6 +2066,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
