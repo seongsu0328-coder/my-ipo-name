@@ -1028,7 +1028,6 @@ elif st.session_state.page == 'detail':
             
             st.rerun()
 
-        st.write("---")
 
         # -------------------------------------------------------------------------
         # [3] 사용자 판단 로직 (함수 정의)
@@ -1085,8 +1084,7 @@ elif st.session_state.page == 'detail':
             p_html = f"({date_str} / 공모 ${off_val} / 상장 대기)"
 
         st.markdown(f"<h1>{status_emoji} {stock['name']} <small>{p_html}</small></h1>", unsafe_allow_html=True)
-        st.write("---")
-
+      
         # -------------------------------------------------------------------------
         # [5] 탭 구성 및 상세 내용 (예시: 여기서부터 기존 탭 코드를 사용하세요)
         # -------------------------------------------------------------------------
@@ -2085,6 +2083,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
