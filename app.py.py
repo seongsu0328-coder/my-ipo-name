@@ -1133,7 +1133,6 @@ elif st.session_state.page == 'detail':
                     else:
                         st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 데이터가 부족할 수 있습니다)")
 
-            st.write("---") # 섹션 구분선
 
             # [2] 뉴스 리스트 섹션
             st.markdown(f"""
@@ -2150,6 +2149,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
