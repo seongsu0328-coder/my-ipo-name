@@ -1110,7 +1110,7 @@ elif st.session_state.page == 'detail':
         # --- Tab 0: 뉴스 & 심층 분석 ---
 with tab0:
     # ---------------------------------------------------------
-    # [1] 기업 소개 섹션 (Expander 적용 버전)
+    # [1] 기업 소개 섹션 (들여쓰기 교정 완료)
     # ---------------------------------------------------------
     st.markdown("""
         <div style="margin-top: 20px; margin-bottom:10px;">
@@ -1119,19 +1119,16 @@ with tab0:
             </h3>
         </div>""", unsafe_allow_html=True)
     
-    # 클릭해야 내용이 보이도록 expander로 감싸기
-    # label에 기업명을 넣어 무엇을 분석하는지 명확히 합니다.
+    # [중요] with 문 안쪽은 항상 4칸 또는 1탭의 일정한 들여쓰기를 유지해야 합니다.
     with st.expander(f"✨ {stock['name']}의 사업 모델 및 재무 요약 보기", expanded=False):
         st.caption("🚀 Tavily AI 검색 엔진과 자체 알고리즘으로 분석한 실시간 정보입니다.")
         
         q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
         
-        # 만약 이미 biz_info를 불러온 상태라면 spinner를 생략해도 되지만, 
-        # 처음 누를 때 로딩하게 하려면 이 안에 두는 것이 좋습니다.
         with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
             biz_info = get_ai_summary(q_biz)
             if biz_info:
-                # 가독성을 위해 테두리가 있는 info 박스나 일반 text로 출력
+                # 아래 st.markdown의 들여쓰기를 if문 위치에 정확히 맞췄습니다.
                 st.markdown(f"""
                 <div style="background-color: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 5px solid #004e92; color: #333; line-height: 1.6;">
                     {biz_info}
@@ -2103,6 +2100,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
