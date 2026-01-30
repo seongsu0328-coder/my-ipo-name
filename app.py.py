@@ -1075,20 +1075,21 @@ elif st.session_state.page == 'detail':
                 fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
             except: pass
 
-        # 수익률 계산 및 HTML 구성
+        # 수익률 계산 및 HTML 구성 (오타 수정 버전)
         if current_p > 0 and off_val > 0:
             pct = ((current_p - off_val) / off_val) * 100
             color = "#00ff41" if pct >= 0 else "#ff4b4b"
             icon = "▲" if pct >= 0 else "▼"
-            # 폰트 크기를 탭 메뉴와 맞추기 위해 1.1rem 정도로 설정
+            # 폰트 크기를 탭 메뉴와 맞추기 위해 스타일 조정
             p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 현재 ${current_p} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
         else:
-            p_info = f<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 상장 대기)</span>"
+            # 여기 시작 부분에 f" 를 정확히 넣었습니다.
+            p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 상장 대기)</span>"
 
         # 기업명 출력 (h3 급 크기로 줄여서 탭 메뉴와 조화롭게 변경)
         st.markdown(f"""
             <div style='margin-bottom: -10px;'>
-                <span style='font-size: 1.25rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> 
+                <span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> 
                 {p_info}
             </div>
         """, unsafe_allow_html=True)
@@ -1096,7 +1097,7 @@ elif st.session_state.page == 'detail':
         st.write("") # 미세 여백
 
         # -------------------------------------------------------------------------
-        # [5] 탭 메뉴 구성 (폰트 및 아이콘 정렬)
+        # [5] 탭 메뉴 구성
         # -------------------------------------------------------------------------
         tab0, tab1, tab2, tab3, tab4 = st.tabs([
             "📰 주요 뉴스", 
@@ -1104,7 +1105,7 @@ elif st.session_state.page == 'detail':
             "⚖️ 버블 평가", 
             "🔍 심층 진단", 
             "🎯 투자 결정"
-])
+        ])
 
         # --- Tab 0: 뉴스 & 심층 분석 ---
         with tab0:
@@ -2088,6 +2089,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
