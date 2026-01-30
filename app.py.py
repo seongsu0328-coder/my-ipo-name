@@ -1225,20 +1225,29 @@ elif st.session_state.page == 'detail':
             # 결정 박스
             draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"]) 
 
-                # 3단계: 잔여 뉴스 채우기
-                for idx, n in enumerate(filtered_news):
-                    if len(final_display_news) >= 5: break
-                    if idx not in used_indices:
-                        title_lower = n['title'].lower()
-                        if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
-                        elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): tag = "시장"
-                        elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): tag = "전망"
-                        elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): tag = "전략"
-                        elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): tag = "수급"
-                        else: tag = "일반"
-                        n['display_tag'] = tag
-                        final_display_news.append(n)
-                        used_indices.add(idx)
+                # 3단계: 잔여 뉴스 채우기 (최대 5개까지)
+            for idx, n in enumerate(filtered_news):
+                if len(final_display_news) >= 5:
+                    break
+                if idx not in used_indices:
+                    title_lower = n['title'].lower()
+                    # 태그 결정 로직
+                    if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): 
+                        tag = "분석"
+                    elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): 
+                        tag = "시장"
+                    elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): 
+                        tag = "전망"
+                    elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): 
+                        tag = "전략"
+                    elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): 
+                        tag = "수급"
+                    else: 
+                        tag = "일반"
+                    
+                    n['display_tag'] = tag
+                    final_display_news.append(n)
+                    used_indices.add(idx)
 
                 # 화면 출력
                 for i, n in enumerate(final_display_news[:5]):
@@ -2141,6 +2150,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
