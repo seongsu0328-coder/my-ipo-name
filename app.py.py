@@ -695,108 +695,74 @@ elif st.session_state.page == 'calendar':
         </style>
     """, unsafe_allow_html=True)
 
-    # =========================================================
-    # [FINAL-FIX] 상단 메뉴 전용 강제 가로 정렬
-    # =========================================================
+    # ---------------------------------------------------------
+    # [ULTIMATE] 가로 고정 메뉴 (클릭 작동 보장)
+    # ---------------------------------------------------------
     
+    # 1. 디자인: 절대 꺾이지 않는 3분할 가로 메뉴
     st.markdown("""
         <style>
-        /* 1. 상단 메뉴 컨테이너의 flex 방향을 가로로 고정 */
-        .nav-group div[data-testid="stHorizontalBlock"] {
+        .nav-wrapper {
             display: flex !important;
-            flex-direction: row !important; 
-            flex-wrap: nowrap !important;
-            width: 100% !important;
-            gap: 4px !important;
-        }
-
-        /* 2. 각 컬럼이 모바일에서 100%로 늘어나는 것을 방지 (핵심) */
-        .nav-group div[data-testid="column"] {
-            flex: 1 1 33.33% !important; /* 3등분 강제 */
-            max-width: 33.33% !important; /* 최대 폭 제한 */
-            min-width: 0px !important;    /* 최소 폭 해제 */
-        }
-
-        /* 3. 버튼 크기 및 상자 여백 최소화 */
-        .nav-group div[data-testid="stButton"] > button {
-            width: 100% !important;
-            padding: 0px !important;
-            height: 46px !important; /* 버튼 높이 살짝 축소 */
-            border-radius: 6px !important;
-            border: 1px solid #ddd !important;
-        }
-
-        /* 4. 버튼 내부 글자 크기 및 줄바꿈 방지 */
-        .nav-group div[data-testid="stButton"] button p {
-            font-size: 11px !important;
-            font-weight: 700 !important;
-            white-space: nowrap !important;
-            margin: 0 !important;
-        }
-
-        /* 하단 리스트는 .nav-group 밖에 있으므로 7:3 비율이 그대로 유지됩니다. */
-        </style>
-    """, unsafe_allow_html=True)
-
-    # ---------------------------------------------------------
-    # [FINAL-STEP] 상단 메뉴: 모바일 꺾임 완전 방지
-    # ---------------------------------------------------------
-    
-    # 1. CSS 설정: 모든 기기에서 columns가 무조건 가로로 나오게 강제
-    st.markdown("""
-        <style>
-        /* [핵심] 상단 메뉴 영역을 감싸는 컨테이너 지정 */
-        [data-testid="column"] {
-            width: calc(33.3333% - 8px) !important;
-            flex: 1 1 calc(33.3333% - 8px) !important;
-            min-width: calc(33.3333% - 8px) !important;
-        }
-
-        /* [핵심] 모바일에서 flex-direction이 column으로 변하는 것을 차단 */
-        [data-testid="stHorizontalBlock"] {
             flex-direction: row !important;
-            display: flex !important;
-            align-items: flex-start !important;
+            justify-content: space-between !important;
+            gap: 8px !important;
+            width: 100% !important;
+            margin-bottom: 20px !important;
         }
-
-        /* 버튼 글자 크기 및 줄바꿈 방지 */
-        .stButton > button p {
-            font-size: 11px !important;
-            white-space: nowrap !important;
+        .nav-item {
+            flex: 1 !important;
+            text-align: center !important;
         }
-        
-        /* 버튼 높이 고정 */
-        .stButton > button {
+        .nav-item a {
+            display: block !important;
+            width: 100% !important;
             height: 45px !important;
+            line-height: 45px !important;
+            background-color: white !important;
+            border: 1px solid #ddd !important;
+            border-radius: 8px !important;
+            color: black !important;
+            text-decoration: none !important;
+            font-size: 11px !important;
+            font-weight: bold !important;
+        }
+        .nav-item a:active {
+            background-color: #f0f0f0 !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. 버튼 라벨 데이터 준비
+    # 2. 버튼 라벨 준비
     is_logged_in = st.session_state.auth_status == 'user'
-    btn1_label = "로그아웃" if is_logged_in else "로그인"
-    btn2_label = f"관심({len(st.session_state.watchlist)})"
-    btn3_label = "게시판"
+    label1 = "로그아웃" if is_logged_in else "로그인"
+    label2 = f"관심({len(st.session_state.watchlist)})"
+    label3 = "게시판"
 
-    # 3. 실제 버튼 배치 (가장 심플한 방식)
-    m1, m2, m3 = st.columns(3)
-    
-    with m1:
-        if st.button(btn1_label, key="menu_login", use_container_width=True):
-            if is_logged_in:
-                st.session_state.auth_status = None
-                st.session_state.page = 'login'
-            else:
-                st.session_state.page = 'login'
+    # 3. HTML 메뉴 출력 (링크 클릭 시 URL 뒤에 ?menu=... 가 붙음)
+    st.markdown(f"""
+        <div class="nav-wrapper">
+            <div class="nav-item"><a href="/?menu=login">{label1}</a></div>
+            <div class="nav-item"><a href="/?menu=watch">{label2}</a></div>
+            <div class="nav-item"><a href="/?menu=board">{label3}</a></div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # 4. 클릭 감지 및 로직 실행
+    # URL에 붙은 파라미터를 읽어서 페이지를 이동시킵니다.
+    query_params = st.query_params
+    if "menu" in query_params:
+        clicked = query_params["menu"]
+        st.query_params.clear() # 파라미터 무한 루프 방지
+        
+        if clicked == "login":
+            if is_logged_in: st.session_state.auth_status = None
+            st.session_state.page = 'login'
             st.rerun()
-
-    with m2:
-        if st.button(btn2_label, key="menu_watch", use_container_width=True):
+        elif clicked == "watch":
             st.session_state.view_mode = 'watchlist'
             st.rerun()
-
-    with m3:
-        if st.button(btn3_label, key="menu_board", use_container_width=True):
+        elif clicked == "board":
             st.session_state.page = 'board'
             st.rerun()
 
@@ -2026,6 +1992,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
