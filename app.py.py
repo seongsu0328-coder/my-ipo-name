@@ -1108,43 +1108,40 @@ elif st.session_state.page == 'detail':
         ])
 
         # --- Tab 0: 뉴스 & 심층 분석 ---
-with tab0:
-    # [1] 기업 소개 섹션 제목
-    st.markdown(f"""
-        <div style="margin-top: 20px; margin-bottom:5px;">
-            <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-                🏢 기업 심층 분석
-            </h3>
-        </div>""", unsafe_allow_html=True)
+        with tab0:
+            # [1] 기업 심층 분석 섹션 (Expander 적용)
+            st.markdown(f"""
+                <div style="margin-top: 20px; margin-bottom:5px;">
+                    <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
+                        🏢 기업 심층 분석
+                    </h3>
+                </div>""", unsafe_allow_html=True)
 
-    # 1. expander를 생성합니다. (클릭 전에는 닫혀있음: expanded=False)
-    with st.expander(f"✨ {stock['name']}의 AI 비즈니스 모델 요약 보기", expanded=False):
-        st.caption("🚀 Tavily AI 엔진과 알고리즘이 실시간으로 데이터를 분석합니다.")
-        
-        q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
-        
-        # 2. expander가 열릴 때 spinner가 작동하며 정보를 가져옵니다.
-        with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
-            biz_info = get_ai_summary(q_biz)
-            if biz_info:
-                # 가독성을 높이기 위해 배경색이 있는 div로 감싸거나 st.info 사용
-                st.markdown(f"""
-                <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #6e8efb; color: #333; line-height: 1.6;">
-                    {biz_info}
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 데이터가 부족할 수 있습니다)")
+            with st.expander(f"✨ {stock['name']}의 AI 비즈니스 모델 요약 보기", expanded=False):
+                st.caption("🚀 Tavily AI 엔진과 알고리즘이 실시간으로 데이터를 분석합니다.")
+                
+                q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
+                
+                with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
+                    biz_info = get_ai_summary(q_biz)
+                    if biz_info:
+                        st.markdown(f"""
+                        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #6e8efb; color: #333; line-height: 1.6;">
+                            {biz_info}
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.error("⚠️ 정보를 찾을 수 없습니다. (신생 스팩주이거나 데이터가 부족할 수 있습니다)")
 
-    st.write("---") # 섹션 구분선
+            st.write("---") # 섹션 구분선
 
             # [2] 뉴스 리스트 섹션
             st.markdown(f"""
-            <div style="margin-top: 30px; margin-bottom:5px;">
-                <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-                    {stock['name']} 최신 뉴스
-                </h3>
-            </div>""", unsafe_allow_html=True)
+                <div style="margin-top: 30px; margin-bottom:5px;">
+                    <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
+                        {stock['name']} 최신 뉴스
+                    </h3>
+                </div>""", unsafe_allow_html=True)
             
             st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
             
@@ -1182,6 +1179,51 @@ with tab0:
                             final_display_news.append(n)
                             used_indices.add(idx)
                             break 
+
+                # 3단계: 잔여 뉴스 채우기 (최대 5개)
+                for idx, n in enumerate(filtered_news):
+                    if len(final_display_news) >= 5: break
+                    if idx not in used_indices:
+                        title_lower = n['title'].lower()
+                        if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
+                        elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', 'closing', '시장', '상장']): tag = "시장"
+                        elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'proposes', 'expects', '전망']): tag = "전망"
+                        elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', 'fda', '전략']): tag = "전략"
+                        elif any(k in title_lower for k in ['price', 'raise', 'funding', 'million', 'share', '수급', '공모']): tag = "수급"
+                        else: tag = "일반"
+                        n['display_tag'] = tag
+                        final_display_news.append(n)
+                        used_indices.add(idx)
+
+                # 뉴스 카드 출력
+                for i, n in enumerate(final_display_news[:5]):
+                    tag = n['display_tag']
+                    s_label = n['sent_label']
+                    safe_title = n.get('title', 'No Title').replace("$", "\$")
+                    ko_title = n.get('title_ko', '') 
+                    
+                    trans_html = ""
+                    if ko_title and ko_title.strip():
+                        safe_ko_title = ko_title.replace("$", "\$")
+                        trans_html = f"<br><span style='font-size:14px; color:#555; font-weight:normal;'>🇰🇷 {safe_ko_title}</span>"
+                    
+                    s_badge = f'<span style="background:{n["bg"]}; color:{n["color"]}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{s_label}</span>' if s_label != tag else ""
+                    
+                    html_content = (
+                        f'<a href="{n["link"]}" target="_blank" style="text-decoration:none; color:inherit;">'
+                        f'<div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">'
+                        f'<div style="display:flex; justify-content:space-between; align-items:center;">'
+                        f'<div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> <span style="color:#888; font-size:12px;">| {tag}</span>{s_badge}</div>'
+                        f'<small style="color:#bbb;">{n["date"]}</small></div>'
+                        f'<div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{safe_title}{trans_html}</div>'
+                        f'</div></a>'
+                    )
+                    st.markdown(html_content, unsafe_allow_html=True)
+            else:
+                st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
+
+            # 결정 박스
+            draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"]) 
 
                 # 3단계: 잔여 뉴스 채우기
                 for idx, n in enumerate(filtered_news):
@@ -2099,6 +2141,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
