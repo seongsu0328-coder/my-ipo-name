@@ -722,68 +722,43 @@ elif st.session_state.page == 'calendar':
      
 
     # ---------------------------------------------------------
-    # [STYLE] 메뉴를 글씨 위주로 깔끔하게 변경
+    # [STYLE-UPDATE] 모든 테두리와 배경 강제 제거
     # ---------------------------------------------------------
     st.markdown("""
         <style>
-        /* 테두리 없애고 글자색 검정으로 */
-        div[data-testid="stPills"] button {
+        /* 1. 전체 버튼 컨테이너 및 개별 버튼 스타일 강제 초기화 */
+        div[data-testid="stPills"] div[role="radiogroup"] button {
             border: none !important;
+            outline: none !important;
             background-color: transparent !important;
-            color: #000000 !important;
-            padding: 2px 8px !important;
             box-shadow: none !important;
+            color: #000000 !important; /* 글자색 검정 */
+            padding: 4px 12px !important;
+            margin: 0px !important;
+            min-height: auto !important;
         }
-        /* 선택된 항목만 굵게 표시 (구분용) */
+
+        /* 2. hover(마우스 올렸을 때) 배경 제거 */
+        div[data-testid="stPills"] button:hover {
+            background-color: rgba(0,0,0,0.03) !important;
+            border: none !important;
+        }
+
+        /* 3. 선택된 상태 스타일 (테두리 대신 굵기만 조절) */
         div[data-testid="stPills"] button[aria-selected="true"] {
-            font-weight: 800 !important;
-            background-color: rgba(0,0,0,0.05) !important; /* 미세한 회색 배경 */
+            background-color: transparent !important;
+            font-weight: 900 !important; /* 글자 아주 굵게 */
+            color: #000000 !important;
+            border: none !important;
+        }
+
+        /* 4. Streamlit 기본 보라색 테두리 흔적 제거 */
+        div[data-testid="stPills"] div[data-baseweb="pill"] {
+            border: none !important;
+            background: none !important;
         }
         </style>
     """, unsafe_allow_html=True)
-
-    # 1. 메뉴 옵션 및 아이콘 설정
-    is_logged_in = st.session_state.auth_status == 'user'
-    login_text = "로그아웃" if is_logged_in else "로그인"
-    watch_text = f"관심 ({len(st.session_state.watchlist)})"
-    board_text = "게시판"
-    home_text = "홈"
-    
-    menu_options = [home_text, login_text, watch_text, board_text]
-
-    # 2. 현재 상태에 따른 기본 선택값 결정
-    default_sel = home_text
-    if st.session_state.get('page') == 'login': default_sel = login_text
-    elif st.session_state.get('view_mode') == 'watchlist': default_sel = watch_text
-    elif st.session_state.get('page') == 'board': default_sel = board_text
-
-    # 3. Pills 메뉴 (테두리 없는 버전)
-    selected_menu = st.pills(
-        label="내비게이션",
-        options=menu_options,
-        selection_mode="single",
-        default=default_sel,
-        key="top_nav_pills_v4", # 키값 한번 갱신
-        label_visibility="collapsed"
-    )
-
-    # 4. 클릭 감지 및 페이지 이동 로직
-    if selected_menu and selected_menu != default_sel:
-        if selected_menu == login_text:
-            if is_logged_in: st.session_state.auth_status = None
-            st.session_state.page = 'login'
-        elif selected_menu == watch_text:
-            st.session_state.view_mode = 'watchlist'
-            st.session_state.page = 'main'
-        elif selected_menu == board_text:
-            st.session_state.page = 'board'
-        elif selected_menu == home_text:
-            st.session_state.view_mode = 'all'
-            st.session_state.page = 'main'
-        
-        st.rerun()
-
-    st.write("---")
 
     # 메뉴와 리스트 사이 구분선 # 메뉴와 리스트 사이 구분선
     
@@ -2015,6 +1990,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
