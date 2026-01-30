@@ -738,27 +738,29 @@ elif st.session_state.page == 'calendar':
         </style>
     """, unsafe_allow_html=True)
 
-    # ---------------------------------------------------------
-    # [상단 메뉴 통합 구간] - 모바일 가로 3열 강제 고정
-    # ---------------------------------------------------------
+    # =========================================================
+    # [ULTIMATE-FIX] 상단 메뉴 가로 3열 강제 고정 (모바일 대응)
+    # =========================================================
     
-    # 1. CSS 설정: 오직 custom-nav 영역만 가로 정렬 강제
     st.markdown("""
         <style>
-        /* 모바일에서 100%로 늘어나는 속성을 무시하고 무조건 가로 3열 유지 */
+        /* 1. 상단 메뉴를 감싸는 컨테이너 설정 */
         .custom-nav div[data-testid="stHorizontalBlock"] {
             display: flex !important;
-            flex-direction: row !important;
+            flex-direction: row !important; 
             flex-wrap: nowrap !important;
-            gap: 6px !important;
             width: 100% !important;
+            gap: 6px !important;
         }
-        /* 각 칸의 너비를 1/3로 강제 고정 */
+
+        /* 2. 모바일에서 100%로 늘어나는 속성을 무력화 (가장 중요) */
         .custom-nav div[data-testid="column"] {
-            flex: 1 !important;
-            min-width: 0px !important;
+            flex: 1 1 0% !important;
+            min-width: 0px !important; /* 폭이 좁아져도 한 줄 유지 */
+            max-width: 33.3333% !important; /* 모바일에서 100% 방지 */
         }
-        /* 버튼 내부 텍스트 스타일 */
+
+        /* 3. 버튼 디자인 및 텍스트 최적화 */
         .custom-nav button {
             height: 48px !important;
             padding: 0px !important;
@@ -766,26 +768,29 @@ elif st.session_state.page == 'calendar':
             border: 1px solid #ddd !important;
             background-color: white !important;
         }
+
         .custom-nav button p {
             font-size: 11px !important;
             font-weight: bold !important;
-            white-space: nowrap !important;
+            white-space: nowrap !important; /* 텍스트 줄바꿈 방지 */
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # 2. 버튼 상태 처리
+    # 버튼 라벨 설정
     is_logged_in = st.session_state.auth_status == 'user'
     btn1_label = "로그아웃" if is_logged_in else "로그인"
-    btn2_label = f"관심기업({len(st.session_state.watchlist)})"
+    btn2_label = f"관심({len(st.session_state.watchlist)})"
     btn3_label = "게시판"
 
-    # 3. 버튼 레이아웃 출력 (전용 컨테이너 사용)
+    # 메뉴 출력
     st.markdown('<div class="custom-nav">', unsafe_allow_html=True)
     n1, n2, n3 = st.columns(3)
     
     with n1:
-        if st.button(btn1_label, key="n_log", use_container_width=True):
+        if st.button(btn1_label, key="n_log_final", use_container_width=True):
             if is_logged_in:
                 st.session_state.auth_status = None
                 st.session_state.page = 'login'
@@ -794,12 +799,12 @@ elif st.session_state.page == 'calendar':
             st.rerun()
 
     with n2:
-        if st.button(btn2_label, key="n_wat", use_container_width=True):
+        if st.button(btn2_label, key="n_wat_final", use_container_width=True):
             st.session_state.view_mode = 'watchlist'
             st.rerun()
 
     with n3:
-        if st.button(btn3_label, key="n_brd", use_container_width=True):
+        if st.button(btn3_label, key="n_brd_final", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
             
@@ -2030,6 +2035,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
