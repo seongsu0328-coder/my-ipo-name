@@ -763,16 +763,64 @@ elif st.session_state.page == 'calendar':
         if st.button("게시판", key="n_brd", use_container_width=True):
             st.session_state.page = 'board'
             st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True) 
-            
-    st.write("---")
+    st.markdown("""
+        <style>
+        .custom-nav div[data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 6px !important;
+        }
+        .custom-nav div[data-testid="column"] {
+            flex: 1 !important;
+            min-width: 0px !important;
+        }
+        .custom-nav button {
+            height: 48px !important;
+            padding: 0px !important;
+            border-radius: 8px !important;
+            border: 1px solid #ddd !important;
+            background-color: white !important;
+        }
+        .custom-nav button p {
+            font-size: 11px !important;
+            font-weight: bold !important;
+            white-space: nowrap !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-    # 여기서부터는 질문자님의 기존 리스트 로직 (c1, c2 = st.columns([7, 3]))이 이어집니다.
+    is_logged_in = st.session_state.auth_status == 'user'
+    btn1_label = "로그아웃" if is_logged_in else "로그인"
+    btn2_label = f"관심기업({len(st.session_state.watchlist)})"
+    btn3_label = "게시판"
 
-    # =========================================================
-    # [캘린더 리스트 로직] (기존 코드 100% 유지)
-    # =========================================================
+    st.markdown('<div class="custom-nav">', unsafe_allow_html=True)
+    n1, n2, n3 = st.columns(3)
     
+    with n1:
+        if st.button(btn1_label, key="n_log", use_container_width=True):
+            if is_logged_in:
+                st.session_state.auth_status = None
+                st.session_state.page = 'login'
+            else:
+                st.session_state.page = 'login'
+            st.rerun()
+    with n2:
+        if st.button(btn2_label, key="n_wat", use_container_width=True):
+            st.session_state.view_mode = 'watchlist'
+            st.rerun()
+    with n3:
+        if st.button(btn3_label, key="n_brd", use_container_width=True):
+            st.session_state.page = 'board'
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.write("---")
+    
+    # ---------------------------------------------------------
+    # [기존 로직 유지 구간] 이 아래는 원래 코드 그대로!
+    # ---------------------------------------------------------
     # 1. 데이터 가져오기
     all_df_raw = get_extended_ipo_data(MY_API_KEY)
     view_mode = st.session_state.get('view_mode', 'all')
@@ -1995,6 +2043,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
