@@ -958,18 +958,20 @@ elif st.session_state.page == 'calendar':
 
         
 
-# 5. 상세 페이지 (에러 수정 및 순서 변경 버전)
+# 5. 상세 페이지 (이동 로직 보정 + 디자인 + NameError 방지 통합본)
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     
-    # [1] 변수 초기화 (NameError 방지 1순위)
+    # [1] 변수 초기화
     profile = None
     fin_data = None
     current_p = 0
     off_val = 0
 
     if stock:
-        # [2] 상단 메뉴 스타일 및 메뉴바 (로그인, 메인, 관심, 게시판)
+        # -------------------------------------------------------------------------
+        # [2] 상단 메뉴바 (블랙 스타일 & 이동 로직 보정)
+        # -------------------------------------------------------------------------
         st.markdown("""
             <style>
             div[data-testid="stPills"] div[role="radiogroup"] button {
@@ -995,24 +997,39 @@ elif st.session_state.page == 'detail':
         board_text = "게시판"
         
         menu_options = [login_text, main_text, watch_text, board_text]
-        selected_menu = st.pills(label="nav", options=menu_options, selection_mode="single", key="detail_nav_v6", label_visibility="collapsed")
+        
+        # 상세 페이지에서는 선택된 메뉴가 없도록 index를 None에 가깝게 유지하거나 새로운 키 사용
+        selected_menu = st.pills(
+            label="nav", 
+            options=menu_options, 
+            selection_mode="single", 
+            key="detail_nav_final_v7", 
+            label_visibility="collapsed"
+        )
 
         if selected_menu:
             if selected_menu == login_text:
                 if is_logged_in: st.session_state.auth_status = None
                 st.session_state.page = 'login'
+            
             elif selected_menu == main_text:
-                st.session_state.view_mode = 'all'; st.session_state.page = 'main'
+                st.session_state.view_mode = 'all'
+                # [중요] 하얀 화면 방지: 메인 목록 페이지 이름이 'calendar'라면 여기를 'calendar'로 유지
+                st.session_state.page = 'calendar' 
+            
             elif selected_menu == watch_text:
-                st.session_state.view_mode = 'watchlist'; st.session_state.page = 'main'
+                st.session_state.view_mode = 'watchlist'
+                st.session_state.page = 'calendar' # 위와 동일하게 설정
+            
             elif selected_menu == board_text:
                 st.session_state.page = 'board'
+            
             st.rerun()
 
         st.write("---")
 
         # -------------------------------------------------------------------------
-        # [3] 사용자 판단 관련 핵심 로직 (이 부분이 호출보다 반드시 위에 있어야 함)
+        # [3] 사용자 판단 로직 (함수 정의)
         # -------------------------------------------------------------------------
         if 'user_decisions' not in st.session_state:
             st.session_state.user_decisions = {}
@@ -1021,7 +1038,6 @@ elif st.session_state.page == 'detail':
         if sid not in st.session_state.user_decisions:
             st.session_state.user_decisions[sid] = {"news": None, "filing": None, "macro": None, "company": None}
 
-        # 함수 정의 (NameError 해결의 핵심)
         def draw_decision_box(step_key, title, options):
             st.write("---")
             st.markdown(f"##### {title}")
@@ -1038,11 +1054,13 @@ elif st.session_state.page == 'detail':
                 st.session_state.user_decisions[sid][step_key] = choice
 
         # -------------------------------------------------------------------------
-        # [4] 데이터 로딩 및 헤더 (상장일/수익률 등)
+        # [4] 데이터 로딩 및 헤더 구성
         # -------------------------------------------------------------------------
         today = datetime.now().date()
-        try: ipo_dt = stock['공모일_dt'].date() if hasattr(stock['공모일_dt'], 'date') else pd.to_datetime(stock['공모일_dt']).date()
-        except: ipo_dt = today
+        try: 
+            ipo_dt = stock['공모일_dt'].date() if hasattr(stock['공모일_dt'], 'date') else pd.to_datetime(stock['공모일_dt']).date()
+        except: 
+            ipo_dt = today
         
         status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
         date_str = ipo_dt.strftime('%Y-%m-%d')
@@ -1067,7 +1085,11 @@ elif st.session_state.page == 'detail':
         st.markdown(f"<h1>{status_emoji} {stock['name']} <small>{p_html}</small></h1>", unsafe_allow_html=True)
         st.write("---")
 
-        # 이 아래에서 이제 draw_decision_box()를 마음껏 호출하셔도 됩니다!
+        # -------------------------------------------------------------------------
+        # [5] 탭 구성 및 상세 내용 (예시: 여기서부터 기존 탭 코드를 사용하세요)
+        # -------------------------------------------------------------------------
+        # tab1, tab2, tab3, tab4 = st.tabs(["기업정보", "재무지표", "최신뉴스", "판단하기"])
+        # ...
         
 
         # [3. 탭 메뉴 구성]
@@ -2061,6 +2083,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
