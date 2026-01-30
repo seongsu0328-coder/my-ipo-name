@@ -1275,8 +1275,8 @@ elif st.session_state.page == 'detail':
             else:
                 st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
 
-            # [수정 완료] draw_decision_box가 if/else와 같은 레벨에 위치해야 합니다.
-            draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
+            # 수정 (고유한 ID 부여):
+            draw_decision_box("tab0_news_summary", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
         # --- [Tab 1: 핵심 정보 (공시 문서 링크 전용)] ---
         with tab1:
@@ -2149,6 +2149,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
