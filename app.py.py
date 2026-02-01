@@ -1757,15 +1757,15 @@ elif st.session_state.page == 'detail':
             is_admin = (current_user == ADMIN_PHONE)
 
             # --- 1. 투표 기능 ---
-            st.markdown("### 투자 매력도 투표")
+            st.markdown("### 매력도")
             if st.session_state.get('auth_status') == 'user':
                 if sid not in st.session_state.user_votes:
                     v1, v2 = st.columns(2)
-                    if v1.button("🦄 Unicorn (상승 예측)", use_container_width=True, key=f"vu_{sid}"): 
+                    if v1.button("Unicorn (상승 예측)", use_container_width=True, key=f"vu_{sid}"): 
                         st.session_state.vote_data[sid]['u'] += 1
                         st.session_state.user_votes[sid] = 'u'
                         st.rerun()
-                    if v2.button("💸 Fallen Angel (하락 예측)", use_container_width=True, key=f"vf_{sid}"): 
+                    if v2.button("Fallen Angel (하락 예측)", use_container_width=True, key=f"vf_{sid}"): 
                         st.session_state.vote_data[sid]['f'] += 1
                         st.session_state.user_votes[sid] = 'f'
                         st.rerun()
@@ -1786,7 +1786,7 @@ elif st.session_state.page == 'detail':
             
 
             # --- 2. 커뮤니티 의견 ---
-            st.markdown("### 주주 토론방")
+            st.markdown("###토론방")
             if st.session_state.get('auth_status') == 'user':
                 with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
                     user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
@@ -1856,7 +1856,7 @@ elif st.session_state.page == 'detail':
                 st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
 
             # --- [✨ 기능 개선] 사용자 판단 종합 리포트 생성 (Simple & Clean Version) ---
-            st.markdown("### 나의 투자 판단 종합")
+            st.markdown("### 판단종합")
             
             # 1. 저장된 선택값 가져오기
             ud = st.session_state.user_decisions.get(sid, {})
@@ -2077,6 +2077,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
