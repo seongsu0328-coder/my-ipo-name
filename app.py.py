@@ -1192,7 +1192,7 @@ elif st.session_state.page == 'detail':
         if profile:
             st.markdown(f"**🏢 {stock['name']}** | {profile.get('finnhubIndustry','-')} | {profile.get('currency','USD')}")
         else:
-            st.markdown(f"**🏢 {stock['name']}** | 기업 정보를 불러오는 중...")
+            st.markdown(f"**🏢 {stock['name']}** | ")
 
         # [세션 상태 관리]
         if 'core_topic' not in st.session_state:
@@ -2048,6 +2048,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
