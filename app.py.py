@@ -1503,7 +1503,7 @@ elif st.session_state.page == 'detail':
                 
                 st.info("**Tip:** 시장이 과열될수록 '묻지마 청약'보다는 기업의 발생액 품질(Accruals Quality)을 꼼꼼히 따져봐야 합니다.")
 
-            st.write("<br>", unsafe_allow_html=True)
+        
 
             # [4] 참고논문 (expander)
             with st.expander("참고논문 및 공식 출처 (References)", expanded=False):
@@ -2045,6 +2045,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
