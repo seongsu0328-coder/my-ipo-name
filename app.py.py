@@ -1475,7 +1475,7 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
 
             # [3] AI 종합 진단
-            st.markdown("#### 시장 환경 실시간 AI 진단")
+            
             # [수정] expanded=True -> False (기본 접힘)
             with st.expander("시장 데이터 기반 학술적 분석 보기", expanded=False): 
                 is_hot_market = md['ipo_return'] >= 20 or md['ipo_volume'] >= 10
@@ -2045,6 +2045,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
