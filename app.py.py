@@ -1110,13 +1110,6 @@ elif st.session_state.page == 'detail':
         # --- Tab 0: 뉴스 & 심층 분석 ---
     with tab0:
         # [1] 기업 심층 분석 섹션 (Expander 적용)
-        st.markdown(f"""
-            <div style="margin-top: 20px; margin-bottom:5px;">
-                <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-                    기업 심층 분석
-                </h3>
-            </div>""", unsafe_allow_html=True)
-
         with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
             st.caption("Tavily AI 엔진과 알고리즘이 실시간으로 데이터를 분석합니다.")
             q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
@@ -2055,6 +2048,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
