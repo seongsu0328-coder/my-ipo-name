@@ -1189,10 +1189,7 @@ elif st.session_state.page == 'detail':
     # --- Tab 1: 핵심 정보 (profile 부재 대비 완료) ---
     with tab1:
         # 1. 상단 기업 정보 표시
-        if profile:
-            st.markdown(f"**🏢 {stock['name']}** | {profile.get('finnhubIndustry','-')} | {profile.get('currency','USD')}")
-        else:
-            st.markdown(f"**🏢 {stock['name']}** | ")
+        
 
         # [세션 상태 관리]
         if 'core_topic' not in st.session_state:
@@ -2048,6 +2045,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
