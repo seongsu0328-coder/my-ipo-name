@@ -1812,7 +1812,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 2. [순서 변경] 투자 결정 및 관심 종목 (아래로 이동)
             # ---------------------------------------------------------
-            
+            st.markdown("### 관심종목")
             
             if st.session_state.get('auth_status') == 'user':
                 
@@ -2096,7 +2096,6 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
-
 
 
 
