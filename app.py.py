@@ -1639,7 +1639,7 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
 
             # [3] AI 종합 판정 리포트
-            st.markdown("#### AI 종목 심층 진단 리포트")
+            
             # [수정] expanded=True -> False (기본 접힘)
             with st.expander("논문기반 AI분석보기", expanded=False):
                 # (분석 로직은 위와 동일)
@@ -2045,6 +2045,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
