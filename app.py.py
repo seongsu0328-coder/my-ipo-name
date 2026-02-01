@@ -1569,7 +1569,7 @@ elif st.session_state.page == 'detail':
             }
 
             # [2] 카드형 UI 레이아웃
-            st.subheader(f"{stock['name']} 심층 평가 지표")
+            
             
             r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
             r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
@@ -2045,6 +2045,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
