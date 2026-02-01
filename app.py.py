@@ -1641,17 +1641,17 @@ elif st.session_state.page == 'detail':
             # [3] AI 종합 판정 리포트
             st.markdown("#### AI 종목 심층 진단 리포트")
             # [수정] expanded=True -> False (기본 접힘)
-            with st.expander("논문 기반 AI 분석 보기", expanded=False):
+            with st.expander("논문기반 AI분석보기", expanded=False):
                 # (분석 로직은 위와 동일)
                 st.success(f"{stock['name']}에 대한 실시간 데이터 검증 완료")
                 st.write(f"**{stock['symbol']} 종합 평가:**")
                 st.write(f"**성장성:** 안정적, **자금 건전성:** 양호")
                 st.write(f"**기관 검증:** {md_stock['vc_backed']}로 확인되어 정보 비대칭 리스크가 낮음.")
 
-            st.write("<br>", unsafe_allow_html=True)
+           
 
             # [4] 학술적 근거 및 원문 링크 섹션 (복구됨)
-            with st.expander("참고논문(References)", expanded=False):
+            with st.expander("참고(References)", expanded=False):
                 # CSS 스타일 적용
                 st.markdown("""
                 <style>
@@ -2045,6 +2045,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
