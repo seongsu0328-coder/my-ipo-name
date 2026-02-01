@@ -1549,90 +1549,127 @@ elif st.session_state.page == 'detail':
             draw_decision_box("macro", "현재 거시경제(Macro) 상황에 대한 판단은?", ["버블", "중립", "침체"])
 
 
-        # --- Tab 3: 개별 기업 평가 ---
+        # --- Tab 3: 개별 기업 평가 (Real Data 연동) ---
         with tab3:
-            # [1] 실시간 데이터 호출 및 전처리
-            def get_us_ipo_analysis(symbol):
-                # (실제 API 호출이 필요한 부분 - 현재는 예시 로직 유지)
-                # 실제 배포 시에는 get_financial_metrics 등을 활용해 로직을 정교화해야 함
-                return {"status": "Success", "sales_growth": 45.2, "ocf": 1500000, "accruals": "Low"}
-
-            live_data = get_us_ipo_analysis(stock['symbol'])
-            is_success = live_data['status'] == "Success"
+            # [1] 데이터 전처리 (API 데이터 fin_data 활용)
+            # fin_data는 상단에서 이미 호출됨: {"growth": ..., "op_margin": ..., "net_margin": ...}
             
+            # (A) 매출 성장률 (Sales Growth)
+            growth_val = fin_data.get('growth') if fin_data else None
+            
+            # (B) 영업 현금흐름 (OCF) - API 제공 여부에 따라 추정
+            # Finnhub 무료 플랜은 OCF를 직접 주지 않는 경우가 많아 Net Margin으로 간접 추정하거나 0으로 처리
+            ocf_val = fin_data.get('net_margin') if fin_data else 0  
+            # (참고: 실제 OCF 금액이 아니지만, 수익성 대리 지표로 활용)
+
+            # (C) 발생액 (Accruals) 추정: 순이익률 - 영업이익률 차이로 간접 유추
+            # (영업이익이 순이익보다 현저히 높으면 발생액 품질이 낮을 수 있음)
+            if fin_data and fin_data.get('op_margin') and fin_data.get('net_margin'):
+                acc_diff = fin_data['op_margin'] - fin_data['net_margin']
+                accruals_status = "Low" if abs(acc_diff) < 5 else "High" # 차이가 작으면 양호(Low)
+            else:
+                accruals_status = "Unknown"
+
             md_stock = {
-                "sales_growth": live_data.get('sales_growth'),
-                "ocf": live_data.get('ocf'),
-                "accruals": live_data.get('accruals'),
-                "vc_backed": "Yes (Tier 1)", 
-                "discount_rate": 15.4        
+                "sales_growth": growth_val, # 실제 데이터 매핑
+                "ocf": ocf_val,             # 실제 데이터(Margin) 매핑
+                "accruals": accruals_status,
+                "vc_backed": "Checking...", # VC 정보는 별도 유료 API 필요 (일단 Placeholder)
+                "discount_rate": 0.0        # 공모가 대비 시초가(Underpricing)는 상장 후 계산 가능
             }
 
             # [2] 카드형 UI 레이아웃
-            
+            st.subheader(f"{stock['name']} 심층 평가 지표")
             
             r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
             r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
 
-            # (1) 매출 성장성
+            # (1) 매출 성장성 (Sales Growth)
             with r1_c1:
                 val = md_stock['sales_growth']
-                status, st_cls = (("🔥 과열", "st-hot") if val > 100 else ("✅ 안정", "st-good")) if val else ("🔍 N/A", "st-neutral")
-                display_val = f"{val:+.1f}%" if val else "데이터 없음"
+                # 값이 있을 때만 평가, 없으면 N/A
+                if val is not None:
+                    status = "🔥 고성장" if val > 20 else "✅ 안정" if val > 5 else "⚠️ 둔화"
+                    st_cls = "st-hot" if val > 20 else "st-good" if val > 5 else "st-neutral"
+                    display_val = f"{val:+.1f}%"
+                else:
+                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 없음")
+                
                 st.markdown(f"""
                 <div class='metric-card'>
                     <div class='metric-header'>Sales Growth</div>
                     <div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div>
-                    <div class='metric-desc'>최근 연간 매출 성장률입니다. 100%가 넘는 급성장은 상장 직후 주가 변동성이 클 수 있습니다.</div>
+                    <div class='metric-desc'>최근 연간 매출 성장률(YoY)입니다. 20% 이상이면 고성장 기업으로 분류됩니다.</div>
                     <div class='metric-footer'>Ref: Jay Ritter (1991)</div>
                 </div>""", unsafe_allow_html=True)
 
-            # (2) 영업 현금흐름
+            # (2) 수익성 (Net Margin) - OCF 대용
             with r1_c2:
-                val = md_stock['ocf']
-                status, st_cls = (("✅ 양호", "st-good") if val > 0 else ("🚨 위험", "st-hot")) if val else ("🔍 N/A", "st-neutral")
-                display_val = ("${:,.0f}".format(val) if abs(val) < 1000000 else "${:,.1f}M".format(val/1000000)) if val else "데이터 없음"
+                val = md_stock['ocf'] # 여기선 Net Margin 값 사용
+                if val is not None:
+                    status = "✅ 흑자" if val > 0 else "🚨 적자"
+                    st_cls = "st-good" if val > 0 else "st-hot"
+                    display_val = f"{val:.1f}%"
+                else:
+                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 없음")
+
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>Operating Cash Flow</div>
+                    <div class='metric-header'>Net Margin (Profit)</div>
                     <div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div>
-                    <div class='metric-desc'>실제 사업을 통해 벌어들인 현금입니다. 적자 기업이라도 현금흐름이 양수(+)면 생존력이 높습니다.</div>
+                    <div class='metric-desc'>순이익률입니다. 초기 IPO 기업은 적자인 경우가 많으나, 적자 폭이 30%를 넘으면 위험합니다.</div>
                     <div class='metric-footer'>Ref: Fama & French (2004)</div>
                 </div>""", unsafe_allow_html=True)
 
-            # (3) 발생액 품질 (회계 건전성)
+            # (3) 발생액 품질 (Accruals)
             with r1_c3:
                 val = md_stock['accruals']
-                status, st_cls = (("✅ 건전", "st-good") if val == "Low" else ("🚨 주의", "st-hot")) if val else ("🔍 N/A", "st-neutral")
-                display_val = val if val else "데이터 없음"
+                status = "✅ 건전" if val == "Low" else "🚨 주의" if val == "High" else "🔍 N/A"
+                st_cls = "st-good" if val == "Low" else "st-hot" if val == "High" else "st-neutral"
+                
                 st.markdown(f"""
                 <div class='metric-card'>
                     <div class='metric-header'>Accruals Quality</div>
-                    <div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div>
-                    <div class='metric-desc'>장부상 이익과 실제 현금의 차이입니다. Low(낮음)일수록 회계 조작 가능성이 적고 깨끗한 기업입니다.</div>
+                    <div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div>
+                    <div class='metric-desc'>영업이익과 순이익의 괴리율입니다. Low(낮음)일수록 회계 장부가 깨끗함을 의미합니다.</div>
                     <div class='metric-footer'>Ref: Teoh et al. (1998)</div>
                 </div>""", unsafe_allow_html=True)
 
-            # (4) VC 인증 효과
+            # (4) 부채 비율 (Debt/Equity) - VC 대용으로 활용 (데이터 가용성 고려)
             with r1_c4:
-                val = md_stock['vc_backed']
+                # VC 데이터 대신 재무 안정성 지표인 부채비율로 대체 (무료 API 한계)
+                de_val = fin_data.get('debt_equity') if fin_data else None
+                if de_val is not None:
+                    display_val = f"{de_val:.1f}%"
+                    status = "✅ 안정" if de_val < 100 else "⚠️ 다소 높음"
+                    st_cls = "st-good" if de_val < 100 else "st-neutral"
+                else:
+                    display_val, status, st_cls = ("데이터 없음", "🔍 N/A", "st-neutral")
+
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>VC Certification</div>
-                    <div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge st-good'>Verified</span></div>
-                    <div class='metric-desc'>유명 벤처캐피탈의 투자를 받았는지 여부입니다. 기관의 사전 검증을 거쳤음을 의미합니다.</div>
-                    <div class='metric-footer'>Ref: Barry et al. (1990)</div>
+                    <div class='metric-header'>Debt / Equity</div>
+                    <div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div>
+                    <div class='metric-desc'>자기자본 대비 부채 비율입니다. 100% 미만이면 재무 구조가 안정적입니다.</div>
+                    <div class='metric-footer'>Ref: Standard Ratio</div>
                 </div>""", unsafe_allow_html=True)
 
-            # (5) 공모가 할인율 (언더프라이싱)
+            # (5) 공모가 할인율 (Underpricing) - 상장 후 계산
             with r2_c1:
-                val = md_stock['discount_rate']
-                status, st_cls = ("✅ 매력", "st-good") if val > 15 else ("⚖️ 보통", "st-neutral")
+                # 현재가와 공모가 비교
+                if current_p > 0 and off_val > 0:
+                    up_rate = ((current_p - off_val) / off_val) * 100
+                    display_val = f"{up_rate:+.1f}%"
+                    status = "🚀 급등" if up_rate > 20 else "📉 하회" if up_rate < 0 else "⚖️ 적정"
+                    st_cls = "st-hot" if up_rate > 20 else "st-cold" if up_rate < 0 else "st-good"
+                else:
+                    display_val, status, st_cls = ("대기 중", "⏳ IPO 예정", "st-neutral")
+
                 st.markdown(f"""
                 <div class='metric-card'>
-                    <div class='metric-header'>Underpricing Rate</div>
-                    <div class='metric-value-row'><span class='metric-value'>{val:.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div>
-                    <div class='metric-desc'>적정 가치 대비 공모가가 얼마나 할인되었는지 추정합니다. 15% 이상일 때 투자 매력이 높습니다.</div>
+                    <div class='metric-header'>Market Performance</div>
+                    <div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div>
+                    <div class='metric-desc'>공모가 대비 현재 주가 수익률입니다. 15% 이상 상승 시 성공적인 IPO로 평가받습니다.</div>
                     <div class='metric-footer'>Ref: Kevin Rock (1986)</div>
                 </div>""", unsafe_allow_html=True)
 
@@ -2045,6 +2082,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
