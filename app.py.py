@@ -1734,7 +1734,7 @@ elif st.session_state.page == 'detail':
             # [✅ 추가됨] 4단계 사용자 판단
             draw_decision_box("company", "기업 가치평가는(Valusation)?", ["버블", "중립", "안정적"])
 
-        # --- Tab 4: 최종 투자 결정 (Integrated) ---
+        # --- Tab 4: 최종 투자 결정 (순서 변경됨) ---
         with tab4:
             import uuid
             from datetime import datetime
@@ -1743,112 +1743,34 @@ elif st.session_state.page == 'detail':
             ADMIN_PHONE = "010-0000-0000" 
             sid = stock['symbol']
             
-            # 세션 데이터 초기화 (누락 방지)
+            # 세션 데이터 초기화
             if 'vote_data' not in st.session_state: st.session_state.vote_data = {}
             if 'comment_data' not in st.session_state: st.session_state.comment_data = {}
             if 'watchlist' not in st.session_state: st.session_state.watchlist = []
             if 'watchlist_predictions' not in st.session_state: st.session_state.watchlist_predictions = {}
             
-            # 종목별 투표 데이터 초기화 (기본값 설정)
+            # 종목별 투표 데이터 초기화
             if sid not in st.session_state.vote_data: 
-                st.session_state.vote_data[sid] = {'u': 10, 'f': 3} # 초기 샘플 데이터
+                st.session_state.vote_data[sid] = {'u': 10, 'f': 3} 
             
             if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
             
             current_user = st.session_state.get('user_phone', 'guest')
             is_admin = (current_user == ADMIN_PHONE)
 
-            # --- [통합] 투자 결정 및 관심 종목 관리 ---
-            st.markdown("### 관심종목")
+            # ---------------------------------------------------------
+            # 1. [순서 변경] 나의 판단 종합 (먼저 배치)
+            # ---------------------------------------------------------
+            st.markdown("### 📝 나의 판단 종합")
             
-            # 1. 로그인 상태 체크
-            if st.session_state.get('auth_status') == 'user':
-                
-                # 2. 보관 여부에 따른 UI 분기
-                if sid not in st.session_state.watchlist:
-                    st.info("이 기업의 미래를 예측하고 관심 종목에 담아보세요. (투표 자동 반영)")
-                    
-                    c_up, c_down = st.columns(2)
-                    
-                    # [UP 버튼] 클릭 시 -> 워치리스트 추가 + 상승 투표 + 축하 효과
-                    if c_up.button("📈 상승 (UP)", key=f"up_btn_{sid}", use_container_width=True, type="primary"):
-                        st.session_state.watchlist.append(sid)
-                        st.session_state.watchlist_predictions[sid] = "UP"
-                        st.session_state.vote_data[sid]['u'] += 1 # 투표수 증가
-                        st.balloons()
-                        st.rerun()
-                        
-                    # [DOWN 버튼] 클릭 시 -> 워치리스트 추가 + 하락 투표
-                    if c_down.button("📉 하락 (DOWN)", key=f"down_btn_{sid}", use_container_width=True):
-                        st.session_state.watchlist.append(sid)
-                        st.session_state.watchlist_predictions[sid] = "DOWN"
-                        st.session_state.vote_data[sid]['f'] += 1 # 투표수 증가
-                        st.rerun()
-                        
-                else:
-                    # 이미 보관 중인 경우
-                    my_pred = st.session_state.watchlist_predictions.get(sid, "N/A")
-                    pred_badge = "🚀 상승(UP)" if my_pred == "UP" else "📉 하락(DOWN)"
-                    
-                    st.success(f"✅ 관심 종목에 보관 중입니다. (나의 예측: **{pred_badge}**)")
-                    
-                    # 보관 해제 버튼 (투표 취소 로직 포함)
-                    if st.button("🗑️ 보관 해제 (투표 취소)", key=f"remove_btn_{sid}", use_container_width=True):
-                        st.session_state.watchlist.remove(sid)
-                        # 기존 예측에 따라 투표수 차감
-                        if my_pred == "UP":
-                            st.session_state.vote_data[sid]['u'] -= 1
-                        elif my_pred == "DOWN":
-                            st.session_state.vote_data[sid]['f'] -= 1
-                            
-                        if sid in st.session_state.watchlist_predictions: 
-                            del st.session_state.watchlist_predictions[sid]
-                        st.rerun()
-
-                # 3. 투표 통계 메시지 출력 (요청하신 기능)
-                st.write("") # 여백
-                u_votes = st.session_state.vote_data[sid]['u']
-                f_votes = st.session_state.vote_data[sid]['f']
-                total_votes = u_votes + f_votes
-                
-                if total_votes > 0:
-                    u_pct = int((u_votes / total_votes) * 100)
-                    f_pct = 100 - u_pct
-                    
-                    # 프로그레스 바
-                    st.progress(u_pct / 100)
-                    
-                    # [핵심] 통계 텍스트 메시지
-                    msg_html = f"""
-                    <div style='text-align:center; color:#555; font-size:14px; background-color:#f1f3f4; padding:10px; border-radius:10px;'>
-                        현재 <b>{u_pct}%</b>의 사용자는 <span style='color:#e61919;'><b>UP</b></span>을, 
-                        <b>{f_pct}%</b>의 사용자는 <span style='color:#1919e6;'><b>DOWN</b></span>을 선택했습니다.<br>
-                        <small>(총 {total_votes}명 참여)</small>
-                    </div>
-                    """
-                    st.markdown(msg_html, unsafe_allow_html=True)
-                else:
-                    st.caption("아직 투표 데이터가 없습니다. 첫 번째 예측의 주인공이 되어보세요!")
-
-            else:
-                st.warning("🔒 로그인 후 관심 종목 추가 및 투표가 가능합니다.")
-
-            st.write("---")
-
-            # --- 2. [통합] 판단 종합 리포트 ---
-            st.markdown("### 나의 판단 종합")
-            
-            # 1. 저장된 선택값 가져오기
             ud = st.session_state.user_decisions.get(sid, {})
             
-            # 2. 누락된 단계 확인
             missing_steps = []
             if not ud.get('news'): missing_steps.append("Step 1")
             if not ud.get('filing'): missing_steps.append("Step 2")
             if not ud.get('macro'): missing_steps.append("Step 3")
             if not ud.get('company'): missing_steps.append("Step 4")
 
-            # 3. 조건에 따른 메시지 및 스타일 설정
             if len(missing_steps) > 0:
                 summary_text = "<div style='text-align: left; font-weight: 600; font-size: 15px; color: #444;'>⏳ 모든 분석 단계(Step 1~4)를 완료하면 종합 리포트가 생성됩니다.</div>"
                 box_bg = "#f8f9fa"
@@ -1867,15 +1789,84 @@ elif st.session_state.page == 'detail':
                 box_bg = "#eef2ff"
                 box_border = "#6e8efb"
 
-            # 4. 결과 출력
             st.markdown(f"""<div style="background-color:{box_bg}; padding:20px; border-radius:12px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">{summary_text}</div>""", unsafe_allow_html=True)
 
-            st.write("<br>", unsafe_allow_html=True)
+            st.write("---")
+
+            # ---------------------------------------------------------
+            # 2. [순서 변경] 투자 결정 및 관심 종목 (아래로 이동)
+            # ---------------------------------------------------------
+            st.markdown("### 🎯 투자 결정 및 관심 종목")
             
-            # --- 3. 주주 토론방 ---
-            st.markdown("### 주주 토론방")
+            if st.session_state.get('auth_status') == 'user':
+                
+                if sid not in st.session_state.watchlist:
+                    st.info("이 기업의 미래를 예측하고 관심 종목에 담아보세요. (투표 자동 반영)")
+                    
+                    c_up, c_down = st.columns(2)
+                    
+                    if c_up.button("📈 상승 (UP) & 보관", key=f"up_btn_{sid}", use_container_width=True, type="primary"):
+                        st.session_state.watchlist.append(sid)
+                        st.session_state.watchlist_predictions[sid] = "UP"
+                        st.session_state.vote_data[sid]['u'] += 1 
+                        st.balloons()
+                        st.rerun()
+                        
+                    if c_down.button("📉 하락 (DOWN) & 보관", key=f"down_btn_{sid}", use_container_width=True):
+                        st.session_state.watchlist.append(sid)
+                        st.session_state.watchlist_predictions[sid] = "DOWN"
+                        st.session_state.vote_data[sid]['f'] += 1 
+                        st.rerun()
+                        
+                else:
+                    my_pred = st.session_state.watchlist_predictions.get(sid, "N/A")
+                    pred_badge = "🚀 상승(UP)" if my_pred == "UP" else "📉 하락(DOWN)"
+                    
+                    st.success(f"✅ 관심 종목에 보관 중입니다. (나의 예측: **{pred_badge}**)")
+                    
+                    if st.button("🗑️ 보관 해제 (투표 취소)", key=f"remove_btn_{sid}", use_container_width=True):
+                        st.session_state.watchlist.remove(sid)
+                        if my_pred == "UP":
+                            st.session_state.vote_data[sid]['u'] -= 1
+                        elif my_pred == "DOWN":
+                            st.session_state.vote_data[sid]['f'] -= 1
+                            
+                        if sid in st.session_state.watchlist_predictions: 
+                            del st.session_state.watchlist_predictions[sid]
+                        st.rerun()
+
+                st.write("") 
+                u_votes = st.session_state.vote_data[sid]['u']
+                f_votes = st.session_state.vote_data[sid]['f']
+                total_votes = u_votes + f_votes
+                
+                if total_votes > 0:
+                    u_pct = int((u_votes / total_votes) * 100)
+                    f_pct = 100 - u_pct
+                    
+                    st.progress(u_pct / 100)
+                    
+                    msg_html = f"""
+                    <div style='text-align:center; color:#555; font-size:14px; background-color:#f1f3f4; padding:10px; border-radius:10px;'>
+                        현재 <b>{u_pct}%</b>의 사용자는 <span style='color:#e61919;'><b>UP</b></span>을, 
+                        <b>{f_pct}%</b>의 사용자는 <span style='color:#1919e6;'><b>DOWN</b></span>을 선택했습니다.<br>
+                        <small>(총 {total_votes}명 참여)</small>
+                    </div>
+                    """
+                    st.markdown(msg_html, unsafe_allow_html=True)
+                else:
+                    st.caption("아직 투표 데이터가 없습니다. 첫 번째 예측의 주인공이 되어보세요!")
+
+            else:
+                st.warning("🔒 로그인 후 관심 종목 추가 및 투표가 가능합니다.")
+
+            st.write("---")
             
-            # (이하 토론방 코드는 기존 로직 유지)
+            # ---------------------------------------------------------
+            # 3. 주주 토론방 (맨 아래 유지)
+            # ---------------------------------------------------------
+            st.markdown("### 💬 주주 토론방")
+            
             if st.session_state.get('auth_status') == 'user':
                 with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
                     user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
@@ -1897,7 +1888,6 @@ elif st.session_state.page == 'detail':
 
             comments = st.session_state.comment_data.get(sid, [])
             if comments:
-                # 댓글 리스트 출력 로직 (기존과 동일)
                 for c in comments:
                     if 'likes' not in c: c['likes'] = []
                     if 'dislikes' not in c: c['dislikes'] = []
@@ -2090,6 +2080,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
