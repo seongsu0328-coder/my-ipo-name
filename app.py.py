@@ -1761,7 +1761,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 1. [순서 변경] 나의 판단 종합 (먼저 배치)
             # ---------------------------------------------------------
-            st.markdown("### 나의 판단 종합")
+            
             
             ud = st.session_state.user_decisions.get(sid, {})
             
@@ -1781,8 +1781,8 @@ elif st.session_state.page == 'detail':
                 d_macro = ud.get('macro')
                 d_company = ud.get('company')
                 
-                summary_text = f"""사용자는 해당 기업소개와 뉴스에 대해 <b>{d_news}</b>이라 판단했고, 
-주요 공시정보에 대해서는 <b>{d_filing}</b>입니다. 현재 거시경제 상황에 대해서 <b>{d_macro}</b>이라 판단하고 있고, 
+                summary_text = f"""사용자는 해당 기업소개와 뉴스에 대해 <b>{d_news}</b>이라 판단했고 
+주요 공시정보에 대해서는 <b>{d_filing}</b>입니다. 현재 거시경제 상황에 대해서 <b>{d_macro}</b>이라 판단하고 있고
 현 기업의 가치평가에 대해서는 <b>{d_company}</b>이라고 판단합니다. <br><br>
 현재 IPO예정 기업과 거시경제에 대한 정보를 바탕으로 최종 의사결정을 내릴 준비가 되어 있습니다."""
                 
@@ -2079,6 +2079,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
