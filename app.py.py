@@ -1642,7 +1642,8 @@ elif st.session_state.page == 'detail':
 
             # [3] AI 종합 판정 리포트
             st.markdown("#### AI 종목 심층 진단 리포트")
-            with st.expander("논문 기반 AI 분석 보기", expanded=True):
+            # [수정] expanded=True -> False (기본 접힘)
+            with st.expander("논문 기반 AI 분석 보기", expanded=False):
                 # (분석 로직은 위와 동일)
                 st.success(f"{stock['name']}에 대한 실시간 데이터 검증 완료")
                 st.write(f"**{stock['symbol']} 종합 평가:**")
@@ -2046,6 +2047,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
