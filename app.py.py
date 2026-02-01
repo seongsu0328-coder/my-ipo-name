@@ -1246,7 +1246,7 @@ elif st.session_state.page == 'detail':
         st.write("") 
 
         # 5. 결정 박스 (profile 여부와 상관없이 출력)
-        draw_decision_box("filing_decision", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
+        draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
@@ -2082,6 +2082,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
