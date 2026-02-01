@@ -1786,7 +1786,7 @@ elif st.session_state.page == 'detail':
             
 
             # --- 2. 커뮤니티 의견 ---
-            st.markdown("###토론방")
+            st.markdown("### 토론방")
             if st.session_state.get('auth_status') == 'user':
                 with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
                     user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
@@ -2077,6 +2077,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
