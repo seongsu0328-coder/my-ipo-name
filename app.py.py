@@ -1097,6 +1097,24 @@ elif st.session_state.page == 'detail':
         st.write("") # 미세 여백
 
         # -------------------------------------------------------------------------
+        # [CSS 추가] 탭 텍스트 색상 검정색으로 강제 고정 (모바일 가독성 해결)
+        # -------------------------------------------------------------------------
+        st.markdown("""
+        <style>
+            /* 1. 탭 버튼 내부의 텍스트 색상 지정 */
+            .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+                color: #333333 !important; /* 검은색 강제 적용 */
+                font-weight: bold !important; /* 굵게 표시 */
+            }
+            
+            /* 2. 탭 마우스 오버 시 색상 (선택 사항) */
+            .stTabs [data-baseweb="tab-list"] button:hover [data-testid="stMarkdownContainer"] p {
+                color: #004e92 !important; /* 마우스 올렸을 때 파란색 */
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # -------------------------------------------------------------------------
         # [5] 탭 메뉴 구성
         # -------------------------------------------------------------------------
         tab0, tab1, tab2, tab3, tab4 = st.tabs([
@@ -2078,6 +2096,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
