@@ -1102,8 +1102,8 @@ elif st.session_state.page == 'detail':
         tab0, tab1, tab2, tab3, tab4 = st.tabs([
             " 주요 뉴스", 
             " 주요 공시", 
-            " 버블 평가", 
-            " 심층 진단", 
+            " 거시 평가", 
+            " 미시 평가", 
             " 투자 결정"
         ])
 
@@ -2082,6 +2082,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
