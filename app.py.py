@@ -1477,7 +1477,7 @@ elif st.session_state.page == 'detail':
             # [3] AI 종합 진단
             
             # [수정] expanded=True -> False (기본 접힘)
-            with st.expander("시장 데이터 기반 학술적 분석 보기", expanded=False): 
+            with st.expander("논문기반 AI분석보기", expanded=False): 
                 is_hot_market = md['ipo_return'] >= 20 or md['ipo_volume'] >= 10
                 is_bubble_risk = md['unprofitable_pct'] >= 80
 
@@ -1506,7 +1506,7 @@ elif st.session_state.page == 'detail':
         
 
             # [4] 참고논문 (expander)
-            with st.expander("참고논문 및 공식 출처 (References)", expanded=False):
+            with st.expander("참고(References)", expanded=False):
                 # ... (참고문헌 스타일 및 리스트 출력 로직은 동일하게 유지) ...
                 st.markdown("""
                 <style>
@@ -2045,6 +2045,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
