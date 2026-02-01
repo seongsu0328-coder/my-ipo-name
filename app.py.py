@@ -1759,7 +1759,7 @@ elif st.session_state.page == 'detail':
             is_admin = (current_user == ADMIN_PHONE)
 
             # --- [통합] 투자 결정 및 관심 종목 관리 ---
-            st.markdown("### 🎯 투자 결정 및 관심 종목")
+            st.markdown("### 관심종목")
             
             # 1. 로그인 상태 체크
             if st.session_state.get('auth_status') == 'user':
@@ -1771,7 +1771,7 @@ elif st.session_state.page == 'detail':
                     c_up, c_down = st.columns(2)
                     
                     # [UP 버튼] 클릭 시 -> 워치리스트 추가 + 상승 투표 + 축하 효과
-                    if c_up.button("📈 상승 (UP) & 보관", key=f"up_btn_{sid}", use_container_width=True, type="primary"):
+                    if c_up.button("📈 상승 (UP)", key=f"up_btn_{sid}", use_container_width=True, type="primary"):
                         st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "UP"
                         st.session_state.vote_data[sid]['u'] += 1 # 투표수 증가
@@ -1779,7 +1779,7 @@ elif st.session_state.page == 'detail':
                         st.rerun()
                         
                     # [DOWN 버튼] 클릭 시 -> 워치리스트 추가 + 하락 투표
-                    if c_down.button("📉 하락 (DOWN) & 보관", key=f"down_btn_{sid}", use_container_width=True):
+                    if c_down.button("📉 하락 (DOWN)", key=f"down_btn_{sid}", use_container_width=True):
                         st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "DOWN"
                         st.session_state.vote_data[sid]['f'] += 1 # 투표수 증가
@@ -1836,7 +1836,7 @@ elif st.session_state.page == 'detail':
             st.write("---")
 
             # --- 2. [통합] 판단 종합 리포트 ---
-            st.markdown("### 📝 나의 판단 종합")
+            st.markdown("### 나의 판단 종합")
             
             # 1. 저장된 선택값 가져오기
             ud = st.session_state.user_decisions.get(sid, {})
@@ -1873,7 +1873,7 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
             
             # --- 3. 주주 토론방 ---
-            st.markdown("### 💬 주주 토론방")
+            st.markdown("### 주주 토론방")
             
             # (이하 토론방 코드는 기존 로직 유지)
             if st.session_state.get('auth_status') == 'user':
@@ -2090,6 +2090,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
