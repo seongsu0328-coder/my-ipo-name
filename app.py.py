@@ -1791,8 +1791,7 @@ elif st.session_state.page == 'detail':
 
             st.markdown(f"""<div style="background-color:{box_bg}; padding:20px; border-radius:12px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">{summary_text}</div>""", unsafe_allow_html=True)
 
-            st.write("---")
-
+            
             # ---------------------------------------------------------
             # 2. [순서 변경] 투자 결정 및 관심 종목 (아래로 이동)
             # ---------------------------------------------------------
@@ -2080,6 +2079,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
