@@ -1110,12 +1110,7 @@ elif st.session_state.page == 'detail':
         # --- Tab 0: 뉴스 & 심층 분석 ---
         with tab0:
             # [2] 뉴스 리스트 섹션 (먼저 배치)
-            st.markdown(f"""
-            <div style="margin-top: 30px; margin-bottom:5px;">
-                <h3 style="margin:0; color:#333; font-size:22px; font-weight:700; line-height:1.4;">
-                    {stock['name']} 최신 뉴스
-                </h3>
-            </div>""", unsafe_allow_html=True)
+            
             
             st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
             
@@ -2050,6 +2045,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
