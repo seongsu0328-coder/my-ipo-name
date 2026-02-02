@@ -1953,7 +1953,7 @@ elif st.session_state.page == 'detail':
             # [✅ 5단계 사용자 판단]
             draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
 
-        # --- Tab 5: 최종 투자 결정 (순서 변경됨) ---
+        # --- Tab 5: 최종 투자 결정 ---
         with tab5:
             import uuid
             from datetime import datetime
@@ -1978,62 +1978,33 @@ elif st.session_state.page == 'detail':
             is_admin = (current_user == ADMIN_PHONE)
 
             # ---------------------------------------------------------
-            # 1. [순서 변경] 나의 판단 종합 (Step 1~5 반영)
+            # 1. 미이행 단계 체크 (missing_steps 정의)
             # ---------------------------------------------------------
-            
             ud = st.session_state.user_decisions.get(sid, {})
-            
-            # Step 1~5까지 모든 단계를 체크하도록 수정
             missing_steps = []
             if not ud.get('news'): missing_steps.append("Step 1")
             if not ud.get('filing'): missing_steps.append("Step 2")
             if not ud.get('macro'): missing_steps.append("Step 3")
             if not ud.get('company'): missing_steps.append("Step 4")
-            if not ud.get('ipo_report'): missing_steps.append("Step 5") # 추가된 Step 5
+            if not ud.get('ipo_report'): missing_steps.append("Step 5")
 
+            # ---------------------------------------------------------
+            # 2. 투자 성향 점수 및 분포 분석 결과
+            # ---------------------------------------------------------
             if len(missing_steps) > 0:
                 # 미완성 시 안내 문구
                 steps_str = ", ".join(missing_steps)
-                summary_text = f"<div style='text-align: left; font-weight: 600; font-size: 15px; color: #444;'>⏳ 모든 분석 단계({steps_str})를 완료하면 종합 리포트가 생성됩니다.</div>"
-                box_bg = "#f8f9fa"
-                box_border = "#ced4da"
+                st.info(f"⏳ 모든 분석 단계({steps_str})를 완료하면 종합 분석 결과가 공개됩니다.")
             else:
-                # 모든 단계 완료 시 텍스트 생성
-                d_news = ud.get('news')
-                d_filing = ud.get('filing')
-                d_macro = ud.get('macro')
-                d_company = ud.get('company')
-                d_ipo = ud.get('ipo_report') # 추가된 데이터
-                
-                summary_text = f"""
-                사용자는 해당 기업소개와 뉴스에 대해 <b>{d_news}</b>이라 판단했고, 
-                주요 공시정보에 대해서는 <b>{d_filing}</b> 입장을 보였습니다. 
-                현재 거시경제 상황에 대해서는 <b>{d_macro}</b>이라 판단하고 있으며, 
-                기업 가치평가에 대해서는 <b>{d_company}</b>이라고 분석했습니다. 
-                <br><br>
-                종합적으로 기관 분석을 참고한 최종 투자 판단은 <b>{d_ipo}</b>입니다.
-                """
-                
-                box_bg = "#eef2ff"
-                box_border = "#6e8efb"
-
-            st.markdown(f"""<div style="background-color:{box_bg}; padding:20px; border-radius:12px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">{summary_text}</div>""", unsafe_allow_html=True)
-
-            # ---------------------------------------------------------
-            # [추가] 1-2. 투자 성향 점수 합산 및 분포 분석
-            # ---------------------------------------------------------
-            # 모든 단계가 완료되었을 때만 점수와 그래프를 표시합니다.
-            if len(missing_steps) == 0:
-                # 1. 점수 매핑 사전 정의
+                # 모든 단계 완료 시 점수 매핑 및 계산
                 score_map = {
                     "긍정적": 1, "중립적": 0, "부정적": -1,
-                    "수용적": 1, "중립적": 0, "회의적": -1,
+                    "수용적": 1, "회의적": -1,
                     "버블": -1, "중립": 0, "침체": 1, 
                     "저평가": 1, "적정": 0, "고평가": -1,
-                    "매수": 1, "중립": 0, "매도": -1
+                    "매수": 1, "매도": -1
                 }
 
-                # 2. 점수 합산 함수
                 def calculate_total_score(ud_data):
                     steps = ['news', 'filing', 'macro', 'company', 'ipo_report']
                     total = 0
@@ -2044,29 +2015,29 @@ elif st.session_state.page == 'detail':
 
                 user_score = calculate_total_score(ud)
                 
-                st.write("") # 간격 조절
                 st.markdown("#### 📊 나의 투자 매력도 분석 결과")
                 
-                # 3. 가상 참여자 분포 데이터 생성 (numpy 활용)
+                # 가상 참여자 분포 데이터 생성
                 import numpy as np
-                np.random.seed(42) # 일관된 분포 유지
+                np.random.seed(42)
                 community_scores = np.random.normal(0, 1.5, 1000).round().astype(int)
                 community_scores = np.clip(community_scores, -5, 5)
                 
-                # 4. 상위 백분위 계산 (점수가 높을수록 긍정적 상위)
+                # 상위 백분위 계산
                 percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
                 
-                # 지표 요약 (Metric)
+                # 지표 출력
                 m1, m2 = st.columns(2)
                 m1.metric("나의 분석 점수", f"{user_score} / +5")
                 m2.metric("낙관도 상위", f"{percentile:.1f}%")
 
-                # 5. 분포 차트 시각화 (Plotly)
+                # 분포 차트 시각화 (Plotly)
+                import pandas as pd
                 score_counts = pd.Series(community_scores).value_counts().sort_index()
-                # 모든 점수대(-5 ~ 5)가 표에 나오도록 보정
                 all_range = pd.Series(0, index=range(-5, 6))
                 score_counts = (all_range + score_counts).fillna(0)
                 
+                import plotly.graph_objects as go
                 fig = go.Figure()
                 fig.add_trace(go.Bar(
                     x=score_counts.index, 
@@ -2076,35 +2047,32 @@ elif st.session_state.page == 'detail':
                 ))
                 
                 fig.update_layout(
-                    height=250,
-                    margin=dict(l=10, r=10, t=30, b=10),
+                    height=250, margin=dict(l=10, r=10, t=30, b=10),
                     xaxis=dict(tickmode='linear', dtick=1),
                     yaxis=dict(showticklabels=False),
-                    showlegend=False,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
+                    showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # 투자 성향 한 줄 평
+                # 분석 스타일 평가
                 if user_score >= 3:
                     st.success(" 매우 공격적이고 낙관적인 투자 분석가 스타일입니다.")
                 elif user_score <= -3:
                     st.warning(" 매우 신중하고 보수적인 투자 분석가 스타일입니다.")
                 else:
                     st.info(" 균형 잡힌 시각을 가진 중립적 분석가 스타일입니다.")
-            
+
+            st.divider()
+
             # ---------------------------------------------------------
-            # 2. [순서 변경] 투자 결정 및 관심 종목 (아래로 이동)
+            # 3. 관심종목 및 투표
             # ---------------------------------------------------------
             st.markdown("### 관심종목")
             
             if st.session_state.get('auth_status') == 'user':
-                
                 if sid not in st.session_state.watchlist:
                     st.info("이 기업의 미래를 예측하고 관심 종목에 담아보세요. (투표 자동 반영)")
-                    
                     c_up, c_down = st.columns(2)
                     
                     if c_up.button("📈 상승 (UP) & 보관", key=f"up_btn_{sid}", use_container_width=True, type="primary"):
@@ -2119,25 +2087,19 @@ elif st.session_state.page == 'detail':
                         st.session_state.watchlist_predictions[sid] = "DOWN"
                         st.session_state.vote_data[sid]['f'] += 1 
                         st.rerun()
-                        
                 else:
                     my_pred = st.session_state.watchlist_predictions.get(sid, "N/A")
                     pred_badge = "🚀 상승(UP)" if my_pred == "UP" else "📉 하락(DOWN)"
-                    
                     st.success(f"✅ 관심 종목에 보관 중입니다. (나의 예측: **{pred_badge}**)")
                     
                     if st.button("🗑️ 보관 해제 (투표 취소)", key=f"remove_btn_{sid}", use_container_width=True):
                         st.session_state.watchlist.remove(sid)
-                        if my_pred == "UP":
-                            st.session_state.vote_data[sid]['u'] -= 1
-                        elif my_pred == "DOWN":
-                            st.session_state.vote_data[sid]['f'] -= 1
-                            
-                        if sid in st.session_state.watchlist_predictions: 
-                            del st.session_state.watchlist_predictions[sid]
+                        if my_pred == "UP": st.session_state.vote_data[sid]['u'] -= 1
+                        elif my_pred == "DOWN": st.session_state.vote_data[sid]['f'] -= 1
+                        if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
                         st.rerun()
 
-                st.write("") 
+                # 투표 통계
                 u_votes = st.session_state.vote_data[sid]['u']
                 f_votes = st.session_state.vote_data[sid]['f']
                 total_votes = u_votes + f_votes
@@ -2145,59 +2107,41 @@ elif st.session_state.page == 'detail':
                 if total_votes > 0:
                     u_pct = int((u_votes / total_votes) * 100)
                     f_pct = 100 - u_pct
-                    
                     st.progress(u_pct / 100)
-                    
-                    msg_html = f"""
+                    st.markdown(f"""
                     <div style='text-align:center; color:#555; font-size:14px; background-color:#f1f3f4; padding:10px; border-radius:10px;'>
                         현재 <b>{u_pct}%</b>의 사용자는 <span style='color:#e61919;'><b>UP</b></span>을, 
                         <b>{f_pct}%</b>의 사용자는 <span style='color:#1919e6;'><b>DOWN</b></span>을 선택했습니다.<br>
                         <small>(총 {total_votes}명 참여)</small>
-                    </div>
-                    """
-                    st.markdown(msg_html, unsafe_allow_html=True)
-                else:
-                    st.caption("아직 투표 데이터가 없습니다. 첫 번째 예측의 주인공이 되어보세요!")
-
+                    </div>""", unsafe_allow_html=True)
             else:
                 st.warning("🔒 로그인 후 관심 종목 추가 및 투표가 가능합니다.")
 
-            
-            
+            st.divider()
+
             # ---------------------------------------------------------
-            # 3. 주주 토론방 (맨 아래 유지)
+            # 4. 주주 토론방
             # ---------------------------------------------------------
             st.markdown("### 토론방")
             
             if st.session_state.get('auth_status') == 'user':
                 with st.form(key=f"comment_form_{sid}", clear_on_submit=True):
                     user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
-                    btn_c1, btn_c2 = st.columns([3, 1])
-                    with btn_c2:
-                        submit_btn = st.form_submit_button("등록하기", use_container_width=True, type="primary")
+                    _, btn_c2 = st.columns([3, 1])
+                    submit_btn = btn_c2.form_submit_button("등록하기", use_container_width=True, type="primary")
                     
                     if submit_btn and user_input:
-                        now_time = datetime.now().strftime("%m.%d %H:%M")
                         new_comment = {
-                            "id": str(uuid.uuid4()), "t": user_input, "d": now_time, "u": "익명의 유니콘",
-                            "uid": current_user, "likes": [], "dislikes": []
+                            "id": str(uuid.uuid4()), "t": user_input, "d": datetime.now().strftime("%m.%d %H:%M"),
+                            "u": "익명의 유니콘", "uid": current_user, "likes": [], "dislikes": []
                         }
                         st.session_state.comment_data[sid].insert(0, new_comment)
-                        st.toast("의견이 등록되었습니다!", icon="✅")
+                        st.toast("의견이 등록되었습니다!")
                         st.rerun()
-            else:
-                st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
 
             comments = st.session_state.comment_data.get(sid, [])
             if comments:
-                for c in comments:
-                    if 'likes' not in c: c['likes'] = []
-                    if 'dislikes' not in c: c['dislikes'] = []
-                comments.sort(key=lambda x: len(x['likes']), reverse=True)
-
-                st.markdown(f"<div style='margin-bottom:10px; color:#666; font-size:14px;'>총 <b>{len(comments)}</b>개의 의견 (인기순)</div>", unsafe_allow_html=True)
-                
-                delete_target_id = None 
+                comments.sort(key=lambda x: len(x.get('likes', [])), reverse=True)
                 for c in comments:
                     st.markdown(f"""
                     <div style='background-color: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 5px; border: 1px solid #eee;'>
@@ -2207,31 +2151,24 @@ elif st.session_state.page == 'detail':
                         </div>
                         <div style='font-size:15px; color:#333; line-height:1.5; white-space: pre-wrap;'>{c['t']}</div>
                     </div>""", unsafe_allow_html=True)
-
-                    col_spacer, col_like, col_dislike, col_del = st.columns([5.5, 1.5, 1.5, 1.5])
-                    with col_like:
-                        if st.button(f"👍 {len(c['likes'])}", key=f"lk_{c['id']}", use_container_width=True):
-                            if st.session_state.get('auth_status') == 'user':
-                                if current_user in c['likes']: c['likes'].remove(current_user)
-                                else: c['likes'].append(current_user)
-                                st.rerun()
-                    with col_dislike:
-                        if st.button(f"👎 {len(c['dislikes'])}", key=f"dk_{c['id']}", use_container_width=True):
-                            if st.session_state.get('auth_status') == 'user':
-                                if current_user in c['dislikes']: c['dislikes'].remove(current_user)
-                                else: c['dislikes'].append(current_user)
-                                st.rerun()
-                    with col_del:
-                        if (current_user == c.get('uid') and current_user != 'guest') or is_admin:
-                            if st.button("🗑️", key=f"dl_{c['id']}", use_container_width=True):
-                                delete_target_id = c
-                    st.write("") 
-
-                if delete_target_id:
-                    st.session_state.comment_data[sid].remove(delete_target_id)
-                    st.rerun()
+                    
+                    l_col, d_col, r_col, _ = st.columns([1.5, 1.5, 1.5, 5.5])
+                    if l_col.button(f"👍 {len(c.get('likes',[]))}", key=f"lk_{c['id']}"):
+                        if st.session_state.get('auth_status') == 'user':
+                            if current_user in c['likes']: c['likes'].remove(current_user)
+                            else: c['likes'].append(current_user)
+                            st.rerun()
+                    if d_col.button(f"👎 {len(c.get('dislikes',[]))}", key=f"dk_{c['id']}"):
+                        if st.session_state.get('auth_status') == 'user':
+                            if current_user in c['dislikes']: c['dislikes'].remove(current_user)
+                            else: c['dislikes'].append(current_user)
+                            st.rerun()
+                    if (current_user == c.get('uid') and current_user != 'guest') or is_admin:
+                        if r_col.button("🗑️", key=f"dl_{c['id']}"):
+                            st.session_state.comment_data[sid].remove(c)
+                            st.rerun()
             else:
-                st.markdown("<div style='text-align:center; padding:30px; color:#999;'>첫 번째 베스트 댓글의 주인공이 되어보세요! 👑</div>", unsafe_allow_html=True)
+                st.caption("첫 번째 의견을 남겨보세요! 👑")
 
 # ---------------------------------------------------------
 # 여기서부터는 전체 탭 또는 메인 영역 바깥입니다. (들여쓰기 주의)
@@ -2382,6 +2319,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
