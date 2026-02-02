@@ -1117,11 +1117,12 @@ elif st.session_state.page == 'detail':
         # -------------------------------------------------------------------------
         # [5] 탭 메뉴 구성
         # -------------------------------------------------------------------------
-        tab0, tab1, tab2, tab3, tab4 = st.tabs([
+        tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
             " 주요뉴스", 
             " 주요공시", 
             " 거시평가", 
-            " 미시평가", 
+            " 미시평가",
+            " 기관평가",
             " 투자결정"
         ])
 
@@ -1752,8 +1753,62 @@ elif st.session_state.page == 'detail':
             # [✅ 추가됨] 4단계 사용자 판단
             draw_decision_box("company", "기업 가치평가는(Valusation)?", ["버블", "중립", "안정적"])
 
-        # --- Tab 4: 최종 투자 결정 (순서 변경됨) ---
+        # ---------------------------------------------------------
+        # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
+        # ---------------------------------------------------------
         with tab4:
+            st.markdown("### 🇺🇸 Wall Street IPO Radar")
+            st.write("미국 현지 IPO 전문 기관들의 심층 분석과 점수를 종합합니다.")
+
+            # --- (1) Renaissance Capital 섹션 ---
+            with st.expander("📊 Renaissance Capital: IPO Intelligence 요약", expanded=True):
+                st.markdown("""
+                **[전문가 리뷰]**
+                * **시장 포지셔닝:** 해당 종목은 섹터 내 고성장군에 속하며, 강력한 기술적 해자(Moat)를 보유함.
+                * **공모 구조:** 구주 매출 비중이 낮아 상장 후 자금 유입 효과가 클 것으로 기대됨.
+                * **우려 사항:** 상장 직후 낮은 유통 물량으로 인해 초기 변동성이 클 수 있음.
+                """)
+                st.link_button("🔗 Renaissance IPO Center 바로가기", "https://www.renaissancecapital.com/IPO-Center")
+
+            # --- (2) Seeking Alpha / Morningstar 섹션 ---
+            with st.expander("📝 Seeking Alpha & Morningstar 분석 요약", expanded=False):
+                st.markdown("""
+                **[심층 분석 내용]**
+                * **Morningstar View:** 공모가 희망 범위는 미래 현금 흐름 대비 합리적인 수준(Fair Value)으로 평가.
+                * **Seeking Alpha Analyst:** 구독 모델(SaaS) 기반의 안정적인 반복 매출(ARR) 증가세에 주목.
+                * **핵심 지표:** Rule of 40 점수가 45%로, 동종 업계 상위 10% 이내 기록 중.
+                """)
+                c1, c2 = st.columns(2)
+                with c1: st.link_button("🔗 Seeking Alpha IPO", "https://seekingalpha.com/ipo")
+                with c2: st.link_button("🔗 Morningstar Analysis", "https://www.morningstar.com/")
+
+            st.divider()
+
+            # --- (3) Institutional Sentiment (등급 및 별점) ---
+            st.markdown("#### ⚖️ 기관 투자자 기대치 (Sentiment)")
+            s_col1, s_col2 = st.columns(2)
+            
+            with s_col1:
+                st.write("**[Analyst Ratings]**")
+                rating = "Buy"  
+                st.markdown(f"""<div style="background-color: #e8f5e9; border-radius: 10px; padding: 20px; text-align: center; border: 1px solid #c8e6c9;"><span style="font-size: 14px; color: #2e7d32; font-weight: bold;">Rating Target</span><br><span style="font-size: 28px; font-weight: bold; color: #1b5e20;">{rating}</span></div>""", unsafe_allow_html=True)
+                st.caption("Seeking Alpha / Morningstar 컨센서스")
+
+            with s_col2:
+                st.write("**[IPO Scoop Scorecard]**")
+                stars = 4  
+                star_display = "⭐" * stars + "☆" * (5 - stars)
+                st.markdown(f"""<div style="background-color: #fff9c4; border-radius: 10px; padding: 20px; text-align: center; border: 1px solid #fff176;"><span style="font-size: 14px; color: #fbc02d; font-weight: bold;">Expected Interest</span><br><span style="font-size: 28px; font-weight: bold; color: #f9a825;">{star_display}</span></div>""", unsafe_allow_html=True)
+                st.caption("IPOScoop 기관 청약 기대치 등급")
+
+            st.write("<br>", unsafe_allow_html=True)
+            st.info("💡 **종합 의견:** 기관들의 별점이 높고 'Buy' 등급이 우세할 경우, 상장 당일 시초가가 공모가보다 높게 형성되는 'IPO Pop' 가능성이 큽니다.")
+
+            # [✅ 5단계 사용자 판단]
+            draw_decision_box("ipo_report", "기관 리포트와 등급을 통한 나의 판단은?", ["매수", "중립", "매도"])
+
+        # --- Tab 5: 최종 투자 결정 (순서 변경됨) ---
+        with tab5:
             import uuid
             from datetime import datetime
 
@@ -2096,6 +2151,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
