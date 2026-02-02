@@ -11,6 +11,8 @@ import random
 # --- [AI 및 검색 기능] ---
 import google.generativeai as genai  # Gemini AI 추가
 from duckduckgo_search import DDGS
+from tavily import TavilyClient  # [추가] TavilyClient 정의
+from openai import OpenAI        # [추가] Groq 호출을 위한 OpenAI 객체 정의
 
 # --- [주식 및 차트 기능] ---
 import yfinance as yf
@@ -2274,6 +2276,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
