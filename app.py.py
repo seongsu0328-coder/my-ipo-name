@@ -1293,8 +1293,8 @@ elif st.session_state.page == 'detail':
             # UI 출력: 통합된 설명문 출력
             st.info(curr_meta['desc'])
             
-            # [수정된 부분] 핵심 요약 보기 클릭 시 자동으로 AI 분석 실행
-            with st.expander(f"🔍 {topic} AI 핵심 분석 요약", expanded=True):
+            # [수정된 부분] expanded=False 로 설정하여 기본적으로 닫아둠
+            with st.expander(f"🔍 {topic} AI 핵심 분석 요약", expanded=False):
                 with st.spinner(f"🤖 AI가 {topic}의 핵심 내용을 분석 중입니다..."):
                     # 자동 분석 프롬프트 구성
                     auto_analysis_prompt = f"""
@@ -1313,6 +1313,9 @@ elif st.session_state.page == 'detail':
                         st.markdown(response.text)
                     except Exception as e:
                         st.error("AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+                
+                st.divider()
+                st.caption(f"💡 {topic} 공시의 MD&A 섹션은 경영진의 의중을 파악할 수 있는 가장 중요한 데이터입니다.")
                 
                
             # 3. SEC URL 생성 로직
@@ -2235,6 +2238,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
