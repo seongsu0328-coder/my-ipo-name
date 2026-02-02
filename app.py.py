@@ -1979,7 +1979,7 @@ elif st.session_state.page == 'detail':
             current_user = st.session_state.get('user_phone', 'guest')
             is_admin = (current_user == ADMIN_PHONE)
 
-            # 1. 투자 분석 결과 섹션 (낙관도 지표 & 그래프만 유지)
+            # 1. 투자 분석 결과 섹션 (시장평가 좌 / 나의 평가 우)
             ud = st.session_state.user_decisions.get(sid, {})
             missing_steps = []
             for step, label in [('news','Step 1'), ('filing','Step 2'), ('macro','Step 3'), ('company','Step 4'), ('ipo_report','Step 5')]:
@@ -1998,15 +1998,23 @@ elif st.session_state.page == 'detail':
                 }
                 user_score = sum(score_map.get(ud.get(s, "중립적"), 0) for s in ['news', 'filing', 'macro', 'company', 'ipo_report'])
                 
-                # 분포도 데이터 생성
+                # 분포도 데이터 생성 (가상 커뮤니티 데이터)
                 np.random.seed(42)
                 community_scores = np.clip(np.random.normal(0, 1.5, 1000).round().astype(int), -5, 5)
-                percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
                 
-                # 상단 레이아웃: 낙관도 지표만 표시
-                st.metric("긍정평가", f"{percentile:.1f}%", help="점수가 높을수록 다른 참여자들보다 해당 종목을 긍정적으로 평가하고 있음을 의미합니다.")
+                # 시장 평균 백분위 계산 (좌측 표시용)
+                market_avg_score = community_scores.mean()
+                market_percentile = (community_scores <= market_avg_score).sum() / len(community_scores) * 100
+                
+                # 나의 백분위 계산 (우측 표시용)
+                user_percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
+                
+                # 상단 레이아웃: 시장 평가(좌) | 나의 평가(우)
+                m1, m2 = st.columns(2)
+                m1.metric("시장평가 (평균)", f"{market_percentile:.1f}%", help="시장 참여자들의 평균적인 낙관도 수준입니다.")
+                m2.metric("긍정평가 (나)", f"{user_percentile:.1f}%", help="나의 분석 결과가 전체 참여자 중 어느 정도 위치에 있는지 나타냅니다.")
 
-                # 그래프 시각화 (나의 점수는 빨간색으로 자동 강조됨)
+                # 그래프 시각화
                 score_counts = pd.Series(community_scores).value_counts().sort_index()
                 score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
                 
@@ -2028,7 +2036,7 @@ elif st.session_state.page == 'detail':
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # 분석 스타일에 따른 짧은 코멘트만 노출
+                # 분석 코멘트
                 if user_score >= 3:
                     st.success(" 신규 IPO 기업에 대해 긍정적으로 평가합니다.")
                 elif user_score <= -3:
@@ -2064,7 +2072,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.warning("🔒 로그인 후 참여 가능합니다.")
 
-            st.divider()
+            
 
             # 3. 토론방 섹션 (수정 포인트: 입력폼과 리스트 분리)
             st.markdown("### 토론방")
@@ -2266,6 +2274,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
