@@ -22,8 +22,8 @@ import plotly.graph_objects as go
 GENAI_API_KEY = "AIzaSyCnm7Y8Jnyw9kYHj-oC8TbBMtyIIzVNL1A" 
 genai.configure(api_key=GENAI_API_KEY)
 
-# 최후의 보루: 가장 호환성이 높은 1.0 pro 모델 사용
-model = genai.GenerativeModel('gemini-1.0-pro')
+# 가장 최신 표준 명칭으로 시도 (접두사 없이)
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 @st.cache_data(show_spinner=False)
 def get_ai_analysis(company_name, topic, points):
@@ -2258,6 +2258,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
