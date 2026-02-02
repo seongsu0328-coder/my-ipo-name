@@ -1801,53 +1801,57 @@ elif st.session_state.page == 'detail':
         # ---------------------------------------------------------
         with tab4:
             
-            # 분석 실행 버튼
-            if st.button(f"🔍 {stock['symbol']} 실시간 분석 데이터 가져오기"):
-                with st.spinner("최신 마켓 데이터를 수집하고 AI가 요약 중입니다..."):
-                    # [공통] AI 분석 함수 호출
+
+            # --- (1) Renaissance Capital 섹션 ---
+            # 사용자가 이 expander를 클릭하여 여는 순간 내부 코드가 실행됩니다.
+            with st.expander("Renaissance Capital IPO 요약", expanded=False):
+                with st.spinner("Renaissance Capital 데이터를 분석 중..."):
+                    # 캐싱 덕분에 여러 번 열어도 1시간 내에는 API 호출을 아낍니다.
                     summary, sources = get_cached_ipo_analysis(stock['symbol'], stock['name'])
                     
-                    # --- (1) Renaissance Capital 섹션 ---
-                    with st.expander("Renaissance Capital IPO 요약", expanded=True):
-                        st.markdown("**[AI 리서치 요약]**")
-                        # 요약 내용 중 Renaissance 관련 내용이 포함되도록 프롬프트가 작동함
-                        st.write(summary) 
-                        st.link_button(f"🔗 {stock['symbol']} Renaissance 상세 페이지", 
-                                       f"https://www.renaissancecapital.com/IPO-Center/Search?q={stock['symbol']}")
+                    st.markdown("**[AI 리서치 요약]**")
+                    st.info(summary) 
+                    st.link_button(f"{stock['symbol']} Renaissance 상세 페이지", 
+                                   f"https://www.renaissancecapital.com/IPO-Center/Search?q={stock['symbol']}")
 
-                    # --- (2) Seeking Alpha / Morningstar 섹션 ---
-                    with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
-                        st.markdown("**[Market Consensus]**")
-                        st.write(f"전문 분석가들은 {stock['name']}의 비즈니스 모델과 밸류에이션을 실시간으로 추적 중입니다.")
-                        c1, c2 = st.columns(2)
-                        with c1: 
-                            st.link_button("🔗 Seeking Alpha 바로가기", f"https://seekingalpha.com/symbol/{stock['symbol']}")
-                        with c2: 
-                            st.link_button("🔗 Morningstar 바로가기", "https://www.morningstar.com/")
+            # --- (2) Seeking Alpha / Morningstar 섹션 ---
+            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
+                st.markdown("**[Market Consensus]**")
+                st.write(f"전문 분석가들은 {stock['name']}의 비즈니스 모델과 밸류에이션을 실시간으로 추적 중입니다.")
+                
+                # 시각적인 분석을 위해 간단한 안내 문구 추가
+                st.markdown("---")
+                c1, c2 = st.columns(2)
+                with c1: 
+                    st.link_button("Seeking Alpha 바로가기", f"https://seekingalpha.com/symbol/{stock['symbol']}")
+                with c2: 
+                    st.link_button("Morningstar 바로가기", "https://www.morningstar.com/")
+                st.caption("※ 위 링크를 통해 실시간 Analyst Rating을 확인하실 수 있습니다.")
 
-                    # --- (3) Institutional Sentiment 섹션 ---
-                    with st.expander("⚖️ Sentiment Score", expanded=False):
-                        st.write("외부 원문 데이터를 확인하여 아래 등급을 종합적으로 판단해 보세요.")
-                        s_col1, s_col2 = st.columns(2)
-                        with s_col1:
-                            st.write("**[Analyst Ratings]**")
-                            # 팁: 실제 API 등급 데이터가 없다면 "리포트 참조"로 표시
-                            st.info("실시간 리포트의 컨센서스를 확인하세요.")
-                        with s_col2:
-                            st.write("**[IPO Scoop Score]**")
-                            st.warning("기관 청약 경쟁률 확인 필요")
-                        
-                        st.markdown("#### 🔗 수집된 관련 링크")
-                        for src in sources:
-                            st.markdown(f"- [{src['title']}]({src['link']})")
+            # --- (3) Institutional Sentiment 섹션 ---
+            with st.expander("Sentiment Score", expanded=False):
+                st.write("외부 원문 데이터를 확인하여 아래 등급을 종합적으로 판단해 보세요.")
+                
+                # 위에서 이미 summary와 sources를 가져왔으므로 바로 사용 가능합니다.
+                # (Expander 1을 열지 않고 3을 먼저 열 수도 있으므로 함수를 한 번 더 호출해도 캐싱이 작동함)
+                _, sources = get_cached_ipo_analysis(stock['symbol'], stock['name'])
+                
+                s_col1, s_col2 = st.columns(2)
+                with s_col1:
+                    st.write("**[Analyst Ratings]**")
+                    st.info("리포트 컨센서스 참조")
+                with s_col2:
+                    st.write("**[IPO Scoop Score]**")
+                    st.warning("기관 경쟁률 확인 필요")
+                
+                st.markdown("#### 🔗 수집된 관련 뉴스 및 리포트")
+                if sources:
+                    for src in sources:
+                        st.markdown(f"- [{src['title']}]({src['link']})")
+                else:
+                    st.write("수집된 출처가 없습니다.")
 
-                    st.success("✅ 실시간 분석이 완료되었습니다.")
             
-            else:
-                # 버튼을 누르기 전 가이드 메시지
-                st.info("위의 버튼을 클릭하면 실시간 구글 검색과 AI 요약이 시작됩니다.")
-
-            st.divider()
 
             # [✅ 5단계 사용자 판단]
             draw_decision_box("ipo_report", f"기관 분석을 통한 {stock['symbol']}의 최종 판단은?", ["매수", "중립", "매도"])
@@ -2196,6 +2200,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
