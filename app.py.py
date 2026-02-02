@@ -1290,7 +1290,29 @@ elif st.session_state.page == 'detail':
             if 'core_topic' not in st.session_state:
                 st.session_state.core_topic = "S-1"
 
-            # 1. 문서 선택 버튼 그리드
+            # 버튼 스타일 강제 지정 (하얀 바탕, 검정 글씨)
+            st.markdown("""
+                <style>
+                div.stButton > button {
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                    border: 1px solid #dcdcdc !important;
+                    border-radius: 8px !important;
+                    height: 3em !important;
+                    font-weight: bold !important;
+                }
+                /* 마우스를 올렸을 때나 클릭했을 때의 효과 */
+                div.stButton > button:hover {
+                    border-color: #6e8efb !important;
+                    color: #6e8efb !important;
+                }
+                div.stButton > button:active {
+                    background-color: #f0f2f6 !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
+            # 1. 문서 선택 버튼 그리드 (기존 코드 유지)
             r1_c1, r1_c2, r1_c3 = st.columns(3)
             r2_c1, r2_c2 = st.columns(2)
 
@@ -2275,6 +2297,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
