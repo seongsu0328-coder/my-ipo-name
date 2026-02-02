@@ -66,52 +66,65 @@ def get_ai_analysis(company_name, topic, points):
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     if not tavily_key:
-        return {"rating": "Key Error", "score": "N/A", "summary": "Tavily API 키가 설정되지 않았습니다.", "links": []}
+        return {"rating": "Key Error", "score": "N/A", "summary": "Tavily API 키 누락", "links": []}
 
     try:
         tavily = TavilyClient(api_key=tavily_key)
-        # 검색어 확장: 회사명 + 티커 + IPO 분석 + 등급
-        query = f"{company_name} {ticker} stock IPO analysis ratings sentiment"
+        # 검색 쿼리 강화 (종목명 + SEC + Investor Relations 등 금융 키워드 결합)
+        query = f"{company_name} {ticker} stock market analysis SEC filing news"
         search_result = tavily.search(query=query, search_depth="advanced", max_results=5)
         
+        results = search_result.get('results', [])
+        
+        # 검색 결과가 너무 부실하면 쿼리를 바꿔서 재시도
+        if len(results) < 2:
+            search_result = tavily.search(query=f"{company_name} investor relations news", max_results=3)
+            results = search_result.get('results', [])
+
         search_context = ""
         links = []
-        for r in search_result.get('results', []):
-            search_context += f"Source: {r['title']}\nContent: {r['content']}\n\n"
+        for r in results:
+            search_context += f"Source: {r['title']}\nSnippet: {r['content']}\n\n"
             links.append({"title": r['title'], "link": r['url']})
 
-        # 검색 결과가 아예 없는 경우
-        if not search_context:
-            return {"rating": "No Data", "score": "N/A", "summary": "최근 상장 정보나 뉴스 검색 결과가 없습니다.", "links": []}
-
+        # Gemini 프롬프트: "분석 불가"라고 말하는 것을 금지함
         prompt = f"""
-        당신은 월가의 IPO 리서치 전문가입니다. 아래 검색 데이터를 기반으로 {company_name} ({ticker})를 분석하세요.
-        자료가 부족해도 문맥상 정보를 최대한 활용하여 아래 형식을 반드시 지켜 답변하세요.
-        형식을 지키지 않으면 시스템이 인식하지 못합니다.
+        당신은 월스트리트의 데이터 분석가입니다. 제공된 검색 데이터를 바탕으로 {company_name} ({ticker})를 분석하세요.
+        자료가 부족하다면 현재까지 알려진 뉴스 제목들이라도 종합하여 시장 분위기를 보고하세요. 절대 '분석 불가'라고 답변하지 마세요.
 
-        Rating: [Buy/Hold/Sell/Positive/Neutral 중 하나 선택]
-        Score: [IPO Scoop 별점 숫자 1~5 중 하나, 모르면 3]
-        Summary: [투자 핵심 요약 5줄 내외]
+        [분석 지침]
+        1. Rating: 시장 분위기에 따라 Buy, Hold, Sell, Neutral 중 하나를 반드시 선택.
+        2. Score: 1~5점 사이의 숫자를 반드시 부여 (데이터가 없으면 3).
+        3. Summary: 투자자가 알아야 할 팩트 위주로 5줄 요약.
 
         [검색 데이터]
-        {search_context}
+        {search_context if search_context else "검색된 데이터가 없습니다. 회사 기본 정보를 바탕으로 답변하세요."}
+
+        반드시 아래 형식을 지키세요:
+        Rating: (결과)
+        Score: (숫자)
+        Summary: (내용)
         """
 
         response = model.generate_content(prompt).text
 
-        # 정밀 파싱 (대소문자 무시, 공백 허용)
+        # 정규표현식 파싱 보강 (re.M 사용)
         import re
         rating = "Neutral"
-        score = "N/A"
-        summary = response # 파싱 실패 시 응답 전문을 요약으로 사용
+        score = "3"
+        summary = response
 
-        r_match = re.search(r"Rating:\s*(.*)", response, re.IGNORECASE)
-        s_match = re.search(r"Score:\s*([\d.]+)", response, re.IGNORECASE)
-        sum_match = re.search(r"Summary:\s*([\s\S]*)", response, re.IGNORECASE)
+        r_match = re.search(r"Rating:\s*(.*)", response, re.I)
+        s_match = re.search(r"Score:\s*([\d.]+)", response, re.I)
+        sum_match = re.search(r"Summary:\s*([\s\S]*)", response, re.I)
 
         if r_match: rating = r_match.group(1).strip().split('\n')[0]
         if s_match: score = s_match.group(1).strip()
         if sum_match: summary = sum_match.group(1).strip()
+
+        # 만약 AI가 여전히 거부한다면 강제로 요약본 생성
+        if "분석 불가" in summary or "알 수 없습니다" in summary:
+            summary = "현재 시장에 공개된 전문 리포트가 적습니다. 외부 링크를 통해 최신 공시 정보를 직접 확인하시는 것을 권장합니다."
 
         return {
             "rating": rating,
@@ -120,7 +133,7 @@ def get_cached_ipo_analysis(ticker, company_name):
             "links": links
         }
     except Exception as e:
-        return {"rating": "Error", "score": "N/A", "summary": f"분석 중 오류 발생: {str(e)}", "links": []}
+        return {"rating": "Error", "score": "N/A", "summary": f"오류 발생: {str(e)}", "links": []}
         
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
@@ -2361,6 +2374,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
