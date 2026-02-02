@@ -1981,20 +1981,17 @@ elif st.session_state.page == 'detail':
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         # ---------------------------------------------------------
         with tab4:
-            # 1. 데이터 가져오기 (Tavily + Gemini 기반)
-            with st.spinner(f"🚀 {stock['name']}에 대한 월가 최신 리포트를 분석 중입니다..."):
-                try:
-                    result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
-                except Exception as e:
-                    result = {"rating": "Error", "score": "N/A", "summary": f"분석 오류: {e}", "links": []}
+            # 1. 데이터 호출 (Spinner 추가)
+            with st.spinner(f"🚀 {stock['name']}의 시장 컨센서스를 분석 중입니다..."):
+                result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
 
             # --- (1) Renaissance Capital 섹션 ---
             with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 st.markdown("**[AI 리서치 요약]**")
+                # 결과가 '분석 불가'일 경우를 대비해 텍스트 노출
                 st.info(result.get('summary', '데이터를 불러올 수 없습니다.')) 
-                
                 q = stock['symbol'] if stock['symbol'] else stock['name']
-                st.link_button(f"🔗 {stock['name']} Renaissance 상세 페이지", 
+                st.link_button(f"🔗 {stock['symbol']} Renaissance 상세 페이지", 
                                f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}")
 
             # --- (2) Seeking Alpha & Morningstar 섹션 ---
@@ -2033,7 +2030,7 @@ elif st.session_state.page == 'detail':
                 st.markdown("#### 📝 AI 분석 상세")
                 st.write(result.get('summary', '내용 없음'))
 
-                # 출처 링크
+                # 출처 링크 표시
                 sources = result.get('links', [])
                 if sources:
                     st.markdown("#### 🔗 관련 리포트 출처")
@@ -2364,6 +2361,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
