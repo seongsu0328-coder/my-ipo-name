@@ -1980,6 +1980,9 @@ elif st.session_state.page == 'detail':
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         # ---------------------------------------------------------
         with tab4:
+            # 디버깅용 (나중에 지우세요)
+            st.write("DEBUG: AI Raw Response:", result['summary'])
+            
             # [수정] Tavily 및 Gemini 분석 진행 시 사용자에게 알림 표시
             with st.spinner(f"🚀 {stock['name']}에 대한 월가 최신 리포트를 분석 중입니다..."):
                 # 함수 호출 결과를 result 변수에 담습니다.
@@ -2363,6 +2366,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
