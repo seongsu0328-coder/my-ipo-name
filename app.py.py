@@ -1977,47 +1977,59 @@ elif st.session_state.page == 'detail':
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         # ---------------------------------------------------------
         with tab4:
-            # 1. 데이터 가져오기 (실패 대비 초기값 설정)
-            result = {"rating": "N/A", "score": "N/A", "summary": "데이터를 불러오는 중...", "links": []}
-            
-            with st.spinner(f"🚀 {stock['name']} 분석 리포트 수집 중..."):
+            # 1. 데이터 가져오기 (Tavily + Gemini 기반)
+            with st.spinner(f"🚀 {stock['name']}에 대한 월가 최신 리포트를 분석 중입니다..."):
                 try:
-                    # Tavily+Gemini 함수 호출
                     result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
                 except Exception as e:
-                    st.error(f"함수 호출 중 오류 발생: {str(e)}")
-
-            # [디버깅] AI가 뱉은 날것의 데이터를 잠시 확인합니다.
-            if result:
-                st.write("DEBUG: AI 응답 데이터 확인", result)
+                    result = {"rating": "Error", "score": "N/A", "summary": f"분석 오류: {e}", "links": []}
 
             # --- (1) Renaissance Capital 섹션 ---
             with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 st.markdown("**[AI 리서치 요약]**")
-                st.info(result.get('summary', '분석된 요약 정보가 없습니다.')) 
+                st.info(result.get('summary', '데이터를 불러올 수 없습니다.')) 
                 
                 q = stock['symbol'] if stock['symbol'] else stock['name']
-                st.link_button(f"🔗 {stock['name']} Renaissance 검색", 
+                st.link_button(f"🔗 {stock['name']} Renaissance 상세 페이지", 
                                f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}")
 
-            # --- (2) Institutional Sentiment 섹션 ---
+            # --- (2) Seeking Alpha & Morningstar 섹션 ---
+            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
+                st.markdown("**[Market Consensus]**")
+                st.write(f"전문 분석가들은 {stock['name']}의 비즈니스 모델과 밸류에이션을 실시간으로 추적 중입니다.")
+                st.markdown("---")
+                c1, c2 = st.columns(2)
+                with c1: 
+                    st.link_button("🔗 Seeking Alpha 바로가기", f"https://seekingalpha.com/symbol/{q}")
+                with c2: 
+                    st.link_button("🔗 Morningstar 바로가기", "https://www.morningstar.com/")
+
+            # --- (3) Institutional Sentiment 섹션 ---
             with st.expander("Sentiment Score", expanded=True):
                 s_col1, s_col2 = st.columns(2)
                 with s_col1:
                     st.write("**[Analyst Ratings]**")
-                    r_val = result.get('rating', 'N/A')
-                    st.success(f"Consensus: {r_val}")
+                    rating_val = result.get('rating', 'N/A')
+                    if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
+                        st.success(f"Consensus: {rating_val}")
+                    elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
+                        st.error(f"Consensus: {rating_val}")
+                    else:
+                        st.info(f"등급: {rating_val}")
 
                 with s_col2:
                     st.write("**[IPO Scoop Score]**")
-                    s_val = result.get('score', 'N/A')
-                    st.warning(f"Expected Score: ⭐ {s_val}")
+                    score_val = result.get('score', 'N/A')
+                    if score_val != "N/A":
+                        st.warning(f"Expected Score: ⭐ {score_val}")
+                    else:
+                        st.info("별점 데이터 없음")
                 
                 st.markdown("---")
                 st.markdown("#### 📝 AI 분석 상세")
-                st.write(result.get('summary', '상세 분석 내용이 없습니다.'))
+                st.write(result.get('summary', '내용 없음'))
 
-                # 출처 링크 리스트
+                # 출처 링크
                 sources = result.get('links', [])
                 if sources:
                     st.markdown("#### 🔗 관련 리포트 출처")
@@ -2348,6 +2360,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
