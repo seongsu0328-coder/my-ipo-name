@@ -1316,17 +1316,22 @@ elif st.session_state.page == 'detail':
             st.info(curr_meta['desc'])
             
             # [수정된 부분] expanded=False 로 설정하여 기본적으로 닫아둠
-            with st.expander(f" {topic} AI 핵심 분석 요약", expanded=False):
-        # expander가 열렸을 때만 함수 실행
-        with st.spinner(f"🤖 AI가 {topic}의 핵심 내용을 분석 중입니다..."):
-            analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'])
-            
-            if "ERROR_DETAILS" in analysis_result:
-                st.error("AI 분석 중 오류가 발생했습니다.")
-                with st.disclosure("상세 에러 내용(디버깅용)"):
-                    st.code(analysis_result)
-            else:
-                st.markdown(analysis_result)
+            # 1319번 줄 시작
+            with st.expander(f"🔍 {topic} AI 핵심 분석 요약", expanded=False):
+                # 1321번 줄: expander 내부로 들여쓰기
+                with st.spinner(f"🤖 AI가 {topic}의 핵심 내용을 분석 중입니다..."):
+                    analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'])
+                    
+                    if "ERROR_DETAILS" in analysis_result:
+                        st.error("AI 분석 중 오류가 발생했습니다.")
+                        # disclosure 대신 expander를 사용하여 에러 표시
+                        with st.expander("상세 에러 내용(디버깅용)"):
+                            st.code(analysis_result)
+                    else:
+                        st.markdown(analysis_result)
+                
+                st.divider()
+                st.caption(f"💡 {topic} 공시의 MD&A 섹션은 경영진의 의중을 파악할 수 있는 가장 중요한 데이터입니다.")
                 
                 
                 
@@ -2251,6 +2256,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
