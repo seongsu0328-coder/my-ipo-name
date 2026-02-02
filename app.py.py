@@ -299,15 +299,44 @@ def get_company_profile(symbol, api_key):
 
 @st.cache_data(ttl=14400) # [수정] 4시간 (IPO 일정은 하루에 여러 번 바뀌지 않으므로 길게 잡음)
 def get_extended_ipo_data(api_key):
-    start = (datetime.now() - timedelta(days=540)).strftime('%Y-%m-%d')
-    end = (datetime.now() + timedelta(days=120)).strftime('%Y-%m-%d')
-    url = f"https://finnhub.io/api/v1/calendar/ipo?from={start}&to={end}&token={api_key}"
-    try:
-        res = requests.get(url, timeout=5).json()
-        df = pd.DataFrame(res.get('ipoCalendar', []))
-        if not df.empty: df['공모일_dt'] = pd.to_datetime(df['date'])
-        return df
-    except: return pd.DataFrame()
+    # 1. 호출할 기간들을 리스트로 정의 (180일 단위로 쪼개기)
+    # 미래(오늘~120일 후) / 과거1(오늘~180일 전) / 과거2(181~360일 전) / 과거3(361~540일 전)
+    now = datetime.now()
+    ranges = [
+        (now - timedelta(days=180), now + timedelta(days=120)),  # 최신 & 미래
+        (now - timedelta(days=360), now - timedelta(days=181)), # 과거 중간
+        (now - timedelta(days=540), now - timedelta(days=361))  # 먼 과거
+    ]
+    
+    all_data = []
+    
+    for start_dt, end_dt in ranges:
+        start_str = start_dt.strftime('%Y-%m-%d')
+        end_str = end_dt.strftime('%Y-%m-%d')
+        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
+        
+        try:
+            res = requests.get(url, timeout=7).json()
+            ipo_list = res.get('ipoCalendar', [])
+            if ipo_list:
+                all_data.extend(ipo_list)
+        except Exception as e:
+            print(f"API 호출 오류 ({start_str} ~ {end_str}): {e}")
+            continue
+
+    # 2. 통합 및 중복 제거
+    if not all_data:
+        return pd.DataFrame()
+    
+    df = pd.DataFrame(all_data)
+    
+    # 중복된 symbol이 있을 수 있으므로 제거 (날짜 기준)
+    df = df.drop_duplicates(subset=['symbol', 'date'])
+    
+    if not df.empty:
+        df['공모일_dt'] = pd.to_datetime(df['date'])
+        
+    return df
 
 # 주가(Price)는 실시간성이 중요하므로 캐싱하지 않거나 아주 짧게(1~5분) 잡는 것이 좋습니다.
 def get_current_stock_price(symbol, api_key):
@@ -2275,6 +2304,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
