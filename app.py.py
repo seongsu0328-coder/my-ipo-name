@@ -1294,7 +1294,7 @@ elif st.session_state.page == 'detail':
             st.info(curr_meta['desc'])
             
             # [수정된 부분] expanded=False 로 설정하여 기본적으로 닫아둠
-            with st.expander(f"🔍 {topic} AI 핵심 분석 요약", expanded=False):
+            with st.expander(f" {topic} AI 핵심 분석 요약", expanded=False):
                 with st.spinner(f"🤖 AI가 {topic}의 핵심 내용을 분석 중입니다..."):
                     # 자동 분석 프롬프트 구성
                     auto_analysis_prompt = f"""
@@ -2238,6 +2238,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
