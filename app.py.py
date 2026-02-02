@@ -1314,8 +1314,7 @@ elif st.session_state.page == 'detail':
                     except Exception as e:
                         st.error("AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
                 
-                st.divider()
-                st.caption(f"💡 {topic} 공시의 MD&A 섹션은 경영진의 의중을 파악할 수 있는 가장 중요한 데이터입니다.")
+                
                 
                
             # 3. SEC URL 생성 로직
@@ -2238,6 +2237,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
