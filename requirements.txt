@@ -8,3 +8,4 @@ duckduckgo-search
 tavily-python
 openai
 beautifulsoup4
+google-generativeai
