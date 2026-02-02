@@ -918,16 +918,16 @@ elif st.session_state.page == 'calendar':
                 st.info("아직 관심 종목에 담은 기업이 없습니다.\n\n기업 상세 페이지 > '투자 결정(Tab 4)'에서 기업을 담아보세요!")
 
         else:
-            # 일반 캘린더 모드 - 두 개의 필터를 모두 selectbox로 통일
-            col_f1, col_f2 = st.columns([1, 1]) # 1:1 비율로 배치
+            # 일반 캘린더 모드 - 필터 셀렉트박스
+            col_f1, col_f2 = st.columns([1, 1]) 
             
             with col_f1:
-                # 라디오 버튼 대신 셀렉트박스로 변경
+                # 1. 명칭 변경: 상장 예정(30일) 및 '지난'으로 수정
                 period = st.selectbox(
                     label="조회 기간", 
-                    options=["상장 예정 (90일)", "최근 6개월", "최근 12개월", "최근 18개월"],
+                    options=["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"],
                     key="filter_period",
-                    label_visibility="collapsed" # UI를 깔끔하게 하기 위해 라벨 숨김
+                    label_visibility="collapsed"
                 )
                 
             with col_f2:
@@ -938,14 +938,15 @@ elif st.session_state.page == 'calendar':
                     label_visibility="collapsed"
                 )
             
-            # 기간 필터링 로직 (기존과 동일)
-            if period == "상장 예정 (90일)":
-                display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=90))]
-            elif period == "최근 6개월": 
+            # 2. 기간 필터링 로직 수정
+            if period == "상장 예정 (30일)":
+                # 기존 90일에서 30일로 로직 변경
+                display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=30))]
+            elif period == "지난 6개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=180))]
-            elif period == "최근 12개월": 
+            elif period == "지난 12개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=365))]
-            elif period == "최근 18개월": 
+            elif period == "지난 18개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
         # [정렬 로직]
@@ -2274,6 +2275,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
