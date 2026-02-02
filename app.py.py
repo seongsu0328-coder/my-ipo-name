@@ -1827,41 +1827,37 @@ elif st.session_state.page == 'detail':
                     st.link_button("Morningstar 바로가기", "https://www.morningstar.com/")
                 st.caption("※ 위 링크를 통해 실시간 Analyst Rating을 확인하실 수 있습니다.")
 
-            # --- (3) Institutional Sentiment 섹션 (실시간 등급 감지) ---
-            with st.expander("Sentiment Score", expanded=False):
-                with st.spinner("AI가 검색 결과에서 등급 정보를 추출하는 중..."):
-                    # AI로부터 분석 결과 및 소스 가져오기
-                    summary_text, sources = get_cached_ipo_analysis(stock['symbol'], stock['name'])
-                    
-                    s_col1, s_col2 = st.columns(2)
-                    with s_col1:
-                        st.write("**[Analyst Ratings]**")
-                        # AI 요약 내용 중 키워드 감지하여 UI 변경
-                        if any(x in summary_text for x in ['Buy', '매수', '긍정', '상향']):
-                            st.success("Consensus: Positive / Buy")
-                        elif any(x in summary_text for x in ['Sell', '매도', '부정', '하향']):
-                            st.error("Consensus: Negative / Sell")
-                        else:
-                            st.info("실시간 등급 분석 중 (요약 참조)")
-
-                    with s_col2:
-                        st.write("**[IPO Scoop Score]**")
-                        # 별점 정보 포함 여부 체크
-                        if any(x in summary_text for x in ['별점', '점수', 'Scoop']):
-                            st.warning("분석 결과 내 점수 확인")
-                        else:
-                            st.info("점수 확인 필요")
-                    
-                    st.markdown("---")
-                    st.markdown("#### 📝 AI 분석 상세 (등급 정보 포함)")
-                    st.write(summary_text) # AI가 찾은 등급 및 별점 정보가 표시됨
-
-                    st.markdown("#### 🔗 수집된 관련 뉴스 및 리포트")
-                    if sources:
-                        for src in sources:
-                            st.markdown(f"- [{src['title']}]({src['link']})")
+            # --- (3) Institutional Sentiment 섹션 ---
+            with st.expander("Sentiment Score", expanded=True):
+                result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
+                
+                s_col1, s_col2 = st.columns(2)
+                with s_col1:
+                    st.write("**[Analyst Ratings]**")
+                    # N/A가 아닐 때만 색상을 부여
+                    if "Buy" in result['rating'] or "Positive" in result['rating']:
+                        st.success(f"Consensus: {result['rating']}")
+                    elif "Sell" in result['rating']:
+                        st.error(f"Consensus: {result['rating']}")
                     else:
-                        st.write("수집된 출처가 없습니다.")
+                        st.info(f"등급: {result['rating']} (직접 확인 필요)")
+
+                with s_col2:
+                    st.write("**[IPO Scoop Score]**")
+                    if result['score'] != "N/A":
+                        st.warning(f"Expected Score: ⭐ {result['score']}")
+                    else:
+                        st.info("별점 데이터 없음")
+                
+                st.markdown("---")
+                st.markdown("#### 📝 AI 분석 상세")
+                st.write(result['summary'])
+
+                # 출처 링크
+                if result['links']:
+                    st.markdown("#### 🔗 관련 리포트 출처")
+                    for src in result['links']:
+                        st.markdown(f"- [{src['title']}]({src['link']})")
 
             
 
@@ -2212,6 +2208,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
