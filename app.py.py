@@ -1317,24 +1317,16 @@ elif st.session_state.page == 'detail':
             
             # [수정된 부분] expanded=False 로 설정하여 기본적으로 닫아둠
             with st.expander(f" {topic} AI 핵심 분석 요약", expanded=False):
-                with st.spinner(f"🤖 AI가 {topic}의 핵심 내용을 분석 중입니다..."):
-                    # 자동 분석 프롬프트 구성
-                    auto_analysis_prompt = f"""
-                    당신은 월가 출신의 전문 분석가입니다. {stock['name']}의 {topic} 서류를 분석하세요.
-                    다음 핵심 체크포인트를 중점적으로 분석하세요: {curr_meta['points']}
-                    
-                    내용 구성:
-                    1. 해당 문서에서 발견된 가장 중요한 투자 포인트.
-                    2. MD&A를 통해 본 기업의 실질적 성장 가능성.
-                    3. 투자자가 반드시 경계해야 할 핵심 리스크 1가지.
-                    
-                    친절하면서도 냉철한 톤으로 한국어로 5줄 내외 요약하세요.
-                    """
-                    try:
-                        response = model.generate_content(auto_analysis_prompt)
-                        st.markdown(response.text)
-                    except Exception as e:
-                        st.error("AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+        # expander가 열렸을 때만 함수 실행
+        with st.spinner(f"🤖 AI가 {topic}의 핵심 내용을 분석 중입니다..."):
+            analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'])
+            
+            if "ERROR_DETAILS" in analysis_result:
+                st.error("AI 분석 중 오류가 발생했습니다.")
+                with st.disclosure("상세 에러 내용(디버깅용)"):
+                    st.code(analysis_result)
+            else:
+                st.markdown(analysis_result)
                 
                 
                 
@@ -2259,6 +2251,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
