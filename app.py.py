@@ -18,7 +18,7 @@ from openai import OpenAI        # [추가] Groq 호출을 위한 OpenAI 객체 
 import yfinance as yf
 import plotly.graph_objects as go
 
-# ==========================================
+# ==========================================ㅅ뮤
 # [0] AI 설정 및 API 키 (가장 안정적인 모델로 교체)
 # ==========================================
 GENAI_API_KEY = "AIzaSyA1-19rf-r841t_itT3BGCI_GcPInVXWPo" 
@@ -2004,7 +2004,7 @@ elif st.session_state.page == 'detail':
                 percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
                 
                 # 상단 레이아웃: 낙관도 지표만 표시
-                st.metric("낙관도 상위", f"{percentile:.1f}%", help="점수가 높을수록 다른 참여자들보다 해당 종목을 긍정적으로 평가하고 있음을 의미합니다.")
+                st.metric("긍정평가", f"{percentile:.1f}%", help="점수가 높을수록 다른 참여자들보다 해당 종목을 긍정적으로 평가하고 있음을 의미합니다.")
 
                 # 그래프 시각화 (나의 점수는 빨간색으로 자동 강조됨)
                 score_counts = pd.Series(community_scores).value_counts().sort_index()
@@ -2030,11 +2030,11 @@ elif st.session_state.page == 'detail':
                 
                 # 분석 스타일에 따른 짧은 코멘트만 노출
                 if user_score >= 3:
-                    st.success(" 매우 낙관적인 분석가 스타일입니다.")
+                    st.success(" 신규 IPO 기업에 대해 긍정적으로 평가합니다.")
                 elif user_score <= -3:
-                    st.warning(" 매우 신중한 보수적 분석가 스타일입니다.")
+                    st.warning(" 신규 IPO 기업에 대해 부정적으로 평가합니다.")
                 else:
-                    st.info(" 균형 잡힌 중립적 분석가 스타일입니다.")
+                    st.info(" 신규 IPO 기업에 대해 중립적으로 평가합니다.")
 
             
 
@@ -2266,6 +2266,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
