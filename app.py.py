@@ -1757,11 +1757,10 @@ elif st.session_state.page == 'detail':
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         # ---------------------------------------------------------
         with tab4:
-            st.markdown("### 🇺🇸 Wall Street IPO Radar")
-            st.write("미국 현지 IPO 전문 기관들의 심층 분석과 점수를 종합합니다.")
+            
 
             # --- (1) Renaissance Capital 섹션 (기본 접힘으로 수정) ---
-            with st.expander("📊 Renaissance Capital: IPO Intelligence 요약", expanded=False):
+            with st.expander("Renaissance Capital: IPO Intelligence 요약", expanded=False):
                 st.markdown("""
                 **[전문가 리뷰]**
                 * **시장 포지셔닝:** 해당 종목은 섹터 내 고성장군에 속하며, 강력한 기술적 해자(Moat)를 보유함.
@@ -1771,7 +1770,7 @@ elif st.session_state.page == 'detail':
                 st.link_button("🔗 Renaissance IPO Center 바로가기", "https://www.renaissancecapital.com/IPO-Center")
 
             # --- (2) Seeking Alpha / Morningstar 섹션 ---
-            with st.expander("📝 Seeking Alpha & Morningstar 분석 요약", expanded=False):
+            with st.expander("Seeking Alpha & Morningstar 분석 요약", expanded=False):
                 st.markdown("""
                 **[심층 분석 내용]**
                 * **Morningstar View:** 공모가 희망 범위는 미래 현금 흐름 대비 합리적인 수준(Fair Value)으로 평가.
@@ -1783,7 +1782,7 @@ elif st.session_state.page == 'detail':
                 with c2: st.link_button("🔗 Morningstar Analysis", "https://www.morningstar.com/")
 
             # --- (3) Institutional Sentiment 섹션 (새롭게 접기 기능 적용) ---
-            with st.expander("⚖️ 기관 투자자 기대치 (Sentiment Score)", expanded=False):
+            with st.expander("기관 투자자 기대치 (Sentiment Score)", expanded=False):
                 st.write("전문 분석가들의 등급과 IPOScoop의 기관 청약 기대치입니다.")
                 
                 s_col1, s_col2 = st.columns(2)
@@ -2165,6 +2164,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
