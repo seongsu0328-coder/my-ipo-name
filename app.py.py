@@ -23,6 +23,28 @@ GENAI_API_KEY = "AIzaSyCnm7Y8Jnyw9kYHj-oC8TbBMtyIIzVNL1A"
 genai.configure(api_key=GENAI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
+# --- [추가 위치] 공시 서류 AI 분석 함수 ---
+@st.cache_data(show_spinner=False)
+def get_ai_analysis(company_name, topic, points):
+    try:
+        # 공시 분석을 위한 프롬프트 구성
+        prompt = f"""
+        당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
+        핵심 체크포인트: {points}
+        
+        내용 구성:
+        1. 해당 문서에서 발견된 가장 중요한 투자 포인트.
+        2. MD&A를 통해 본 기업의 실질적 성장 가능성.
+        3. 투자자가 반드시 경계해야 할 핵심 리스크 1가지.
+        
+        친절하면서도 냉철한 전문 분석가 톤으로 한국어로 5줄 내외 요약하세요.
+        """
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        # 에러 발생 시 상세 내용을 반환하여 디버깅을 돕습니다.
+        return f"ERROR_DETAILS: {str(e)}"
+
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
 # ==========================================
@@ -2237,6 +2259,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
