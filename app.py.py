@@ -28,6 +28,20 @@ model = genai.GenerativeModel('gemini-1.5-flash-latest')
 @st.cache_data(show_spinner=False)
 def get_ai_analysis(company_name, topic, points):
     try:
+        # [해결 핵심] 내 API 키로 사용 가능한 모델 목록을 실시간으로 가져옴
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # 목록에 이름이 있으면 사용, 없으면 가장 첫 번째 모델 강제 선택 (404 방지)
+        if 'models/gemini-1.5-flash' in available_models:
+            target_model = 'models/gemini-1.5-flash'
+        elif 'models/gemini-pro' in available_models:
+            target_model = 'models/gemini-pro'
+        else:
+            target_model = available_models[0] # 시스템이 허용하는 아무 모델이나 선택
+            
+        # 선택된 모델로 분석 수행
+        dynamic_model = genai.GenerativeModel(target_model)
+        
         prompt = f"""
         당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
         핵심 체크포인트: {points}
@@ -37,15 +51,14 @@ def get_ai_analysis(company_name, topic, points):
         2. MD&A를 통해 본 기업의 실질적 성장 가능성.
         3. 투자자가 반드시 경계해야 할 핵심 리스크 1가지.
         
-        친절하면서도 냉철한 분석가 톤으로 한국어로 5줄 내외 요약하세요.
+        전문적인 톤으로 한국어로 5줄 내외 요약하세요.
         """
-        # 설정된 gemini-1.0-pro 모델로 분석 수행
-        response = model.generate_content(prompt)
+        response = dynamic_model.generate_content(prompt)
         return response.text
             
     except Exception as e:
-        # 에러 발생 시 상세 내용 출력
-        return f"ERROR_DETAILS: {str(e)}"
+        # 이 단계에서도 에러가 난다면 API 키 자체의 문제일 확률이 높음
+        return f"현재 {company_name} 공시를 분석하기 위해 AI 엔진을 조율 중입니다. (상세: {str(e)})"
 
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
@@ -2258,6 +2271,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
