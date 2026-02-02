@@ -2019,6 +2019,81 @@ elif st.session_state.page == 'detail':
 
             st.markdown(f"""<div style="background-color:{box_bg}; padding:20px; border-radius:12px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">{summary_text}</div>""", unsafe_allow_html=True)
 
+            # ---------------------------------------------------------
+            # [추가] 1-2. 투자 성향 점수 합산 및 분포 분석
+            # ---------------------------------------------------------
+            # 모든 단계가 완료되었을 때만 점수와 그래프를 표시합니다.
+            if len(missing_steps) == 0:
+                # 1. 점수 매핑 사전 정의
+                score_map = {
+                    "긍정적": 1, "중립적": 0, "부정적": -1,
+                    "수용적": 1, "중립적": 0, "회의적": -1,
+                    "버블": -1, "중립": 0, "침체": 1, 
+                    "저평가": 1, "적정": 0, "고평가": -1,
+                    "매수": 1, "중립": 0, "매도": -1
+                }
+
+                # 2. 점수 합산 함수
+                def calculate_total_score(ud_data):
+                    steps = ['news', 'filing', 'macro', 'company', 'ipo_report']
+                    total = 0
+                    for s in steps:
+                        val = ud_data.get(s, "중립적")
+                        total += score_map.get(val, 0)
+                    return total
+
+                user_score = calculate_total_score(ud)
+                
+                st.write("") # 간격 조절
+                st.markdown("#### 📊 나의 투자 매력도 분석 결과")
+                
+                # 3. 가상 참여자 분포 데이터 생성 (numpy 활용)
+                import numpy as np
+                np.random.seed(42) # 일관된 분포 유지
+                community_scores = np.random.normal(0, 1.5, 1000).round().astype(int)
+                community_scores = np.clip(community_scores, -5, 5)
+                
+                # 4. 상위 백분위 계산 (점수가 높을수록 긍정적 상위)
+                percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
+                
+                # 지표 요약 (Metric)
+                m1, m2 = st.columns(2)
+                m1.metric("나의 분석 점수", f"{user_score} / +5")
+                m2.metric("낙관도 상위", f"{percentile:.1f}%")
+
+                # 5. 분포 차트 시각화 (Plotly)
+                score_counts = pd.Series(community_scores).value_counts().sort_index()
+                # 모든 점수대(-5 ~ 5)가 표에 나오도록 보정
+                all_range = pd.Series(0, index=range(-5, 6))
+                score_counts = (all_range + score_counts).fillna(0)
+                
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=score_counts.index, 
+                    y=score_counts.values,
+                    marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
+                    hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
+                ))
+                
+                fig.update_layout(
+                    height=250,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    xaxis=dict(tickmode='linear', dtick=1),
+                    yaxis=dict(showticklabels=False),
+                    showlegend=False,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 투자 성향 한 줄 평
+                if user_score >= 3:
+                    st.success(" 매우 공격적이고 낙관적인 투자 분석가 스타일입니다.")
+                elif user_score <= -3:
+                    st.warning(" 매우 신중하고 보수적인 투자 분석가 스타일입니다.")
+                else:
+                    st.info(" 균형 잡힌 시각을 가진 중립적 분석가 스타일입니다.")
             
             # ---------------------------------------------------------
             # 2. [순서 변경] 투자 결정 및 관심 종목 (아래로 이동)
@@ -2307,6 +2382,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
