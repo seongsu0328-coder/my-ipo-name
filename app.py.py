@@ -1245,69 +1245,124 @@ elif st.session_state.page == 'detail':
             # 결정 박스 (맨 마지막 유지)
             draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
-    # --- Tab 1: 핵심 정보 (profile 부재 대비 완료) ---
-    with tab1:
-        # 1. 상단 기업 정보 표시
-        
+    # --- Tab 1: 핵심 정보 (공시 가이드 및 AI 분석 강화) ---
+with tab1:
+    # [세션 상태 관리]
+    if 'core_topic' not in st.session_state:
+        st.session_state.core_topic = "S-1"
 
-        # [세션 상태 관리]
-        if 'core_topic' not in st.session_state:
-            st.session_state.core_topic = "S-1"
+    # 1. 문서 선택 버튼 그리드
+    r1_c1, r1_c2, r1_c3 = st.columns(3)
+    r2_c1, r2_c2 = st.columns(2)
 
-        # 2. 문서 선택 버튼 그리드
-        r1_c1, r1_c2, r1_c3 = st.columns(3)
-        r2_c1, r2_c2 = st.columns(2)
+    if r1_c1.button("S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
+    if r1_c2.button("S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
+    if r1_c3.button("F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
+    if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
+    if r2_c2.button("424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
 
-        if r1_c1.button("S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
-        if r1_c2.button("S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
-        if r1_c3.button("F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
-        if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
-        if r2_c2.button("424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
-
-        # 3. 메타데이터 설정
-        topic = st.session_state.core_topic
-        def_meta = {
-            "S-1": {"t": "증권신고서 (S-1)", "d": "상장을 위해 최초로 제출하는 서류입니다."},
-            "S-1/A": {"t": "정정신고서 (S-1/A)", "d": "공모가 밴드와 발행 주식 수가 확정되는 수정 문서입니다."},
-            "FWP": {"t": "투자설명회 (FWP)", "d": "기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다."},
-            "424B4": {"t": "최종설명서 (Prospectus)", "d": "공모가가 확정된 후 발행되는 최종 문서입니다."},
-            "F-1": {"t": "해외기업 신고서 (F-1)", "d": "미국 외 기업이 상장할 때 제출하는 서류입니다."},
+    # 2. 메타데이터 및 체크포인트 설정
+    topic = st.session_state.core_topic
+    
+    # 각 문서별 상세 체크포인트 데이터
+    def_meta = {
+        "S-1": {
+            "t": "증권신고서 (S-1)",
+            "d": "상장을 위해 최초로 제출하는 서류입니다.",
+            "check": [
+                "**Risk Factors**: 기업이 고백하는 '망할 수 있는 이유'. 특이 소송이나 규제 확인.",
+                "**Use of Proceeds**: 공모자금 용도. '채무 상환'보다 '시설 투자/R&D'가 긍정적.",
+                "**MD&A**: 경영진이 직접 설명하는 실적 성장의 핵심 동인(Why) 분석."
+            ]
+        },
+        "S-1/A": {
+            "t": "정정신고서 (S-1/A)",
+            "d": "공모가 밴드와 발행 주식 수가 확정되는 수정 문서입니다.",
+            "check": [
+                "**Pricing Terms**: 공모가 밴드가 상향되었다면 기관 수요가 뜨겁다는 신호.",
+                "**Dilution**: 기존 주주 대비 신규 투자자가 얼마나 비싸게 사는지(희석률) 확인."
+            ]
+        },
+        "F-1": {
+            "t": "해외기업 신고서 (F-1)",
+            "d": "미국 외 기업(쿠팡 등)이 상장할 때 제출하는 서류입니다.",
+            "check": [
+                "**Foreign Risk**: 해당 국가의 정치/환율 리스크 섹션 필수 확인.",
+                "**MD&A**: 미국 회계 기준(GAAP)과의 차이점 확인."
+            ]
+        },
+        "FWP": {
+            "t": "투자설명회 (FWP)",
+            "d": "기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다.",
+            "check": [
+                "**Graphics**: 비즈니스 모델과 시장 점유율 시각화 자료 확인.",
+                "**Strategy**: 경영진이 강조하는 미래 성장 동력(핵심 먹거리) 파악."
+            ]
+        },
+        "424B4": {
+            "t": "최종설명서 (Prospectus)",
+            "d": "공모가가 확정된 후 발행되는 최종 문서입니다.",
+            "check": [
+                "**Underwriting**: Goldman, Morgan Stanley 등 티어1 주관사 참여 여부.",
+                "**Final Price**: 최종 확정된 공모가와 기관 배정 물량 확인."
+            ]
         }
-        curr_meta = def_meta.get(topic, def_meta["S-1"])
+    }
+    
+    curr_meta = def_meta.get(topic, def_meta["S-1"])
 
-        st.info(f"💡 **현재 선택: {curr_meta['t']}**\n\n{curr_meta['d']}")
-
-        # 4. SEC URL 생성 로직 (profile이 없어도 stock['name']으로 검색)
-        import urllib.parse
-        import re
+    # UI 출력: 서류 설명 및 체크포인트
+    with st.container():
+        st.markdown(f"### 📑 {curr_meta['t']}")
+        st.write(f"*{curr_meta['d']}*")
         
-        # CIK 정보가 있으면 사용, 없으면 빈값
-        cik = profile.get('cik', '') if profile else ''
-        
-        # 이름 정제 (검색 정확도 향상)
-        clean_name = re.sub(r'[,.]', '', stock['name'])
-        clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
-        
-        if cik:
-            sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
-        else:
-            # CIK가 없으면 회사 이름으로 직접 검색하는 URL 생성
-            query = f'"{clean_name}" {topic}'
-            sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
+        # 핵심 체크포인트 안내 박스
+        with st.expander(f"🔍 {topic} 서류에서 반드시 확인해야 할 포인트", expanded=True):
+            for item in curr_meta['check']:
+                st.write(item)
+            st.info("💡 **MD&A 핵심 3요소**: 실적의 원인(Why), 현금 유동성, 시장 트렌드")
 
-        # 원문공시 버튼 출력
-        st.markdown(f"""
-            <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer;'>
-                    🏛️ {topic} 원문공시 확인하기 ↗
-                </button>
-            </a>
-        """, unsafe_allow_html=True)
+    # 3. SEC URL 생성 로직 (이전과 동일)
+    import urllib.parse
+    import re
+    cik = profile.get('cik', '') if profile else ''
+    clean_name = re.sub(r'[,.]', '', stock['name'])
+    clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
+    
+    if cik:
+        sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
+    else:
+        query = f'"{clean_name}" {topic}'
+        sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
 
-        st.write("") 
+    st.markdown(f"""
+        <a href="{sec_url}" target="_blank" style="text-decoration:none;">
+            <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer;'>
+                🏛️ {topic} 원문공시 확인하기 ↗
+            </button>
+        </a>
+    """, unsafe_allow_html=True)
 
-        # 5. 결정 박스 (profile 여부와 상관없이 출력)
-        draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
+    # 4. [추가] AI에게 위 체크포인트를 바탕으로 요약 요청하기
+    if st.button(f"🤖 AI에게 {topic} 핵심 요약 부탁하기"):
+        with st.spinner(f"{topic}의 방대한 데이터를 분석 중입니다..."):
+            # 분석을 위한 프롬프트 구성
+            analysis_prompt = f"""
+            당신은 월가 출신의 전문 주식 분석가입니다. 
+            {stock['name']}의 {topic} 공시 서류를 분석하여 다음 지표 위주로 요약해 주세요:
+            1. {curr_meta['check']} 에 나열된 핵심 포인트들.
+            2. MD&A 섹션에서 파악되는 실적 성장의 '진짜 원인'.
+            3. 투자자가 주의해야 할 결정적 리스크 한 가지.
+            한국어로 번호를 매겨 5줄 내외로 답하세요.
+            """
+            # 여기서 실제 AI 호출 함수(예: model.generate_content)를 연결하면 됩니다.
+            # 지금은 구조 예시를 보여드립니다.
+            response = model.generate_content(analysis_prompt)
+            st.success("✅ 분석 완료")
+            st.markdown(response.text)
+
+    st.divider()
+    draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
@@ -2205,6 +2260,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
