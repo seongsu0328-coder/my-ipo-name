@@ -65,14 +65,15 @@ IPO_REFERENCES = [
 ]
 
 # ==========================================
-# [2] AI 기반 실시간 분석 함수 (캐싱 적용)
+# [2] AI 기반 실시간 분석 함수 (캐싱 적용 & 등급 추출 강화)
 # ==========================================
 @st.cache_data(ttl=3600)
 def get_cached_ipo_analysis(ticker, company_name):
     """
-    무료 검색(DuckDuckGo) 후 Gemini로 요약한 결과를 캐싱합니다.
+    무료 검색(DuckDuckGo) 후 Gemini로 등급 정보를 포함하여 요약한 결과를 캐싱합니다.
     """
-    query = f"{company_name} {ticker} IPO analysis Renaissance Capital Seeking Alpha"
+    # 검색 쿼리에 등급 관련 키워드를 추가하여 정보 수집 확률을 높임
+    query = f"{company_name} {ticker} IPO analysis rating Scoop Seeking Alpha"
     
     try:
         # 1. 무료 검색 (DuckDuckGo)
@@ -88,14 +89,16 @@ def get_cached_ipo_analysis(ticker, company_name):
             search_context += f"제목: {res['title']}\n내용: {res['body']}\n\n"
             links.append({"title": res['title'], "link": res['href']})
 
-        # 2. Gemini 무료 요약 (1.5 Flash)
+        # 2. Gemini 무료 요약 (지시사항 강화)
         prompt = f"""
-        당신은 월가 출신의 전문 주식 분석가입니다. 아래 제공된 검색 결과들을 바탕으로 
-        {company_name} ({ticker})의 IPO 분석 내용을 핵심만 5줄로 요약하세요.
-        - 반드시 한국어로 작성할 것.
-        - 시장의 평가, 예상 공모가 대비 성과, 주요 리스크 요인을 포함할 것.
-        - 각 문장은 번호를 매겨 명확하게 끊어서 작성할 것.
+        당신은 월가 출신의 전문 주식 분석가입니다. 아래 검색 결과를 바탕으로 {company_name} ({ticker})를 분석하세요.
         
+        [지시사항]
+        1. 핵심 분석 내용을 명확하게 번호를 매겨 5줄로 요약하세요.
+        2. 검색 결과에 Seeking Alpha나 Morningstar의 등급(Buy, Hold, Sell 등)이 있다면 반드시 언급하세요.
+        3. IPO Scoop의 별점(1~5점)이 언급되어 있다면 요약 내에 포함하세요. 정보가 없다면 "별점 정보 없음"이라고 명시하세요.
+        4. 시장의 평가, 성과, 주요 리스크 요인을 포함하여 한국어로 작성하세요.
+
         검색 결과 데이터:
         {search_context}
         """
@@ -2200,6 +2203,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
