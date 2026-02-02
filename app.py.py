@@ -1996,19 +1996,24 @@ elif st.session_state.page == 'detail':
             with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 st.markdown("**[AI 리서치 요약]**")
                 st.info(result.get('summary', '데이터를 불러올 수 없습니다.')) 
-                st.link_button(f"🔗 {stock['symbol']} Renaissance 상세 페이지", 
-                               f"https://www.renaissancecapital.com/IPO-Center/Search?q={stock['symbol']}")
+                
+                # [개선] 심볼(HXHX) 검색 대신 기업명으로 검색하도록 쿼리 수정 제안
+                search_query = stock['symbol'] if stock['symbol'] else stock['name']
+                st.link_button(f"🔗 {stock['name']} Renaissance 검색 결과", 
+                               f"https://www.renaissancecapital.com/IPO-Center/Search?q={search_query}")
+                
+                # 추가 팁: 만약 Renaissance에 데이터가 없다면 IPO Scoop을 대안으로 제시
+                st.caption("※ Renaissance Capital에 데이터가 없다면 소형주 분석이 제한적일 수 있습니다.")
 
             # --- (2) Seeking Alpha / Morningstar 섹션 ---
             with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
                 st.markdown("**[Market Consensus]**")
-                st.write(f"전문 분석가들은 {stock['name']}의 비즈니스 모델과 밸류에이션을 실시간으로 추적 중입니다.")
-                st.markdown("---")
+                # (중략)
                 c1, c2 = st.columns(2)
                 with c1: 
-                    st.link_button("🔗 Seeking Alpha 바로가기", f"https://seekingalpha.com/symbol/{stock['symbol']}")
-                with c2: 
-                    st.link_button("🔗 Morningstar 바로가기", "https://www.morningstar.com/")
+                    # Seeking Alpha는 대문자 심볼을 선호합니다.
+                    sa_url = f"https://seekingalpha.com/symbol/{stock['symbol'].upper()}"
+                    st.link_button("🔗 Seeking Alpha 바로가기", sa_url)
 
             # --- (3) Institutional Sentiment 섹션 ---
             with st.expander("Sentiment Score", expanded=True):
@@ -2365,6 +2370,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
