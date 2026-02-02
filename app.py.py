@@ -1800,68 +1800,59 @@ elif st.session_state.page == 'detail':
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         # ---------------------------------------------------------
         with tab4:
+            st.markdown(f"### 🇺🇸 Wall Street IPO Radar: {stock['symbol']}")
+            st.write(f"글로벌 IPO 전문 기관들이 분석한 **{stock['name']}**의 실시간 리포트입니다.")
+
+            # 분석 실행 버튼
+            if st.button(f"🔍 {stock['symbol']} 실시간 분석 데이터 가져오기"):
+                with st.spinner("최신 마켓 데이터를 수집하고 AI가 요약 중입니다..."):
+                    # [공통] AI 분석 함수 호출
+                    summary, sources = get_cached_ipo_analysis(stock['symbol'], stock['name'])
+                    
+                    # --- (1) Renaissance Capital 섹션 ---
+                    with st.expander("📊 Renaissance Capital: 실시간 IPO 분석", expanded=True):
+                        st.markdown("**[AI 리서치 요약]**")
+                        # 요약 내용 중 Renaissance 관련 내용이 포함되도록 프롬프트가 작동함
+                        st.write(summary) 
+                        st.link_button(f"🔗 {stock['symbol']} Renaissance 상세 페이지", 
+                                       f"https://www.renaissancecapital.com/IPO-Center/Search?q={stock['symbol']}")
+
+                    # --- (2) Seeking Alpha / Morningstar 섹션 ---
+                    with st.expander("📝 Seeking Alpha & Morningstar 실시간 전망", expanded=False):
+                        st.markdown("**[Market Consensus]**")
+                        st.write(f"전문 분석가들은 {stock['name']}의 비즈니스 모델과 밸류에이션을 실시간으로 추적 중입니다.")
+                        c1, c2 = st.columns(2)
+                        with c1: 
+                            st.link_button("🔗 Seeking Alpha 바로가기", f"https://seekingalpha.com/symbol/{stock['symbol']}")
+                        with c2: 
+                            st.link_button("🔗 Morningstar 바로가기", "https://www.morningstar.com/")
+
+                    # --- (3) Institutional Sentiment 섹션 ---
+                    with st.expander("⚖️ Sentiment Score (기관 기대치)", expanded=False):
+                        st.write("외부 원문 데이터를 확인하여 아래 등급을 종합적으로 판단해 보세요.")
+                        s_col1, s_col2 = st.columns(2)
+                        with s_col1:
+                            st.write("**[Analyst Ratings]**")
+                            # 팁: 실제 API 등급 데이터가 없다면 "리포트 참조"로 표시
+                            st.info("실시간 리포트의 컨센서스를 확인하세요.")
+                        with s_col2:
+                            st.write("**[IPO Scoop Score]**")
+                            st.warning("기관 청약 경쟁률 확인 필요")
+                        
+                        st.markdown("#### 🔗 수집된 관련 링크")
+                        for src in sources:
+                            st.markdown(f"- [{src['title']}]({src['link']})")
+
+                    st.success("✅ 실시간 분석이 완료되었습니다.")
             
+            else:
+                # 버튼을 누르기 전 가이드 메시지
+                st.info("위의 버튼을 클릭하면 실시간 구글 검색과 AI 요약이 시작됩니다.")
 
-            # --- (1) Renaissance Capital 섹션 (기본 접힘으로 수정) ---
-            with st.expander("Renaissance Capital: IPO Intelligence 요약", expanded=False):
-                st.markdown("""
-                **[전문가 리뷰]**
-                * **시장 포지셔닝:** 해당 종목은 섹터 내 고성장군에 속하며, 강력한 기술적 해자(Moat)를 보유함.
-                * **공모 구조:** 구주 매출 비중이 낮아 상장 후 자금 유입 효과가 클 것으로 기대됨.
-                * **우려 사항:** 상장 직후 낮은 유통 물량으로 인해 초기 변동성이 클 수 있음.
-                """)
-                st.link_button("🔗 Renaissance IPO Center 바로가기", "https://www.renaissancecapital.com/IPO-Center")
-
-            # --- (2) Seeking Alpha / Morningstar 섹션 ---
-            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
-                st.markdown("""
-                **[심층 분석 내용]**
-                * **Morningstar View:** 공모가 희망 범위는 미래 현금 흐름 대비 합리적인 수준(Fair Value)으로 평가.
-                * **Seeking Alpha Analyst:** 구독 모델(SaaS) 기반의 안정적인 반복 매출(ARR) 증가세에 주목.
-                * **핵심 지표:** Rule of 40 점수가 45%로, 동종 업계 상위 10% 이내 기록 중.
-                """)
-                c1, c2 = st.columns(2)
-                with c1: st.link_button("🔗 Seeking Alpha IPO", "https://seekingalpha.com/ipo")
-                with c2: st.link_button("🔗 Morningstar Analysis", "https://www.morningstar.com/")
-
-            # --- (3) Institutional Sentiment 섹션 (새롭게 접기 기능 적용) ---
-            with st.expander("Sentiment Score 종합", expanded=False):
-                st.write("전문 분석가들의 등급과 IPOScoop의 기관 청약 기대치입니다.")
-                
-                s_col1, s_col2 = st.columns(2)
-                
-                # Seeking Alpha / Morningstar 등급
-                with s_col1:
-                    st.write("**[Analyst Ratings]**")
-                    rating = "Buy"  
-                    st.markdown(f"""
-                        <div style="background-color: #e8f5e9; border-radius: 10px; padding: 20px; text-align: center; border: 1px solid #c8e6c9;">
-                            <span style="font-size: 14px; color: #2e7d32; font-weight: bold;">Rating Target</span><br>
-                            <span style="font-size: 28px; font-weight: bold; color: #1b5e20;">{rating}</span>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    st.caption("Seeking Alpha / Morningstar 컨센서스")
-
-                # IPOScoop 별점(Scorecard)
-                with s_col2:
-                    st.write("**[IPO Scoop Scorecard]**")
-                    stars = 4  
-                    star_display = "⭐" * stars + "☆" * (5 - stars)
-                    st.markdown(f"""
-                        <div style="background-color: #fff9c4; border-radius: 10px; padding: 20px; text-align: center; border: 1px solid #fff176;">
-                            <span style="font-size: 14px; color: #fbc02d; font-weight: bold;">Expected Interest</span><br>
-                            <span style="font-size: 28px; font-weight: bold; color: #f9a825;">{star_display}</span>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    st.caption("IPOScoop 기관 청약 기대치 등급")
-                
-                st.write("<br>", unsafe_allow_html=True)
-                st.info("💡 **종합 의견:** 기관들의 별점이 높고 'Buy' 등급이 우세할 경우, 상장 당일 'IPO Pop' 가능성이 큽니다.")
-
-            
+            st.divider()
 
             # [✅ 5단계 사용자 판단]
-            draw_decision_box("ipo_report", "기관 리포트와 등급을 통한 나의 판단은?", ["매수", "중립", "매도"])
+            draw_decision_box("ipo_report", f"기관 분석을 통한 {stock['symbol']}의 최종 판단은?", ["매수", "중립", "매도"])
 
         # --- Tab 5: 최종 투자 결정 (순서 변경됨) ---
         with tab5:
@@ -2207,6 +2198,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
