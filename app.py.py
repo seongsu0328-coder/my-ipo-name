@@ -1799,14 +1799,14 @@ elif st.session_state.page == 'detail':
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         # ---------------------------------------------------------
         with tab4:
-            st.markdown(f"### 🇺🇸 Wall Street IPO Radar: {stock['symbol']}")
+            
             
             # [중요] 함수를 한 번 호출해서 전체 결과(result)를 가져옵니다.
             # 캐싱 덕분에 아래 여러 곳에서 호출해도 성능에 문제가 없습니다.
             result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
 
             # --- (1) Renaissance Capital 섹션 ---
-            with st.expander("📊 Renaissance Capital IPO 요약", expanded=False):
+            with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 st.markdown("**[AI 리서치 요약]**")
                 # result['summary'] 또는 result['summary_text'] 등 함수에서 정의한 키값을 사용합니다.
                 st.info(result.get('summary', '데이터를 불러올 수 없습니다.')) 
@@ -1814,7 +1814,7 @@ elif st.session_state.page == 'detail':
                                f"https://www.renaissancecapital.com/IPO-Center/Search?q={stock['symbol']}")
 
             # --- (2) Seeking Alpha / Morningstar 섹션 ---
-            with st.expander("📝 Seeking Alpha & Morningstar 요약", expanded=False):
+            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
                 st.markdown("**[Market Consensus]**")
                 st.write(f"전문 분석가들은 {stock['name']}의 비즈니스 모델과 밸류에이션을 실시간으로 추적 중입니다.")
                 st.markdown("---")
@@ -1825,7 +1825,7 @@ elif st.session_state.page == 'detail':
                     st.link_button("🔗 Morningstar 바로가기", "https://www.morningstar.com/")
 
             # --- (3) Institutional Sentiment 섹션 ---
-            with st.expander("⚖️ Sentiment Score", expanded=True):
+            with st.expander("Sentiment Score", expanded=True):
                 s_col1, s_col2 = st.columns(2)
                 with s_col1:
                     st.write("**[Analyst Ratings]**")
@@ -1856,7 +1856,7 @@ elif st.session_state.page == 'detail':
                     for src in sources:
                         st.markdown(f"- [{src['title']}]({src['link']})")
 
-            st.divider()
+            
 
             # [✅ 5단계 사용자 판단]
             draw_decision_box("ipo_report", f"기관 분석을 통한 {stock['symbol']}의 최종 판단은?", ["매수", "중립", "매도"])
@@ -2205,6 +2205,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
