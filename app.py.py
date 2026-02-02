@@ -1331,22 +1331,25 @@ elif st.session_state.page == 'detail':
             st.info(curr_meta['desc'])
             
             # [수정된 부분] expanded=False 로 설정하여 기본적으로 닫아둠
-            # 1319번 줄 시작
-            with st.expander(f"🔍 {topic} AI 핵심 분석 요약", expanded=False):
-                # 1321번 줄: expander 내부로 들여쓰기
-                with st.spinner(f"🤖 AI가 {topic}의 핵심 내용을 분석 중입니다..."):
-                    analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'])
-                    
-                    if "ERROR_DETAILS" in analysis_result:
-                        st.error("AI 분석 중 오류가 발생했습니다.")
-                        # disclosure 대신 expander를 사용하여 에러 표시
-                        with st.expander("상세 에러 내용(디버깅용)"):
-                            st.code(analysis_result)
-                    else:
-                        st.markdown(analysis_result)
+            # [수정된 부분] 버튼 클릭 시에만 AI 분석 실행하여 할당량 보호
+            with st.expander(f" {topic} AI 핵심 분석 요약", expanded=False):
+                # 버튼을 하나 생성 (key값은 중복 방지를 위해 topic 사용)
+                if st.button(f"🤖 {topic} AI 분석 시작하기", key=f"btn_{topic}"):
+                    with st.spinner(f"AI가 {topic}의 핵심 내용을 분석 중입니다..."):
+                        analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'])
+                        
+                        if "ERROR_DETAILS" in analysis_result:
+                            st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
+                            with st.expander("상세 에러 내용"):
+                                st.code(analysis_result)
+                        else:
+                            st.success("분석이 완료되었습니다!")
+                            st.markdown(analysis_result)
+                else:
+                    st.info("위 버튼을 클릭하면 월가 분석가 톤의 AI 요약을 생성합니다. (분당 호출 제한 방지)")
                 
                 st.divider()
-                st.caption(f"💡 {topic} 공시의 MD&A 섹션은 경영진의 의중을 파악할 수 있는 가장 중요한 데이터입니다.")
+                st.caption(f"💡 {topic} 공시 분석은 상장 초기 변동성을 대비하는 가장 좋은 방법입니다.")
                 
                 
                 
@@ -2271,6 +2274,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
