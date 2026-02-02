@@ -17,40 +17,35 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 # ==========================================
-# [0] AI 설정 및 API 키 (강력한 표준화)
+# [0] AI 설정 및 API 키 (가장 안정적인 모델로 교체)
 # ==========================================
 GENAI_API_KEY = "AIzaSyCnm7Y8Jnyw9kYHj-oC8TbBMtyIIzVNL1A" 
 genai.configure(api_key=GENAI_API_KEY)
 
-# 'models/'를 제거하고 가장 기본적인 이름만 사용합니다.
-model = genai.GenerativeModel('gemini-1.5-flash')
+# 최후의 보루: 가장 호환성이 높은 1.0 pro 모델 사용
+model = genai.GenerativeModel('gemini-1.0-pro')
 
 @st.cache_data(show_spinner=False)
 def get_ai_analysis(company_name, topic, points):
-    prompt = f"""
-    당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
-    핵심 체크포인트: {points}
-    내용 구성:
-    1. 해당 문서에서 발견된 가장 중요한 투자 포인트.
-    2. MD&A를 통해 본 기업의 실질적 성장 가능성.
-    3. 투자자가 반드시 경계해야 할 핵심 리스크 1가지.
-    한국어로 5줄 내외 요약하세요.
-    """
-    
     try:
-        # 1차 시도: gemini-1.5-flash
-        try:
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            # 2차 시도: 404 발생 시 가장 보편적인 'gemini-pro'로 우회 (models/ 제외)
-            fallback = genai.GenerativeModel('gemini-pro')
-            response = fallback.generate_content(prompt)
-            return response.text
+        prompt = f"""
+        당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
+        핵심 체크포인트: {points}
+        
+        내용 구성:
+        1. 해당 문서에서 발견된 가장 중요한 투자 포인트.
+        2. MD&A를 통해 본 기업의 실질적 성장 가능성.
+        3. 투자자가 반드시 경계해야 할 핵심 리스크 1가지.
+        
+        친절하면서도 냉철한 분석가 톤으로 한국어로 5줄 내외 요약하세요.
+        """
+        # 설정된 gemini-1.0-pro 모델로 분석 수행
+        response = model.generate_content(prompt)
+        return response.text
             
-    except Exception as final_error:
-        # 모든 시도 실패 시 상세 메시지 출력
-        return f"ERROR_DETAILS: {str(final_error)}"
+    except Exception as e:
+        # 에러 발생 시 상세 내용 출력
+        return f"ERROR_DETAILS: {str(e)}"
 
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
@@ -2263,6 +2258,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
