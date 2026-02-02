@@ -1393,7 +1393,7 @@ elif st.session_state.page == 'detail':
             st.markdown(f"""
                 <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                     <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer;'>
-                        🏛️ {topic} 원문공시 확인하기 ↗
+                         EDGAR {topic} 공시 확인하기 
                     </button>
                 </a>
             """, unsafe_allow_html=True)
@@ -2297,6 +2297,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
