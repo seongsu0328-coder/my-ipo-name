@@ -1333,9 +1333,9 @@ elif st.session_state.page == 'detail':
             st.info(curr_meta['desc'])
             
             # 1. expander를 누르면 즉시 분석이 시작되도록 설정
-            with st.expander(f"🔍 {topic} AI 핵심 분석 요약", expanded=False):
+            with st.expander(f" {topic} 요약하기", expanded=False):
                 # expander가 열려 있을 때만 내부 로직 실행
-                with st.spinner(f"🤖 AI가 {topic}의 핵심 내용을 분석 중입니다..."):
+                with st.spinner(f" AI가 {topic}의 핵심 내용을 분석 중입니다..."):
                     analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'])
                     
                     if "ERROR_DETAILS" in analysis_result:
@@ -1350,7 +1350,7 @@ elif st.session_state.page == 'detail':
                 
                 st.divider()
                 # 3. 요청하신 하단 캡션 문구로 변경
-                st.caption("💡 자체 알고리즘으로 공시자료를 요약해 제공합니다.")
+                st.caption(" 자체 알고리즘으로 공시자료를 요약해 제공합니다.")
                 
                 
                 
@@ -2275,6 +2275,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
