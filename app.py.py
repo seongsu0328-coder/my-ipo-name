@@ -1332,26 +1332,25 @@ elif st.session_state.page == 'detail':
             # UI 출력: 통합된 설명문 출력
             st.info(curr_meta['desc'])
             
-            # [수정된 부분] expanded=False 로 설정하여 기본적으로 닫아둠
-            # [수정된 부분] 버튼 클릭 시에만 AI 분석 실행하여 할당량 보호
-            with st.expander(f" {topic} AI 핵심 분석 요약", expanded=False):
-                # 버튼을 하나 생성 (key값은 중복 방지를 위해 topic 사용)
-                if st.button(f"🤖 {topic} AI 분석 시작하기", key=f"btn_{topic}"):
-                    with st.spinner(f"AI가 {topic}의 핵심 내용을 분석 중입니다..."):
-                        analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'])
-                        
-                        if "ERROR_DETAILS" in analysis_result:
-                            st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
-                            with st.expander("상세 에러 내용"):
-                                st.code(analysis_result)
-                        else:
-                            st.success("분석이 완료되었습니다!")
-                            st.markdown(analysis_result)
-                else:
-                    st.info("위 버튼을 클릭하면 월가 분석가 톤의 AI 요약을 생성합니다. (분당 호출 제한 방지)")
+            # 1. expander를 누르면 즉시 분석이 시작되도록 설정
+            with st.expander(f"🔍 {topic} AI 핵심 분석 요약", expanded=False):
+                # expander가 열려 있을 때만 내부 로직 실행
+                with st.spinner(f"🤖 AI가 {topic}의 핵심 내용을 분석 중입니다..."):
+                    analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'])
+                    
+                    if "ERROR_DETAILS" in analysis_result:
+                        st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
+                        with st.expander("상세 에러 내용"):
+                            st.code(analysis_result)
+                    else:
+                        # 2. 불필요한 인사말 없이 결과만 깔끔하게 출력
+                        # 만약 결과값에 "분석한 결과입니다" 등의 문구가 섞여 나온다면 
+                        # get_ai_analysis 함수 내 프롬프트에서 "인사말 생략"을 추가하는 것이 좋습니다.
+                        st.markdown(analysis_result)
                 
                 st.divider()
-                st.caption(f"💡 {topic} 공시 분석은 상장 초기 변동성을 대비하는 가장 좋은 방법입니다.")
+                # 3. 요청하신 하단 캡션 문구로 변경
+                st.caption("💡 자체 알고리즘으로 공시자료를 요약해 제공합니다.")
                 
                 
                 
@@ -2276,6 +2275,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
