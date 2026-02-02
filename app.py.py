@@ -1832,7 +1832,7 @@ elif st.session_state.page == 'detail':
                 st.caption("※ 위 링크를 통해 실시간 Analyst Rating을 확인하실 수 있습니다.")
 
             # --- (3) Institutional Sentiment 섹션 (실시간 등급 감지) ---
-            with st.expander("⚖️ Sentiment Score", expanded=False):
+            with st.expander("Sentiment Score", expanded=False):
                 with st.spinner("AI가 검색 결과에서 등급 정보를 추출하는 중..."):
                     # AI로부터 분석 결과 및 소스 가져오기
                     summary_text, sources = get_cached_ipo_analysis(stock['symbol'], stock['name'])
@@ -1867,7 +1867,7 @@ elif st.session_state.page == 'detail':
                     else:
                         st.write("수집된 출처가 없습니다.")
 
-            st.divider()
+            
 
             # [✅ 5단계 사용자 판단]
             draw_decision_box("ipo_report", f"기관 분석을 통한 {stock['symbol']}의 최종 판단은?", ["매수", "중립", "매도"])
@@ -2216,6 +2216,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
