@@ -1370,7 +1370,7 @@ elif st.session_state.page == 'detail':
                         # get_ai_analysis 함수 내 프롬프트에서 "인사말 생략"을 추가하는 것이 좋습니다.
                         st.markdown(analysis_result)
                 
-                st.divider()
+                
                 # 3. 요청하신 하단 캡션 문구로 변경
                 st.caption(" 자체 알고리즘으로 공시자료를 요약해 제공합니다.")
                 
@@ -2297,6 +2297,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
