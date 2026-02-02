@@ -1977,47 +1977,7 @@ elif st.session_state.page == 'detail':
             current_user = st.session_state.get('user_phone', 'guest')
             is_admin = (current_user == ADMIN_PHONE)
 
-            # ---------------------------------------------------------
-            # 1. [순서 변경] 나의 판단 종합 (Step 1~5 반영)
-            # ---------------------------------------------------------
             
-            ud = st.session_state.user_decisions.get(sid, {})
-            
-            # Step 1~5까지 모든 단계를 체크하도록 수정
-            missing_steps = []
-            if not ud.get('news'): missing_steps.append("Step 1")
-            if not ud.get('filing'): missing_steps.append("Step 2")
-            if not ud.get('macro'): missing_steps.append("Step 3")
-            if not ud.get('company'): missing_steps.append("Step 4")
-            if not ud.get('ipo_report'): missing_steps.append("Step 5") # 추가된 Step 5
-
-            if len(missing_steps) > 0:
-                # 미완성 시 안내 문구
-                steps_str = ", ".join(missing_steps)
-                summary_text = f"<div style='text-align: left; font-weight: 600; font-size: 15px; color: #444;'>⏳ 모든 분석 단계({steps_str})를 완료하면 종합 리포트가 생성됩니다.</div>"
-                box_bg = "#f8f9fa"
-                box_border = "#ced4da"
-            else:
-                # 모든 단계 완료 시 텍스트 생성
-                d_news = ud.get('news')
-                d_filing = ud.get('filing')
-                d_macro = ud.get('macro')
-                d_company = ud.get('company')
-                d_ipo = ud.get('ipo_report') # 추가된 데이터
-                
-                summary_text = f"""
-                사용자는 해당 기업소개와 뉴스에 대해 <b>{d_news}</b>이라 판단했고, 
-                주요 공시정보에 대해서는 <b>{d_filing}</b> 입장을 보였습니다. 
-                현재 거시경제 상황에 대해서는 <b>{d_macro}</b>이라 판단하고 있으며, 
-                기업 가치평가에 대해서는 <b>{d_company}</b>이라고 분석했습니다. 
-                <br><br>
-                종합적으로 기관 분석을 참고한 최종 투자 판단은 <b>{d_ipo}</b>입니다.
-                """
-                
-                box_bg = "#eef2ff"
-                box_border = "#6e8efb"
-
-            st.markdown(f"""<div style="background-color:{box_bg}; padding:20px; border-radius:12px; border-left:5px solid {box_border}; line-height:1.6; font-size:15px; color:#333;">{summary_text}</div>""", unsafe_allow_html=True)
 
             # ---------------------------------------------------------
             # [추가] 1-2. 투자 성향 점수 합산 및 분포 분석
@@ -2382,6 +2342,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
