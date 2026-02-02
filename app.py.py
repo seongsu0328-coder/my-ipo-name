@@ -2008,7 +2008,7 @@ elif st.session_state.page == 'detail':
                 fig.update_layout(height=200, margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(dtick=1), yaxis=dict(showticklabels=False), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig, use_container_width=True)
 
-            st.divider()
+            
 
             # 2. 관심종목/투표 섹션
             st.markdown("### 관심종목")
@@ -2238,6 +2238,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
