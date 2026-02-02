@@ -1800,9 +1800,7 @@ elif st.session_state.page == 'detail':
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         # ---------------------------------------------------------
         with tab4:
-            st.markdown(f"### 🇺🇸 Wall Street IPO Radar: {stock['symbol']}")
-            st.write(f"글로벌 IPO 전문 기관들이 분석한 **{stock['name']}**의 실시간 리포트입니다.")
-
+            
             # 분석 실행 버튼
             if st.button(f"🔍 {stock['symbol']} 실시간 분석 데이터 가져오기"):
                 with st.spinner("최신 마켓 데이터를 수집하고 AI가 요약 중입니다..."):
@@ -1810,7 +1808,7 @@ elif st.session_state.page == 'detail':
                     summary, sources = get_cached_ipo_analysis(stock['symbol'], stock['name'])
                     
                     # --- (1) Renaissance Capital 섹션 ---
-                    with st.expander("📊 Renaissance Capital: 실시간 IPO 분석", expanded=True):
+                    with st.expander("Renaissance Capital IPO 요약", expanded=True):
                         st.markdown("**[AI 리서치 요약]**")
                         # 요약 내용 중 Renaissance 관련 내용이 포함되도록 프롬프트가 작동함
                         st.write(summary) 
@@ -1818,7 +1816,7 @@ elif st.session_state.page == 'detail':
                                        f"https://www.renaissancecapital.com/IPO-Center/Search?q={stock['symbol']}")
 
                     # --- (2) Seeking Alpha / Morningstar 섹션 ---
-                    with st.expander("📝 Seeking Alpha & Morningstar 실시간 전망", expanded=False):
+                    with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
                         st.markdown("**[Market Consensus]**")
                         st.write(f"전문 분석가들은 {stock['name']}의 비즈니스 모델과 밸류에이션을 실시간으로 추적 중입니다.")
                         c1, c2 = st.columns(2)
@@ -1828,7 +1826,7 @@ elif st.session_state.page == 'detail':
                             st.link_button("🔗 Morningstar 바로가기", "https://www.morningstar.com/")
 
                     # --- (3) Institutional Sentiment 섹션 ---
-                    with st.expander("⚖️ Sentiment Score (기관 기대치)", expanded=False):
+                    with st.expander("⚖️ Sentiment Score", expanded=False):
                         st.write("외부 원문 데이터를 확인하여 아래 등급을 종합적으로 판단해 보세요.")
                         s_col1, s_col2 = st.columns(2)
                         with s_col1:
@@ -2198,6 +2196,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
