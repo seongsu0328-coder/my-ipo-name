@@ -1977,73 +1977,63 @@ elif st.session_state.page == 'detail':
             draw_decision_box("company", "기업 가치평가는(Valusation)?", ["버블", "중립", "안정적"])
 
         # ---------------------------------------------------------
-        # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
-        # ---------------------------------------------------------
-        with tab4:
-            # 디버깅용 (나중에 지우세요)
-            st.write("DEBUG: AI Raw Response:", result['summary'])
-            
-            # [수정] Tavily 및 Gemini 분석 진행 시 사용자에게 알림 표시
-            with st.spinner(f"🚀 {stock['name']}에 대한 월가 최신 리포트를 분석 중입니다..."):
-                # 함수 호출 결과를 result 변수에 담습니다.
-                result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
+# --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
+# ---------------------------------------------------------
+with tab4:
+    # 1. 데이터 가져오기 (실패 대비 초기값 설정)
+    result = {"rating": "N/A", "score": "N/A", "summary": "데이터를 불러오는 중...", "links": []}
+    
+    with st.spinner(f"🚀 {stock['name']} 분석 리포트 수집 중..."):
+        try:
+            # Tavily+Gemini 함수 호출
+            result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
+        except Exception as e:
+            st.error(f"함수 호출 중 오류 발생: {str(e)}")
 
-            # --- (1) Renaissance Capital 섹션 ---
-            with st.expander("Renaissance Capital IPO 요약", expanded=False):
-                st.markdown("**[AI 리서치 요약]**")
-                st.info(result.get('summary', '데이터를 불러올 수 없습니다.')) 
-                
-                # [개선] 심볼(HXHX) 검색 대신 기업명으로 검색하도록 쿼리 수정 제안
-                search_query = stock['symbol'] if stock['symbol'] else stock['name']
-                st.link_button(f"🔗 {stock['name']} Renaissance 검색 결과", 
-                               f"https://www.renaissancecapital.com/IPO-Center/Search?q={search_query}")
-                
-                # 추가 팁: 만약 Renaissance에 데이터가 없다면 IPO Scoop을 대안으로 제시
-                st.caption("※ Renaissance Capital에 데이터가 없다면 소형주 분석이 제한적일 수 있습니다.")
+    # [디버깅 코드] result 변수 생성 바로 다음에 위치해야 합니다.
+    # 만약 여기서도 에러가 나면 result 자체가 딕셔너리가 아닌 것입니다.
+    if result:
+        st.write("DEBUG: AI 응답 데이터 확인", result)
+    else:
+        st.warning("DEBUG: result 변수가 비어있습니다.")
 
-            # --- (2) Seeking Alpha / Morningstar 섹션 ---
-            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
-                st.markdown("**[Market Consensus]**")
-                # (중략)
-                c1, c2 = st.columns(2)
-                with c1: 
-                    # Seeking Alpha는 대문자 심볼을 선호합니다.
-                    sa_url = f"https://seekingalpha.com/symbol/{stock['symbol'].upper()}"
-                    st.link_button("🔗 Seeking Alpha 바로가기", sa_url)
+    # --- (1) Renaissance Capital 섹션 ---
+    with st.expander("Renaissance Capital IPO 요약", expanded=False):
+        st.markdown("**[AI 리서치 요약]**")
+        # 데이터가 없을 때를 대비한 안전한 get 사용
+        st.info(result.get('summary', '분석된 요약 정보가 없습니다.')) 
+        
+        # 검색 결과로 연결 (심볼이 없으면 이름으로)
+        q = stock['symbol'] if stock['symbol'] else stock['name']
+        st.link_button(f"🔗 {stock['name']} Renaissance 검색", 
+                       f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}")
 
-            # --- (3) Institutional Sentiment 섹션 ---
-            with st.expander("Sentiment Score", expanded=True):
-                s_col1, s_col2 = st.columns(2)
-                with s_col1:
-                    st.write("**[Analyst Ratings]**")
-                    rating_val = result.get('rating', 'N/A')
-                    if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
-                        st.success(f"Consensus: {rating_val}")
-                    elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
-                        st.error(f"Consensus: {rating_val}")
-                    else:
-                        st.info(f"등급: {rating_val}")
+    # --- (2) Institutional Sentiment 섹션 ---
+    with st.expander("Sentiment Score", expanded=True):
+        s_col1, s_col2 = st.columns(2)
+        with s_col1:
+            st.write("**[Analyst Ratings]**")
+            r_val = result.get('rating', 'N/A')
+            st.success(f"Consensus: {r_val}")
 
-                with s_col2:
-                    st.write("**[IPO Scoop Score]**")
-                    score_val = result.get('score', 'N/A')
-                    if score_val != "N/A":
-                        st.warning(f"Expected Score: ⭐ {score_val}")
-                    else:
-                        st.info("별점 데이터 없음")
-                
-                st.markdown("---")
-                st.markdown("#### 📝 AI 분석 상세")
-                st.write(result.get('summary', '내용 없음'))
+        with s_col2:
+            st.write("**[IPO Scoop Score]**")
+            s_val = result.get('score', 'N/A')
+            st.warning(f"Expected Score: ⭐ {s_val}")
+        
+        st.markdown("---")
+        st.markdown("#### 📝 AI 분석 상세")
+        st.write(result.get('summary', '상세 분석 내용이 없습니다.'))
 
-                sources = result.get('links', [])
-                if sources:
-                    st.markdown("#### 🔗 관련 리포트 출처")
-                    for src in sources:
-                        st.markdown(f"- [{src['title']}]({src['link']})")
+        # 출처 링크 리스트
+        sources = result.get('links', [])
+        if sources:
+            st.markdown("#### 🔗 관련 리포트 출처")
+            for src in sources:
+                st.markdown(f"- [{src['title']}]({src['link']})")
 
-            # [✅ 5단계 사용자 판단]
-            draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
+    # [✅ 5단계 사용자 판단]
+    draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
 
         # --- Tab 5: 최종 투자 결정 ---
         with tab5:
@@ -2366,6 +2356,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
