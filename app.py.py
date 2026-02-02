@@ -19,7 +19,7 @@ import plotly.graph_objects as go
 # ==========================================
 # [0] AI 설정 및 API 키 (가장 안정적인 모델로 교체)
 # ==========================================
-GENAI_API_KEY = "AIzaSyCnm7Y8Jnyw9kYHj-oC8TbBMtyIIzVNL1A" 
+GENAI_API_KEY = "AIzaSyDEslSch0WOO0C_HTuTGU_0W6LmlRfYBHE" 
 genai.configure(api_key=GENAI_API_KEY)
 
 # 가장 최신 표준 명칭으로 시도 (접두사 없이)
@@ -2271,6 +2271,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
