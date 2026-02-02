@@ -66,60 +66,57 @@ def get_ai_analysis(company_name, topic, points):
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     if not tavily_key:
-        return {"rating": "Key Error", "score": "N/A", "summary": "Tavily API 키가 없습니다.", "links": []}
+        return {"rating": "API Key Missing", "score": "N/A", "summary": "Tavily API 키를 확인해주세요.", "links": []}
 
     try:
         tavily = TavilyClient(api_key=tavily_key)
-        # 검색 쿼리를 더 구체화합니다.
-        query = f"{company_name} {ticker} stock IPO analysis review rating"
+        # 쿼리를 더 포괄적으로 변경 (회사명만으로도 검색하도록)
+        query = f"{company_name} {ticker} stock analysis ratings news"
         search_result = tavily.search(query=query, search_depth="advanced", max_results=5)
         
+        results = search_result.get('results', [])
+        if not results:
+            # 검색 결과가 없으면 회사명으로만 재시도
+            search_result = tavily.search(query=f"{company_name} IPO news", search_depth="basic", max_results=3)
+            results = search_result.get('results', [])
+
         search_context = ""
         links = []
-        for r in search_result.get('results', []):
-            search_context += f"- Title: {r['title']}\n  Content: {r['content']}\n\n"
+        for r in results:
+            search_context += f"Source: {r['title']}\nContent: {r['content']}\n\n"
             links.append({"title": r['title'], "link": r['url']})
 
-        # Gemini에게 보낼 프롬프트 강화
-        prompt = f"""
-        당신은 월가 IPO 분석 전문가입니다. 제공된 자료를 바탕으로 {company_name} ({ticker})를 분석하세요.
-        자료가 부족하더라도 검색된 내용을 종합하여 최대한 전문적인 추측을 제공하세요.
-        
-        반드시 아래 형식을 지키세요:
-        Rating: (Buy/Hold/Sell/Neutral 중 하나 선택)
-        Score: (1~5점 사이 숫자만, 도저히 모르면 3)
-        Summary: (투자자가 알아야 할 핵심 내용 5줄 요약)
+        if not search_context:
+            return {"rating": "No Data", "score": "N/A", "summary": "최근 뉴스나 리포트를 찾을 수 없습니다.", "links": []}
 
-        [검색 자료]
+        prompt = f"""
+        당신은 IPO 분석가입니다. 아래 자료를 바탕으로 {company_name} ({ticker})를 분석하세요.
+        자료가 부족해도 문맥을 파악해 최대한 답변하세요. 형식은 반드시 지키세요.
+
+        Rating: (Buy/Hold/Sell/Neutral 중 하나)
+        Score: (1~5 숫자)
+        Summary: (한글로 핵심 요약 5줄)
+
+        [자료]
         {search_context}
         """
-
+        
         response = model.generate_content(prompt).text
-
-        # 파싱 로직 강화 (re.DOTALL 추가로 여러 줄 요약 대응)
+        
+        # 정규표현식 파싱
         import re
-        rating = "Neutral" # 기본값
-        score = "3"      # 기본값
-        
-        r_match = re.search(r"Rating:\s*(.*)", response, re.IGNORECASE)
-        s_match = re.search(r"Score:\s*([\d.]+)", response, re.IGNORECASE)
-        # Summary: 이후의 모든 내용을 가져옴
-        sum_match = re.search(r"Summary:\s*(.*)", response, re.IGNORECASE | re.DOTALL)
-
-        if r_match: rating = r_match.group(1).strip().split('\n')[0]
-        if s_match: score = s_match.group(1).strip()
-        
-        # summary가 정규식으로 안 잡히면 응답 전체를 요약으로 사용
-        summary = sum_match.group(1).strip() if sum_match else response
+        rating = re.search(r"Rating:\s*(.*)", response, re.I)
+        score = re.search(r"Score:\s*([\d.]+)", response, re.I)
+        summary = re.search(r"Summary:\s*([\s\S]*)", response, re.I)
 
         return {
-            "rating": rating,
-            "score": score,
-            "summary": summary,
+            "rating": rating.group(1).strip() if rating else "Neutral",
+            "score": score.group(1).strip() if score else "N/A",
+            "summary": summary.group(1).strip() if summary else response,
             "links": links
         }
     except Exception as e:
-        return {"rating": "Error", "score": "N/A", "summary": f"오류 발생: {str(e)}", "links": []}
+        return {"rating": "Error", "score": "N/A", "summary": f"오류: {str(e)}", "links": []}
         
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
@@ -2351,6 +2348,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
