@@ -1815,7 +1815,7 @@ elif st.session_state.page == 'detail':
                 st.write("<br>", unsafe_allow_html=True)
                 st.info("💡 **종합 의견:** 기관들의 별점이 높고 'Buy' 등급이 우세할 경우, 상장 당일 'IPO Pop' 가능성이 큽니다.")
 
-            st.divider()
+            
 
             # [✅ 5단계 사용자 판단]
             draw_decision_box("ipo_report", "기관 리포트와 등급을 통한 나의 판단은?", ["매수", "중립", "매도"])
@@ -2164,6 +2164,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
