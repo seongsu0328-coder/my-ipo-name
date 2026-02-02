@@ -64,50 +64,46 @@ IPO_REFERENCES = [
     }
 ]
 
-# ==========================================
-# [2] AI 기반 실시간 분석 함수 (캐싱 적용 & 등급 추출 강화)
-# ==========================================
 @st.cache_data(ttl=3600)
 def get_cached_ipo_analysis(ticker, company_name):
-    """
-    무료 검색(DuckDuckGo) 후 Gemini로 등급 정보를 포함하여 요약한 결과를 캐싱합니다.
-    """
-    # 검색 쿼리에 등급 관련 키워드를 추가하여 정보 수집 확률을 높임
     query = f"{company_name} {ticker} IPO analysis rating Scoop Seeking Alpha"
-    
     try:
-        # 1. 무료 검색 (DuckDuckGo)
         with DDGS() as ddgs:
             search_results = [r for r in ddgs.text(query, max_results=5)]
         
-        if not search_results:
-            return "최근 검색된 실시간 분석 데이터가 없습니다.", []
-
         search_context = ""
         links = []
         for res in search_results:
             search_context += f"제목: {res['title']}\n내용: {res['body']}\n\n"
             links.append({"title": res['title'], "link": res['href']})
 
-        # 2. Gemini 무료 요약 (지시사항 강화)
+        # 프롬프트에 '구분자'를 추가하여 파싱하기 쉽게 만듭니다.
         prompt = f"""
-        당신은 월가 출신의 전문 주식 분석가입니다. 아래 검색 결과를 바탕으로 {company_name} ({ticker})를 분석하세요.
+        당신은 전문 분석가입니다. {company_name} ({ticker})의 데이터를 분석하여 아래 형식을 반드시 지켜 답변하세요.
         
-        [지시사항]
-        1. 핵심 분석 내용을 명확하게 번호를 매겨 5줄로 요약하세요.
-        2. 검색 결과에 Seeking Alpha나 Morningstar의 등급(Buy, Hold, Sell 등)이 있다면 반드시 언급하세요.
-        3. IPO Scoop의 별점(1~5점)이 언급되어 있다면 요약 내에 포함하세요. 정보가 없다면 "별점 정보 없음"이라고 명시하세요.
-        4. 시장의 평가, 성과, 주요 리스크 요인을 포함하여 한국어로 작성하세요.
-
-        검색 결과 데이터:
+        Rating: [찾은 등급이 있다면 Buy/Hold/Sell 중 하나, 없으면 N/A]
+        Score: [찾은 IPO Scoop 별점이 있다면 숫자만, 없으면 N/A]
+        Summary: [핵심 요약 5줄]
+        
+        검색 데이터:
         {search_context}
         """
         
-        response = model.generate_content(prompt)
-        return response.text, links
+        response = model.generate_content(prompt).text
+        
+        # 간단한 파싱 로직
+        rating = "N/A"
+        score = "N/A"
+        summary = response
+        
+        for line in response.split('\n'):
+            if line.startswith("Rating:"): rating = line.replace("Rating:", "").strip()
+            if line.startswith("Score:"): score = line.replace("Score:", "").strip()
+            if line.startswith("Summary:"): summary = line.replace("Summary:", "").strip()
 
-    except Exception as e:
-        return f"AI 분석을 생성하는 중 오류가 발생했습니다: {str(e)}", []
+        return {"rating": rating, "score": score, "summary": response, "links": links}
+    except:
+        return {"rating": "N/A", "score": "N/A", "summary": "분석 불가", "links": []}
 
 # ==========================================
 # [3] 핵심 재무 분석 함수 (yfinance 실시간 연동)
@@ -2216,6 +2212,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
