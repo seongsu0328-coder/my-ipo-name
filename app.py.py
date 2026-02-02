@@ -17,11 +17,13 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 # ==========================================
-# [0] AI 설정 및 API 키 (발급받은 키를 여기에 넣으세요)
+# [0] AI 설정 및 API 키 (모델 경로 명시적 수정)
 # ==========================================
 GENAI_API_KEY = "AIzaSyCnm7Y8Jnyw9kYHj-oC8TbBMtyIIzVNL1A" 
 genai.configure(api_key=GENAI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+
+# 'gemini-1.5-flash' 앞에 'models/'를 추가하여 경로를 정확히 지정합니다.
+model = genai.GenerativeModel('models/gemini-1.5-flash')
 
 # --- [추가 위치] 공시 서류 AI 분석 함수 ---
 @st.cache_data(show_spinner=False)
@@ -2256,6 +2258,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
