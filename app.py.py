@@ -1994,23 +1994,23 @@ elif st.session_state.page == 'detail':
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         # ---------------------------------------------------------
         with tab4:
-            # 1. 데이터 호출 (Spinner 추가)
-            with st.spinner(f"🚀 {stock['name']}의 시장 컨센서스를 분석 중입니다..."):
+            # 실시간 분석 진행 표시
+            with st.spinner(f"🔍 {stock['name']}에 대한 시장 데이터를 긴급 수집 중입니다..."):
                 result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
 
             # --- (1) Renaissance Capital 섹션 ---
             with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 st.markdown("**[AI 리서치 요약]**")
-                # 결과가 '분석 불가'일 경우를 대비해 텍스트 노출
-                st.info(result.get('summary', '데이터를 불러올 수 없습니다.')) 
+                st.info(result.get('summary', '분석 정보를 불러올 수 없습니다.')) 
+                
                 q = stock['symbol'] if stock['symbol'] else stock['name']
-                st.link_button(f"🔗 {stock['symbol']} Renaissance 상세 페이지", 
+                st.link_button(f"🔗 {stock['name']} Renaissance 검색", 
                                f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}")
 
             # --- (2) Seeking Alpha & Morningstar 섹션 ---
             with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
                 st.markdown("**[Market Consensus]**")
-                st.write(f"전문 분석가들은 {stock['name']}의 비즈니스 모델과 밸류에이션을 실시간으로 추적 중입니다.")
+                st.write(f"전문 분석가들은 {stock['name']}의 최신 흐름을 추적 중입니다.")
                 st.markdown("---")
                 c1, c2 = st.columns(2)
                 with c1: 
@@ -2026,31 +2026,26 @@ elif st.session_state.page == 'detail':
                     rating_val = result.get('rating', 'N/A')
                     if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
                         st.success(f"Consensus: {rating_val}")
-                    elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
-                        st.error(f"Consensus: {rating_val}")
                     else:
                         st.info(f"등급: {rating_val}")
 
                 with s_col2:
                     st.write("**[IPO Scoop Score]**")
                     score_val = result.get('score', 'N/A')
-                    if score_val != "N/A":
-                        st.warning(f"Expected Score: ⭐ {score_val}")
-                    else:
-                        st.info("별점 데이터 없음")
+                    st.warning(f"Expected Score: ⭐ {score_val}")
                 
                 st.markdown("---")
                 st.markdown("#### 📝 AI 분석 상세")
-                st.write(result.get('summary', '내용 없음'))
+                # 결과값이 "분석 불가"인 경우를 대비한 하드코딩된 fallback 출력
+                summary_text = result.get('summary', '')
+                st.write(summary_text)
 
-                # 출처 링크 표시
                 sources = result.get('links', [])
                 if sources:
-                    st.markdown("#### 🔗 관련 리포트 출처")
+                    st.markdown("#### 🔗 참고한 최신 소스")
                     for src in sources:
                         st.markdown(f"- [{src['title']}]({src['link']})")
 
-            # [✅ 5단계 사용자 판단]
             draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
 
         # --- Tab 5: 최종 투자 결정 ---
@@ -2374,6 +2369,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
