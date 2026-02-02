@@ -64,69 +64,62 @@ def get_ai_analysis(company_name, topic, points):
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_cached_ipo_analysis(ticker, company_name):
-    """
-    Tavily API를 사용하여 더 정확한 IPO 컨텍스트를 수집하고 Gemini로 분석
-    """
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     if not tavily_key:
-        return {"rating": "N/A", "score": "N/A", "summary": "Tavily API 키가 설정되지 않았습니다.", "links": []}
+        return {"rating": "Key Error", "score": "N/A", "summary": "Tavily API 키가 없습니다.", "links": []}
 
     try:
-        # 1. Tavily 검색 (검색어 고도화)
         tavily = TavilyClient(api_key=tavily_key)
-        query = f"{company_name} ({ticker}) IPO analyst ratings price target scoop sentiment"
-        
-        # 전문적인 금융 정보 수집을 위해 advanced 모드 사용
+        # 검색 쿼리를 더 구체화합니다.
+        query = f"{company_name} {ticker} stock IPO analysis review rating"
         search_result = tavily.search(query=query, search_depth="advanced", max_results=5)
         
         search_context = ""
         links = []
         for r in search_result.get('results', []):
-            search_context += f"Source: {r['title']}\nContent: {r['content']}\n\n"
+            search_context += f"- Title: {r['title']}\n  Content: {r['content']}\n\n"
             links.append({"title": r['title'], "link": r['url']})
 
-        if not search_context:
-            return {"rating": "N/A", "score": "N/A", "summary": "검색된 최신 정보가 없습니다.", "links": []}
-
-        # 2. Gemini AI 프롬프트 (구조화된 데이터 추출 강제)
+        # Gemini에게 보낼 프롬프트 강화
         prompt = f"""
-        당신은 월스트리트의 IPO 전문 분석가입니다. 제공된 검색 데이터를 바탕으로 {company_name} ({ticker})를 분석하세요.
-        반드시 아래 형식을 지켜 답변하세요. 정보가 없으면 'N/A'라고 적으세요.
+        당신은 월가 IPO 분석 전문가입니다. 제공된 자료를 바탕으로 {company_name} ({ticker})를 분석하세요.
+        자료가 부족하더라도 검색된 내용을 종합하여 최대한 전문적인 추측을 제공하세요.
+        
+        반드시 아래 형식을 지키세요:
+        Rating: (Buy/Hold/Sell/Neutral 중 하나 선택)
+        Score: (1~5점 사이 숫자만, 도저히 모르면 3)
+        Summary: (투자자가 알아야 할 핵심 내용 5줄 요약)
 
-        Rating: [Buy/Hold/Sell/Positive/Neutral 중 하나]
-        Score: [IPO Scoop 별점 숫자만, 예: 3]
-        Summary: [투자 핵심 요약 5줄]
-
-        [검색 데이터]
+        [검색 자료]
         {search_context}
         """
 
-        # 첫 번째 코드에서 설정한 전역 model 객체 사용
         response = model.generate_content(prompt).text
 
-        # 3. 정밀 파싱 (정규표현식)
+        # 파싱 로직 강화 (re.DOTALL 추가로 여러 줄 요약 대응)
         import re
-        rating = "N/A"
-        score = "N/A"
-        summary = response
-
+        rating = "Neutral" # 기본값
+        score = "3"      # 기본값
+        
         r_match = re.search(r"Rating:\s*(.*)", response, re.IGNORECASE)
         s_match = re.search(r"Score:\s*([\d.]+)", response, re.IGNORECASE)
-        sum_match = re.search(r"Summary:\s*([\s\S]*)", response, re.IGNORECASE)
+        # Summary: 이후의 모든 내용을 가져옴
+        sum_match = re.search(r"Summary:\s*(.*)", response, re.IGNORECASE | re.DOTALL)
 
-        if r_match: rating = r_match.group(1).strip()
+        if r_match: rating = r_match.group(1).strip().split('\n')[0]
         if s_match: score = s_match.group(1).strip()
-        if sum_match: summary = sum_match.group(1).strip()
+        
+        # summary가 정규식으로 안 잡히면 응답 전체를 요약으로 사용
+        summary = sum_match.group(1).strip() if sum_match else response
 
         return {
-            "rating": rating, 
-            "score": score, 
-            "summary": summary, 
+            "rating": rating,
+            "score": score,
+            "summary": summary,
             "links": links
         }
-
     except Exception as e:
-        return {"rating": "Error", "score": "N/A", "summary": f"분석 중 오류: {str(e)}", "links": []}
+        return {"rating": "Error", "score": "N/A", "summary": f"오류 발생: {str(e)}", "links": []}
         
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
@@ -2370,6 +2363,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
