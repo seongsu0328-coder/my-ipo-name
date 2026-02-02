@@ -1979,7 +1979,7 @@ elif st.session_state.page == 'detail':
             current_user = st.session_state.get('user_phone', 'guest')
             is_admin = (current_user == ADMIN_PHONE)
 
-            # 1. 투자 분석 결과 섹션 (점수/그래프)
+            # 1. 투자 분석 결과 섹션 (낙관도 지표 & 그래프만 유지)
             ud = st.session_state.user_decisions.get(sid, {})
             missing_steps = []
             for step, label in [('news','Step 1'), ('filing','Step 2'), ('macro','Step 3'), ('company','Step 4'), ('ipo_report','Step 5')]:
@@ -1988,25 +1988,53 @@ elif st.session_state.page == 'detail':
             if len(missing_steps) > 0:
                 st.info(f"⏳ 모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 분석 결과가 공개됩니다.")
             else:
-                score_map = {"긍정적": 1, "중립적": 0, "부정적": -1, "수용적": 1, "회의적": -1, "버블": -1, "중립": 0, "침체": 1, "저평가": 1, "적정": 0, "고평가": -1, "매수": 1, "매도": -1}
+                # 점수 계산 매핑
+                score_map = {
+                    "긍정적": 1, "중립적": 0, "부정적": -1, 
+                    "수용적": 1, "회의적": -1, 
+                    "버블": -1, "중립": 0, "침체": 1, 
+                    "저평가": 1, "적정": 0, "고평가": -1, 
+                    "매수": 1, "매도": -1
+                }
                 user_score = sum(score_map.get(ud.get(s, "중립적"), 0) for s in ['news', 'filing', 'macro', 'company', 'ipo_report'])
                 
-                st.markdown("#### 📊 나의 투자 매력도 분석 결과")
-                m1, m2 = st.columns(2)
-                m1.metric("나의 분석 점수", f"{user_score} / +5")
-                
-                # 분포도 시각화
+                # 분포도 데이터 생성
                 np.random.seed(42)
                 community_scores = np.clip(np.random.normal(0, 1.5, 1000).round().astype(int), -5, 5)
                 percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
-                m2.metric("낙관도 상위", f"{percentile:.1f}%")
+                
+                # 상단 레이아웃: 낙관도 지표만 표시
+                st.metric("낙관도 상위", f"{percentile:.1f}%", help="점수가 높을수록 다른 참여자들보다 해당 종목을 긍정적으로 평가하고 있음을 의미합니다.")
 
+                # 그래프 시각화 (나의 점수는 빨간색으로 자동 강조됨)
                 score_counts = pd.Series(community_scores).value_counts().sort_index()
                 score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
                 
-                fig = go.Figure(go.Bar(x=score_counts.index, y=score_counts.values, marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index]))
-                fig.update_layout(height=200, margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(dtick=1), yaxis=dict(showticklabels=False), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                fig = go.Figure(go.Bar(
+                    x=score_counts.index, 
+                    y=score_counts.values, 
+                    marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
+                    hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
+                ))
+                
+                fig.update_layout(
+                    height=200, 
+                    margin=dict(l=10, r=10, t=10, b=10), 
+                    xaxis=dict(tickmode='linear', dtick=1, title="분석 점수 (-5 ~ +5)"), 
+                    yaxis=dict(showticklabels=False), 
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
+                
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # 분석 스타일에 따른 짧은 코멘트만 노출
+                if user_score >= 3:
+                    st.success(" 매우 낙관적인 분석가 스타일입니다.")
+                elif user_score <= -3:
+                    st.warning(" 매우 신중한 보수적 분석가 스타일입니다.")
+                else:
+                    st.info(" 균형 잡힌 중립적 분석가 스타일입니다.")
 
             
 
@@ -2238,6 +2266,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
