@@ -1859,7 +1859,7 @@ elif st.session_state.page == 'detail':
             
 
             # [✅ 5단계 사용자 판단]
-            draw_decision_box("ipo_report", f"기관 분석을 통한 {stock['symbol']}의 최종 판단은?", ["매수", "중립", "매도"])
+            draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
 
         # --- Tab 5: 최종 투자 결정 (순서 변경됨) ---
         with tab5:
@@ -2205,6 +2205,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
