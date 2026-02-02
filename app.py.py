@@ -1264,43 +1264,27 @@ elif st.session_state.page == 'detail':
             # 2. 메타데이터 및 체크포인트 설정
             topic = st.session_state.core_topic
             
-            # 각 문서별 설명 통합 (문서명을 문장 안에 직접 삽입)
+            # 각 문서별 설명 및 AI 분석 프롬프트용 데이터
             def_meta = {
                 "S-1": {
                     "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
-                    "check": [
-                        "**Risk Factors**: 기업이 고백하는 '망할 수 있는 이유'. 특이 소송이나 규제 확인.",
-                        "**Use of Proceeds**: 공모자금 용도. '채무 상환'보다 '시설 투자/R&D'가 긍정적.",
-                        "**MD&A**: 경영진이 직접 설명하는 실적 성장의 핵심 동인(Why) 분석."
-                    ]
+                    "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)"
                 },
                 "S-1/A": {
                     "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
-                    "check": [
-                        "**Pricing Terms**: 공모가 밴드가 상향되었다면 기관 수요가 뜨겁다는 신호.",
-                        "**Dilution**: 기존 주주 대비 신규 투자자가 얼마나 비싸게 사는지(희석률) 확인."
-                    ]
+                    "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률)"
                 },
                 "F-1": {
                     "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
-                    "check": [
-                        "**Foreign Risk**: 해당 국가의 정치/환율 리스크 섹션 필수 확인.",
-                        "**MD&A**: 미국 회계 기준(GAAP)과의 차이점 확인."
-                    ]
+                    "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이)"
                 },
                 "FWP": {
                     "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
-                    "check": [
-                        "**Graphics**: 비즈니스 모델과 시장 점유율 시각화 자료 확인.",
-                        "**Strategy**: 경영진이 강조하는 미래 성장 동력(핵심 먹거리) 파악."
-                    ]
+                    "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리)"
                 },
                 "424B4": {
                     "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
-                    "check": [
-                        "**Underwriting**: Goldman, Morgan Stanley 등 티어1 주관사 참여 여부.",
-                        "**Final Price**: 최종 확정된 공모가와 기관 배정 물량 확인."
-                    ]
+                    "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량)"
                 }
             }
             
@@ -1309,11 +1293,29 @@ elif st.session_state.page == 'detail':
             # UI 출력: 통합된 설명문 출력
             st.info(curr_meta['desc'])
             
-            # 핵심 요약 보기 (Expander)
-            with st.expander(f"🔍 {topic} 핵심 요약 보기", expanded=True):
-                for item in curr_meta['check']:
-                    st.write(item)
-                st.caption("💡 MD&A 핵심: 실적의 원인(Why), 현금 유동성, 시장 트렌드")
+            # [수정된 부분] 핵심 요약 보기 클릭 시 자동으로 AI 분석 실행
+            with st.expander(f"🔍 {topic} AI 핵심 분석 요약", expanded=True):
+                with st.spinner(f"🤖 AI가 {topic}의 핵심 내용을 분석 중입니다..."):
+                    # 자동 분석 프롬프트 구성
+                    auto_analysis_prompt = f"""
+                    당신은 월가 출신의 전문 분석가입니다. {stock['name']}의 {topic} 서류를 분석하세요.
+                    다음 핵심 체크포인트를 중점적으로 분석하세요: {curr_meta['points']}
+                    
+                    내용 구성:
+                    1. 해당 문서에서 발견된 가장 중요한 투자 포인트.
+                    2. MD&A를 통해 본 기업의 실질적 성장 가능성.
+                    3. 투자자가 반드시 경계해야 할 핵심 리스크 1가지.
+                    
+                    친절하면서도 냉철한 톤으로 한국어로 5줄 내외 요약하세요.
+                    """
+                    try:
+                        response = model.generate_content(auto_analysis_prompt)
+                        st.markdown(response.text)
+                    except Exception as e:
+                        st.error("AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+                
+                st.divider()
+                st.caption(f"💡 {topic} 공시의 MD&A 섹션은 경영진의 의중을 파악할 수 있는 가장 중요한 데이터입니다.")
 
             # 3. SEC URL 생성 로직
             import urllib.parse
@@ -1335,18 +1337,6 @@ elif st.session_state.page == 'detail':
                     </button>
                 </a>
             """, unsafe_allow_html=True)
-
-            # 4. AI 분석 버튼
-            if st.button(f"🤖 AI에게 {topic} 정밀 분석 요청"):
-                with st.spinner(f"{topic} 데이터를 분석 중입니다..."):
-                    analysis_prompt = f"""
-                    분석 전문가로서 {stock['name']}의 {topic} 서류를 분석하세요.
-                    체크포인트: {curr_meta['check']}
-                    MD&A 내용과 리스크 1가지를 포함해 한국어로 5줄 내외 요약하세요.
-                    """
-                    response = model.generate_content(analysis_prompt)
-                    st.success("✅ 분석 완료")
-                    st.markdown(response.text)
 
             st.divider()
             draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
@@ -2247,6 +2237,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
