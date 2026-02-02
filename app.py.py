@@ -9,8 +9,7 @@ import uuid
 import random
 
 # --- [AI 및 검색 기능] ---
-from tavily import TavilyClient
-from openai import OpenAI
+import google.generativeai as genai  # Gemini AI 추가
 from duckduckgo_search import DDGS
 
 # --- [주식 및 차트 기능] ---
@@ -18,7 +17,14 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 # ==========================================
-# [1] 학술 논문 데이터 리스트 (NameError 방지용 전역 변수)
+# [0] AI 설정 및 API 키 (발급받은 키를 여기에 넣으세요)
+# ==========================================
+GENAI_API_KEY = "AIzaSyCnm7Y8Jnyw9kYHj-oC8TbBMtyIIzVNL1A" 
+genai.configure(api_key=GENAI_API_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
+
+# ==========================================
+# [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
 # ==========================================
 IPO_REFERENCES = [
     {
@@ -59,16 +65,56 @@ IPO_REFERENCES = [
 ]
 
 # ==========================================
-# [2] 핵심 분석 함수 (yfinance 실시간 연동)
+# [2] AI 기반 실시간 분석 함수 (캐싱 적용)
+# ==========================================
+@st.cache_data(ttl=3600)
+def get_cached_ipo_analysis(ticker, company_name):
+    """
+    무료 검색(DuckDuckGo) 후 Gemini로 요약한 결과를 캐싱합니다.
+    """
+    query = f"{company_name} {ticker} IPO analysis Renaissance Capital Seeking Alpha"
+    
+    try:
+        # 1. 무료 검색 (DuckDuckGo)
+        with DDGS() as ddgs:
+            search_results = [r for r in ddgs.text(query, max_results=5)]
+        
+        if not search_results:
+            return "최근 검색된 실시간 분석 데이터가 없습니다.", []
+
+        search_context = ""
+        links = []
+        for res in search_results:
+            search_context += f"제목: {res['title']}\n내용: {res['body']}\n\n"
+            links.append({"title": res['title'], "link": res['href']})
+
+        # 2. Gemini 무료 요약 (1.5 Flash)
+        prompt = f"""
+        당신은 월가 출신의 전문 주식 분석가입니다. 아래 제공된 검색 결과들을 바탕으로 
+        {company_name} ({ticker})의 IPO 분석 내용을 핵심만 5줄로 요약하세요.
+        - 반드시 한국어로 작성할 것.
+        - 시장의 평가, 예상 공모가 대비 성과, 주요 리스크 요인을 포함할 것.
+        - 각 문장은 번호를 매겨 명확하게 끊어서 작성할 것.
+        
+        검색 결과 데이터:
+        {search_context}
+        """
+        
+        response = model.generate_content(prompt)
+        return response.text, links
+
+    except Exception as e:
+        return f"AI 분석을 생성하는 중 오류가 발생했습니다: {str(e)}", []
+
+# ==========================================
+# [3] 핵심 재무 분석 함수 (yfinance 실시간 연동)
 # ==========================================
 def get_us_ipo_analysis(ticker_symbol):
     """
     yfinance를 사용하여 실시간 재무 지표를 계산합니다.
-    데이터가 없으면 status: Error를 반환합니다.
     """
     try:
         tk = yf.Ticker(ticker_symbol)
-        # .info 데이터 가져오기 (성능 최적화를 위해 변수 저장)
         info = tk.info
         
         # 1. Sales Growth (최근 매출 성장률)
@@ -79,11 +125,9 @@ def get_us_ipo_analysis(ticker_symbol):
         if not cashflow.empty and 'Operating Cash Flow' in cashflow.index:
             ocf_val = cashflow.loc['Operating Cash Flow'].iloc[0]
         else:
-            # cashflow 데이터가 잡히지 않을 경우 info에서 대체값 확인
             ocf_val = info.get('operatingCashflow', 0)
             
         # 3. Accruals (발생액 계산: 당기순이익 - 영업현금흐름)
-        # 학술적으로 이익의 질을 평가하는 지표
         net_income = info.get('netIncomeToCommon', 0)
         accruals_amt = net_income - ocf_val
         accruals_status = "Low" if accruals_amt <= 0 else "High"
@@ -95,7 +139,6 @@ def get_us_ipo_analysis(ticker_symbol):
             "status": "Success"
         }
     except Exception as e:
-        # 로그가 필요한 경우 st.error(f"Error: {e}")를 사용할 수 있습니다.
         return {"status": "Error"}
 
 # 1. 페이지 설정
@@ -2164,6 +2207,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
