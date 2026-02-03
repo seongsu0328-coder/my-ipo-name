@@ -1109,7 +1109,7 @@ elif st.session_state.page == 'calendar':
     # ---------------------------------------------------------
     # [수정된 데이터 로직] (디버깅 강화 및 캐시 초기화 버전)
     # ---------------------------------------------------------
-    all_df_raw = get_extended_ipo_data(MY_API_KEY)
+    all_df_raw = get_extended_ipo_data_v2(MY_API_KEY)
     view_mode = st.session_state.get('view_mode', 'all')
     
     if not all_df_raw.empty:
@@ -2366,6 +2366,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
