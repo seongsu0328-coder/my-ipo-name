@@ -2055,8 +2055,8 @@ elif st.session_state.page == 'detail':
         
         # 강제 페이지 전환 테스트 버튼
         if st.sidebar.button("🚨 게시판 강제 이동 테스트"):
-        st.session_state.page = 'board'
-        st.rerun()
+            st.session_state.page = 'board'
+            st.rerun()
         st.sidebar.markdown("---")
         
         # =========================================================
@@ -2264,6 +2264,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
