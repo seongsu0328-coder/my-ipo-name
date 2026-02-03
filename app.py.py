@@ -1389,93 +1389,16 @@ elif st.session_state.page == 'detail':
         # [5] 탭 메뉴 구성
         # -------------------------------------------------------------------------
         tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            " 주요뉴스", 
             " 주요공시", 
+            " 주요뉴스", 
             " 거시평가", 
             " 미시평가",
             " 기관평가",
             " 투자결정"
         ])
 
-        # --- Tab 0: 뉴스 & 심층 분석 ---
+        # --- Tab 0: 핵심 정보 (공시 가이드 및 AI 분석 강화) ---
         with tab0:
-            # [2] 뉴스 리스트 섹션 (먼저 배치)
-            
-            
-            st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
-            
-            rss_news = get_real_news_rss(stock['name'])
-            
-            if rss_news:
-                exclude_keywords = ['jewel', 'fashion', 'necklace', 'diamond', 'ring', 'crown royal', 'jewelry', 'pendant'] 
-                target_tags = ["분석", "시장", "전망", "전략", "수급"]
-                final_display_news = []
-                used_indices = set()
-
-                filtered_news = [n for n in rss_news if not any(ek in n.get('title', '').lower() for ek in exclude_keywords)]
-
-                for target in target_tags + ["일반"]:
-                    for idx, n in enumerate(filtered_news):
-                        if len(final_display_news) >= 5: break
-                        if idx in used_indices: continue
-                        
-                        title_lower = n.get('title', '').lower()
-                        tag = "일반"
-                        if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
-                        elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', '시장', '상장']): tag = "시장"
-                        elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'expects', '전망']): tag = "전망"
-                        elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', '전략']): tag = "전략"
-                        elif any(k in title_lower for k in ['price', 'raise', 'funding', 'share', '수급', '공모']): tag = "수급"
-
-                        if tag == target or (target == "일반" and len(final_display_news) < 5):
-                            n['display_tag'] = tag
-                            final_display_news.append(n)
-                            used_indices.add(idx)
-
-                for i, n in enumerate(final_display_news):
-                    tag = n['display_tag']
-                    s_badge = f'<span style="background:{n.get("bg","#eee")}; color:{n.get("color","#333")}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n.get("sent_label","")}</span>' if n.get("sent_label") else ""
-                    safe_title = n.get('title', 'No Title').replace("$", "\$")
-                    ko_title = n.get('title_ko', '') 
-                    trans_html = f"<br><span style='font-size:14px; color:#555;'>🇰🇷 {ko_title.replace('$', '\$')}</span>" if ko_title else ""
-                    
-                    st.markdown(f"""
-                        <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
-                            <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
-                                <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> <span style="color:#888; font-size:12px;">| {tag}</span>{s_badge}</div>
-                                    <small style="color:#bbb;">{n.get('date','')}</small>
-                                </div>
-                                <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{safe_title}{trans_html}</div>
-                            </div>
-                        </a>
-                    """, unsafe_allow_html=True)
-            else:
-                st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
-
-            st.write("<br>", unsafe_allow_html=True)
-
-            # [1] 기업 심층 분석 섹션 (Expander 적용) - 뉴스 하단으로 이동
-            with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
-                st.caption("자체 알고리즘으로 실시간으로 분석하여 제공합니다.")
-                q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
-                
-                with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
-                    biz_info = get_ai_summary(q_biz)
-                    if biz_info:
-                        st.markdown(f"""
-                        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #6e8efb; color: #333; line-height: 1.6;">
-                            {biz_info}
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.error("⚠️ 정보를 찾을 수 없습니다.")
-
-            # 결정 박스 (맨 마지막 유지)
-            draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
-
-        # --- Tab 1: 핵심 정보 (공시 가이드 및 AI 분석 강화) ---
-        with tab1:
             # [세션 상태 관리]
             if 'core_topic' not in st.session_state:
                 st.session_state.core_topic = "S-1"
@@ -1590,6 +1513,83 @@ elif st.session_state.page == 'detail':
 
             
             draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
+
+        # --- Tab 1: 뉴스 & 심층 분석 ---
+        with tab1:
+            # [2] 뉴스 리스트 섹션 (먼저 배치)
+            
+            
+            st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
+            
+            rss_news = get_real_news_rss(stock['name'])
+            
+            if rss_news:
+                exclude_keywords = ['jewel', 'fashion', 'necklace', 'diamond', 'ring', 'crown royal', 'jewelry', 'pendant'] 
+                target_tags = ["분석", "시장", "전망", "전략", "수급"]
+                final_display_news = []
+                used_indices = set()
+
+                filtered_news = [n for n in rss_news if not any(ek in n.get('title', '').lower() for ek in exclude_keywords)]
+
+                for target in target_tags + ["일반"]:
+                    for idx, n in enumerate(filtered_news):
+                        if len(final_display_news) >= 5: break
+                        if idx in used_indices: continue
+                        
+                        title_lower = n.get('title', '').lower()
+                        tag = "일반"
+                        if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
+                        elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', '시장', '상장']): tag = "시장"
+                        elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'expects', '전망']): tag = "전망"
+                        elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', '전략']): tag = "전략"
+                        elif any(k in title_lower for k in ['price', 'raise', 'funding', 'share', '수급', '공모']): tag = "수급"
+
+                        if tag == target or (target == "일반" and len(final_display_news) < 5):
+                            n['display_tag'] = tag
+                            final_display_news.append(n)
+                            used_indices.add(idx)
+
+                for i, n in enumerate(final_display_news):
+                    tag = n['display_tag']
+                    s_badge = f'<span style="background:{n.get("bg","#eee")}; color:{n.get("color","#333")}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n.get("sent_label","")}</span>' if n.get("sent_label") else ""
+                    safe_title = n.get('title', 'No Title').replace("$", "\$")
+                    ko_title = n.get('title_ko', '') 
+                    trans_html = f"<br><span style='font-size:14px; color:#555;'>🇰🇷 {ko_title.replace('$', '\$')}</span>" if ko_title else ""
+                    
+                    st.markdown(f"""
+                        <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
+                            <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> <span style="color:#888; font-size:12px;">| {tag}</span>{s_badge}</div>
+                                    <small style="color:#bbb;">{n.get('date','')}</small>
+                                </div>
+                                <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{safe_title}{trans_html}</div>
+                            </div>
+                        </a>
+                    """, unsafe_allow_html=True)
+            else:
+                st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
+
+            st.write("<br>", unsafe_allow_html=True)
+
+            # [1] 기업 심층 분석 섹션 (Expander 적용) - 뉴스 하단으로 이동
+            with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
+                st.caption("자체 알고리즘으로 실시간으로 분석하여 제공합니다.")
+                q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
+                
+                with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
+                    biz_info = get_ai_summary(q_biz)
+                    if biz_info:
+                        st.markdown(f"""
+                        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #6e8efb; color: #333; line-height: 1.6;">
+                            {biz_info}
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.error("⚠️ 정보를 찾을 수 없습니다.")
+
+            # 결정 박스 (맨 마지막 유지)
+            draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
@@ -2168,18 +2168,46 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             st.markdown("### 📊 종합 분석 리포트")
             ud = st.session_state.user_decisions.get(sid, {})
-            steps = [('news','Step 1'), ('filing','Step 2'), ('macro','Step 3'), ('company','Step 4'), ('ipo_report','Step 5')]
+            
+            # [수정] Step 1(filing)과 Step 2(news) 순서 변경
+            steps = [
+                ('filing', 'Step 1'), 
+                ('news', 'Step 2'), 
+                ('macro', 'Step 3'), 
+                ('company', 'Step 4')
+            ]
+            
+            # (만약 'ipo_report' 키를 사용하는 Step 5가 있다면 아래와 같이 추가하세요)
+            # steps.append(('ipo_report', 'Step 5'))
+
             missing_steps = [label for step, label in steps if not ud.get(step)]
         
             if len(missing_steps) > 0:
                 st.info(f"⏳ 모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 결과가 공개됩니다.")
             else:
-                score_map = {"긍정적": 1, "중립적": 0, "부정적": -1, "수용적": 1, "회의적": -1, "버블": -1, "중립": 0, "침체": 1, "저평가": 1, "적정": 0, "고평가": -1, "매수": 1, "매도": -1}
-                user_score = sum(score_map.get(ud.get(s, "중립적"), 0) for s in ['news', 'filing', 'macro', 'company', 'ipo_report'])
+                score_map = {
+                    "긍정적": 1, "중립적": 0, "부정적": -1, 
+                    "수용적": 1, "회의적": -1, 
+                    "버블": -1, "중립": 0, "침체": 1, "안정적": 1, # (안정적 추가)
+                    "저평가": 1, "적정": 0, "고평가": -1, 
+                    "매수": 1, "매도": -1
+                }
+                
+                # 점수 합산 (순서 변경 반영)
+                user_score = sum(score_map.get(ud.get(s, "중립적"), 0) for s in ['filing', 'news', 'macro', 'company'])
+                
+                # (이하 시각화 로직 동일)
+                import numpy as np
+                import plotly.graph_objects as go
                 
                 np.random.seed(42)
                 community_scores = np.clip(np.random.normal(0, 1.5, 1000).round().astype(int), -5, 5)
-                user_percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
+                
+                # 백분위 계산 (ZeroDivisionError 방지)
+                if len(community_scores) > 0:
+                    user_percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
+                else:
+                    user_percentile = 50.0
                 
                 m1, m2 = st.columns(2)
                 m1.metric("시장평가 (평균)", "52.4%", help="시장 참여자들의 평균 낙관도 수준입니다.")
@@ -2187,12 +2215,20 @@ elif st.session_state.page == 'detail':
         
                 score_counts = pd.Series(community_scores).value_counts().sort_index()
                 score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
+                
                 fig = go.Figure(go.Bar(
                     x=score_counts.index, y=score_counts.values, 
                     marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
                     hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
                 ))
-                fig.update_layout(height=180, margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(title="분석 점수 (-5 ~ +5)"), yaxis=dict(showticklabels=False), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                fig.update_layout(
+                    height=180, 
+                    margin=dict(l=10, r=10, t=10, b=10), 
+                    xaxis=dict(title="분석 점수 (-5 ~ +5)"), 
+                    yaxis=dict(showticklabels=False), 
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
                 st.plotly_chart(fig, use_container_width=True)
         
             # ---------------------------------------------------------
@@ -2286,6 +2322,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
