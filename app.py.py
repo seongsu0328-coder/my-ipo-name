@@ -296,7 +296,6 @@ st.markdown("""
 
 
 # --- [1. 최상단 페이지 컨트롤러] ---
-# 게시판 모드일 때 다른 모든 로직을 건너뛰고 게시판만 보여줍니다.
 if st.session_state.get('page') == 'board':
     st.markdown("### 🏛️ 통합 투자자 게시판")
     
@@ -305,47 +304,93 @@ if st.session_state.get('page') == 'board':
         st.session_state.page = 'calendar'
         st.rerun()
 
+    # ---------------------------------------------------------
+    # ✨ [추가] 통합 게시판 직접 글쓰기 기능
+    # ---------------------------------------------------------
+    with st.expander("✍️ 새로운 의견 나누기 (여기에 글쓰기)", expanded=False):
+        with st.form("board_write_form", clear_on_submit=True):
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                # 카테고리를 직접 입력하거나 '공통'으로 설정
+                new_cat = st.text_input("🏷️ 종목명/태그", placeholder="예: 공통, AAPL, 테슬라")
+            with col2:
+                new_title = st.text_input("📝 제목", placeholder="제목을 입력하세요")
+            
+            new_content = st.text_area("💬 내용", placeholder="투자 의견을 자유롭게 나눠보세요.")
+            
+            submit_btn = st.form_submit_button("게시하기", use_container_width=True)
+            
+            if submit_btn:
+                if new_title and new_content:
+                    # 새로운 포스트 객체 생성
+                    new_post = {
+                        "id": str(uuid.uuid4()),
+                        "category": new_cat if new_cat else "공통",
+                        "title": new_title,
+                        "content": new_content,
+                        "author": "익명", # 필요시 사용자 이름 연동
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "likes": 0
+                    }
+                    
+                    # 기존 posts 리스트에 추가 (없으면 생성)
+                    if 'posts' not in st.session_state:
+                        st.session_state.posts = []
+                    
+                    st.session_state.posts.insert(0, new_post) # 최신글이 맨 위로
+                    st.success("✅ 게시글이 등록되었습니다!")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ 제목과 내용을 모두 입력해주세요.")
+    
+    st.divider()
+    # ---------------------------------------------------------
+
     try:
         posts = st.session_state.get('posts', [])
         
         if not posts:
-            st.info("📢 아직 작성된 게시글이 없습니다. 종목 상세 페이지에서 의견을 남겨보세요!")
+            st.info("📢 아직 작성된 게시글이 없습니다. 첫 번째 의견을 남겨보세요!")
         else:
-            # 주간 인기글 (오류 방지를 위해 try-except로 감쌈)
+            # [기존 로직] 주간 인기글...
             try:
                 now = datetime.now()
                 week_ago = now - timedelta(days=7)
+                # date 형식이 문자열인 경우 datetime으로 변환하여 체크
                 top_posts = [p for p in posts if datetime.strptime(p['date'], "%Y-%m-%d %H:%M") >= week_ago]
                 top_posts = sorted(top_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
                 
                 if top_posts:
                     st.subheader("🔥 주간 인기 TOP 5")
+                    cols = st.columns(len(top_posts))
                     for i, tp in enumerate(top_posts):
-                        st.info(f"{i+1}. {tp['title']} (👍 {tp['likes']})")
+                        cols[i].info(f"**{tp['title'][:10]}..**\n👍 {tp['likes']}")
             except:
-                st.warning("⚠️ 인기글 로딩 중 일부 데이터 형식에 문제가 발견되었습니다.")
+                pass
 
             st.divider()
 
-            # 전체 목록 필터링
+            # [기존 로직] 전체 목록 필터링 및 렌더링
             all_cats = sorted(list(set([p.get('category', '기타') for p in posts])))
             selected_cat = st.selectbox("📂 종목별 필터", ["전체 목록"] + all_cats)
             display_posts = posts if "전체" in selected_cat else [p for p in posts if p['category'] == selected_cat]
 
-            # 게시글 렌더링
-            for post in display_posts[:20]: # 일단 상위 20개만 출력
+            for post in display_posts[:30]: 
                 st.markdown(f"""
-                <div style='background-color: white; padding: 15px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px;'>
-                    <div style='color: #6e8efb; font-weight: bold;'>#{post.get('category', '공통')}</div>
-                    <div style='font-size: 16px; font-weight: bold;'>{post.get('title', '제목 없음')}</div>
-                    <div style='font-size: 14px; color: #444;'>{post.get('content', '')}</div>
+                <div style='background-color: white; padding: 18px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);'>
+                    <div style='display: flex; justify-content: space-between;'>
+                        <span style='color: #6e8efb; font-weight: bold; font-size: 13px;'>#{post.get('category', '공통')}</span>
+                        <span style='color: #999; font-size: 11px;'>{post.get('date', '')}</span>
+                    </div>
+                    <div style='font-size: 17px; font-weight: bold; margin-top: 5px; color: #333;'>{post.get('title', '제목 없음')}</div>
+                    <div style='font-size: 14px; color: #555; margin-top: 8px; line-height: 1.5;'>{post.get('content', '')}</div>
+                    <div style='margin-top: 10px; font-size: 12px; color: #888;'>👍 {post.get('likes', 0)} | 👤 {post.get('author', '익명')}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"⚠️ 게시판을 불러오는 중 오류가 발생했습니다: {e}")
 
-    # 🛑 핵심: 게시판일 때는 여기서 실행을 완전히 멈춤
     st.stop()
 
 # --- 데이터 로직 (캐싱 최적화 적용) ---
@@ -2241,6 +2286,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
