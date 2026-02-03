@@ -457,32 +457,38 @@ def get_company_profile(symbol, api_key):
         return res if res and 'name' in res else None
     except: return None
 
-# [수정] 함수 이름을 V2로 변경하여 강제로 캐시를 새로 생성하게 함 (중요!)
+# [수정] V3: 루프 방식을 사용하여 데이터 누락을 원천 차단
 @st.cache_data(ttl=14400) 
-def get_extended_ipo_data_v2(api_key):
+def get_extended_ipo_data_v3(api_key):
     import requests
     import pandas as pd
-    import time # [추가] 속도 조절용
+    import time
     from datetime import datetime, timedelta
 
     now = datetime.now()
     all_data = []
     
-    # [핵심 변경] 
-    # 1. API 누락 방지를 위해 날짜를 5일씩 겹치게(Overlap) 설정했습니다.
-    # 2. 무료 키 제한(초당 호출 수)을 피하기 위해 안전하게 쪼갰습니다.
-    ranges = [
-        # (시작일, 종료일)
-        (now - timedelta(days=5), now + timedelta(days=120)),   # 미래 ~ 현재
-        (now - timedelta(days=100), now + timedelta(days=5)),   # 최근 3개월 (겹침)
-        (now - timedelta(days=190), now - timedelta(days=90)),  # 3~6개월 전 (여기가 문제였던 구간)
-        (now - timedelta(days=370), now - timedelta(days=180)), # 6~12개월 전
-        (now - timedelta(days=550), now - timedelta(days=360))  # 12~18개월 전
-    ]
+    # [핵심 변경] 수동 범위 지정 -> 90일 단위 자동 루프 (총 18개월 커버)
+    # 미래(4개월)부터 시작해서 과거로 90일씩 6번 이동하며 긁어옵니다.
+    # 이렇게 하면 중간에 빈 구멍이 생길 수 없습니다.
     
-    # 디버깅용 메시지 (서버 로그 확인용)
-    print("🔄 V2 IPO 데이터 수집 시작 (안전 모드)...")
+    # 1. 미래 데이터 (약 4개월)
+    future_end = now + timedelta(days=120)
+    future_start = now
     
+    # 2. 과거 데이터 (90일씩 6번 = 약 540일 = 18개월)
+    # 겹치는 구간(Overlap)을 5일씩 줘서 경계선 누락 방지
+    ranges = [(future_start, future_end)] # 첫 번째: 미래 구간
+    
+    cursor = now
+    for _ in range(6):
+        end_date = cursor + timedelta(days=5) # 5일 겹치게
+        start_date = cursor - timedelta(days=90)
+        ranges.append((start_date, end_date))
+        cursor = start_date # 다음 루프를 위해 커서 이동
+
+    print("🔄 V3 IPO 데이터 정밀 수집 시작...")
+
     for start_dt, end_dt in ranges:
         start_str = start_dt.strftime('%Y-%m-%d')
         end_str = end_dt.strftime('%Y-%m-%d')
@@ -490,34 +496,28 @@ def get_extended_ipo_data_v2(api_key):
         url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
         
         try:
-            # [추가] 너무 빠른 호출 방지 (0.5초 대기)
-            time.sleep(0.5) 
+            time.sleep(0.5) # API 차단 방지 (필수)
             
             res = requests.get(url, timeout=10)
-            
-            # 응답 코드가 200(성공)일 때만 처리
             if res.status_code == 200:
-                data_json = res.json()
-                ipo_list = data_json.get('ipoCalendar', [])
+                ipo_list = res.json().get('ipoCalendar', [])
                 if ipo_list:
                     all_data.extend(ipo_list)
-                    print(f"✅ {start_str} ~ {end_str}: {len(ipo_list)}건 수집 성공")
+                    print(f"✅ 구간 수집 성공: {start_str} ~ {end_str} ({len(ipo_list)}건)")
                 else:
-                    print(f"⚠️ {start_str} ~ {end_str}: 데이터 없음 (빈 리스트)")
+                    print(f"⚠️ 데이터 없음: {start_str} ~ {end_str}")
             else:
-                print(f"❌ API 호출 실패 ({res.status_code}): {start_str} ~ {end_str}")
+                print(f"❌ API 응답 실패: {res.status_code}")
                 
         except Exception as e:
-            print(f"❌ 에러 발생 ({start_str} ~ {end_str}): {e}")
+            print(f"❌ 에러: {e}")
             continue
 
     # 데이터 정리
     if all_data:
         df = pd.DataFrame(all_data)
-        # 중복 제거 (날짜 겹치게 호출했으므로 필수)
+        # 중복 제거 (겹치게 호출했으므로 필수)
         df = df.drop_duplicates(subset=['symbol', 'date'])
-        
-        # 날짜 형식 변환
         df['date'] = pd.to_datetime(df['date'])
         return df
     else:
@@ -2366,6 +2366,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
