@@ -2042,327 +2042,188 @@ elif st.session_state.page == 'detail':
 
         
 
-        # --- Tab 5: 최종 투자 결정 ---
-        with tab5:
-            import uuid
-            from datetime import datetime
-            import numpy as np
-            import pandas as pd
-            import plotly.graph_objects as go
+        # --- Tab 5: 최종 투자 결정 (종목 상세 페이지 내) ---
+with tab5:
+    import uuid
+    from datetime import datetime, timedelta
+    import numpy as np
+    import pandas as pd
+    import plotly.graph_objects as go
 
-            # [설정] 관리자 및 기본 정보
-            ADMIN_PHONE = "010-0000-0000" 
-            sid = stock['symbol']
-            
-            # 세션 데이터 초기화
-            if 'vote_data' not in st.session_state: st.session_state.vote_data = {}
-            if 'comment_data' not in st.session_state: st.session_state.comment_data = {}
-            if 'watchlist' not in st.session_state: st.session_state.watchlist = []
-            if 'watchlist_predictions' not in st.session_state: st.session_state.watchlist_predictions = {}
-            
-            # 종목별 투표 데이터 초기화
-            if sid not in st.session_state.vote_data: 
-                st.session_state.vote_data[sid] = {'u': 10, 'f': 3} 
-            if sid not in st.session_state.comment_data: st.session_state.comment_data[sid] = []
-            
-            current_user = st.session_state.get('user_phone', 'guest')
-            is_admin = (current_user == ADMIN_PHONE)
-
-            # 1. 투자 분석 결과 섹션 (시장평가 좌 / 나의 평가 우)
-            ud = st.session_state.user_decisions.get(sid, {})
-            missing_steps = []
-            for step, label in [('news','Step 1'), ('filing','Step 2'), ('macro','Step 3'), ('company','Step 4'), ('ipo_report','Step 5')]:
-                if not ud.get(step): missing_steps.append(label)
-
-            if len(missing_steps) > 0:
-                st.info(f"⏳ 모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 분석 결과가 공개됩니다.")
-            else:
-                # 점수 계산 매핑
-                score_map = {
-                    "긍정적": 1, "중립적": 0, "부정적": -1, 
-                    "수용적": 1, "회의적": -1, 
-                    "버블": -1, "중립": 0, "침체": 1, 
-                    "저평가": 1, "적정": 0, "고평가": -1, 
-                    "매수": 1, "매도": -1
-                }
-                user_score = sum(score_map.get(ud.get(s, "중립적"), 0) for s in ['news', 'filing', 'macro', 'company', 'ipo_report'])
-                
-                # 분포도 데이터 생성 (가상 커뮤니티 데이터)
-                np.random.seed(42)
-                community_scores = np.clip(np.random.normal(0, 1.5, 1000).round().astype(int), -5, 5)
-                
-                # 시장 평균 백분위 계산 (좌측 표시용)
-                market_avg_score = community_scores.mean()
-                market_percentile = (community_scores <= market_avg_score).sum() / len(community_scores) * 100
-                
-                # 나의 백분위 계산 (우측 표시용)
-                user_percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
-                
-                # 상단 레이아웃: 시장 평가(좌) | 나의 평가(우)
-                m1, m2 = st.columns(2)
-                m1.metric("시장평가 (평균)", f"{market_percentile:.1f}%", help="시장 참여자들의 평균적인 낙관도 수준입니다.")
-                m2.metric("긍정평가 (나)", f"{user_percentile:.1f}%", help="나의 분석 결과가 전체 참여자 중 어느 정도 위치에 있는지 나타냅니다.")
-
-                # 그래프 시각화
-                score_counts = pd.Series(community_scores).value_counts().sort_index()
-                score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
-                
-                fig = go.Figure(go.Bar(
-                    x=score_counts.index, 
-                    y=score_counts.values, 
-                    marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
-                    hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
-                ))
-                
-                fig.update_layout(
-                    height=200, 
-                    margin=dict(l=10, r=10, t=10, b=10), 
-                    xaxis=dict(tickmode='linear', dtick=1, title="분석 점수 (-5 ~ +5)"), 
-                    yaxis=dict(showticklabels=False), 
-                    paper_bgcolor='rgba(0,0,0,0)', 
-                    plot_bgcolor='rgba(0,0,0,0)'
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # 분석 코멘트
-                if user_score >= 3:
-                    st.success(" 신규 IPO 기업에 대해 긍정적으로 평가합니다.")
-                elif user_score <= -3:
-                    st.warning(" 신규 IPO 기업에 대해 부정적으로 평가합니다.")
-                else:
-                    st.info(" 신규 IPO 기업에 대해 중립적으로 평가합니다.")
-
-            
-
-            # 2. 관심종목/투표 섹션
-            st.markdown("### 관심종목")
-            if st.session_state.get('auth_status') == 'user':
-                if sid not in st.session_state.watchlist:
-                    c_up, c_down = st.columns(2)
-                    if c_up.button("📈 상승 (UP) & 보관", key=f"up_{sid}", use_container_width=True, type="primary"):
-                        st.session_state.watchlist.append(sid)
-                        st.session_state.watchlist_predictions[sid] = "UP"
-                        st.session_state.vote_data[sid]['u'] += 1
-                        st.rerun()
-                    if c_down.button("📉 하락 (DOWN) & 보관", key=f"dn_{sid}", use_container_width=True):
-                        st.session_state.watchlist.append(sid)
-                        st.session_state.watchlist_predictions[sid] = "DOWN"
-                        st.session_state.vote_data[sid]['f'] += 1
-                        st.rerun()
-                else:
-                    pred = st.session_state.watchlist_predictions.get(sid, "N/A")
-                    st.success(f"✅ 관심 종목 보관 중 (나의 예측: **{pred}**)")
-                    if st.button("🗑️ 보관 해제", key=f"rm_{sid}", use_container_width=True):
-                        st.session_state.watchlist.remove(sid)
-                        st.session_state.vote_data[sid]['u' if pred=="UP" else 'f'] -= 1
-                        del st.session_state.watchlist_predictions[sid]
-                        st.rerun()
-            else:
-                st.warning("🔒 로그인 후 참여 가능합니다.")
-
-            
-
-            # 3. 토론방 섹션 (수정 포인트: 입력폼과 리스트 분리)
-            st.markdown("### 토론방")
-            
-            # [A] 글쓰기 폼 (로그인 시 무조건 노출)
-            if st.session_state.get('auth_status') == 'user':
-                with st.form(key=f"form_{sid}", clear_on_submit=True):
-                    user_input = st.text_area("의견 남기기", placeholder="건전한 투자 문화를 위해 매너를 지켜주세요.", height=80)
-                    _, btn_col = st.columns([3, 1])
-                    if btn_col.form_submit_button("등록하기", use_container_width=True, type="primary"):
-                        if user_input.strip():
-                            new_comment = {
-                                "id": str(uuid.uuid4()), "t": user_input, "d": datetime.now().strftime("%m.%d %H:%M"),
-                                "u": "익명의 유니콘", "uid": current_user, "likes": [], "dislikes": []
-                            }
-                            st.session_state.comment_data[sid].insert(0, new_comment)
-                            st.rerun()
-            else:
-                st.info("🔒 로그인 후 토론에 참여할 수 있습니다.")
-
-            # [B] 댓글 리스트 출력
-            comments = st.session_state.comment_data.get(sid, [])
-            if comments:
-                comments.sort(key=lambda x: len(x.get('likes', [])), reverse=True)
-                for c in comments:
-                    st.markdown(f"""
-                    <div style='background-color: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 5px; border: 1px solid #eee;'>
-                        <div style='display:flex; justify-content:space-between; margin-bottom:5px;'>
-                            <span style='font-weight:bold; font-size:13px;'>👤 {c.get('u')}</span>
-                            <span style='font-size:11px; color:#999;'>{c['d']}</span>
-                        </div>
-                        <div style='font-size:14px;'>{c['t']}</div>
-                    </div>""", unsafe_allow_html=True)
-                    
-                    l_col, d_col, r_col, _ = st.columns([1, 1, 1, 5])
-                    if l_col.button(f"👍 {len(c['likes'])}", key=f"l_{c['id']}"):
-                        if current_user != 'guest':
-                            if current_user in c['likes']: c['likes'].remove(current_user)
-                            else: c['likes'].append(current_user)
-                            st.rerun()
-                    if d_col.button(f"👎 {len(c['dislikes'])}", key=f"d_{c['id']}"):
-                        if current_user != 'guest':
-                            if current_user in c['dislikes']: c['dislikes'].remove(current_user)
-                            else: c['dislikes'].append(current_user)
-                            st.rerun()
-                    if current_user == c.get('uid') or is_admin:
-                        if r_col.button("🗑️", key=f"del_{c['id']}"):
-                            st.session_state.comment_data[sid].remove(c)
-                            st.rerun()
-            else:
-                st.caption("첫 번째 의견을 남겨보세요! 👑")
-
-# ---------------------------------------------------------
-# 여기서부터는 전체 탭 또는 메인 영역 바깥입니다. (들여쓰기 주의)
-# ---------------------------------------------------------
-if st.session_state.page == 'board':
-    st.write("### 📋 게시판 페이지")
-
-# --- 5. 게시판 페이지 ---
-if st.session_state.page == 'board':
-    # [Top Menu] 상단 메뉴 버튼 (calendar 페이지로 이동)
-    m_col1, m_col2 = st.columns([8.5, 1.5])
-    with m_col2:
-        if st.button("🏠 홈", use_container_width=True): # 메뉴 -> 홈으로 텍스트 변경 추천
-            st.session_state.page = 'calendar' # [수정됨] stats -> calendar
-            st.rerun()
-
-    st.markdown("### 💬 투자자 토론 게시판")
+    # [설정] 관리자 및 기본 정보
+    ADMIN_PHONE = "010-0000-0000" 
+    sid = stock['symbol'] # 현재 종목 티커 (예: 'AAPL')
+    current_user = st.session_state.get('user_phone', 'guest')
+    is_admin = (current_user == ADMIN_PHONE)
     
-    # [A] 데이터 저장소 초기화
-    if 'posts' not in st.session_state:
-        # 영구 저장 함수(load_posts)가 있다면 연결하세요. 없으면 빈 리스트로 시작합니다.
-        st.session_state.posts = [] 
+    # 세션 데이터 통합 초기화 (기존 데이터 유지 + 통합 게시판 posts 연결)
+    if 'posts' not in st.session_state: st.session_state.posts = []
+    if 'watchlist' not in st.session_state: st.session_state.watchlist = []
+    if 'watchlist_predictions' not in st.session_state: st.session_state.watchlist_predictions = {}
+    if 'vote_data' not in st.session_state: st.session_state.vote_data = {}
+    
+    # 종목별 투표 데이터 초기화 (통계용)
+    if sid not in st.session_state.vote_data: 
+        st.session_state.vote_data[sid] = {'u': 10, 'f': 3} 
 
-    # [B] 상단 인기글 로직 (방어적 코드)
-    one_week_ago = datetime.now() - timedelta(days=7)
-    def get_top_posts(posts):
-        valid_posts = []
-        for p in posts:
-            try:
-                post_date = datetime.strptime(p.get('date', datetime.now().strftime("%Y-%m-%d %H:%M")), "%Y-%m-%d %H:%M")
-                if post_date > one_week_ago:
-                    valid_posts.append(p)
-            except: continue
-        return sorted(valid_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
+    # 1. 투자 분석 결과 섹션 (차트 시각화)
+    ud = st.session_state.user_decisions.get(sid, {})
+    missing_steps = [label for step, label in [('news','Step 1'), ('filing','Step 2'), ('macro','Step 3'), ('company','Step 4'), ('ipo_report','Step 5')] if not ud.get(step)]
 
-    top_posts = get_top_posts(st.session_state.posts)
-    if top_posts:
-        with st.expander("🔥 이번 주 인기 게시글 TOP 5", expanded=True):
-            for i, tp in enumerate(top_posts):
-                st.write(f"{i+1}. [{tp.get('category', '일반')}] {tp.get('title', '제목 없음')} (👍 {tp.get('likes', 0)})")
-        st.divider()
+    if len(missing_steps) > 0:
+        st.info(f"⏳ 모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 분석 결과가 공개됩니다.")
+    else:
+        score_map = {"긍정적": 1, "중립적": 0, "부정적": -1, "수용적": 1, "회의적": -1, "버블": -1, "중립": 0, "침체": 1, "저평가": 1, "적정": 0, "고평가": -1, "매수": 1, "매도": -1}
+        user_score = sum(score_map.get(ud.get(s, "중립적"), 0) for s in ['news', 'filing', 'macro', 'company', 'ipo_report'])
+        
+        np.random.seed(42)
+        community_scores = np.clip(np.random.normal(0, 1.5, 1000).round().astype(int), -5, 5)
+        user_percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
+        
+        m1, m2 = st.columns(2)
+        m1.metric("시장평가 (평균)", "52.4%", help="시장 참여자들의 평균 낙관도 수준입니다.")
+        m2.metric("나의 낙관도 위치", f"{user_percentile:.1f}%", f"{user_score}점")
 
-    # [C] 필터 및 글쓰기 버튼
-    menu_c1, menu_c2, menu_c3 = st.columns([3, 5, 2])
-    with menu_c1:
-        category_filter = st.selectbox("📂 카테고리 필터", ["전체", "거시경제", "관심기업", "자산배분", "투자인사이트"])
-    with menu_c3:
-        if st.button("📝 글쓰기", use_container_width=True, type="primary"):
-            st.session_state.show_editor = True
+        # 분석 분포 그래프
+        score_counts = pd.Series(community_scores).value_counts().sort_index()
+        score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
+        fig = go.Figure(go.Bar(
+            x=score_counts.index, y=score_counts.values, 
+            marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
+            hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
+        ))
+        fig.update_layout(height=180, margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(title="분석 점수 (-5 ~ +5)"), yaxis=dict(showticklabels=False), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig, use_container_width=True)
 
-    # [D] 글쓰기 폼 (이미지 업로드 기능 제거 및 복구)
-    if st.session_state.get('show_editor', False):
-        with st.form("board_form_final", clear_on_submit=True):
-            st.subheader("📝 새로운 의견 나누기")
-            cat = st.selectbox("카테고리", ["거시경제", "관심기업", "자산배분", "투자인사이트"])
-            title = st.text_input("제목", placeholder="제목을 입력하세요")
-            author = st.text_input("작성자", value=st.session_state.get('user_phone', '익명'))
-            content = st.text_area("내용", placeholder="투자 인사이트를 자유롭게 공유해 주세요", height=200)
-            
-            btn_c1, btn_c2 = st.columns([1, 1])
-            with btn_c1:
-                submitted = st.form_submit_button("등록하기", use_container_width=True)
-            with btn_c2:
-                if st.form_submit_button("취소", use_container_width=True):
-                    st.session_state.show_editor = False
-                    st.rerun()
+    # 2. 관심종목 및 투표 섹션
+    st.markdown("### 📌 관심종목 및 투표")
+    if st.session_state.get('auth_status') == 'user':
+        if sid not in st.session_state.watchlist:
+            c_up, c_down = st.columns(2)
+            if c_up.button("📈 상승 (UP) & 보관", key=f"up_{sid}", use_container_width=True, type="primary"):
+                st.session_state.watchlist.append(sid)
+                st.session_state.watchlist_predictions[sid] = "UP"
+                st.session_state.vote_data[sid]['u'] += 1
+                st.rerun()
+            if c_down.button("📉 하락 (DOWN) & 보관", key=f"dn_{sid}", use_container_width=True):
+                st.session_state.watchlist.append(sid)
+                st.session_state.watchlist_predictions[sid] = "DOWN"
+                st.session_state.vote_data[sid]['f'] += 1
+                st.rerun()
+        else:
+            pred = st.session_state.watchlist_predictions.get(sid, "N/A")
+            st.success(f"✅ 보관 중 (나의 예측: **{pred}**)")
+            if st.button("🗑️ 보관 해제", key=f"rm_{sid}", use_container_width=True):
+                st.session_state.watchlist.remove(sid)
+                st.session_state.vote_data[sid]['u' if pred=="UP" else 'f'] -= 1
+                del st.session_state.watchlist_predictions[sid]
+                st.rerun()
+    else:
+        st.warning("🔒 로그인 후 참여 가능합니다.")
 
-            if submitted:
-                if title and content:
+    st.divider()
+
+    # 3. 토론방 (게시판 연동형)
+    st.markdown(f"### 💬 {sid} 토론 참여")
+    
+    if st.session_state.get('auth_status') == 'user':
+        with st.form(key=f"form_{sid}", clear_on_submit=True):
+            user_input = st.text_area("의견 남기기", placeholder="종목에 대한 분석이나 의견을 자유롭게 남겨주세요.", height=100)
+            _, btn_col = st.columns([3, 1])
+            if btn_col.form_submit_button("등록하기", use_container_width=True, type="primary"):
+                if user_input.strip():
                     new_post = {
                         "id": str(uuid.uuid4()),
-                        "category": cat,
-                        "title": title,
-                        "author": author,
-                        "content": content,
+                        "category": sid,         # 종목 티커로 게시판 카테고리 자동 설정
+                        "title": f"{sid}에 대한 의견", 
+                        "content": user_input,
+                        "author": st.session_state.get('user_phone', '익명'),
                         "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "likes": 0,
                         "dislikes": 0,
-                        "comments": []
+                        "like_users": [],       # 좋아요 중복 방지
+                        "comments": [],
+                        "uid": current_user
                     }
                     st.session_state.posts.insert(0, new_post)
-                    # (선택 사항) save_posts(st.session_state.posts) - 파일 저장 시 활성화
-                    st.session_state.show_editor = False
                     st.rerun()
-                else:
-                    st.warning("제목과 내용을 입력해 주세요.")
-
-    # [E] 게시글 목록 출력 (필터링 적용)
-    filtered_posts = st.session_state.posts
-    if category_filter != "전체":
-        filtered_posts = [p for p in st.session_state.posts if p.get('category') == category_filter]
-
-    if not filtered_posts:
-        st.info("해당 카테고리에 게시글이 없습니다.")
-    else:
-        for post in filtered_posts:
-            # 실제 posts 리스트에서의 인덱스 찾기
-            try:
-                actual_idx = next(i for i, p in enumerate(st.session_state.posts) if p['id'] == post['id'])
-            except: continue
+    
+    # 이 종목에 해당하는 게시글만 필터링해서 표시
+    sid_posts = [p for p in st.session_state.posts if p.get('category') == sid]
+    if sid_posts:
+        for p in sid_posts:
+            # 원본 리스트의 인덱스 찾기
+            idx = next(i for i, item in enumerate(st.session_state.posts) if item['id'] == p['id'])
             
-            with st.container():
-                st.caption(f"**[{post.get('category', '일반')}]** | {post.get('date', '-')} | 작성자: {post.get('author', '익명')}")
-                
-                likes_cnt = post.get('likes', 0)
-                cmts = post.get('comments', [])
-                
-                with st.expander(f"{post.get('title', '제목 없음')} (👍 {likes_cnt} / 💬 {len(cmts)})"):
-                    # 수정 모드 확인
-                    if st.session_state.get('edit_post_id') == post['id']:
-                        with st.form(f"edit_{post['id']}"):
-                            e_title = st.text_input("제목 수정", value=post.get('title'))
-                            e_content = st.text_area("내용 수정", value=post.get('content'))
-                            if st.form_submit_button("수정 완료"):
-                                st.session_state.posts[actual_idx].update({"title": e_title, "content": e_content})
-                                st.session_state.edit_post_id = None
-                                st.rerun()
-                    else:
-                        st.write(post.get('content'))
-                        
-                        # 버튼 영역
-                        v1, v2, v3, v4, _ = st.columns([1, 1, 1, 1, 4])
-                        if v1.button(f"👍 {likes_cnt}", key=f"lk_{post['id']}"):
-                            st.session_state.posts[actual_idx]['likes'] += 1
-                            st.rerun()
-                        if v2.button(f"👎 {post.get('dislikes', 0)}", key=f"dk_{post['id']}"):
-                            st.session_state.posts[actual_idx]['dislikes'] += 1
-                            st.rerun()
-                        if v3.button("수정", key=f"ed_{post['id']}"):
-                            st.session_state.edit_post_id = post['id']
-                            st.rerun()
-                        if v4.button("삭제", key=f"rm_{post['id']}"):
-                            st.session_state.posts.pop(actual_idx)
-                            st.rerun()
+            st.markdown(f"""
+            <div style='background-color: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 5px; border: 1px solid #eee;'>
+                <div style='display:flex; justify-content:space-between;'>
+                    <span style='font-weight:bold; font-size:13px;'>👤 {p['author']}</span>
+                    <span style='font-size:11px; color:#999;'>{p['date']}</span>
+                </div>
+                <div style='font-size:14px; margin-top:8px;'>{p['content']}</div>
+            </div>""", unsafe_allow_html=True)
+            
+            l_col, d_col, r_col, _ = st.columns([1, 1, 1, 5])
+            if l_col.button(f"👍 {p['likes']}", key=f"l_{p['id']}"):
+                if current_user != 'guest' and current_user not in st.session_state.posts[idx].get('like_users', []):
+                    st.session_state.posts[idx]['likes'] += 1
+                    st.session_state.posts[idx]['like_users'].append(current_user)
+                    st.rerun()
+            if d_col.button(f"👎 {p['dislikes']}", key=f"d_{p['id']}"):
+                if current_user != 'guest':
+                    st.session_state.posts[idx]['dislikes'] += 1
+                    st.rerun()
+            if current_user == p.get('uid') or is_admin:
+                if r_col.button("🗑️", key=f"del_{p['id']}"):
+                    st.session_state.posts.pop(idx)
+                    st.rerun()
+    else:
+        st.caption("아직 작성된 의견이 없습니다. 첫 의견을 남겨보세요! 🦄")
 
-                        # 댓글 영역
-                        for c in cmts:
-                            st.markdown(f"🗨️ **{c.get('author')}**: {c.get('text')} <small>({c.get('date')})</small>", unsafe_allow_html=True)
-                        
-                        with st.form(f"cmt_form_{post['id']}", clear_on_submit=True):
-                            c_text = st.text_input("댓글 달기", key=f"ci_{post['id']}")
-                            if st.form_submit_button("댓글 등록"):
-                                if c_text:
-                                    st.session_state.posts[actual_idx]['comments'].append({
-                                        "author": st.session_state.get('user_phone', '익명'),
-                                        "text": c_text,
-                                        "date": datetime.now().strftime("%m-%d %H:%M")
-                                    })
-                                    st.rerun()
-                st.write("---")
+# --- 5. 게시판 페이지 (Main logic 바깥에 위치) ---
+if st.session_state.page == 'board':
+    m_col1, m_col2 = st.columns([8.5, 1.5])
+    with m_col2:
+        if st.button("🏠 홈", use_container_width=True):
+            st.session_state.page = 'calendar'
+            st.rerun()
+
+    st.markdown("### 💬 투자자 통합 게시판")
+    
+    # [인기글] 최근 7일간 좋아요 상위 5개
+    now = datetime.now()
+    seven_days_ago = now - timedelta(days=7)
+    
+    top_posts = []
+    for p in st.session_state.posts:
+        try:
+            p_date = datetime.strptime(p['date'], "%Y-%m-%d %H:%M")
+            if p_date >= seven_days_ago: top_posts.append(p)
+        except: continue
+    top_posts = sorted(top_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
+
+    if top_posts:
+        with st.expander("🔥 실시간 7일간 인기글 TOP 5", expanded=True):
+            for i, tp in enumerate(top_posts):
+                st.write(f"{i+1}. **[{tp['category']}]** {tp['content'][:30]}... (👍 {tp['likes']})")
+        st.divider()
+
+    # 카테고리 필터
+    all_cats = sorted(list(set([p['category'] for p in st.session_state.posts] + ["거시경제", "자산배분"])))
+    category_filter = st.selectbox("📂 종목별/주제별 필터", ["전체"] + all_cats)
+    
+    filtered_list = st.session_state.posts
+    if category_filter != "전체":
+        filtered_list = [p for p in st.session_state.posts if p['category'] == category_filter]
+
+    for post in filtered_list:
+        with st.container():
+            st.markdown(f"**[{post['category']}]** {post['author']} | {post['date']}")
+            st.write(post['content'])
+            # 좋아요/댓글 등 추가 UI 로직 (생략 가능 혹은 위 Tab5와 동일하게 구성)
+            st.write("---")
+
 
 
 
