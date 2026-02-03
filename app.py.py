@@ -66,52 +66,56 @@ def get_ai_analysis(company_name, topic, points):
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     if not tavily_key:
-        return {"rating": "N/A", "score": "N/A", "summary": "API 키가 없습니다.", "links": []}
+        return {"rating": "Key Error", "score": "N/A", "summary": "Tavily API 키 설정 필요", "links": []}
 
     try:
         tavily = TavilyClient(api_key=tavily_key)
-        # 검색 쿼리를 '분석'보다는 '최근 소식/분위기' 위주로 확장
-        query = f"{company_name} ({ticker}) stock price target news analysis"
+        query = f"{company_name} {ticker} stock IPO analysis ratings news"
         search_result = tavily.search(query=query, search_depth="advanced", max_results=5)
         
-        results = search_result.get('results', [])
-        search_context = "\n".join([f"- {r['title']}: {r['content']}" for r in results])
+        search_context = ""
+        links = []
+        for r in search_result.get('results', []):
+            search_context += f"Source: {r['title']}\nContent: {r['content']}\n\n"
+            links.append({"title": r['title'], "link": r['url']})
 
+        # [중요] AI에게 강제 명령
         prompt = f"""
-        당신은 신규 상장주 전문 애널리스트입니다. {company_name} ({ticker})에 대해 분석하세요.
-        자료가 부족하다면 검색된 뉴스 제목과 내용을 바탕으로 현재의 시장 분위기(Sentiment)를 요약하세요.
-        절대 '분석 불가'라고 하지 말고, 가용한 정보를 조합해 '추론된 의견'을 제시하세요.
+        당신은 월가의 IPO 분석가입니다. {company_name} ({ticker})에 대해 분석하세요.
+        자료가 없어도 검색된 뉴스 제목들을 참고해 시장 분위기를 '추론'해서 답변하세요.
+        '분석 불가'라는 단어는 절대 사용하지 마세요.
 
-        [분석 지침]
-        1. Rating: 뉴스 분위기에 따라 Buy, Hold, Sell, Neutral 중 하나 선택.
-        2. Score: 1~5점 사이 숫자 부여 (정보가 적으면 3).
-        3. Summary: 신규 상장주로서의 특징과 최근 뉴스 기반의 핵심 요약 5줄.
+        Rating: [Buy/Hold/Sell/Neutral 중 선택]
+        Score: [1~5 숫자]
+        Summary: [한글 요약 5줄]
 
         [검색 데이터]
-        {search_context if search_context else "최근 상장으로 인해 구체적 리포트가 적으나, 일반 뉴스 기반으로 답변할 것"}
-
-        반드시 아래 형식을 지키세요:
-        Rating: (결과)
-        Score: (숫자)
-        Summary: (내용)
+        {search_context if search_context else "검색 데이터 없음. 티커와 회사명을 기반으로 일반적인 시장 분위기를 작성하세요."}
         """
 
         response = model.generate_content(prompt).text
 
-        # 정규표현식 파싱
         import re
-        rating = re.search(r"Rating:\s*(.*)", response, re.I)
-        score = re.search(r"Score:\s*([\d.]+)", response, re.I)
-        summary = re.search(r"Summary:\s*([\s\S]*)", response, re.I)
+        # 파싱 로직 (실패 대비 기본값 설정)
+        rating = "Neutral"
+        score = "3"
+        summary = response # 파싱 실패 시 응답 전체 노출
 
-        return {
-            "rating": rating.group(1).strip() if rating else "Neutral",
-            "score": score.group(1).strip() if score else "3",
-            "summary": summary.group(1).strip() if summary else response,
-            "links": [{"title": r['title'], "link": r['url']} for r in results]
-        }
+        r_match = re.search(r"Rating:\s*(.*)", response, re.I)
+        s_match = re.search(r"Score:\s*([\d.]+)", response, re.I)
+        sum_match = re.search(r"Summary:\s*([\s\S]*)", response, re.I)
+
+        if r_match: rating = r_match.group(1).strip().split('\n')[0]
+        if s_match: score = s_match.group(1).strip()
+        if sum_match: summary = sum_match.group(1).strip()
+
+        # "분석 불가" 필터링
+        if "분석 불가" in summary or len(summary) < 10:
+            summary = f"현재 {company_name}에 대한 공식 리포트가 적습니다. 최근 상장주로서 변동성에 유의하며 뉴스 흐름을 지켜볼 필요가 있습니다."
+
+        return {"rating": rating, "score": score, "summary": summary, "links": links}
     except Exception as e:
-        return {"rating": "Error", "score": "N/A", "summary": f"오류 발생: {str(e)}", "links": []}
+        return {"rating": "Error", "score": "N/A", "summary": f"오류: {str(e)}", "links": []}
         
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
@@ -2336,6 +2340,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
