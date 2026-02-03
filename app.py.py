@@ -2182,65 +2182,66 @@ elif st.session_state.page == 'detail':
             else:
                 st.caption("아직 작성된 의견이 없습니다.")
         
-        # =========================================================
-        # --- [중요] 5. 통합 게시판 (파일의 맨 마지막, 독립된 위치) ---
-        # =========================================================
-        if st.session_state.get('page') == 'board':
-            st.markdown("### 🏛️ 통합 투자자 게시판")
+    # =========================================================
+    # --- [중요] 5. 통합 게시판 (파일의 맨 마지막, 독립된 위치) ---
+    # =========================================================
+    if st.session_state.get('page') == 'board':
+        st.markdown("### 🏛️ 통합 투자자 게시판")
+        
+        if st.sidebar.button("🏠 홈으로 이동", use_container_width=True):
+            st.session_state.page = 'calendar' # 홈 페이지 키값에 맞춰 수정
+            st.rerun()
+    
+        # 1. 상단 인기글 (최근 7일간 좋아요 순)
+        if st.session_state.get('posts'):
+            now = datetime.now()
+            week_ago = now - timedelta(days=7)
+            top_posts = []
+            for p in st.session_state.posts:
+                try:
+                    p_date = datetime.strptime(p['date'], "%Y-%m-%d %H:%M")
+                    if p_date >= week_ago: top_posts.append(p)
+                except: continue
+            top_posts = sorted(top_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
+    
+            if top_posts:
+                st.subheader("🔥 주간 인기 TOP 5")
+                for i, tp in enumerate(top_posts):
+                    st.info(f"{i+1}. {tp['title']} (👍 {tp['likes']})")
+    
+        st.divider()
+    
+        # 2. 전체 게시글 목록 및 페이징
+        if st.session_state.get('posts') and len(st.session_state.posts) > 0:
+            all_posts = st.session_state.posts
+            all_cats = sorted(list(set([p['category'] for p in all_posts])))
+            selected_cat = st.selectbox("📂 종목별 필터", ["전체 목록"] + all_cats)
             
-            if st.sidebar.button("🏠 홈으로 이동", use_container_width=True):
-                st.session_state.page = 'calendar' # 홈 페이지 키값에 맞춰 수정
-                st.rerun()
-        
-            # 1. 상단 인기글 (최근 7일간 좋아요 순)
-            if st.session_state.get('posts'):
-                now = datetime.now()
-                week_ago = now - timedelta(days=7)
-                top_posts = []
-                for p in st.session_state.posts:
-                    try:
-                        p_date = datetime.strptime(p['date'], "%Y-%m-%d %H:%M")
-                        if p_date >= week_ago: top_posts.append(p)
-                    except: continue
-                top_posts = sorted(top_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
-        
-                if top_posts:
-                    st.subheader("🔥 주간 인기 TOP 5")
-                    for i, tp in enumerate(top_posts):
-                        st.info(f"{i+1}. {tp['title']} (👍 {tp['likes']})")
-        
-            st.divider()
-        
-            # 2. 전체 게시글 목록 및 페이징
-            if st.session_state.get('posts') and len(st.session_state.posts) > 0:
-                all_posts = st.session_state.posts
-                all_cats = sorted(list(set([p['category'] for p in all_posts])))
-                selected_cat = st.selectbox("📂 종목별 필터", ["전체 목록"] + all_cats)
-                
-                display_posts = all_posts if "전체" in selected_cat else [p for p in all_posts if p['category'] == selected_cat]
-        
-                total_all_pages = math.ceil(len(display_posts) / 10)
-                curr_page = st.sidebar.number_input("게시판 페이지 번호", min_value=1, max_value=max(1, total_all_pages), step=1)
-                
-                start_idx = (curr_page - 1) * 10
-                for post in display_posts[start_idx : start_idx + 10]:
-                    with st.container():
-                        st.markdown(f"""
-                        <div style='background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);'>
-                            <div style='display: flex; justify-content: space-between;'>
-                                <span style='color: #6e8efb; font-weight: bold;'>#{post['category']}</span>
-                                <span style='font-size: 12px; color: #888;'>{post['date']}</span>
-                            </div>
-                            <div style='font-size: 18px; font-weight: bold; margin-top: 10px;'>{post['title']}</div>
-                            <div style='font-size: 15px; color: #444; margin-top: 10px; line-height: 1.6;'>{post['content']}</div>
-                            <div style='margin-top: 15px; font-size: 13px; color: #666;'>👤 작성자: {post['author']} | 👍 {post['likes']}</div>
+            display_posts = all_posts if "전체" in selected_cat else [p for p in all_posts if p['category'] == selected_cat]
+    
+            total_all_pages = math.ceil(len(display_posts) / 10)
+            curr_page = st.sidebar.number_input("게시판 페이지 번호", min_value=1, max_value=max(1, total_all_pages), step=1)
+            
+            start_idx = (curr_page - 1) * 10
+            for post in display_posts[start_idx : start_idx + 10]:
+                with st.container():
+                    st.markdown(f"""
+                    <div style='background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);'>
+                        <div style='display: flex; justify-content: space-between;'>
+                            <span style='color: #6e8efb; font-weight: bold;'>#{post['category']}</span>
+                            <span style='font-size: 12px; color: #888;'>{post['date']}</span>
                         </div>
-                        """, unsafe_allow_html=True)
-            else:
-                st.info("현재 등록된 게시글이 없습니다. 종목 상세 페이지에서 의견을 남겨보세요!")
-            
-            # 게시판 화면 시 하단 캘린더나 종목 리스트 렌더링 방지
-            st.stop()
+                        <div style='font-size: 18px; font-weight: bold; margin-top: 10px;'>{post['title']}</div>
+                        <div style='font-size: 15px; color: #444; margin-top: 10px; line-height: 1.6;'>{post['content']}</div>
+                        <div style='margin-top: 15px; font-size: 13px; color: #666;'>👤 작성자: {post['author']} | 👍 {post['likes']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+        else:
+            st.info("현재 등록된 게시글이 없습니다. 종목 상세 페이지에서 의견을 남겨보세요!")
+        
+        # 게시판 화면 시 하단 캘린더나 종목 리스트 렌더링 방지
+        st.stop()
+
 
 
 
