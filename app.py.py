@@ -293,22 +293,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# =================================================================
-# ⭐ 여기에 통째로 붙여넣으세요! (데이터 로직 시작 전)
-# =================================================================
 
-# --- [DEBUG 영역] 최상단에 배치하여 현재 어떤 상태인지 확인 ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("🛠️ Debug Monitor")
-debug_page = st.session_state.get('page', 'N/A')
-debug_posts_count = len(st.session_state.get('posts', []))
-st.sidebar.code(f"Current Page: {debug_page}\nPosts Count: {debug_posts_count}")
-
-# 강제 페이지 전환 테스트 버튼
-if st.sidebar.button("🚨 게시판 강제 이동 테스트"):
-    st.session_state.page = 'board'
-    st.rerun()
-st.sidebar.markdown("---")
 
 # --- [1. 최상단 페이지 컨트롤러] ---
 # 게시판 모드일 때 다른 모든 로직을 건너뛰고 게시판만 보여줍니다.
@@ -2256,6 +2241,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
