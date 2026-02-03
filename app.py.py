@@ -1082,21 +1082,27 @@ elif st.session_state.page == 'calendar':
 
     
     # ---------------------------------------------------------
-    # [기존 데이터 로직] (이 아래는 손댈 필요 없습니다)
+    # [수정된 데이터 로직] (디버깅 강화 및 캐시 초기화 버전)
     # ---------------------------------------------------------
     all_df_raw = get_extended_ipo_data(MY_API_KEY)
     view_mode = st.session_state.get('view_mode', 'all')
     
     if not all_df_raw.empty:
+        # 1. 데이터 전처리
         all_df = all_df_raw.dropna(subset=['exchange'])
         all_df = all_df[all_df['exchange'].astype(str).str.upper() != 'NONE']
         all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
+        
+        # [중요] 날짜 컬럼 형식 변환 (에러 방지)
+        all_df['공모일_dt'] = pd.to_datetime(all_df['date'], errors='coerce')
+        all_df = all_df.dropna(subset=['공모일_dt']) # 날짜 없는 데이터 제거
+        
         today = datetime.now().date()
         
         # 2. 필터 로직
         if view_mode == 'watchlist':
             st.markdown("### ⭐ 내가 찜한 유니콘")
-            # 전체 목록으로 돌아가는 버튼 추가
+            # 전체 목록으로 돌아가는 버튼
             if st.button("🔄 전체 목록 보기", use_container_width=True):
                 st.session_state.view_mode = 'all'
                 st.rerun()
@@ -1108,26 +1114,6 @@ elif st.session_state.page == 'calendar':
 
         else:
             # 일반 캘린더 모드 - 필터 셀렉트박스
-            col_f1, col_f2 = st.columns([1, 1]) 
-            
-            with col_f1:
-                # 1. 명칭 변경: 상장 예정(30일) 및 '지난'으로 수정
-                period = st.selectbox(
-                    label="조회 기간", 
-                    options=["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"],
-                    key="filter_period",
-                    label_visibility="collapsed"
-                )
-                
-            with col_f2:
-                sort_option = st.selectbox(
-                    label="정렬 순서", 
-                    options=["최신순", "수익률"],
-                    key="filter_sort",
-                    label_visibility="collapsed"
-                )
-            
-            # 2. 기간 필터링 로직 (디버깅 강화 및 캐시 초기화 버전)
             from datetime import timedelta # 안전장치: 다시 한 번 import
 
             # [수정 1] key 값을 변경하여 강제로 위젯 새로고침 (filter_period -> filter_period_v2)
@@ -1171,7 +1157,7 @@ elif st.session_state.page == 'calendar':
             if period != "상장 예정 (30일)":
                 st.caption(f"🔍 검색 시작일: {target_date} (오늘: {today})")
 
-        # [정렬 로직]
+        # [정렬 로직] (기존 코드 그대로 이어짐)
         if 'live_price' not in display_df.columns:
             display_df['live_price'] = 0.0
 
@@ -2355,6 +2341,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
