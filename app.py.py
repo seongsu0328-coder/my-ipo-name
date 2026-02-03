@@ -293,6 +293,76 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# =================================================================
+# ⭐ 여기에 통째로 붙여넣으세요! (데이터 로직 시작 전)
+# =================================================================
+
+# --- [DEBUG 영역] 최상단에 배치하여 현재 어떤 상태인지 확인 ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("🛠️ Debug Monitor")
+debug_page = st.session_state.get('page', 'N/A')
+debug_posts_count = len(st.session_state.get('posts', []))
+st.sidebar.code(f"Current Page: {debug_page}\nPosts Count: {debug_posts_count}")
+
+# 강제 페이지 전환 테스트 버튼
+if st.sidebar.button("🚨 게시판 강제 이동 테스트"):
+    st.session_state.page = 'board'
+    st.rerun()
+st.sidebar.markdown("---")
+
+# --- [1. 최상단 페이지 컨트롤러] ---
+# 게시판 모드일 때 다른 모든 로직을 건너뛰고 게시판만 보여줍니다.
+if st.session_state.get('page') == 'board':
+    st.markdown("### 🏛️ 통합 투자자 게시판")
+    
+    # 홈으로 돌아가기 버튼
+    if st.sidebar.button("🏠 메인 화면으로 돌아가기", use_container_width=True):
+        st.session_state.page = 'calendar'
+        st.rerun()
+
+    try:
+        posts = st.session_state.get('posts', [])
+        
+        if not posts:
+            st.info("📢 아직 작성된 게시글이 없습니다. 종목 상세 페이지에서 의견을 남겨보세요!")
+        else:
+            # 주간 인기글 (오류 방지를 위해 try-except로 감쌈)
+            try:
+                now = datetime.now()
+                week_ago = now - timedelta(days=7)
+                top_posts = [p for p in posts if datetime.strptime(p['date'], "%Y-%m-%d %H:%M") >= week_ago]
+                top_posts = sorted(top_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
+                
+                if top_posts:
+                    st.subheader("🔥 주간 인기 TOP 5")
+                    for i, tp in enumerate(top_posts):
+                        st.info(f"{i+1}. {tp['title']} (👍 {tp['likes']})")
+            except:
+                st.warning("⚠️ 인기글 로딩 중 일부 데이터 형식에 문제가 발견되었습니다.")
+
+            st.divider()
+
+            # 전체 목록 필터링
+            all_cats = sorted(list(set([p.get('category', '기타') for p in posts])))
+            selected_cat = st.selectbox("📂 종목별 필터", ["전체 목록"] + all_cats)
+            display_posts = posts if "전체" in selected_cat else [p for p in posts if p['category'] == selected_cat]
+
+            # 게시글 렌더링
+            for post in display_posts[:20]: # 일단 상위 20개만 출력
+                st.markdown(f"""
+                <div style='background-color: white; padding: 15px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px;'>
+                    <div style='color: #6e8efb; font-weight: bold;'>#{post.get('category', '공통')}</div>
+                    <div style='font-size: 16px; font-weight: bold;'>{post.get('title', '제목 없음')}</div>
+                    <div style='font-size: 14px; color: #444;'>{post.get('content', '')}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"⚠️ 게시판을 불러오는 중 오류가 발생했습니다: {e}")
+
+    # 🛑 핵심: 게시판일 때는 여기서 실행을 완전히 멈춤
+    st.stop()
+
 # --- 데이터 로직 (캐싱 최적화 적용) ---
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 
@@ -2043,77 +2113,7 @@ elif st.session_state.page == 'detail':
             # [✅ 5단계 사용자 판단]
             draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
 
-        
-
-
-            # --- [DEBUG 영역] 최상단에 배치하여 현재 어떤 상태인지 확인 ---
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("🛠️ Debug Monitor")
-        debug_page = st.session_state.get('page', 'N/A')
-        debug_posts_count = len(st.session_state.get('posts', []))
-        st.sidebar.code(f"Current Page: {debug_page}\nPosts Count: {debug_posts_count}")
-        
-        # 강제 페이지 전환 테스트 버튼
-        if st.sidebar.button("🚨 게시판 강제 이동 테스트"):
-            st.session_state.page = 'board'
-            st.rerun()
-        st.sidebar.markdown("---")
-        
-        # --- [1. 최상단 페이지 컨트롤러] ---
-        # 게시판 모드일 때 다른 모든 로직을 건너뛰고 게시판만 보여줍니다.
-        if st.session_state.get('page') == 'board':
-            st.markdown("### 🏛️ 통합 투자자 게시판")
-            
-            # 홈으로 돌아가기 버튼
-            if st.sidebar.button("🏠 메인 화면으로 돌아가기", use_container_width=True):
-                st.session_state.page = 'calendar'
-                st.rerun()
-        
-            try:
-                posts = st.session_state.get('posts', [])
-                
-                if not posts:
-                    st.info("📢 아직 작성된 게시글이 없습니다. 종목 상세 페이지에서 의견을 남겨보세요!")
-                else:
-                    # 주간 인기글 (오류 방지를 위해 try-except로 감쌈)
-                    try:
-                        now = datetime.now()
-                        week_ago = now - timedelta(days=7)
-                        top_posts = [p for p in posts if datetime.strptime(p['date'], "%Y-%m-%d %H:%M") >= week_ago]
-                        top_posts = sorted(top_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
-                        
-                        if top_posts:
-                            st.subheader("🔥 주간 인기 TOP 5")
-                            for i, tp in enumerate(top_posts):
-                                st.info(f"{i+1}. {tp['title']} (👍 {tp['likes']})")
-                    except:
-                        st.warning("⚠️ 인기글 로딩 중 일부 데이터 형식에 문제가 발견되었습니다.")
-        
-                    st.divider()
-        
-                    # 전체 목록 필터링
-                    all_cats = sorted(list(set([p.get('category', '기타') for p in posts])))
-                    selected_cat = st.selectbox("📂 종목별 필터", ["전체 목록"] + all_cats)
-                    display_posts = posts if "전체" in selected_cat else [p for p in posts if p['category'] == selected_cat]
-        
-                    # 게시글 렌더링
-                    for post in display_posts[:20]: # 일단 상위 20개만 출력 (페이징 오류 방지)
-                        st.markdown(f"""
-                        <div style='background-color: white; padding: 15px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px;'>
-                            <div style='color: #6e8efb; font-weight: bold;'>#{post.get('category', '공통')}</div>
-                            <div style='font-size: 16px; font-weight: bold;'>{post.get('title', '제목 없음')}</div>
-                            <div style='font-size: 14px; color: #444;'>{post.get('content', '')}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-        
-            except Exception as e:
-                # 게시판 내부에서 에러가 나면 하얗게 변하지 않고 에러를 보여줌
-                st.error(f"⚠️ 게시판을 불러오는 중 오류가 발생했습니다: {e}")
-        
-            # 🛑 핵심: 게시판일 때는 여기서 실행을 완전히 멈춤 (아래쪽 캘린더/상세페이지 코드 실행 방지)
-            st.stop()
-
-
+    
         
         # =========================================================
         # --- 2. Tab 5: 종목 상세 페이지 내 (기존 코드 유지) ---
@@ -2256,6 +2256,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
