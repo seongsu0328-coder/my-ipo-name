@@ -2210,7 +2210,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 1. 투자 분석 결과 섹션 (차트 시각화)
             # ---------------------------------------------------------
-            st.markdown("### 종합 분석 리포트")
+            st.markdown("### 📊 종합 분석 리포트")
             ud = st.session_state.user_decisions.get(sid, {})
             
             # [수정] Step 1(filing)과 Step 2(news) 순서 변경
@@ -2278,7 +2278,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 2. 관심종목 및 투표 섹션
             # ---------------------------------------------------------
-            st.markdown("### 관심종목 및 투표")
+            st.markdown("### 📌 관심종목 및 투표")
             if st.session_state.get('auth_status') == 'user':
                 if sid not in st.session_state.watchlist:
                     c_up, c_down = st.columns(2)
@@ -2308,7 +2308,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 3. 해당 종목 토론방 (Tab 5 전 전용)
             # ---------------------------------------------------------
-            st.markdown(f"### {sid} 종목 토론 참여")
+            st.markdown(f"### 💬 {sid} 종목 토론 참여")
             
             if st.session_state.get('auth_status') == 'user':
                 with st.expander("📝 의견 남기기", expanded=False):
@@ -2366,8 +2366,6 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
-
-
 
 
 
