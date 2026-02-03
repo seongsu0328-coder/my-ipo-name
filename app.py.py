@@ -66,56 +66,58 @@ def get_ai_analysis(company_name, topic, points):
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     if not tavily_key:
-        return {"rating": "Key Error", "score": "N/A", "summary": "Tavily API 키 설정 필요", "links": []}
+        return {"rating": "N/A", "pro_con": "API Key 누락", "summary": "설정을 확인하세요.", "links": []}
 
     try:
         tavily = TavilyClient(api_key=tavily_key)
-        query = f"{company_name} {ticker} stock IPO analysis ratings news"
-        search_result = tavily.search(query=query, search_depth="advanced", max_results=5)
+        # 1. 지정된 3개 사이트만 집중 검색하는 쿼리 생성
+        # Renaissance Capital, Seeking Alpha, Morningstar 도메인 한정
+        site_query = f"(site:renaissancecapital.com OR site:seekingalpha.com OR site:morningstar.com) {company_name} {ticker} analysis"
+        
+        search_result = tavily.search(query=site_query, search_depth="advanced", max_results=10)
+        results = search_result.get('results', [])
         
         search_context = ""
         links = []
-        for r in search_result.get('results', []):
-            search_context += f"Source: {r['title']}\nContent: {r['content']}\n\n"
+        for r in results:
+            search_context += f"Source: {r['url']}\nContent: {r['content']}\n\n"
             links.append({"title": r['title'], "link": r['url']})
 
-        # [중요] AI에게 강제 명령
+        # 2. AI에게 해당 사이트 데이터 기반으로만 요약 지시
         prompt = f"""
-        당신은 월가의 IPO 분석가입니다. {company_name} ({ticker})에 대해 분석하세요.
-        자료가 없어도 검색된 뉴스 제목들을 참고해 시장 분위기를 '추론'해서 답변하세요.
-        '분석 불가'라는 단어는 절대 사용하지 마세요.
-
-        Rating: [Buy/Hold/Sell/Neutral 중 선택]
-        Score: [1~5 숫자]
-        Summary: [한글 요약 5줄]
-
-        [검색 데이터]
-        {search_context if search_context else "검색 데이터 없음. 티커와 회사명을 기반으로 일반적인 시장 분위기를 작성하세요."}
+        당신은 투자 전문 분석가입니다. 아래 제공된 3대 전문 기관(Renaissance Capital, Seeking Alpha, Morningstar)의 데이터만 바탕으로 {company_name} ({ticker})를 분석하세요.
+        
+        [지침]
+        1. 긍정적 의견(Pros): 해당 사이트들에서 언급된 긍정적 요소 2가지를 요약하세요.
+        2. 부정적 의견(Cons): 해당 사이트들에서 언급된 리스크나 부정적 요소 2가지를 요약하세요.
+        3. 자료가 부족하다면, 해당 사이트들에서 공통적으로 언급하는 기업의 특이사항을 정리하세요.
+        
+        반드시 아래 형식을 지키세요:
+        Rating: (Buy/Hold/Sell/Neutral 중 선택)
+        Pro_Con: 
+        - 긍정1: 내용
+        - 긍정2: 내용
+        - 부정1: 내용
+        - 부정2: 내용
+        Summary: (전체 요약 3줄)
         """
 
         response = model.generate_content(prompt).text
 
+        # 3. 파싱 로직
         import re
-        # 파싱 로직 (실패 대비 기본값 설정)
-        rating = "Neutral"
-        score = "3"
-        summary = response # 파싱 실패 시 응답 전체 노출
+        rating = re.search(r"Rating:\s*(.*)", response, re.I)
+        pro_con = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response, re.I)
+        summary = re.search(r"Summary:\s*([\s\S]*)", response, re.I)
 
-        r_match = re.search(r"Rating:\s*(.*)", response, re.I)
-        s_match = re.search(r"Score:\s*([\d.]+)", response, re.I)
-        sum_match = re.search(r"Summary:\s*([\s\S]*)", response, re.I)
-
-        if r_match: rating = r_match.group(1).strip().split('\n')[0]
-        if s_match: score = s_match.group(1).strip()
-        if sum_match: summary = sum_match.group(1).strip()
-
-        # "분석 불가" 필터링
-        if "분석 불가" in summary or len(summary) < 10:
-            summary = f"현재 {company_name}에 대한 공식 리포트가 적습니다. 최근 상장주로서 변동성에 유의하며 뉴스 흐름을 지켜볼 필요가 있습니다."
-
-        return {"rating": rating, "score": score, "summary": summary, "links": links}
+        return {
+            "rating": rating.group(1).strip() if rating else "Neutral",
+            "pro_con": pro_con.group(1).strip() if pro_con else "해당 기관 내 분석 데이터 부족",
+            "summary": summary.group(1).strip() if summary else response,
+            "links": links[:5] # 대표 링크 5개
+        }
     except Exception as e:
-        return {"rating": "Error", "score": "N/A", "summary": f"오류: {str(e)}", "links": []}
+        return {"rating": "Error", "pro_con": f"오류: {e}", "summary": "분석 불가", "links": []}
         
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
@@ -2359,6 +2361,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
