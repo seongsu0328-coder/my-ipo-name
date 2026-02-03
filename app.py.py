@@ -1520,10 +1520,10 @@ elif st.session_state.page == 'detail':
             
             # 2. 기업 심층 분석 섹션 (Expander)
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
-                st.caption("알고리즘이 실시간으로 데이터를 분석합니다.")
+                st.caption("자체 알고리즘이 실시간으로 데이터를 분석합니다.")
                 q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
                 
-                with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
+                with st.spinner(f"AI가 데이터를 정밀 분석 중입니다..."):
                     biz_info = get_ai_summary(q_biz)
                     if biz_info:
                         st.markdown(f"""
@@ -1532,7 +1532,7 @@ elif st.session_state.page == 'detail':
                         </div>
                         """, unsafe_allow_html=True)
                     else:
-                        st.error("⚠️ 정보를 찾을 수 없습니다.")
+                        st.error("정보를 찾을 수 없습니다.")
 
             st.write("") # 간격
 
@@ -1584,7 +1584,7 @@ elif st.session_state.page == 'detail':
                         </a>
                     """, unsafe_allow_html=True)
             else:
-                st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
+                st.warning("현재 표시할 최신 뉴스가 없습니다.")
 
             st.write("<br>", unsafe_allow_html=True)
 
@@ -2322,6 +2322,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
