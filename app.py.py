@@ -1968,63 +1968,52 @@ elif st.session_state.page == 'detail':
             # [✅ 추가됨] 4단계 사용자 판단
             draw_decision_box("company", "기업 가치평가는(Valusation)?", ["버블", "중립", "안정적"])
 
-        # ---------------------------------------------------------
+       # ---------------------------------------------------------
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         # ---------------------------------------------------------
         with tab4:
-            # 실시간 분석 진행 표시
-            with st.spinner(f"🔍 {stock['name']}에 대한 시장 데이터를 긴급 수집 중입니다..."):
+            with st.spinner(f"🔍 {stock['name']}의 시장 의견을 조립 중입니다..."):
                 result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
 
-            # --- (1) Renaissance Capital 섹션 ---
-            with st.expander("Renaissance Capital IPO 요약", expanded=False):
-                st.markdown("**[AI 리서치 요약]**")
-                st.info(result.get('summary', '분석 정보를 불러올 수 없습니다.')) 
+            # (1) 시장 의견 요약 섹션
+            with st.expander("📝 AI 시장 의견 요약", expanded=True):
+                st.markdown("**[최신 뉴스 및 컨센서스 종합]**")
+                st.info(result.get('summary', '분석 정보를 생성 중입니다.'))
                 
-                q = stock['symbol'] if stock['symbol'] else stock['name']
-                st.link_button(f"🔗 {stock['name']} Renaissance 검색", 
-                               f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}")
-
-            # --- (2) Seeking Alpha & Morningstar 섹션 ---
-            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
-                st.markdown("**[Market Consensus]**")
-                st.write(f"전문 분석가들은 {stock['name']}의 최신 흐름을 추적 중입니다.")
-                st.markdown("---")
+                # 핵심 지표
                 c1, c2 = st.columns(2)
-                with c1: 
-                    st.link_button("🔗 Seeking Alpha 바로가기", f"https://seekingalpha.com/symbol/{q}")
-                with c2: 
-                    st.link_button("🔗 Morningstar 바로가기", "https://www.morningstar.com/")
+                with c1:
+                    r_val = result.get('rating', 'Neutral')
+                    st.metric("Sentiment Rating", r_val)
+                with c2:
+                    st.metric("IPO Score (Est.)", f"⭐ {result.get('score', '3')}")
 
-            # --- (3) Institutional Sentiment 섹션 ---
-            with st.expander("Sentiment Score", expanded=True):
-                s_col1, s_col2 = st.columns(2)
-                with s_col1:
-                    st.write("**[Analyst Ratings]**")
-                    rating_val = result.get('rating', 'N/A')
-                    if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
-                        st.success(f"Consensus: {rating_val}")
-                    else:
-                        st.info(f"등급: {rating_val}")
-
-                with s_col2:
-                    st.write("**[IPO Scoop Score]**")
-                    score_val = result.get('score', 'N/A')
-                    st.warning(f"Expected Score: ⭐ {score_val}")
+            # (2) 대표 근거 및 외부 링크
+            with st.expander("🔗 주요 출처 및 분석 링크", expanded=False):
+                st.write("신규 상장 기업의 경우 아래 대표 사이트에서 실시간 공시를 확인하는 것이 가장 정확합니다.")
+                q = stock['symbol'] if stock['symbol'] else stock['name']
                 
-                st.markdown("---")
-                st.markdown("#### 📝 AI 분석 상세")
-                # 결과값이 "분석 불가"인 경우를 대비한 하드코딩된 fallback 출력
-                summary_text = result.get('summary', '')
-                st.write(summary_text)
+                col_link1, col_link2 = st.columns(2)
+                with col_link1:
+                    st.link_button("Renaissance Capital", f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}")
+                with col_link2:
+                    st.link_button("Seeking Alpha", f"https://seekingalpha.com/symbol/{q}")
 
-                sources = result.get('links', [])
-                if sources:
-                    st.markdown("#### 🔗 참고한 최신 소스")
-                    for src in sources:
+                # AI가 참고한 뉴스 리스트 노출
+                if result.get('links'):
+                    st.markdown("---")
+                    st.markdown("**AI가 참고한 최신 소스:**")
+                    for src in result['links'][:3]: # 대표적인 것 3개만 표시
                         st.markdown(f"- [{src['title']}]({src['link']})")
 
-            draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
+            # [✅ 5단계 사용자 판단]
+            draw_decision_box("ipo_report", "기관 의견을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
+
+        # ---------------------------------------------------------
+        # --- Tab 5: 최종 투자 결정 ---
+        # ---------------------------------------------------------
+        with tab5:
+            import uuid
 
         # --- Tab 5: 최종 투자 결정 ---
         with tab5:
@@ -2347,6 +2336,7 @@ if st.session_state.page == 'board':
                                     })
                                     st.rerun()
                 st.write("---")
+
 
 
 
