@@ -1127,14 +1127,17 @@ elif st.session_state.page == 'calendar':
                     label_visibility="collapsed"
                 )
             
-            # 2. 기간 필터링 로직 수정
+            # 2. 기간 필터링 로직 (통일성 확보: 12, 18개월과 동일한 구조 적용)
             if period == "상장 예정 (30일)":
-                # 기존 90일에서 30일로 로직 변경
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=30))]
+                
             elif period == "지난 6개월": 
+                # [수정] 12개월, 18개월과 완벽히 동일한 구조로 180일 적용
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=180))]
+                
             elif period == "지난 12개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=365))]
+                
             elif period == "지난 18개월": 
                 display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
@@ -2322,6 +2325,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
