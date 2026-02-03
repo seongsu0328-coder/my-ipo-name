@@ -1516,13 +1516,12 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 1: 뉴스 & 심층 분석 ---
         with tab1:
-            
+            # 1. 안내 멘트 (최상단 배치)
             st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
             
-            # [1] 기업 심층 분석 섹션 (Expander 적용) - 뉴스 하단으로 이동
-            
+            # 2. 기업 심층 분석 섹션 (Expander)
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
-                st.caption("자체 알고리즘으로 실시간으로 분석하여 제공합니다.")
+                st.caption("알고리즘이 실시간으로 데이터를 분석합니다.")
                 q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
                 
                 with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
@@ -1535,13 +1534,10 @@ elif st.session_state.page == 'detail':
                         """, unsafe_allow_html=True)
                     else:
                         st.error("⚠️ 정보를 찾을 수 없습니다.")
-            
-     
-            # [2] 뉴스 리스트 섹션 (먼저 배치)
-            
-            
-            
-            
+
+            st.write("") # 간격
+
+            # 3. 뉴스 리스트 섹션
             rss_news = get_real_news_rss(stock['name'])
             
             if rss_news:
@@ -1593,9 +1589,7 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
 
-            
-
-            # 결정 박스 (맨 마지막 유지)
+            # 4. 결정 박스
             draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
@@ -2329,6 +2323,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
