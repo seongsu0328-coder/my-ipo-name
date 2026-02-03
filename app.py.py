@@ -1516,8 +1516,7 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 1: 뉴스 & 심층 분석 ---
         with tab1:
-            # 1. 안내 멘트 (최상단 배치)
-            st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
+        
             
             # 2. 기업 심층 분석 섹션 (Expander)
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
@@ -2323,6 +2322,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
