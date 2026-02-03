@@ -1127,19 +1127,49 @@ elif st.session_state.page == 'calendar':
                     label_visibility="collapsed"
                 )
             
-            # 2. 기간 필터링 로직 (통일성 확보: 12, 18개월과 동일한 구조 적용)
+            # 2. 기간 필터링 로직 (디버깅 강화 및 캐시 초기화 버전)
+            from datetime import timedelta # 안전장치: 다시 한 번 import
+
+            # [수정 1] key 값을 변경하여 강제로 위젯 새로고침 (filter_period -> filter_period_v2)
+            col_f1, col_f2 = st.columns([1, 1]) 
+            
+            with col_f1:
+                period = st.selectbox(
+                    label="조회 기간", 
+                    options=["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"],
+                    key="filter_period_v2", # ⭐ 여기가 핵심입니다 (이름 변경)
+                    label_visibility="collapsed"
+                )
+                
+            with col_f2:
+                sort_option = st.selectbox(
+                    label="정렬 순서", 
+                    options=["최신순", "수익률"],
+                    key="filter_sort_v2", # ⭐ 여기도 이름 변경
+                    label_visibility="collapsed"
+                )
+            
+            # 날짜 계산 (변수에 먼저 담아서 로직 확실화)
+            target_date = today # 기본값
+            
             if period == "상장 예정 (30일)":
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=30))]
                 
             elif period == "지난 6개월": 
-                # [수정] 12개월, 18개월과 완벽히 동일한 구조로 180일 적용
-                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=180))]
+                target_date = today - timedelta(days=180) # 180일 전 날짜 계산
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= target_date)]
                 
             elif period == "지난 12개월": 
-                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=365))]
+                target_date = today - timedelta(days=365)
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= target_date)]
                 
             elif period == "지난 18개월": 
-                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
+                target_date = today - timedelta(days=540)
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= target_date)]
+
+            # [확인용] 날짜가 제대로 계산되었는지 눈으로 확인 (해결되면 나중에 지우세요)
+            if period != "상장 예정 (30일)":
+                st.caption(f"🔍 검색 시작일: {target_date} (오늘: {today})")
 
         # [정렬 로직]
         if 'live_price' not in display_df.columns:
@@ -2325,6 +2355,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
