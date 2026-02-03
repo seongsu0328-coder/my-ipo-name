@@ -457,72 +457,47 @@ def get_company_profile(symbol, api_key):
         return res if res and 'name' in res else None
     except: return None
 
-# [수정] V3: 루프 방식을 사용하여 데이터 누락을 원천 차단
-@st.cache_data(ttl=14400) 
-def get_extended_ipo_data_v3(api_key):
-    import requests
-    import pandas as pd
-    import time
-    from datetime import datetime, timedelta
-
+@st.cache_data(ttl=14400) # [수정] 4시간 (IPO 일정은 하루에 여러 번 바뀌지 않으므로 길게 잡음)
+def get_extended_ipo_data(api_key):
+    # 1. 호출할 기간들을 리스트로 정의 (180일 단위로 쪼개기)
+    # 미래(오늘~120일 후) / 과거1(오늘~180일 전) / 과거2(181~360일 전) / 과거3(361~540일 전)
     now = datetime.now()
+    ranges = [
+        (now - timedelta(days=180), now + timedelta(days=120)),  # 최신 & 미래
+        (now - timedelta(days=360), now - timedelta(days=181)), # 과거 중간
+        (now - timedelta(days=540), now - timedelta(days=361))  # 먼 과거
+    ]
+    
     all_data = []
     
-    # [핵심 변경] 수동 범위 지정 -> 90일 단위 자동 루프 (총 18개월 커버)
-    # 미래(4개월)부터 시작해서 과거로 90일씩 6번 이동하며 긁어옵니다.
-    # 이렇게 하면 중간에 빈 구멍이 생길 수 없습니다.
-    
-    # 1. 미래 데이터 (약 4개월)
-    future_end = now + timedelta(days=120)
-    future_start = now
-    
-    # 2. 과거 데이터 (90일씩 6번 = 약 540일 = 18개월)
-    # 겹치는 구간(Overlap)을 5일씩 줘서 경계선 누락 방지
-    ranges = [(future_start, future_end)] # 첫 번째: 미래 구간
-    
-    cursor = now
-    for _ in range(6):
-        end_date = cursor + timedelta(days=5) # 5일 겹치게
-        start_date = cursor - timedelta(days=90)
-        ranges.append((start_date, end_date))
-        cursor = start_date # 다음 루프를 위해 커서 이동
-
-    print("🔄 V3 IPO 데이터 정밀 수집 시작...")
-
     for start_dt, end_dt in ranges:
         start_str = start_dt.strftime('%Y-%m-%d')
         end_str = end_dt.strftime('%Y-%m-%d')
-        
         url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
         
         try:
-            time.sleep(0.5) # API 차단 방지 (필수)
-            
-            res = requests.get(url, timeout=10)
-            if res.status_code == 200:
-                ipo_list = res.json().get('ipoCalendar', [])
-                if ipo_list:
-                    all_data.extend(ipo_list)
-                    print(f"✅ 구간 수집 성공: {start_str} ~ {end_str} ({len(ipo_list)}건)")
-                else:
-                    print(f"⚠️ 데이터 없음: {start_str} ~ {end_str}")
-            else:
-                print(f"❌ API 응답 실패: {res.status_code}")
-                
+            res = requests.get(url, timeout=7).json()
+            ipo_list = res.get('ipoCalendar', [])
+            if ipo_list:
+                all_data.extend(ipo_list)
         except Exception as e:
-            print(f"❌ 에러: {e}")
+            print(f"API 호출 오류 ({start_str} ~ {end_str}): {e}")
             continue
 
-    # 데이터 정리
-    if all_data:
-        df = pd.DataFrame(all_data)
-        # 중복 제거 (겹치게 호출했으므로 필수)
-        df = df.drop_duplicates(subset=['symbol', 'date'])
-        df['date'] = pd.to_datetime(df['date'])
-        return df
-    else:
+    # 2. 통합 및 중복 제거
+    if not all_data:
         return pd.DataFrame()
+    
+    df = pd.DataFrame(all_data)
+    
+    # 중복된 symbol이 있을 수 있으므로 제거 (날짜 기준)
+    df = df.drop_duplicates(subset=['symbol', 'date'])
+    
+    if not df.empty:
+        df['공모일_dt'] = pd.to_datetime(df['date'])
         
+    return df
+
 # 주가(Price)는 실시간성이 중요하므로 캐싱하지 않거나 아주 짧게(1~5분) 잡는 것이 좋습니다.
 def get_current_stock_price(symbol, api_key):
     try:
@@ -1107,27 +1082,21 @@ elif st.session_state.page == 'calendar':
 
     
     # ---------------------------------------------------------
-    # [수정된 데이터 로직] (디버깅 강화 및 캐시 초기화 버전)
+    # [기존 데이터 로직] (이 아래는 손댈 필요 없습니다)
     # ---------------------------------------------------------
-    all_df_raw = get_extended_ipo_data_v3(MY_API_KEY)
+    all_df_raw = get_extended_ipo_data(MY_API_KEY)
     view_mode = st.session_state.get('view_mode', 'all')
     
     if not all_df_raw.empty:
-        # 1. 데이터 전처리
         all_df = all_df_raw.dropna(subset=['exchange'])
         all_df = all_df[all_df['exchange'].astype(str).str.upper() != 'NONE']
         all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
-        
-        # [중요] 날짜 컬럼 형식 변환 (에러 방지)
-        all_df['공모일_dt'] = pd.to_datetime(all_df['date'], errors='coerce')
-        all_df = all_df.dropna(subset=['공모일_dt']) # 날짜 없는 데이터 제거
-        
         today = datetime.now().date()
         
         # 2. 필터 로직
         if view_mode == 'watchlist':
             st.markdown("### ⭐ 내가 찜한 유니콘")
-            # 전체 목록으로 돌아가는 버튼
+            # 전체 목록으로 돌아가는 버튼 추가
             if st.button("🔄 전체 목록 보기", use_container_width=True):
                 st.session_state.view_mode = 'all'
                 st.rerun()
@@ -1139,16 +1108,14 @@ elif st.session_state.page == 'calendar':
 
         else:
             # 일반 캘린더 모드 - 필터 셀렉트박스
-            from datetime import timedelta # 안전장치: 다시 한 번 import
-
-            # [수정 1] key 값을 변경하여 강제로 위젯 새로고침 (filter_period -> filter_period_v2)
             col_f1, col_f2 = st.columns([1, 1]) 
             
             with col_f1:
+                # 1. 명칭 변경: 상장 예정(30일) 및 '지난'으로 수정
                 period = st.selectbox(
                     label="조회 기간", 
                     options=["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"],
-                    key="filter_period_v2", # ⭐ 여기가 핵심입니다 (이름 변경)
+                    key="filter_period",
                     label_visibility="collapsed"
                 )
                 
@@ -1156,33 +1123,22 @@ elif st.session_state.page == 'calendar':
                 sort_option = st.selectbox(
                     label="정렬 순서", 
                     options=["최신순", "수익률"],
-                    key="filter_sort_v2", # ⭐ 여기도 이름 변경
+                    key="filter_sort",
                     label_visibility="collapsed"
                 )
             
-            # 날짜 계산 (변수에 먼저 담아서 로직 확실화)
-            target_date = today # 기본값
-            
+            # 2. 기간 필터링 로직 수정
             if period == "상장 예정 (30일)":
+                # 기존 90일에서 30일로 로직 변경
                 display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=30))]
-                
             elif period == "지난 6개월": 
-                target_date = today - timedelta(days=180) # 180일 전 날짜 계산
-                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= target_date)]
-                
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=180))]
             elif period == "지난 12개월": 
-                target_date = today - timedelta(days=365)
-                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= target_date)]
-                
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=365))]
             elif period == "지난 18개월": 
-                target_date = today - timedelta(days=540)
-                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= target_date)]
+                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
 
-            # [확인용] 날짜가 제대로 계산되었는지 눈으로 확인 (해결되면 나중에 지우세요)
-            if period != "상장 예정 (30일)":
-                st.caption(f"🔍 검색 시작일: {target_date} (오늘: {today})")
-
-        # [정렬 로직] (기존 코드 그대로 이어짐)
+        # [정렬 로직]
         if 'live_price' not in display_df.columns:
             display_df['live_price'] = 0.0
 
@@ -1560,14 +1516,16 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 1: 뉴스 & 심층 분석 ---
         with tab1:
-        
             
-            # 2. 기업 심층 분석 섹션 (Expander)
+            st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
+            
+            # [1] 기업 심층 분석 섹션 (Expander 적용) - 뉴스 하단으로 이동
+            
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
-                st.caption("자체 알고리즘이 실시간으로 데이터를 분석합니다.")
+                st.caption("자체 알고리즘으로 실시간으로 분석하여 제공합니다.")
                 q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
                 
-                with st.spinner(f"AI가 데이터를 정밀 분석 중입니다..."):
+                with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
                     biz_info = get_ai_summary(q_biz)
                     if biz_info:
                         st.markdown(f"""
@@ -1576,11 +1534,14 @@ elif st.session_state.page == 'detail':
                         </div>
                         """, unsafe_allow_html=True)
                     else:
-                        st.error("정보를 찾을 수 없습니다.")
-
-            st.write("") # 간격
-
-            # 3. 뉴스 리스트 섹션
+                        st.error("⚠️ 정보를 찾을 수 없습니다.")
+            
+     
+            # [2] 뉴스 리스트 섹션 (먼저 배치)
+            
+            
+            
+            
             rss_news = get_real_news_rss(stock['name'])
             
             if rss_news:
@@ -1628,11 +1589,13 @@ elif st.session_state.page == 'detail':
                         </a>
                     """, unsafe_allow_html=True)
             else:
-                st.warning("현재 표시할 최신 뉴스가 없습니다.")
+                st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # 4. 결정 박스
+            
+
+            # 결정 박스 (맨 마지막 유지)
             draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
@@ -2366,17 +2329,6 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
-
-
-
-
-
-
-
-
-
-
-
 
 
 
