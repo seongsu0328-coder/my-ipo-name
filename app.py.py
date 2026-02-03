@@ -457,47 +457,59 @@ def get_company_profile(symbol, api_key):
         return res if res and 'name' in res else None
     except: return None
 
-@st.cache_data(ttl=14400) # [수정] 4시간 (IPO 일정은 하루에 여러 번 바뀌지 않으므로 길게 잡음)
+# [수정된 함수] 데이터 누락 방지를 위해 3개월(90일) 단위로 쪼개서 호출
+@st.cache_data(ttl=14400) # 4시간 캐싱
 def get_extended_ipo_data(api_key):
-    # 1. 호출할 기간들을 리스트로 정의 (180일 단위로 쪼개기)
-    # 미래(오늘~120일 후) / 과거1(오늘~180일 전) / 과거2(181~360일 전) / 과거3(361~540일 전)
+    import requests
+    import pandas as pd
+    from datetime import datetime, timedelta
+
     now = datetime.now()
+    all_data = []
+    
+    # [핵심] API가 데이터를 자르지 못하도록 3~4개월 단위로 안전하게 쪼갭니다.
+    # 순서: 미래 -> 최신 과거 -> 먼 과거
     ranges = [
-        (now - timedelta(days=180), now + timedelta(days=120)),  # 최신 & 미래
-        (now - timedelta(days=360), now - timedelta(days=181)), # 과거 중간
-        (now - timedelta(days=540), now - timedelta(days=361))  # 먼 과거
+        (now, now + timedelta(days=120)),             # 1. 미래 (4개월)
+        (now - timedelta(days=90), now),              # 2. 최근 3개월 (핵심)
+        (now - timedelta(days=180), now - timedelta(days=91)), # 3. 3~6개월 전 (여기가 누락되던 구간)
+        (now - timedelta(days=365), now - timedelta(days=181)), # 4. 6개월~1년 전
+        (now - timedelta(days=545), now - timedelta(days=366))  # 5. 1년~1년반 전
     ]
     
-    all_data = []
+    print("🔄 IPO 데이터 수집 시작 (구간별 분할 호출)...")
     
     for start_dt, end_dt in ranges:
         start_str = start_dt.strftime('%Y-%m-%d')
         end_str = end_dt.strftime('%Y-%m-%d')
+        
         url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
         
         try:
-            res = requests.get(url, timeout=7).json()
+            res = requests.get(url, timeout=10).json()
             ipo_list = res.get('ipoCalendar', [])
+            
             if ipo_list:
                 all_data.extend(ipo_list)
+                print(f"✅ {start_str} ~ {end_str}: {len(ipo_list)}건 수집됨")
+            else:
+                print(f"⚠️ {start_str} ~ {end_str}: 데이터 없음")
+                
         except Exception as e:
-            print(f"API 호출 오류 ({start_str} ~ {end_str}): {e}")
+            print(f"❌ API 호출 오류 ({start_str} ~ {end_str}): {e}")
             continue
 
-    # 2. 통합 및 중복 제거
-    if not all_data:
-        return pd.DataFrame()
-    
-    df = pd.DataFrame(all_data)
-    
-    # 중복된 symbol이 있을 수 있으므로 제거 (날짜 기준)
-    df = df.drop_duplicates(subset=['symbol', 'date'])
-    
-    if not df.empty:
-        df['공모일_dt'] = pd.to_datetime(df['date'])
+    # 데이터프레임 변환 및 중복 제거
+    if all_data:
+        df = pd.DataFrame(all_data)
+        # 여러 번 호출하다 보면 경계선 날짜에서 중복이 생길 수 있으므로 제거
+        df = df.drop_duplicates(subset=['symbol', 'date'])
         
-    return df
-
+        # 날짜 컬럼 형식 변환
+        df['date'] = pd.to_datetime(df['date'])
+        return df
+    else:
+        return pd.DataFrame()
 # 주가(Price)는 실시간성이 중요하므로 캐싱하지 않거나 아주 짧게(1~5분) 잡는 것이 좋습니다.
 def get_current_stock_price(symbol, api_key):
     try:
@@ -2341,6 +2353,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
