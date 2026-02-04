@@ -1603,8 +1603,10 @@ elif st.session_state.page == 'detail':
                 if not df_calendar.empty:
                     today = datetime.now().date()
                     
-                    # 1. 수익률 & 적자 비율 (최근 5개 표본)
-                    traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < today].sort_values(by='공모일_dt', ascending=False).head(5)
+                    # 1. 수익률 & 적자 비율 (표본을 5개에서 30개로 대폭 확대하여 과거 데이터 반영)
+                    # .head(5) -> .head(30)으로 수정하여 11월 이전 데이터까지 계산에 포함시킴
+                    traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < today].sort_values(by='공모일_dt', ascending=False).head(30)
+                    
                     ret_sum = 0; ret_cnt = 0; unp_cnt = 0
                     
                     for _, row in traded_ipos.iterrows():
@@ -1621,16 +1623,17 @@ elif st.session_state.page == 'detail':
                     if ret_cnt > 0: data["ipo_return"] = ret_sum / ret_cnt
                     if len(traded_ipos) > 0: data["unprofitable_pct"] = (unp_cnt / len(traded_ipos)) * 100
 
-                    # 2. Filings Volume
+                    # 2. Filings Volume (앞으로 30일간 예정된 IPO 수)
                     future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= today) & 
                                               (df_calendar['공모일_dt'].dt.date <= today + timedelta(days=30))]
                     data["ipo_volume"] = len(future_ipos)
 
-                    # 3. Withdrawal Rate
-                    recent_6m = df_calendar[df_calendar['공모일_dt'].dt.date >= (today - timedelta(days=180))]
-                    if not recent_6m.empty:
-                        wd = recent_6m[recent_6m['status'].str.lower() == 'withdrawn']
-                        data["withdrawal_rate"] = (len(wd) / len(recent_6m)) * 100
+                    # 3. Withdrawal Rate (기존 180일에서 540일로 확장하여 1.5년치 철회율 계산)
+                    # timedelta(days=180) -> timedelta(days=540)으로 수정
+                    recent_history = df_calendar[df_calendar['공모일_dt'].dt.date >= (today - timedelta(days=540))]
+                    if not recent_history.empty:
+                        wd = recent_history[recent_history['status'].str.lower() == 'withdrawn']
+                        data["withdrawal_rate"] = (len(wd) / len(recent_history)) * 100
 
                 # --- B. [Macro Market] Yahoo Finance로 실시간 계산 ---
                 try:
@@ -2319,6 +2322,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
