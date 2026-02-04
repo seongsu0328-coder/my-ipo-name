@@ -1106,20 +1106,24 @@ elif st.session_state.page == 'calendar':
                 st.rerun()
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
         else:
-            # 상단 필터 UI (조회 기간 / 정렬 순서)
+            # 일반 캘린더 모드 - 필터 셀렉트박스
             col_f1, col_f2 = st.columns([1, 1]) 
+            
             with col_f1:
+                # key 값을 'filter_period_unique'로 변경하여 중복 방지
                 period = st.selectbox(
                     label="조회 기간", 
                     options=["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"],
-                    key="filter_period",
+                    key="filter_period_unique", 
                     label_visibility="collapsed"
                 )
+                
             with col_f2:
+                # key 값을 'filter_sort_unique'로 변경하여 중복 방지
                 sort_option = st.selectbox(
                     label="정렬 순서", 
                     options=["최신순", "수익률"],
-                    key="filter_sort",
+                    key="filter_sort_unique",
                     label_visibility="collapsed"
                 )
             
@@ -2372,6 +2376,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
