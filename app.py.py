@@ -1080,13 +1080,12 @@ elif st.session_state.page == 'calendar':
 
     
     # ---------------------------------------------------------
-    # [기존 데이터 로직]
+    # [기존 데이터 로직] - 과거 데이터 누락 방지 수정본
     # ---------------------------------------------------------
     all_df_raw = get_extended_ipo_data(MY_API_KEY)
     
-    # 🔍 [추가] 데이터 수집 범위 확인 (여기에 넣으세요!)
+    # 데이터 수집 범위 확인
     if not all_df_raw.empty:
-        # 데이터 중 가장 오래된 날짜와 가장 최신 날짜를 사이드바에 표시
         min_date = all_df_raw['date'].min()
         max_date = all_df_raw['date'].max()
         st.sidebar.info(f"📊 수집된 데이터 범위:\n{min_date} ~ {max_date}")
@@ -1094,15 +1093,22 @@ elif st.session_state.page == 'calendar':
     view_mode = st.session_state.get('view_mode', 'all')
     
     if not all_df_raw.empty:
-        all_df = all_df_raw.dropna(subset=['exchange'])
-        all_df = all_df[all_df['exchange'].astype(str).str.upper() != 'NONE']
+        # 🔥 [수정] exchange가 없어도 삭제하지 않고 '-'로 채워서 유지합니다.
+        all_df = all_df_raw.copy()
+        all_df['exchange'] = all_df['exchange'].fillna('-')
+        
+        # 유효한 심볼이 있는 데이터만 유지
         all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
-        today = datetime.now().date()
+        
+        # 날짜 형식 통일 (normalize로 시간 제거)
+        all_df['공모일_dt'] = pd.to_datetime(all_df['date'], errors='coerce').dt.normalize()
+        all_df = all_df.dropna(subset=['공모일_dt'])
+        
+        today_dt = pd.to_datetime(datetime.now().date())
         
         # 2. 필터 로직
         if view_mode == 'watchlist':
             st.markdown("### ⭐ 내가 찜한 유니콘")
-            # 전체 목록으로 돌아가는 버튼 추가
             if st.button("🔄 전체 목록 보기", use_container_width=True):
                 st.session_state.view_mode = 'all'
                 st.rerun()
@@ -1110,21 +1116,17 @@ elif st.session_state.page == 'calendar':
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
             
             if display_df.empty:
-                st.info("아직 관심 종목에 담은 기업이 없습니다.\n\n기업 상세 페이지 > '투자 결정(Tab 4)'에서 기업을 담아보세요!")
-
+                st.info("아직 관심 종목에 담은 기업이 없습니다.")
         else:
-            # 일반 캘린더 모드 - 필터 셀렉트박스
+            # 일반 캘린더 모드
             col_f1, col_f2 = st.columns([1, 1]) 
-            
             with col_f1:
-                # 1. 명칭 변경: 상장 예정(30일) 및 '지난'으로 수정
                 period = st.selectbox(
                     label="조회 기간", 
                     options=["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"],
                     key="filter_period",
                     label_visibility="collapsed"
                 )
-                
             with col_f2:
                 sort_option = st.selectbox(
                     label="정렬 순서", 
@@ -1133,32 +1135,18 @@ elif st.session_state.page == 'calendar':
                     label_visibility="collapsed"
                 )
             
-            # 2. 기간 필터링 로직 (날짜 비교 보정 버전)
-            today_dt = pd.to_datetime(datetime.now().date())
-
+            # 기간별 데이터 필터링 (정확한 날짜 비교)
             if period == "상장 예정 (30일)":
-                display_df = all_df[
-                    (all_df['공모일_dt'] >= today_dt) & 
-                    (all_df['공모일_dt'] <= today_dt + timedelta(days=30))
-                ]
+                display_df = all_df[(all_df['공모일_dt'] >= today_dt) & (all_df['공모일_dt'] <= today_dt + timedelta(days=30))]
             elif period == "지난 6개월": 
                 start_6m = today_dt - timedelta(days=180)
-                display_df = all_df[
-                    (all_df['공모일_dt'] < today_dt) & 
-                    (all_df['공모일_dt'] >= start_6m)
-                ]
+                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_6m)]
             elif period == "지난 12개월": 
                 start_12m = today_dt - timedelta(days=365)
-                display_df = all_df[
-                    (all_df['공모일_dt'] < today_dt) & 
-                    (all_df['공모일_dt'] >= start_12m)
-                ]
+                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_12m)]
             elif period == "지난 18개월": 
                 start_18m = today_dt - timedelta(days=540)
-                display_df = all_df[
-                    (all_df['공모일_dt'] < today_dt) & 
-                    (all_df['공모일_dt'] >= start_18m)
-                ]
+                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_18m)]
 
         # [정렬 로직]
         if 'live_price' not in display_df.columns:
@@ -2354,6 +2342,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
