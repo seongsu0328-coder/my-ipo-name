@@ -1080,60 +1080,31 @@ elif st.session_state.page == 'calendar':
 
     
     # ---------------------------------------------------------
-    # [데이터 로직] - 필터 중복 및 과거 데이터 누락 방지 최종본
+    # [기존 데이터 로직] - 과거 데이터 누락 방지 수정본
     # ---------------------------------------------------------
     all_df_raw = get_extended_ipo_data(MY_API_KEY)
     
+    # 데이터 수집 범위 확인
     if not all_df_raw.empty:
-        # 1. 데이터 전처리 (날짜 변환 및 결측치 처리)
+        min_date = all_df_raw['date'].min()
+        max_date = all_df_raw['date'].max()
+        st.sidebar.info(f"📊 수집된 데이터 범위:\n{min_date} ~ {max_date}")
+        
+    view_mode = st.session_state.get('view_mode', 'all')
+    
+    if not all_df_raw.empty:
+        # 🔥 [수정] exchange가 없어도 삭제하지 않고 '-'로 채워서 유지합니다.
         all_df = all_df_raw.copy()
+        all_df['exchange'] = all_df['exchange'].fillna('-')
+        
+        # 유효한 심볼이 있는 데이터만 유지
+        all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
+        
+        # 날짜 형식 통일 (normalize로 시간 제거)
         all_df['공모일_dt'] = pd.to_datetime(all_df['date'], errors='coerce').dt.normalize()
         all_df = all_df.dropna(subset=['공모일_dt'])
-        all_df['exchange'] = all_df['exchange'].fillna('-').replace('', '-')
-        all_df['symbol'] = all_df['symbol'].fillna('TBD').replace('', 'TBD')
         
         today_dt = pd.to_datetime(datetime.now().date())
-        view_mode = st.session_state.get('view_mode', 'all')
-
-        # 2. 화면 출력 로직 (관심종목 vs 일반 리스트 분기)
-        if view_mode == 'watchlist':
-            st.markdown("### ⭐ 내가 찜한 유니콘")
-            if st.button("🔄 전체 목록 보기", use_container_width=True):
-                st.session_state.view_mode = 'all'
-                st.rerun()
-            display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
-            
-        else:
-            # --- [중요] 필터 UI는 여기 'else' 블록 안에서 딱 한 번만 그려집니다 ---
-            col_f1, col_f2 = st.columns([1, 1]) 
-            
-            with col_f1:
-                period = st.selectbox(
-                    label="조회 기간", 
-                    options=["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"],
-                    key="filter_period_final", # 키값을 다시 한번 유니크하게 변경
-                    label_visibility="collapsed"
-                )
-            with col_f2:
-                sort_option = st.selectbox(
-                    label="정렬 순서", 
-                    options=["최신순", "수익률"],
-                    key="filter_sort_final",
-                    label_visibility="collapsed"
-                )
-            
-            # 기간 필터 적용
-            if period == "상장 예정 (30일)":
-                display_df = all_df[(all_df['공모일_dt'] >= today_dt) & (all_df['공모일_dt'] <= today_dt + timedelta(days=30))]
-            elif period == "지난 6개월": 
-                start_date = today_dt - timedelta(days=180)
-                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
-            elif period == "지난 12개월": 
-                start_date = today_dt - timedelta(days=365)
-                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
-            elif period == "지난 18개월": 
-                start_date = today_dt - timedelta(days=540)
-                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
         
         # 2. 필터 로직
         if view_mode == 'watchlist':
@@ -2371,10 +2342,6 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
-
-
-
-
 
 
 
