@@ -1151,10 +1151,10 @@ elif st.session_state.page == 'calendar':
                 # 🔥 핵심 수정: 오늘(today_dt)을 기준으로 '과거' 데이터 전체를 긁어오도록 범위 명확화
                 display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
 
-# [추가 검증] 만약 6개월 데이터가 여전히 부족하다면?
-# API가 반환하는 전체 데이터셋(all_df_raw)에 해당 날짜가 있는지 확인하는 디버깅용 메시지
-if display_df.empty and not all_df_raw.empty:
-    st.sidebar.warning(f"⚠️ {period} 범위에 해당하는 데이터가 API 응답에 없습니다.")
+                # [추가 검증] 만약 6개월 데이터가 여전히 부족하다면?
+                # API가 반환하는 전체 데이터셋(all_df_raw)에 해당 날짜가 있는지 확인하는 디버깅용 메시지
+                if display_df.empty and not all_df_raw.empty:
+                    st.sidebar.warning(f"⚠️ {period} 범위에 해당하는 데이터가 API 응답에 없습니다.")
 
         # [정렬 로직]
         if 'live_price' not in display_df.columns:
@@ -2350,6 +2350,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
