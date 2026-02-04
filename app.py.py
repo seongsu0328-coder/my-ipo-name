@@ -457,14 +457,14 @@ def get_company_profile(symbol, api_key):
         return res if res and 'name' in res else None
     except: return None
 
-@st.cache_data(ttl=14400) # 4시간 캐싱
+@st.cache_data(ttl=14400)
 def get_extended_ipo_data(api_key):
-    # 호출할 기간을 180일 단위로 3개 구역으로 쪼갬 (약 1.5년치)
     now = datetime.now()
+    # 11월 이전(8월 등)을 가져오려면 최소 180일 이상의 범위가 필요합니다.
     ranges = [
-        (now - timedelta(days=180), now + timedelta(days=120)),  # 최신 & 미래
-        (now - timedelta(days=360), now - timedelta(days=181)), # 6개월 ~ 1년 전
-        (now - timedelta(days=540), now - timedelta(days=361))  # 1년 ~ 1.5년 전
+        (now - timedelta(days=180), now + timedelta(days=120)),  # 현재 기준 앞뒤 6개월
+        (now - timedelta(days=360), now - timedelta(days=181)), # 6개월 전 ~ 1년 전
+        (now - timedelta(days=540), now - timedelta(days=361))  # 1년 전 ~ 1.5년 전
     ]
     
     all_data = []
@@ -472,19 +472,18 @@ def get_extended_ipo_data(api_key):
         start_str = start_dt.strftime('%Y-%m-%d')
         end_str = end_dt.strftime('%Y-%m-%d')
         url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
-        
         try:
             res = requests.get(url, timeout=7).json()
             ipo_list = res.get('ipoCalendar', [])
             if ipo_list:
                 all_data.extend(ipo_list)
-        except Exception as e:
+        except:
             continue
-
+    
     if not all_data: return pd.DataFrame()
     
     df = pd.DataFrame(all_data)
-    df = df.drop_duplicates(subset=['symbol', 'date']) # 중복 제거
+    df = df.drop_duplicates(subset=['symbol', 'date'])
     df['공모일_dt'] = pd.to_datetime(df['date'])
     return df
 
@@ -2322,6 +2321,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
