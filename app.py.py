@@ -1071,9 +1071,17 @@ elif st.session_state.page == 'calendar':
 
     
     # ---------------------------------------------------------
-    # [기존 데이터 로직] (이 아래는 손댈 필요 없습니다)
+    # [기존 데이터 로직]
     # ---------------------------------------------------------
     all_df_raw = get_extended_ipo_data(MY_API_KEY)
+    
+    # 🔍 [추가] 데이터 수집 범위 확인 (여기에 넣으세요!)
+    if not all_df_raw.empty:
+        # 데이터 중 가장 오래된 날짜와 가장 최신 날짜를 사이드바에 표시
+        min_date = all_df_raw['date'].min()
+        max_date = all_df_raw['date'].max()
+        st.sidebar.info(f"📊 수집된 데이터 범위:\n{min_date} ~ {max_date}")
+        
     view_mode = st.session_state.get('view_mode', 'all')
     
     if not all_df_raw.empty:
@@ -2321,6 +2329,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
