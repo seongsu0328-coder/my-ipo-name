@@ -2062,9 +2062,9 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
 
             # [2.5] 재무자료 보기 (신규 추가)
-            with st.expander("📊 재무자료 보기 (Financial Data Summary)", expanded=False):
+            with st.expander("재무자료 보기", expanded=False):
                 if fin_data:
-                    st.write("##### 📋 핵심 재무 지표 요약")
+                    st.write("##### 핵심 재무 지표 요약")
                     # 데이터가 없을 경우를 대비한 기본값 처리
                     m_cap = fin_data.get('market_cap', 0)
                     rev = fin_data.get('revenue', 0)
@@ -2092,11 +2092,11 @@ elif st.session_state.page == 'detail':
                     
                     # 외부 참조 링크 생성 (심볼 기준 동적 링크)
                     s = stock['symbol']
-                    st.write("##### 🔗 원문 자료 확인 (External Links)")
+                    st.write("#####  원문 자료 확인 (External Links)")
                     l1, l2, l3 = st.columns(3)
-                    l1.markdown(f"[📈 Yahoo Finance](https://finance.yahoo.com/quote/{s}/financials)")
-                    l2.markdown(f"[🏛️ SEC EDGAR (공시)](https://www.sec.gov/edgar/browse/?CIK={s})")
-                    l3.markdown(f"[📊 MarketWatch](https://www.marketwatch.com/investing/stock/{s}/financials)")
+                    l1.markdown(f"[ Yahoo Finance](https://finance.yahoo.com/quote/{s}/financials)")
+                    l2.markdown(f"[ SEC EDGAR (공시)](https://www.sec.gov/edgar/browse/?CIK={s})")
+                    l3.markdown(f"[ MarketWatch](https://www.marketwatch.com/investing/stock/{s}/financials)")
                     
                     st.caption("※ 위 수치는 Finnhub API를 통해 수집된 최근 연간/분기 보고서 기준(TTM) 데이터입니다.")
                 else:
@@ -2406,6 +2406,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
