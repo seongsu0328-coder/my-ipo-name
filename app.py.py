@@ -459,14 +459,14 @@ def get_company_profile(symbol, api_key):
 
 @st.cache_data(ttl=14400)
 def get_extended_ipo_data(api_key):
-    # 현재 시점의 날짜만 가져오기 (시간 제외)
     now = datetime.now()
     
-    # 데이터를 가져올 3개의 구간 설정 (약 1.5년치)
+    # [핵심 수정] 구간을 나눌 때 서로 겹치게(Overlap) 설정합니다.
+    # 180일과 181일로 딱 나누지 않고, 200일/170일 식으로 겹치게 하여 경계 누락을 방지합니다.
     ranges = [
-        (now - timedelta(days=180), now + timedelta(days=120)),  # 현재 기준 앞뒤 6개월
-        (now - timedelta(days=360), now - timedelta(days=181)), # 6개월 전 ~ 1년 전
-        (now - timedelta(days=540), now - timedelta(days=361))  # 1년 전 ~ 1.5년 전
+        (now - timedelta(days=200), now + timedelta(days=120)),  # 구간 1: 현재~과거 200일 (약 6.5개월)
+        (now - timedelta(days=380), now - timedelta(days=170)), # 구간 2: 과거 170일~380일
+        (now - timedelta(days=560), now - timedelta(days=350))  # 구간 3: 과거 350일~560일
     ]
     
     all_data = []
@@ -474,7 +474,10 @@ def get_extended_ipo_data(api_key):
         start_str = start_dt.strftime('%Y-%m-%d')
         end_str = end_dt.strftime('%Y-%m-%d')
         url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
+        
         try:
+            # 호출 사이 간격을 아주 약간 주어 Rate Limit 안정성 확보
+            time.sleep(0.3) 
             res = requests.get(url, timeout=7).json()
             ipo_list = res.get('ipoCalendar', [])
             if ipo_list:
@@ -484,6 +487,18 @@ def get_extended_ipo_data(api_key):
     
     if not all_data: 
         return pd.DataFrame()
+    
+    # 데이터프레임 생성
+    df = pd.DataFrame(all_data)
+    
+    # [중요] 구간을 겹치게 가져왔으므로 여기서 중복을 확실히 제거합니다.
+    df = df.drop_duplicates(subset=['symbol', 'date'])
+    
+    # 날짜 변환 및 보정
+    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
+    df = df.dropna(subset=['공모일_dt'])
+    
+    return df
     
     # 데이터프레임 생성 및 중복 제거
     df = pd.DataFrame(all_data)
@@ -2350,6 +2365,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
