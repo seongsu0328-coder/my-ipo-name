@@ -459,38 +459,42 @@ def get_company_profile(symbol, api_key):
 
 @st.cache_data(ttl=14400)
 def get_extended_ipo_data(api_key):
+    # 현재 시점의 날짜만 가져오기 (시간 제외)
     now = datetime.now()
-    # 1. 구간을 나누지 말고 1.5년 전부터 미래 4개월까지 통으로 설정 (요청 횟수 절감)
-    start_str = (now - timedelta(days=540)).strftime('%Y-%m-%d')
-    end_str = (now + timedelta(days=120)).strftime('%Y-%m-%d')
     
-    url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
+    # 데이터를 가져올 3개의 구간 설정 (약 1.5년치)
+    ranges = [
+        (now - timedelta(days=180), now + timedelta(days=120)),  # 현재 기준 앞뒤 6개월
+        (now - timedelta(days=360), now - timedelta(days=181)), # 6개월 전 ~ 1년 전
+        (now - timedelta(days=540), now - timedelta(days=361))  # 1년 전 ~ 1.5년 전
+    ]
     
-    try:
-        # 2. 타임아웃을 조금 더 여유있게 (데이터량이 많을 수 있음)
-        res = requests.get(url, timeout=10).json()
-        all_data = res.get('ipoCalendar', [])
-        
-        if not all_data:
-            return pd.DataFrame()
-            
-        df = pd.DataFrame(all_data)
-        
-        # 3. 날짜 변환 및 정규화 (시간 제거)
-        df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
-        df = df.dropna(subset=['공모일_dt'])
-        
-        # 4. 중복 제거 (심볼이 같아도 날짜가 다르면 다른 공모로 취급할 수 있음)
-        df = df.drop_duplicates(subset=['symbol', 'date'])
-        
-        # 5. 최신순 정렬 (데이터 확인 용이성)
-        df = df.sort_values('공모일_dt', ascending=False)
-        
-        return df
-
-    except Exception as e:
-        print(f"API Error: {e}")
+    all_data = []
+    for start_dt, end_dt in ranges:
+        start_str = start_dt.strftime('%Y-%m-%d')
+        end_str = end_dt.strftime('%Y-%m-%d')
+        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
+        try:
+            res = requests.get(url, timeout=7).json()
+            ipo_list = res.get('ipoCalendar', [])
+            if ipo_list:
+                all_data.extend(ipo_list)
+        except:
+            continue
+    
+    if not all_data: 
         return pd.DataFrame()
+    
+    # 데이터프레임 생성 및 중복 제거
+    df = pd.DataFrame(all_data)
+    df = df.drop_duplicates(subset=['symbol', 'date'])
+    
+    # 🔥 [중요] 날짜 변환 보정: 'date' 컬럼을 바탕으로 '공모일_dt'를 생성하고 시분을 제거
+    # errors='coerce'를 써서 잘못된 날짜 형식은 NaT로 변환 후 삭제합니다.
+    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
+    df = df.dropna(subset=['공모일_dt'])
+    
+    return df
 
 # 주가(Price)는 실시간성이 중요하므로 캐싱하지 않거나 아주 짧게(1~5분) 잡는 것이 좋습니다.
 def get_current_stock_price(symbol, api_key):
@@ -2346,8 +2350,6 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
-
-
 
 
 
