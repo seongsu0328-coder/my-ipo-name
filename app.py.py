@@ -2061,6 +2061,47 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
 
+            # [2.5] 재무자료 보기 (신규 추가)
+            with st.expander("📊 재무자료 보기 (Financial Data Summary)", expanded=False):
+                if fin_data:
+                    st.write("##### 📋 핵심 재무 지표 요약")
+                    # 데이터가 없을 경우를 대비한 기본값 처리
+                    m_cap = fin_data.get('market_cap', 0)
+                    rev = fin_data.get('revenue', 0)
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown(f"""
+                        **수익성 및 규모**
+                        * **시가총액:** ${m_cap:,.0f}M
+                        * **연간 매출:** ${rev:,.0f}M
+                        * **영업이익률:** {fin_data.get('op_margin', 0):.2f}%
+                        * **순이익률:** {fin_data.get('net_margin', 0):.2f}%
+                        """)
+                    
+                    with col2:
+                        st.markdown(f"""
+                        **안정성 및 효율성**
+                        * **부채비율(D/E):** {fin_data.get('debt_equity', 0):.2f}%
+                        * **유동비율:** {fin_data.get('current_ratio', 0):.2f}x
+                        * **ROE:** {fin_data.get('roe', 0):.2f}%
+                        * **EPS (TTM):** ${fin_data.get('eps', 0):.2f}
+                        """)
+                    
+                    st.divider()
+                    
+                    # 외부 참조 링크 생성 (심볼 기준 동적 링크)
+                    s = stock['symbol']
+                    st.write("##### 🔗 원문 자료 확인 (External Links)")
+                    l1, l2, l3 = st.columns(3)
+                    l1.markdown(f"[📈 Yahoo Finance](https://finance.yahoo.com/quote/{s}/financials)")
+                    l2.markdown(f"[🏛️ SEC EDGAR (공시)](https://www.sec.gov/edgar/browse/?CIK={s})")
+                    l3.markdown(f"[📊 MarketWatch](https://www.marketwatch.com/investing/stock/{s}/financials)")
+                    
+                    st.caption("※ 위 수치는 Finnhub API를 통해 수집된 최근 연간/분기 보고서 기준(TTM) 데이터입니다.")
+                else:
+                    st.warning("해당 기업의 상세 재무 데이터를 불러올 수 없습니다. 상장 직후이거나 데이터 갱신 중일 수 있습니다.")
+
             # [3] AI 종합 판정 리포트
             
             # [수정] expanded=True -> False (기본 접힘)
@@ -2365,6 +2406,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
