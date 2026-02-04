@@ -1124,16 +1124,32 @@ elif st.session_state.page == 'calendar':
                     label_visibility="collapsed"
                 )
             
-            # 2. 기간 필터링 로직 수정
+            # 2. 기간 필터링 로직 (날짜 비교 보정 버전)
+            today_dt = pd.to_datetime(datetime.now().date())
+
             if period == "상장 예정 (30일)":
-                # 기존 90일에서 30일로 로직 변경
-                display_df = all_df[(all_df['공모일_dt'].dt.date >= today) & (all_df['공모일_dt'].dt.date <= today + timedelta(days=30))]
+                display_df = all_df[
+                    (all_df['공모일_dt'] >= today_dt) & 
+                    (all_df['공모일_dt'] <= today_dt + timedelta(days=30))
+                ]
             elif period == "지난 6개월": 
-                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=180))]
+                start_6m = today_dt - timedelta(days=180)
+                display_df = all_df[
+                    (all_df['공모일_dt'] < today_dt) & 
+                    (all_df['공모일_dt'] >= start_6m)
+                ]
             elif period == "지난 12개월": 
-                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=365))]
+                start_12m = today_dt - timedelta(days=365)
+                display_df = all_df[
+                    (all_df['공모일_dt'] < today_dt) & 
+                    (all_df['공모일_dt'] >= start_12m)
+                ]
             elif period == "지난 18개월": 
-                display_df = all_df[(all_df['공모일_dt'].dt.date < today) & (all_df['공모일_dt'].dt.date >= today - timedelta(days=540))]
+                start_18m = today_dt - timedelta(days=540)
+                display_df = all_df[
+                    (all_df['공모일_dt'] < today_dt) & 
+                    (all_df['공모일_dt'] >= start_18m)
+                ]
 
         # [정렬 로직]
         if 'live_price' not in display_df.columns:
@@ -2329,6 +2345,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
