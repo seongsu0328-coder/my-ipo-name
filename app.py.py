@@ -1135,18 +1135,26 @@ elif st.session_state.page == 'calendar':
                     label_visibility="collapsed"
                 )
             
-            # 기간별 데이터 필터링 (정확한 날짜 비교)
+            # [수정본] 기간별 데이터 필터링 로직
             if period == "상장 예정 (30일)":
+                # 오늘 포함 미래 30일까지 (공모가 미확정 종목 포함 가능성 대비)
                 display_df = all_df[(all_df['공모일_dt'] >= today_dt) & (all_df['공모일_dt'] <= today_dt + timedelta(days=30))]
-            elif period == "지난 6개월": 
-                start_6m = today_dt - timedelta(days=180)
-                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_6m)]
-            elif period == "지난 12개월": 
-                start_12m = today_dt - timedelta(days=365)
-                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_12m)]
-            elif period == "지난 18개월": 
-                start_18m = today_dt - timedelta(days=540)
-                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_18m)]
+            else:
+                # '지난 X개월' 선택 시: 오늘 이전(과거) 데이터 중 해당 기간 내 것만 필터링
+                if period == "지난 6개월":
+                    start_date = today_dt - timedelta(days=180)
+                elif period == "지난 12개월":
+                    start_date = today_dt - timedelta(days=365)
+                elif period == "지난 18개월":
+                    start_date = today_dt - timedelta(days=540)
+                
+                # 🔥 핵심 수정: 오늘(today_dt)을 기준으로 '과거' 데이터 전체를 긁어오도록 범위 명확화
+                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
+
+# [추가 검증] 만약 6개월 데이터가 여전히 부족하다면?
+# API가 반환하는 전체 데이터셋(all_df_raw)에 해당 날짜가 있는지 확인하는 디버깅용 메시지
+if display_df.empty and not all_df_raw.empty:
+    st.sidebar.warning(f"⚠️ {period} 범위에 해당하는 데이터가 API 응답에 없습니다.")
 
         # [정렬 로직]
         if 'live_price' not in display_df.columns:
@@ -2342,6 +2350,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
