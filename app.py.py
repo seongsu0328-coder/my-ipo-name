@@ -459,8 +459,10 @@ def get_company_profile(symbol, api_key):
 
 @st.cache_data(ttl=14400)
 def get_extended_ipo_data(api_key):
+    # 현재 시점의 날짜만 가져오기 (시간 제외)
     now = datetime.now()
-    # 11월 이전(8월 등)을 가져오려면 최소 180일 이상의 범위가 필요합니다.
+    
+    # 데이터를 가져올 3개의 구간 설정 (약 1.5년치)
     ranges = [
         (now - timedelta(days=180), now + timedelta(days=120)),  # 현재 기준 앞뒤 6개월
         (now - timedelta(days=360), now - timedelta(days=181)), # 6개월 전 ~ 1년 전
@@ -480,11 +482,18 @@ def get_extended_ipo_data(api_key):
         except:
             continue
     
-    if not all_data: return pd.DataFrame()
+    if not all_data: 
+        return pd.DataFrame()
     
+    # 데이터프레임 생성 및 중복 제거
     df = pd.DataFrame(all_data)
     df = df.drop_duplicates(subset=['symbol', 'date'])
-    df['공모일_dt'] = pd.to_datetime(df['date'])
+    
+    # 🔥 [중요] 날짜 변환 보정: 'date' 컬럼을 바탕으로 '공모일_dt'를 생성하고 시분을 제거
+    # errors='coerce'를 써서 잘못된 날짜 형식은 NaT로 변환 후 삭제합니다.
+    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
+    df = df.dropna(subset=['공모일_dt'])
+    
     return df
 
 # 주가(Price)는 실시간성이 중요하므로 캐싱하지 않거나 아주 짧게(1~5분) 잡는 것이 좋습니다.
@@ -2345,6 +2354,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
