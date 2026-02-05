@@ -2454,7 +2454,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 3. 해당 종목 토론방 (Tab 5 전 전용)
             # ---------------------------------------------------------
-            st.markdown(f"사용자 기업분석")
+            st.markdown(f"### 사용자 기업분석")
             
             if st.session_state.get('auth_status') == 'user':
                 with st.expander("글쓰기", expanded=False):
@@ -2512,6 +2512,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
