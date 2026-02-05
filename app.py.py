@@ -1572,7 +1572,10 @@ elif st.session_state.page == 'detail':
             """, unsafe_allow_html=True)
 
             
-            st.markdown('<span style="font-size: 15px; font-weight: 600;">공시 정보에 대한 입장은?</span>', unsafe_allow_html=True)
+            # 상단에 여백을 없애는 스타일을 직접 주입한 문장입니다.
+            st.markdown('<p style="font-size: 15px; font-weight: 600; margin-bottom: -15px;"> 공시 정보에 대한 입장은?</p>', unsafe_allow_html=True)
+            
+            # 질문 칸을 비운 함수 호출
             draw_decision_box("filing", "", ["수용적", "중립적", "회의적"])
 
         # --- Tab 1: 뉴스 & 심층 분석 ---
@@ -2515,6 +2518,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
