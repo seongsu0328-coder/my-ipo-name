@@ -53,7 +53,7 @@ import plotly.graph_objects as go
 # ==========================================ㅅ뮤
 # [0] AI 설정 및 API 키 (가장 안정적인 모델로 교체)
 # ==========================================
-GENAI_API_KEY = "AIzaSyA1-19rf-r841t_itT3BGCI_GcPInVXWPo" 
+GENAI_API_KEY = "AIzaSyDye2LBIirYQnYgjyXSqzG_79OLII37ILk" 
 genai.configure(api_key=GENAI_API_KEY)
 
 # 가장 최신 표준 명칭으로 시도 (접두사 없이)
@@ -2626,6 +2626,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
