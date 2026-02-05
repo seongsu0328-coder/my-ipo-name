@@ -1918,17 +1918,19 @@ elif st.session_state.page == 'detail':
                     },
                     {
                         "label": "시장 과열", 
-                        "title": "'Hot Issue' Markets (Full Access)", 
+                        "title": "'Hot Issue' Markets (Academic Archive)", 
                         "author": "Ibbotson & Jaffe (1975)", 
                         "summary": "특정 시기에 IPO 수익률이 비정상적으로 높아지는 '시장 과열' 현상 규명",
-                        "link": "https://www.jstor.org/stable/2326615"
+                        # 로그인 없이 원문을 확인하기 가장 좋은 학술 공유 링크로 교체
+                        "link": "https://www.semanticscholar.org/paper/%22Hot-Issue%22-Markets-Ibbotson-Jaffe/9972367468695015e9856149021c32759e69188d"
                     },
                     {
                         "label": "상장 철회", 
                         "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", 
                         "author": "Dunbar (1998)", 
                         "summary": "상장 방식 선택에 따른 기업 가치와 상장 철회 위험의 상관관계 분석",
-                        "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9500850L"
+                        # 깨진 링크를 대신하여 정상 작동하는 저널 공식 아카이브로 교체
+                        "link": "https://ideas.repec.org/a/eee/jfinec/v39y1995i2-3p329-339.html"
                     },
                     {
                         "label": "시장 변동성", 
@@ -1942,7 +1944,6 @@ elif st.session_state.page == 'detail':
                         "title": "Warren Buffett on the Stock Market (Fortune Classic)", 
                         "author": "Warren Buffett (2001)", 
                         "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 버핏 지표",
-                        # Fortune 공식 대신 가장 안정적으로 원문 전문을 제공하는 GuruFocus의 아카이브 링크로 교체
                         "link": "https://www.gurufocus.com/news/122602/warren-buffett-on-the-stock-market-2001-article"
                     },
                     {
@@ -2452,6 +2453,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
