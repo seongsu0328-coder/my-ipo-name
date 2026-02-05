@@ -2390,7 +2390,7 @@ elif st.session_state.page == 'detail':
                     st.link_button("🔗 Morningstar 바로가기", "https://www.morningstar.com/")
 
             # --- (3) Institutional Sentiment 섹션 ---
-            with st.expander("Sentiment Score", expanded=True):
+            with st.expander("Sentiment Score", expanded=False):
                 s_col1, s_col2 = st.columns(2)
                 with s_col1:
                     st.write("**[Analyst Ratings]**")
@@ -2605,6 +2605,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
