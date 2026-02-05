@@ -2174,8 +2174,8 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
 
             # [2.5] 논문기반 AI 종합 판정 리포트
-            with st.expander("🔬 논문기반 AI 분석 보기", expanded=False):
-                st.markdown(f"#### 🎓 Academic Analysis Summary: {stock['name']}")
+            with st.expander("논문기반 AI 분석 보기", expanded=False):
+                
                 st.success(f"**학술적 모델 분석 완료** (Source: {data_source})")
                 
                 if is_data_available:
@@ -2197,9 +2197,9 @@ elif st.session_state.page == 'detail':
                     st.warning("재무 데이터 부재로 정성적 분석이 권장됩니다.")
         
             # [3] 재무자료 상세보기 (Summary Table)
-            with st.expander("📊 재무분석", expanded=True):
+            with st.expander("재무분석", expanded=True):
                 if is_data_available:
-                    st.markdown(f"#### 📈 Investment Financial Analysis: {stock['name']}")
+                    
                     st.caption(f"Data Source: {data_source} / Currency: USD")
         
                     m1, m2, m3, m4, m5, m6 = st.columns(6)
@@ -2213,7 +2213,7 @@ elif st.session_state.page == 'detail':
                     st.divider()
         
                     # 🔥 [보강된 CFA Analyst Opinion]
-                    st.markdown("#### 💡 Investment Thesis & CFA Analyst Opinion")
+                    st.markdown("#### Investment Thesis & CFA Analyst Opinion")
                     
                     opinion_text = f"""
                     **[Valuation & Market Position]** 현재 {stock['name']}은(는) 선행 PER {pe_val:.1f}x 수준에서 거래되고 있습니다. 
@@ -2531,6 +2531,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
