@@ -365,9 +365,14 @@ if st.session_state.get('page') == 'board':
     # '게시판' 선택 시에는 현재 페이지이므로 아무 작업 안 함
 
     # ---------------------------------------------------------
-    # 3. 통합 게시판 본문 (제목 없이 깔끔하게 시작)
+    # 3. 통합 게시판 본문 (리스트형 UI)
     # ---------------------------------------------------------
     
+    # 관리자 ID 설정 (예: 'admin_id' 혹은 특정 전화번호)
+    ADMIN_ID = "01012345678" 
+    user_id = st.session_state.get('user_id')
+    user_phone = st.session_state.get('user_phone', '익명')
+
     # [글쓰기 섹션]
     if is_logged_in:
         with st.expander("✍️ 새로운 투자 의견 나누기", expanded=False):
@@ -378,21 +383,79 @@ if st.session_state.get('page') == 'board':
                 with col2:
                     new_title = st.text_input("📝 제목", placeholder="제목을 입력하세요")
                 new_content = st.text_area("💬 내용", placeholder="투자 의견을 자유롭게 나눠보세요.")
+                
                 if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
                     if new_title and new_content:
                         new_post = {
                             "id": str(uuid.uuid4()),
                             "category": new_cat if new_cat else "공통",
-                            "title": new_title, "content": new_content,
-                            "author": st.session_state.get('user_phone', '익명'),
+                            "title": new_title, 
+                            "content": new_content,
+                            "author": user_phone,
                             "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "likes": 0, "like_users": [], "uid": st.session_state.get('user_id')
+                            "likes": 0, "dislikes": 0, # 좋아요/싫어요 추가
+                            "like_users": [], "dislike_users": [],
+                            "uid": user_id
                         }
                         if 'posts' not in st.session_state: st.session_state.posts = []
                         st.session_state.posts.insert(0, new_post)
+                        st.success("게시물이 등록되었습니다.")
                         st.rerun()
     else:
         st.info("💡 글을 남기려면 상단 메뉴에서 로그인을 해주세요.")
+
+    # [게시글 리스트 노출 섹션]
+    if 'posts' in st.session_state and st.session_state.posts:
+        for idx, post in enumerate(st.session_state.posts):
+            # 글쓴이 본인 혹은 관리자 여부 확인
+            is_author = (user_id == post.get('uid'))
+            is_admin = (user_phone == ADMIN_ID)
+
+            # 제목 줄 레이아웃 (익스팬더를 사용하여 본문 숨김 처리)
+            # 메타데이터: [카테고리] 제목 | 글쓴이 | 날짜
+            expander_label = f"[{post['category']}] {post['title']}  |  👤 {post['author']}  |  📅 {post['date']}"
+            
+            with st.expander(expander_label):
+                # 1. 본문 내용
+                st.write(post['content'])
+                st.divider()
+
+                # 2. 투표 및 관리 버튼 레이아웃
+                v_col1, v_col2, v_col3, v_col4 = st.columns([1, 1, 2, 1])
+                
+                # 좋아요 버튼
+                with v_col1:
+                    if st.button(f"👍 {post.get('likes', 0)}", key=f"like_{post['id']}"):
+                        if user_id not in post.get('like_users', []):
+                            post['likes'] = post.get('likes', 0) + 1
+                            post.setdefault('like_users', []).append(user_id)
+                            st.rerun()
+                
+                # 싫어요 버튼
+                with v_col2:
+                    if st.button(f"👎 {post.get('dislikes', 0)}", key=f"dis_{post['id']}"):
+                        if user_id not in post.get('dislike_users', []):
+                            post['dislikes'] = post.get('dislikes', 0) + 1
+                            post.setdefault('dislike_users', []).append(user_id)
+                            st.rerun()
+
+                # 수정/삭제 (권한 있는 경우만)
+                if is_author or is_admin:
+                    with v_col4:
+                        # 삭제 기능
+                        if st.button("🗑️ 삭제", key=f"del_{post['id']}", use_container_width=True):
+                            st.session_state.posts.pop(idx)
+                            st.rerun()
+                    with v_col3:
+                        # 수정 기능 (간이 구현: 에디터 노출)
+                        if st.checkbox("✏️ 수정하기", key=f"edit_chk_{post['id']}"):
+                            edit_val = st.text_area("내용 수정", value=post['content'], key=f"edit_area_{post['id']}")
+                            if st.button("수정 완료", key=f"edit_btn_{post['id']}"):
+                                post['content'] = edit_val
+                                st.success("수정되었습니다.")
+                                st.rerun()
+    else:
+        st.write("아직 등록된 게시글이 없습니다.")
 
     # [게시글 리스트 섹션]
     posts = st.session_state.get('posts', [])
@@ -2512,6 +2575,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
