@@ -1967,17 +1967,14 @@ elif st.session_state.page == 'detail':
                         <div style='flex:1;'>
                             <div class='ref-badge'>{ref['label']}</div><br>
                             <a href='{ref['link']}' target='_blank' class='ref-title' style='display:block; margin-bottom:4px;'>📄 {ref['title']}</a>
-                            <div style='font-size: 13px; color: #666;'>
-                                <span style='color: #444; font-weight: 500;'>{ref['summary']}</span> 
-                                <span style='color: #999; margin-left: 8px;'>| {ref['author']}</span>
+                            <div style='font-size: 13px; color: #666; line-height: 1.5;'>
+                                <span>{ref['summary']}, {ref['author']}</span>
                             </div>
                         </div>
                         <div style='margin-left: 15px; align-self: center;'>
                             <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
                         </div>
                     </div>""", unsafe_allow_html=True)
-                
-                st.caption("※ 클릭 시 해당 논문 또는 공식 데이터 제공 사이트로 이동합니다.")
 
             # [✅ 수정 완료] 3단계 판단 (expander 바깥쪽으로 빼냄)
             draw_decision_box("macro", "현재 거시경제(Macro) 상황에 대한 판단은?", ["버블", "중립", "침체"])
@@ -2454,6 +2451,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
