@@ -1921,16 +1921,16 @@ elif st.session_state.page == 'detail':
                         "title": "'Hot Issue' Markets (Ibbotson & Jaffe)", 
                         "author": "Ibbotson & Jaffe (1975)", 
                         "summary": "특정 시기에 IPO 수익률이 비정상적으로 높아지는 '시장 과열' 현상 규명",
-                        # 구글 스칼라 검색 결과로 연결하여 가장 가용성 높은 링크를 사용자가 선택하게 함
-                        "link": "https://scholar.google.com/scholar?q=%22Hot+Issue%22+Markets+Ibbotson+Jaffe+1975"
+                        # 특정 URL 대신 구글 스칼라 검색으로 연결하여 가장 확실한 원문 링크를 제공
+                        "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets"
                     },
                     {
                         "label": "상장 철회", 
                         "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", 
                         "author": "Dunbar (1998)", 
                         "summary": "상장 방식 선택에 따른 기업 가치와 상장 철회 위험의 상관관계 분석",
-                        # 기존 깨진 링크 대신 상기 논문의 공식 DOI 시스템 링크로 교체
-                        "link": "https://doi.org/10.1016/0304-405X(95)00850-L"
+                        # Elsevier 대신 안정적인 학술 DB인 RePEc의 공식 초록 페이지로 교체
+                        "link": "https://ideas.repec.org/a/eee/jfinec/v39y1995i2-3p329-339.html"
                     },
                     {
                         "label": "시장 변동성", 
@@ -2453,6 +2453,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
