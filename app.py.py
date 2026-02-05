@@ -2178,23 +2178,55 @@ elif st.session_state.page == 'detail':
 
                 # Tab 3 (기업 분석)에 맞는 논문 리스트
                 references_tab3 = [
-                    {"label": "성장성 분석", "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "link": "https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1540-6261.1991.tb02685.x"},
-                    {"label": "현금흐름", "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=464062"},
-                    {"label": "회계 품질", "title": "Earnings Management and the Long-Run Market Performance", "author": "Teoh, Welch, & Wong (1998)", "link": "https://onlinelibrary.wiley.com/doi/abs/10.1111/0022-1082.00079"},
-                    {"label": "VC 인증", "title": "The Role of Venture Capital in the Creation of Public Companies", "author": "Barry et al. (1990)", "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
-                    {"label": "저평가 이론", "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
+                    {
+                        "label": "성장성 분석", 
+                        "title": "The Long-Run Performance of IPOs", 
+                        "author": "Jay R. Ritter (1991)", 
+                        "summary": "상장 초기 수익률과 대비되는 신규 상장 기업의 장기적 성과 저하 현상 분석",
+                        "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991+The+Long-Run+Performance+of+IPOs"
+                    },
+                    {
+                        "label": "현금흐름", 
+                        "title": "New Lists: Fundamentals and Survival Rates", 
+                        "author": "Fama & French (2004)", 
+                        "summary": "신규 상장 기업들의 재무 건전성 악화와 이에 따른 생존율 변화 추적",
+                        "link": "https://scholar.google.com/scholar?q=Fama+French+2004+New+Lists+Fundamentals+and+Survival+Rates"
+                    },
+                    {
+                        "label": "회계 품질", 
+                        "title": "Earnings Management and the Long-Run Market Performance", 
+                        "author": "Teoh, Welch, & Wong (1998)", 
+                        "summary": "IPO 직전의 이익 조정(분식 회계 위험)이 향후 주가에 미치는 부정적 영향 분석",
+                        "link": "https://scholar.google.com/scholar?q=Teoh+Welch+Wong+1998+Earnings+Management"
+                    },
+                    {
+                        "label": "VC 인증", 
+                        "title": "The Role of Venture Capital in the Creation of Public Companies", 
+                        "author": "Barry et al. (1990)", 
+                        "summary": "벤처캐피털의 투자를 받은 기업이 상장 시 시장에서 갖는 공신력과 성과 분석",
+                        "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"
+                    },
+                    {
+                        "label": "저평가 이론", 
+                        "title": "Why New Issues are Underpriced", 
+                        "author": "Kevin Rock (1986)", 
+                        "summary": "정보의 비대칭성 상황에서 상장 성공을 위해 공모가를 낮게 책정하는 메커니즘",
+                        "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"
+                    }
                 ]
-
-                # 리스트 출력 루프
+                
+                # 2. 리스트 출력 루프 (요청하신 통합 레이아웃 적용)
                 for ref in references_tab3:
                     st.markdown(f"""
                     <div class='ref-item'>
-                        <div>
+                        <div style='flex:1;'>
                             <div class='ref-badge'>{ref['label']}</div><br>
-                            <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
-                            <div class='ref-author'>{ref['author']}</div>
+                            <a href='{ref['link']}' target='_blank' class='ref-title' style='display:block; margin-bottom:4px;'>📄 {ref['title']}</a>
+                            <div style='font-size: 13px; color: #666; line-height: 1.5;'>
+                                <span>{ref['summary']}, {ref['author']}</span>
+                            </div>
                         </div>
-                        <div>
+                        <div style='margin-left: 15px; align-self: center;'>
                             <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
                         </div>
                     </div>
@@ -2451,6 +2483,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
