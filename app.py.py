@@ -2369,7 +2369,7 @@ elif st.session_state.page == 'detail':
             missing_steps = [label for step, label in steps if not ud.get(step)]
         
             if len(missing_steps) > 0:
-                st.info(f"⏳ 모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 결과가 공개됩니다.")
+                st.info(f"모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 결과가 공개됩니다.")
             else:
                 score_map = {
                     "긍정적": 1, "중립적": 0, "부정적": -1, 
@@ -2420,24 +2420,24 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 2. 관심종목 및 투표 섹션
             # ---------------------------------------------------------
-            st.markdown("### 📌 관심종목 및 투표")
+            st.markdown("### 전망")
             if st.session_state.get('auth_status') == 'user':
                 if sid not in st.session_state.watchlist:
                     c_up, c_down = st.columns(2)
-                    if c_up.button("📈 상승 (UP) & 보관", key=f"up_{sid}", use_container_width=True, type="primary"):
+                    if c_up.button("상승 & 보관", key=f"up_{sid}", use_container_width=True, type="primary"):
                         st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "UP"
                         st.session_state.vote_data[sid]['u'] += 1
                         st.rerun()
-                    if c_down.button("📉 하락 (DOWN) & 보관", key=f"dn_{sid}", use_container_width=True):
+                    if c_down.button("하락 & 보관", key=f"dn_{sid}", use_container_width=True):
                         st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "DOWN"
                         st.session_state.vote_data[sid]['f'] += 1
                         st.rerun()
                 else:
                     pred = st.session_state.watchlist_predictions.get(sid, "N/A")
-                    st.success(f"✅ 보관 중 (나의 예측: **{pred}**)")
-                    if st.button("🗑️ 보관 해제", key=f"rm_{sid}", use_container_width=True):
+                    st.success(f"보관중 (나의 예측: **{pred}**)")
+                    if st.button("보관해제", key=f"rm_{sid}", use_container_width=True):
                         st.session_state.watchlist.remove(sid)
                         st.session_state.vote_data[sid]['u' if pred=="UP" else 'f'] -= 1
                         del st.session_state.watchlist_predictions[sid]
@@ -2445,15 +2445,14 @@ elif st.session_state.page == 'detail':
             else:
                 st.warning("🔒 로그인 후 투표 및 보관이 가능합니다.")
         
-            st.divider()
-        
+            
             # ---------------------------------------------------------
             # 3. 해당 종목 토론방 (Tab 5 전 전용)
             # ---------------------------------------------------------
-            st.markdown(f"### 💬 {sid} 종목 토론 참여")
+            st.markdown(f"###  {sid} 종목 토론")
             
             if st.session_state.get('auth_status') == 'user':
-                with st.expander("📝 의견 남기기", expanded=False):
+                with st.expander("글쓰기", expanded=False):
                     with st.form(key=f"write_{sid}", clear_on_submit=True):
                         post_title = st.text_input("제목", placeholder="제목을 입력하세요")
                         post_content = st.text_area("내용", placeholder="종목에 대한 분석이나 의견을 자유롭게 남겨주세요.", height=100)
@@ -2508,6 +2507,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
