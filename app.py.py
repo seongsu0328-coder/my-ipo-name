@@ -2129,16 +2129,18 @@ elif st.session_state.page == 'detail':
             }
 
             # 🔥 [1.5] 에러 방지용 안전 변수 가공 (가장 중요)
-            # 1. 안전한 수치 변환을 위한 내부 함수 정의
             def clean_value(val):
+                """None, NaN, Inf 값을 0으로 정제하는 함수"""
                 try:
                     if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))):
                         return 0.0
                     return float(val)
                 except:
                     return 0.0
-            
-                        if fin_data is None: fin_data = {}
+
+            # ⚠️ 중요: clean_value 함수 밖(같은 라인)에 위치해야 합니다.
+            if fin_data is None: 
+                fin_data = {}
 
             # 데이터 정제 추출
             rev_val = clean_value(fin_data.get('revenue', 0))
@@ -2603,6 +2605,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
