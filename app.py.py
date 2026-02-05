@@ -2351,7 +2351,7 @@ elif st.session_state.page == 'detail':
                 st.caption("※ 본 리포트는 SEC 공시 및 Finnhub API 데이터를 기반으로 위 학술적 모델을 적용했습니다.")
 
             # [5] 사용자 최종 판단 박스 (Decision Box)
-            st.write("---")
+           
             draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["고평가", "중립", "저평가"])
 
             
@@ -2605,6 +2605,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
