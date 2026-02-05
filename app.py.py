@@ -2038,11 +2038,13 @@ elif st.session_state.page == 'detail':
             ocf_val = fin_data.get('net_margin') if fin_data else 0  
             # (참고: 실제 OCF 금액이 아니지만, 수익성 대리 지표로 활용)
 
-            # (C) 발생액 (Accruals) 추정: 순이익률 - 영업이익률 차이로 간접 유추
-            # (영업이익이 순이익보다 현저히 높으면 발생액 품질이 낮을 수 있음)
-            if fin_data and fin_data.get('op_margin') and fin_data.get('net_margin'):
-                acc_diff = fin_data['op_margin'] - fin_data['net_margin']
-                accruals_status = "Low" if abs(acc_diff) < 5 else "High" # 차이가 작으면 양호(Low)
+            # (C) 발생액 (Accruals) 추정 부분 수정
+            op_m = fin_data.get('op_margin')
+            net_m = fin_data.get('net_margin')
+            
+            if fin_data and op_m is not None and net_m is not None:
+                acc_diff = op_m - net_m  # 이제 안전하게 계산 가능
+                accruals_status = "Low" if abs(acc_diff) < 5 else "High"
             else:
                 accruals_status = "Unknown"
 
@@ -2111,12 +2113,12 @@ elif st.session_state.page == 'detail':
                     <div class='metric-footer'>Ref: Teoh et al. (1998)</div>
                 </div>""", unsafe_allow_html=True)
 
-            # (4) 부채 비율 (Debt/Equity) - VC 대용으로 활용 (데이터 가용성 고려)
+            # (4) 부채 비율 섹션 내 수정
             with r1_c4:
-                # VC 데이터 대신 재무 안정성 지표인 부채비율로 대체 (무료 API 한계)
                 de_val = fin_data.get('debt_equity') if fin_data else None
                 if de_val is not None:
-                    display_val = f"{de_val:.1f}%"
+                    # de_val이 None이 아님을 보장하지만, 한 번 더 안전하게 처리
+                    display_val = f"{(de_val or 0):.1f}%"
                     status = "✅ 안정" if de_val < 100 else "⚠️ 다소 높음"
                     st_cls = "st-good" if de_val < 100 else "st-neutral"
                 else:
@@ -2151,31 +2153,38 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # [2.5] 재무자료 보기 (신규 추가)
+            # [2.5] 재무자료 보기
             with st.expander("재무자료 보기", expanded=False):
                 if fin_data:
                     st.write("##### 핵심 재무 지표 요약")
-                    # 데이터가 없을 경우를 대비한 기본값 처리
-                    m_cap = fin_data.get('market_cap', 0)
-                    rev = fin_data.get('revenue', 0)
                     
+                    # [수정] None 방어 로직 적용
+                    m_cap = fin_data.get('market_cap') or 0
+                    rev = fin_data.get('revenue') or 0
+                    op_margin = fin_data.get('op_margin') or 0
+                    net_margin = fin_data.get('net_margin') or 0
+                    debt_equity = fin_data.get('debt_equity') or 0
+                    current_ratio = fin_data.get('current_ratio') or 0
+                    roe = fin_data.get('roe') or 0
+                    eps = fin_data.get('eps') or 0
+            
                     col1, col2 = st.columns(2)
                     with col1:
                         st.markdown(f"""
                         **수익성 및 규모**
                         * **시가총액:** ${m_cap:,.0f}M
                         * **연간 매출:** ${rev:,.0f}M
-                        * **영업이익률:** {fin_data.get('op_margin', 0):.2f}%
-                        * **순이익률:** {fin_data.get('net_margin', 0):.2f}%
+                        * **영업이익률:** {op_margin:.2f}%
+                        * **순이익률:** {net_margin:.2f}%
                         """)
                     
                     with col2:
                         st.markdown(f"""
                         **안정성 및 효율성**
-                        * **부채비율(D/E):** {fin_data.get('debt_equity', 0):.2f}%
-                        * **유동비율:** {fin_data.get('current_ratio', 0):.2f}x
-                        * **ROE:** {fin_data.get('roe', 0):.2f}%
-                        * **EPS (TTM):** ${fin_data.get('eps', 0):.2f}
+                        * **부채비율(D/E):** {debt_equity:.2f}%
+                        * **유동비율:** {current_ratio:.2f}x
+                        * **ROE:** {roe:.2f}%
+                        * **EPS (TTM):** ${eps:.2f}
                         """)
                     
                     st.divider()
@@ -2532,6 +2541,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
