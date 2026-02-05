@@ -2108,6 +2108,11 @@ elif st.session_state.page == 'detail':
             }
 
             # 🔥 [1.5] 에러 방지용 안전 변수 가공 (가장 중요)
+            # fin_data가 None인 경우를 대비해 빈 딕셔너리로 초기화하여 AttributeError 방지
+            if fin_data is None:
+                fin_data = {}
+            
+            # .get() 메서드를 사용하여 키가 없더라도 에러 없이 0을 반환하도록 설정
             rev_val = fin_data.get('revenue', 0) or 0
             net_m_val = fin_data.get('net_margin', 0) or 0
             op_m_val = fin_data.get('op_margin', net_m_val) or 0
@@ -2116,6 +2121,7 @@ elif st.session_state.page == 'detail':
             de_ratio = fin_data.get('debt_equity', 0) or 0
             pe_val = fin_data.get('forward_pe', 0) or 0
             
+            # 화면 표시용 변수 가공
             rev_display = f"{rev_val:,.0f}" if rev_val > 0 else "N/A"
             opm_display = f"{op_m_val:.2f}" if op_m_val != 0 else "N/A"
 
@@ -2572,6 +2578,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
