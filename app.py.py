@@ -2112,56 +2112,55 @@ elif st.session_state.page == 'detail':
             def clean_value(val):
                 """None, NaN, Inf 값을 0으로 정제하는 함수"""
                 try:
-                    if val is None or np.isnan(val) or np.isinf(val):
+                    # 값이 None이거나, 숫자형인데 nan/inf인 경우 체크
+                    if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))):
                         return 0.0
                     return float(val)
                 except:
                     return 0.0
-            
-            # 2. fin_data 초기화 (AttributeError 방지)
-            if fin_data is None:
-                fin_data = {}
-            
-            # 3. 데이터 정제 추출
+
+            if fin_data is None: fin_data = {}
+
+            # 데이터 정제 추출
             rev_val = clean_value(fin_data.get('revenue', 0))
             net_m_val = clean_value(fin_data.get('net_margin', 0))
-            op_m_val = clean_value(fin_data.get('op_margin', net_m_val)) # 영업이익률 없으면 순이익률 참조
+            op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
             growth = clean_value(fin_data.get('growth', 0))
             roe_val = clean_value(fin_data.get('roe', 0))
             de_ratio = clean_value(fin_data.get('debt_equity', 0))
             pe_val = clean_value(fin_data.get('forward_pe', 0))
-            
-            # 4. 화면 표시용 텍스트 가공 (nan, inf 대신 N/A 출력)
+
+            # 화면 표시용 텍스트 가공 (nan, inf 대신 N/A 출력)
             rev_display = f"{rev_val:,.0f}" if rev_val > 0 else "N/A"
-            growth_display = f"{growth:+.1f}%" if growth != 0 else "N/A"
-            net_m_display = f"{net_m_val:.1f}%" if net_m_val != 0 else "N/A"
-            opm_display = f"{op_m_val:.2f}%" if op_m_val != 0 else "N/A"
+            growth_display = f"{growth:+.1f}%" if abs(growth) > 0.001 else "N/A"
+            net_m_display = f"{net_m_val:.1f}%" if abs(net_m_val) > 0.001 else "N/A"
+            opm_display = f"{op_m_val:.2f}%" if abs(op_m_val) > 0.001 else "N/A"
 
             # [2] 카드형 UI 레이아웃 (Metric Cards)
             r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
             r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
 
-            # (1) 매출 성장성
+            # (1) 매출 성장성 - nan 방지 적용
             with r1_c1:
-                val = md_stock['sales_growth']
-                if val is not None and val != 0:
+                if growth_display != "N/A":
+                    val = growth
                     status = "🔥 고성장" if val > 20 else "✅ 안정" if val > 5 else "⚠️ 둔화"
                     st_cls = "st-hot" if val > 20 else "st-good" if val > 5 else "st-neutral"
-                    display_val = f"{val:+.1f}%"
+                    display_val = growth_display
                 else:
-                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 링크 참조")
+                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "산출 불가")
                 
                 st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>최근 연간 매출 성장률입니다.</div><div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
 
-            # (2) 수익성
+            # (2) 수익성 - inf 방지 적용
             with r1_c2:
-                val = md_stock['ocf']
-                if is_data_available and val != 0:
+                if net_m_display != "N/A":
+                    val = net_m_val
                     status = "✅ 흑자" if val > 0 else "🚨 적자"
                     st_cls = "st-good" if val > 0 else "st-hot"
-                    display_val = f"{val:.1f}%"
+                    display_val = net_m_display
                 else:
-                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 링크 참조")
+                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "산출 불가")
 
                 st.markdown(f"<div class='metric-card'><div class='metric-header'>Net Margin (Profit)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>순이익률입니다.</div><div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
 
@@ -2590,6 +2589,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
