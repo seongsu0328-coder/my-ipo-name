@@ -1572,7 +1572,8 @@ elif st.session_state.page == 'detail':
             """, unsafe_allow_html=True)
 
             
-            draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
+            st.markdown('<span style="font-size: 15px; font-weight: 600;">공시 정보에 대한 입장은?</span>', unsafe_allow_html=True)
+            draw_decision_box("filing", "", ["수용적", "중립적", "회의적"])
 
         # --- Tab 1: 뉴스 & 심층 분석 ---
         with tab1:
@@ -2514,6 +2515,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
