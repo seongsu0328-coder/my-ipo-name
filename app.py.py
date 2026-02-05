@@ -1966,11 +1966,13 @@ elif st.session_state.page == 'detail':
                     <div class='ref-item'>
                         <div style='flex:1;'>
                             <div class='ref-badge'>{ref['label']}</div><br>
-                            <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
-                            <div class='ref-author'>{ref['author']}</div>
-                            <div style='font-size: 12px; color: #888; margin-top: 4px;'>💡 {ref['summary']}</div>
+                            <a href='{ref['link']}' target='_blank' class='ref-title' style='display:block; margin-bottom:4px;'>📄 {ref['title']}</a>
+                            <div style='font-size: 13px; color: #666;'>
+                                <span style='color: #444; font-weight: 500;'>{ref['summary']}</span> 
+                                <span style='color: #999; margin-left: 8px;'>| {ref['author']}</span>
+                            </div>
                         </div>
-                        <div style='margin-left: 15px;'>
+                        <div style='margin-left: 15px; align-self: center;'>
                             <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
                         </div>
                     </div>""", unsafe_allow_html=True)
@@ -2452,6 +2454,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
