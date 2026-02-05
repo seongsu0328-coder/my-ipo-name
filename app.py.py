@@ -2027,46 +2027,54 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 3: 개별 기업 평가 (Real Data 연동) ---
         with tab3:
-            # [1] 데이터 전처리 (API 데이터 fin_data 활용)
-            # fin_data는 상단에서 이미 호출됨: {"growth": ..., "op_margin": ..., "net_margin": ...}
+            # [0] 데이터 소스 및 유효성 판별 (SEC -> Finnhub -> Yahoo 순 공신력 반영)
+            data_source = "Unknown"
+            is_data_available = False
             
-            # (A) 매출 성장률 (Sales Growth)
-            growth_val = fin_data.get('growth') if fin_data else None
-            
-            # (B) 영업 현금흐름 (OCF) - API 제공 여부에 따라 추정
-            # Finnhub 무료 플랜은 OCF를 직접 주지 않는 경우가 많아 Net Margin으로 간접 추정하거나 0으로 처리
-            ocf_val = fin_data.get('net_margin') if fin_data else 0  
-            # (참고: 실제 OCF 금액이 아니지만, 수익성 대리 지표로 활용)
+            if fin_data:
+                # 데이터가 존재하고 매출(Revenue)이 0보다 큰지 확인
+                if fin_data.get('revenue') and fin_data.get('revenue') > 0:
+                    is_data_available = True
+                    # 데이터 소스 식별 (필드 구성에 따른 추정)
+                    if 'sec' in str(fin_data.get('source', '')).lower():
+                        data_source = "SEC 10-K/Q (공시)"
+                    elif fin_data.get('market_cap'):
+                        data_source = "Finnhub (가공)"
+                    else:
+                        data_source = "Yahoo Finance (보조)"
+                else:
+                    data_source = "Data Pending (상장 초기/비상장)"
 
-            # (C) 발생액 (Accruals) 추정 부분 수정
+            # [1] 데이터 전처리 및 지표 계산
+            growth_val = fin_data.get('growth') if is_data_available else None
+            ocf_val = fin_data.get('net_margin') if is_data_available else 0  # Net Margin을 OCF 대용으로 활용
+            
             op_m = fin_data.get('op_margin')
             net_m = fin_data.get('net_margin')
             
-            if fin_data and op_m is not None and net_m is not None:
-                acc_diff = op_m - net_m  # 이제 안전하게 계산 가능
+            # 발생액 품질 계산 (영업이익 - 순이익 괴리도)
+            if is_data_available and op_m is not None and net_m is not None:
+                acc_diff = op_m - net_m
                 accruals_status = "Low" if abs(acc_diff) < 5 else "High"
             else:
                 accruals_status = "Unknown"
 
             md_stock = {
-                "sales_growth": growth_val, # 실제 데이터 매핑
-                "ocf": ocf_val,             # 실제 데이터(Margin) 매핑
+                "sales_growth": growth_val,
+                "ocf": ocf_val,
                 "accruals": accruals_status,
-                "vc_backed": "Checking...", # VC 정보는 별도 유료 API 필요 (일단 Placeholder)
-                "discount_rate": 0.0        # 공모가 대비 시초가(Underpricing)는 상장 후 계산 가능
+                "vc_backed": "Checking...", # 별도 유료 데이터 필요
+                "discount_rate": 0.0
             }
 
-            # [2] 카드형 UI 레이아웃
-            
-            
+            # [2] 카드형 UI 레이아웃 (Metric Cards)
             r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
             r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
 
             # (1) 매출 성장성 (Sales Growth)
             with r1_c1:
                 val = md_stock['sales_growth']
-                # 값이 있을 때만 평가, 없으면 N/A
-                if val is not None:
+                if val is not None and val != 0:
                     status = "🔥 고성장" if val > 20 else "✅ 안정" if val > 5 else "⚠️ 둔화"
                     st_cls = "st-hot" if val > 20 else "st-good" if val > 5 else "st-neutral"
                     display_val = f"{val:+.1f}%"
@@ -2077,14 +2085,14 @@ elif st.session_state.page == 'detail':
                 <div class='metric-card'>
                     <div class='metric-header'>Sales Growth</div>
                     <div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div>
-                    <div class='metric-desc'>최근 연간 매출 성장률(YoY)입니다. 20% 이상이면 고성장 기업으로 분류됩니다.</div>
-                    <div class='metric-footer'>Ref: Jay Ritter (1991)</div>
+                    <div class='metric-desc'>최근 연간 매출 성장률입니다. 20% 이상 시 고성장으로 분류됩니다.</div>
+                    <div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div>
                 </div>""", unsafe_allow_html=True)
 
-            # (2) 수익성 (Net Margin) - OCF 대용
+            # (2) 수익성 (Net Margin)
             with r1_c2:
-                val = md_stock['ocf'] # 여기선 Net Margin 값 사용
-                if val is not None:
+                val = md_stock['ocf']
+                if is_data_available and val != 0:
                     status = "✅ 흑자" if val > 0 else "🚨 적자"
                     st_cls = "st-good" if val > 0 else "st-hot"
                     display_val = f"{val:.1f}%"
@@ -2095,8 +2103,8 @@ elif st.session_state.page == 'detail':
                 <div class='metric-card'>
                     <div class='metric-header'>Net Margin (Profit)</div>
                     <div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div>
-                    <div class='metric-desc'>순이익률입니다. 초기 IPO 기업은 적자인 경우가 많으나, 적자 폭이 30%를 넘으면 위험합니다.</div>
-                    <div class='metric-footer'>Ref: Fama & French (2004)</div>
+                    <div class='metric-desc'>순이익률입니다. 적자 폭이 30%를 넘으면 위험 신호로 간주합니다.</div>
+                    <div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div>
                 </div>""", unsafe_allow_html=True)
 
             # (3) 발생액 품질 (Accruals)
@@ -2109,16 +2117,15 @@ elif st.session_state.page == 'detail':
                 <div class='metric-card'>
                     <div class='metric-header'>Accruals Quality</div>
                     <div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div>
-                    <div class='metric-desc'>영업이익과 순이익의 괴리율입니다. Low(낮음)일수록 회계 장부가 깨끗함을 의미합니다.</div>
-                    <div class='metric-footer'>Ref: Teoh et al. (1998)</div>
+                    <div class='metric-desc'>회계 장부의 투명성입니다. Low(낮음)일수록 실제 현금 흐름과 일치합니다.</div>
+                    <div class='metric-footer'>Theory: Teoh et al. (1998)<br><b>Data Source: {data_source}</b></div>
                 </div>""", unsafe_allow_html=True)
 
-            # (4) 부채 비율 섹션 내 수정
+            # (4) 부채 비율 (Debt / Equity)
             with r1_c4:
-                de_val = fin_data.get('debt_equity') if fin_data else None
-                if de_val is not None:
-                    # de_val이 None이 아님을 보장하지만, 한 번 더 안전하게 처리
-                    display_val = f"{(de_val or 0):.1f}%"
+                de_val = fin_data.get('debt_equity') if is_data_available else None
+                if de_val is not None and de_val != 0:
+                    display_val = f"{de_val:.1f}%"
                     status = "✅ 안정" if de_val < 100 else "⚠️ 다소 높음"
                     st_cls = "st-good" if de_val < 100 else "st-neutral"
                 else:
@@ -2128,13 +2135,13 @@ elif st.session_state.page == 'detail':
                 <div class='metric-card'>
                     <div class='metric-header'>Debt / Equity</div>
                     <div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div>
-                    <div class='metric-desc'>자기자본 대비 부채 비율입니다. 100% 미만이면 재무 구조가 안정적입니다.</div>
-                    <div class='metric-footer'>Ref: Standard Ratio</div>
+                    <div class='metric-desc'>자본 대비 부채 비중입니다. 100% 미만 시 재무 구조가 안정적입니다.</div>
+                    <div class='metric-footer'>Ref: Standard Ratio<br><b>Data Source: {data_source}</b></div>
                 </div>""", unsafe_allow_html=True)
 
-            # (5) 공모가 할인율 (Underpricing) - 상장 후 계산
+            # (5) 시장 성과 (Market Performance)
             with r2_c1:
-                # 현재가와 공모가 비교
+                # current_p와 off_val은 상위 스코프에서 정의된 가격 데이터 사용
                 if current_p > 0 and off_val > 0:
                     up_rate = ((current_p - off_val) / off_val) * 100
                     display_val = f"{up_rate:+.1f}%"
@@ -2147,18 +2154,18 @@ elif st.session_state.page == 'detail':
                 <div class='metric-card'>
                     <div class='metric-header'>Market Performance</div>
                     <div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div>
-                    <div class='metric-desc'>공모가 대비 현재 주가 수익률입니다. 15% 이상 상승 시 성공적인 IPO로 평가받습니다.</div>
-                    <div class='metric-footer'>Ref: Kevin Rock (1986)</div>
+                    <div class='metric-desc'>공모가 대비 현재 주가 수익률입니다.</div>
+                    <div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div>
                 </div>""", unsafe_allow_html=True)
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # [2.5] 재무자료 보기
-            with st.expander("재무자료 보기", expanded=False):
-                if fin_data:
-                    st.write("##### 핵심 재무 지표 요약")
+            # [2.5] 재무자료 상세보기 (Summary Table)
+            with st.expander("📊 상세 재무지표 및 원문 자료", expanded=False):
+                if is_data_available:
+                    st.write(f"##### 핵심 재무 지표 요약 (최신 데이터 소스: {data_source})")
                     
-                    # [수정] None 방어 로직 적용
+                    # 안전한 데이터 추출
                     m_cap = fin_data.get('market_cap') or 0
                     rev = fin_data.get('revenue') or 0
                     op_margin = fin_data.get('op_margin') or 0
@@ -2186,36 +2193,37 @@ elif st.session_state.page == 'detail':
                         * **ROE:** {roe:.2f}%
                         * **EPS (TTM):** ${eps:.2f}
                         """)
-                    
-                    st.divider()
-                    
-                    # 외부 참조 링크 생성 (심볼 기준 동적 링크)
-                    s = stock['symbol']
-                    st.write("#####  원문 자료 확인 (External Links)")
-                    l1, l2, l3 = st.columns(3)
-                    l1.markdown(f"[ Yahoo Finance](https://finance.yahoo.com/quote/{s}/financials)")
-                    l2.markdown(f"[ SEC EDGAR (공시)](https://www.sec.gov/edgar/browse/?CIK={s})")
-                    l3.markdown(f"[ MarketWatch](https://www.marketwatch.com/investing/stock/{s}/financials)")
-                    
-                    st.caption("※ 위 수치는 Finnhub API를 통해 수집된 최근 연간/분기 보고서 기준(TTM) 데이터입니다.")
+                    st.caption(f"※ 위 수치는 {data_source}를 통해 수집된 최근 보고서 기준 데이터입니다.")
                 else:
-                    st.warning("해당 기업의 상세 재무 데이터를 불러올 수 없습니다. 상장 직후이거나 데이터 갱신 중일 수 있습니다.")
+                    st.warning(f"⚠️ {stock['name']}의 상세 재무 데이터를 불러올 수 없습니다.")
+                    st.info(f"상장 예정이거나 비상장 기업인 경우 공식 API(Finnhub)에 데이터가 아직 반영되지 않았을 수 있습니다. 아래 외부 링크를 통해 직접 확인해 주세요.")
+                
+                st.divider()
+                
+                # 외부 참조 링크 생성
+                s = stock['symbol']
+                st.write("##### 원문 자료 확인 (External Links)")
+                l1, l2, l3 = st.columns(3)
+                l1.markdown(f"[📈 Yahoo Finance](https://finance.yahoo.com/quote/{s}/financials)")
+                l2.markdown(f"[📄 SEC EDGAR (공시)](https://www.sec.gov/edgar/browse/?CIK={s})")
+                l3.markdown(f"[🔍 MarketWatch](https://www.marketwatch.com/investing/stock/{s}/financials)")
 
             # [3] AI 종합 판정 리포트
-            
-            # [수정] expanded=True -> False (기본 접힘)
             with st.expander("논문기반 AI분석보기", expanded=False):
-                # (분석 로직은 위와 동일)
-                st.success(f"{stock['name']}에 대한 실시간 데이터 검증 완료")
-                st.write(f"**{stock['symbol']} 종합 평가:**")
-                st.write(f"**성장성:** 안정적, **자금 건전성:** 양호")
-                st.write(f"**기관 검증:** {md_stock['vc_backed']}로 확인되어 정보 비대칭 리스크가 낮음.")
+                st.success(f"{stock['name']} 데이터 신뢰도 확인: {data_source}")
+                st.write(f"**종합 평가:**")
+                if is_data_available:
+                    growth_status = "안정적" if (growth_val or 0) > 5 else "정체"
+                    st.write(f"* **성장성:** {growth_status}, **자금 건전성:** {accruals_status}")
+                    st.write(f"* **정보 비대칭성:** {data_source} 데이터가 확인되어 시장 내 정보 불확실성이 낮은 편입니다.")
+                else:
+                    st.write("실시간 재무 데이터 부재로 인해 과거 추세 및 공시 자료 기반의 정성적 분석이 권장됩니다.")
 
            
 
-            # [4] 학술적 근거 및 원문 링크 섹션 (복구됨)
-            with st.expander("참고(References)", expanded=False):
-                # CSS 스타일 적용
+            # [4] 학술적 근거 및 원문 링크 섹션 (데이터 출처 및 논문 통합)
+            with st.expander("참고(References) 및 데이터 출처", expanded=False):
+                # CSS 스타일 정의
                 st.markdown("""
                 <style>
                     .ref-container { margin-top: 5px; }
@@ -2230,7 +2238,7 @@ elif st.session_state.page == 'detail':
                 </style>
                 """, unsafe_allow_html=True)
 
-                # Tab 3 (기업 분석)에 맞는 논문 리스트
+                # Tab 3 전용 레퍼런스 데이터 리스트
                 references_tab3 = [
                     {
                         "label": "성장성 분석", 
@@ -2269,7 +2277,10 @@ elif st.session_state.page == 'detail':
                     }
                 ]
                 
-                # 2. 리스트 출력 루프 (요청하신 통합 레이아웃 적용)
+                # 데이터 출처 정보 추가 표시
+                st.info(f"💡 현재 분석에 사용된 원천 데이터 출처: **{data_source}**")
+
+                # 리스트 출력 루프
                 for ref in references_tab3:
                     st.markdown(f"""
                     <div class='ref-item'>
@@ -2287,10 +2298,11 @@ elif st.session_state.page == 'detail':
                     """, unsafe_allow_html=True)
                 
                 st.write("<br>", unsafe_allow_html=True)
-                st.caption("※ 클릭 시 해당 논문의 학술적 검색 결과 또는 데이터 사이트로 이동합니다.")
+                st.caption("※ 본 리포트는 SEC 공시 및 Finnhub API 데이터를 기반으로 위 학술적 모델을 적용하여 생성되었습니다.")
 
-            # [✅ 추가됨] 4단계 사용자 판단
-            draw_decision_box("company", "기업 가치평가는(Valusation)?", ["버블", "중립", "안정적"])
+            # [5] 사용자 최종 판단 박스 (Decision Box)
+            st.write("---") # 시각적 구분을 위한 구분선
+            draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["🚩 버블 가능성", "⚖️ 중립/적정", "💎 안정적 성장"])
 
         # ---------------------------------------------------------
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
@@ -2541,6 +2553,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
