@@ -2280,9 +2280,7 @@ elif st.session_state.page == 'detail':
             st.write("---")
             draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["고평가", "중립", "저평가"])
 
-            # [5] 사용자 최종 판단 박스
-            st.write("---")
-            draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["고평가", "중립", "저평가"])
+            
 
         # ---------------------------------------------------------
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
@@ -2533,6 +2531,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
