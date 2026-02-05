@@ -10,13 +10,41 @@ import uuid
 import random
 import math
 from datetime import datetime, timedelta
-from openai import OpenAI 
+from openai import OpenAI  # ✅ 여기서 임포트
 
 # --- [AI 및 검색 기능] ---
-import google.generativeai as genai  # Gemini AI 추가
+import google.generativeai as genai
 from duckduckgo_search import DDGS
-from tavily import TavilyClient  # [추가] TavilyClient 정의
-from openai import OpenAI        # [추가] Groq 호출을 위한 OpenAI 객체 정의
+from tavily import TavilyClient
+
+# ---------------------------------------------------------
+# ✅ [여기에 추가] translate_news_title 함수 정의
+# ---------------------------------------------------------
+@st.cache_data(show_spinner=False, ttl=3600)
+def translate_news_title(en_title):
+    """뉴스 제목을 한국 경제 신문 헤드라인 스타일로 번역 (캐시 적용)"""
+    groq_key = st.secrets.get("GROQ_API_KEY")
+    if not groq_key or not en_title:
+        return en_title
+
+    client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
+    
+    system_msg = """당신은 금융 전문 번역가입니다. 영문 주식 뉴스를 한국 경제 신문 헤드라인 스타일로 번역하세요.
+    - 'sh' -> '주당', 'M' -> '백만', 'IPO' -> 'IPO'
+    - 핵심 의미 위주로 간결하게 번역하고, 따옴표나 불필요한 수식어는 제거하세요."""
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": f"Translate to Korean headline: {en_title}"}
+            ],
+            temperature=0.1
+        )
+        return response.choices[0].message.content.strip().replace('"', '')
+    except Exception as e:
+        return en_title
 
 # --- [주식 및 차트 기능] ---
 import yfinance as yf
@@ -2598,6 +2626,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
