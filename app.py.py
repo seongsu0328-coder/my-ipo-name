@@ -1455,8 +1455,6 @@ elif st.session_state.page == 'detail':
             " 투자결정"
         ])
 
-       
-        
         # --- Tab 0: 핵심 정보 (공시 가이드 및 AI 분석 강화) ---
         with tab0:
             # [세션 상태 관리]
@@ -1572,15 +1570,7 @@ elif st.session_state.page == 'detail':
             """, unsafe_allow_html=True)
 
             
-            # 질문 텍스트: 위 간격(top)은 띄우고, 아래 간격(bottom)은 확 줄입니다.
-            st.markdown("""
-                <p style="font-size: 15px; font-weight: 600; margin-top: 25px; margin-bottom: -35px; position: relative; z-index: 10; background: white; display: inline-block; padding-right: 10px;">
-                    🤔 공시 정보에 대한 입장은?
-                </p>
-            """, unsafe_allow_html=True)
-            
-            # 질문 칸을 비운 함수 호출
-            draw_decision_box("filing", "", ["수용적", "중립적", "회의적"])
+            draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
 
         # --- Tab 1: 뉴스 & 심층 분석 ---
         with tab1:
@@ -2522,12 +2512,6 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
-
-
-
-
-
-
 
 
 
