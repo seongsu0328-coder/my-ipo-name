@@ -1909,13 +1909,55 @@ elif st.session_state.page == 'detail':
                 """, unsafe_allow_html=True)
 
                 references = [
-                    {"label": "IPO 데이터", "title": "Initial Public Offerings: Underpricing", "author": "Jay R. Ritter", "link": "https://site.warrington.ufl.edu/ritter/ipo-data/"},
-                    {"label": "시장 과열", "title": "'Hot Issue' Markets", "author": "Ibbotson & Jaffe (1975)", "link": "https://www.jstor.org/stable/2326615"},
-                    {"label": "상장 철회", "title": "The Choice Between Firm-Commitment IPOs...", "author": "Dunbar (1998)", "link": "#"},
-                    {"label": "시장 변동성", "title": "The VIX Index Methodology", "author": "CBOE", "link": "https://www.cboe.com/micro/vix/vixwhite.pdf"},
-                    {"label": "밸류에이션", "title": "Warren Buffett on the Stock Market", "author": "Warren Buffett (2001)", "link": "https://archive.fortune.com/magazines/fortune/fortune_archive/2001/12/10/314691/index.htm"},
-                    {"label": "기초 데이터", "title": "Robert Shiller Data (CAPE)", "author": "Robert Shiller", "link": "http://www.econ.yale.edu/~shiller/data.htm"},
-                    {"label": "투자자 심리", "title": "Fear & Greed Index", "author": "CNN Business", "link": "https://edition.cnn.com/markets/fear-and-greed"}
+                    {
+                        "label": "IPO 데이터", 
+                        "title": "Initial Public Offerings: Updated Statistics", 
+                        "author": "Jay R. Ritter (Warrington College)", 
+                        "summary": "미국 IPO 시장의 성적표와 공모가 저평가(Underpricing) 통계의 결정판",
+                        "link": "https://site.warrington.ufl.edu/ritter/ipo-data/"
+                    },
+                    {
+                        "label": "시장 과열", 
+                        "title": "'Hot Issue' Markets (Full Access)", 
+                        "author": "Ibbotson & Jaffe (1975)", 
+                        "summary": "특정 시기에 IPO 수익률이 비정상적으로 높아지는 '시장 과열' 현상 규명",
+                        "link": "https://www.jstor.org/stable/2326615"
+                    },
+                    {
+                        "label": "상장 철회", 
+                        "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", 
+                        "author": "Dunbar (1998)", 
+                        "summary": "상장 방식 선택에 따른 기업 가치와 상장 철회 위험의 상관관계 분석",
+                        "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9500850L"
+                    },
+                    {
+                        "label": "시장 변동성", 
+                        "title": "VIX White Paper: CBOE Volatility Index", 
+                        "author": "CBOE (Official)", 
+                        "summary": "S&P 500 옵션을 기반으로 시장의 공포와 변동성을 측정하는 표준 지표",
+                        "link": "https://www.cboe.com/micro/vix/vixwhite.pdf"
+                    },
+                    {
+                        "label": "밸류에이션", 
+                        "title": "Warren Buffett on the Stock Market (Fortune)", 
+                        "author": "Warren Buffett (2001)", 
+                        "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 거버 지표",
+                        "link": "https://archive.fortune.com/magazines/fortune/fortune_archive/2001/12/10/314691/index.htm"
+                    },
+                    {
+                        "label": "기초 데이터", 
+                        "title": "U.S. Stock Markets 1871-Present (CAPE Ratio)", 
+                        "author": "Robert Shiller", 
+                        "summary": "경기조정주가수익비율(CAPE)을 활용한 장기적 주식 시장 밸류에이션 데이터",
+                        "link": "http://www.econ.yale.edu/~shiller/data.htm"
+                    },
+                    {
+                        "label": "투자자 심리", 
+                        "title": "Fear & Greed Index (Real-time)", 
+                        "author": "CNN Business", 
+                        "summary": "7가지 지표를 통합해 투자자의 탐욕과 공포 수준을 0~100으로 수치화",
+                        "link": "https://edition.cnn.com/markets/fear-and-greed"
+                    }
                 ]
 
                 for ref in references:
