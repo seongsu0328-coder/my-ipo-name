@@ -1963,12 +1963,15 @@ elif st.session_state.page == 'detail':
                 for ref in references:
                     st.markdown(f"""
                     <div class='ref-item'>
-                        <div>
+                        <div style='flex:1;'>
                             <div class='ref-badge'>{ref['label']}</div><br>
                             <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
                             <div class='ref-author'>{ref['author']}</div>
+                            <div style='font-size: 12px; color: #888; margin-top: 4px;'>💡 {ref['summary']}</div>
                         </div>
-                        <div><a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a></div>
+                        <div style='margin-left: 15px;'>
+                            <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
+                        </div>
                     </div>""", unsafe_allow_html=True)
                 
                 st.caption("※ 클릭 시 해당 논문 또는 공식 데이터 제공 사이트로 이동합니다.")
@@ -2448,6 +2451,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
