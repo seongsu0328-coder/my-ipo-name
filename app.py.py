@@ -2174,7 +2174,7 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
 
             # [2.5] 논문기반 AI 종합 판정 리포트
-            with st.expander("🔬 논문기반 AI 분석 보기", expanded=False):
+            with st.expander("논문기반 AI 분석 보기", expanded=False):
                 # 1번 수정: 출처 표시 스타일 통일
                 st.caption(f"Data Source: {data_source} / Currency: USD")
                 
@@ -2197,7 +2197,7 @@ elif st.session_state.page == 'detail':
                     st.warning("재무 데이터 부재로 정성적 분석이 권장됩니다.")
         
             # [3] 재무자료 상세보기 (Summary Table)
-            with st.expander("📊 재무분석", expanded=True):
+            with st.expander("재무분석", expanded=True):
                 if is_data_available:
                     st.caption(f"Data Source: {data_source} / Currency: USD")
     
@@ -2247,10 +2247,8 @@ elif st.session_state.page == 'detail':
                                 </div>
                             """, unsafe_allow_html=True)
         
-                    st.divider()
+                    
         
-                    # 🔥 [보강된 CFA Analyst Opinion]
-                    st.markdown("#### Investment Thesis & CFA Analyst Opinion")
                 
                 # ... (이후 opinion_text 및 리스크 요인 코드는 동일하게 유지)
                     
@@ -2570,6 +2568,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
