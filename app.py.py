@@ -365,12 +365,13 @@ if st.session_state.get('page') == 'board':
     # '게시판' 선택 시에는 현재 페이지이므로 아무 작업 안 함
 
     # ---------------------------------------------------------
-    # 3. 통합 게시판 본문 (제목 없이 깔끔하게 시작)
+    # 3. 통합 게시판 본문 (리스트형 UI로 수정)
     # ---------------------------------------------------------
-    
+
     # [글쓰기 섹션]
     if is_logged_in:
-        with st.expander("✍️ 새로운 투자 의견 나누기", expanded=False):
+        with st.expander("글쓰기", expanded=False):
+            # ... (글쓰기 form 코드는 기존과 동일)
             with st.form("board_write_form_final", clear_on_submit=True):
                 col1, col2 = st.columns([1, 2])
                 with col1:
@@ -386,7 +387,9 @@ if st.session_state.get('page') == 'board':
                             "title": new_title, "content": new_content,
                             "author": st.session_state.get('user_phone', '익명'),
                             "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "likes": 0, "like_users": [], "uid": st.session_state.get('user_id')
+                            "likes": 0, "dislikes": 0, # 싫어요 필드 추가
+                            "like_users": [], "dislike_users": [],
+                            "uid": st.session_state.get('user_id')
                         }
                         if 'posts' not in st.session_state: st.session_state.posts = []
                         st.session_state.posts.insert(0, new_post)
@@ -401,18 +404,35 @@ if st.session_state.get('page') == 'board':
         selected_cat = st.selectbox("📂 종목 필터링", ["전체 목록"] + all_cats)
         display_posts = posts if "전체" in selected_cat else [p for p in posts if p['category'] == selected_cat]
 
-        for p in display_posts[:20]:
-            st.markdown(f"""
-            <div style='background-color: white; padding: 20px; border-radius: 15px; border: 1px solid #eef2ff; margin-bottom: 12px;'>
-                <div style='display: flex; justify-content: space-between; margin-bottom: 8px;'>
-                    <span style='color: #6e8efb; font-weight: bold;'>#{p.get('category')}</span>
-                    <span style='color: #999; font-size: 11px;'>{p.get('date')}</span>
-                </div>
-                <div style='font-weight: bold; font-size: 16px; color: #333;'>{p.get('title')}</div>
-                <div style='font-size: 14px; color: #555; margin-top: 5px;'>{p.get('content')}</div>
-                <div style='margin-top: 10px; font-size: 12px; color: #888;'>👍 {p.get('likes')} | 👤 {p.get('author')}</div>
-            </div>
-            """, unsafe_allow_html=True)
+        for idx, p in enumerate(display_posts[:20]):
+            # 1. 헤더 구성 (종목명, 글쓴이, 날짜)
+            # 요청하신 대로 글쓴이를 날짜 바로 왼쪽으로 이동
+            header_text = f"#{p.get('category')}  |  👤 {p.get('author')}  |  {p.get('date')}"
+            st.caption(header_text)
+            
+            # 2. 제목 클릭 시 내용이 펼쳐지는 Expander
+            with st.expander(f"**{p.get('title')}**", expanded=False):
+                st.write(p.get('content'))
+                st.divider()
+                
+                # 3. 좋아요 / 싫어요 선택항 (버튼 형식)
+                col_l, col_d, col_empty = st.columns([1, 1, 4])
+                
+                with col_l:
+                    if st.button(f"👍 {p.get('likes', 0)}", key=f"like_{p['id']}"):
+                        if user_id and user_id not in p.get('like_users', []):
+                            p['likes'] = p.get('likes', 0) + 1
+                            p.setdefault('like_users', []).append(user_id)
+                            st.rerun()
+                
+                with col_d:
+                    if st.button(f"👎 {p.get('dislikes', 0)}", key=f"dis_{p['id']}"):
+                        if user_id and user_id not in p.get('dislike_users', []):
+                            p['dislikes'] = p.get('dislikes', 0) + 1
+                            p.setdefault('dislike_users', []).append(user_id)
+                            st.rerun()
+            
+            st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
     else:
         st.caption("아직 게시글이 없습니다.")
 
@@ -2512,6 +2532,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
