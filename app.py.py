@@ -1941,8 +1941,8 @@ elif st.session_state.page == 'detail':
                         "label": "밸류에이션", 
                         "title": "Warren Buffett on the Stock Market (Fortune)", 
                         "author": "Warren Buffett (2001)", 
-                        "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 거버 지표",
-                        "link": "https://archive.fortune.com/magazines/fortune/fortune_archive/2001/12/10/314691/index.htm"
+                        "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 버핏 지표",
+                        "link": "https://fortune.com/2001/12/10/warren-buffett-on-the-stock-market/"
                     },
                     {
                         "label": "기초 데이터", 
@@ -2451,6 +2451,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
