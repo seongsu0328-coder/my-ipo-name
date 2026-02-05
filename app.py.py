@@ -299,133 +299,122 @@ st.markdown("""
 if st.session_state.get('page') == 'board':
     
     # ---------------------------------------------------------
-    # [1] 상단 네비게이션 (다른 페이지와 통일)
+    # 1. [STYLE] 블랙 배경 + 화이트 글씨 (제공해주신 스타일 적용)
     # ---------------------------------------------------------
-    def render_top_nav():
-        st.markdown("""
-            <style>
-            .nav-container { 
-                display: flex; justify-content: flex-start; gap: 25px; 
-                padding: 10px 0; border-bottom: 1px solid #f0f2f6; margin-bottom: 25px; 
-            }
-            .nav-item { 
-                font-size: 14px; font-weight: 600; color: #444; 
-                text-decoration: none; cursor: pointer;
-            }
-            .nav-item:hover { color: #6e8efb; }
-            /* 게시판 아이템 강조 (현재 활성화된 탭 느낌) */
-            .nav-active { color: #6e8efb; border-bottom: 2px solid #6e8efb; padding-bottom: 5px; }
-            </style>
-        """, unsafe_allow_html=True)
-        
-        # 실제 클릭 시 세션 스테이트를 변경하는 로직이 필요할 경우 st.button 등을 활용할 수 있으나,
-        # 일단 요청하신 시각적 통일성을 위해 HTML 구조를 유지합니다.
-        nav_html = """
-            <div class="nav-container">
-                <span class="nav-item">👤 로그인</span>
-                <span class="nav-item">🏠 메인</span>
-                <span class="nav-item">⭐ 관심</span>
-                <span class="nav-item nav-active">💬 게시판</span>
-            </div>
-        """
-        st.markdown(nav_html, unsafe_allow_html=True)
-
-    # 상단 메뉴 실행
-    render_top_nav()
+    st.markdown("""
+        <style>
+        div[data-testid="stPills"] div[role="radiogroup"] button {
+            border: none !important;
+            outline: none !important;
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border-radius: 20px !important;
+            padding: 6px 15px !important;
+            margin-right: 5px !important;
+            box-shadow: none !important;
+        }
+        div[data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #444444 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+        div[data-testid="stPills"] div[data-baseweb="pill"] {
+            border: none !important;
+            background: transparent !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     # ---------------------------------------------------------
-    # [2] 글쓰기 기능 (통합 게시판 전용)
+    # 2. 메뉴 텍스트 정의 및 페이지 이동 로직
     # ---------------------------------------------------------
-    # "🏛️ 통합 투자자 게시판" 제목은 요청대로 삭제하고 바로 글쓰기로 진입합니다.
-    if st.session_state.get('auth_status') == 'user':
+    is_logged_in = st.session_state.get('auth_status') == 'user'
+    login_text = "로그아웃" if is_logged_in else "로그인"
+    main_text = "메인"
+    watch_text = f"관심 ({len(st.session_state.get('watchlist', []))})"
+    board_text = "게시판"
+    
+    menu_options = [login_text, main_text, watch_text, board_text]
+
+    # 현재 게시판 페이지이므로 기본 선택값은 board_text
+    selected_menu = st.pills(
+        label="내비게이션",
+        options=menu_options,
+        selection_mode="single",
+        default=board_text,
+        key="top_nav_board_page", 
+        label_visibility="collapsed"
+    )
+
+    # ✨ [핵심] 메뉴 클릭 시 페이지 이동 로직 ✨
+    if selected_menu == login_text:
+        if is_logged_in:
+            st.session_state.auth_status = None
+            st.session_state.page = 'login'
+        else:
+            st.session_state.page = 'login'
+        st.rerun()
+    elif selected_menu == main_text:
+        st.session_state.page = 'calendar' # 메인(캘린더) 페이지로 이동
+        st.session_state.view_mode = 'all'
+        st.rerun()
+    elif selected_menu == watch_text:
+        st.session_state.page = 'calendar' # 캘린더 페이지로 가되
+        st.session_state.view_mode = 'watchlist' # 관심 종목 모드로 변경
+        st.rerun()
+    # '게시판' 선택 시에는 현재 페이지이므로 아무 작업 안 함
+
+    # ---------------------------------------------------------
+    # 3. 통합 게시판 본문 (제목 없이 깔끔하게 시작)
+    # ---------------------------------------------------------
+    
+    # [글쓰기 섹션]
+    if is_logged_in:
         with st.expander("✍️ 새로운 투자 의견 나누기", expanded=False):
-            with st.form("board_write_form_global", clear_on_submit=True):
+            with st.form("board_write_form_final", clear_on_submit=True):
                 col1, col2 = st.columns([1, 2])
                 with col1:
                     new_cat = st.text_input("🏷️ 종목명/태그", placeholder="예: 공통, TSLA")
                 with col2:
                     new_title = st.text_input("📝 제목", placeholder="제목을 입력하세요")
-                
-                new_content = st.text_area("💬 내용", placeholder="투자 의견을 자유롭게 나눠보세요.", height=100)
-                _, btn_col = st.columns([3, 1])
-                
-                if btn_col.form_submit_button("게시하기", use_container_width=True, type="primary"):
-                    if new_title.strip() and new_content.strip():
+                new_content = st.text_area("💬 내용", placeholder="투자 의견을 자유롭게 나눠보세요.")
+                if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
+                    if new_title and new_content:
                         new_post = {
                             "id": str(uuid.uuid4()),
                             "category": new_cat if new_cat else "공통",
-                            "title": new_title,
-                            "content": new_content,
+                            "title": new_title, "content": new_content,
                             "author": st.session_state.get('user_phone', '익명'),
                             "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "likes": 0,
-                            "like_users": [],
-                            "uid": st.session_state.get('user_id')
+                            "likes": 0, "like_users": [], "uid": st.session_state.get('user_id')
                         }
-                        if 'posts' not in st.session_state:
-                            st.session_state.posts = []
+                        if 'posts' not in st.session_state: st.session_state.posts = []
                         st.session_state.posts.insert(0, new_post)
-                        st.success("✅ 게시글이 등록되었습니다!")
                         st.rerun()
-                    else:
-                        st.warning("⚠️ 제목과 내용을 입력해주세요.")
     else:
-        st.info("💡 글을 남기려면 로그인이 필요합니다.")
+        st.info("💡 글을 남기려면 상단 메뉴에서 로그인을 해주세요.")
 
-    # ---------------------------------------------------------
-    # [3] 게시글 리스트 (인기글 및 전체 목록)
-    # ---------------------------------------------------------
+    # [게시글 리스트 섹션]
     posts = st.session_state.get('posts', [])
-    
-    if not posts:
-        st.caption("아직 작성된 의견이 없습니다.")
-    else:
-        # 주간 인기 TOP 5 디자인 수정
-        try:
-            now = datetime.now()
-            week_ago = now - timedelta(days=7)
-            top_posts = [p for p in posts if datetime.strptime(p['date'], "%Y-%m-%d %H:%M") >= week_ago]
-            top_posts = sorted(top_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
-            
-            if top_posts:
-                st.markdown("##### 🔥 주간 인기 TOP 5")
-                cols = st.columns(len(top_posts))
-                for i, tp in enumerate(top_posts):
-                    cols[i].markdown(f"""
-                        <div style='background: #f0f4ff; padding: 10px; border-radius: 10px; border-left: 3px solid #6e8efb; font-size: 12px;'>
-                            <b style='color:#333;'>{tp['title'][:8]}..</b><br><span style='color:#6e8efb;'>👍 {tp['likes']}</span>
-                        </div>
-                    """, unsafe_allow_html=True)
-        except:
-            pass
-
-        st.divider()
-
-        # 필터링 및 리스트 출력
+    if posts:
         all_cats = sorted(list(set([p.get('category', '공통') for p in posts])))
         selected_cat = st.selectbox("📂 종목 필터링", ["전체 목록"] + all_cats)
         display_posts = posts if "전체" in selected_cat else [p for p in posts if p['category'] == selected_cat]
 
-        # 페이징 처리
-        total_pages = math.ceil(len(display_posts) / 10)
-        page = st.number_input("페이지", min_value=1, max_value=max(1, total_pages), step=1, key="global_board_page")
-        
-        start_idx = (page - 1) * 10
-        for p in display_posts[start_idx : start_idx + 10]:
+        for p in display_posts[:20]:
             st.markdown(f"""
-            <div style='background-color: white; padding: 20px; border-radius: 15px; border: 1px solid #eef2ff; margin-bottom: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);'>
-                <div style='display: flex; justify-content: space-between; margin-bottom: 10px;'>
-                    <span style='background-color: #eef2ff; color: #6e8efb; padding: 2px 8px; border-radius: 5px; font-weight: bold; font-size: 11px;'>#{p.get('category', '공통')}</span>
-                    <span style='color: #999; font-size: 11px;'>{p.get('date', '')}</span>
+            <div style='background-color: white; padding: 20px; border-radius: 15px; border: 1px solid #eef2ff; margin-bottom: 12px;'>
+                <div style='display: flex; justify-content: space-between; margin-bottom: 8px;'>
+                    <span style='color: #6e8efb; font-weight: bold;'>#{p.get('category')}</span>
+                    <span style='color: #999; font-size: 11px;'>{p.get('date')}</span>
                 </div>
-                <div style='font-size: 16px; font-weight: bold; color: #333; margin-bottom: 8px;'>{p.get('title')}</div>
-                <div style='font-size: 14px; color: #555; line-height: 1.6;'>{p.get('content')}</div>
-                <div style='margin-top: 12px; padding-top: 10px; border-top: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center;'>
-                    <span style='font-size: 12px; color: #888;'>👤 {p.get('author', '익명')}</span>
-                    <span style='font-size: 13px; color: #6e8efb;'>👍 {p.get('likes', 0)}</span>
-                </div>
+                <div style='font-weight: bold; font-size: 16px; color: #333;'>{p.get('title')}</div>
+                <div style='font-size: 14px; color: #555; margin-top: 5px;'>{p.get('content')}</div>
+                <div style='margin-top: 10px; font-size: 12px; color: #888;'>👍 {p.get('likes')} | 👤 {p.get('author')}</div>
             </div>
             """, unsafe_allow_html=True)
+    else:
+        st.caption("아직 게시글이 없습니다.")
 
     st.stop()
 
@@ -2519,6 +2508,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
