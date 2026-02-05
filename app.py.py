@@ -10,6 +10,7 @@ import uuid
 import random
 import math
 from datetime import datetime, timedelta
+from openai import OpenAI 
 
 # --- [AI 및 검색 기능] ---
 import google.generativeai as genai  # Gemini AI 추가
@@ -2597,6 +2598,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
