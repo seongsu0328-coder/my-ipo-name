@@ -1939,10 +1939,11 @@ elif st.session_state.page == 'detail':
                     },
                     {
                         "label": "밸류에이션", 
-                        "title": "Warren Buffett on the Stock Market (Fortune)", 
+                        "title": "Warren Buffett on the Stock Market (Fortune Classic)", 
                         "author": "Warren Buffett (2001)", 
                         "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 버핏 지표",
-                        "link": "https://fortune.com/2001/12/10/warren-buffett-on-the-stock-market/"
+                        # Fortune 공식 대신 가장 안정적으로 원문 전문을 제공하는 GuruFocus의 아카이브 링크로 교체
+                        "link": "https://www.gurufocus.com/news/122602/warren-buffett-on-the-stock-market-2001-article"
                     },
                     {
                         "label": "기초 데이터", 
@@ -2451,6 +2452,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
