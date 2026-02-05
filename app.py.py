@@ -297,99 +297,135 @@ st.markdown("""
 
 # --- [1. 최상단 페이지 컨트롤러] ---
 if st.session_state.get('page') == 'board':
-    st.markdown("### 🏛️ 통합 투자자 게시판")
     
-    # 홈으로 돌아가기 버튼
-    if st.sidebar.button("🏠 메인 화면으로 돌아가기", use_container_width=True):
-        st.session_state.page = 'calendar'
-        st.rerun()
-
     # ---------------------------------------------------------
-    # ✨ [추가] 통합 게시판 직접 글쓰기 기능
+    # [1] 상단 네비게이션 (다른 페이지와 통일)
     # ---------------------------------------------------------
-    with st.expander("✍️ 새로운 의견 나누기 (여기에 글쓰기)", expanded=False):
-        with st.form("board_write_form", clear_on_submit=True):
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                # 카테고리를 직접 입력하거나 '공통'으로 설정
-                new_cat = st.text_input("🏷️ 종목명/태그", placeholder="예: 공통, AAPL, 테슬라")
-            with col2:
-                new_title = st.text_input("📝 제목", placeholder="제목을 입력하세요")
-            
-            new_content = st.text_area("💬 내용", placeholder="투자 의견을 자유롭게 나눠보세요.")
-            
-            submit_btn = st.form_submit_button("게시하기", use_container_width=True)
-            
-            if submit_btn:
-                if new_title and new_content:
-                    # 새로운 포스트 객체 생성
-                    new_post = {
-                        "id": str(uuid.uuid4()),
-                        "category": new_cat if new_cat else "공통",
-                        "title": new_title,
-                        "content": new_content,
-                        "author": "익명", # 필요시 사용자 이름 연동
-                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "likes": 0
-                    }
-                    
-                    # 기존 posts 리스트에 추가 (없으면 생성)
-                    if 'posts' not in st.session_state:
-                        st.session_state.posts = []
-                    
-                    st.session_state.posts.insert(0, new_post) # 최신글이 맨 위로
-                    st.success("✅ 게시글이 등록되었습니다!")
-                    st.rerun()
-                else:
-                    st.warning("⚠️ 제목과 내용을 모두 입력해주세요.")
-    
-    st.divider()
-    # ---------------------------------------------------------
-
-    try:
-        posts = st.session_state.get('posts', [])
+    def render_top_nav():
+        st.markdown("""
+            <style>
+            .nav-container { 
+                display: flex; justify-content: flex-start; gap: 25px; 
+                padding: 10px 0; border-bottom: 1px solid #f0f2f6; margin-bottom: 25px; 
+            }
+            .nav-item { 
+                font-size: 14px; font-weight: 600; color: #444; 
+                text-decoration: none; cursor: pointer;
+            }
+            .nav-item:hover { color: #6e8efb; }
+            /* 게시판 아이템 강조 (현재 활성화된 탭 느낌) */
+            .nav-active { color: #6e8efb; border-bottom: 2px solid #6e8efb; padding-bottom: 5px; }
+            </style>
+        """, unsafe_allow_html=True)
         
-        if not posts:
-            st.info("📢 아직 작성된 게시글이 없습니다. 첫 번째 의견을 남겨보세요!")
-        else:
-            # [기존 로직] 주간 인기글...
-            try:
-                now = datetime.now()
-                week_ago = now - timedelta(days=7)
-                # date 형식이 문자열인 경우 datetime으로 변환하여 체크
-                top_posts = [p for p in posts if datetime.strptime(p['date'], "%Y-%m-%d %H:%M") >= week_ago]
-                top_posts = sorted(top_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
+        # 실제 클릭 시 세션 스테이트를 변경하는 로직이 필요할 경우 st.button 등을 활용할 수 있으나,
+        # 일단 요청하신 시각적 통일성을 위해 HTML 구조를 유지합니다.
+        nav_html = """
+            <div class="nav-container">
+                <span class="nav-item">👤 로그인</span>
+                <span class="nav-item">🏠 메인</span>
+                <span class="nav-item">⭐ 관심</span>
+                <span class="nav-item nav-active">💬 게시판</span>
+            </div>
+        """
+        st.markdown(nav_html, unsafe_allow_html=True)
+
+    # 상단 메뉴 실행
+    render_top_nav()
+
+    # ---------------------------------------------------------
+    # [2] 글쓰기 기능 (통합 게시판 전용)
+    # ---------------------------------------------------------
+    # "🏛️ 통합 투자자 게시판" 제목은 요청대로 삭제하고 바로 글쓰기로 진입합니다.
+    if st.session_state.get('auth_status') == 'user':
+        with st.expander("✍️ 새로운 투자 의견 나누기", expanded=False):
+            with st.form("board_write_form_global", clear_on_submit=True):
+                col1, col2 = st.columns([1, 2])
+                with col1:
+                    new_cat = st.text_input("🏷️ 종목명/태그", placeholder="예: 공통, TSLA")
+                with col2:
+                    new_title = st.text_input("📝 제목", placeholder="제목을 입력하세요")
                 
-                if top_posts:
-                    st.subheader("🔥 주간 인기 TOP 5")
-                    cols = st.columns(len(top_posts))
-                    for i, tp in enumerate(top_posts):
-                        cols[i].info(f"**{tp['title'][:10]}..**\n👍 {tp['likes']}")
-            except:
-                pass
+                new_content = st.text_area("💬 내용", placeholder="투자 의견을 자유롭게 나눠보세요.", height=100)
+                _, btn_col = st.columns([3, 1])
+                
+                if btn_col.form_submit_button("게시하기", use_container_width=True, type="primary"):
+                    if new_title.strip() and new_content.strip():
+                        new_post = {
+                            "id": str(uuid.uuid4()),
+                            "category": new_cat if new_cat else "공통",
+                            "title": new_title,
+                            "content": new_content,
+                            "author": st.session_state.get('user_phone', '익명'),
+                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "likes": 0,
+                            "like_users": [],
+                            "uid": st.session_state.get('user_id')
+                        }
+                        if 'posts' not in st.session_state:
+                            st.session_state.posts = []
+                        st.session_state.posts.insert(0, new_post)
+                        st.success("✅ 게시글이 등록되었습니다!")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ 제목과 내용을 입력해주세요.")
+    else:
+        st.info("💡 글을 남기려면 로그인이 필요합니다.")
 
-            st.divider()
+    # ---------------------------------------------------------
+    # [3] 게시글 리스트 (인기글 및 전체 목록)
+    # ---------------------------------------------------------
+    posts = st.session_state.get('posts', [])
+    
+    if not posts:
+        st.caption("아직 작성된 의견이 없습니다.")
+    else:
+        # 주간 인기 TOP 5 디자인 수정
+        try:
+            now = datetime.now()
+            week_ago = now - timedelta(days=7)
+            top_posts = [p for p in posts if datetime.strptime(p['date'], "%Y-%m-%d %H:%M") >= week_ago]
+            top_posts = sorted(top_posts, key=lambda x: x.get('likes', 0), reverse=True)[:5]
+            
+            if top_posts:
+                st.markdown("##### 🔥 주간 인기 TOP 5")
+                cols = st.columns(len(top_posts))
+                for i, tp in enumerate(top_posts):
+                    cols[i].markdown(f"""
+                        <div style='background: #f0f4ff; padding: 10px; border-radius: 10px; border-left: 3px solid #6e8efb; font-size: 12px;'>
+                            <b style='color:#333;'>{tp['title'][:8]}..</b><br><span style='color:#6e8efb;'>👍 {tp['likes']}</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+        except:
+            pass
 
-            # [기존 로직] 전체 목록 필터링 및 렌더링
-            all_cats = sorted(list(set([p.get('category', '기타') for p in posts])))
-            selected_cat = st.selectbox("📂 종목별 필터", ["전체 목록"] + all_cats)
-            display_posts = posts if "전체" in selected_cat else [p for p in posts if p['category'] == selected_cat]
+        st.divider()
 
-            for post in display_posts[:30]: 
-                st.markdown(f"""
-                <div style='background-color: white; padding: 18px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);'>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <span style='color: #6e8efb; font-weight: bold; font-size: 13px;'>#{post.get('category', '공통')}</span>
-                        <span style='color: #999; font-size: 11px;'>{post.get('date', '')}</span>
-                    </div>
-                    <div style='font-size: 17px; font-weight: bold; margin-top: 5px; color: #333;'>{post.get('title', '제목 없음')}</div>
-                    <div style='font-size: 14px; color: #555; margin-top: 8px; line-height: 1.5;'>{post.get('content', '')}</div>
-                    <div style='margin-top: 10px; font-size: 12px; color: #888;'>👍 {post.get('likes', 0)} | 👤 {post.get('author', '익명')}</div>
+        # 필터링 및 리스트 출력
+        all_cats = sorted(list(set([p.get('category', '공통') for p in posts])))
+        selected_cat = st.selectbox("📂 종목 필터링", ["전체 목록"] + all_cats)
+        display_posts = posts if "전체" in selected_cat else [p for p in posts if p['category'] == selected_cat]
+
+        # 페이징 처리
+        total_pages = math.ceil(len(display_posts) / 10)
+        page = st.number_input("페이지", min_value=1, max_value=max(1, total_pages), step=1, key="global_board_page")
+        
+        start_idx = (page - 1) * 10
+        for p in display_posts[start_idx : start_idx + 10]:
+            st.markdown(f"""
+            <div style='background-color: white; padding: 20px; border-radius: 15px; border: 1px solid #eef2ff; margin-bottom: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);'>
+                <div style='display: flex; justify-content: space-between; margin-bottom: 10px;'>
+                    <span style='background-color: #eef2ff; color: #6e8efb; padding: 2px 8px; border-radius: 5px; font-weight: bold; font-size: 11px;'>#{p.get('category', '공통')}</span>
+                    <span style='color: #999; font-size: 11px;'>{p.get('date', '')}</span>
                 </div>
-                """, unsafe_allow_html=True)
-
-    except Exception as e:
-        st.error(f"⚠️ 게시판을 불러오는 중 오류가 발생했습니다: {e}")
+                <div style='font-size: 16px; font-weight: bold; color: #333; margin-bottom: 8px;'>{p.get('title')}</div>
+                <div style='font-size: 14px; color: #555; line-height: 1.6;'>{p.get('content')}</div>
+                <div style='margin-top: 12px; padding-top: 10px; border-top: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center;'>
+                    <span style='font-size: 12px; color: #888;'>👤 {p.get('author', '익명')}</span>
+                    <span style='font-size: 13px; color: #6e8efb;'>👍 {p.get('likes', 0)}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
     st.stop()
 
@@ -2483,6 +2519,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
