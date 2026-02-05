@@ -2041,34 +2041,43 @@ elif st.session_state.page == 'detail':
                     else:
                         data_source = "Yahoo Finance (보조)"
         
-            # 🔥 [0.5] 핵심: 공식 API에 데이터가 없을 경우 Yahoo Finance 웹 표(Table) 직접 추출
+            # 🔥 [0.5] 데이터 보강 로직 (기존 if문 내부에 교체 삽입)
             if not is_data_available or not fin_data.get('revenue'):
                 try:
-                    # yfinance 라이브러리를 통해 사용자가 웹에서 보는 그 표를 데이터프레임으로 가져옴
                     ticker = yf.Ticker(stock['symbol'])
-                    yf_financials = ticker.financials 
+                    yf_fin = ticker.financials
+                    yf_info = ticker.info
+                    yf_bal = ticker.balance_sheet
                     
-                    if not yf_financials.empty:
-                        # 'Total Revenue'와 'Net Income' 행(Row)에서 가장 최신 열(0번 컬럼) 추출
-                        latest_revenue = yf_financials.loc['Total Revenue'].iloc[0]
-                        latest_net_income = yf_financials.loc['Net Income'].iloc[0]
+                    if not yf_fin.empty:
+                        # [기본 실적]
+                        rev = yf_fin.loc['Total Revenue'].iloc[0]
+                        net_inc = yf_fin.loc['Net Income'].iloc[0]
+                        prev_rev = yf_fin.loc['Total Revenue'].iloc[1] if len(yf_fin.columns) > 1 else rev
                         
-                        # 추출한 숫자를 fin_data 그릇에 강제 주입
-                        fin_data['revenue'] = latest_revenue / 1e6  # M단위로 변환
-                        fin_data['net_margin'] = (latest_net_income / latest_revenue) * 100
+                        # [지표 계산 및 주입]
+                        fin_data['revenue'] = rev / 1e6
+                        fin_data['net_margin'] = (net_inc / rev) * 100
+                        fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100
+                        fin_data['eps'] = yf_info.get('trailingEps', 0)
                         
-                        # 추가 데이터(부채 등)도 필요하다면 여기서 주입 가능
-                        if not fin_data.get('growth'):
-                            # 1년 전 매출과 비교하여 성장률 계산
-                            prev_revenue = yf_financials.loc['Total Revenue'].iloc[1]
-                            fin_data['growth'] = ((latest_revenue - prev_revenue) / prev_revenue) * 100
+                        # [추가 전문 지표]
+                        fin_data['market_cap'] = yf_info.get('marketCap', 0) / 1e6
+                        fin_data['forward_pe'] = yf_info.get('forwardPE', 0)
+                        fin_data['price_to_book'] = yf_info.get('priceToBook', 0)
                         
-                        # 최종적으로 상태를 '데이터 있음'으로 변경
+                        # [안정성 지표 - 대차대조표 기반]
+                        if not yf_bal.empty:
+                            total_assets = yf_bal.loc['Total Assets'].iloc[0] if 'Total Assets' in yf_bal.index else 1
+                            total_liab = yf_bal.loc['Total Liabilities Net Minority Interest'].iloc[0] if 'Total Liabilities Net Minority Interest' in yf_bal.index else 0
+                            equity = yf_bal.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in yf_bal.index else 1
+                            fin_data['debt_equity'] = (total_liab / equity) * 100
+                            fin_data['roe'] = (net_inc / equity) * 100
+                        
                         is_data_available = True
-                        data_source = "Yahoo Finance (Direct Scrape)"
-                except Exception as e:
-                    # 실패하더라도 앱이 멈추지 않도록 예외 처리
-                    pass 
+                        data_source = "Yahoo Finance (Full Direct)"
+                except:
+                    pass
         
             # [1] 데이터 전처리 및 지표 계산 (위에서 주입된 숫자가 여기서 사용됨)
             growth_val = fin_data.get('growth') if is_data_available else None
@@ -2185,48 +2194,53 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
 
             # [2.5] 재무자료 상세보기 (Summary Table)
-            with st.expander("📊 상세 재무지표 및 원문 자료", expanded=False):
+            with st.expander("📊 전문 투자자용 종합 재무 분석", expanded=True):
                 if is_data_available:
-                    st.write(f"##### 핵심 재무 지표 요약 (최신 데이터 소스: {data_source})")
+                    st.write(f"##### 📋 {stock['name']} 종합 투자 지표 ({data_source})")
                     
-                    # 안전한 데이터 추출
-                    m_cap = fin_data.get('market_cap') or 0
-                    rev = fin_data.get('revenue') or 0
-                    op_margin = fin_data.get('op_margin') or 0
-                    net_margin = fin_data.get('net_margin') or 0
-                    debt_equity = fin_data.get('debt_equity') or 0
-                    current_ratio = fin_data.get('current_ratio') or 0
-                    roe = fin_data.get('roe') or 0
-                    eps = fin_data.get('eps') or 0
-            
-                    col1, col2 = st.columns(2)
+                    # 데이터 정리
+                    pe_val = f"{fin_data.get('forward_pe', 0):.1f}x" if fin_data.get('forward_pe') else "N/A (적자)"
+                    pbr_val = f"{fin_data.get('price_to_book', 0):.2f}x"
+                    m_cap = fin_data.get('market_cap', 0)
+                    
+                    # 레이아웃 구성
+                    col1, col2, col3 = st.columns(3)
+                    
                     with col1:
-                        st.markdown(f"**수익성 및 규모**\n* **시가총액:** ${m_cap:,.0f}M\n* **연간 매출:** ${rev:,.0f}M\n* **영업이익률:** {op_margin:.2f}%\n* **순이익률:** {net_margin:.2f}%")
-                    with col2:
-                        st.markdown(f"**안정성 및 효율성**\n* **부채비율(D/E):** {debt_equity:.2f}%\n* **유동비율:** {current_ratio:.2f}x\n* **ROE:** {roe:.2f}%\n* **EPS (TTM):** ${eps:.2f}")
-                    st.caption(f"※ 위 수치는 {data_source}를 통해 수집된 최근 보고서 기준 데이터입니다.")
-                else:
-                    st.warning(f"⚠️ {stock['name']}의 상세 재무 데이터를 불러올 수 없습니다.")
-                    st.info(f"상장 예정이거나 신규 상장 기업인 경우 공식 API에 데이터가 지연될 수 있습니다. 아래 외부 링크에서 직접 확인해 주세요.")
-                
-                st.divider()
-                s = stock['symbol']
-                st.write("##### 🔗 원문 자료 직접 확인 (User Judgment)")
-                l1, l2, l3 = st.columns(3)
-                l1.markdown(f"[📈 Yahoo Finance](https://finance.yahoo.com/quote/{s}/financials)")
-                l2.markdown(f"[📄 SEC EDGAR (공시)](https://www.sec.gov/edgar/browse/?CIK={s})")
-                l3.markdown(f"[🔍 MarketWatch](https://www.marketwatch.com/investing/stock/{s}/financials)")
+                        st.markdown("🎯 **밸류에이션 (Valuation)**")
+                        st.metric("시가총액", f"${m_cap:,.0f}M")
+                        st.metric("PER (선행)", pe_val)
+                        st.metric("PBR", pbr_val)
+                        st.caption("낮을수록 저평가, 높을수록 성장 기대치 높음")
 
-            # [3] AI 종합 판정 리포트
-            with st.expander("논문기반 AI분석보기", expanded=False):
-                st.success(f"{stock['name']} 데이터 분석 소스: {data_source}")
-                st.write(f"**종합 평가:**")
-                if is_data_available:
-                    growth_status = "안정적" if (growth_val or 0) > 5 else "정체"
-                    st.write(f"* **성장성:** {growth_status}, **자금 건전성:** {accruals_status}")
-                    st.write(f"* **정보 비대칭성:** {data_source} 데이터가 확인되어 정보 불확실성이 상대적으로 낮은 편입니다.")
-                else:
-                    st.write("❗ 실시간 공식 데이터 부재로 인해 외부 공시 자료 및 야후 파이낸스 실적을 통한 정성적 분석이 필수적입니다.")
+                    with col2:
+                        st.markdown("📈 **수익성 지표 (Profitability)**")
+                        st.metric("매출액", f"${fin_data.get('revenue', 0):,.0f}M")
+                        st.metric("순이익률", f"{fin_data.get('net_margin', 0):.2f}%")
+                        st.metric("ROE (자기자본이익률)", f"{fin_data.get('roe', 0):.2f}%")
+                        st.caption("ROE 15% 이상 시 매우 우수한 경영")
+
+                    with col3:
+                        st.markdown("🛡️ **재무 건전성 (Solvency)**")
+                        st.metric("부채비율", f"{fin_data.get('debt_equity', 0):.2f}%")
+                        st.metric("EPS (주당순이익)", f"${fin_data.get('eps', 0):.2f}")
+                        acc_status = "✅ 건전" if accruals_status == "Low" else "🚨 주의"
+                        st.metric("회계 품질", acc_status)
+                        st.caption("부채 100% 미만 시 안정적")
+
+                    st.divider()
+                    
+                    # [추가] CFA 인사이트 섹션
+                    st.markdown("##### 💡 CFA 등급 핵심 코멘트")
+                    pe_ratio = fin_data.get('forward_pe', 0)
+                    if pe_ratio > 50:
+                        valuation_msg = "현재 주가는 미래 성장을 상당히 선반영한 상태입니다. 실적 성장이 뒷받침되지 않으면 변동성이 커질 수 있습니다."
+                    elif 0 < pe_ratio <= 15:
+                        valuation_msg = "업종 평균 대비 낮은 PER로, 실적 대비 저평가 구간일 가능성이 높습니다."
+                    else:
+                        valuation_msg = "시장 평균 수준의 밸류에이션을 형성하고 있습니다."
+
+                    st.info(f"**총평:** {valuation_msg} 이 기업은 현재 매출 성장성({fin_data.get('growth', 0):.1f}%)과 자기자본 효율성(ROE: {fin_data.get('roe', 0):.1f}%)의 균형을 확인하는 것이 핵심입니다.")
 
             # [4] 학술적 근거 및 원문 링크 섹션
             with st.expander("참고(References) 및 데이터 출처", expanded=False):
@@ -2517,6 +2531,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
