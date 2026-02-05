@@ -2027,31 +2027,52 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 3: 개별 기업 평가 (Real Data 연동 - Full Version) ---
         with tab3:
-            # [0] 데이터 소스 및 유효성 판별 (SEC -> Finnhub -> Yahoo 순 공신력 반영)
+            # [0] 데이터 소스 및 1차 유효성 판별
             data_source = "Unknown"
             is_data_available = False
             
             if fin_data:
-                # 데이터가 존재하고 매출(Revenue)이 0보다 큰지 확인
                 if fin_data.get('revenue') and fin_data.get('revenue') > 0:
                     is_data_available = True
-                    # 데이터 소스 식별 (필드 구성에 따른 추정)
                     if 'sec' in str(fin_data.get('source', '')).lower():
                         data_source = "SEC 10-K/Q (공시)"
                     elif fin_data.get('market_cap'):
                         data_source = "Finnhub (가공)"
                     else:
                         data_source = "Yahoo Finance (보조)"
-                else:
-                    # 데이터가 없거나 0인 경우 (EquipmentShare 등 상장 초기 대응)
-                    data_source = "Yahoo/MarketWatch (외부 데이터)"
-            else:
-                data_source = "Data Pending (확인 불가)"
-
-            # [1] 데이터 전처리 및 지표 계산
-            # 데이터가 없을 경우 '데이터 없음' 표시를 위해 None 처리 유지
+        
+            # 🔥 [0.5] 핵심: 공식 API에 데이터가 없을 경우 Yahoo Finance 웹 표(Table) 직접 추출
+            if not is_data_available or not fin_data.get('revenue'):
+                try:
+                    # yfinance 라이브러리를 통해 사용자가 웹에서 보는 그 표를 데이터프레임으로 가져옴
+                    ticker = yf.Ticker(stock['symbol'])
+                    yf_financials = ticker.financials 
+                    
+                    if not yf_financials.empty:
+                        # 'Total Revenue'와 'Net Income' 행(Row)에서 가장 최신 열(0번 컬럼) 추출
+                        latest_revenue = yf_financials.loc['Total Revenue'].iloc[0]
+                        latest_net_income = yf_financials.loc['Net Income'].iloc[0]
+                        
+                        # 추출한 숫자를 fin_data 그릇에 강제 주입
+                        fin_data['revenue'] = latest_revenue / 1e6  # M단위로 변환
+                        fin_data['net_margin'] = (latest_net_income / latest_revenue) * 100
+                        
+                        # 추가 데이터(부채 등)도 필요하다면 여기서 주입 가능
+                        if not fin_data.get('growth'):
+                            # 1년 전 매출과 비교하여 성장률 계산
+                            prev_revenue = yf_financials.loc['Total Revenue'].iloc[1]
+                            fin_data['growth'] = ((latest_revenue - prev_revenue) / prev_revenue) * 100
+                        
+                        # 최종적으로 상태를 '데이터 있음'으로 변경
+                        is_data_available = True
+                        data_source = "Yahoo Finance (Direct Scrape)"
+                except Exception as e:
+                    # 실패하더라도 앱이 멈추지 않도록 예외 처리
+                    pass 
+        
+            # [1] 데이터 전처리 및 지표 계산 (위에서 주입된 숫자가 여기서 사용됨)
             growth_val = fin_data.get('growth') if is_data_available else None
-            ocf_val = fin_data.get('net_margin') if is_data_available else 0  # Net Margin을 OCF 대용으로 활용
+            ocf_val = fin_data.get('net_margin') if is_data_available else 0
             
             op_m = fin_data.get('op_margin') if is_data_available else None
             net_m = fin_data.get('net_margin') if is_data_available else None
@@ -2496,6 +2517,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
