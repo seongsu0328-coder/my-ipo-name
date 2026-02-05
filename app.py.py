@@ -1572,8 +1572,12 @@ elif st.session_state.page == 'detail':
             """, unsafe_allow_html=True)
 
             
-            # 상단에 여백을 없애는 스타일을 직접 주입한 문장입니다.
-            st.markdown('<p style="font-size: 15px; font-weight: 600; margin-bottom: -15px;"> 공시 정보에 대한 입장은?</p>', unsafe_allow_html=True)
+            # 질문 텍스트: 위 간격(top)은 띄우고, 아래 간격(bottom)은 확 줄입니다.
+            st.markdown("""
+                <p style="font-size: 15px; font-weight: 600; margin-top: 25px; margin-bottom: -35px; position: relative; z-index: 10; background: white; display: inline-block; padding-right: 10px;">
+                    🤔 공시 정보에 대한 입장은?
+                </p>
+            """, unsafe_allow_html=True)
             
             # 질문 칸을 비운 함수 호출
             draw_decision_box("filing", "", ["수용적", "중립적", "회의적"])
@@ -2518,6 +2522,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
