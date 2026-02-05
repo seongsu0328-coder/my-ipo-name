@@ -2365,71 +2365,67 @@ elif st.session_state.page == 'detail':
 
             
 
-        # ---------------------------------------------------------
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
-        # ---------------------------------------------------------
         with tab4:
-            # 1. 데이터 수집 (지정된 3개 사이트 타겟팅 결과 호출)
-            with st.spinner(f"🚀 전문 기관(Renaissance, Seeking Alpha, Morningstar) 데이터를 수집 중..."):
+            # 1. 데이터 수집
+            with st.spinner(f"전문 기관 리포트 추적 중..."):
                 result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
-
-            # --- (1) Renaissance Capital 섹션 ---
-            with st.expander("Renaissance Capital IPO 요약", expanded=False):
-                st.markdown("**[AI 기관 분석 요약]**")
-                # 긍정/부정 내용 중 Renaissance 관련 내용이 있다면 우선 표시됨
-                st.info(result.get('summary', '데이터를 불러올 수 없습니다.')) 
+            
+            st.markdown("### Wall Street Institution Analysis")
+            st.caption("주요 IPO 리서치 기관의 분석 데이터 및 다이렉트 링크를 제공합니다.")
+        
+            # 공통 쿼리 정의
+            q = stock['symbol'] if stock['symbol'] and stock['symbol'] != 'N/A' else stock['name']
+        
+            # --- (1) Renaissance Capital (IPO 전문) ---
+            with st.container():
+                st.markdown("#### 1. Renaissance Capital")
+                summary = result.get('summary', '')
+                if summary and "분석 불가" not in summary:
+                    st.info(summary)
+                else:
+                    st.warning("⚠️ 현재 Renaissance Capital에서 해당 종목의 요약 리포트를 생성 중이거나 비공개 상태입니다.")
                 
-                q = stock['symbol'] if stock['symbol'] else stock['name']
-                st.link_button(f"🔗 {stock['name']} Renaissance 상세 페이지", 
-                               f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}")
-
-            # --- (2) Seeking Alpha & Morningstar 섹션 ---
-            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
-                st.markdown("**[Market Consensus]**")
-                st.write(f"전문 분석가들이 제시하는 {stock['name']}의 핵심 논거입니다.")
-                
-                # 긍정/부정 의견 블록 노출
-                st.success(f"**💡 주요 긍정/부정 의견**\n\n{result.get('pro_con', '의견 수집 중')}")
-                
-                st.markdown("---")
-                c1, c2 = st.columns(2)
-                with c1: 
-                    st.link_button("🔗 Seeking Alpha 바로가기", f"https://seekingalpha.com/symbol/{q}/analysis")
-                with c2: 
-                    st.link_button("🔗 Morningstar 바로가기", "https://www.morningstar.com/")
-
-            # --- (3) Institutional Sentiment 섹션 ---
-            with st.expander("Sentiment Score", expanded=False):
-                s_col1, s_col2 = st.columns(2)
-                with s_col1:
-                    st.write("**[Analyst Ratings]**")
-                    rating_val = result.get('rating', 'Neutral')
-                    if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
-                        st.success(f"Consensus: {rating_val}")
-                    elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
-                        st.error(f"Consensus: {rating_val}")
-                    else:
-                        st.info(f"등급: {rating_val}")
-
-                with s_col2:
-                    st.write("**[IPO Scoop Score]**")
-                    # 점수가 없을 경우 기본 3점 부여 (추론)
-                    score_val = result.get('score', '3')
-                    st.warning(f"Expected Score: ⭐ {score_val}")
-                
-                st.markdown("---")
-                st.markdown("#### 📝 AI 분석 상세 (긍정/부정 근거)")
-                st.write(result.get('pro_con', '내용 없음'))
-
-                # 참고 소스 링크
-                sources = result.get('links', [])
-                if sources:
-                    st.markdown("#### 🔗 참고 리포트 출처")
-                    for src in sources[:4]: # 상위 4개만
+                st.link_button(f"{stock['name']} Renaissance 실시간 리포트 확인", 
+                               f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}", use_container_width=True)
+        
+            st.markdown("---")
+        
+            # --- (2) Seeking Alpha & Morningstar (마켓 컨센서스) ---
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### 2. Seeking Alpha")
+                st.write("독립 분석가들의 심층 밸류에이션 및 투자 의견을 확인하세요.")
+                st.link_button("전문 분석 확인", f"https://seekingalpha.com/symbol/{q}/analysis", use_container_width=True)
+        
+            with col2:
+                st.markdown("#### 3. Morningstar")
+                st.write("정량적 분석 및 적정 가치(Fair Value) 데이터를 제공합니다.")
+                st.link_button("Morningstar 등급 확인", f"https://www.morningstar.com/search?query={q}", use_container_width=True)
+        
+            st.markdown("---")
+        
+            # --- (3) AI 통합 Sentiment & 상세 근거 ---
+            st.markdown("#### Sentiment score")
+            pro_con = result.get('pro_con', '')
+            
+            if pro_con and "의견 수집 중" not in pro_con:
+                st.success(f"**💡 핵심 투자 논거(Bull & Bear Case)**\n\n{pro_con}")
+            else:
+                st.info("💡 실시간 리포트 수집 중입니다. 위의 기관별 링크를 통해 최신 공시 및 분석글을 먼저 확인하실 수 있습니다.")
+        
+            # --- (4) 실시간 리포트 소스 리스트 ---
+            sources = result.get('links', [])
+            if sources:
+                with st.expander("📄 발견된 외부 리포트 원문 보기", expanded=True):
+                    for src in sources[:5]:
                         st.markdown(f"- [{src['title']}]({src['link']})")
-
+            
+            st.write("<br>", unsafe_allow_html=True)
+            
             # [✅ 5단계 사용자 판단]
-            draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
+            draw_decision_box("ipo_report", "기관 리포트를 종합해 볼 때, 나의 투자 매력도 판단은?", ["매력적", "중립", "주의"])
 
     
         
@@ -2614,6 +2610,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
