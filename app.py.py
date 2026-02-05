@@ -1772,8 +1772,8 @@ elif st.session_state.page == 'detail':
 
             # =================================================================
             # 1. 🦄 IPO 시장 지표
-            # =================================================================
-            st.subheader("IPO 시장 과열 평가")
+            # 기존 st.subheader("IPO 시장 과열 평가") 삭제 후 아래 코드 삽입
+            st.markdown('<p style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">IPO 시장 과열 평가</p>', unsafe_allow_html=True)
             
             c1, c2, c3, c4 = st.columns(4)
 
@@ -2512,6 +2512,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
