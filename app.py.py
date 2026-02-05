@@ -2425,16 +2425,16 @@ elif st.session_state.page == 'detail':
             if st.session_state.get('auth_status') == 'user':
                 if sid not in st.session_state.watchlist:
                     # ✨ 안내 문구 추가
-                    st.caption("💡 선택 시 관심종목보관함에 저장됩니다.")
+                    st.caption("선택시 관심종목보관함에 저장됩니다.")
                     
                     c_up, c_down = st.columns(2)
-                    if c_up.button("상승 & 보관", key=f"up_{sid}", use_container_width=True, type="primary"):
+                    if c_up.button("상승", key=f"up_{sid}", use_container_width=True, type="primary"):
                         st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "UP"
                         st.session_state.vote_data[sid]['u'] += 1
                         st.rerun()
                         
-                    if c_down.button("하락 & 보관", key=f"dn_{sid}", use_container_width=True):
+                    if c_down.button("하락", key=f"dn_{sid}", use_container_width=True):
                         st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "DOWN"
                         st.session_state.vote_data[sid]['f'] += 1
@@ -2454,7 +2454,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 3. 해당 종목 토론방 (Tab 5 전 전용)
             # ---------------------------------------------------------
-            st.markdown(f"###  {sid} 종목 토론")
+            st.markdown(f"사용자 기업분석")
             
             if st.session_state.get('auth_status') == 'user':
                 with st.expander("글쓰기", expanded=False):
@@ -2512,6 +2512,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
