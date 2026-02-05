@@ -2025,7 +2025,7 @@ elif st.session_state.page == 'detail':
             draw_decision_box("macro", "현재 거시경제(Macro) 상황에 대한 판단은?", ["버블", "중립", "침체"])
 
 
-        # --- Tab 3: 개별 기업 평가 (Real Data 연동) ---
+        # --- Tab 3: 개별 기업 평가 (Real Data 연동 - Full Version) ---
         with tab3:
             # [0] 데이터 소스 및 유효성 판별 (SEC -> Finnhub -> Yahoo 순 공신력 반영)
             data_source = "Unknown"
@@ -2043,14 +2043,18 @@ elif st.session_state.page == 'detail':
                     else:
                         data_source = "Yahoo Finance (보조)"
                 else:
-                    data_source = "Data Pending (상장 초기/비상장)"
+                    # 데이터가 없거나 0인 경우 (EquipmentShare 등 상장 초기 대응)
+                    data_source = "Yahoo/MarketWatch (외부 데이터)"
+            else:
+                data_source = "Data Pending (확인 불가)"
 
             # [1] 데이터 전처리 및 지표 계산
+            # 데이터가 없을 경우 '데이터 없음' 표시를 위해 None 처리 유지
             growth_val = fin_data.get('growth') if is_data_available else None
             ocf_val = fin_data.get('net_margin') if is_data_available else 0  # Net Margin을 OCF 대용으로 활용
             
-            op_m = fin_data.get('op_margin')
-            net_m = fin_data.get('net_margin')
+            op_m = fin_data.get('op_margin') if is_data_available else None
+            net_m = fin_data.get('net_margin') if is_data_available else None
             
             # 발생액 품질 계산 (영업이익 - 순이익 괴리도)
             if is_data_available and op_m is not None and net_m is not None:
@@ -2063,7 +2067,7 @@ elif st.session_state.page == 'detail':
                 "sales_growth": growth_val,
                 "ocf": ocf_val,
                 "accruals": accruals_status,
-                "vc_backed": "Checking...", # 별도 유료 데이터 필요
+                "vc_backed": "Checking...", # 별도 로직 필요 시 유지
                 "discount_rate": 0.0
             }
 
@@ -2079,7 +2083,7 @@ elif st.session_state.page == 'detail':
                     st_cls = "st-hot" if val > 20 else "st-good" if val > 5 else "st-neutral"
                     display_val = f"{val:+.1f}%"
                 else:
-                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 없음")
+                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 링크 참조")
                 
                 st.markdown(f"""
                 <div class='metric-card'>
@@ -2097,7 +2101,7 @@ elif st.session_state.page == 'detail':
                     st_cls = "st-good" if val > 0 else "st-hot"
                     display_val = f"{val:.1f}%"
                 else:
-                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 없음")
+                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "데이터 링크 참조")
 
                 st.markdown(f"""
                 <div class='metric-card'>
@@ -2129,7 +2133,7 @@ elif st.session_state.page == 'detail':
                     status = "✅ 안정" if de_val < 100 else "⚠️ 다소 높음"
                     st_cls = "st-good" if de_val < 100 else "st-neutral"
                 else:
-                    display_val, status, st_cls = ("데이터 없음", "🔍 N/A", "st-neutral")
+                    display_val, status, st_cls = ("확인 필요", "🔍 N/A", "st-neutral")
 
                 st.markdown(f"""
                 <div class='metric-card'>
@@ -2141,7 +2145,6 @@ elif st.session_state.page == 'detail':
 
             # (5) 시장 성과 (Market Performance)
             with r2_c1:
-                # current_p와 off_val은 상위 스코프에서 정의된 가격 데이터 사용
                 if current_p > 0 and off_val > 0:
                     up_rate = ((current_p - off_val) / off_val) * 100
                     display_val = f"{up_rate:+.1f}%"
@@ -2177,32 +2180,17 @@ elif st.session_state.page == 'detail':
             
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.markdown(f"""
-                        **수익성 및 규모**
-                        * **시가총액:** ${m_cap:,.0f}M
-                        * **연간 매출:** ${rev:,.0f}M
-                        * **영업이익률:** {op_margin:.2f}%
-                        * **순이익률:** {net_margin:.2f}%
-                        """)
-                    
+                        st.markdown(f"**수익성 및 규모**\n* **시가총액:** ${m_cap:,.0f}M\n* **연간 매출:** ${rev:,.0f}M\n* **영업이익률:** {op_margin:.2f}%\n* **순이익률:** {net_margin:.2f}%")
                     with col2:
-                        st.markdown(f"""
-                        **안정성 및 효율성**
-                        * **부채비율(D/E):** {debt_equity:.2f}%
-                        * **유동비율:** {current_ratio:.2f}x
-                        * **ROE:** {roe:.2f}%
-                        * **EPS (TTM):** ${eps:.2f}
-                        """)
+                        st.markdown(f"**안정성 및 효율성**\n* **부채비율(D/E):** {debt_equity:.2f}%\n* **유동비율:** {current_ratio:.2f}x\n* **ROE:** {roe:.2f}%\n* **EPS (TTM):** ${eps:.2f}")
                     st.caption(f"※ 위 수치는 {data_source}를 통해 수집된 최근 보고서 기준 데이터입니다.")
                 else:
                     st.warning(f"⚠️ {stock['name']}의 상세 재무 데이터를 불러올 수 없습니다.")
-                    st.info(f"상장 예정이거나 비상장 기업인 경우 공식 API(Finnhub)에 데이터가 아직 반영되지 않았을 수 있습니다. 아래 외부 링크를 통해 직접 확인해 주세요.")
+                    st.info(f"상장 예정이거나 신규 상장 기업인 경우 공식 API에 데이터가 지연될 수 있습니다. 아래 외부 링크에서 직접 확인해 주세요.")
                 
                 st.divider()
-                
-                # 외부 참조 링크 생성
                 s = stock['symbol']
-                st.write("##### 원문 자료 확인 (External Links)")
+                st.write("##### 🔗 원문 자료 직접 확인 (User Judgment)")
                 l1, l2, l3 = st.columns(3)
                 l1.markdown(f"[📈 Yahoo Finance](https://finance.yahoo.com/quote/{s}/financials)")
                 l2.markdown(f"[📄 SEC EDGAR (공시)](https://www.sec.gov/edgar/browse/?CIK={s})")
@@ -2210,99 +2198,54 @@ elif st.session_state.page == 'detail':
 
             # [3] AI 종합 판정 리포트
             with st.expander("논문기반 AI분석보기", expanded=False):
-                st.success(f"{stock['name']} 데이터 신뢰도 확인: {data_source}")
+                st.success(f"{stock['name']} 데이터 분석 소스: {data_source}")
                 st.write(f"**종합 평가:**")
                 if is_data_available:
                     growth_status = "안정적" if (growth_val or 0) > 5 else "정체"
                     st.write(f"* **성장성:** {growth_status}, **자금 건전성:** {accruals_status}")
-                    st.write(f"* **정보 비대칭성:** {data_source} 데이터가 확인되어 시장 내 정보 불확실성이 낮은 편입니다.")
+                    st.write(f"* **정보 비대칭성:** {data_source} 데이터가 확인되어 정보 불확실성이 상대적으로 낮은 편입니다.")
                 else:
-                    st.write("실시간 재무 데이터 부재로 인해 과거 추세 및 공시 자료 기반의 정성적 분석이 권장됩니다.")
+                    st.write("❗ 실시간 공식 데이터 부재로 인해 외부 공시 자료 및 야후 파이낸스 실적을 통한 정성적 분석이 필수적입니다.")
 
-           
-
-            # [4] 학술적 근거 및 원문 링크 섹션 (데이터 출처 및 논문 통합)
+            # [4] 학술적 근거 및 원문 링크 섹션
             with st.expander("참고(References) 및 데이터 출처", expanded=False):
-                # CSS 스타일 정의
                 st.markdown("""
                 <style>
-                    .ref-container { margin-top: 5px; }
-                    .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
-                    .ref-item:hover { background-color: #fafafa; padding-left: 10px; padding-right: 10px; }
+                    .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
                     .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
-                    .ref-title:hover { text-decoration: underline; }
-                    .ref-author { font-size: 12px; color: #666; margin-top: 4px; }
-                    .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; white-space: nowrap; }
-                    .ref-btn:hover { border-color: #004e92; color: #004e92; background-color: #f0f7ff; }
                     .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 10px; font-weight: bold; margin-bottom: 5px; }
+                    .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; }
                 </style>
                 """, unsafe_allow_html=True)
 
-                # Tab 3 전용 레퍼런스 데이터 리스트
                 references_tab3 = [
-                    {
-                        "label": "성장성 분석", 
-                        "title": "The Long-Run Performance of IPOs", 
-                        "author": "Jay R. Ritter (1991)", 
-                        "summary": "상장 초기 수익률과 대비되는 신규 상장 기업의 장기적 성과 저하 현상 분석",
-                        "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991+The+Long-Run+Performance+of+IPOs"
-                    },
-                    {
-                        "label": "현금흐름", 
-                        "title": "New Lists: Fundamentals and Survival Rates", 
-                        "author": "Fama & French (2004)", 
-                        "summary": "신규 상장 기업들의 재무 건전성 악화와 이에 따른 생존율 변화 추적",
-                        "link": "https://scholar.google.com/scholar?q=Fama+French+2004+New+Lists+Fundamentals+and+Survival+Rates"
-                    },
-                    {
-                        "label": "회계 품질", 
-                        "title": "Earnings Management and the Long-Run Market Performance", 
-                        "author": "Teoh, Welch, & Wong (1998)", 
-                        "summary": "IPO 직전의 이익 조정(분식 회계 위험)이 향후 주가에 미치는 부정적 영향 분석",
-                        "link": "https://scholar.google.com/scholar?q=Teoh+Welch+Wong+1998+Earnings+Management"
-                    },
-                    {
-                        "label": "VC 인증", 
-                        "title": "The Role of Venture Capital in the Creation of Public Companies", 
-                        "author": "Barry et al. (1990)", 
-                        "summary": "벤처캐피털의 투자를 받은 기업이 상장 시 시장에서 갖는 공신력과 성과 분석",
-                        "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"
-                    },
-                    {
-                        "label": "저평가 이론", 
-                        "title": "Why New Issues are Underpriced", 
-                        "author": "Kevin Rock (1986)", 
-                        "summary": "정보의 비대칭성 상황에서 상장 성공을 위해 공모가를 낮게 책정하는 메커니즘",
-                        "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"
-                    }
+                    {"label": "성장성 분석", "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "summary": "신규 상장 기업의 장기적 성과 저하 현상 분석", "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991"},
+                    {"label": "현금흐름", "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "summary": "신규 기업의 재무 건전성과 생존율 추적", "link": "https://scholar.google.com/scholar?q=Fama+French+2004"},
+                    {"label": "회계 품질", "title": "Earnings Management and the Long-Run Performance", "author": "Teoh, Welch, & Wong (1998)", "summary": "상장 전후 이익 조정이 주가에 미치는 영향", "link": "https://scholar.google.com/scholar?q=Teoh+Welch+Wong+1998"},
+                    {"label": "VC 인증", "title": "The Role of Venture Capital", "author": "Barry et al. (1990)", "summary": "VC 투자가 상장 시 갖는 공신력 분석", "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
+                    {"label": "저평가 이론", "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "summary": "정보 비대칭성과 공모가 저평가 메커니즘", "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
                 ]
-                
-                # 데이터 출처 정보 추가 표시
-                st.info(f"💡 현재 분석에 사용된 원천 데이터 출처: **{data_source}**")
 
-                # 리스트 출력 루프
+                st.info(f"💡 현재 분석에 사용된 데이터 출처: **{data_source}**")
+
                 for ref in references_tab3:
                     st.markdown(f"""
                     <div class='ref-item'>
                         <div style='flex:1;'>
                             <div class='ref-badge'>{ref['label']}</div><br>
-                            <a href='{ref['link']}' target='_blank' class='ref-title' style='display:block; margin-bottom:4px;'>📄 {ref['title']}</a>
-                            <div style='font-size: 13px; color: #666; line-height: 1.5;'>
-                                <span>{ref['summary']}, {ref['author']}</span>
-                            </div>
+                            <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
+                            <div style='font-size: 13px; color: #666;'>{ref['summary']}, {ref['author']}</div>
                         </div>
-                        <div style='margin-left: 15px; align-self: center;'>
+                        <div style='margin-left: 15px;'>
                             <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
                         </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>""", unsafe_allow_html=True)
                 
-                st.write("<br>", unsafe_allow_html=True)
-                st.caption("※ 본 리포트는 SEC 공시 및 Finnhub API 데이터를 기반으로 위 학술적 모델을 적용하여 생성되었습니다.")
+                st.caption("※ 본 리포트는 SEC 공시 및 Finnhub API 데이터를 기반으로 위 학술적 모델을 적용했습니다.")
 
             # [5] 사용자 최종 판단 박스 (Decision Box)
-            st.write("---") # 시각적 구분을 위한 구분선
-            draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["🚩 버블 가능성", "⚖️ 중립/적정", "💎 안정적 성장"])
+            st.write("---")
+            draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["🚩 데이터 부족/버블주의", "⚖️ 중립/적정", "💎 안정적 성장"])
 
         # ---------------------------------------------------------
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
@@ -2553,6 +2496,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
