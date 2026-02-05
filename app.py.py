@@ -2193,9 +2193,12 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # [2.5] 논문기반 AI 종합 판정 리포트 (복구 및 강화)
-            with st.expander("논문기반 AI 분석 보기", expanded=False):
-                st.success(f"**{stock['name']}** 학술적 모델 분석 (Source: {data_source})")
+           
+            # [2.5] 논문기반 AI 종합 판정 리포트
+            with st.expander("🔬 논문기반 AI 분석 보기", expanded=False):
+                # 헤더 크기를 타 섹션(주요공시, 거시평가 등)과 동일한 ####(H4) 수준으로 조정
+                st.markdown(f"#### 🎓 Academic Analysis Summary: {stock['name']}")
+                st.success(f"**학술적 모델 분석 완료** (Source: {data_source})")
                 
                 if is_data_available:
                     # 논문 기반 상태 판별
@@ -2205,69 +2208,54 @@ elif st.session_state.page == 'detail':
                     growth_status = "고성장(High-Growth)" if growth_val > 20 else "안정적(Stable)" if growth_val > 5 else "정체(Stagnant)"
                     quality_status = "우수(High-Quality)" if roe_val > 15 else "보통(Average)"
                     
-                    st.markdown(f"#### Academic Analysis Summary")
-                    
-                    # 1. Jay Ritter의 IPO 장기 성과 이론 적용
-                    st.write(f"**1. 성장성 및 생존 분석 (Jay Ritter, 1991):**")
-                    st.write(f"- 현재 매출 성장률은 **{growth_status}** 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {"긍정적 시그널" if growth_val > 10 else "주의가 필요한 시그널"}로 해석됩니다.")
-                    
-                    # 2. Fama & French의 재무 건전성 모델
-                    st.write(f"**2. 수익성 품질 및 자본 구조 (Fama & French, 2004):**")
-                    st.write(f"- 수익성 지표(Net Margin/ROE)는 **{quality_status}** 등급입니다. 신규 상장 기업의 생존율은 영업 현금흐름의 질에 달려 있으며, 본 기업은 {"상대적으로 견고한 이익 체력" if roe_val > 10 else "영업 효율성 개선이 선행되어야 하는 체력"}을 보유하고 있습니다.")
-                    
-                    # 3. Teoh et al.의 회계 투명성(Accruals) 분석
-                    st.write(f"**3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998):**")
-                    st.write(f"- 발생액 품질(Accruals Quality)이 **{accruals_status}** 상태로 감지되었습니다. 이는 경영진의 이익 조정 가능성이 {"낮고 투명함" if accruals_status == "Low" else "존재하며 주의 요망"}을 의미하며, 정보 비대칭성에 따른 주가 변동 리스크를 시사합니다.")
+                    # 본문 폰트 및 구조 정렬
+                    st.markdown(f"""
+                    **1. 성장성 및 생존 분석 (Jay Ritter, 1991)**
+                    * 현재 매출 성장률은 **{growth_status}** 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {"긍정적 시그널" if growth_val > 10 else "주의가 필요한 시그널"}로 해석됩니다.
+        
+                    **2. 수익성 품질 및 자본 구조 (Fama & French, 2004)**
+                    * 수익성 지표(Net Margin/ROE)는 **{quality_status}** 등급입니다. 신규 상장 기업의 생존율은 영업 현금흐름의 질에 달려 있으며, 본 기업은 {"상대적으로 견고한 이익 체력" if roe_val > 10 else "영업 효율성 개선이 선행되어야 하는 체력"}을 보유하고 있습니다.
+        
+                    **3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)**
+                    * 발생액 품질(Accruals Quality)이 **{accruals_status}** 상태로 감지되었습니다. 이는 경영진의 이익 조정 가능성이 {"낮고 투명함" if accruals_status == "Low" else "존재하며 주의 요망"}을 의미하며, 정보 비대칭성에 따른 주가 변동 리스크를 시사합니다.
+                    """)
                     
                     st.info(f"**AI 종합 판정:** 학술적 관점에서 본 기업은 **{growth_status}** 성격이 강하며, 시장 내 정보 불확실성은 **{data_source}** 데이터 확보를 통해 일정 부분 해소된 상태입니다.")
                 else:
                     st.warning("실시간 재무 데이터 부재로 인해 과거 추세 및 공시 자료 기반의 정성적 분석이 권장됩니다.")
-            
-            
-            
-            # [3] 재무자료 상세보기 (Summary Table)
-            with st.expander("재무분석", expanded=True):
+        
+            # [3] 재무분석 (CFA 리포트 및 지표 상세보기)
+            with st.expander("📊 재무분석", expanded=True):
                 if is_data_available:
-                    # 1. 헤더 (폰트 통일감을 위해 st.subheader 사용)
-                    st.subheader(f"{stock['name']} Investment Financial Analysis")
+                    # 헤더 크기를 타 섹션과 동일하게 ####(H4)로 조정
+                    st.markdown(f"#### 📈 Investment Financial Analysis: {stock['name']}")
                     st.caption(f"Data Source: {data_source} / Currency: USD")
         
-                    # 2. 지표 가로 배열 (st.columns를 통해 가로형 대시보드 구현)
-                    # 주요 지표를 6개의 컬럼으로 펼쳐 한눈에 들어오게 배치합니다.
+                    # 지표 가로 배열 (6개의 컬럼으로 가독성 극대화)
                     m1, m2, m3, m4, m5, m6 = st.columns(6)
                     
-                    # Valuation Group
                     pe_val = fin_data.get('forward_pe', 0)
                     m1.metric("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A")
                     m2.metric("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x")
-                    
-                    # Profitability Group
                     m3.metric("Net Margin", f"{fin_data.get('net_margin', 0):.1f}%")
                     m4.metric("ROE", f"{fin_data.get('roe', 0):.1f}%")
-                    
-                    # Solvency & Growth Group
                     m5.metric("D/E Ratio", f"{fin_data.get('debt_equity', 0):.1f}%")
                     m6.metric("Growth (YoY)", f"{fin_data.get('growth', 0):.1f}%")
         
                     st.divider()
         
-                    # 3. CFA 표준 포맷 핵심 코멘트 (Investment Thesis)
-                    st.markdown("### 💡 Investment Thesis & CFA Analyst Opinion")
+                    # CFA 표준 포맷 핵심 코멘트
+                    st.markdown("#### 💡 Investment Thesis & CFA Analyst Opinion")
                     
-                    # 데이터 기반 자동화 로직 강화
-                    roe_val = fin_data.get('roe', 0)
-                    de_ratio = fin_data.get('debt_equity', 0)
-                    growth = fin_data.get('growth', 0)
-                    
-                    # CFA 리포트 스타일의 5~10줄 요약 (표준 문구 조합)
+                    # 데이터 기반 자동화 분석 문구 생성
                     opinion_text = f"""
                     **[Valuation & Market Position]** 현재 {stock['name']}은(는) 선행 PER {pe_val:.1f}x 수준에서 거래되고 있으며, 이는 산업 평균 및 역사적 밴드 대비 
                     {"상단에 위치하여 프리미엄이 반영된" if pe_val > 30 else "합리적인 수준에서 형성된"} 것으로 판단됩니다. 
                     
-                    **[Operating Performance]** 자기자본이익률(ROE) {roe_val:.1f}%는 자본 효율성 측면에서 {"경쟁사 대비 우수한 수익 창출력" if roe_val > 15 else "개선이 필요한 경영 효율성"}을 나타내고 있습니다. 
-                    특히 YoY 매출 성장률 {growth:.1f}%는 시장 점유율 확대 가능성을 시사하는 핵심 지표입니다.
+                    **[Operating Performance]** 자기자본이익률(ROE) {fin_data.get('roe', 0):.1f}%는 자본 효율성 측면에서 {"경쟁사 대비 우수한 수익 창출력" if fin_data.get('roe', 0) > 15 else "개선이 필요한 경영 효율성"}을 나타내고 있습니다. 
+                    특히 YoY 매출 성장률 {fin_data.get('growth', 0):.1f}%는 시장 점유율 확대 가능성을 시사하는 핵심 지표입니다.
                     
-                    **[Risk & Solvency]** 부채비율 {de_ratio:.1f}%를 고려할 때, {"금리 인상기에도 재무적 완충력이 충분한" if de_ratio < 100 else "추가 차입 부담이 존재하여 현금 흐름 관리가 요구되는"} 상태입니다. 
+                    **[Risk & Solvency]** 부채비율 {fin_data.get('debt_equity', 0):.1f}%를 고려할 때, {"금리 인상기에도 재무적 완충력이 충분한" if fin_data.get('debt_equity', 0) < 100 else "추가 차입 부담이 존재하여 현금 흐름 관리가 요구되는"} 상태입니다. 
                     
                     **[Analyst Conclusion]** 종합적으로 볼 때, 본 기업은 고성장 프리미엄과 수익성 사이의 균형점에 위치해 있습니다. 
                     회계 품질({accruals_status}) 기반의 이익 투명성이 보장된다는 전제하에, 향후 분기별 이익 가시성(Earnings Visibility) 확보 여부가 
@@ -2276,7 +2264,6 @@ elif st.session_state.page == 'detail':
                     
                     st.info(opinion_text)
                     st.caption("※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
-        
                 else:
                     st.warning(f"⚠️ {stock['name']}의 상세 재무 데이터를 불러올 수 없습니다. 실시간 데이터 소스 동기화 대기 중입니다.")
 
@@ -2318,7 +2305,7 @@ elif st.session_state.page == 'detail':
 
             # [5] 사용자 최종 판단 박스 (Decision Box)
             st.write("---")
-            draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["🚩 데이터 부족/버블주의", "⚖️ 중립/적정", "💎 안정적 성장"])
+            draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["고평가", "중립", "저평가"])
 
         # ---------------------------------------------------------
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
@@ -2569,6 +2556,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
