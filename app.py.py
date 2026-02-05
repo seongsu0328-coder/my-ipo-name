@@ -1455,33 +1455,7 @@ elif st.session_state.page == 'detail':
             " 투자결정"
         ])
 
-        # ---------------------------------------------------------
-        # [1] 스타일 섹션 추가/수정 (Tabs 텍스트 크기와 맞춤)
-        # ---------------------------------------------------------
-        st.markdown("""
-            <style>
-            /* Tabs의 폰트 스타일 (기준점) */
-            button[data-baseweb="tab"] div {
-                font-size: 15px !important;
-                font-weight: 600 !important;
-            }
-        
-            /* 1. 비즈니스 모델 요약 보기 (Expander 헤더) 크기 조절 */
-            .stExpander details summary p {
-                font-size: 15px !important;
-                font-weight: 600 !important;
-                color: #333 !important;
-            }
-        
-            /* 2. 어떤 인상인가요? (Decision Box 질문) 크기 조절 */
-            .decision-question {
-                font-size: 15px !important;
-                font-weight: 600 !important;
-                margin-bottom: 10px;
-                color: #31333F;
-            }
-            </style>
-        """, unsafe_allow_html=True)
+       
         
         # --- Tab 0: 핵심 정보 (공시 가이드 및 AI 분석 강화) ---
         with tab0:
@@ -2540,6 +2514,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
