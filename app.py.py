@@ -2174,9 +2174,9 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
 
             # [2.5] 논문기반 AI 종합 판정 리포트
-            with st.expander("논문기반 AI 분석 보기", expanded=False):
-                
-                st.success(f"**학술적 모델 분석 완료** (Source: {data_source})")
+            with st.expander("🔬 논문기반 AI 분석 보기", expanded=False):
+                # 1번 수정: 출처 표시 스타일 통일
+                st.caption(f"Data Source: {data_source} / Currency: USD")
                 
                 if is_data_available:
                     growth_status = "고성장(High-Growth)" if growth > 20 else "안정적(Stable)" if growth > 5 else "정체(Stagnant)"
@@ -2185,10 +2185,10 @@ elif st.session_state.page == 'detail':
                     st.markdown(f"""
                     **1. 성장성 및 생존 분석 (Jay Ritter, 1991)**
                     * 현재 매출 성장률은 **{growth_status}** 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {"긍정적 시그널" if growth > 10 else "주의가 필요한 시그널"}로 해석됩니다.
-        
+    
                     **2. 수익성 품질 및 자본 구조 (Fama & French, 2004)**
                     * 수익성 지표(Net Margin/ROE)는 **{quality_status}** 등급입니다. 본 기업은 {"상대적으로 견고한 이익 체력" if roe_val > 10 else "영업 효율성 개선이 선행되어야 하는 체력"}을 보유하고 있습니다.
-        
+    
                     **3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)**
                     * 발생액 품질(Accruals Quality)이 **{accruals_status}** 상태입니다. 이는 경영진의 이익 조정 가능성이 {"낮음" if accruals_status == "Low" else "존재함"}을 의미합니다.
                     """)
@@ -2197,23 +2197,62 @@ elif st.session_state.page == 'detail':
                     st.warning("재무 데이터 부재로 정성적 분석이 권장됩니다.")
         
             # [3] 재무자료 상세보기 (Summary Table)
-            with st.expander("재무분석", expanded=True):
+            with st.expander("📊 재무분석", expanded=True):
                 if is_data_available:
-                    
                     st.caption(f"Data Source: {data_source} / Currency: USD")
-        
-                    m1, m2, m3, m4, m5, m6 = st.columns(6)
-                    m1.metric("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A")
-                    m2.metric("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x")
-                    m3.metric("Net Margin", f"{net_m_val:.1f}%")
-                    m4.metric("ROE", f"{roe_val:.1f}%")
-                    m5.metric("D/E Ratio", f"{de_ratio:.1f}%")
-                    m6.metric("Growth (YoY)", f"{growth:.1f}%")
+    
+                    # 2번 수정: 탭 메뉴 폰트 크기에 맞춘 커스텀 메트릭 스타일
+                    st.markdown("""
+                    <style>
+                        .custom-metric-container {
+                            display: flex;
+                            justify-content: space-between;
+                            text-align: center;
+                            padding: 10px 0;
+                        }
+                        .custom-metric-box {
+                            flex: 1;
+                        }
+                        .custom-metric-label {
+                            font-size: 0.9rem; /* 탭 메뉴와 유사한 크기 */
+                            color: #666;
+                            margin-bottom: 4px;
+                        }
+                        .custom-metric-value {
+                            font-size: 1.1rem; /* 강조를 위해 라벨보다 약간 크게 */
+                            font-weight: bold;
+                            color: #1f1f1f;
+                        }
+                    </style>
+                    """, unsafe_allow_html=True)
+    
+                    # 지표 데이터 가공
+                    metrics = [
+                        ("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"),
+                        ("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x"),
+                        ("Net Margin", f"{net_m_val:.1f}%"),
+                        ("ROE", f"{roe_val:.1f}%"),
+                        ("D/E Ratio", f"{de_ratio:.1f}%"),
+                        ("Growth (YoY)", f"{growth:.1f}%")
+                    ]
+    
+                    # 커스텀 메트릭 렌더링
+                    m_cols = st.columns(6)
+                    for i, (label, value) in enumerate(metrics):
+                        with m_cols[i]:
+                            st.markdown(f"""
+                                <div class="custom-metric-box">
+                                    <div class="custom-metric-label">{label}</div>
+                                    <div class="custom-metric-value">{value}</div>
+                                </div>
+                            """, unsafe_allow_html=True)
         
                     st.divider()
         
                     # 🔥 [보강된 CFA Analyst Opinion]
                     st.markdown("#### Investment Thesis & CFA Analyst Opinion")
+                
+                # ... (이후 opinion_text 및 리스크 요인 코드는 동일하게 유지)
                     
                     opinion_text = f"""
                     **[Valuation & Market Position]** 현재 {stock['name']}은(는) 선행 PER {pe_val:.1f}x 수준에서 거래되고 있습니다. 
@@ -2531,6 +2570,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
