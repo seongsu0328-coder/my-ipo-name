@@ -1583,6 +1583,7 @@ elif st.session_state.page == 'detail':
                         st.error("⚠️ 정보를 찾을 수 없습니다.")
         
             # [2] 뉴스 리스트 섹션
+            # (주의: get_real_news_rss 내부의 자체 번역 로직은 비활성화되어 있어야 속도가 빠릅니다)
             rss_news = get_real_news_rss(stock['name'])
             
             if rss_news:
@@ -1591,18 +1592,16 @@ elif st.session_state.page == 'detail':
                 final_display_news = []
                 used_indices = set()
         
-                # 키워드 필터링
+                # 1. 노이즈 필터링
                 filtered_news = [n for n in rss_news if not any(ek in n.get('title', '').lower() for ek in exclude_keywords)]
         
-                # 태그 분류 및 중복 방지 로직
+                # 2. 태그 분류 로직 (중복 방지 유지)
                 for target in target_tags + ["일반"]:
                     for idx, n in enumerate(filtered_news):
                         if len(final_display_news) >= 5: break
                         if idx in used_indices: continue
                         
                         title_lower = n.get('title', '').lower()
-                        
-                        # 우선순위에 따른 단일 태그 할당
                         tag = "일반"
                         if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
                         elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', '시장', '상장']): tag = "시장"
@@ -1610,26 +1609,25 @@ elif st.session_state.page == 'detail':
                         elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', '전략']): tag = "전략"
                         elif any(k in title_lower for k in ['price', 'raise', 'funding', 'share', '수급', '공모']): tag = "수급"
         
-                        # 현재 타겟팅 중인 태그와 일치하는 경우만 리스트에 추가
                         if tag == target or (target == "일반" and tag == "일반"):
                             n['display_tag'] = tag
                             final_display_news.append(n)
                             used_indices.add(idx)
         
-                # 뉴스 카드 출력 루프
+                # 3. 뉴스 카드 출력 (AI 번역 적용)
                 for i, n in enumerate(final_display_news):
                     tag = n['display_tag']
                     en_title = n.get('title', 'No Title')
                     
-                    # 💡 [개선] 캐시된 AI 번역 함수 호출 (함수가 코드 상단에 정의되어 있어야 함)
+                    # 🔥 고성능 AI 번역 호출 (캐시 적용됨)
                     with st.spinner(f"TOP {i+1} 번역 중..."):
                         ko_title = translate_news_title(en_title)
                     
                     s_badge = f'<span style="background:{n.get("bg","#eee")}; color:{n.get("color","#333")}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n.get("sent_label","")}</span>' if n.get("sent_label") else ""
                     
-                    safe_title = en_title.replace("$", "\$")
-                    # AI 번역 결과가 있을 경우 출력, 특수문자 $ 치환 처리
-                    trans_html = f"<br><span style='font-size:14px; color:#555;'>🇰🇷 {ko_title.replace('$', '\$')}</span>" if ko_title else ""
+                    # 특수 기호 처리
+                    safe_en = en_title.replace("$", "\$")
+                    safe_ko = ko_title.replace("$", "\$")
                     
                     st.markdown(f"""
                         <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
@@ -1642,7 +1640,10 @@ elif st.session_state.page == 'detail':
                                     </div>
                                     <small style="color:#bbb;">{n.get('date','')}</small>
                                 </div>
-                                <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">{safe_title}{trans_html}</div>
+                                <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">
+                                    {safe_en}
+                                    <br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_ko}</span>
+                                </div>
                             </div>
                         </a>
                     """, unsafe_allow_html=True)
@@ -2596,6 +2597,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
