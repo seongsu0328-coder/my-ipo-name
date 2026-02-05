@@ -2193,8 +2193,40 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # [2.5] 재무자료 상세보기 (Summary Table)
-            with st.expander("📊 전문 투자자용 종합 재무 분석", expanded=True):
+            # [2.5] 논문기반 AI 종합 판정 리포트 (복구 및 강화)
+            with st.expander("🔬 논문기반 AI 분석 보기", expanded=False):
+                st.success(f"**{stock['name']}** 학술적 모델 분석 (Source: {data_source})")
+                
+                if is_data_available:
+                    # 논문 기반 상태 판별
+                    growth_val = fin_data.get('growth', 0)
+                    roe_val = fin_data.get('roe', 0)
+                    
+                    growth_status = "고성장(High-Growth)" if growth_val > 20 else "안정적(Stable)" if growth_val > 5 else "정체(Stagnant)"
+                    quality_status = "우수(High-Quality)" if roe_val > 15 else "보통(Average)"
+                    
+                    st.markdown(f"#### 🎓 Academic Analysis Summary")
+                    
+                    # 1. Jay Ritter의 IPO 장기 성과 이론 적용
+                    st.write(f"**1. 성장성 및 생존 분석 (Jay Ritter, 1991):**")
+                    st.write(f"- 현재 매출 성장률은 **{growth_status}** 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {"긍정적 시그널" if growth_val > 10 else "주의가 필요한 시그널"}로 해석됩니다.")
+                    
+                    # 2. Fama & French의 재무 건전성 모델
+                    st.write(f"**2. 수익성 품질 및 자본 구조 (Fama & French, 2004):**")
+                    st.write(f"- 수익성 지표(Net Margin/ROE)는 **{quality_status}** 등급입니다. 신규 상장 기업의 생존율은 영업 현금흐름의 질에 달려 있으며, 본 기업은 {"상대적으로 견고한 이익 체력" if roe_val > 10 else "영업 효율성 개선이 선행되어야 하는 체력"}을 보유하고 있습니다.")
+                    
+                    # 3. Teoh et al.의 회계 투명성(Accruals) 분석
+                    st.write(f"**3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998):**")
+                    st.write(f"- 발생액 품질(Accruals Quality)이 **{accruals_status}** 상태로 감지되었습니다. 이는 경영진의 이익 조정 가능성이 {"낮고 투명함" if accruals_status == "Low" else "존재하며 주의 요망"}을 의미하며, 정보 비대칭성에 따른 주가 변동 리스크를 시사합니다.")
+                    
+                    st.info(f"**AI 종합 판정:** 학술적 관점에서 본 기업은 **{growth_status}** 성격이 강하며, 시장 내 정보 불확실성은 **{data_source}** 데이터 확보를 통해 일정 부분 해소된 상태입니다.")
+                else:
+                    st.warning("실시간 재무 데이터 부재로 인해 과거 추세 및 공시 자료 기반의 정성적 분석이 권장됩니다.")
+            
+            
+            
+            # [3] 재무자료 상세보기 (Summary Table)
+            with st.expander("재무분석", expanded=True):
                 if is_data_available:
                     # 1. 헤더 (폰트 통일감을 위해 st.subheader 사용)
                     st.subheader(f"{stock['name']} Investment Financial Analysis")
@@ -2249,7 +2281,7 @@ elif st.session_state.page == 'detail':
                     st.warning(f"⚠️ {stock['name']}의 상세 재무 데이터를 불러올 수 없습니다. 실시간 데이터 소스 동기화 대기 중입니다.")
 
             # [4] 학술적 근거 및 원문 링크 섹션
-            with st.expander("참고(References) 및 데이터 출처", expanded=False):
+            with st.expander("참고(References)", expanded=False):
                 st.markdown("""
                 <style>
                     .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
@@ -2537,6 +2569,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
