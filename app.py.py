@@ -2027,6 +2027,27 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 3: 개별 기업 평가 (Real Data 연동 - Full Version) ---
         with tab3:
+            # 🎨 [추가 위치] 카드 내부의 수치 폰트 크기 통일 CSS
+            st.markdown("""
+            <style>
+                .metric-value {
+                    font-size: 1.2rem !important; /* 글자 크기를 살짝 조절해서 '확인 필요' 등이 안 깨지게 함 */
+                    font-weight: 800 !important;
+                    white-space: nowrap;
+                }
+                .st-badge {
+                    font-size: 0.7rem !important;
+                    vertical-align: middle;
+                    margin-left: 5px;
+                }
+                .metric-value-row {
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-start; /* 왼쪽 정렬로 통일감 부여 */
+                }
+            </style>
+            """, unsafe_allow_html=True)
+        
             # [0] 데이터 소스 및 1차 유효성 판별
             data_source = "Unknown"
             is_data_available = False
@@ -2110,16 +2131,14 @@ elif st.session_state.page == 'detail':
             # 🔥 [1.5] 에러 방지용 안전 변수 가공 (가장 중요)
             # 1. 안전한 수치 변환을 위한 내부 함수 정의
             def clean_value(val):
-                """None, NaN, Inf 값을 0으로 정제하는 함수"""
                 try:
-                    # 값이 None이거나, 숫자형인데 nan/inf인 경우 체크
                     if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))):
                         return 0.0
                     return float(val)
                 except:
                     return 0.0
-
-            if fin_data is None: fin_data = {}
+            
+                        if fin_data is None: fin_data = {}
 
             # 데이터 정제 추출
             rev_val = clean_value(fin_data.get('revenue', 0))
@@ -2140,43 +2159,38 @@ elif st.session_state.page == 'detail':
             r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
             r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
 
-            # (1) 매출 성장성 - nan 방지 적용
+            # (1) 매출 성장성 - [수정됨: "산출 불가" -> "N/A"]
             with r1_c1:
-                if growth_display != "N/A":
-                    val = growth
-                    status = "🔥 고성장" if val > 20 else "✅ 안정" if val > 5 else "⚠️ 둔화"
-                    st_cls = "st-hot" if val > 20 else "st-good" if val > 5 else "st-neutral"
-                    display_val = growth_display
+                display_val = growth_display if growth_display != "N/A" else "N/A"
+                if display_val != "N/A":
+                    status, st_cls = ("🔥 고성장", "st-hot") if growth > 20 else ("✅ 안정", "st-good") if growth > 5 else ("⚠️ 둔화", "st-neutral")
                 else:
-                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "산출 불가")
+                    status, st_cls = ("🔍 N/A", "st-neutral")
                 
                 st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>최근 연간 매출 성장률입니다.</div><div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
 
-            # (2) 수익성 - inf 방지 적용
+            # (2) 수익성 - [수정됨: "산출 불가" -> "N/A"]
             with r1_c2:
-                if net_m_display != "N/A":
-                    val = net_m_val
-                    status = "✅ 흑자" if val > 0 else "🚨 적자"
-                    st_cls = "st-good" if val > 0 else "st-hot"
-                    display_val = net_m_display
+                display_val = net_m_display if net_m_display != "N/A" else "N/A"
+                if display_val != "N/A":
+                    status, st_cls = ("✅ 흑자", "st-good") if net_m_val > 0 else ("🚨 적자", "st-hot")
                 else:
-                    status, st_cls, display_val = ("🔍 N/A", "st-neutral", "산출 불가")
+                    status, st_cls = ("🔍 N/A", "st-neutral")
 
                 st.markdown(f"<div class='metric-card'><div class='metric-header'>Net Margin (Profit)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>순이익률입니다.</div><div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
 
-            # (3) 발생액 품질
+            # (3) 발생액 품질 (동일 유지)
             with r1_c3:
                 val = md_stock['accruals']
                 status = "✅ 건전" if val == "Low" else "🚨 주의" if val == "High" else "🔍 N/A"
                 st_cls = "st-good" if val == "Low" else "st-hot" if val == "High" else "st-neutral"
                 st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>회계 장부의 투명성입니다.</div><div class='metric-footer'>Theory: Teoh et al. (1998)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
 
-            # (4) 부채 비율
+            # (4) 부채 비율 - [수정됨: "확인 필요" -> "N/A"]
             with r1_c4:
-                if de_ratio > 0:
-                    display_val, status, st_cls = (f"{de_ratio:.1f}%", "✅ 안정" if de_ratio < 100 else "⚠️ 높음", "st-good" if de_ratio < 100 else "st-neutral")
-                else:
-                    display_val, status, st_cls = ("확인 필요", "🔍 N/A", "st-neutral")
+                display_val = f"{de_ratio:.1f}%" if de_ratio > 0 else "N/A"
+                status, st_cls = ("✅ 안정", "st-good") if (0 < de_ratio < 100) else ("🔍 N/A", "st-neutral")
+                
                 st.markdown(f"<div class='metric-card'><div class='metric-header'>Debt / Equity</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>자본 대비 부채 비중입니다.</div><div class='metric-footer'>Ref: Standard Ratio<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
 
             # (5) 시장 성과 (r2_c1)
@@ -2589,6 +2603,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
