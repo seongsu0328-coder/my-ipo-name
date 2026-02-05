@@ -2108,22 +2108,34 @@ elif st.session_state.page == 'detail':
             }
 
             # 🔥 [1.5] 에러 방지용 안전 변수 가공 (가장 중요)
-            # fin_data가 None인 경우를 대비해 빈 딕셔너리로 초기화하여 AttributeError 방지
+            # 1. 안전한 수치 변환을 위한 내부 함수 정의
+            def clean_value(val):
+                """None, NaN, Inf 값을 0으로 정제하는 함수"""
+                try:
+                    if val is None or np.isnan(val) or np.isinf(val):
+                        return 0.0
+                    return float(val)
+                except:
+                    return 0.0
+            
+            # 2. fin_data 초기화 (AttributeError 방지)
             if fin_data is None:
                 fin_data = {}
             
-            # .get() 메서드를 사용하여 키가 없더라도 에러 없이 0을 반환하도록 설정
-            rev_val = fin_data.get('revenue', 0) or 0
-            net_m_val = fin_data.get('net_margin', 0) or 0
-            op_m_val = fin_data.get('op_margin', net_m_val) or 0
-            growth = fin_data.get('growth', 0) or 0
-            roe_val = fin_data.get('roe', 0) or 0
-            de_ratio = fin_data.get('debt_equity', 0) or 0
-            pe_val = fin_data.get('forward_pe', 0) or 0
+            # 3. 데이터 정제 추출
+            rev_val = clean_value(fin_data.get('revenue', 0))
+            net_m_val = clean_value(fin_data.get('net_margin', 0))
+            op_m_val = clean_value(fin_data.get('op_margin', net_m_val)) # 영업이익률 없으면 순이익률 참조
+            growth = clean_value(fin_data.get('growth', 0))
+            roe_val = clean_value(fin_data.get('roe', 0))
+            de_ratio = clean_value(fin_data.get('debt_equity', 0))
+            pe_val = clean_value(fin_data.get('forward_pe', 0))
             
-            # 화면 표시용 변수 가공
+            # 4. 화면 표시용 텍스트 가공 (nan, inf 대신 N/A 출력)
             rev_display = f"{rev_val:,.0f}" if rev_val > 0 else "N/A"
-            opm_display = f"{op_m_val:.2f}" if op_m_val != 0 else "N/A"
+            growth_display = f"{growth:+.1f}%" if growth != 0 else "N/A"
+            net_m_display = f"{net_m_val:.1f}%" if net_m_val != 0 else "N/A"
+            opm_display = f"{op_m_val:.2f}%" if op_m_val != 0 else "N/A"
 
             # [2] 카드형 UI 레이아웃 (Metric Cards)
             r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
@@ -2578,6 +2590,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
