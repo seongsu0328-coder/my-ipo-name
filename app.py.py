@@ -2194,7 +2194,7 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
 
             # [2.5] 논문기반 AI 종합 판정 리포트 (복구 및 강화)
-            with st.expander("🔬 논문기반 AI 분석 보기", expanded=False):
+            with st.expander("논문기반 AI 분석 보기", expanded=False):
                 st.success(f"**{stock['name']}** 학술적 모델 분석 (Source: {data_source})")
                 
                 if is_data_available:
@@ -2205,7 +2205,7 @@ elif st.session_state.page == 'detail':
                     growth_status = "고성장(High-Growth)" if growth_val > 20 else "안정적(Stable)" if growth_val > 5 else "정체(Stagnant)"
                     quality_status = "우수(High-Quality)" if roe_val > 15 else "보통(Average)"
                     
-                    st.markdown(f"#### 🎓 Academic Analysis Summary")
+                    st.markdown(f"#### Academic Analysis Summary")
                     
                     # 1. Jay Ritter의 IPO 장기 성과 이론 적용
                     st.write(f"**1. 성장성 및 생존 분석 (Jay Ritter, 1991):**")
@@ -2569,6 +2569,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
