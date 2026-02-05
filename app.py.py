@@ -2420,7 +2420,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 2. 관심종목 및 투표 섹션
             # ---------------------------------------------------------
-            st.markdown("### 전망")
+            st.markdown("## 전망")
             
             if st.session_state.get('auth_status') == 'user':
                 if sid not in st.session_state.watchlist:
@@ -2454,7 +2454,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 3. 해당 종목 토론방 (Tab 5 전 전용)
             # ---------------------------------------------------------
-            st.markdown(f"### 기업분석 및 가치평가")
+            st.markdown(f"## 기업분석 및 가치평가")
             
             if st.session_state.get('auth_status') == 'user':
                 with st.expander("글쓰기", expanded=False):
@@ -2512,6 +2512,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
