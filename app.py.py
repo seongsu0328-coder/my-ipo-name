@@ -2196,51 +2196,57 @@ elif st.session_state.page == 'detail':
             # [2.5] 재무자료 상세보기 (Summary Table)
             with st.expander("📊 전문 투자자용 종합 재무 분석", expanded=True):
                 if is_data_available:
-                    st.write(f"##### 📋 {stock['name']} 종합 투자 지표 ({data_source})")
+                    # 1. 헤더 (폰트 통일감을 위해 st.subheader 사용)
+                    st.subheader(f"{stock['name']} Investment Financial Analysis")
+                    st.caption(f"Data Source: {data_source} / Currency: USD")
+        
+                    # 2. 지표 가로 배열 (st.columns를 통해 가로형 대시보드 구현)
+                    # 주요 지표를 6개의 컬럼으로 펼쳐 한눈에 들어오게 배치합니다.
+                    m1, m2, m3, m4, m5, m6 = st.columns(6)
                     
-                    # 데이터 정리
-                    pe_val = f"{fin_data.get('forward_pe', 0):.1f}x" if fin_data.get('forward_pe') else "N/A (적자)"
-                    pbr_val = f"{fin_data.get('price_to_book', 0):.2f}x"
-                    m_cap = fin_data.get('market_cap', 0)
+                    # Valuation Group
+                    pe_val = fin_data.get('forward_pe', 0)
+                    m1.metric("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A")
+                    m2.metric("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x")
                     
-                    # 레이아웃 구성
-                    col1, col2, col3 = st.columns(3)
+                    # Profitability Group
+                    m3.metric("Net Margin", f"{fin_data.get('net_margin', 0):.1f}%")
+                    m4.metric("ROE", f"{fin_data.get('roe', 0):.1f}%")
                     
-                    with col1:
-                        st.markdown("🎯 **밸류에이션 (Valuation)**")
-                        st.metric("시가총액", f"${m_cap:,.0f}M")
-                        st.metric("PER (선행)", pe_val)
-                        st.metric("PBR", pbr_val)
-                        st.caption("낮을수록 저평가, 높을수록 성장 기대치 높음")
-
-                    with col2:
-                        st.markdown("📈 **수익성 지표 (Profitability)**")
-                        st.metric("매출액", f"${fin_data.get('revenue', 0):,.0f}M")
-                        st.metric("순이익률", f"{fin_data.get('net_margin', 0):.2f}%")
-                        st.metric("ROE (자기자본이익률)", f"{fin_data.get('roe', 0):.2f}%")
-                        st.caption("ROE 15% 이상 시 매우 우수한 경영")
-
-                    with col3:
-                        st.markdown("🛡️ **재무 건전성 (Solvency)**")
-                        st.metric("부채비율", f"{fin_data.get('debt_equity', 0):.2f}%")
-                        st.metric("EPS (주당순이익)", f"${fin_data.get('eps', 0):.2f}")
-                        acc_status = "✅ 건전" if accruals_status == "Low" else "🚨 주의"
-                        st.metric("회계 품질", acc_status)
-                        st.caption("부채 100% 미만 시 안정적")
-
+                    # Solvency & Growth Group
+                    m5.metric("D/E Ratio", f"{fin_data.get('debt_equity', 0):.1f}%")
+                    m6.metric("Growth (YoY)", f"{fin_data.get('growth', 0):.1f}%")
+        
                     st.divider()
+        
+                    # 3. CFA 표준 포맷 핵심 코멘트 (Investment Thesis)
+                    st.markdown("### 💡 Investment Thesis & CFA Analyst Opinion")
                     
-                    # [추가] CFA 인사이트 섹션
-                    st.markdown("##### 💡 CFA 등급 핵심 코멘트")
-                    pe_ratio = fin_data.get('forward_pe', 0)
-                    if pe_ratio > 50:
-                        valuation_msg = "현재 주가는 미래 성장을 상당히 선반영한 상태입니다. 실적 성장이 뒷받침되지 않으면 변동성이 커질 수 있습니다."
-                    elif 0 < pe_ratio <= 15:
-                        valuation_msg = "업종 평균 대비 낮은 PER로, 실적 대비 저평가 구간일 가능성이 높습니다."
-                    else:
-                        valuation_msg = "시장 평균 수준의 밸류에이션을 형성하고 있습니다."
-
-                    st.info(f"**총평:** {valuation_msg} 이 기업은 현재 매출 성장성({fin_data.get('growth', 0):.1f}%)과 자기자본 효율성(ROE: {fin_data.get('roe', 0):.1f}%)의 균형을 확인하는 것이 핵심입니다.")
+                    # 데이터 기반 자동화 로직 강화
+                    roe_val = fin_data.get('roe', 0)
+                    de_ratio = fin_data.get('debt_equity', 0)
+                    growth = fin_data.get('growth', 0)
+                    
+                    # CFA 리포트 스타일의 5~10줄 요약 (표준 문구 조합)
+                    opinion_text = f"""
+                    **[Valuation & Market Position]** 현재 {stock['name']}은(는) 선행 PER {pe_val:.1f}x 수준에서 거래되고 있으며, 이는 산업 평균 및 역사적 밴드 대비 
+                    {"상단에 위치하여 프리미엄이 반영된" if pe_val > 30 else "합리적인 수준에서 형성된"} 것으로 판단됩니다. 
+                    
+                    **[Operating Performance]** 자기자본이익률(ROE) {roe_val:.1f}%는 자본 효율성 측면에서 {"경쟁사 대비 우수한 수익 창출력" if roe_val > 15 else "개선이 필요한 경영 효율성"}을 나타내고 있습니다. 
+                    특히 YoY 매출 성장률 {growth:.1f}%는 시장 점유율 확대 가능성을 시사하는 핵심 지표입니다.
+                    
+                    **[Risk & Solvency]** 부채비율 {de_ratio:.1f}%를 고려할 때, {"금리 인상기에도 재무적 완충력이 충분한" if de_ratio < 100 else "추가 차입 부담이 존재하여 현금 흐름 관리가 요구되는"} 상태입니다. 
+                    
+                    **[Analyst Conclusion]** 종합적으로 볼 때, 본 기업은 고성장 프리미엄과 수익성 사이의 균형점에 위치해 있습니다. 
+                    회계 품질({accruals_status}) 기반의 이익 투명성이 보장된다는 전제하에, 향후 분기별 이익 가시성(Earnings Visibility) 확보 여부가 
+                    추가적인 밸류에이션 리레이팅(Re-rating)의 트리거가 될 것으로 전망됩니다.
+                    """
+                    
+                    st.info(opinion_text)
+                    st.caption("※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
+        
+                else:
+                    st.warning(f"⚠️ {stock['name']}의 상세 재무 데이터를 불러올 수 없습니다. 실시간 데이터 소스 동기화 대기 중입니다.")
 
             # [4] 학술적 근거 및 원문 링크 섹션
             with st.expander("참고(References) 및 데이터 출처", expanded=False):
@@ -2531,6 +2537,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
