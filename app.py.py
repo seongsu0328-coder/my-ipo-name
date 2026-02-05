@@ -1600,7 +1600,7 @@ elif st.session_state.page == 'detail':
             # [1] 기업 심층 분석 섹션 (Expander 적용) - 뉴스 하단으로 이동
             
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
-                st.caption("자체 알고리즘으로 실시간으로 분석하여 제공합니다.")
+                
                 q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
                 
                 with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
@@ -2541,6 +2541,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
