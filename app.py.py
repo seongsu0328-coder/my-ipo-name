@@ -2200,8 +2200,8 @@ elif st.session_state.page == 'detail':
             with st.expander("재무분석", expanded=True):
                 if is_data_available:
                     st.caption(f"Data Source: {data_source} / Currency: USD")
-    
-                    # 2번 수정: 탭 메뉴 폰트 크기에 맞춘 커스텀 메트릭 스타일
+            
+                    # 스타일 수정: Label은 bold, Value는 normal(400)로 설정
                     st.markdown("""
                     <style>
                         .custom-metric-container {
@@ -2212,20 +2212,25 @@ elif st.session_state.page == 'detail':
                         }
                         .custom-metric-box {
                             flex: 1;
+                            border-right: 1px solid #f0f0f0; /* 지표 간 구분선 추가 (선택사항) */
+                        }
+                        .custom-metric-box:last-child {
+                            border-right: none;
                         }
                         .custom-metric-label {
-                            font-size: 0.9rem; /* 탭 메뉴와 유사한 크기 */
-                            color: #666;
-                            margin-bottom: 4px;
+                            font-size: 0.85rem; 
+                            font-weight: bold;    /* 지표명을 굵게 변경 */
+                            color: #333333;
+                            margin-bottom: 6px;
                         }
                         .custom-metric-value {
-                            font-size: 1.1rem; /* 강조를 위해 라벨보다 약간 크게 */
-                            font-weight: bold;
+                            font-size: 1.05rem; 
+                            font-weight: 400;    /* 수치를 일반 굵기로 변경 */
                             color: #1f1f1f;
                         }
                     </style>
                     """, unsafe_allow_html=True)
-    
+            
                     # 지표 데이터 가공
                     metrics = [
                         ("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"),
@@ -2235,7 +2240,7 @@ elif st.session_state.page == 'detail':
                         ("D/E Ratio", f"{de_ratio:.1f}%"),
                         ("Growth (YoY)", f"{growth:.1f}%")
                     ]
-    
+            
                     # 커스텀 메트릭 렌더링
                     m_cols = st.columns(6)
                     for i, (label, value) in enumerate(metrics):
@@ -2246,9 +2251,8 @@ elif st.session_state.page == 'detail':
                                     <div class="custom-metric-value">{value}</div>
                                 </div>
                             """, unsafe_allow_html=True)
-        
-                    
-        
+            
+                    st.markdown(" ")     
                 
                 # ... (이후 opinion_text 및 리스크 요인 코드는 동일하게 유지)
                     
@@ -2568,6 +2572,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
