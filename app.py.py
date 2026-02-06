@@ -498,116 +498,69 @@ if st.session_state.get('page') == 'board':
     # '게시판' 선택 시에는 현재 페이지이므로 아무 작업 안 함
 
     # ---------------------------------------------------------
-    # 3. 통합 게시판 본문 (에러 수정 버전)
-    # ---------------------------------------------------------
-    
-    # [설정] 관리자 및 사용자 확인
-    ADMIN_PHONE = "010-0000-0000" 
-    current_user_phone = st.session_state.get('user_phone', 'guest')
-    is_admin = (current_user_phone == ADMIN_PHONE)
-    user_id = st.session_state.get('user_id')
-    
-    # [1. 상단: 게시글 리스트 섹션]
-    posts = st.session_state.get('posts', [])
-    
-    if 'search_word' not in st.session_state:
-        st.session_state.search_word = ""
-    
-    # 검색 필터링
-    if st.session_state.search_word:
-        sw = st.session_state.search_word.upper()
-        display_posts = [p for p in posts if sw in p.get('category', '').upper() or sw in p.get('title', '').upper()]
-    else:
-        display_posts = posts
-    
-    # --- 리스트 출력 시작 ---
-    if display_posts:
-        for idx, p in enumerate(display_posts[:20]):
-            category_tag = f"[{p.get('category')}] " if p.get('category') else ""
-            combined_header = f"**{category_tag}{p.get('title')}** |  👤 {p.get('author')}  |  {p.get('date')}"
+# 3. 통합 게시판 본문 (중복 제거 및 에러 수정 완료 버전)
+# ---------------------------------------------------------
+
+# [설정] 관리자 및 사용자 확인
+ADMIN_PHONE = "010-0000-0000"  # 실제 관리자 번호로 수정하세요
+current_user_phone = st.session_state.get('user_phone', 'guest')
+is_admin = (current_user_phone == ADMIN_PHONE)
+user_id = st.session_state.get('user_id')
+
+# [1. 상단: 게시글 리스트 섹션]
+posts = st.session_state.get('posts', [])
+
+if 'search_word' not in st.session_state:
+    st.session_state.search_word = ""
+
+# 검색 필터링 로직
+if st.session_state.search_word:
+    sw = st.session_state.search_word.upper()
+    display_posts = [p for p in posts if sw in p.get('category', '').upper() or sw in p.get('title', '').upper()]
+else:
+    display_posts = posts
+
+# --- 리스트 출력 시작 ---
+if display_posts:
+    for idx, p in enumerate(display_posts[:20]):
+        # 헤더 구성: [종목] 제목 | 👤 작성자 | 날짜
+        category_tag = f"[{p.get('category')}] " if p.get('category') else ""
+        combined_header = f"**{category_tag}{p.get('title')}** |  👤 {p.get('author')}  |  {p.get('date')}"
+        
+        with st.expander(combined_header, expanded=False):
+            st.write(p.get('content'))
+            st.divider()
             
-            with st.expander(combined_header, expanded=False):
-                st.write(p.get('content'))
-                st.divider()
-                
-                col_l, col_d, col_spacer, col_edit, col_del = st.columns([0.7, 0.7, 3.5, 0.6, 0.6])
-                
-                with col_l:
-                    if st.button(f"👍 {p.get('likes', 0)}", key=f"like_{p['id']}"):
-                        if user_id and user_id not in p.get('like_users', []):
-                            p['likes'] = p.get('likes', 0) + 1
-                            p.setdefault('like_users', []).append(user_id)
-                            st.rerun()
-                with col_d:
-                    if st.button(f"👎 {p.get('dislikes', 0)}", key=f"dis_{p['id']}"):
-                        if user_id and user_id not in p.get('dislike_users', []):
-                            p['dislikes'] = p.get('dislikes', 0) + 1
-                            p.setdefault('dislike_users', []).append(user_id)
-                            st.rerun()
-    
-                if (current_user_phone == p.get('author')) or is_admin:
-                    with col_edit:
-                        if st.button("📝", key=f"edit_{p['id']}"):
-                            st.info("수정 기능 준비 중")
-                    with col_del:
-                        if st.button("🗑️", key=f"del_{p['id']}"):
-                            st.session_state.posts = [item for item in st.session_state.posts if item['id'] != p['id']]
-                            st.rerun()
-            st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
-    else:
-        st.caption("게시글이 없습니다.")
-    
-    st.markdown("---")
-    
-    # [2. 하단: 검색창 및 글쓰기 버튼 가로 배치]
-    col_search, col_write = st.columns([3, 1])
-    
-    with col_search:
-        st.session_state.search_word = st.text_input(
-            "🔍 검색", 
-            value=st.session_state.search_word,
-            placeholder="종목명 또는 제목으로 검색...",
-            label_visibility="collapsed",
-            key="board_search_input" # 검색창 키 추가
-        )
-    
-    with col_write:
-        show_write = st.expander("📝 글쓰기", expanded=False)
-    
-    # [3. 글쓰기 폼 로직] - ★반드시 for문 밖(여기)에 위치해야 함★
-    if st.session_state.get('auth_status') == 'user':
-        with show_write:
-            # 중복 에러 방지를 위해 고유한 key를 부여함
-            with st.form(key="unique_board_write_form", clear_on_submit=True):
-                w_col1, w_col2 = st.columns([1, 2])
-                with w_col1:
-                    new_cat = st.text_input("종목명", placeholder="예: TSLA")
-                with w_col2:
-                    new_title = st.text_input("제목", placeholder="제목 입력")
-                new_content = st.text_area("내용", placeholder="인사이트 공유")
-                
-                if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
-                    if new_title and new_content:
-                        new_post = {
-                            "id": str(uuid.uuid4()),
-                            "category": new_cat.upper() if new_cat else "공통",
-                            "title": new_title, 
-                            "content": new_content,
-                            "author": current_user_phone,
-                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "likes": 0, "dislikes": 0,
-                            "like_users": [], "dislike_users": [],
-                            "uid": user_id
-                        }
-                        if 'posts' not in st.session_state: st.session_state.posts = []
-                        st.session_state.posts.insert(0, new_post)
+            # 버튼 레이아웃
+            col_l, col_d, col_spacer, col_edit, col_del = st.columns([0.7, 0.7, 3.5, 0.6, 0.6])
+            
+            with col_l:
+                if st.button(f"👍 {p.get('likes', 0)}", key=f"like_{p['id']}"):
+                    if user_id and user_id not in p.get('like_users', []):
+                        p['likes'] = p.get('likes', 0) + 1
+                        p.setdefault('like_users', []).append(user_id)
                         st.rerun()
-    else:
-        with show_write:
-            st.warning("🔒 로그인 후 글을 남길 수 있습니다.")
-    
-    if 'display_disclaimer' in globals():
-        display_disclaimer()
+            with col_d:
+                if st.button(f"👎 {p.get('dislikes', 0)}", key=f"dis_{p['id']}"):
+                    if user_id and user_id not in p.get('dislike_users', []):
+                        p['dislikes'] = p.get('dislikes', 0) + 1
+                        p.setdefault('dislike_users', []).append(user_id)
+                        st.rerun()
+
+            # 수정 및 삭제 권한 확인
+            if (current_user_phone == p.get('author')) or is_admin:
+                with col_edit:
+                    if st.button("📝", key=f"edit_{p['id']}"):
+                        st.info("수정 기능 준비 중입니다.")
+                with col_del:
+                    if st.button("🗑️", key=f"del_{p['id']}"):
+                        st.session_state.posts = [item for item in st.session_state.posts if item['id'] != p['id']]
+                        st.rerun()
+        st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
+else:
+    st.caption("게시글이 없습니다.")
+
+st.markdown("---")
 
 # [2. 하단: 검색창 및 글쓰기 버튼 가로 배치]
 col_search, col_write = st.columns([3, 1])
@@ -617,7 +570,8 @@ with col_search:
         "🔍 검색", 
         value=st.session_state.search_word,
         placeholder="종목명 또는 제목으로 검색...",
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        key="board_search_input_final"  # 유니크 키
     )
 
 with col_write:
@@ -626,7 +580,8 @@ with col_write:
 # [3. 글쓰기 폼 로직]
 if st.session_state.get('auth_status') == 'user':
     with show_write:
-        with st.form("board_write_form_final", clear_on_submit=True):
+        # 중복 에러 방지를 위해 고유한 key 부여
+        with st.form(key="unique_write_form_v2", clear_on_submit=True):
             w_col1, w_col2 = st.columns([1, 2])
             with w_col1:
                 new_cat = st.text_input("종목명", placeholder="예: TSLA")
@@ -634,7 +589,6 @@ if st.session_state.get('auth_status') == 'user':
                 new_title = st.text_input("제목", placeholder="제목을 입력하세요")
             new_content = st.text_area("내용", placeholder="인사이트를 공유해 주세요")
             
-            # 스타일은 상단 st.markdown의 CSS에 의해 흰색 바탕/검정 글씨로 적용됩니다.
             if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
                 if new_title and new_content:
                     new_post = {
@@ -642,7 +596,7 @@ if st.session_state.get('auth_status') == 'user':
                         "category": new_cat.upper() if new_cat else "공통",
                         "title": new_title, 
                         "content": new_content,
-                        "author": st.session_state.get('user_phone', '익명'),
+                        "author": current_user_phone,
                         "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "likes": 0, "dislikes": 0,
                         "like_users": [], "dislike_users": [],
@@ -655,7 +609,7 @@ else:
     with show_write:
         st.warning("🔒 로그인 후 글을 남길 수 있습니다.")
 
-# [4. 최하단 면책 조항]
+# [4. 최하단 면책 조항] - 딱 한 번만 호출
 if 'display_disclaimer' in globals():
     display_disclaimer()
     
@@ -2850,6 +2804,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
