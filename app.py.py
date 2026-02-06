@@ -2364,45 +2364,47 @@ elif st.session_state.page == 'detail':
 
             
 
-        # ---------------------------------------------------------
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
-        # ---------------------------------------------------------
         with tab4:
-            # 1. 데이터 수집 (지정된 3개 사이트 타겟팅 결과 호출)
-            with st.spinner(f"🚀 전문 기관(Renaissance, Seeking Alpha, Morningstar) 데이터를 수집 중..."):
+            with st.spinner(f"🚀 전문 기관 데이터를 정밀 수집 중..."):
+                # 쿼리를 더 구체화하여 호출 (함수 내부에서 이를 활용하도록 수정 필요)
                 result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
-
-
+        
             # --- (1) Renaissance Capital 섹션 ---
-            with st.expander("Renaissance Capital IPO 요약", expanded=False):
+            with st.expander("Renaissance Capital IPO 요약", expanded=True):
                 st.markdown("**[AI 기관 분석 요약]**")
-                # 긍정/부정 내용 중 Renaissance 관련 내용이 있다면 우선 표시됨
-                st.info(result.get('summary', '데이터를 불러올 수 없습니다.')) 
-           
-
+                summary = result.get('summary', '')
+                if "분석 불가" in summary or not summary:
+                    st.warning("⚠️ Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다. (비상장 또는 데이터 업데이트 지연)")
+                else:
+                    st.info(summary)
+                
+                # Renaissance 검색 링크 수정 (더 범용적인 검색 페이지로 연결)
                 q = stock['symbol'] if stock['symbol'] else stock['name']
-                st.link_button(f"🔗 {stock['name']} Renaissance 상세 페이지", 
-                               f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}")
-
-
+                # 💡 수정된 검색 URL: Google을 통해 해당 사이트 내 결과를 직접 찾도록 유도
+                search_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
+                st.link_button(f"🔗 {stock['name']} Renaissance 데이터 직접 찾기", search_url)
+        
             # --- (2) Seeking Alpha & Morningstar 섹션 ---
             with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
                 st.markdown("**[Market Consensus]**")
-                st.write(f"전문 분석가들이 제시하는 {stock['name']}의 핵심 논거입니다.")
                 
-
-                # 긍정/부정 의견 블록 노출
-                st.success(f"**💡 주요 긍정/부정 의견**\n\n{result.get('pro_con', '의견 수집 중')}")
-              
-
+                pro_con = result.get('pro_con', '')
+                if "의견 수집 중" in pro_con or not pro_con:
+                    # 💡 [개선] 데이터가 없을 경우를 대비한 수동 검색 안내
+                    st.error("🔄 AI가 실시간 리포트 본문을 읽어오는데 실패했습니다. (권한 제한)")
+                    st.markdown(f"**{stock['symbol']}**에 대한 최신 분석글이 Seeking Alpha에 존재합니다. 아래 링크에서 직접 확인하실 수 있습니다.")
+                else:
+                    st.success(f"**💡 주요 긍정/부정 의견**\n\n{pro_con}")
+        
                 st.markdown("---")
                 c1, c2 = st.columns(2)
-
-                with c1: 
-                    st.link_button("🔗 Seeking Alpha 바로가기", f"https://seekingalpha.com/symbol/{q}/analysis")
-
-                with c2: 
-                    st.link_button("🔗 Morningstar 바로가기", "https://www.morningstar.com/")
+                with c1:
+                    # Seeking Alpha는 분석 탭으로 바로 연결
+                    st.link_button("🔗 Seeking Alpha 분석글 보기", f"https://seekingalpha.com/symbol/{q}/analysis")
+                with c2:
+                    # Morningstar는 검색 결과 페이지로 연결
+                    st.link_button("🔗 Morningstar 검색 결과", f"https://www.morningstar.com/search?query={q}")
 
 
             # --- (3) Institutional Sentiment 섹션 ---
@@ -2626,6 +2628,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
