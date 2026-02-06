@@ -2418,7 +2418,7 @@ elif st.session_state.page == 'detail':
                 result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
         
             # --- (1) Renaissance Capital 섹션 ---
-            with st.expander("Renaissance Capital IPO 요약", expanded=True):
+            with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 st.markdown("**[AI 기관 분석 요약]**")
                 summary = result.get('summary', '')
                 if "분석 불가" in summary or not summary:
@@ -2675,6 +2675,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
