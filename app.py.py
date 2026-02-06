@@ -659,52 +659,7 @@ else:
 if 'display_disclaimer' in globals():
     display_disclaimer()
     
-    # [2. 하단: 검색창 및 글쓰기 버튼 가로 배치]
-    col_search, col_write = st.columns([3, 1])
-    
-    with col_search:
-        # 검색어 입력 (엔터 시 세션 상태에 저장되어 상단 리스트 필터링)
-        st.session_state.search_word = st.text_input(
-            "🔍 검색", 
-            value=st.session_state.search_word,
-            placeholder="종목명 또는 제목 입력...",
-            label_visibility="collapsed" # 레이블 숨김으로 깔끔하게
-        )
-    
-    with col_write:
-        # 글쓰기 창을 열기 위한 Expander를 버튼처럼 우측에 배치
-        show_write = st.expander("📝 글쓰기", expanded=False)
-    
-    # [3. 글쓰기 폼 로직]
-    if is_logged_in:
-        with show_write:
-            with st.form("board_write_form_final", clear_on_submit=True):
-                w_col1, w_col2 = st.columns([1, 2])
-                with w_col1:
-                    new_cat = st.text_input("종목명", placeholder="TSLA")
-                with w_col2:
-                    new_title = st.text_input("제목", placeholder="제목 입력")
-                new_content = st.text_area("내용", placeholder="인사이트를 공유해 주세요")
-                
-                if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
-                    if new_title and new_content:
-                        new_post = {
-                            "id": str(uuid.uuid4()),
-                            "category": new_cat.upper() if new_cat else "공통",
-                            "title": new_title, 
-                            "content": new_content,
-                            "author": st.session_state.get('user_phone', '익명'),
-                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "likes": 0, "dislikes": 0,
-                            "like_users": [], "dislike_users": [],
-                            "uid": st.session_state.get('user_id')
-                        }
-                        if 'posts' not in st.session_state: st.session_state.posts = []
-                        st.session_state.posts.insert(0, new_post)
-                        st.rerun()
-    else:
-        with show_write:
-            st.info("💡 로그인이 필요합니다.")
+  
     
 
 # --- 데이터 로직 (캐싱 최적화 적용) ---
@@ -2895,6 +2850,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
