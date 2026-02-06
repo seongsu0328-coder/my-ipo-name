@@ -12,6 +12,16 @@ import math
 from datetime import datetime, timedelta
 from openai import OpenAI  # ✅ 여기서 임포트
 
+# [정의] 공통으로 사용할 면책 조항 함수
+def display_disclaimer():
+    st.markdown("<br>", unsafe_allow_html=True) # 약간의 여백
+    st.divider()
+    st.caption("""
+        **Legal Disclaimer** 본 서비스는 AI 모델을 활용한 단순 정보 요약 및 번역을 제공하며, 원저작권자의 권리를 존중합니다.  
+        요약된 정보는 원문과 차이가 있을 수 있으며, 모든 투자 결정의 책임은 본인에게 있습니다.  
+        제공되는 링크를 통해 반드시 원문 전체 내용을 확인하시기 바랍니다.
+    """)
+
 # --- [AI 및 검색 기능] ---
 import google.generativeai as genai
 from duckduckgo_search import DDGS
@@ -1640,6 +1650,9 @@ elif st.session_state.page == 'detail':
             
             draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
 
+            # 맨 마지막에 호출
+            display_disclaimer()
+            
         # --- Tab 1: 뉴스 & 심층 분석 ---
         with tab1:
             st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
@@ -1731,6 +1744,9 @@ elif st.session_state.page == 'detail':
             # 결정 박스
             draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
+            # 맨 마지막에 호출
+            display_disclaimer()
+            
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
             
@@ -1989,7 +2005,7 @@ elif st.session_state.page == 'detail':
                 
                 st.info("**Tip:** 시장이 과열될수록 '묻지마 청약'보다는 기업의 발생액 품질(Accruals Quality)을 꼼꼼히 따져봐야 합니다.")
 
-        
+            
 
             # [4] 참고논문 (expander)
             with st.expander("참고(References)", expanded=False):
@@ -2079,6 +2095,8 @@ elif st.session_state.page == 'detail':
             # [✅ 수정 완료] 3단계 판단 (expander 바깥쪽으로 빼냄)
             draw_decision_box("macro", "현재 거시경제(Macro) 상황에 대한 판단은?", ["버블", "중립", "침체"])
 
+            # 맨 마지막에 호출
+            display_disclaimer()
 
         # --- Tab 3: 개별 기업 평가 (Real Data 연동 - Full Version) ---
         with tab3:
@@ -2409,6 +2427,9 @@ elif st.session_state.page == 'detail':
            
             draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["고평가", "중립", "저평가"])
 
+            # 맨 마지막에 호출
+            display_disclaimer()
+
         # --- 탭 글씨 크기 및 스타일 통일 (CSS) ---
         st.markdown("""
             <style>
@@ -2506,6 +2527,8 @@ elif st.session_state.page == 'detail':
             # [✅ 5단계 사용자 판단]
             draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
 
+            # 맨 마지막에 호출
+            display_disclaimer()
     
         
         # =========================================================
@@ -2689,6 +2712,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
