@@ -136,7 +136,7 @@ else:
     model = None
 
 # --- [공시 분석 함수] ---
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=86400) # 👈 ttl=86400(24시간) 추가
 def get_ai_analysis(company_name, topic, points):
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
@@ -2842,6 +2842,7 @@ elif st.session_state.page == 'detail':
                     st.warning("🔒 로그인 후 의견을 남길 수 있습니다.")
         
     
+
 
 
 
