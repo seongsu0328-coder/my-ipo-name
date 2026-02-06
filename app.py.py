@@ -73,11 +73,11 @@ def display_disclaimer():
 # ---------------------------------------------------------
     
 # ---------------------------------------------------------
-# ✅ [여기에 추가] translate_news_title 함수 정의
+# ✅ [수정] translate_news_title 함수 (재시도 로직 적용)
 # ---------------------------------------------------------
 @st.cache_data(show_spinner=False, ttl=3600)
 def translate_news_title(en_title):
-    """뉴스 제목을 한국 경제 신문 헤드라인 스타일로 번역 (캐시 적용)"""
+    """뉴스 제목을 한국 경제 신문 헤드라인 스타일로 번역 (Groq API + 재시도 로직)"""
     groq_key = st.secrets.get("GROQ_API_KEY")
     if not groq_key or not en_title:
         return en_title
@@ -88,21 +88,30 @@ def translate_news_title(en_title):
     - 'sh' -> '주당', 'M' -> '백만', 'IPO' -> 'IPO'
     - 핵심 의미 위주로 간결하게 번역하고, 따옴표나 불필요한 수식어는 제거하세요."""
 
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": f"Translate to Korean headline: {en_title}"}
-            ],
-            temperature=0.1
-        )
-        return response.choices[0].message.content.strip().replace('"', '')
-    except Exception as e:
-        return en_title
+    # [재시도 로직 추가]
+    max_retries = 3
+    for i in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": f"Translate to Korean headline: {en_title}"}
+                ],
+                temperature=0.1
+            )
+            return response.choices[0].message.content.strip().replace('"', '')
+        except Exception as e:
+            if "429" in str(e):
+                time.sleep(2 * (i + 1))
+                continue
+            else:
+                return en_title
+    
+    return en_title
 
 # ---------------------------------------------------------
-# ✅ 여기에 추가: 시장 지표 계산 및 24시간 캐싱 함수
+# ✅ 시장 지표 계산 및 24시간 캐싱 함수
 # ---------------------------------------------------------
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_cached_market_status(df_calendar, api_key):
@@ -124,7 +133,7 @@ def get_cached_market_status(df_calendar, api_key):
         ret_sum = 0; ret_cnt = 0; unp_cnt = 0
         for _, row in traded_ipos.iterrows():
             try:
-                # 내부 보조 함수(get_current_stock_price 등)는 메인 로직 어딘가에 정의되어 있어야 합니다.
+                # 내부 보조 함수는 메인 로직 어딘가에 정의되어 있어야 합니다.
                 p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
                 p_curr = get_current_stock_price(row['symbol'], api_key) 
                 if p_ipo > 0 and p_curr > 0:
@@ -176,6 +185,9 @@ import plotly.graph_objects as go
 # ==========================================
 
 # 1. 자동 모델 선택 함수 (404/403 에러 방지용)
+# 🔥 [수정] 이 함수 자체를 캐싱하여, 하루에 한 번만 구글에 '사용 가능한 모델 목록'을 물어보게 합니다.
+# 이렇게 하면 사용자가 원하시는 '최신 모델 자동 탐색' 기능은 유지하면서 API 호출 횟수는 아낄 수 있습니다.
+@st.cache_data(show_spinner=False, ttl=86400)
 def get_latest_stable_model():
     # 보안을 위해 키는 반드시 st.secrets에서 가져와야 합니다.
     genai_key = st.secrets.get("GENAI_API_KEY")
@@ -184,51 +196,66 @@ def get_latest_stable_model():
     
     try:
         genai.configure(api_key=genai_key)
-        # 생성 가능하고 'flash'가 포함된 모델 목록 추출
+        # 생성 가능하고 'flash'가 포함된 모델 목록 추출 (구글에 물어봄 -> API 1회 소모)
         models = [m.name for m in genai.list_models() 
                   if 'generateContent' in m.supported_generation_methods and 'flash' in m.name]
-        # 최신 모델 반환 (예: gemini-1.5-flash 등)
+        
+        # 목록이 있으면 첫 번째(보통 최신) 반환, 없으면 기본값
+        # 1.5 버전을 우선적으로 찾도록 정렬 로직을 살짝 추가하면 더 좋습니다.
+        models.sort(key=lambda x: '1.5' in x, reverse=True) 
+        
         return models[0] if models else 'gemini-1.5-flash'
     except Exception:
+        # 에러 나면 안전하게 기본 모델 반환
         return 'gemini-1.5-flash'
 
 # 2. 전역 모델 객체 생성
 SELECTED_MODEL_NAME = get_latest_stable_model()
 
 if SELECTED_MODEL_NAME:
-    model = genai.GenerativeModel(SELECTED_MODEL_NAME)
+    try:
+        model = genai.GenerativeModel(SELECTED_MODEL_NAME)
+    except:
+        model = None
 else:
     st.error("⚠️ GENAI_API_KEY가 유출되었거나 설정되지 않았습니다. Streamlit Secrets를 확인하세요.")
     model = None
 
 # --- [공시 분석 함수] ---
-@st.cache_data(show_spinner=False, ttl=86400) # 👈 ttl=86400(24시간) 추가
+@st.cache_data(show_spinner=False, ttl=86400) # 24시간 캐싱
 def get_ai_analysis(company_name, topic, points):
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
     
-    try:
-        prompt = f"""
-        당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
-        핵심 체크포인트: {points}
-        
-        내용 구성:
-        1. 해당 문서에서 발견된 가장 중요한 투자 포인트.
-        2. MD&A를 통해 본 기업의 실질적 성장 가능성.
-        3. 투자자가 반드시 경계해야 할 핵심 리스크 1가지.
-        
-        전문적인 톤으로 한국어로 5줄 내외 요약하세요.
-        """
-        response = model.generate_content(prompt)
-        return response.text
+    # [재시도 로직 추가]
+    max_retries = 3
+    for i in range(max_retries):
+        try:
+            prompt = f"""
+            당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
+            핵심 체크포인트: {points}
             
-    except Exception as e:
-        if "403" in str(e) or "leaked" in str(e).lower():
-            return "❌ API 키가 유출되어 차단되었습니다. 새 키를 발급받아 Secrets에 등록하세요."
-        return f"현재 분석 엔진을 조율 중입니다. (상세: {str(e)})"
+            내용 구성:
+            1. 해당 문서에서 발견된 가장 중요한 투자 포인트.
+            2. MD&A를 통해 본 기업의 실질적 성장 가능성.
+            3. 투자자가 반드시 경계해야 할 핵심 리스크 1가지.
+            
+            전문적인 톤으로 한국어로 5줄 내외 요약하세요.
+            """
+            response = model.generate_content(prompt)
+            return response.text
+            
+        except Exception as e:
+            # 429 에러(속도제한)라면 대기 후 재시도
+            if "429" in str(e) or "quota" in str(e).lower():
+                time.sleep(2 * (i + 1)) # 2초, 4초...
+                continue
+            else:
+                return f"현재 분석 엔진을 조율 중입니다. (상세: {str(e)})"
+    
+    return "⚠️ 사용량이 많아 분석이 지연되고 있습니다. 잠시 후 다시 시도해주세요."
 
 # --- [기관 평가 분석 함수] ---
-# ttl을 3600(1시간)에서 86400(24시간)으로 변경하여 하루에 한 번만 업데이트되게 합니다.
 @st.cache_data(show_spinner=False, ttl=86400) 
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
@@ -238,7 +265,7 @@ def get_cached_ipo_analysis(ticker, company_name):
     try:
         tavily = TavilyClient(api_key=tavily_key)
         
-        # 쿼리 최적화: 최신 분석(2025-2026)과 전문 기관 사이트를 필터링
+        # 쿼리 최적화
         site_query = f"(site:renaissancecapital.com OR site:seekingalpha.com OR site:morningstar.com) {company_name} {ticker} stock IPO analysis 2025 2026"
         
         search_result = tavily.search(query=site_query, search_depth="advanced", max_results=10)
@@ -273,20 +300,33 @@ def get_cached_ipo_analysis(ticker, company_name):
         Summary: (이곳에 작성)
         """
 
-        response_obj = model.generate_content(prompt)
-        response_text = response_obj.text
+        # [재시도 로직 추가]
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                response_obj = model.generate_content(prompt)
+                response_text = response_obj.text
 
-        import re
-        rating = re.search(r"Rating:\s*(.*)", response_text, re.I)
-        pro_con = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
-        summary = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
+                import re
+                rating = re.search(r"Rating:\s*(.*)", response_text, re.I)
+                pro_con = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
+                summary = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
 
-        return {
-            "rating": rating.group(1).strip() if rating else "Neutral",
-            "pro_con": pro_con.group(1).strip() if pro_con else "분석 데이터 추출 실패",
-            "summary": summary.group(1).strip() if summary else response_text,
-            "links": links[:5]
-        }
+                return {
+                    "rating": rating.group(1).strip() if rating else "Neutral",
+                    "pro_con": pro_con.group(1).strip() if pro_con else "분석 데이터 추출 실패",
+                    "summary": summary.group(1).strip() if summary else response_text,
+                    "links": links[:5]
+                }
+            except Exception as e:
+                # 429 에러 처리
+                if "429" in str(e) or "quota" in str(e).lower():
+                    time.sleep(2 * (i + 1))
+                    continue
+                return {"rating": "Error", "pro_con": f"오류 발생: {e}", "summary": "분석 중 문제가 발생했습니다.", "links": []}
+        
+        return {"rating": "N/A", "pro_con": "API 사용량 초과", "summary": "잠시 후 다시 시도해주세요.", "links": []}
+        
     except Exception as e:
         return {"rating": "Error", "pro_con": f"오류 발생: {e}", "summary": "데이터를 불러오는 중 문제가 발생했습니다.", "links": []}
         
@@ -2846,6 +2886,7 @@ elif st.session_state.page == 'detail':
                     st.warning("🔒 로그인 후 의견을 남길 수 있습니다.")
         
     
+
 
 
 
