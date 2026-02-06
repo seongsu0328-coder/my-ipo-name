@@ -194,44 +194,85 @@ IPO_REFERENCES = [
 
 @st.cache_data(ttl=3600)
 def get_cached_ipo_analysis(ticker, company_name):
-    query = f"{company_name} {ticker} IPO analysis rating Scoop Seeking Alpha"
+    tavily_key = st.secrets.get("TAVILY_API_KEY")
+    if not tavily_key:
+        return {"rating": "N/A", "pro_con": "API Key 누락", "summary": "설정을 확인하세요.", "links": []}
+
     try:
-        with DDGS() as ddgs:
-            search_results = [r for r in ddgs.text(query, max_results=5)]
+        tavily = TavilyClient(api_key=tavily_key)
         
-        search_context = ""
+        # [개선 1] 검색 쿼리 다각화: 특정 사이트 한정과 일반 검색을 조합하여 정보 획득률 극대화
+        # 특히 Seeking Alpha의 최신 분석글 제목(Repay Debt 등)이 검색 결과에 잘 잡히도록 유도합니다.
+        search_queries = [
+            f"Seeking Alpha {ticker} {company_name} analysis IPO",
+            f"Renaissance Capital {ticker} {company_name} IPO profile",
+            f"Morningstar {company_name} {ticker} stock analysis",
+            f"'{company_name}' Begins IPO Rollout To Repay Debt" # 특정 뉴스 헤드라인 타겟팅
+        ]
+        
+        combined_context = ""
         links = []
-        for res in search_results:
-            search_context += f"제목: {res['title']}\n내용: {res['body']}\n\n"
-            links.append({"title": res['title'], "link": res['href']})
+        
+        # 여러 쿼리로 검색하여 더 넓은 범위를 수집 (중복은 AI가 제거)
+        for q in search_queries[:2]: # API 소모 조절을 위해 상위 2개 쿼리 우선 실행
+            search_result = tavily.search(query=q, search_depth="advanced", max_results=5)
+            results = search_result.get('results', [])
+            for r in results:
+                combined_context += f"Source: {r['url']}\nTitle: {r['title']}\nContent: {r['content']}\n\n"
+                if r['url'] not in [l['link'] for l in links]:
+                    links.append({"title": r['title'], "link": r['url']})
 
-        # 프롬프트에 '구분자'를 추가하여 파싱하기 쉽게 만듭니다.
+        # [개선 2] AI 분석 프롬프트 보강 (요청하신 지침 반영)
         prompt = f"""
-        당신은 전문 분석가입니다. {company_name} ({ticker})의 데이터를 분석하여 아래 형식을 반드시 지켜 답변하세요.
-        
-        Rating: [찾은 등급이 있다면 Buy/Hold/Sell 중 하나, 없으면 N/A]
-        Score: [찾은 IPO Scoop 별점이 있다면 숫자만, 없으면 N/A]
-        Summary: [핵심 요약 5줄]
-        
-        검색 데이터:
-        {search_context}
-        """
-        
-        response = model.generate_content(prompt).text
-        
-        # 간단한 파싱 로직
-        rating = "N/A"
-        score = "N/A"
-        summary = response
-        
-        for line in response.split('\n'):
-            if line.startswith("Rating:"): rating = line.replace("Rating:", "").strip()
-            if line.startswith("Score:"): score = line.replace("Score:", "").strip()
-            if line.startswith("Summary:"): summary = line.replace("Summary:", "").strip()
+        당신은 월스트리트의 IPO 전문 분석가입니다. 
+        제공된 검색 결과(snippets)를 정밀하게 읽고 {company_name} ({ticker})에 대한 기관 평가를 요약하세요.
 
-        return {"rating": rating, "score": score, "summary": response, "links": links}
-    except:
-        return {"rating": "N/A", "score": "N/A", "summary": "분석 불가", "links": []}
+        [지침]
+        1. 'Seeking Alpha', 'Renaissance Capital', 'Morningstar'의 분석 내용을 최우선으로 반영하세요.
+        2. 만약 내용 중 'Begins IPO Rollout to Repay Debt' (부채 상환을 위한 IPO 전개)와 관련된 언급이 있다면 반드시 분석에 포함시키세요.
+        3. 긍정적 요소(Pros)와 부정적/리스크 요소(Cons)를 각각 2가지씩 명확히 구분하세요.
+        4. 데이터가 파편화되어 있다면 검색된 텍스트 중 가장 신뢰도 높은 경제 지표나 문구를 사용하세요.
+
+        반드시 아래 형식을 지키세요:
+        Rating: (Buy/Hold/Sell/Neutral 중 선택)
+        Pro_Con: 
+        - 긍정1: 내용
+        - 긍정2: 내용
+        - 부정1: 내용
+        - 부정2: 내용
+        Summary: (전체 요약 3줄 내외, 부채 상환 이슈가 있다면 반드시 언급)
+        """
+
+        # Gemini 모델 호출 (전역 변수로 model이 정의되어 있어야 함)
+        full_response = model.generate_content([prompt, combined_context]).text
+        
+        # 결과 파싱 (간단한 파싱 로직)
+        rating = "Neutral"
+        if "Rating:" in full_response:
+            rating = full_response.split("Rating:")[1].split("\n")[0].strip()
+        
+        pro_con = "의견 수집 중"
+        if "Pro_Con:" in full_response:
+            pro_con = full_response.split("Pro_Con:")[1].split("Summary:")[0].strip()
+            
+        summary = "데이터를 분석할 수 없습니다."
+        if "Summary:" in full_response:
+            summary = full_response.split("Summary:")[1].strip()
+
+        return {
+            "rating": rating,
+            "pro_con": pro_con,
+            "summary": summary,
+            "links": links
+        }
+
+    except Exception as e:
+        return {
+            "rating": "Error",
+            "pro_con": f"분석 중 오류 발생: {str(e)}",
+            "summary": "AI 서비스 응답 지연",
+            "links": []
+        }
 
 # ==========================================
 # [3] 핵심 재무 분석 함수 (yfinance 실시간 연동)
@@ -2628,6 +2669,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
