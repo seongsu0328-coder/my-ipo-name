@@ -2409,7 +2409,21 @@ elif st.session_state.page == 'detail':
            
             draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["고평가", "중립", "저평가"])
 
-            
+        # --- 탭 글씨 크기 및 스타일 통일 (CSS) ---
+        st.markdown("""
+            <style>
+            /* 모든 탭 버튼의 글씨 크기와 굵기 조절 */
+            button[data-baseweb="tab"] p {
+                font-size: 1.1rem !important;
+                font-weight: 600 !important;
+                color: #31333F;
+            }
+            /* 선택된 탭의 강조 효과 */
+            button[data-baseweb="tab"][aria-selected="true"] p {
+                color: #FF4B4B !important; /* 스트림릿 기본 레드 컬러 */
+            }
+            </style>
+        """, unsafe_allow_html=True)            
 
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         with tab4:
@@ -2675,6 +2689,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
