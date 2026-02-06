@@ -2363,7 +2363,7 @@ elif st.session_state.page == 'detail':
                     st.info(opinion_text)
                     st.caption("※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
                 else:
-                    st.warning(f"⚠️ {stock['name']}의 상세 재무 데이터를 불러올 수 없습니다.")
+                    st.warning(f"재무 데이터 부재로 정성적 분석이 권장됩니다.")
 
             # [4] 학술적 근거 및 원문 링크 섹션
             with st.expander("참고(References)", expanded=False):
@@ -2689,6 +2689,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
