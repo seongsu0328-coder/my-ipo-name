@@ -2490,14 +2490,14 @@ elif st.session_state.page == 'detail':
          
 
                 st.markdown("---")
-                st.markdown("## 긍정/부정 근거")
+                st.markdown('<p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">긍정/부정 근거</p>', unsafe_allow_html=True)
                 st.write(result.get('pro_con', '내용 없음'))
 
 
                 # 참고 소스 링크
                 sources = result.get('links', [])
                 if sources:
-                    st.markdown("##  참고 리포트 출처")
+                    st.markdown('<p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">참고 리포트 출처</p>', unsafe_allow_html=True)
                     for src in sources[:4]: # 상위 4개만
                         st.markdown(f"- [{src['title']}]({src['link']})")
 
@@ -2689,6 +2689,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
