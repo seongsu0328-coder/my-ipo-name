@@ -2082,11 +2082,90 @@ elif st.session_state.page == 'detail':
                     st.warning("🚨 **경고:** 적자 기업 비율이 매우 높습니다. 개별 종목의 현금흐름 확인이 필수적입니다.")
                 st.info("**Tip:** 시장 과열기에는 발생액 품질(Accruals Quality)을 따져봐야 합니다.")
         
-            # --- 4. 참고논문 (Expander) ---
+           # [4] 참고논문 (expander)
             with st.expander("참고(References)", expanded=False):
-                # (이전 코드의 references 리스트 및 루프 로직 유지)
+                st.markdown("""
+                <style>
+                    .ref-container { margin-top: 5px; }
+                    .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+                    .ref-item:hover { background-color: #fafafa; padding-left: 5px; padding-right: 5px; }
+                    .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
+                    .ref-title:hover { text-decoration: underline; }
+                    .ref-author { font-size: 12px; color: #666; margin-top: 2px; }
+                    .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 10px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; white-space: nowrap; }
+                    .ref-btn:hover { border-color: #004e92; color: #004e92; background-color: #f0f7ff; }
+                    .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 10px; font-weight: bold; margin-bottom: 5px; }
+                </style>
+                """, unsafe_allow_html=True)
+
+                # --- 중요: references 변수를 여기서 정의해야 합니다 ---
+                references = [
+                    {
+                        "label": "IPO 데이터", 
+                        "title": "Initial Public Offerings: Updated Statistics", 
+                        "author": "Jay R. Ritter (Warrington College)", 
+                        "summary": "미국 IPO 시장의 성적표와 공모가 저평가(Underpricing) 통계의 결정판",
+                        "link": "https://site.warrington.ufl.edu/ritter/ipo-data/"
+                    },
+                    {
+                        "label": "시장 과열", 
+                        "title": "'Hot Issue' Markets (Ibbotson & Jaffe)", 
+                        "author": "Ibbotson & Jaffe (1975)", 
+                        "summary": "특정 시기에 IPO 수익률이 비정상적으로 높아지는 '시장 과열' 현상 규명",
+                        "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets"
+                    },
+                    {
+                        "label": "상장 철회", 
+                        "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", 
+                        "author": "Dunbar (1998)", 
+                        "summary": "상장 방식 선택에 따른 기업 가치와 상장 철회 위험의 상관관계 분석",
+                        "link": "https://scholar.google.com/scholar?q=Dunbar+1995+The+Choice+Between+Firm-Commitment+and+Best-Efforts+IPOs"
+                    },
+                    {
+                        "label": "시장 변동성", 
+                        "title": "VIX White Paper: CBOE Volatility Index", 
+                        "author": "CBOE (Official)", 
+                        "summary": "S&P 500 옵션을 기반으로 시장의 공포와 변동성을 측정하는 표준 지표",
+                        "link": "https://www.cboe.com/micro/vix/vixwhite.pdf"
+                    },
+                    {
+                        "label": "밸류에이션", 
+                        "title": "Warren Buffett on the Stock Market (Fortune Classic)", 
+                        "author": "Warren Buffett (2001)", 
+                        "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 버핏 지표",
+                        "link": "https://www.gurufocus.com/news/122602/warren-buffett-on-the-stock-market-2001-article"
+                    },
+                    {
+                        "label": "기초 데이터", 
+                        "title": "U.S. Stock Markets 1871-Present (CAPE Ratio)", 
+                        "author": "Robert Shiller", 
+                        "summary": "경기조정주가수익비율(CAPE)을 활용한 장기적 주식 시장 밸류에이션 데이터",
+                        "link": "http://www.econ.yale.edu/~shiller/data.htm"
+                    },
+                    {
+                        "label": "투자자 심리", 
+                        "title": "Fear & Greed Index (Real-time)", 
+                        "author": "CNN Business", 
+                        "summary": "7가지 지표를 통합해 투자자의 탐욕과 공포 수준을 0~100으로 수치화",
+                        "link": "https://edition.cnn.com/markets/fear-and-greed"
+                    }
+                ]
+
+                # 이제 변수가 정의되었으므로 루프를 돌립니다.
                 for ref in references:
-                     st.markdown(f"**{ref['label']}**: [{ref['title']}]({ref['link']}) - {ref['author']}", unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div class='ref-item'>
+                        <div style='flex:1;'>
+                            <div class='ref-badge'>{ref['label']}</div><br>
+                            <a href='{ref['link']}' target='_blank' class='ref-title' style='display:block; margin-bottom:4px;'>📄 {ref['title']}</a>
+                            <div style='font-size: 13px; color: #666; line-height: 1.5;'>
+                                <span>{ref['summary']}, {ref['author']}</span>
+                            </div>
+                        </div>
+                        <div style='margin-left: 15px; align-self: center;'>
+                            <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
         
             # --- 5. 최종 의사결정 박스 및 면책조항 ---
             # draw_decision_box 함수가 사전에 정의되어 있어야 합니다.
@@ -2744,6 +2823,7 @@ elif st.session_state.page == 'detail':
                     st.warning("🔒 로그인 후 의견을 남길 수 있습니다.")
         
     
+
 
 
 
