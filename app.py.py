@@ -2749,66 +2749,102 @@ elif st.session_state.page == 'detail':
         
             
             # ---------------------------------------------------------
-            # 3. 해당 종목 토론방 (Tab 5 전 전용)
-            # 기존 st.markdown(f"## 기업분석 및 가치평가") 삭제 후 아래 코드 삽입
-            st.markdown(f'<p style="font-size: 15px; font-weight: 600; margin-top: 20px; margin-bottom: 10px;">기업분석 및 가치평가</p>', unsafe_allow_html=True)
+            # 3. 해당 종목 토론방 (통합 게시판 구조와 100% 일치)
+            # ---------------------------------------------------------
+            
+            # [설정] 관리자 및 사용자 확인
+            ADMIN_PHONE = "010-0000-0000" 
+            current_user_phone = st.session_state.get('user_phone', 'guest')
+            is_admin = (current_user_phone == ADMIN_PHONE)
+            user_id = st.session_state.get('user_id')
+            
+            # [1. 상단: 해당 종목 게시글 리스트]
+            # 전체 포스트 중 현재 종목(sid)에 해당하는 글만 필터링
+            sid_posts = [p for p in st.session_state.get('posts', []) if p.get('category') == sid]
+            
+            # --- 리스트 출력 시작 (최대 10개) ---
+            if sid_posts:
+                for idx, p in enumerate(sid_posts[:10]):
+                    # 헤더 구성 (이미 [sid]가 제목에 있으면 중복 방지)
+                    title = p.get('title', '').strip()
+                    clean_title = title if f"[{sid}]" in title else f"[{sid}] {title}"
+                    combined_header = f"{clean_title} | 👤 {p.get('author')} | {p.get('date')}"
+                    
+                    with st.expander(combined_header, expanded=False):
+                        st.write(p.get('content'))
+                        st.divider()
+                        
+                        # 버튼 레이아웃 (통합 게시판과 동일)
+                        col_l, col_d, col_spacer, col_edit, col_del = st.columns([0.7, 0.7, 3.5, 0.6, 0.6])
+                        
+                        with col_l:
+                            if st.button(f"👍 {p.get('likes', 0)}", key=f"t5_like_{p['id']}"):
+                                if user_id and user_id not in p.get('like_users', []):
+                                    for original_p in st.session_state.posts:
+                                        if original_p['id'] == p['id']:
+                                            original_p['likes'] += 1
+                                            original_p.setdefault('like_users', []).append(user_id)
+                                            break
+                                    st.rerun()
+                        with col_d:
+                            if st.button(f"👎 {p.get('dislikes', 0)}", key=f"t5_dis_{p['id']}"):
+                                if user_id and user_id not in p.get('dislike_users', []):
+                                    for original_p in st.session_state.posts:
+                                        if original_p['id'] == p['id']:
+                                            original_p['dislikes'] = original_p.get('dislikes', 0) + 1
+                                            original_p.setdefault('dislike_users', []).append(user_id)
+                                            break
+                                    st.rerun()
+            
+                        # 수정 및 삭제 권한
+                        if (current_user_phone == p.get('author')) or is_admin:
+                            with col_edit:
+                                if st.button("📝", key=f"t5_edit_{p['id']}"):
+                                    st.info("수정 기능 준비 중입니다.")
+                            with col_del:
+                                if st.button("🗑️", key=f"t5_del_{p['id']}"):
+                                    st.session_state.posts = [item for item in st.session_state.posts if item['id'] != p['id']]
+                                    st.rerun()
+                    st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
+            else:
+                st.caption(f"{sid} 종목에 대한 첫 의견을 남겨보세요!")
+            
+            st.markdown("---")
+            
+            # [2. 하단: 글쓰기 섹션]
+            # 개별 종목 페이지에서는 검색창이 굳이 필요 없으므로 "글쓰기"만 깔끔하게 배치하거나
+            # 통합 게시판과 디자인을 맞추기 위해 검색 없이 expander만 넓게 사용합니다.
+            show_write_t5 = st.expander(f"📝 {sid} 의견 나누기", expanded=False)
             
             if st.session_state.get('auth_status') == 'user':
-                with st.expander("글쓰기", expanded=False):
-                    with st.form(key=f"write_{sid}", clear_on_submit=True):
-                        post_title = st.text_input("제목", placeholder="제목을 입력하세요")
-                        post_content = st.text_area("내용", placeholder="종목에 대한 분석이나 의견을 자유롭게 남겨주세요.", height=100)
-                        _, btn_col = st.columns([3, 1])
-                        if btn_col.form_submit_button("등록하기", use_container_width=True, type="primary"):
-                            if post_title.strip() and post_content.strip():
+                with show_write_t5:
+                    with st.form(key=f"unique_write_form_{sid}", clear_on_submit=True):
+                        # 종목명은 현재 페이지 종목(sid)으로 자동 고정되므로 제목과 내용만 입력
+                        new_title = st.text_input("제목", placeholder=f"{sid} 관련 제목을 입력하세요")
+                        new_content = st.text_area("내용", placeholder="인사이트를 공유해 주세요")
+                        
+                        if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
+                            if new_title and new_content:
                                 new_post = {
                                     "id": str(uuid.uuid4()),
                                     "category": sid, 
-                                    "title": f"[{sid}] {post_title}",
-                                    "content": post_content,
-                                    "author": st.session_state.get('user_phone', '익명'),
+                                    "title": new_title, 
+                                    "content": new_content,
+                                    "author": current_user_phone,
                                     "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                                    "likes": 0,
-                                    "like_users": [],
-                                    "uid": current_user
+                                    "likes": 0, "dislikes": 0,
+                                    "like_users": [], "dislike_users": [],
+                                    "uid": user_id
                                 }
+                                if 'posts' not in st.session_state: st.session_state.posts = []
                                 st.session_state.posts.insert(0, new_post)
                                 st.rerun()
-        
-            # 리스트 필터링 (현재 종목 글만)
-            sid_posts = [p for p in st.session_state.posts if p.get('category') == sid]
-            if sid_posts:
-                total_pages = math.ceil(len(sid_posts) / 10)
-                pg_col1, pg_col2 = st.columns([7, 3])
-                page = pg_col2.number_input("페이지", min_value=1, max_value=max(1, total_pages), step=1, key=f"pg_in_{sid}")
-                
-                start_idx = (page - 1) * 10
-                for p in sid_posts[start_idx : start_idx + 10]:
-                    st.markdown(f"""
-                    <div style='background-color: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 5px; border: 1px solid #eee;'>
-                        <div style='display:flex; justify-content:space-between; margin-bottom: 8px;'>
-                            <span style='font-weight:bold; font-size:13px;'>👤 {p['author']}</span>
-                            <span style='font-size:11px; color:#999;'>{p['date']}</span>
-                        </div>
-                        <div style='font-weight:bold; font-size:15px; margin-bottom:5px;'>{p['title']}</div>
-                        <div style='font-size:14px;'>{p['content']}</div>
-                    </div>""", unsafe_allow_html=True)
-                    
-                    l_col, r_col, _ = st.columns([1, 1, 6])
-                    if l_col.button(f"👍 {p['likes']}", key=f"l_{p['id']}"):
-                        idx = next(i for i, item in enumerate(st.session_state.posts) if item['id'] == p['id'])
-                        if current_user != 'guest' and current_user not in st.session_state.posts[idx].get('like_users', []):
-                            st.session_state.posts[idx]['likes'] += 1
-                            st.session_state.posts[idx].setdefault('like_users', []).append(current_user)
-                            st.rerun()
-                    if current_user == p.get('uid') or is_admin:
-                        if r_col.button("🗑️", key=f"del_{p['id']}"):
-                            st.session_state.posts = [item for item in st.session_state.posts if item['id'] != p['id']]
-                            st.rerun()
             else:
-                st.caption("아직 작성된 의견이 없습니다.")
+                with show_write_t5:
+                    st.warning("🔒 로그인 후 의견을 남길 수 있습니다.")
         
     
+
 
 
 
