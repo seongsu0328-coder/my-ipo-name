@@ -57,7 +57,7 @@ GENAI_API_KEY = "AIzaSyDye2LBIirYQnYgjyXSqzG_79OLII37ILk"
 genai.configure(api_key=GENAI_API_KEY)
 
 # 가장 최신 표준 명칭으로 시도 (접두사 없이)
-model = genai.GenerativeModel('gemini-2.5-flash')
+model = genai.GenerativeModel('gemini-3-flash-preview')
 
 @st.cache_data(show_spinner=False)
 def get_ai_analysis(company_name, topic, points):
@@ -2669,6 +2669,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
