@@ -15,10 +15,10 @@ from openai import OpenAI  # ✅ OpenAI 임포트
 # --- [AI 및 검색 기능] ---
 import google.generativeai as genai
 from duckduckgo_search import DDGS
-from trytavily import TavilyClient # tavily 사용 시 이름 주의
+from tavily import TavilyClient  # ✅ 에러 해결: 표준 패키지명으로 수정 완료
 
 # ---------------------------------------------------------
-# 1. CSS 스타일 정의 (게시하기 버튼 커스텀)
+# 1. 앱 전체 스타일 설정 (CSS)
 # ---------------------------------------------------------
 st.markdown("""
     <style>
@@ -28,34 +28,40 @@ st.markdown("""
         font-weight: 600 !important;
     }
     
-    /* 게시하기 버튼 커스텀: 흰색 바탕, 검정 글씨, 테두리 추가 */
-    /* Streamlit의 'primary' 버튼 타입을 타겟팅합니다. */
+    /* [게시판 개선] 게시하기 버튼 커스텀: 흰색 바탕, 검정 글씨, 테두리 */
     div.stButton > button[kind="primary"] {
         background-color: #ffffff !important;
         color: #000000 !important;
         border: 1px solid #cccccc !important;
-        font-size: 1.05rem !important; /* 글쓰기 Expander 레이블 크기와 맞춤 */
+        font-size: 1.05rem !important; /* '글쓰기' expander 폰트 크기와 맞춤 */
         font-weight: 500 !important;
         height: auto !important;
         padding: 5px 20px !important;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
     }
     
-    /* 호버(마우스 올렸을 때) 효과 */
+    /* 게시하기 버튼 호버 효과 */
     div.stButton > button[kind="primary"]:hover {
         border-color: #000000 !important;
         background-color: #f9f9f9 !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
+
+    /* 게시글 리스트 간격 조절 */
+    .post-divider {
+        margin-bottom: 20px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. 공통 함수 정의
+# 2. 공통 유틸리티 함수
 # ---------------------------------------------------------
 
-# [정의] 공통으로 사용할 면책 조항 함수
 def display_disclaimer():
+    """
+    모든 탭 하단에 표시될 공통 면책 조항
+    """
     st.markdown("<br>", unsafe_allow_html=True) # 약간의 여백
     st.divider()
     st.caption("""
@@ -64,6 +70,10 @@ def display_disclaimer():
         제공되는 링크를 통해 반드시 원문 전체 내용을 확인하시기 바랍니다.
     """)
 
+# ---------------------------------------------------------
+# 3. 이후 메인 로직 시작 (탭 구성 등)
+# ---------------------------------------------------------
+    
 # ---------------------------------------------------------
 # ✅ [여기에 추가] translate_news_title 함수 정의
 # ---------------------------------------------------------
@@ -2768,6 +2778,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
