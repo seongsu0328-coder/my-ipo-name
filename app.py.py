@@ -2285,7 +2285,7 @@ elif st.session_state.page == 'detail':
                     st.warning("재무 데이터 부재로 정성적 분석이 권장됩니다.")
         
             # [3] 재무자료 상세보기 (Summary Table)
-            with st.expander("재무분석", expanded=True):
+            with st.expander("재무분석", expanded=False):
                 if is_data_available:
                     st.caption(f"Data Source: {data_source} / Currency: USD")
             
@@ -2689,6 +2689,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
