@@ -228,7 +228,8 @@ def get_ai_analysis(company_name, topic, points):
         return f"현재 분석 엔진을 조율 중입니다. (상세: {str(e)})"
 
 # --- [기관 평가 분석 함수] ---
-@st.cache_data(show_spinner=False, ttl=3600)
+# ttl을 3600(1시간)에서 86400(24시간)으로 변경하여 하루에 한 번만 업데이트되게 합니다.
+@st.cache_data(show_spinner=False, ttl=86400) 
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     if not tavily_key or not model:
@@ -236,11 +237,16 @@ def get_cached_ipo_analysis(ticker, company_name):
 
     try:
         tavily = TavilyClient(api_key=tavily_key)
-        site_query = f"(site:renaissancecapital.com OR site:seekingalpha.com OR site:morningstar.com) {company_name} {ticker} analysis"
+        
+        # 쿼리 최적화: 최신 분석(2025-2026)과 전문 기관 사이트를 필터링
+        site_query = f"(site:renaissancecapital.com OR site:seekingalpha.com OR site:morningstar.com) {company_name} {ticker} stock IPO analysis 2025 2026"
         
         search_result = tavily.search(query=site_query, search_depth="advanced", max_results=10)
         results = search_result.get('results', [])
         
+        if not results:
+            return {"rating": "Neutral", "pro_con": "최근 기관 리포트를 찾을 수 없습니다.", "summary": "현재 공개된 전문 기관의 분석 데이터가 부족합니다.", "links": []}
+
         search_context = ""
         links = []
         for r in results:
@@ -248,17 +254,23 @@ def get_cached_ipo_analysis(ticker, company_name):
             links.append({"title": r['title'], "link": r['url']})
 
         prompt = f"""
-        투자 전문 분석가로서 아래 3대 기관 데이터를 바탕으로 {company_name} ({ticker})를 분석하세요.
-        데이터: {search_context}
+        당신은 월가 출신의 IPO 전문 분석가입니다. 아래 제공된 {company_name} ({ticker})에 대한 기관 데이터를 바탕으로 심층 분석을 수행하세요.
         
-        [지침]
-        1. 긍정의견(Pros) 2가지, 부정의견(Cons) 2가지를 요약하세요.
-        2. 반드시 아래 형식을 지키세요:
-        Rating: (Buy/Hold/Sell/Neutral)
+        [데이터 요약]:
+        {search_context}
+        
+        [작성 지침]:
+        1. 반드시 한국어로 답변하세요.
+        2. 긍정의견(Pros) 2가지와 부정의견(Cons) 2가지를 구체적인 수치나 근거를 들어 요약하세요.
+        3. Rating은 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
+        4. Summary는 전문적인 톤으로 3줄 이내로 작성하세요.
+
+        [응답 형식]:
+        Rating: (이곳에 작성)
         Pro_Con: 
-        - 긍정1: 내용
-        - 부정1: 내용
-        Summary: (전체 요약 3줄)
+        - 긍정: 내용
+        - 부정: 내용
+        Summary: (이곳에 작성)
         """
 
         response_obj = model.generate_content(prompt)
@@ -271,12 +283,12 @@ def get_cached_ipo_analysis(ticker, company_name):
 
         return {
             "rating": rating.group(1).strip() if rating else "Neutral",
-            "pro_con": pro_con.group(1).strip() if pro_con else "분석 데이터 부족",
+            "pro_con": pro_con.group(1).strip() if pro_con else "분석 데이터 추출 실패",
             "summary": summary.group(1).strip() if summary else response_text,
             "links": links[:5]
         }
     except Exception as e:
-        return {"rating": "Error", "pro_con": f"오류: {e}", "summary": "분석 불가", "links": []}
+        return {"rating": "Error", "pro_con": f"오류 발생: {e}", "summary": "데이터를 불러오는 중 문제가 발생했습니다.", "links": []}
         
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
@@ -2823,6 +2835,7 @@ elif st.session_state.page == 'detail':
                     st.warning("🔒 로그인 후 의견을 남길 수 있습니다.")
         
     
+
 
 
 
