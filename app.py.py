@@ -50,21 +50,43 @@ def translate_news_title(en_title):
 import yfinance as yf
 import plotly.graph_objects as go
 
-# ==========================================ㅅ뮤
-# [0] AI 설정 및 API 키 (가장 안정적인 모델로 교체)
 # ==========================================
-GENAI_API_KEY = "AIzaSyDye2LBIirYQnYgjyXSqzG_79OLII37ILk" 
-genai.configure(api_key=GENAI_API_KEY)
+# [0] AI 설정 및 API 키 관리 (보안 강화)
+# ==========================================
 
-# 가장 최신 표준 명칭으로 시도 (접두사 없이)
-model = genai.GenerativeModel('gemini-3-flash-preview')
+# 1. 자동 모델 선택 함수 (404/403 에러 방지용)
+def get_latest_stable_model():
+    # 보안을 위해 키는 반드시 st.secrets에서 가져와야 합니다.
+    genai_key = st.secrets.get("GENAI_API_KEY")
+    if not genai_key:
+        return None
+    
+    try:
+        genai.configure(api_key=genai_key)
+        # 생성 가능하고 'flash'가 포함된 모델 목록 추출
+        models = [m.name for m in genai.list_models() 
+                  if 'generateContent' in m.supported_generation_methods and 'flash' in m.name]
+        # 최신 모델 반환 (예: gemini-1.5-flash 등)
+        return models[0] if models else 'gemini-1.5-flash'
+    except Exception:
+        return 'gemini-1.5-flash'
 
+# 2. 전역 모델 객체 생성
+SELECTED_MODEL_NAME = get_latest_stable_model()
+
+if SELECTED_MODEL_NAME:
+    model = genai.GenerativeModel(SELECTED_MODEL_NAME)
+else:
+    st.error("⚠️ GENAI_API_KEY가 유출되었거나 설정되지 않았습니다. Streamlit Secrets를 확인하세요.")
+    model = None
+
+# --- [공시 분석 함수] ---
 @st.cache_data(show_spinner=False)
 def get_ai_analysis(company_name, topic, points):
+    if not model:
+        return "AI 모델 설정 오류: API 키를 확인하세요."
+    
     try:
-        # [수정 핵심] 함수 내부에서 모델을 새로 찾지(list_models) 않습니다.
-        # 파일 상단에서 이미 안전하게 생성된 전역 'model' 객체를 그대로 사용합니다.
-        
         prompt = f"""
         당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
         핵심 체크포인트: {points}
@@ -76,25 +98,23 @@ def get_ai_analysis(company_name, topic, points):
         
         전문적인 톤으로 한국어로 5줄 내외 요약하세요.
         """
-        
-        # 전역 변수 'model' 사용 (상단에서 get_latest_stable_model()로 이미 정의됨)
         response = model.generate_content(prompt)
         return response.text
             
     except Exception as e:
-        # 에러 발생 시 사용자에게 친절하게 안내
-        return f"현재 {company_name} 공시를 분석하기 위해 AI 엔진을 조율 중입니다. (상세: {str(e)})"
+        if "403" in str(e) or "leaked" in str(e).lower():
+            return "❌ API 키가 유출되어 차단되었습니다. 새 키를 발급받아 Secrets에 등록하세요."
+        return f"현재 분석 엔진을 조율 중입니다. (상세: {str(e)})"
 
+# --- [기관 평가 분석 함수] ---
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
-    if not tavily_key:
-        return {"rating": "N/A", "pro_con": "API Key 누락", "summary": "설정을 확인하세요.", "links": []}
+    if not tavily_key or not model:
+        return {"rating": "N/A", "pro_con": "API Key 설정 필요", "summary": "설정을 확인하세요.", "links": []}
 
     try:
         tavily = TavilyClient(api_key=tavily_key)
-        # 1. 지정된 3개 사이트만 집중 검색하는 쿼리 생성
-        # Renaissance Capital, Seeking Alpha, Morningstar 도메인 한정
         site_query = f"(site:renaissancecapital.com OR site:seekingalpha.com OR site:morningstar.com) {company_name} {ticker} analysis"
         
         search_result = tavily.search(query=site_query, search_depth="advanced", max_results=10)
@@ -106,38 +126,33 @@ def get_cached_ipo_analysis(ticker, company_name):
             search_context += f"Source: {r['url']}\nContent: {r['content']}\n\n"
             links.append({"title": r['title'], "link": r['url']})
 
-        # 2. AI에게 해당 사이트 데이터 기반으로만 요약 지시
         prompt = f"""
-        당신은 투자 전문 분석가입니다. 아래 제공된 3대 전문 기관(Renaissance Capital, Seeking Alpha, Morningstar)의 데이터만 바탕으로 {company_name} ({ticker})를 분석하세요.
+        투자 전문 분석가로서 아래 3대 기관 데이터를 바탕으로 {company_name} ({ticker})를 분석하세요.
+        데이터: {search_context}
         
         [지침]
-        1. 긍정적 의견(Pros): 해당 사이트들에서 언급된 긍정적 요소 2가지를 요약하세요.
-        2. 부정적 의견(Cons): 해당 사이트들에서 언급된 리스크나 부정적 요소 2가지를 요약하세요.
-        3. 자료가 부족하다면, 해당 사이트들에서 공통적으로 언급하는 기업의 특이사항을 정리하세요.
-        
-        반드시 아래 형식을 지키세요:
-        Rating: (Buy/Hold/Sell/Neutral 중 선택)
+        1. 긍정의견(Pros) 2가지, 부정의견(Cons) 2가지를 요약하세요.
+        2. 반드시 아래 형식을 지키세요:
+        Rating: (Buy/Hold/Sell/Neutral)
         Pro_Con: 
         - 긍정1: 내용
-        - 긍정2: 내용
         - 부정1: 내용
-        - 부정2: 내용
         Summary: (전체 요약 3줄)
         """
 
-        response = model.generate_content(prompt).text
+        response_obj = model.generate_content(prompt)
+        response_text = response_obj.text
 
-        # 3. 파싱 로직
         import re
-        rating = re.search(r"Rating:\s*(.*)", response, re.I)
-        pro_con = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response, re.I)
-        summary = re.search(r"Summary:\s*([\s\S]*)", response, re.I)
+        rating = re.search(r"Rating:\s*(.*)", response_text, re.I)
+        pro_con = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
+        summary = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
 
         return {
             "rating": rating.group(1).strip() if rating else "Neutral",
-            "pro_con": pro_con.group(1).strip() if pro_con else "해당 기관 내 분석 데이터 부족",
-            "summary": summary.group(1).strip() if summary else response,
-            "links": links[:5] # 대표 링크 5개
+            "pro_con": pro_con.group(1).strip() if pro_con else "분석 데이터 부족",
+            "summary": summary.group(1).strip() if summary else response_text,
+            "links": links[:5]
         }
     except Exception as e:
         return {"rating": "Error", "pro_con": f"오류: {e}", "summary": "분석 불가", "links": []}
@@ -2660,6 +2675,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
