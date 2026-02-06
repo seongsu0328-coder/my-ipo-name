@@ -498,22 +498,83 @@ if st.session_state.get('page') == 'board':
     # '게시판' 선택 시에는 현재 페이지이므로 아무 작업 안 함
 
     # ---------------------------------------------------------
-    # 3. 통합 게시판 본문 (개선 버전)
+    # 3. 통합 게시판 본문 (순서 변경: 리스트 상단 / 검색·글쓰기 하단)
     # ---------------------------------------------------------
     
-    # [글쓰기 섹션]
+    # [1. 상단: 게시글 리스트 섹션]
+    posts = st.session_state.get('posts', [])
+    
+    # 검색어 상태 관리를 위해 세션 상태 초기화
+    if 'search_word' not in st.session_state:
+        st.session_state.search_word = ""
+    
+    # 검색 필터링 로직
+    if st.session_state.search_word:
+        sw = st.session_state.search_word.upper()
+        display_posts = [p for p in posts if sw in p.get('category', '').upper() or sw in p.get('title', '').upper()]
+    else:
+        display_posts = posts
+    
+    if display_posts:
+        for idx, p in enumerate(display_posts[:20]):
+            # 헤더 구성: [종목] 제목 | 👤 작성자 | 날짜
+            category_tag = f"[{p.get('category')}] " if p.get('category') else ""
+            combined_header = f"**{category_tag}{p.get('title')}** |  👤 {p.get('author')}  |  {p.get('date')}"
+            
+            with st.expander(combined_header, expanded=False):
+                st.write(p.get('content'))
+                st.divider()
+                
+                # 좋아요 / 싫어요 버튼
+                col_l, col_d, _ = st.columns([1, 1, 4])
+                user_id = st.session_state.get('user_id')
+                
+                with col_l:
+                    if st.button(f"👍 {p.get('likes', 0)}", key=f"like_{p['id']}"):
+                        if user_id and user_id not in p.get('like_users', []):
+                            p['likes'] = p.get('likes', 0) + 1
+                            p.setdefault('like_users', []).append(user_id)
+                            st.rerun()
+                
+                with col_d:
+                    if st.button(f"👎 {p.get('dislikes', 0)}", key=f"dis_{p['id']}"):
+                        if user_id and user_id not in p.get('dislike_users', []):
+                            p['dislikes'] = p.get('dislikes', 0) + 1
+                            p.setdefault('dislike_users', []).append(user_id)
+                            st.rerun()
+            st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
+    else:
+        st.caption("게시글이 없습니다.")
+    
+    st.markdown("---")
+    
+    # [2. 하단: 검색창 및 글쓰기 버튼 가로 배치]
+    col_search, col_write = st.columns([3, 1])
+    
+    with col_search:
+        # 검색어 입력 (엔터 시 세션 상태에 저장되어 상단 리스트 필터링)
+        st.session_state.search_word = st.text_input(
+            "🔍 검색", 
+            value=st.session_state.search_word,
+            placeholder="종목명 또는 제목 입력...",
+            label_visibility="collapsed" # 레이블 숨김으로 깔끔하게
+        )
+    
+    with col_write:
+        # 글쓰기 창을 열기 위한 Expander를 버튼처럼 우측에 배치
+        show_write = st.expander("📝 글쓰기", expanded=False)
+    
+    # [3. 글쓰기 폼 로직]
     if is_logged_in:
-        # Expander 레이블 크기와 유사하게 버튼 폰트가 설정됨
-        with st.expander("글쓰기", expanded=False):
+        with show_write:
             with st.form("board_write_form_final", clear_on_submit=True):
-                col1, col2 = st.columns([1, 2])
-                with col1:
-                    new_cat = st.text_input("종목명/태그", placeholder="예: TSLA")
-                with col2:
-                    new_title = st.text_input("제목", placeholder="제목을 입력하세요")
+                w_col1, w_col2 = st.columns([1, 2])
+                with w_col1:
+                    new_cat = st.text_input("종목명", placeholder="TSLA")
+                with w_col2:
+                    new_title = st.text_input("제목", placeholder="제목 입력")
                 new_content = st.text_area("내용", placeholder="인사이트를 공유해 주세요")
                 
-                # 버튼 타입은 여전히 primary를 유지하되 CSS로 디자인만 변경
                 if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
                     if new_title and new_content:
                         new_post = {
@@ -531,64 +592,9 @@ if st.session_state.get('page') == 'board':
                         st.session_state.posts.insert(0, new_post)
                         st.rerun()
     else:
-        st.info("💡 글을 남기려면 상단 메뉴에서 로그인을 해주세요.")
+        with show_write:
+            st.info("💡 로그인이 필요합니다.")
     
-    st.markdown("---")
-    
-    # [게시글 리스트 섹션]
-    posts = st.session_state.get('posts', [])
-    
-    # 1. 종목 검색어 입력 방식으로 교체
-    search_query = st.text_input("🔍 종목명 또는 제목 검색", placeholder="검색어를 입력하고 엔터를 누르세요 (예: CLRS)").strip().upper()
-    
-    if posts:
-        # 검색어 필터링 로직
-        if search_query:
-            display_posts = [p for p in posts if search_query in p.get('category', '').upper() or search_query in p.get('title', '').upper()]
-        else:
-            display_posts = posts
-    
-        if not display_posts:
-            st.caption("🔍 검색 결과가 없습니다.")
-        else:
-            for idx, p in enumerate(display_posts[:20]):
-                # 2. 통합 헤더 구성 (요청하신 형식으로 수정)
-                # [종목] 제목 | 👤 작성자 | 날짜
-                category_tag = f"[{p.get('category')}] " if p.get('category') else ""
-                combined_header = f"**{category_tag}{p.get('title')}** |  👤 {p.get('author')}  |  {p.get('date')}"
-                
-                # Expander 내부에 제목과 정보를 한 줄로 표시
-                with st.expander(combined_header, expanded=False):
-                    st.write(p.get('content'))
-                    st.divider()
-                    
-                    # 좋아요 / 싫어요 버튼
-                    col_l, col_d, _ = st.columns([1, 1, 4])
-                    user_id = st.session_state.get('user_id')
-                    
-                    with col_l:
-                        if st.button(f"👍 {p.get('likes', 0)}", key=f"like_{p['id']}"):
-                            if user_id and user_id not in p.get('like_users', []):
-                                p['likes'] = p.get('likes', 0) + 1
-                                p.setdefault('like_users', []).append(user_id)
-                                st.rerun()
-                    
-                    with col_d:
-                        if st.button(f"👎 {p.get('dislikes', 0)}", key=f"dis_{p['id']}"):
-                            if user_id and user_id not in p.get('dislike_users', []):
-                                p['dislikes'] = p.get('dislikes', 0) + 1
-                                p.setdefault('dislike_users', []).append(user_id)
-                                st.rerun()
-                
-                st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
-    
-        # 면책 조항 호출 (이전 가이드에 따라)
-        if 'display_disclaimer' in globals():
-            display_disclaimer()
-    else:
-        st.caption("아직 게시글이 없습니다.")
-    
-    st.stop()
 
 # --- 데이터 로직 (캐싱 최적화 적용) ---
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
@@ -2778,6 +2784,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
