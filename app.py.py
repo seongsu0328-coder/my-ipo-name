@@ -609,11 +609,6 @@ else:
     with show_write:
         st.warning("🔒 로그인 후 글을 남길 수 있습니다.")
 
-# [4. 최하단 면책 조항] - 딱 한 번만 호출
-if 'display_disclaimer' in globals():
-    display_disclaimer()
-    
-  
     
 
 # --- 데이터 로직 (캐싱 최적화 적용) ---
@@ -2804,6 +2799,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
