@@ -815,12 +815,23 @@ def get_extended_ipo_data(api_key):
     
     return df
 
-# 주가(Price)는 실시간성이 중요하므로 캐싱하지 않거나 아주 짧게(1~5분) 잡는 것이 좋습니다.
+# 주가(Price)는 15분마다 업데이트되도록 캐싱 설정 (900초 = 15분)
+@st.cache_data(ttl=900)
 def get_current_stock_price(symbol, api_key):
     try:
+        # Finnhub API를 통해 실시간 시세를 가져옴
+        # 15분 이내에 같은 symbol로 호출하면 API를 쏘지 않고 저장된 값을 반환합니다.
         url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
-        return requests.get(url, timeout=2).json().get('c', 0)
-    except: return 0
+        res = requests.get(url, timeout=2).json()
+        
+        # 'c'는 Current Price(현재가)를 의미합니다.
+        current_p = res.get('c', 0)
+        
+        # 데이터가 유효한지(0이 아닌지) 확인 후 반환
+        return current_p if current_p else 0
+    except Exception as e:
+        # 에러 발생 시 로그를 남기지 않고 0을 반환하여 앱 중단 방지
+        return 0
 
 # [뉴스 감성 분석 함수 - 내부 연산이므로 별도 캐싱 불필요]
 def analyze_sentiment(text):
@@ -2835,6 +2846,7 @@ elif st.session_state.page == 'detail':
                     st.warning("🔒 로그인 후 의견을 남길 수 있습니다.")
         
     
+
 
 
 
