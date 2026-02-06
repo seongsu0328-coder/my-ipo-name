@@ -10,7 +10,49 @@ import uuid
 import random
 import math
 from datetime import datetime, timedelta
-from openai import OpenAI  # ✅ 여기서 임포트
+from openai import OpenAI  # ✅ OpenAI 임포트
+
+# --- [AI 및 검색 기능] ---
+import google.generativeai as genai
+from duckduckgo_search import DDGS
+from trytavily import TavilyClient # tavily 사용 시 이름 주의
+
+# ---------------------------------------------------------
+# 1. CSS 스타일 정의 (게시하기 버튼 커스텀)
+# ---------------------------------------------------------
+st.markdown("""
+    <style>
+    /* 탭 메뉴 글씨 스타일 조정 */
+    button[data-baseweb="tab"] p {
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+    }
+    
+    /* 게시하기 버튼 커스텀: 흰색 바탕, 검정 글씨, 테두리 추가 */
+    /* Streamlit의 'primary' 버튼 타입을 타겟팅합니다. */
+    div.stButton > button[kind="primary"] {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        font-size: 1.05rem !important; /* 글쓰기 Expander 레이블 크기와 맞춤 */
+        font-weight: 500 !important;
+        height: auto !important;
+        padding: 5px 20px !important;
+        transition: all 0.3s ease;
+    }
+    
+    /* 호버(마우스 올렸을 때) 효과 */
+    div.stButton > button[kind="primary"]:hover {
+        border-color: #000000 !important;
+        background-color: #f9f9f9 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# 2. 공통 함수 정의
+# ---------------------------------------------------------
 
 # [정의] 공통으로 사용할 면책 조항 함수
 def display_disclaimer():
@@ -21,11 +63,6 @@ def display_disclaimer():
         요약된 정보는 원문과 차이가 있을 수 있으며, 모든 투자 결정의 책임은 본인에게 있습니다.  
         제공되는 링크를 통해 반드시 원문 전체 내용을 확인하시기 바랍니다.
     """)
-
-# --- [AI 및 검색 기능] ---
-import google.generativeai as genai
-from duckduckgo_search import DDGS
-from tavily import TavilyClient
 
 # ---------------------------------------------------------
 # ✅ [여기에 추가] translate_news_title 함수 정의
@@ -451,29 +488,32 @@ if st.session_state.get('page') == 'board':
     # '게시판' 선택 시에는 현재 페이지이므로 아무 작업 안 함
 
     # ---------------------------------------------------------
-    # 3. 통합 게시판 본문 (리스트형 UI로 수정)
+    # 3. 통합 게시판 본문 (개선 버전)
     # ---------------------------------------------------------
-
+    
     # [글쓰기 섹션]
     if is_logged_in:
+        # Expander 레이블 크기와 유사하게 버튼 폰트가 설정됨
         with st.expander("글쓰기", expanded=False):
-            # ... (글쓰기 form 코드는 기존과 동일)
             with st.form("board_write_form_final", clear_on_submit=True):
                 col1, col2 = st.columns([1, 2])
                 with col1:
-                    new_cat = st.text_input("종목명/태그", placeholder="예: 국장, TSLA")
+                    new_cat = st.text_input("종목명/태그", placeholder="예: TSLA")
                 with col2:
                     new_title = st.text_input("제목", placeholder="제목을 입력하세요")
                 new_content = st.text_area("내용", placeholder="인사이트를 공유해 주세요")
+                
+                # 버튼 타입은 여전히 primary를 유지하되 CSS로 디자인만 변경
                 if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
                     if new_title and new_content:
                         new_post = {
                             "id": str(uuid.uuid4()),
-                            "category": new_cat if new_cat else "공통",
-                            "title": new_title, "content": new_content,
+                            "category": new_cat.upper() if new_cat else "공통",
+                            "title": new_title, 
+                            "content": new_content,
                             "author": st.session_state.get('user_phone', '익명'),
                             "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "likes": 0, "dislikes": 0, # 싫어요 필드 추가
+                            "likes": 0, "dislikes": 0,
                             "like_users": [], "dislike_users": [],
                             "uid": st.session_state.get('user_id')
                         }
@@ -482,46 +522,62 @@ if st.session_state.get('page') == 'board':
                         st.rerun()
     else:
         st.info("💡 글을 남기려면 상단 메뉴에서 로그인을 해주세요.")
-
+    
+    st.markdown("---")
+    
     # [게시글 리스트 섹션]
     posts = st.session_state.get('posts', [])
+    
+    # 1. 종목 검색어 입력 방식으로 교체
+    search_query = st.text_input("🔍 종목명 또는 제목 검색", placeholder="검색어를 입력하고 엔터를 누르세요 (예: CLRS)").strip().upper()
+    
     if posts:
-        all_cats = sorted(list(set([p.get('category', '공통') for p in posts])))
-        selected_cat = st.selectbox("📂 종목 필터링", ["전체 목록"] + all_cats)
-        display_posts = posts if "전체" in selected_cat else [p for p in posts if p['category'] == selected_cat]
-
-        for idx, p in enumerate(display_posts[:20]):
-            # 1. 헤더 구성 (종목명, 글쓴이, 날짜)
-            # 요청하신 대로 글쓴이를 날짜 바로 왼쪽으로 이동
-            header_text = f"#{p.get('category')}  |  👤 {p.get('author')}  |  {p.get('date')}"
-            st.caption(header_text)
-            
-            # 2. 제목 클릭 시 내용이 펼쳐지는 Expander
-            with st.expander(f"**{p.get('title')}**", expanded=False):
-                st.write(p.get('content'))
-                st.divider()
+        # 검색어 필터링 로직
+        if search_query:
+            display_posts = [p for p in posts if search_query in p.get('category', '').upper() or search_query in p.get('title', '').upper()]
+        else:
+            display_posts = posts
+    
+        if not display_posts:
+            st.caption("🔍 검색 결과가 없습니다.")
+        else:
+            for idx, p in enumerate(display_posts[:20]):
+                # 2. 통합 헤더 구성 (요청하신 형식으로 수정)
+                # [종목] 제목 | 👤 작성자 | 날짜
+                category_tag = f"[{p.get('category')}] " if p.get('category') else ""
+                combined_header = f"**{category_tag}{p.get('title')}** |  👤 {p.get('author')}  |  {p.get('date')}"
                 
-                # 3. 좋아요 / 싫어요 선택항 (버튼 형식)
-                col_l, col_d, col_empty = st.columns([1, 1, 4])
+                # Expander 내부에 제목과 정보를 한 줄로 표시
+                with st.expander(combined_header, expanded=False):
+                    st.write(p.get('content'))
+                    st.divider()
+                    
+                    # 좋아요 / 싫어요 버튼
+                    col_l, col_d, _ = st.columns([1, 1, 4])
+                    user_id = st.session_state.get('user_id')
+                    
+                    with col_l:
+                        if st.button(f"👍 {p.get('likes', 0)}", key=f"like_{p['id']}"):
+                            if user_id and user_id not in p.get('like_users', []):
+                                p['likes'] = p.get('likes', 0) + 1
+                                p.setdefault('like_users', []).append(user_id)
+                                st.rerun()
+                    
+                    with col_d:
+                        if st.button(f"👎 {p.get('dislikes', 0)}", key=f"dis_{p['id']}"):
+                            if user_id and user_id not in p.get('dislike_users', []):
+                                p['dislikes'] = p.get('dislikes', 0) + 1
+                                p.setdefault('dislike_users', []).append(user_id)
+                                st.rerun()
                 
-                with col_l:
-                    if st.button(f"👍 {p.get('likes', 0)}", key=f"like_{p['id']}"):
-                        if user_id and user_id not in p.get('like_users', []):
-                            p['likes'] = p.get('likes', 0) + 1
-                            p.setdefault('like_users', []).append(user_id)
-                            st.rerun()
-                
-                with col_d:
-                    if st.button(f"👎 {p.get('dislikes', 0)}", key=f"dis_{p['id']}"):
-                        if user_id and user_id not in p.get('dislike_users', []):
-                            p['dislikes'] = p.get('dislikes', 0) + 1
-                            p.setdefault('dislike_users', []).append(user_id)
-                            st.rerun()
-            
-            st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+    
+        # 면책 조항 호출 (이전 가이드에 따라)
+        if 'display_disclaimer' in globals():
+            display_disclaimer()
     else:
         st.caption("아직 게시글이 없습니다.")
-
+    
     st.stop()
 
 # --- 데이터 로직 (캐싱 최적화 적용) ---
@@ -2712,6 +2768,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
