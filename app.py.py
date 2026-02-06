@@ -62,19 +62,8 @@ model = genai.GenerativeModel('gemini-3-flash-preview')
 @st.cache_data(show_spinner=False)
 def get_ai_analysis(company_name, topic, points):
     try:
-        # [해결 핵심] 내 API 키로 사용 가능한 모델 목록을 실시간으로 가져옴
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        
-        # 목록에 이름이 있으면 사용, 없으면 가장 첫 번째 모델 강제 선택 (404 방지)
-        if 'models/gemini-1.5-flash' in available_models:
-            target_model = 'models/gemini-1.5-flash'
-        elif 'models/gemini-pro' in available_models:
-            target_model = 'models/gemini-pro'
-        else:
-            target_model = available_models[0] # 시스템이 허용하는 아무 모델이나 선택
-            
-        # 선택된 모델로 분석 수행
-        dynamic_model = genai.GenerativeModel(target_model)
+        # [수정 핵심] 함수 내부에서 모델을 새로 찾지(list_models) 않습니다.
+        # 파일 상단에서 이미 안전하게 생성된 전역 'model' 객체를 그대로 사용합니다.
         
         prompt = f"""
         당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
@@ -87,11 +76,13 @@ def get_ai_analysis(company_name, topic, points):
         
         전문적인 톤으로 한국어로 5줄 내외 요약하세요.
         """
-        response = dynamic_model.generate_content(prompt)
+        
+        # 전역 변수 'model' 사용 (상단에서 get_latest_stable_model()로 이미 정의됨)
+        response = model.generate_content(prompt)
         return response.text
             
     except Exception as e:
-        # 이 단계에서도 에러가 난다면 API 키 자체의 문제일 확률이 높음
+        # 에러 발생 시 사용자에게 친절하게 안내
         return f"현재 {company_name} 공시를 분석하기 위해 AI 엔진을 조율 중입니다. (상세: {str(e)})"
 
 @st.cache_data(show_spinner=False, ttl=3600)
@@ -2669,6 +2660,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
