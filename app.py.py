@@ -461,10 +461,10 @@ if st.session_state.get('page') == 'board':
             with st.form("board_write_form_final", clear_on_submit=True):
                 col1, col2 = st.columns([1, 2])
                 with col1:
-                    new_cat = st.text_input("🏷️ 종목명/태그", placeholder="예: 공통, TSLA")
+                    new_cat = st.text_input("종목명/태그", placeholder="예: 국장, TSLA")
                 with col2:
-                    new_title = st.text_input("📝 제목", placeholder="제목을 입력하세요")
-                new_content = st.text_area("💬 내용", placeholder="투자 의견을 자유롭게 나눠보세요.")
+                    new_title = st.text_input("제목", placeholder="제목을 입력하세요")
+                new_content = st.text_area("내용", placeholder="인사이트를 공유해 주세요")
                 if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
                     if new_title and new_content:
                         new_post = {
@@ -2712,6 +2712,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
