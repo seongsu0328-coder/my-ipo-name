@@ -498,7 +498,7 @@ if st.session_state.get('page') == 'board':
     # '게시판' 선택 시에는 현재 페이지이므로 아무 작업 안 함
 
     # ---------------------------------------------------------
-    # 3. 통합 게시판 본문 (중복 제거 및 에러 수정 완료 버전)
+    # 3. 통합 게시판 본문 (헤더 중복 제거 및 10개 노출 버전)
     # ---------------------------------------------------------
     
     # [설정] 관리자 및 사용자 확인
@@ -520,12 +520,24 @@ if st.session_state.get('page') == 'board':
     else:
         display_posts = posts
     
-    # --- 리스트 출력 시작 ---
+    # --- 리스트 출력 시작 (최대 10개 노출) ---
     if display_posts:
-        for idx, p in enumerate(display_posts[:20]):
-            # 헤더 구성: [종목] 제목 | 👤 작성자 | 날짜
-            category_tag = f"[{p.get('category')}] " if p.get('category') else ""
-            combined_header = f"**{category_tag}{p.get('title')}** |  👤 {p.get('author')}  |  {p.get('date')}"
+        for idx, p in enumerate(display_posts[:10]):  # 👈 기존 20개에서 10개로 변경
+            
+            # [수정 1] 종목명 중복 제거 및 헤더 형식 변경
+            category = p.get('category', '').strip()
+            title = p.get('title', '').strip()
+            
+            # 제목 자체에 이미 [종목]이 포함되어 있는지 확인하여 중복 방지
+            if category and f"[{category}]" in title:
+                clean_title = title  # 이미 포함되어 있으면 그대로 사용
+            elif category:
+                clean_title = f"[{category}] {title}" # 없으면 붙여줌
+            else:
+                clean_title = title
+    
+            # 최종 헤더 문자열 (별표 제거)
+            combined_header = f"{clean_title} | 👤 {p.get('author')} | {p.get('date')}"
             
             with st.expander(combined_header, expanded=False):
                 st.write(p.get('content'))
@@ -571,7 +583,7 @@ if st.session_state.get('page') == 'board':
             value=st.session_state.search_word,
             placeholder="종목명 또는 제목으로 검색...",
             label_visibility="collapsed",
-            key="board_search_input_final"  # 유니크 키
+            key="board_search_input_final"
         )
     
     with col_write:
@@ -580,8 +592,7 @@ if st.session_state.get('page') == 'board':
     # [3. 글쓰기 폼 로직]
     if st.session_state.get('auth_status') == 'user':
         with show_write:
-            # 중복 에러 방지를 위해 고유한 key 부여
-            with st.form(key="unique_write_form_v2", clear_on_submit=True):
+            with st.form(key="unique_write_form_v3", clear_on_submit=True):
                 w_col1, w_col2 = st.columns([1, 2])
                 with w_col1:
                     new_cat = st.text_input("종목명", placeholder="예: TSLA")
@@ -609,7 +620,6 @@ if st.session_state.get('page') == 'board':
         with show_write:
             st.warning("🔒 로그인 후 글을 남길 수 있습니다.")
 
-    
 
 # --- 데이터 로직 (캐싱 최적화 적용) ---
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
@@ -2799,6 +2809,7 @@ elif st.session_state.page == 'detail':
                 st.caption("아직 작성된 의견이 없습니다.")
         
     
+
 
 
 
