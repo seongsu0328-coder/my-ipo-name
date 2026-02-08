@@ -274,13 +274,14 @@ def get_ai_analysis(company_name, topic, points):
 @st.cache_data(show_spinner=False, ttl=86400) 
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
+    # model 객체는 외부에서 정의되어 있다고 가정합니다.
     if not tavily_key or not model:
         return {"rating": "N/A", "pro_con": "API Key 설정 필요", "summary": "설정을 확인하세요.", "links": []}
 
     try:
         tavily = TavilyClient(api_key=tavily_key)
         
-        # 쿼리 최적화
+        # [기본 로직 유지] 쿼리 최적화
         site_query = f"(site:renaissancecapital.com OR site:seekingalpha.com OR site:morningstar.com) {company_name} {ticker} stock IPO analysis 2025 2026"
         
         search_result = tavily.search(query=site_query, search_depth="advanced", max_results=10)
@@ -295,6 +296,7 @@ def get_cached_ipo_analysis(ticker, company_name):
             search_context += f"Source: {r['url']}\nContent: {r['content']}\n\n"
             links.append({"title": r['title'], "link": r['url']})
 
+        # [기본 로직 유지 + 지침 강화] 프롬프트에 URL 금지 명령 명시
         prompt = f"""
         당신은 월가 출신의 IPO 전문 분석가입니다. 아래 제공된 {company_name} ({ticker})에 대한 기관 데이터를 바탕으로 심층 분석을 수행하세요.
         
@@ -306,6 +308,7 @@ def get_cached_ipo_analysis(ticker, company_name):
         2. 긍정의견(Pros) 2가지와 부정의견(Cons) 2가지를 구체적인 수치나 근거를 들어 요약하세요.
         3. Rating은 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
         4. Summary는 전문적인 톤으로 3줄 이내로 작성하세요.
+        5. 중요: 답변 본문에 'Source:'나 'https://'로 시작하는 링크를 절대 포함하지 마세요.
 
         [응답 형식]:
         Rating: (이곳에 작성)
@@ -315,7 +318,7 @@ def get_cached_ipo_analysis(ticker, company_name):
         Summary: (이곳에 작성)
         """
 
-        # [재시도 로직 추가]
+        # [기본 로직 유지] 재시도 메커니즘
         max_retries = 3
         for i in range(max_retries):
             try:
@@ -323,19 +326,32 @@ def get_cached_ipo_analysis(ticker, company_name):
                 response_text = response_obj.text
 
                 import re
-                rating = re.search(r"Rating:\s*(.*)", response_text, re.I)
-                pro_con = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
-                summary = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
+                
+                # 정규식으로 각 파트 추출 (기존 로직 동일)
+                rating_match = re.search(r"Rating:\s*(.*)", response_text, re.I)
+                pro_con_match = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
+                summary_match = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
 
+                # --- [추가된 텍스트 세척 함수: 로직 보강] ---
+                def clean_output(text):
+                    if not text: return ""
+                    # 1. 'Source:' 단어 기준 절단 (가장 확실함)
+                    text = re.split(r'(?i)source', text)[0]
+                    # 2. 남아있는 URL 패턴 제거
+                    text = re.sub(r'https?://\S+', '', text)
+                    return text.strip().rstrip(' ,.:-')
+
+                # 최종 결과 가공
                 return {
-                    "rating": rating.group(1).strip() if rating else "Neutral",
-                    "pro_con": pro_con.group(1).strip() if pro_con else "분석 데이터 추출 실패",
-                    "summary": summary.group(1).strip() if summary else response_text,
+                    "rating": rating_match.group(1).strip() if rating_match else "Neutral",
+                    "pro_con": clean_output(pro_con_match.group(1)) if pro_con_match else "분석 데이터 추출 실패",
+                    "summary": clean_output(summary_match.group(1)) if summary_match else response_text,
                     "links": links[:5]
                 }
             except Exception as e:
-                # 429 에러 처리
+                # [기본 로직 유지] 429 에러 및 쿼터 초과 처리
                 if "429" in str(e) or "quota" in str(e).lower():
+                    import time
                     time.sleep(2 * (i + 1))
                     continue
                 return {"rating": "Error", "pro_con": f"오류 발생: {e}", "summary": "분석 중 문제가 발생했습니다.", "links": []}
@@ -2999,6 +3015,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
