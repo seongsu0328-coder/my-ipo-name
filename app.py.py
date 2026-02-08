@@ -1072,37 +1072,37 @@ def get_ai_summary(query):
         
         raw_result = response.choices[0].message.content
         
-        # [강력 후처리 단계: 레이아웃 및 문장 정제]
+        # --- [강력 후처리: 레이아웃 물리적 재조립] ---
         
-        # 1. 기본 세척
-        clean_result = html.unescape(raw_result)
-        clean_result = clean_result.replace("**", "").replace("#", "").strip()
+        # 1. HTML 엔티티 제거 및 마크다운 세척
+        clean_text = html.unescape(raw_result)
+        clean_text = re.sub(r'\*|#', '', clean_text).strip()
 
-        # 2. 오타 강제 치환 (里程碑 등 한자 오타 제거)
-        replacements = {
-            "里程碑": "이정표", "quyet": "의사", "普通": "보통", "决策": "의사결정"
-        }
-        for err, fix in replacements.items():
-            clean_result = clean_result.replace(err, fix)
-
-        # 3. 레이아웃 재조립 (들여쓰기 및 문단 간격 물리적 고정)
-        # 모든 줄바꿈을 제거하고 순수 문장 덩어리만 추출
-        paragraphs = [p.strip() for p in clean_result.split('\n') if p.strip()]
+        # 2. AI가 넣은 모든 공백과 줄바꿈을 완전히 삭제하여 리스트화
+        # 여기서 불규칙한 '6칸 들여쓰기' 등이 완전히 박멸됩니다.
+        raw_lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
         
-        # 3개 문단으로 강제 통합 및 들여쓰기 2칸 부여
-        if len(paragraphs) >= 3:
-            p1 = "  " + paragraphs[0]
-            p2 = "  " + paragraphs[1]
-            p3 = "  " + " ".join(paragraphs[2:])
-            clean_result = f"{p1}\n\n{p2}\n\n{p3}"
+        # 3. 3개 문단으로 강제 재구성 (내용 유지)
+        if len(raw_lines) >= 3:
+            # 첫 줄(1문단), 두 번째 줄(2문단), 나머지(3문단)로 나누어 재조립
+            # 각 문단 시작에만 정확히 공백 2칸 부여
+            p1 = "  " + raw_lines[0]
+            p2 = "  " + raw_lines[1]
+            p3 = "  " + " ".join(raw_lines[2:])
+            final_content = f"{p1}\n\n{p2}\n\n{p3}"
         else:
-            # 문단이 부족할 경우 전체 문장에 들여쓰기만 적용
-            clean_result = "\n\n".join(["  " + p for p in paragraphs])
+            # 문단이 부족할 경우 전체에 들여쓰기만 적용
+            final_content = "\n\n".join(["  " + line for line in raw_lines])
 
-        # 4. 최종 특수문자 필터링 (한글, 숫자, 공백, 부호 및 줄바꿈 보존)
-        clean_result = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w\n]', '', clean_result)
+        # 4. 오타 치환 (里程碑 -> 이정표 등)
+        replacements = {"里程碑": "이정표", "quyet": "의사", "普通": "보통", "决策": "의사결정"}
+        for err, fix in replacements.items():
+            final_content = final_content.replace(err, fix)
+            
+        # 5. 한글/숫자/공백/문장부호 외 불필요한 외래어 파편 최종 제거
+        final_content = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w\n]', '', final_content)
         
-        return clean_result
+        return final_content
 
     except Exception as e:
         return f"🚫 오류: {str(e)}"
@@ -2963,6 +2963,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
