@@ -2662,6 +2662,10 @@ elif st.session_state.page == 'detail':
             with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 
                 summary = result.get('summary', '')
+
+                # --- 추가된 라인: Source: 및 URL 제거 ---
+                summary = re.sub(r'Source:\s*https?://\S+|https?://\S+', '', summary).strip()
+    
                 if "분석 불가" in summary or not summary:
                     st.warning("Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다. (비상장 또는 데이터 업데이트 지연)")
                 else:
@@ -2961,6 +2965,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
