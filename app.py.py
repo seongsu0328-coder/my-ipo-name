@@ -2697,6 +2697,38 @@ elif st.session_state.page == 'detail':
         # --- Tab 5: 최종 투자 결정 (종목 상세 페이지 내) ---
         # =========================================================
         with tab5:
+            # [스타일 강제 적용] 스마트폰 다크모드 충돌 방지 (흰 배경/검은 글씨)
+            st.markdown("""
+                <style>
+                /* 1. 앱 전체 배경 흰색, 기본 글자 검은색 설정 */
+                .stApp {
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                }
+                /* 2. Expander (의견 나누기 등 접는 메뉴) 헤더 색상 */
+                .streamlit-expanderHeader {
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                }
+                .streamlit-expanderContent {
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                }
+                /* 3. 알림 박스 (Info, Warning, Success) 내부 글자색 강제 검정 */
+                div[data-testid="stAlert"] p {
+                    color: #000000 !important;
+                }
+                /* 4. 캡션(st.caption) 및 일반 문단 색상 */
+                div[data-testid="stCaptionContainer"], p {
+                    color: #000000 !important;
+                }
+                /* 5. 입력 폼 라벨 (제목, 내용 등) */
+                label[data-testid="stLabel"] {
+                    color: #000000 !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            
             # 1. 환경 설정 및 데이터 초기화
             ADMIN_PHONE = "010-0000-0000" 
             sid = stock['symbol']
@@ -2726,7 +2758,7 @@ elif st.session_state.page == 'detail':
             missing_steps = [label for step, label in steps if not ud.get(step)]
             
             if missing_steps:
-                st.info(f"💡 모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 결과가 공개됩니다.")
+                st.info(f"모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 결과가 공개됩니다.")
             else:
                 # 점수 맵핑 통합 관리
                 score_map = {
@@ -2791,7 +2823,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.warning("🔒 로그인 후 투표 및 보관이 가능합니다.")
         
-            st.divider()
+          
         
             # ---------------------------------------------------------
             # 4. 종목 토론방 (반복 로직 제거 버전)
@@ -2848,6 +2880,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
