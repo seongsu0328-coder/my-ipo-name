@@ -242,39 +242,48 @@ def get_ai_analysis(company_name, topic, points):
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
     
-    # [재시도 로직 추가]
+    last_error = ""
     max_retries = 3
+    
     for i in range(max_retries):
         try:
-            # 🔥 [수정됨] 출력 형식을 강제하는 프롬프트 적용
+            # 🔥 [수정] 줄바꿈과 볼드체 형식을 명확히 강제하는 프롬프트
             prompt = f"""
             당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
             핵심 체크포인트: {points}
             
             [작성 지침]
-            1. 인사말이나 서두(예: "분석 결과입니다")를 절대 쓰지 마세요.
-            2. 반드시 아래 [출력 형식]의 틀을 그대로 유지해서 작성하세요.
-            3. 각 항목은 명확하게 줄바꿈(엔터) 해주세요.
+            1. "분석 결과입니다" 같은 서두나 인사말을 절대 쓰지 마세요.
+            2. 반드시 아래 [출력 형식]을 그대로 지키세요. 
+            3. 각 항목 사이에는 빈 줄을 넣어 가독성을 높이세요.
             
             [출력 형식]
-            **가장 중요한 투자 포인트:** (이곳에 핵심 내용을 작성)
-            
-            **MD&A를 통한 성장 가능성:** (이곳에 핵심 내용을 작성)
-            
-            **반드시 경계해야 할 핵심 리스크:** (이곳에 핵심 내용을 작성)
+            **가장 중요한 투자 포인트:**
+            (핵심 내용 요약)
+
+            **MD&A를 통한 성장 가능성:**
+            (핵심 내용 요약)
+
+            **반드시 경계해야 할 핵심 리스크:**
+            (핵심 내용 요약)
             """
+            
             response = model.generate_content(prompt)
             return response.text
             
         except Exception as e:
-            # 429 에러(속도제한)라면 대기 후 재시도
-            if "429" in str(e) or "quota" in str(e).lower():
-                time.sleep(2 * (i + 1)) # 2초, 4초...
+            last_error = str(e)
+            # 429(Too Many Requests) 또는 503(Overloaded) 에러 시 대기
+            if "429" in str(e) or "quota" in str(e).lower() or "503" in str(e):
+                # 대기 시간을 대폭 늘림: 5초, 10초, 15초
+                wait_time = 5 * (i + 1)
+                time.sleep(wait_time)
                 continue
             else:
-                return f"현재 분석 엔진을 조율 중입니다. (상세: {str(e)})"
+                return f"🚫 분석 중 오류가 발생했습니다. (상세: {str(e)})"
     
-    return "⚠️ 사용량이 많아 분석이 지연되고 있습니다. 잠시 후 다시 시도해주세요."
+    # 3번 다 실패했을 때, 어떤 에러였는지 사용자에게 보여줌 (디버깅용)
+    return f"⚠️ 접속량이 많아 분석에 실패했습니다. (Error: {last_error[:50]}...)"
 
 # --- [기관 평가 분석 함수] ---
 @st.cache_data(show_spinner=False, ttl=86400) 
@@ -2967,6 +2976,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
