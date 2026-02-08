@@ -2655,56 +2655,49 @@ elif st.session_state.page == 'detail':
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         with tab4:
             with st.spinner(f"전문 기관 데이터를 정밀 수집 중..."):
-                # 쿼리를 더 구체화하여 호출 (함수 내부에서 이를 활용하도록 수정 필요)
                 result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
+        
+            # 공통 텍스트 세척 함수 (Source: 및 모든 링크 제거)
+            def clean_text_final(text):
+                if not text or not isinstance(text, str):
+                    return str(text) if text else ""
+                # 1. 모든 형태의 URL 제거 (Source: 포함 여부 상관없이)
+                text = re.sub(r'(?i)source:\s*https?://\S+', '', text) # Source: 주소
+                text = re.sub(r'https?://\S+', '', text)               # 일반 주소
+                # 2. 문장 끝에 남는 찌꺼기(콜론, 대시, 공백) 제거
+                return text.strip().rstrip(':- ')
         
             # --- (1) Renaissance Capital 섹션 ---
             with st.expander("Renaissance Capital IPO 요약", expanded=False):
-                
-                # 1. 일단 데이터를 가져옵니다.
+                # [수정 포인트] 여기서 clean_text_final을 거친 변수를 st.info에 넣어야 합니다.
                 raw_summary = result.get('summary', '')
+                summary = clean_text_final(raw_summary)
                 
-                # 2. [강화된 세척 로직] 
-                if isinstance(raw_summary, str):
-                    # 패턴 1: 'Source: http...' 형태 삭제 (대소문자 무시)
-                    # 패턴 2: 'http...' 로 시작하는 모든 링크 삭제
-                    # 패턴 3: 문장 끝에 붙은 불필요한 특수문자나 공백 정리
-                    summary = re.sub(r'(?i)source:\s*https?://\S+', '', raw_summary) # Source: 포함 링크 제거
-                    summary = re.sub(r'https?://\S+', '', summary) # 남은 일반 링크 제거
-                    summary = summary.strip().rstrip(':- ') # 문장 끝에 남은 콜론이나 대시 정리
-                else:
-                    summary = str(raw_summary)
-    
                 if "분석 불가" in summary or not summary:
-                    st.warning("Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다. (비상장 또는 데이터 업데이트 지연)")
+                    st.warning("Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다.")
                 else:
-                    st.info(summary)
+                    st.info(summary) # 정제된 summary 출력
                 
-                # Renaissance 검색 링크 수정 (더 범용적인 검색 페이지로 연결)
                 q = stock['symbol'] if stock['symbol'] else stock['name']
-                #  수정된 검색 URL: Google을 통해 해당 사이트 내 결과를 직접 찾도록 유도
                 search_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
                 st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
         
             # --- (2) Seeking Alpha & Morningstar 섹션 ---
             with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
+                # 여기도 혹시 모르니 세척 로직 적용
+                raw_pro_con = result.get('pro_con', '')
+                pro_con = clean_text_final(raw_pro_con)
                 
-                
-                pro_con = result.get('pro_con', '')
                 if "의견 수집 중" in pro_con or not pro_con:
-                    # 💡 [개선] 데이터가 없을 경우를 대비한 수동 검색 안내
-                    st.error("AI가 실시간 리포트 본문을 읽어오는데 실패했습니다. (권한 제한)")
-                    st.markdown(f"**{stock['symbol']}**에 대한 최신 분석글이 Seeking Alpha에 존재합니다. 아래 링크에서 직접 확인하실 수 있습니다.")
+                    st.error("AI가 실시간 리포트 본문을 읽어오는데 실패했습니다.")
                 else:
+                    # 정제된 pro_con 출력
                     st.success(f"**주요 긍정/부정 의견**\n\n{pro_con}")
-        
                 
                 c1, c2 = st.columns(2)
                 with c1:
-                    # Seeking Alpha는 분석 탭으로 바로 연결
                     st.link_button("Seeking Alpha 분석글 보기", f"https://seekingalpha.com/symbol/{q}/analysis")
                 with c2:
-                    # Morningstar는 검색 결과 페이지로 연결
                     st.link_button("Morningstar 검색 결과", f"https://www.morningstar.com/search?query={q}")
 
 
@@ -3002,6 +2995,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
