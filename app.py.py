@@ -77,18 +77,21 @@ def display_disclaimer():
 # ---------------------------------------------------------
 @st.cache_data(show_spinner=False, ttl=3600)
 def translate_news_title(en_title):
-    """뉴스 제목을 한국 경제 신문 헤드라인 스타일로 번역 (Groq API + 재시도 로직)"""
+    """뉴스 제목을 한국 경제 신문 헤드라인 스타일로 번역 (Groq API + 재시도 로직 + 후처리)"""
     groq_key = st.secrets.get("GROQ_API_KEY")
     if not groq_key or not en_title:
         return en_title
 
     client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
     
-    system_msg = """당신은 금융 전문 번역가입니다. 영문 주식 뉴스를 한국 경제 신문 헤드라인 스타일로 번역하세요.
-    - 'sh' -> '주당', 'M' -> '백만', 'IPO' -> 'IPO'
-    - 핵심 의미 위주로 간결하게 번역하고, 따옴표나 불필요한 수식어는 제거하세요."""
+    # [수정] 프롬프트 제약 조건 강화
+    system_msg = """당신은 한국 경제 신문사 헤드라인 데스크의 전문 편집자입니다. 
+    영문 뉴스를 한국어 경제 신문 헤드라인 스타일로 번역하세요.
+    - 반드시 순수한 한글(KOREAN)로만 작성하세요. (한자, 베트남어, 일본어 등 혼용 절대 금지)
+    - '**'나 '*' 같은 마크다운 강조 기호를 절대 사용하지 마세요.
+    - 'sh' -> '주당', 'M' -> '백만', 'IPO' -> 'IPO'로 번역하세요.
+    - 따옴표나 불필요한 수식어는 제거하고 핵심만 간결하게 전달하세요."""
 
-    # [재시도 로직 추가]
     max_retries = 3
     for i in range(max_retries):
         try:
@@ -96,11 +99,21 @@ def translate_news_title(en_title):
                 model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": system_msg},
-                    {"role": "user", "content": f"Translate to Korean headline: {en_title}"}
+                    {"role": "user", "content": f"Translate this headline to pure Korean only: {en_title}"}
                 ],
-                temperature=0.1
+                temperature=0.0  # 일관성을 위해 0.1에서 0.0으로 하향 조정
             )
-            return response.choices[0].message.content.strip().replace('"', '')
+            
+            translated_text = response.choices[0].message.content.strip()
+            
+            # [추가] 후처리 로직: 마크다운 기호 및 따옴표 강제 제거
+            clean_text = translated_text.replace("**", "").replace("*", "").replace('"', '').replace("'", "")
+            
+            # [추가] 정규식을 활용해 한글, 숫자, 기본 부호 외의 외국어(한자 등) 제거 (선택 사항)
+            # clean_text = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w]', '', clean_text)
+            
+            return clean_text
+            
         except Exception as e:
             if "429" in str(e):
                 time.sleep(2 * (i + 1))
@@ -2924,6 +2937,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
