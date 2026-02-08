@@ -1877,19 +1877,19 @@ elif st.session_state.page == 'detail':
             
             if real_website:
                 website_url = real_website
-                btn_label = f"🏢 {full_company_name} 공식 홈페이지"
+                btn_label = f"회사 공식홈페이지"
             else:
                 # [핵심] 회사 풀네임(Inc, Corp 포함) + Investor Relations 조합
                 # 예: ! AGI Inc. Investor Relations
                 refined_query = f"! {full_company_name} Investor Relations"
                 website_url = f"https://duckduckgo.com/?q={urllib.parse.quote(refined_query)}"
-                btn_label = f"🌐 {full_company_name} 홈페이지로 즉시 이동"
+                btn_label = f"회사 공식홈페이지"
 
             # (4) 버튼 출력 (스타일 통일)
             st.markdown(f"""
                 <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                     <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>
-                           📄 EDGAR {topic} 공시 확인하기 
+                            EDGAR {topic} 공시 확인하기 
                     </button>
                 </a>
                 
@@ -1900,7 +1900,6 @@ elif st.session_state.page == 'detail':
                 </a>
             """, unsafe_allow_html=True)
             
-            st.divider()
 
             # 4. 의사결정 박스 및 면책 조항
             draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
@@ -2925,6 +2924,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
