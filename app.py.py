@@ -9,7 +9,8 @@ import time
 import uuid
 import random
 import math
-import re  # ✅ 정규식 사용을 위해 추가
+import re  
+import html
 from datetime import datetime, timedelta
 from openai import OpenAI  # ✅ OpenAI 임포트
 
@@ -1036,6 +1037,7 @@ def get_ai_summary(query):
         return "⚠️ API 키 설정 오류: Secrets를 확인하세요."
 
     try:
+        # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=7)
         
@@ -1044,6 +1046,7 @@ def get_ai_summary(query):
 
         context = "\n".join([r['content'] for r in search_result['results']])
         
+        # 2. Groq 요약 요청
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -1052,24 +1055,22 @@ def get_ai_summary(query):
                 {
                     "role": "system", 
                     "content": """당신은 한국 최고의 경제지 시니어 에디터입니다. 
-제공된 컨텍스트를 분석하여 매끄러운 분석 리포트를 작성하세요.
+제공된 컨텍스트를 분석하여 투자자용 분석 리포트를 작성하세요.
 
-[콘텐츠 구성 및 편집 원칙]
-1. 제목 금지: '전문 기업 분석 리포트'와 같은 제목을 절대 쓰지 말고 바로 본문으로 시작하세요.
-2. 문단 병합 (3문단 구성):
-   - 1문단: 창업자 배경 및 핵심 비즈니스 모델, 경쟁 우위
-   - 2문단: 재무 실적(매출, 이익 등) 및 현재 추진 중인 IPO 관련 수치
-   - 3문단: 향후 성장 전략(국제 확장, 다각화) 및 종합적인 투자 전망
-3. 들여쓰기 적용: 각 문단의 첫 시작은 반드시 공백(띄어쓰기) 두 번을 넣어 들여쓰기를 하세요.
-4. 문체 및 언어:
-   - 모든 문장은 '~습니다', '~합니다' 체로 작성하세요.
-   - 한자어, 외국어 오타(广, い 등) 절대 금지.
-   - 사명 반복을 피하고 '동사', '이 기업' 등의 표현을 사용하세요.
-5. 기호 금지: 별표(**)나 마크다운 기호를 절대 사용하지 마세요."""
+[필수 콘텐츠 구성]
+- 1문단: 창업자 배경 및 핵심 비즈니스 모델, 경쟁 우위
+- 2문단: 재무 실적(매출, 이익 등) 및 현재 추진 중인 IPO 관련 수치
+- 3문단: 향후 성장 전략(국제 확장, 다각화) 및 종합적인 투자 전망
+
+[편집 원칙]
+1. 제목 금지: '전문 기업 분석 리포트' 같은 제목 없이 바로 본문으로 시작하세요.
+2. 들여쓰기: 각 문단의 시작은 반드시 '공백 두 번'으로 시작하세요.
+3. 기호 및 깨진 문자 금지: 'nbsp', '&nbsp;' 또는 별표(**)를 절대 사용하지 마세요.
+4. 언어 및 문체: 100% 순수 한글 경어체(~습니다)만 사용하며, 한자나 제3국 언어를 금지합니다."""
                 },
                 {
                     "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 제목 없이, 각 문단 첫 줄은 들여쓰기를 적용하여 3개 이내의 긴 문단으로 통합해 작성해 주세요."
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 사명 반복을 피하고, 'nbsp' 없이 깔끔한 3개 문단으로 요약해 주세요."
                 }
             ],
             temperature=0.0 
@@ -1077,19 +1078,26 @@ def get_ai_summary(query):
         
         raw_result = response.choices[0].message.content
         
-        # [후처리 안전장치]
-        # 1. 제목이 혹시 포함되었다면 제거
-        clean_result = raw_result.replace("전문 기업 분석 리포트", "").strip()
+        # [강력 후처리 단계]
+        # 1. HTML 엔티티 제거 및 nbsp 강제 삭제
+        clean_result = html.unescape(raw_result)
+        # 영문 'nbsp' 단어 자체가 포함되는 경우를 대비해 정규식으로 제거
+        clean_result = re.sub(r'nbsp|&nbsp;', '', clean_result, flags=re.IGNORECASE)
         
-        # 2. 기호 제거 및 한자 치환
+        # 2. 마크다운 기호 및 제목 잔재 제거
         clean_result = clean_result.replace("**", "").replace("*", "").replace("#", "")
+        clean_result = clean_result.replace("전문 기업 분석 리포트", "").strip()
+        
+        # 3. 한자 수동 치환 (안전장치)
         replacements = {"广": "넓은", "い": "", "焦点": "초점", "战略": "전략", "企业": "기업"}
         for han, kor in replacements.items():
             clean_result = clean_result.replace(han, kor)
             
-        # 3. 정규식 필터링 (한글, 숫자, 부호 외 제거)
+        # 4. 정규식 필터링: 한글, 숫자, 공백, 문장 부호(. , ! ? ( ) % -) 외 제거
+        # 이를 통해 한자나 기타 깨진 특수문자를 물리적으로 차단합니다.
         clean_result = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w]', '', clean_result)
         
+        # 최종적으로 문단 시작 공백 유지 확인 (AI가 생략했을 경우 대비는 프롬프트에 의존)
         return clean_result
 
     except Exception as e:
@@ -2937,6 +2945,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
