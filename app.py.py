@@ -1856,7 +1856,7 @@ elif st.session_state.page == 'detail':
             import urllib.parse
             import re
             
-            # 회사 이름 정제 (Inc, Corp 등 제거하여 검색 정확도 높임)
+            # 회사 이름 정제
             cik = profile.get('cik', '') if profile else ''
             clean_name = re.sub(r'[,.]', '', stock['name'])
             clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
@@ -1868,20 +1868,19 @@ elif st.session_state.page == 'detail':
                 query = f'"{clean_name}" {topic}'
                 sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
 
-            # (2) 회사 공식 홈페이지 URL 로직 (자동 연결 강화)
-            # API에서 weburl 혹은 website 키를 모두 확인
+            # (2) 공식 홈페이지 즉시 연결 로직 (DuckDuckGo !방식 활용)
             real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
             
             if real_website:
-                # API가 정확한 주소를 가지고 있는 경우 (가장 확실)
+                # 데이터가 있는 경우 그대로 사용
                 website_url = real_website
-                btn_label = f"🏢 {clean_name} 공식 홈페이지 (Direct)"
+                btn_label = f"🏢 {clean_name} 공식 홈페이지"
             else:
-                # 주소가 데이터에 없는 경우 -> 구글 'I'm Feeling Lucky' 기능 사용
-                # 검색 목록을 건너뛰고 첫 번째 결과로 즉시 이동 시도 (&btnI=1 추가)
-                website_query = f"{clean_name} official website"
-                website_url = f"https://www.google.com/search?q={urllib.parse.quote(website_query)}&btnI=1"
-                btn_label = f"🌐 {clean_name} 공식 홈페이지 (자동 연결)"
+                # 데이터가 없는 경우 DuckDuckGo의 'First Result' 기능 사용
+                # 검색어 앞에 '!'를 붙이면 리디렉션 경고 없이 첫 번째 사이트로 바로 이동합니다.
+                website_query = f"! {clean_name} official website"
+                website_url = f"https://duckduckgo.com/?q={urllib.parse.quote(website_query)}"
+                btn_label = f"🌐 {clean_name} 홈페이지로 즉시 이동"
 
             # (3) 버튼 출력
             st.markdown(f"""
@@ -1898,13 +1897,10 @@ elif st.session_state.page == 'detail':
                 </a>
             """, unsafe_allow_html=True)
             
-            # 구분선
             st.divider()
 
             # 4. 의사결정 박스 및 면책 조항
             draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
-
-            # 맨 마지막에 호출
             display_disclaimer()
             
         # --- Tab 1: 뉴스 & 심층 분석 ---
@@ -2926,6 +2922,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
