@@ -1850,28 +1850,47 @@ elif st.session_state.page == 'detail':
                 
                 
                
-            # 3. SEC URL 생성 로직
+            # ---------------------------------------------------------
+            # 3. SEC URL 및 공식 홈페이지 버튼 생성
+            # ---------------------------------------------------------
             import urllib.parse
             import re
+            
+            # 회사 이름 정제 (Inc, Corp 등 제거하여 검색 정확도 높임)
             cik = profile.get('cik', '') if profile else ''
             clean_name = re.sub(r'[,.]', '', stock['name'])
             clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
             
+            # (1) SEC EDGAR 공시 URL 생성
             if cik:
                 sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
             else:
                 query = f'"{clean_name}" {topic}'
                 sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
 
+            # (2) 회사 공식 홈페이지 검색 URL 생성 (Google 검색 연결)
+            website_query = f"{clean_name} official website"
+            website_url = f"https://www.google.com/search?q={urllib.parse.quote(website_query)}"
+
+            # (3) 버튼 출력 (HTML/CSS 커스텀)
             st.markdown(f"""
                 <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                    <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer;'>
-                         EDGAR {topic} 공시 확인하기 
+                    <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>
+                           EDGAR {topic} 공시 확인하기 
+                    </button>
+                </a>
+                
+                <a href="{website_url}" target="_blank" style="text-decoration:none;">
+                    <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>
+                           {clean_name} 공식 홈페이지 (Google)
                     </button>
                 </a>
             """, unsafe_allow_html=True)
-
             
+            # 구분선
+            st.divider()
+
+            # 4. 의사결정 박스 및 면책 조항
             draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
 
             # 맨 마지막에 호출
@@ -2896,6 +2915,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
