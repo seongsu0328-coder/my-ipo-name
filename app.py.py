@@ -1037,7 +1037,6 @@ def get_ai_summary(query):
         return "⚠️ API 키 설정 오류: Secrets를 확인하세요."
 
     try:
-        # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=7)
         
@@ -1046,7 +1045,6 @@ def get_ai_summary(query):
 
         context = "\n".join([r['content'] for r in search_result['results']])
         
-        # 2. Groq 요약 요청
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -1057,20 +1055,20 @@ def get_ai_summary(query):
                     "content": """당신은 한국 최고의 경제지 시니어 에디터입니다. 
 제공된 컨텍스트를 분석하여 투자자용 분석 리포트를 작성하세요.
 
-[필수 콘텐츠 구성]
-- 1문단: 창업자 배경 및 핵심 비즈니스 모델, 경쟁 우위
-- 2문단: 재무 실적(매출, 이익 등) 및 현재 추진 중인 IPO 관련 수치
-- 3문단: 향후 성장 전략(국제 확장, 다각화) 및 종합적인 투자 전망
+[콘텐츠 구성 원칙 - 기존 내용 유지]
+1. 창업자 배경 및 핵심 비즈니스 모델, 경쟁 우위를 첫 번째 문단에 작성하세요.
+2. 재무 실적 및 IPO 정보를 두 번째 문단에 작성하세요.
+3. 향후 전략 및 종합 전망을 세 번째 문단에 작성하세요.
 
-[편집 원칙]
-1. 제목 금지: '전문 기업 분석 리포트' 같은 제목 없이 바로 본문으로 시작하세요.
-2. 들여쓰기: 각 문단의 시작은 반드시 '공백 두 번'으로 시작하세요.
-3. 기호 및 깨진 문자 금지: 'nbsp', '&nbsp;' 또는 별표(**)를 절대 사용하지 마세요.
-4. 언어 및 문체: 100% 순수 한글 경어체(~습니다)만 사용하며, 한자나 제3국 언어를 금지합니다."""
+[편집 및 가독성 원칙 - 긴급 수정]
+1. 문단 구분: 문단과 문단 사이에는 반드시 '엔터 키를 두 번' 입력하여 빈 줄을 하나 만드세요.
+2. 들여쓰기: 각 문단의 첫 시작은 반드시 '공백 두 번'을 넣으세요.
+3. 오타 방지: 'quyet정'이나 한자, 외국어를 절대 섞지 마세요. 반드시 '의사결정' 혹은 '결정'으로 작성하세요.
+4. 문체: 정중한 경어체(~습니다)를 사용하고, 별표(**)나 제목은 절대 쓰지 마세요."""
                 },
                 {
                     "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 사명 반복을 피하고, 'nbsp' 없이 깔끔한 3개 문단으로 요약해 주세요."
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 '결정'이라는 단어에 외국어를 섞지 말고, 문단 구분이 확실한 3개 문단으로 작성해 주세요."
                 }
             ],
             temperature=0.0 
@@ -1079,25 +1077,32 @@ def get_ai_summary(query):
         raw_result = response.choices[0].message.content
         
         # [강력 후처리 단계]
-        # 1. HTML 엔티티 제거 및 nbsp 강제 삭제
+        # 1. HTML 엔티티 및 불필요한 공백 문자열 제거
         clean_result = html.unescape(raw_result)
-        # 영문 'nbsp' 단어 자체가 포함되는 경우를 대비해 정규식으로 제거
         clean_result = re.sub(r'nbsp|&nbsp;', '', clean_result, flags=re.IGNORECASE)
         
         # 2. 마크다운 기호 및 제목 잔재 제거
         clean_result = clean_result.replace("**", "").replace("*", "").replace("#", "")
         clean_result = clean_result.replace("전문 기업 분석 리포트", "").strip()
         
-        # 3. 한자 수동 치환 (안전장치)
-        replacements = {"广": "넓은", "い": "", "焦点": "초점", "战略": "전략", "企业": "기업"}
-        for han, kor in replacements.items():
-            clean_result = clean_result.replace(han, kor)
+        # 3. [긴급] 특정 단어 및 한자/베트남어 오타 수동 강제 치환
+        replacements = {
+            "quyet정": "의사결정",
+            "quyet": "의사",
+            "决策": "의사결정",
+            "广": "넓은",
+            "い": "",
+            "焦点": "초점",
+            "战略": "전략",
+            "企业": "기업"
+        }
+        for err, fix in replacements.items():
+            clean_result = clean_result.replace(err, fix)
             
-        # 4. 정규식 필터링: 한글, 숫자, 공백, 문장 부호(. , ! ? ( ) % -) 외 제거
-        # 이를 통해 한자나 기타 깨진 특수문자를 물리적으로 차단합니다.
+        # 4. 정규식 필터링: 한글, 숫자, 공백, 문장 부호 외 제거
+        # (주의: \n(줄바꿈)은 보존해야 하므로 정규식에서 제외하지 않도록 주의)
         clean_result = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w]', '', clean_result)
         
-        # 최종적으로 문단 시작 공백 유지 확인 (AI가 생략했을 경우 대비는 프롬프트에 의존)
         return clean_result
 
     except Exception as e:
@@ -2945,6 +2950,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
