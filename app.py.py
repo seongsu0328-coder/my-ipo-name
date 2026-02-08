@@ -1053,18 +1053,15 @@ def get_ai_summary(query):
                 {
                     "role": "system", 
                     "content": """당신은 한국 최고의 경제지 에디터입니다.
-[필수 구성]
-- 딱 3개 문단으로만 작성하세요. (1: BM/경쟁력, 2: 재무/IPO, 3: 전략/전망)
-- 문단 시작 시 공백(띄어쓰기)은 딱 2칸만 넣으세요.
-
-[편집 원칙]
-1. 제목이나 별표(**)를 절대 쓰지 마세요.
-2. 사명 반복을 피하고 '이 기업', '해당 업체' 등 대명사를 활용하세요.
-3. 외국어 오타(广, quyet, 普通 등)를 절대 금지하며 순수 한글 경어체만 사용하세요."""
+[문장력 개선 원칙]
+1. 주어 다양화: 모든 문장을 '이 기업은', '이 회사는'으로 시작하지 마세요. 
+   - 예: '마르시아노 테스타 창업자는~', '보유한 핵심 기술은~', '현재 추진 중인 IPO를 통해~', '수익 모델의 핵심은~' 등 문맥에 맞는 다양한 주어를 사용하세요.
+2. 3개 문단 구성: 1문단(BM/경쟁력), 2문단(재무/IPO), 3문단(전략/전망)으로 작성하세요.
+3. 말투: 정중한 경어체(~습니다)를 사용하고, 외국어 오타나 별표(**)는 절대 금지합니다."""
                 },
                 {
                     "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 문단 간격을 일정하게 하고 들여쓰기는 2칸만 적용해서 요약해 주세요."
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 문장 시작이 자연스럽고 문단 구분이 명확한 리포트를 작성해 주세요."
                 }
             ],
             temperature=0.0 
@@ -1072,33 +1069,32 @@ def get_ai_summary(query):
         
         raw_result = response.choices[0].message.content
         
-        # [강력 후처리 단계: 레이아웃 및 오타 정밀 교정]
+        # [강력 후처리 단계: 레이아웃 및 문장 정제]
         
         # 1. 기본 세척
         clean_result = html.unescape(raw_result)
         clean_result = clean_result.replace("**", "").replace("#", "").strip()
 
-        # 2. 오타 강제 치환 (한자 및 베트남어 오타 제거)
+        # 2. 오타 강제 치환
         replacements = {
-            "더广い": "더 넓은", "广い": "넓은", "广": "넓은",
-            "quyet": "의사", "普通": "보통", "战略": "전략", "企业": "기업", "决策": "의사결정"
+            "더广이": "더 넓은", "广이": "넓은", "quyet": "의사", "普通": "보통", "决策": "의사결정"
         }
         for err, fix in replacements.items():
             clean_result = clean_result.replace(err, fix)
 
         # 3. 레이아웃 재조립 (들여쓰기 및 문단 간격 강제 고정)
-        # 모든 줄바꿈을 제거하고 순수 문장 데이터만 추출
+        # AI가 준 텍스트를 줄바꿈 기준으로 나누고 공백을 완전히 제거
         lines = [line.strip() for line in clean_result.split('\n') if line.strip()]
         
-        # AI가 생성한 문장을 3개의 논리적 덩어리로 재분배하여 강제 3문단 생성
         if len(lines) >= 3:
-            # 3문단으로 강제 그룹화
+            # 3문단으로 강제 배분 및 시작 부분에만 공백 2칸 삽입
+            # 각 문단이 서로 붙지 않도록 \n\n으로 연결
             p1 = "  " + lines[0]
             p2 = "  " + lines[1]
             p3 = "  " + " ".join(lines[2:])
             clean_result = f"{p1}\n\n{p2}\n\n{p3}"
         else:
-            # 문단이 부족할 경우 전체에 들여쓰기만 적용
+            # 문단 개수가 모자랄 경우 개별 문장마다 들여쓰기 후 병합
             clean_result = "\n\n".join(["  " + l for l in lines])
 
         # 4. 최종 특수문자 필터링 (한글, 숫자, 공백, 부호 및 줄바꿈 보존)
@@ -2965,6 +2961,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
