@@ -2716,9 +2716,7 @@ elif st.session_state.page == 'detail':
                     st.warning(f"Expected Score: ⭐ {score_val}")
          
 
-                st.markdown("---")
-                st.markdown('<p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">긍정/부정 근거</p>', unsafe_allow_html=True)
-                st.write(result.get('pro_con', '내용 없음'))
+                
 
 
                 # 참고 소스 링크
@@ -2963,6 +2961,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
