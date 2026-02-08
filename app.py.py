@@ -2685,7 +2685,7 @@ elif st.session_state.page == 'detail':
                 else:
                     st.success(f"**주요 긍정/부정 의견**\n\n{pro_con}")
         
-                st.markdown("---")
+                
                 c1, c2 = st.columns(2)
                 with c1:
                     # Seeking Alpha는 분석 탭으로 바로 연결
@@ -2961,6 +2961,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
