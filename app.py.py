@@ -1936,25 +1936,25 @@ elif st.session_state.page == 'detail':
             
             # [1] 기업 심층 분석 섹션 (Expander 적용)
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
-                # 검색 쿼리: 창업자, BM, 수익구조, 경쟁우위, 재무요약을 포함
                 q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
                 
                 with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
-                    biz_info = get_ai_summary(q_biz)
+                    biz_info = get_ai_summary(q_biz) # 이 함수가 제가 위에서 드린 '최종 수정본'이어야 합니다.
                     
                     if biz_info:
-                        # white-space: pre-wrap; 속성이 있어야 문단 나눔과 들여쓰기가 화면에 보입니다.
+                        # 기존 스타일에 font-family와 가독성 요소를 조금 더 정교하게 다듬었습니다.
                         st.markdown(f"""
                         <div style="
-                            background-color: #f0f2f6; 
-                            padding: 20px; 
+                            background-color: #f8f9fa; 
+                            padding: 22px; 
                             border-radius: 12px; 
                             border-left: 5px solid #6e8efb; 
                             color: #333; 
-                            line-height: 1.8; 
+                            line-height: 1.9; 
                             white-space: pre-wrap; 
                             font-size: 15px;
-                            font-family: 'Pretendard', sans-serif;
+                            font-family: 'Pretendard', -apple-system, sans-serif;
+                            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
                         ">
                             {biz_info}
                         </div>
@@ -2963,6 +2963,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
