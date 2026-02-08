@@ -1028,9 +1028,6 @@ def get_real_news_rss(company_name):
 # [수정] Tavily 검색 + Groq(무료 AI) 요약 함수 (최신 모델 적용)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_ai_summary(query):
-    """
-    Tavily API로 검색하고, Groq(Llama 3.3)로 비즈니스 모델을 정밀 요약하는 함수
-    """
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     groq_key = st.secrets.get("GROQ_API_KEY") 
 
@@ -1038,7 +1035,6 @@ def get_ai_summary(query):
         return "⚠️ API 키 설정 오류: Secrets를 확인하세요."
 
     try:
-        # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=7)
         
@@ -1047,11 +1043,7 @@ def get_ai_summary(query):
 
         context = "\n".join([r['content'] for r in search_result['results']])
         
-        # 2. Groq 요약 요청
-        client = OpenAI(
-            base_url="https://api.groq.com/openai/v1",
-            api_key=groq_key
-        )
+        client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile", 
@@ -1062,37 +1054,45 @@ def get_ai_summary(query):
 제공된 영문 컨텍스트를 분석하여 한국 투자자를 위한 '전문 기업 분석 리포트'를 작성하세요. 
 
 [반드시 준수해야 할 5가지 원칙]
-1. **금융 전문 용어 의역 (직역 금지)**:
+1. 금융 전문 용어 의역 (직역 금지):
    - 'Bellwether' -> '시장 향방을 가늠할 지표' 또는 '업계 풍향계'로 번역.
    - 'Insurtech' -> '인슈어테크'로 표기.
    - 'Crowded/Congested market' -> '포화된 시장' 또는 '경쟁이 치열한 시장'으로 번역 (한자 '拥挤' 절대 사용 금지).
    - 'Disciplined growth' -> '수익성 중심의 절제된 성장'으로 번역.
 
-2. **문체 및 톤**: 
+2. 문체 및 톤: 
    - '~하는 중이다', '~를 가지고 있다' 같은 번역투를 지양하세요.
    - '~을 기록했습니다', '~로 평가받습니다', '~을 구축했습니다' 등 공적이고 신뢰감 있는 문어체를 사용하세요.
 
-3. **데이터 중심 구성**:
+3. 데이터 중심 구성:
    - '정보가 없다'는 변명은 생략하고 확인된 사실(Fact)과 수치만 나열하세요.
    - 창업자 배경, 핵심 수익 모델(BM), 경쟁 우위, 재무적 지표(매출, 이익 등)를 논리적으로 연결하세요.
 
-4. **가독성 강화**:
-   - 핵심적인 수치나 기업의 강점은 **굵게(Bold)** 처리하여 한눈에 들어오게 하세요.
+4. 가독성 강화 (긴급 수정):
+   - **중요**: 별표(**)나 마크다운 강조 기호를 절대 사용하지 마세요. 
+   - 핵심 수치는 기호 없이 텍스트로만 강조하여 나열하세요.
    - 불필요한 수식어는 걷어내고 10문장 이내의 완성된 문단으로 작성하세요.
 
-5. **인코딩 무결성**: 한자나 깨진 특수문자가 섞이지 않도록 순수 한국어와 필요시 영문 병기(예: Bellwether)만 사용하세요."""
+5. 인코딩 무결성 및 언어 정제:
+   - 한자(Chinese), 베트남어 등 제3국 언어 토큰이 섞이지 않도록 순수 한국어만 사용하세요.
+   - 필요 시 영문 병기(예: Bellwether)만 허용합니다."""
                 },
                 {
                     "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 전문적인 분석 리포트를 작성해줘."
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위의 5가지 원칙을 엄수하여, 특히 기호(**)를 모두 제거한 순수 한글 텍스트 리포트를 작성해줘."
                 }
             ],
-            temperature=0.2  # 정확도를 높이기 위해 온도를 조금 더 낮춤
+            temperature=0.0 # 정확도 최우선
         )
-        return response.choices[0].message.content
+        
+        raw_result = response.choices[0].message.content
+        
+        # [2단계 안전장치] AI가 실수로 넣은 기호를 파이썬에서 강제로 삭제
+        clean_result = raw_result.replace("**", "").replace("*", "").replace("#", "").strip()
+        
+        return clean_content # 변수명 통일 (최종 반환)
 
     except Exception as e:
-        # 이 부분이 if문 보다 위에, 그리고 try와 같은 수직 선상에 있어야 합니다!
         return f"🚫 오류: {str(e)}"
 
 # --- 화면 제어 및 로그인 화면 시작 ---
@@ -2937,6 +2937,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
