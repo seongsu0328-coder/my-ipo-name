@@ -250,6 +250,10 @@ def get_ai_analysis(company_name, topic, points):
             당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
             핵심 체크포인트: {points}
             
+            [작성 지침]
+            1. 답변 시작 시 "월가 전문 분석가로서..."와 같은 자기소개나 인사말은 절대 쓰지 마세요.
+            2. 서두 없이 바로 "{company_name}의 {topic} 분석 결과입니다."로 시작하거나 분석 내용으로 들어가세요.
+            
             내용 구성:
             1. 해당 문서에서 발견된 가장 중요한 투자 포인트.
             2. MD&A를 통해 본 기업의 실질적 성장 가능성.
@@ -2961,6 +2965,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
