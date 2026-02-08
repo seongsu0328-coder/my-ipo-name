@@ -2697,33 +2697,49 @@ elif st.session_state.page == 'detail':
         # --- Tab 5: 최종 투자 결정 (종목 상세 페이지 내) ---
         # =========================================================
         with tab5:
-            # [스타일 강제 적용] 스마트폰 다크모드 충돌 방지 (흰 배경/검은 글씨)
+            # ---------------------------------------------------------------------------
+            # [스타일 강제 통일] 스마트폰 다크모드 무시 -> 흰 배경/검은 글씨 고정
+            # ---------------------------------------------------------------------------
             st.markdown("""
                 <style>
-                /* 1. 앱 전체 배경 흰색, 기본 글자 검은색 설정 */
+                /* 1. 전체 앱 배경 흰색, 글자 검은색 강제 적용 */
                 .stApp {
                     background-color: #ffffff !important;
                     color: #000000 !important;
                 }
-                /* 2. Expander (의견 나누기 등 접는 메뉴) 헤더 색상 */
+                
+                /* 2. 모든 텍스트(문단, 제목, 리스트 등) 검은색 */
+                p, h1, h2, h3, h4, h5, h6, span, li, div {
+                    color: #000000 !important;
+                }
+        
+                /* 3. Expander (접는 메뉴) 스타일 */
                 .streamlit-expanderHeader {
+                    background-color: #f8f9fa !important; /* 연한 회색 */
+                    color: #000000 !important;
+                    border: 1px solid #ddd !important;
+                }
+                div[data-testid="stExpanderDetails"] {
                     background-color: #ffffff !important;
                     color: #000000 !important;
+                    border: 1px solid #ddd !important;
+                    border-top: none !important;
                 }
-                .streamlit-expanderContent {
+        
+                /* 4. 입력창 (텍스트 박스) 스타일 */
+                .stTextInput input, .stTextArea textarea {
                     background-color: #ffffff !important;
                     color: #000000 !important;
+                    border: 1px solid #ccc !important;
                 }
-                /* 3. 알림 박스 (Info, Warning, Success) 내부 글자색 강제 검정 */
+                
+                /* 5. 캡션 및 작은 글씨 */
+                div[data-testid="stCaptionContainer"] {
+                    color: #333333 !important;
+                }
+        
+                /* 6. 알림 박스 (Info, Warning 등) 텍스트 */
                 div[data-testid="stAlert"] p {
-                    color: #000000 !important;
-                }
-                /* 4. 캡션(st.caption) 및 일반 문단 색상 */
-                div[data-testid="stCaptionContainer"], p {
-                    color: #000000 !important;
-                }
-                /* 5. 입력 폼 라벨 (제목, 내용 등) */
-                label[data-testid="stLabel"] {
                     color: #000000 !important;
                 }
                 </style>
@@ -2880,6 +2896,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
