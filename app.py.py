@@ -2703,48 +2703,58 @@ elif st.session_state.page == 'detail':
             with st.expander("Sentiment Score", expanded=False):
                 s_col1, s_col2 = st.columns(2)
                 
+                # 데이터 가져오기 및 세척
+                rating_val = str(result.get('rating', 'Hold')).strip()
+                score_val = str(result.get('score', '3')).strip()
+            
                 with s_col1:
-                    # Analyst Ratings 설명 툴팁 구성
-                    rating_help = """
-                    **[Analyst Ratings 설명]**
-                    애널리스트 투자의견 컨센서스입니다.
-                    - **Strong Buy**: 적극 매수 추천
-                    - **Buy**: 매수 추천
-                    - **Hold (현재)**: 보유 및 중립 관망
-                    - **Sell**: 매도 및 비중 축소
-                    """
-                    st.write("**[Analyst Ratings]**")
-                    rating_val = result.get('rating', 'Neutral')
+                    # Analyst Ratings 동적 툴팁 생성
+                    # 현재 값에 따라 (현재) 표시를 붙여줍니다.
+                    r_list = {
+                        "Strong Buy": "적극 매수 추천",
+                        "Buy": "매수 추천",
+                        "Hold": "보유 및 중립 관망",
+                        "Neutral": "보유 및 중립 관망",
+                        "Sell": "매도 및 비중 축소"
+                    }
                     
-                    # help 파라미터를 사용하여 물음표 아이콘/Hover 툴팁 생성
+                    rating_help = "**[Analyst Ratings 설명]**\n애널리스트 투자의견 컨센서스입니다.\n\n"
+                    for k, v in r_list.items():
+                        is_current = " **(현재)**" if k.lower() in rating_val.lower() else ""
+                        rating_help += f"- **{k}**: {v}{is_current}\n"
+            
+                    st.write("**[Analyst Ratings]**")
+                    
+                    # 실제 출력 및 help 적용
                     if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
                         st.success(f"Consensus: {rating_val}", help=rating_help)
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
                         st.error(f"Consensus: {rating_val}", help=rating_help)
                     else:
-                        # Hold/Neutral 등급일 때 툴팁 표시
                         st.info(f"등급: {rating_val}", help=rating_help)
             
                 with s_col2:
-                    # IPO Scoop Score 설명 툴팁 구성
-                    score_val = result.get('score', '3')
-                    score_help = f"""
-                    **[IPO Scoop Score 설명]**
-                    상장 첫날 수익률 기대치 (1~5성)
-                    - ⭐⭐⭐⭐⭐: 대박 (Moonshot)
-                    - ⭐⭐⭐⭐: 강력한 수익
-                    - ⭐⭐⭐ (현재 {score_val}점): 양호. 적당한 수익권 예상
-                    - ⭐⭐: 미미한 수익 예상
-                    - ⭐: 공모가 하회 위험
-                    """
+                    # IPO Scoop Score 동적 툴팁 생성
+                    s_list = {
+                        "5": "대박 (Moonshot)",
+                        "4": "강력한 수익",
+                        "3": "양호 (Good)",
+                        "2": "미미한 수익 예상",
+                        "1": "공모가 하회 위험"
+                    }
+                    
+                    score_help = "**[IPO Scoop Score 설명]**\n상장 첫날 수익률 기대치입니다.\n\n"
+                    for k, v in s_list.items():
+                        is_current = f" **(현재 {score_val}점)**" if k == score_val else ""
+                        score_help += f"- ⭐ {k}개: {v}{is_current}\n"
+            
                     st.write("**[IPO Scoop Score]**")
-                    # 점수 출력 부분에 툴팁 적용
                     st.warning(f"Expected Score: ⭐ {score_val}", help=score_help)
             
                 # 참고 소스 링크
                 sources = result.get('links', [])
                 if sources:
-                    st.markdown('<p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">참고 리포트 출처</p>', unsafe_allow_html=True)
+                    st.markdown('<br><p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">참고 리포트 출처</p>', unsafe_allow_html=True)
                     for src in sources[:4]:
                         st.markdown(f"- [{src['title']}]({src['link']})")
 
@@ -2983,6 +2993,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
