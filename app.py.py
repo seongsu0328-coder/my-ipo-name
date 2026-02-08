@@ -1052,25 +1052,20 @@ def get_ai_summary(query):
             messages=[
                 {
                     "role": "system", 
-                    "content": """당신은 한국 최고의 경제지 시니어 에디터입니다. 
-제공된 컨텍스트를 분석하여 투자자용 분석 리포트를 작성하세요.
+                    "content": """당신은 한국 최고의 경제지 에디터입니다.
+[필수 구성]
+- 3개 문단 구성 (1: BM/경쟁력, 2: 재무/IPO, 3: 전략/전망)
+- 문단 사이에는 반드시 '빈 줄 하나'를 두세요.
+- 문단 시작 시 '딱 한 번의 띄어쓰기(스페이스 2칸)'만 넣으세요.
 
-[필수 콘텐츠 구성 및 문단 구분]
-- 1문단: 창업자 배경, 핵심 비즈니스 모델, 경쟁 우위
-- 2문단: 재무 실적 및 IPO 관련 구체적 수치
-- 3문단: 향후 성장 전략 및 종합 전망
-* 중요: 각 문단 사이에는 반드시 빈 줄(엔터 두 번)을 삽입하여 시각적으로 분리하세요.
-
-[문장 다듬기 원칙]
-1. 주어 다양화: 문장마다 'AGI Inc는' 또는 '이 회사는'으로 시작하지 마세요. 
-   - 예: '마르시아노 테스타 창업자는~', '디지털 효율성을 극대화한 결과~', '현재 추진 중인 IPO는~' 등 주어를 다양하게 구사하세요.
-2. 들여쓰기: 각 문단의 시작 부분에만 공백(스페이스) 두 번을 넣어 들여쓰기를 하세요.
-3. 오타 방지: 'quyet정'이나 '결정' 등의 단어에 외국어 토큰을 절대 섞지 마세요.
-4. 문체: 정중한 경어체(~습니다)를 사용하고 마크다운 기호(**)는 쓰지 마세요."""
+[편집 원칙]
+1. 제목(리포트 등)이나 별표(**)를 절대 쓰지 마세요.
+2. 'AGI Inc' 사명 반복을 피하고 '동사', '이 기업', '해당 업체' 등으로 다양하게 표현하세요.
+3. 외국어 오타(quyet, 普通 등)를 절대 금지하며 100% 한글 경어체를 사용하세요."""
                 },
                 {
                     "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 사명 반복을 최소화하고, 문단 구분이 명확한 3개 문단 리포트를 작성해 주세요."
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 문단 시작 공백은 2칸만 넣어서 깔끔하게 작성해 주세요."
                 }
             ],
             temperature=0.0 
@@ -1079,23 +1074,26 @@ def get_ai_summary(query):
         raw_result = response.choices[0].message.content
         
         # [강력 후처리 단계]
-        # 1. HTML 엔티티 제거 및 nbsp 박멸
+        # 1. HTML 엔티티 제거
         clean_result = html.unescape(raw_result)
-        clean_result = re.sub(r'nbsp|&nbsp;', '', clean_result, flags=re.IGNORECASE)
         
         # 2. 불필요한 마크다운 및 제목 제거
-        clean_result = clean_result.replace("**", "").replace("*", "").replace("#", "")
-        clean_result = clean_result.replace("전문 기업 분석 리포트", "").strip()
+        clean_result = clean_result.replace("**", "").replace("*", "").replace("#", "").strip()
         
-        # 3. [긴급] 외국어 오타 및 한자 강제 치환
+        # 3. [중요] 들여쓰기 과다 발생 방지 로직
+        # 줄바꿈(\n) 뒤에 공백이 3칸 이상이면 2칸으로 강제 조정
+        clean_result = re.sub(r'\n +', '\n  ', clean_result)
+        # 문장 맨 처음 공백이 너무 많으면 2칸으로 조정
+        clean_result = re.sub(r'^ +', '  ', clean_result)
+
+        # 4. 외국어 오타 강제 치환
         replacements = {
-            "quyet정": "의사결정", "quyet": "의사", "결정정": "결정", "决策": "의사결정",
-            "广": "넓은", "い": "", "焦点": "초점", "战略": "전략", "企业": "기업"
+            "quyet": "의사", "普通": "보통", "战略": "전략", "企业": "기업", "决策": "의사결정"
         }
         for err, fix in replacements.items():
             clean_result = clean_result.replace(err, fix)
             
-        # 4. 정규식 필터링 (한글, 숫자, 공백, 문장부호 및 줄바꿈(\n) 보존)
+        # 5. 정규식 필터링 (한글, 숫자, 공백, 문장부호 및 줄바꿈 보존)
         clean_result = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w\n]', '', clean_result)
         
         return clean_result
@@ -2959,6 +2957,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
