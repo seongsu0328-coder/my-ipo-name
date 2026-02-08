@@ -1036,7 +1036,6 @@ def get_ai_summary(query):
         return "⚠️ API 키 설정 오류: Secrets를 확인하세요."
 
     try:
-        # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=7)
         
@@ -1045,7 +1044,6 @@ def get_ai_summary(query):
 
         context = "\n".join([r['content'] for r in search_result['results']])
         
-        # 2. Groq 요약 요청
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -1053,22 +1051,25 @@ def get_ai_summary(query):
             messages=[
                 {
                     "role": "system", 
-                    "content": """당신은 한국 최고의 경제지 시니어 에디터이자 전문 분석가입니다. 
-제공된 영문 컨텍스트를 분석하여 투자자를 위한 '전문 기업 분석 리포트'를 작성하세요. 
+                    "content": """당신은 한국 최고의 경제지 시니어 에디터입니다. 
+제공된 컨텍스트를 분석하여 매끄러운 분석 리포트를 작성하세요.
 
-[콘텐츠 구성 원칙 - 기존 장점 유지]
-1. 데이터 중심 구성: 창업자 배경, 핵심 수익 모델(BM), 경쟁 우위, 재무적 지표(매출, 이익 등)를 논리적으로 연결하여 하나의 이야기로 완성하세요.
-2. 구체성: '정보가 없다'는 표현 대신 확인된 사실과 수치를 기반으로 작성하세요.
-
-[문장 및 언어 개선 원칙 - 신규 적용]
-3. 주어 반복 금지: 문장마다 사명(예: AGI Inc)으로 시작하지 마세요. 첫 문장 이후에는 '동사', '이 기업', '해당 업체'를 쓰거나 주어를 과감히 생략하고 문맥에 맞게(예: '마르시아노 테스타 창업자는~') 서술하세요.
-4. 부드러운 경어체: 모든 문장은 '~습니다', '~합니다' 체로 마무리하여 정중하고 전문적인 톤을 유지하세요.
-5. 한자 및 외국어 절대 금지: 한자(Chinese), 일본어(い 등), 베트남어 토큰을 절대 섞지 마세요. 100% 순수 한국어로만 작성하세요. (예: 广 -> 넓은, 焦点 -> 초점)
-6. 기호 사용 금지: 별표(**)나 샵(#) 등 마크다운 강조 기호를 절대 사용하지 마세요."""
+[콘텐츠 구성 및 편집 원칙]
+1. 제목 금지: '전문 기업 분석 리포트'와 같은 제목을 절대 쓰지 말고 바로 본문으로 시작하세요.
+2. 문단 병합 (3문단 구성):
+   - 1문단: 창업자 배경 및 핵심 비즈니스 모델, 경쟁 우위
+   - 2문단: 재무 실적(매출, 이익 등) 및 현재 추진 중인 IPO 관련 수치
+   - 3문단: 향후 성장 전략(국제 확장, 다각화) 및 종합적인 투자 전망
+3. 들여쓰기 적용: 각 문단의 첫 시작은 반드시 공백(띄어쓰기) 두 번을 넣어 들여쓰기를 하세요.
+4. 문체 및 언어:
+   - 모든 문장은 '~습니다', '~합니다' 체로 작성하세요.
+   - 한자어, 외국어 오타(广, い 등) 절대 금지.
+   - 사명 반복을 피하고 '동사', '이 기업' 등의 표현을 사용하세요.
+5. 기호 금지: 별표(**)나 마크다운 기호를 절대 사용하지 마세요."""
                 },
                 {
                     "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 사명 반복을 피하고 한자나 별표 기호가 없는 매끄러운 한국어 리포트를 작성해 주세요."
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 제목 없이, 각 문단 첫 줄은 들여쓰기를 적용하여 3개 이내의 긴 문단으로 통합해 작성해 주세요."
                 }
             ],
             temperature=0.0 
@@ -1076,18 +1077,17 @@ def get_ai_summary(query):
         
         raw_result = response.choices[0].message.content
         
-        # [강력한 후처리 안전장치]
-        # 1. 마크다운 기호 제거
-        clean_result = raw_result.replace("**", "").replace("*", "").replace("#", "").strip()
+        # [후처리 안전장치]
+        # 1. 제목이 혹시 포함되었다면 제거
+        clean_result = raw_result.replace("전문 기업 분석 리포트", "").strip()
         
-        # 2. AI가 자주 실수하는 특정 한자/외국어 수동 치환
-        replacements = {
-            "广": "넓은", "い": "", "焦点": "초점", "战略": "전략", "企业": "기업", "决策": "의사결정"
-        }
+        # 2. 기호 제거 및 한자 치환
+        clean_result = clean_result.replace("**", "").replace("*", "").replace("#", "")
+        replacements = {"广": "넓은", "い": "", "焦点": "초점", "战略": "전략", "企业": "기업"}
         for han, kor in replacements.items():
             clean_result = clean_result.replace(han, kor)
             
-        # 3. 정규식을 통해 한글, 숫자, 일반 문장부호 외의 문자(한자 등) 최종 제거
+        # 3. 정규식 필터링 (한글, 숫자, 부호 외 제거)
         clean_result = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w]', '', clean_result)
         
         return clean_result
@@ -2937,6 +2937,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
