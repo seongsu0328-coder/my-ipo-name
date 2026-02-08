@@ -1868,21 +1868,31 @@ elif st.session_state.page == 'detail':
                 query = f'"{clean_name}" {topic}'
                 sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
 
-            # (2) 회사 공식 홈페이지 검색 URL 생성 (Google 검색 연결)
-            website_query = f"{clean_name} official website"
-            website_url = f"https://www.google.com/search?q={urllib.parse.quote(website_query)}"
+            # (2) 회사 공식 홈페이지 URL 로직 (Direct Link 우선 적용)
+            # API 프로필 데이터에 'weburl'이 있으면 그것을 사용, 없으면 구글 검색으로 대체
+            real_website = profile.get('weburl', '') if profile else ''
+            
+            if real_website:
+                # 실제 주소가 있는 경우 (예: https://www.agi.com)
+                website_url = real_website
+                btn_label = f"🏢 {clean_name} 공식 홈페이지 (Direct)"
+            else:
+                # 주소가 없는 경우 (Google 검색 결과로 연결)
+                website_query = f"{clean_name} official website"
+                website_url = f"https://www.google.com/search?q={urllib.parse.quote(website_query)}"
+                btn_label = f"🔍 {clean_name} 공식 홈페이지 (Google)"
 
-            # (3) 버튼 출력 (HTML/CSS 커스텀)
+            # (3) 버튼 출력
             st.markdown(f"""
                 <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                     <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>
-                           EDGAR {topic} 공시 확인하기 
+                            EDGAR {topic} 공시 확인하기 
                     </button>
                 </a>
                 
                 <a href="{website_url}" target="_blank" style="text-decoration:none;">
                     <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>
-                           {clean_name} 공식 홈페이지 (Google)
+                           {btn_label}
                     </button>
                 </a>
             """, unsafe_allow_html=True)
@@ -2915,6 +2925,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
