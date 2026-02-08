@@ -1868,25 +1868,26 @@ elif st.session_state.page == 'detail':
                 query = f'"{clean_name}" {topic}'
                 sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
 
-            # (2) 회사 공식 홈페이지 URL 로직 (Direct Link 우선 적용)
-            # API 프로필 데이터에 'weburl'이 있으면 그것을 사용, 없으면 구글 검색으로 대체
-            real_website = profile.get('weburl', '') if profile else ''
+            # (2) 회사 공식 홈페이지 URL 로직 (자동 연결 강화)
+            # API에서 weburl 혹은 website 키를 모두 확인
+            real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
             
             if real_website:
-                # 실제 주소가 있는 경우 (예: https://www.agi.com)
+                # API가 정확한 주소를 가지고 있는 경우 (가장 확실)
                 website_url = real_website
                 btn_label = f"🏢 {clean_name} 공식 홈페이지 (Direct)"
             else:
-                # 주소가 없는 경우 (Google 검색 결과로 연결)
+                # 주소가 데이터에 없는 경우 -> 구글 'I'm Feeling Lucky' 기능 사용
+                # 검색 목록을 건너뛰고 첫 번째 결과로 즉시 이동 시도 (&btnI=1 추가)
                 website_query = f"{clean_name} official website"
-                website_url = f"https://www.google.com/search?q={urllib.parse.quote(website_query)}"
-                btn_label = f"🔍 {clean_name} 공식 홈페이지 (Google)"
+                website_url = f"https://www.google.com/search?q={urllib.parse.quote(website_query)}&btnI=1"
+                btn_label = f"🌐 {clean_name} 공식 홈페이지 (자동 연결)"
 
             # (3) 버튼 출력
             st.markdown(f"""
                 <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                     <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>
-                            EDGAR {topic} 공시 확인하기 
+                           📄 EDGAR {topic} 공시 확인하기 
                     </button>
                 </a>
                 
@@ -2925,6 +2926,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
