@@ -242,20 +242,20 @@ def get_ai_analysis(company_name, topic, points):
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
     
-    last_error = ""
+    last_error_msg = ""
     max_retries = 3
     
     for i in range(max_retries):
         try:
-            # 🔥 [수정] 줄바꿈과 볼드체 형식을 명확히 강제하는 프롬프트
+            # 🔥 [형식 강화] 인사말 생략 + 줄바꿈 포맷팅
             prompt = f"""
             당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
             핵심 체크포인트: {points}
             
             [작성 지침]
-            1. "분석 결과입니다" 같은 서두나 인사말을 절대 쓰지 마세요.
-            2. 반드시 아래 [출력 형식]을 그대로 지키세요. 
-            3. 각 항목 사이에는 빈 줄을 넣어 가독성을 높이세요.
+            1. "분석 결과입니다" 같은 서두나 인사말, 자기소개를 절대 쓰지 마세요.
+            2. 서론 없이 바로 첫 번째 항목부터 작성하세요.
+            3. 각 항목 사이에는 반드시 빈 줄(엔터)을 넣어 가독성을 높이세요.
             
             [출력 형식]
             **가장 중요한 투자 포인트:**
@@ -272,18 +272,20 @@ def get_ai_analysis(company_name, topic, points):
             return response.text
             
         except Exception as e:
-            last_error = str(e)
-            # 429(Too Many Requests) 또는 503(Overloaded) 에러 시 대기
+            last_error_msg = str(e)
+            # 429(속도제한/할당량) 또는 503(서버과부하) 에러 시 대기
             if "429" in str(e) or "quota" in str(e).lower() or "503" in str(e):
-                # 대기 시간을 대폭 늘림: 5초, 10초, 15초
-                wait_time = 5 * (i + 1)
-                time.sleep(wait_time)
+                time.sleep(3 * (i + 1)) # 3초, 6초, 9초 대기
                 continue
             else:
-                return f"🚫 분석 중 오류가 발생했습니다. (상세: {str(e)})"
+                # 그 외 에러는 즉시 반환
+                return f"🚫 분석 중 오류가 발생했습니다.\n(상세: {str(e)})"
     
-    # 3번 다 실패했을 때, 어떤 에러였는지 사용자에게 보여줌 (디버깅용)
-    return f"⚠️ 접속량이 많아 분석에 실패했습니다. (Error: {last_error[:50]}...)"
+    # 3번 다 실패했을 때, 진짜 원인을 화면에 출력
+    if "429" in last_error_msg and "quota" in last_error_msg.lower():
+        return f"⚠️ [일일 한도 초과] 오늘의 무료 AI 사용량을 모두 소진했습니다. 내일 다시 시도하거나, 새 API 키를 사용하세요.\n(Error: {last_error_msg})"
+    else:
+        return f"⚠️ 접속량이 많아 분석에 실패했습니다.\n(Error: {last_error_msg})"
 
 # --- [기관 평가 분석 함수] ---
 @st.cache_data(show_spinner=False, ttl=86400) 
@@ -2976,6 +2978,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
