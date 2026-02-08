@@ -2097,7 +2097,7 @@ elif st.session_state.page == 'detail':
             st.write("<br>", unsafe_allow_html=True)
         
             # --- 2. 거시 시장 지표 시각화 ---
-            st.markdown('<p style="font-size: 15px; font-weight: 600; margin-top: 20px; margin-bottom: 10px;">🇺🇸 미국거시경제 과열 평가</p>', unsafe_allow_html=True)
+            st.markdown('<p style="font-size: 15px; font-weight: 600; margin-top: 20px; margin-bottom: 10px;">미국거시경제 과열 평가</p>', unsafe_allow_html=True)
             m1, m2, m3, m4 = st.columns(4)
         
             with m1:
@@ -2896,6 +2896,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
