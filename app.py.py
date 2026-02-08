@@ -1851,38 +1851,41 @@ elif st.session_state.page == 'detail':
                 
                
             # ---------------------------------------------------------
-            # 3. SEC URL 및 공식 홈페이지 버튼 생성
+            # 3. SEC URL 및 공식 홈페이지 버튼 생성 (법인 식별자 보존형)
             # ---------------------------------------------------------
             import urllib.parse
             import re
             
-            # 회사 이름 정제
+            # (1) 데이터 준비
             cik = profile.get('cik', '') if profile else ''
-            clean_name = re.sub(r'[,.]', '', stock['name'])
-            clean_name = re.sub(r'\s+(Inc|Corp|Ltd|PLC|LLC|Co|SA|NV)\b.*$', '', clean_name, flags=re.IGNORECASE).strip()
             
-            # (1) SEC EDGAR 공시 URL 생성
+            # [수정] Inc, Corp, Ltd 등을 삭제하지 않고 전체 이름을 사용합니다.
+            # 불필요한 공백만 제거하여 검색 정확도를 높입니다.
+            full_company_name = stock['name'].strip() 
+            
+            # (2) SEC EDGAR 공시 URL 생성
             if cik:
                 sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
             else:
-                query = f'"{clean_name}" {topic}'
-                sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(query)}&dateRange=all"
+                # 풀네임을 따옴표로 감싸서 정확한 명칭으로 검색하게 합니다.
+                sec_query = f'"{full_company_name}" {topic}'
+                sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(sec_query)}&dateRange=all"
 
-            # (2) 공식 홈페이지 즉시 연결 로직 (DuckDuckGo !방식 활용)
+            # (3) 공식 홈페이지 즉시 연결 로직 (DuckDuckGo !Bang 활용)
+            # API에서 직접 제공하는 주소가 있는지 먼저 확인
             real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
             
             if real_website:
-                # 데이터가 있는 경우 그대로 사용
                 website_url = real_website
-                btn_label = f"🏢 {clean_name} 공식 홈페이지"
+                btn_label = f"🏢 {full_company_name} 공식 홈페이지"
             else:
-                # 데이터가 없는 경우 DuckDuckGo의 'First Result' 기능 사용
-                # 검색어 앞에 '!'를 붙이면 리디렉션 경고 없이 첫 번째 사이트로 바로 이동합니다.
-                website_query = f"! {clean_name} official website"
-                website_url = f"https://duckduckgo.com/?q={urllib.parse.quote(website_query)}"
-                btn_label = f"🌐 {clean_name} 홈페이지로 즉시 이동"
+                # [핵심] 회사 풀네임(Inc, Corp 포함) + Investor Relations 조합
+                # 예: ! AGI Inc. Investor Relations
+                refined_query = f"! {full_company_name} Investor Relations"
+                website_url = f"https://duckduckgo.com/?q={urllib.parse.quote(refined_query)}"
+                btn_label = f"🌐 {full_company_name} 홈페이지로 즉시 이동"
 
-            # (3) 버튼 출력
+            # (4) 버튼 출력 (스타일 통일)
             st.markdown(f"""
                 <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                     <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>
@@ -2922,6 +2925,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
