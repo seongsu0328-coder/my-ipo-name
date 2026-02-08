@@ -2663,29 +2663,30 @@ elif st.session_state.page == 'detail':
                 # 1. 데이터 가져오기
                 summary_raw = result.get('summary', '')
             
-                # 2. [초강력 세척 로직] URL이 포함된 단어/문구 강제 제거
+                # 2. [끝판왕 세척 로직] 
                 if summary_raw:
-                    # 가. Source: 문구와 그 뒤에 오는 모든 링크 형태 삭제 (공백, 쉼표, 줄바꿈 무시)
-                    clean_text = re.sub(r'(?i)source\s*[:\s]*https?://\S+', '', summary_raw)
+                    # 가. 줄바꿈(\n)을 포함하여 'Source:' 부터 끝까지 찾아 지우기 (re.DOTALL 대신 수동 매칭)
+                    # 텍스트 내의 'Source:' 또는 'https://' 이후의 모든 내용을 타겟팅합니다.
+                    import re
                     
-                    # 나. 남아있는 일반 URL 형태 삭제
-                    clean_text = re.sub(r'https?://\S+', '', clean_text)
+                    # 1단계: "Source:" 키워드와 그 뒤에 오는 모든 링크/문자열을 끝까지 삭제
+                    summary = re.sub(r'(?i)Source\s*[:\-].*', '', summary_raw, flags=re.DOTALL)
                     
-                    # 다. 링크를 지우고 남은 찌꺼기 문구 (Source , 등) 최종 정리
-                    clean_text = re.sub(r'(?i)source\s*[:\s,]*', '', clean_text)
+                    # 2단계: 만약 "Source:" 없이 링크만 덜렁 있다면 해당 링크 삭제
+                    summary = re.sub(r'https?://\S+', '', summary)
                     
-                    # 라. 문장 끝의 불필요한 기호(,) 및 공백 정리
-                    summary = clean_text.strip().rstrip(' ,.:-')
+                    # 3단계: 앞뒤 불필요한 공백 및 마지막 문장 찌꺼기 정리
+                    summary = summary.strip().rstrip(' ,.:-')
                 else:
                     summary = ""
             
                 if "분석 불가" in summary or not summary:
                     st.warning("Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다.")
                 else:
-                    # 최종 정제된 요약본 출력
+                    # 드디어 깨끗해진 요약본 출력
                     st.info(summary)
                 
-                # Renaissance 검색 링크 버튼 (기존 유지)
+                # 하단 버튼 (기존 유지)
                 q = stock['symbol'] if stock['symbol'] else stock['name']
                 search_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
                 st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
@@ -3003,6 +3004,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
