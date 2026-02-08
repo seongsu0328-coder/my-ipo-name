@@ -14,8 +14,6 @@ import re
 from datetime import datetime, timedelta
 from openai import OpenAI  # ✅ OpenAI 임포트
 
-# 🔥 [중요] 캐시 강제 삭제 (한 번 실행 후에는 꼭 지우거나 주석 처리하세요!)
-st.cache_data.clear()
 
 # --- [AI 및 검색 기능] ---
 import google.generativeai as genai
@@ -2981,6 +2979,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
