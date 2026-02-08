@@ -2676,28 +2676,35 @@ elif st.session_state.page == 'detail':
             # --- (1) Renaissance Capital 섹션 ---
             with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 
-                # 1. 데이터 가져오기
-                summary_raw = result.get('summary', '')
+                # 1. 데이터 가져오기 (결과가 리스트일 경우를 대비해 처리)
+                raw_val = result.get('summary', '')
+                summary_raw = raw_val[0] if isinstance(raw_val, list) else str(raw_val)
             
-                # 2. [가장 강력한 절단 방식] 'Source' 단어 기준 분할
-                if summary_raw:
-                    # 가. 대소문자 구분 없이 'Source' 또는 'http'라는 단어가 나오면 그 앞까지만 자릅니다.
-                    # split()에 정규식을 사용하여 다양한 형태의 Source: 문구에 대응합니다.
-                    parts = re.split(r'(?i)source|https?://', summary_raw)
-                    summary = parts[0] # 첫 번째 조각(본문)만 선택
+                # 2. [초강력 절단 방식] 'Source' 또는 'http' 기준 분할
+                if summary_raw and len(summary_raw.strip()) > 0:
+                    import re
                     
-                    # 나. 문장 끝의 불필요한 공백이나 기호 최종 정리
-                    summary = summary.strip().rstrip(' ,.:-')
+                    # 가. 다양한 출처 표기법 대응 (Source:, 출처:, http, https 등)
+                    # 패턴 설명: (대소문자무시)Source 문구 또는 http로 시작하는 모든 지점
+                    pattern = r'(?i)source|출처|https?://'
+                    
+                    # 나. 해당 패턴이 발견되는 가장 첫 번째 지점을 기준으로 앞부분만 취함
+                    parts = re.split(pattern, summary_raw)
+                    summary = parts[0].strip()
+                    
+                    # 다. 문장 끝에 남은 지저분한 기호들 정리
+                    summary = summary.rstrip(' ,.:;-\n\t')
                 else:
                     summary = ""
             
-                if "분석 불가" in summary or not summary:
-                    st.warning("Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다.")
+                # 3. 결과 출력
+                if not summary or "분석 불가" in summary:
+                    st.warning("Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다. (비상장 또는 데이터 업데이트 지연)")
                 else:
-                    # 드디어 정제된 요약본만 출력
+                    # 최종 정제된 요약본 출력
                     st.info(summary)
                 
-                # 하단 버튼 (기존 유지)
+                # 4. 하단 버튼 (기존 유지)
                 q = stock['symbol'] if stock['symbol'] else stock['name']
                 search_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
                 st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
@@ -3015,6 +3022,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
