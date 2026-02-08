@@ -1088,9 +1088,10 @@ def get_ai_summary(query):
         raw_result = response.choices[0].message.content
         
         # [2단계 안전장치] AI가 실수로 넣은 기호를 파이썬에서 강제로 삭제
+        # 변수명을 clean_result로 통일합니다.
         clean_result = raw_result.replace("**", "").replace("*", "").replace("#", "").strip()
         
-        return clean_content # 변수명 통일 (최종 반환)
+        return clean_result  # <--- 이 부분을 clean_result로 정확히 일치시켰습니다.
 
     except Exception as e:
         return f"🚫 오류: {str(e)}"
@@ -2937,6 +2938,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
