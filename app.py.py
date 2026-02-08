@@ -2661,10 +2661,19 @@ elif st.session_state.page == 'detail':
             # --- (1) Renaissance Capital 섹션 ---
             with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 
-                summary = result.get('summary', '')
-
-                # --- 추가된 라인: Source: 및 URL 제거 ---
-                summary = re.sub(r'Source:\s*https?://\S+|https?://\S+', '', summary).strip()
+                # 1. 일단 데이터를 가져옵니다.
+                raw_summary = result.get('summary', '')
+                
+                # 2. [강화된 세척 로직] 
+                if isinstance(raw_summary, str):
+                    # 패턴 1: 'Source: http...' 형태 삭제 (대소문자 무시)
+                    # 패턴 2: 'http...' 로 시작하는 모든 링크 삭제
+                    # 패턴 3: 문장 끝에 붙은 불필요한 특수문자나 공백 정리
+                    summary = re.sub(r'(?i)source:\s*https?://\S+', '', raw_summary) # Source: 포함 링크 제거
+                    summary = re.sub(r'https?://\S+', '', summary) # 남은 일반 링크 제거
+                    summary = summary.strip().rstrip(':- ') # 문장 끝에 남은 콜론이나 대시 정리
+                else:
+                    summary = str(raw_summary)
     
                 if "분석 불가" in summary or not summary:
                     st.warning("Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다. (비상장 또는 데이터 업데이트 지연)")
@@ -2993,6 +3002,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
