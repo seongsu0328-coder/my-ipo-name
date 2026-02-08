@@ -14,7 +14,6 @@ import re
 from datetime import datetime, timedelta
 from openai import OpenAI  # ✅ OpenAI 임포트
 
-
 # --- [AI 및 검색 기능] ---
 import google.generativeai as genai
 from duckduckgo_search import DDGS
@@ -243,50 +242,33 @@ def get_ai_analysis(company_name, topic, points):
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
     
-    last_error_msg = ""
+    # [재시도 로직 추가]
     max_retries = 3
-    
     for i in range(max_retries):
         try:
-            # 🔥 [형식 강화] 인사말 생략 + 줄바꿈 포맷팅
             prompt = f"""
             당신은 월가 출신의 전문 분석가입니다. {company_name}의 {topic} 서류를 분석하세요.
             핵심 체크포인트: {points}
             
-            [작성 지침]
-            1. "분석 결과입니다" 같은 서두나 인사말, 자기소개를 절대 쓰지 마세요.
-            2. 서론 없이 바로 첫 번째 항목부터 작성하세요.
-            3. 각 항목 사이에는 반드시 빈 줄(엔터)을 넣어 가독성을 높이세요.
+            내용 구성:
+            1. 해당 문서에서 발견된 가장 중요한 투자 포인트.
+            2. MD&A를 통해 본 기업의 실질적 성장 가능성.
+            3. 투자자가 반드시 경계해야 할 핵심 리스크 1가지.
             
-            [출력 형식]
-            **가장 중요한 투자 포인트:**
-            (핵심 내용 요약)
-
-            **MD&A를 통한 성장 가능성:**
-            (핵심 내용 요약)
-
-            **반드시 경계해야 할 핵심 리스크:**
-            (핵심 내용 요약)
+            전문적인 톤으로 한국어로 5줄 내외 요약하세요.
             """
-            
             response = model.generate_content(prompt)
             return response.text
             
         except Exception as e:
-            last_error_msg = str(e)
-            # 429(속도제한/할당량) 또는 503(서버과부하) 에러 시 대기
-            if "429" in str(e) or "quota" in str(e).lower() or "503" in str(e):
-                time.sleep(3 * (i + 1)) # 3초, 6초, 9초 대기
+            # 429 에러(속도제한)라면 대기 후 재시도
+            if "429" in str(e) or "quota" in str(e).lower():
+                time.sleep(2 * (i + 1)) # 2초, 4초...
                 continue
             else:
-                # 그 외 에러는 즉시 반환
-                return f"🚫 분석 중 오류가 발생했습니다.\n(상세: {str(e)})"
+                return f"현재 분석 엔진을 조율 중입니다. (상세: {str(e)})"
     
-    # 3번 다 실패했을 때, 진짜 원인을 화면에 출력
-    if "429" in last_error_msg and "quota" in last_error_msg.lower():
-        return f"⚠️ [일일 한도 초과] 오늘의 무료 AI 사용량을 모두 소진했습니다. 내일 다시 시도하거나, 새 API 키를 사용하세요.\n(Error: {last_error_msg})"
-    else:
-        return f"⚠️ 접속량이 많아 분석에 실패했습니다.\n(Error: {last_error_msg})"
+    return "⚠️ 사용량이 많아 분석이 지연되고 있습니다. 잠시 후 다시 시도해주세요."
 
 # --- [기관 평가 분석 함수] ---
 @st.cache_data(show_spinner=False, ttl=86400) 
@@ -2979,13 +2961,6 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
-
-
-
-
-
-
-
 
 
 
