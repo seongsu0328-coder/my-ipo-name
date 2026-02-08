@@ -2657,27 +2657,35 @@ elif st.session_state.page == 'detail':
             with st.spinner(f"전문 기관 데이터를 정밀 수집 중..."):
                 result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
         
-            # 공통 텍스트 세척 함수 (Source: 및 모든 링크 제거)
-            def clean_text_final(text):
-                if not text or not isinstance(text, str):
-                    return str(text) if text else ""
-                # 1. 모든 형태의 URL 제거 (Source: 포함 여부 상관없이)
-                text = re.sub(r'(?i)source:\s*https?://\S+', '', text) # Source: 주소
-                text = re.sub(r'https?://\S+', '', text)               # 일반 주소
-                # 2. 문장 끝에 남는 찌꺼기(콜론, 대시, 공백) 제거
-                return text.strip().rstrip(':- ')
-        
             # --- (1) Renaissance Capital 섹션 ---
             with st.expander("Renaissance Capital IPO 요약", expanded=False):
-                # [수정 포인트] 여기서 clean_text_final을 거친 변수를 st.info에 넣어야 합니다.
-                raw_summary = result.get('summary', '')
-                summary = clean_text_final(raw_summary)
                 
+                # 1. 데이터 가져오기
+                summary_raw = result.get('summary', '')
+            
+                # 2. [초강력 세척 로직] URL이 포함된 단어/문구 강제 제거
+                if summary_raw:
+                    # 가. Source: 문구와 그 뒤에 오는 모든 링크 형태 삭제 (공백, 쉼표, 줄바꿈 무시)
+                    clean_text = re.sub(r'(?i)source\s*[:\s]*https?://\S+', '', summary_raw)
+                    
+                    # 나. 남아있는 일반 URL 형태 삭제
+                    clean_text = re.sub(r'https?://\S+', '', clean_text)
+                    
+                    # 다. 링크를 지우고 남은 찌꺼기 문구 (Source , 등) 최종 정리
+                    clean_text = re.sub(r'(?i)source\s*[:\s,]*', '', clean_text)
+                    
+                    # 라. 문장 끝의 불필요한 기호(,) 및 공백 정리
+                    summary = clean_text.strip().rstrip(' ,.:-')
+                else:
+                    summary = ""
+            
                 if "분석 불가" in summary or not summary:
                     st.warning("Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다.")
                 else:
-                    st.info(summary) # 정제된 summary 출력
+                    # 최종 정제된 요약본 출력
+                    st.info(summary)
                 
+                # Renaissance 검색 링크 버튼 (기존 유지)
                 q = stock['symbol'] if stock['symbol'] else stock['name']
                 search_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
                 st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
@@ -2995,6 +3003,7 @@ elif st.session_state.page == 'detail':
                 with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
         
     
+
 
 
 
