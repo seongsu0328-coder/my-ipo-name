@@ -1043,9 +1043,9 @@ def get_real_news_rss(company_name):
         return news_items
     except: return []
 
-# [수정] Tavily 검색 + Groq(무료 AI) 요약 함수 (최신 모델 적용)
+# [핵심] 함수 이름 변경 (캐시 초기화 효과)
 @st.cache_data(show_spinner=False, ttl=86400)
-def get_ai_summary(query):
+def get_ai_summary_final(query):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     groq_key = st.secrets.get("GROQ_API_KEY") 
 
@@ -1053,13 +1053,13 @@ def get_ai_summary(query):
         return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets를 확인하세요.</p>"
 
     try:
-        # [1] Tavily 검색
+        # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=7)
         if not search_result.get('results'): return None 
         context = "\n".join([r['content'] for r in search_result['results']])
 
-        # [2] LLM 생성 (요청하신 프롬프트 내용 완벽 반영)
+        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -1087,45 +1087,53 @@ def get_ai_summary(query):
         
         raw_result = response.choices[0].message.content
         
-        # --- [강력 후처리: HTML 태그 조립 방식] ---
+        # --- [요청하신 정제 로직 + 문단 강제 분할] ---
         
-        # 1. 텍스트 정제 (HTML 엔티티 해제 및 환각 문자 치환)
+        # 1. 텍스트 정제 (요청하신 코드 그대로 적용)
         text = html.unescape(raw_result)
         replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
         for k, v in replacements.items(): text = text.replace(k, v)
         
-        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호만 허용)
+        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호, 줄바꿈(\s)만 허용)
+        # 주의: \s가 없으면 줄바꿈도 다 사라지므로 \s는 꼭 있어야 합니다.
         text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
         
-        # 2. 문단 분리 로직
-        # AI가 줄바꿈(\n)을 1개만 했든 2개만 했든 확실하게 자릅니다.
-        parts = re.split(r'\n+', text.strip())
-        paragraphs = [p.strip() for p in parts if len(p) > 30] # 너무 짧은 문장은 버림
+        # 2. 문단 강제 분리 로직 (Brute Force Split)
+        # (1) 우선 줄바꿈(엔터) 기준으로 잘라봅니다.
+        paragraphs = [p.strip() for p in re.split(r'\n+', text.strip()) if len(p) > 30]
 
-        # [안전장치] 만약 AI가 실수로 통으로 1문단만 줬다면, 강제로 3등분
-        if len(paragraphs) < 2:
-            sentences = text.split('. ')
-            n = len(sentences)
-            if n >= 3:
-                p1 = ". ".join(sentences[:n//3]) + "."
-                p2 = ". ".join(sentences[n//3:2*n//3]) + "."
-                p3 = ". ".join(sentences[2*n//3:]) + "."
-                paragraphs = [p1, p2, p3]
+        # (2) [비상장치] 만약 AI가 줄바꿈을 안 줘서 덩어리가 1~2개뿐이라면?
+        # -> 마침표(.)를 기준으로 문장을 다 뜯어낸 뒤 강제로 3등분 합니다.
+        if len(paragraphs) < 3:
+            # 문장 단위로 분해 (마침표 뒤 공백 기준)
+            sentences = re.split(r'(?<=\.)\s+', text.strip())
+            total_sents = len(sentences)
+            
+            if total_sents >= 3:
+                # 3등분 계산 (올림 나눗셈)
+                chunk_size = (total_sents // 3) + 1
+                
+                p1 = " ".join(sentences[:chunk_size])
+                p2 = " ".join(sentences[chunk_size : chunk_size*2])
+                p3 = " ".join(sentences[chunk_size*2 :])
+                
+                # 다시 리스트로 합침 (빈 내용 제외)
+                paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
             else:
-                paragraphs = [text] # 문장이 너무 적으면 그냥 통으로 표시
+                # 문장이 너무 적으면 그냥 통으로 1개만 반환
+                paragraphs = [text]
 
-        # 3. HTML <p> 태그로 감싸기 (이 부분이 디자인을 고정합니다)
+        # 3. HTML 태그 포장 (화면 렌더링용)
+        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
         html_output = ""
         for p in paragraphs:
-            # text-indent: 첫 줄 들여쓰기 (12px)
-            # margin-bottom: 문단 아래 간격 (20px)
-            # text-align: justify (양쪽 정렬로 깔끔하게)
             html_output += f"""
             <p style='
-                text-indent: 12px; 
-                margin-bottom: 20px; 
-                line-height: 1.8; 
-                text-align: justify; 
+                display: block;          /* 블록 요소 지정 */
+                text-indent: 14px;       /* 첫 줄 들여쓰기 */
+                margin-bottom: 20px;     /* 문단 아래 공백 */
+                line-height: 1.8;        /* 줄 간격 */
+                text-align: justify;     /* 양쪽 정렬 */
                 margin-top: 0;
             '>
                 {p}
@@ -1966,12 +1974,15 @@ elif st.session_state.page == 'detail':
             
             # [1] 기업 심층 분석 섹션 (Expander 적용)
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
+                # 쿼리 정의 (이 줄이 꼭 있어야 합니다!)
                 q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
                 
                 with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
-                    biz_info = get_ai_summary(q_biz)
+                    # 👇 함수 이름 final로 변경 (캐시 문제 해결됨)
+                    biz_info = get_ai_summary_final(q_biz) 
                     
                     if biz_info:
+                        # 스타일에서 white-space 제거하고, 공백 없이 딱 붙여 넣기
                         st.markdown(f"""
                         <div style="
                             background-color: #f8f9fa; 
@@ -1979,12 +1990,10 @@ elif st.session_state.page == 'detail':
                             border-radius: 12px; 
                             border-left: 5px solid #6e8efb; 
                             color: #333; 
+                            font-family: 'Pretendard', sans-serif;
                             font-size: 15px;
-                            font-family: 'Pretendard', -apple-system, sans-serif;
-                            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
                         ">{biz_info}</div>
-                        """, unsafe_allow_html=True) 
-                        # 👆 위 부분 주의: >{biz_info}</div> 이렇게 딱 붙여야 합니다.
+                        """, unsafe_allow_html=True)
                     else:
                         st.error("⚠️ 정보를 찾을 수 없습니다.")
         
@@ -2945,6 +2954,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
