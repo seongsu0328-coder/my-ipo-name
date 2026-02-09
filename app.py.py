@@ -10,14 +10,14 @@ import uuid
 import random
 import math
 import html
-import re  
+import re
 from datetime import datetime, timedelta
-from openai import OpenAI  # ✅ OpenAI 임포트
 
-# --- [AI 및 검색 기능] ---
-import google.generativeai as genai
+# --- [AI 및 검색 라이브러리 통합] ---
+from openai import OpenAI             # ✅ Groq(뉴스 요약)용
+import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
+from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
-from tavily import TavilyClient  # ✅ Tavily API 클라이언트
 
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
@@ -1069,54 +1069,60 @@ def get_ai_summary(query):
                 {
                     "role": "system", 
                     "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
-[리포트 작성 원칙]
-1. 문장력 개선: 'AGI Inc는', '이 기업은'으로 문장을 시작하지 마세요. 
-   - 예: '마르시아노 테스타 창업자가 이끄는 경영진은~', '수익 모델의 근간은~', '현재 추진 중인 IPO의 목적은~', '보유한 핵심 기술력은~' 등 주어를 다양화하여 전문 기사처럼 작성하세요.
-2. 전문 포맷(3문단 구성): 
-   - 1문단 [Business Summary]: 비즈니스 모델과 경쟁 우위 중심
-   - 2문단 [Financial Review]: 재무 지표 및 IPO 자금 조달 규모 중심
-   - 3문단 [Future Outlook]: 향후 성장 전략 및 종합 투자 의견
-3. 편집: 제목이나 별표(**)는 절대 쓰지 마세요. 100% 한글 경어체(~습니다)만 사용하세요."""
+[필수 작성 원칙]
+1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
+2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요.
+   - 1문단: 비즈니스 모델 및 경쟁 우위
+   - 2문단: 재무 현황 및 공모 자금 활용
+   - 3문단: 향후 전망 및 투자 의견
+3. 문체: '~습니다' 체를 사용하고, 문장 시작에 불필요한 접속사나 사명을 반복하지 마세요.
+4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 오직 줄글로만 작성하세요."""
                 },
                 {
                     "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 사명 반복을 피하고 전문적인 분석 리포트 형식으로 작성해 주세요."
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 데이터를 바탕으로 전문적인 3문단 리포트를 작성하세요."
                 }
             ],
-            temperature=0.0 
+            temperature=0.1 # 0.0보다 약간 높여서 반복 패턴 방지
         )
         
         raw_result = response.choices[0].message.content
         
-        # --- [강력 후처리: 레이아웃 물리적 재조립] ---
+        # --- [강력 후처리: 텍스트 정제 및 레이아웃 재조립] ---
         
-        # 1. HTML 엔티티 제거 및 마크다운 세척
+        # 1. HTML 엔티티 제거
         clean_text = html.unescape(raw_result)
-        clean_text = re.sub(r'\*|#', '', clean_text).strip()
 
-        # 2. AI가 넣은 모든 공백과 줄바꿈을 완전히 삭제하여 리스트화
-        # 여기서 불규칙한 '6칸 들여쓰기' 등이 완전히 박멸됩니다.
-        raw_lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
-        
-        # 3. 3개 문단으로 강제 재구성 (내용 유지)
-        if len(raw_lines) >= 3:
-            # 첫 줄(1문단), 두 번째 줄(2문단), 나머지(3문단)로 나누어 재조립
-            # 각 문단 시작에만 정확히 공백 2칸 부여
-            p1 = "  " + raw_lines[0]
-            p2 = "  " + raw_lines[1]
-            p3 = "  " + " ".join(raw_lines[2:])
-            final_content = f"{p1}\n\n{p2}\n\n{p3}"
-        else:
-            # 문단이 부족할 경우 전체에 들여쓰기만 적용
-            final_content = "\n\n".join(["  " + line for line in raw_lines])
-
-        # 4. 오타 치환 (里程碑 -> 이정표 등)
-        replacements = {"里程碑": "이정표", "quyet": "의사", "普通": "보통", "决策": "의사결정"}
+        # 2. 특정 환각 단어(베트남어 등) 우선 치환
+        replacements = {
+            "quyết": "결",    # quyết정 -> 결정
+            "trọng": "중",    # quan trọng -> 중요
+            "里程碑": "이정표",
+            "决策": "의사결정"
+        }
         for err, fix in replacements.items():
-            final_content = final_content.replace(err, fix)
-            
-        # 5. 한글/숫자/공백/문장부호 외 불필요한 외래어 파편 최종 제거
-        final_content = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w\n]', '', final_content)
+            clean_text = clean_text.replace(err, fix)
+
+        # 3. 허용된 문자(한글, 영어, 숫자, 기본 문장부호) 외 모두 제거
+        # \w 대신 a-zA-Z로 명시하여 베트남어/한자 등을 원천 차단
+        clean_text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,\[\]\(\)\%\!\?\-\'\"]', '', clean_text)
+
+        # 4. 문단 분리 및 재조립 (핵심 로직 수정)
+        # 줄바꿈이 여러 개(1개 이상) 있는 곳을 기준으로 쪼갭니다.
+        paragraphs = re.split(r'\n+', clean_text.strip())
+        
+        formatted_paragraphs = []
+        for p in paragraphs:
+            p = p.strip() # 문단 앞뒤 공백 완전 제거
+            if len(p) > 20: # 너무 짧은 문장(노이즈)은 무시
+                # 문단 시작에 '전각 공백'이 아닌 '일반 공백 1칸' (" ") 추가
+                # CSS white-space: pre-wrap; 에서는 일반 공백도 표현됩니다.
+                formatted_p = " " + p 
+                formatted_paragraphs.append(formatted_p)
+
+        # 5. 문단 사이를 '한 줄 공백(\n\n)'으로 연결
+        # 3문단이 안 되더라도 있는 만큼만 깔끔하게 합칩니다.
+        final_content = "\n\n".join(formatted_paragraphs)
         
         return final_content
 
@@ -2935,6 +2941,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
