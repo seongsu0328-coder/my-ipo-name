@@ -922,55 +922,12 @@ def analyze_sentiment(text):
 @st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
 @st.cache_data(ttl=3600)
 def get_real_news_rss(company_name, ticker=""):
-    import re
     import requests
-    import xml.etree.ElementTree as ET
-    import urllib.parse
+import xml.etree.ElementTree as ET
+import urllib.parse
+import re
 
-    try:
-        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE).strip()
-        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
-        enc_query = urllib.parse.quote(query)
-        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
-
-        response = requests.get(url, timeout=5)
-        root = ET.fromstring(response.content)
-        
-        news_items = []
-        items = root.findall('./channel/item')
-        
-        for item in items[:10]: # 조금 넉넉히 가져옴
-            title_en = item.find('title').text
-            link = item.find('link').text
-            pubDate = item.find('pubDate').text
-            
-            if clean_name.lower() not in title_en.lower():
-                continue
-
-            sent_label, bg, color = analyze_sentiment(title_en)
-            
-            try:
-                date_str = " ".join(pubDate.split(' ')[1:3])
-            except:
-                date_str = "Recent"
-
-            news_items.append({
-                "title": title_en,  
-                "link": link, 
-                "date": date_str,
-                "sent_label": sent_label, 
-                "bg": bg, 
-                "color": color
-            })
-            
-            if len(news_items) >= 5:
-                break
-                
-        return news_items
-    except Exception as e:
-        return []
-
-# [추가: 뉴스 감성 분석 함수]
+# [1] 뉴스 감성 분석 함수 (내부 연산용)
 def analyze_sentiment(text):
     text = text.lower()
     pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
@@ -985,63 +942,68 @@ def analyze_sentiment(text):
     elif score < 0: return "부정", "#fce8e6", "#d93025"
     else: return "일반", "#f1f3f4", "#5f6368"
 
-@st.cache_data(ttl=300)
+# [2] 통합 뉴스 검색 함수 (RSS 검색 + AI 번역 결합)
+@st.cache_data(ttl=3600)
 def get_real_news_rss(company_name):
-    """구글 뉴스 RSS + 한글 번역 + 감성 분석"""
+    """구글 뉴스 RSS 검색 후, 위에서 만든 AI 번역 함수를 이용해 한글 제목을 붙임"""
     try:
-        query = f"{company_name} stock news"
-        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
-        response = requests.get(url, timeout=3)
+        # 회사 이름 정제 (Inc, Corp 등 제거)
+        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE).strip()
+        
+        # 검색어 생성 (주식, IPO, 상장 키워드 포함)
+        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
+        enc_query = urllib.parse.quote(query)
+        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
+
+        response = requests.get(url, timeout=5)
         root = ET.fromstring(response.content)
         
         news_items = []
-        for item in root.findall('./channel/item')[:5]:
+        items = root.findall('./channel/item')
+        
+        # 최대 5개까지만 처리
+        for item in items[:5]: 
             title_en = item.find('title').text
             link = item.find('link').text
             pubDate = item.find('pubDate').text
             
+            # 회사 이름이 제목에 없으면 패스 (노이즈 제거)
+            if clean_name.lower() not in title_en.lower():
+                continue
+
             # 1. 감성 분석
             sent_label, bg, color = analyze_sentiment(title_en)
             
-            # 2. 날짜 포맷
-            try: date_str = " ".join(pubDate.split(' ')[1:3])
-            except: date_str = "Recent"
-
-            # 3. 한글 번역 (보강된 로직)
-            title_ko = ""
+            # 2. 날짜 포맷 정리
             try:
-                import time
-                time.sleep(0.2) # 연속 호출 방지
-                
-                trans_url = "https://api.mymemory.translated.net/get"
-                params = {
-                    'q': title_en, 
-                    'langpair': 'en|ko',
-                    'de': 'your_email@example.com' # 실제 메일주소를 적으면 더 안정적입니다.
-                }
-                
-                res_raw = requests.get(trans_url, params=params, timeout=3)
-                
-                if res_raw.status_code == 200:
-                    res = res_raw.json()
-                    if res.get('responseStatus') == 200:
-                        raw_text = res['responseData']['translatedText']
-                        title_ko = raw_text.replace("&quot;", "'").replace("&amp;", "&").replace("&#39;", "'")
+                date_str = " ".join(pubDate.split(' ')[1:3])
             except:
-                title_ko = "" 
-            
-            # [중요] news_items에 담는 형식을 출력부와 맞춥니다.
+                date_str = "Recent"
+
+            # 3. [핵심] 아까 만든 AI 번역 함수 호출!
+            # (주의: translate_news_title 함수가 이 코드보다 위쪽에 정의되어 있어야 합니다)
+            title_ko = translate_news_title(title_en)
+
             news_items.append({
-                "title": title_en,      # 원문 영어 제목
-                "title_ko": title_ko,   # 번역된 한글 제목 (실패 시 빈 문자열)
+                "title": title_en,      # 영어 제목
+                "title_ko": title_ko,   # 한글 제목 (AI 번역됨)
                 "link": link, 
                 "date": date_str,
                 "sent_label": sent_label, 
                 "bg": bg, 
-                "color": color
+                "color": color,
+                # UI에서 태그 분류를 위해 필요한 필드 추가
+                "display_tag": "일반" 
             })
+            
+            if len(news_items) >= 5:
+                break
+                
         return news_items
-    except: return []
+
+    except Exception as e:
+        # 에러 발생 시 빈 리스트 반환 (앱이 멈추지 않게 함)
+        return []
 
 # [핵심] 함수 이름 변경 (캐시 초기화 효과)
 @st.cache_data(show_spinner=False, ttl=86400)
@@ -2954,6 +2916,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
