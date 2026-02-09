@@ -2881,7 +2881,7 @@ elif st.session_state.page == 'detail':
                 
                 # 글쓰기 버튼 (로그인 확인)
                 if st.session_state.get('auth_status') == 'user':
-                    if st.button(f"📝 {sid} 의견 나누기", use_container_width=True):
+                    if st.button(f" {sid} 인사이트 공유하기", use_container_width=True):
                         st.session_state.writing_mode = True
                 
                 # 글쓰기 폼
@@ -2925,6 +2925,7 @@ elif st.session_state.page == 'detail':
                         st.divider()
         
     
+
 
 
 
