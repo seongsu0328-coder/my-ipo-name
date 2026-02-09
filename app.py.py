@@ -2899,38 +2899,42 @@ elif st.session_state.page == 'detail':
         
                 st.divider()
         
-                # 게시글 리스트 출력
+                # 게시글 리스트 출력 섹션
                 sid_posts = [p for p in st.session_state.posts if p.get('category') == sid]
                 
                 if not sid_posts:
                     st.caption("아직 게시글이 없습니다.")
                 else:
                     for p in sid_posts:
-                        # 1. 게시글 리스트 UI (요청하신 형식)
+                        # 1. 커뮤니티 감성의 슬림한 리스트 디자인 적용
                         with st.container():
-                            col_main, col_arrow = st.columns([9, 1])
-                            with col_main:
-                                # 클릭 가능한 제목 구현을 위해 버튼 또는 서브헤더 사용
-                                if st.button(f"{p['title']}", key=f"btn_{p['id']}", help="클릭하여 내용 보기", use_container_width=True):
-                                    st.session_state.view_post_id = p['id']
-                                    p['views'] = p.get('views', 0) + 1 # 조회수 증가
-                                    st.rerun()
-                                
-                                st.markdown(f"""
-                                    <div style="margin-top:-15px; margin-bottom:15px;">
-                                        <span style="color:#ff4b4b; font-size:12px; font-weight:bold;">{p['category']}</span>
-                                        <span style="color:#888; font-size:12px; margin-left:10px;">👍 {p.get('likes',0)} · 💬 {p.get('comment_count',0)}</span>
+                            # HTML/CSS로 카테고리, 제목, 아이콘 레이아웃 구성
+                            st.markdown(f"""
+                                <div style="line-height: 1.5; margin-bottom: 5px;">
+                                    <div style="color: #888; font-size: 13px; font-weight: 500; margin-bottom: 2px;">{p.get('category', '일반')}</div>
+                                    <div style="color: #000; font-size: 16px; font-weight: 600; margin-bottom: 5px;">{p.get('title')}</div>
+                                    <div style="display: flex; align-items: center; gap: 12px; color: #666; font-size: 13px;">
+                                        <span style="display: flex; align-items: center; gap: 4px;">👍 {p.get('likes', 0)}</span>
+                                        <span style="display: flex; align-items: center; gap: 4px;">💬 {p.get('comment_count', 0)}</span>
                                     </div>
-                                """, unsafe_allow_html=True)
-                        st.divider()
-        
-    
-
-
-
-
-
-
+                                </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # 2. 실제 클릭 영역 (투명 버튼으로 제목 위를 덮는 느낌)
+                            # Streamlit 제약상 버튼을 완전히 투명하게 하기는 어려우므로, 
+                            # '상세보기' 버튼을 아주 작고 깔끔하게 배치하거나 제목 자체를 버튼으로 유지합니다.
+                            if st.button("내용 보기", key=f"go_{p['id']}", use_container_width=True):
+                                st.session_state.view_post_id = p['id']
+                                p['views'] = p.get('views', 0) + 1
+                                st.rerun()
+                            
+                            st.markdown('<div style="border-bottom: 1px solid #f0f0f0; margin: 10px 0;"></div>', unsafe_allow_html=True)
+                
+                
+                
+                
+                
+                
 
 
 
