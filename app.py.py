@@ -1043,9 +1043,9 @@ def get_real_news_rss(company_name):
         return news_items
     except: return []
 
-# [수정] Tavily 검색 + Groq(무료 AI) 요약 함수 (최신 모델 적용)
+# [핵심] 함수 이름을 v3로 변경하여 기존 캐시를 무조건 무시하고 새로 실행하게 함
 @st.cache_data(show_spinner=False, ttl=86400)
-def get_ai_summary(query):
+def get_ai_summary_v3(query): 
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     groq_key = st.secrets.get("GROQ_API_KEY") 
 
@@ -1053,13 +1053,13 @@ def get_ai_summary(query):
         return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets를 확인하세요.</p>"
 
     try:
-        # [1] Tavily 검색
+        # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=7)
         if not search_result.get('results'): return None 
         context = "\n".join([r['content'] for r in search_result['results']])
 
-        # [2] LLM 생성 (요청하신 프롬프트 내용 완벽 반영)
+        # 2. LLM 호출 (요청하신 상세 프롬프트 적용 완료)
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -1070,7 +1070,7 @@ def get_ai_summary(query):
                     "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
 [필수 작성 원칙]
 1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
-2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
+2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈(엔터)을 두 번 넣어 명확히 구분하세요.
    - 1문단: 비즈니스 모델 및 경쟁 우위
    - 2문단: 재무 현황 및 공모 자금 활용
    - 3문단: 향후 전망 및 투자 의견
@@ -1085,57 +1085,60 @@ def get_ai_summary(query):
             temperature=0.1
         )
         
-        raw_result = response.choices[0].message.content
+        raw_text = response.choices[0].message.content
         
-        # --- [강력 후처리: HTML 태그 조립 방식] ---
+        # --- [초강력 후처리: 문단 강제 조립 Logic] ---
         
-        # 1. 텍스트 정제 (HTML 엔티티 해제 및 환각 문자 치환)
-        text = html.unescape(raw_result)
+        # 1. 텍스트 정제
+        text = html.unescape(raw_text)
+        # 환각 단어 치환
         replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
         for k, v in replacements.items(): text = text.replace(k, v)
+        # 특수문자 제거
+        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text) 
         
-        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호만 허용)
-        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
-        
-        # 2. 문단 분리 로직
-        # AI가 줄바꿈(\n)을 1개만 했든 2개만 했든 확실하게 자릅니다.
-        parts = re.split(r'\n+', text.strip())
-        paragraphs = [p.strip() for p in parts if len(p) > 30] # 너무 짧은 문장은 버림
+        # 2. 문단 강제 분리 (AI가 줄바꿈을 했든 안 했든 잡아냄)
+        # 1차 시도: 줄바꿈(\n)이 2개 이상 있으면 그걸 기준으로 나눔
+        split_by_newlines = re.split(r'\n+', text.strip())
+        valid_paragraphs = [p.strip() for p in split_by_newlines if len(p) > 50] 
 
-        # [안전장치] 만약 AI가 실수로 통으로 1문단만 줬다면, 강제로 3등분
-        if len(paragraphs) < 2:
-            sentences = text.split('. ')
-            n = len(sentences)
-            if n >= 3:
-                p1 = ". ".join(sentences[:n//3]) + "."
-                p2 = ". ".join(sentences[n//3:2*n//3]) + "."
-                p3 = ". ".join(sentences[2*n//3:]) + "."
-                paragraphs = [p1, p2, p3]
+        # [안전장치] 만약 AI가 줄바꿈을 안 해서 덩어리가 1개뿐이라면? -> 마침표 기준으로 강제 3등분
+        if len(valid_paragraphs) < 2:
+            # 문장 단위로 다 쪼갬
+            sentences = re.split(r'(?<=\.)\s+', text.strip())
+            total_sents = len(sentences)
+            
+            if total_sents >= 3:
+                # 3등분 계산
+                chunk_size = total_sents // 3 + 1
+                p1 = " ".join(sentences[:chunk_size])
+                p2 = " ".join(sentences[chunk_size:chunk_size*2])
+                p3 = " ".join(sentences[chunk_size*2:])
+                valid_paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
             else:
-                paragraphs = [text] # 문장이 너무 적으면 그냥 통으로 표시
+                # 문장이 너무 적으면 그냥 통으로 씀
+                valid_paragraphs = [text]
 
-        # 3. HTML <p> 태그로 감싸기 (이 부분이 디자인을 고정합니다)
-        html_output = ""
-        for p in paragraphs:
-            # text-indent: 첫 줄 들여쓰기 (12px)
-            # margin-bottom: 문단 아래 간격 (20px)
-            # text-align: justify (양쪽 정렬로 깔끔하게)
-            html_output += f"""
+        # 3. HTML 태그로 각각 포장 (브라우저가 띄울 수밖에 없도록 만듦)
+        final_html = ""
+        for p in valid_paragraphs:
+            final_html += f"""
             <p style='
-                text-indent: 12px; 
-                margin-bottom: 20px; 
-                line-height: 1.8; 
-                text-align: justify; 
+                text-indent: 12px;       /* 첫 줄 들여쓰기 강제 */
+                margin-bottom: 20px;     /* 문단 아래 공백 강제 */
+                line-height: 1.8;        /* 줄 간격 */
+                text-align: justify;     /* 양쪽 정렬 */
+                display: block;          /* 블록 요소 지정 */
                 margin-top: 0;
             '>
                 {p}
             </p>
             """
             
-        return html_output
+        return final_html
 
     except Exception as e:
-        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
+        return f"<p>🚫 오류: {str(e)}</p>"
         
 # --- 화면 제어 및 로그인 화면 시작 ---
 
@@ -1964,14 +1967,16 @@ elif st.session_state.page == 'detail':
         with tab1:
             st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
             
-            # [1] 기업 심층 분석 섹션 (Expander 적용)
+            # [1] 기업 심층 분석 섹션
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
                 q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
                 
                 with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
-                    biz_info = get_ai_summary(q_biz)
+                    # 👇 여기 함수 이름을 v3로 변경!
+                    biz_info = get_ai_summary_v3(q_biz)
                     
                     if biz_info:
+                        # HTML 컨테이너 (f-string 공백 제거 버전)
                         st.markdown(f"""
                         <div style="
                             background-color: #f8f9fa; 
@@ -1979,12 +1984,10 @@ elif st.session_state.page == 'detail':
                             border-radius: 12px; 
                             border-left: 5px solid #6e8efb; 
                             color: #333; 
-                            font-size: 15px;
                             font-family: 'Pretendard', -apple-system, sans-serif;
                             box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
                         ">{biz_info}</div>
                         """, unsafe_allow_html=True) 
-                        # 👆 위 부분 주의: >{biz_info}</div> 이렇게 딱 붙여야 합니다.
                     else:
                         st.error("⚠️ 정보를 찾을 수 없습니다.")
         
@@ -2945,6 +2948,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
