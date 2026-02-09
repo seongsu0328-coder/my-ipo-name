@@ -1050,17 +1050,16 @@ def get_ai_summary(query):
     groq_key = st.secrets.get("GROQ_API_KEY") 
 
     if not tavily_key or not groq_key:
-        return "⚠️ API 키 설정 오류: Secrets를 확인하세요."
+        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets를 확인하세요.</p>"
 
     try:
+        # [1] Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=7)
-        
-        if not search_result.get('results'):
-            return None 
-
+        if not search_result.get('results'): return None 
         context = "\n".join([r['content'] for r in search_result['results']])
-        
+
+        # [2] LLM 생성 (요청하신 프롬프트 내용 완벽 반영)
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -1070,13 +1069,13 @@ def get_ai_summary(query):
                     "role": "system", 
                     "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
 [필수 작성 원칙]
-1. 언어: 오직 '한국어'만 사용하세요.
-2. 포맷: 반드시 3개의 문단으로 나누고, **문단 사이에는 빈 줄(엔터 두 번)을 넣으세요.**
+1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
+2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
    - 1문단: 비즈니스 모델 및 경쟁 우위
    - 2문단: 재무 현황 및 공모 자금 활용
    - 3문단: 향후 전망 및 투자 의견
-3. 문체: '~습니다' 체를 사용하고, 문장 시작에 불필요한 접속사를 쓰지 마세요.
-4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-) 절대 사용 금지."""
+3. 문체: '~습니다' 체를 사용하고, 문장 시작에 불필요한 접속사나 사명을 반복하지 마세요.
+4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 오직 줄글로만 작성하세요."""
                 },
                 {
                     "role": "user", 
@@ -1088,44 +1087,55 @@ def get_ai_summary(query):
         
         raw_result = response.choices[0].message.content
         
-        # --- [강력 후처리 로직] ---
+        # --- [강력 후처리: HTML 태그 조립 방식] ---
         
-        # 1. HTML 엔티티 제거 및 텍스트 정제
-        clean_text = html.unescape(raw_result)
+        # 1. 텍스트 정제 (HTML 엔티티 해제 및 환각 문자 치환)
+        text = html.unescape(raw_result)
+        replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
+        for k, v in replacements.items(): text = text.replace(k, v)
         
-        # 2. 환각 단어 치환
-        replacements = {
-            "quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"
-        }
-        for err, fix in replacements.items():
-            clean_text = clean_text.replace(err, fix)
+        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호만 허용)
+        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
+        
+        # 2. 문단 분리 로직
+        # AI가 줄바꿈(\n)을 1개만 했든 2개만 했든 확실하게 자릅니다.
+        parts = re.split(r'\n+', text.strip())
+        paragraphs = [p.strip() for p in parts if len(p) > 30] # 너무 짧은 문장은 버림
 
-        # 3. 특수문자 제거 (줄바꿈 \n은 살려야 함에 주의)
-        # \s는 \n을 포함하므로 괜찮습니다.
-        clean_text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,\[\]\(\)\%\!\?\-\'\"]', '', clean_text)
+        # [안전장치] 만약 AI가 실수로 통으로 1문단만 줬다면, 강제로 3등분
+        if len(paragraphs) < 2:
+            sentences = text.split('. ')
+            n = len(sentences)
+            if n >= 3:
+                p1 = ". ".join(sentences[:n//3]) + "."
+                p2 = ". ".join(sentences[n//3:2*n//3]) + "."
+                p3 = ". ".join(sentences[2*n//3:]) + "."
+                paragraphs = [p1, p2, p3]
+            else:
+                paragraphs = [text] # 문장이 너무 적으면 그냥 통으로 표시
 
-        # 4. 문단 분리 (줄바꿈이 1개든 2개든 무조건 자릅니다)
-        # strip()으로 앞뒤 공백 제거 후 split
-        paragraphs = re.split(r'\n+', clean_text.strip())
-        
-        formatted_paragraphs = []
+        # 3. HTML <p> 태그로 감싸기 (이 부분이 디자인을 고정합니다)
+        html_output = ""
         for p in paragraphs:
-            p = p.strip()
-            if len(p) > 20: # 너무 짧은 문장은 노이즈로 간주
-                # [핵심] HTML 엔티티(&nbsp;)로 들여쓰기 1칸 강제 적용
-                # 일반 공백(" ")은 CSS 상황에 따라 무시될 수 있으므로 &nbsp;가 가장 확실합니다.
-                formatted_p = "&nbsp;" + p 
-                formatted_paragraphs.append(formatted_p)
-
-        # 5. 문단 재조립
-        # HTML 태그 <br><br>을 사용하여 시각적으로 확실하게 띄웁니다.
-        # 일반 \n\n은 white-space 설정에 따라 간격이 달라질 수 있습니다.
-        final_content = "<br><br>".join(formatted_paragraphs)
-        
-        return final_content
+            # text-indent: 첫 줄 들여쓰기 (12px)
+            # margin-bottom: 문단 아래 간격 (20px)
+            # text-align: justify (양쪽 정렬로 깔끔하게)
+            html_output += f"""
+            <p style='
+                text-indent: 12px; 
+                margin-bottom: 20px; 
+                line-height: 1.8; 
+                text-align: justify; 
+                margin-top: 0;
+            '>
+                {p}
+            </p>
+            """
+            
+        return html_output
 
     except Exception as e:
-        return f"🚫 오류: {str(e)}"
+        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
         
 # --- 화면 제어 및 로그인 화면 시작 ---
 
@@ -1962,8 +1972,6 @@ elif st.session_state.page == 'detail':
                     biz_info = get_ai_summary(q_biz)
                     
                     if biz_info:
-                        # [핵심 수정] f-string 안에서 들여쓰기를 없애고 한 줄로 붙여 썼습니다.
-                        # {biz_info} 앞에 공백이 없어야 첫 문단이 밀리지 않습니다.
                         st.markdown(f"""
                         <div style="
                             background-color: #f8f9fa; 
@@ -1971,7 +1979,6 @@ elif st.session_state.page == 'detail':
                             border-radius: 12px; 
                             border-left: 5px solid #6e8efb; 
                             color: #333; 
-                            line-height: 1.8; 
                             font-size: 15px;
                             font-family: 'Pretendard', -apple-system, sans-serif;
                             box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
@@ -2938,6 +2945,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
