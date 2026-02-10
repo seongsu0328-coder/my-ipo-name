@@ -1,3 +1,4 @@
+import base 64
 import io 
 import streamlit as st
 import requests
@@ -1175,50 +1176,43 @@ def get_gcp_clients():
         return None, None
 
 # ------------------------------------------------------------------
-# [기능 2] 파일 업로드 함수 (최종 완결판: 끊김 방지 + 권한 해결)
+# [기능 2] 파일 업로드 함수 (개인 계정용 우회 업로드)
 # ------------------------------------------------------------------
-import io  # <--- (혹시 맨 위에 없으면 꼭 추가해주세요!)
+# 👇 아까 복사한 '웹 앱 URL'을 따옴표 안에 넣으세요!
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxEvc4PR_nOcDfiqhbNggHi30e1RLpGTnlz8z63QaprZxgJJ62ta1kJ-Bnq3JbybNB6/exec"
 
 def upload_photo_to_drive(file_obj, filename_prefix):
     if file_obj is None:
         return "미인증"
-    
-    # 1. 클라이언트 연결
-    client, drive_service = get_gcp_clients()
-    if not drive_service:
-        return "구글연결실패"
 
     try:
-        # 2. 파일 준비
+        # 1. 파일 읽어서 Base64로 변환 (편지 봉투에 담기)
         file_obj.seek(0)
-        file_content = io.BytesIO(file_obj.read())
+        file_content = file_obj.read()
+        encoded_file = base64.b64encode(file_content).decode('utf-8')
         
-        file_metadata = {
-            'name': f"{filename_prefix}_{file_obj.name}",
-            'parents': [DRIVE_FOLDER_ID]
+        # 2. 중계소(Apps Script)로 데이터 전송
+        payload = {
+            "filename": f"{filename_prefix}_{file_obj.name}",
+            "mime_type": file_obj.type,
+            "file": encoded_file,
+            "folder_id": DRIVE_FOLDER_ID
         }
         
-        media = MediaIoBaseUpload(
-            file_content, 
-            mimetype=file_obj.type,
-            resumable=True
-        )
+        response = requests.post(APPS_SCRIPT_URL, json=payload)
         
-        # 3. 업로드 실행
-        file = drive_service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id, webViewLink',
-            supportsAllDrives=True
-        ).execute()
-        
-        return file.get('webViewLink')
-        
+        # 3. 결과 확인
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("result") == "success":
+                return result.get("url") # 성공 시 링크 반환
+            else:
+                return f"스크립트에러: {result.get('error')}"
+        else:
+            return f"통신실패({response.status_code})"
+            
     except Exception as e:
-        # 👇 에러가 나면 '업로드실패' 뒤에 '진짜 이유'를 붙여서 반환함
-        error_msg = f"에러: {str(e)}"
-        print(error_msg) # 로그에도 출력
-        return error_msg
+        return f"업로드실패: {str(e)}"
 
 # ------------------------------------------------------------------
 # [기능 3] 이메일 인증 함수 (SMTP)
@@ -3202,6 +3196,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
