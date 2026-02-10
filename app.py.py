@@ -47,6 +47,38 @@ def clean_text_final(text):
     text = text.replace("**", "").replace("##", "").replace("###", "")
     return text.strip()
 
+# ------------------------------------------------------------------
+# [필수] API 키 연결 및 라이브러리 초기화 (전원 켜기)
+# ------------------------------------------------------------------
+try:
+    # 1. Secrets에서 키 가져오기 (키 이름은 secrets.toml과 똑같아야 합니다)
+    GENAI_KEY = st.secrets.get("genai_api_key")
+    TAVILY_KEY = st.secrets.get("tavily_api_key")
+    GROQ_KEY = st.secrets.get("groq_api_key")
+
+    # 2. 키가 하나라도 없으면 경고하고 멈춤 (안전장치)
+    if not GENAI_KEY or not TAVILY_KEY:
+        st.error("⚠️ API 키 설정 오류: Streamlit Secrets를 확인하세요. (genai_api_key, tavily_api_key)")
+        st.stop()
+
+    # 3. 라이브러리에 키 연결
+    genai.configure(api_key=GENAI_KEY)          # Gemini 연결
+    tavily = TavilyClient(api_key=TAVILY_KEY)   # Tavily 연결
+    
+    # 4. Groq 클라이언트 생성 (필요한 경우)
+    if GROQ_KEY:
+        client_groq = OpenAI(
+            base_url="https://api.groq.com/openai/v1",
+            api_key=GROQ_KEY
+        )
+
+except Exception as e:
+    st.error(f"❌ API 초기화 중 치명적 오류 발생: {str(e)}")
+    st.stop()
+
+# ------------------------------------------------------------------
+# [이 아래부터는 분석 함수들을 정의하면 됩니다 (get_ai_summary_final 등)]
+# ------------------------------------------------------------------
 
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
@@ -3202,6 +3234,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
