@@ -11,3 +11,4 @@ beautifulsoup4
 google-generativeai
 gspread
 oauth2client
+google-api-python-client
