@@ -1138,8 +1138,8 @@ def get_ai_summary_final(query):
     except Exception as e:
         return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
         
-# [설정] 아까 복사한 폴더 ID를 여기에 넣으세요! (따옴표 안에)
-DRIVE_FOLDER_ID = "1wdhRo-0CBr0HBpYdI5zxRs_BQHQwyMcr?hl=ko" 
+# [설정] 아까 복사한 폴더 ID를 여기에 넣으세요!
+DRIVE_FOLDER_ID = "1wdhRo-0CBr0HBpYdI5zxRs_BQHQwyMcr?hl=ko"  
 
 # ------------------------------------------------------------------
 # [기능 1] 구글 연결 (시트 + 드라이브)
@@ -1151,6 +1151,7 @@ def get_gcp_clients():
             'https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/drive'
         ]
+        # secrets.toml에서 정보 가져오기
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         
@@ -1166,41 +1167,57 @@ def get_gcp_clients():
         return None, None
 
 # ------------------------------------------------------------------
-# [기능 2] 파일 업로드 함수 (드라이브에 올리고 링크 반환)
+# [기능 2] 파일 업로드 함수
 # ------------------------------------------------------------------
 def upload_photo_to_drive(file_obj, filename_prefix):
-    """파일을 구글 드라이브 지정된 폴더에 업로드하고 바로가기 링크를 반환"""
     if file_obj is None:
-        return "미제출"
+        return "미인증"
     
     client, drive_service = get_gcp_clients()
     if not drive_service:
         return "오류"
 
     try:
-        # 파일 메타데이터 (이름, 저장될 폴더 ID)
         file_metadata = {
             'name': f"{filename_prefix}_{file_obj.name}",
             'parents': [DRIVE_FOLDER_ID]
         }
-        
         media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type)
-        
-        # 업로드 실행
         file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
             fields='id, webViewLink'
         ).execute()
-        
-        # 업로드된 파일의 '보기 링크' 반환
         return file.get('webViewLink')
-        
     except Exception as e:
         return f"업로드실패({str(e)})"
 
 # ------------------------------------------------------------------
-# [기능 3] 유저 데이터 처리
+# [기능 3] 이메일 인증 함수 (SMTP)
+# ------------------------------------------------------------------
+def send_verification_email(to_email):
+    code = "".join(random.choices(string.digits, k=6)) # 6자리 숫자 코드
+    
+    try:
+        smtp_info = st.secrets["smtp"]
+        sender_email = smtp_info["email_address"]
+        password = smtp_info["app_password"]
+
+        msg = MIMEText(f"[Unicorn Finder] 인증번호는 [{code}] 입니다.")
+        msg['Subject'] = "이메일 인증번호 안내"
+        msg['From'] = sender_email
+        msg['To'] = to_email
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, password)
+            server.send_message(msg)
+            
+        return code, True
+    except Exception as e:
+        return str(e), False
+
+# ------------------------------------------------------------------
+# [기능 4] 유저 데이터 처리 & 닉네임 생성
 # ------------------------------------------------------------------
 def load_users_from_sheet():
     client, _ = get_gcp_clients()
@@ -1212,21 +1229,37 @@ def load_users_from_sheet():
             return []
     return []
 
+def create_masked_nickname(auth_type, auth_value, user_id):
+    # 예: 서울대 (auth_value) + ******** (masked_id)
+    # 아이디 길이만큼 * 처리 (또는 고정 길이)
+    masked_id = "*" * len(user_id)
+    
+    if auth_type == "univ":
+        return f"{auth_value} {masked_id}" # 예: 서울대 *****
+    elif auth_type == "job":
+        return f"{auth_value} {masked_id}" # 예: 의사 *****
+    elif auth_type == "asset":
+        return f"{auth_value}자산가 {masked_id}" # 예: 30억이상자산가 *****
+    else:
+        return f"미인증 {masked_id}"
+
 def add_user_to_sheet(user_data):
     client, _ = get_gcp_clients()
     if client:
         sh = client.open("unicorn_users").sheet1
-        # 헤더 순서에 맞춰 데이터 정렬 (인증 링크 3개 추가됨)
-        # id, pw, name, phone, role, status, univ, job, asset, interests, join_date, link_univ, link_job, link_asset
+        # 닉네임 생성 (인증된 정보 기반)
+        # 우선순위: 직장 > 대학 > 자산 순으로 하나만 표시하거나, 가입 시 선택한 '대표 인증'을 사용
+        # 여기서는 가입 시 선택한 main_auth를 기준으로 생성
+        nickname = create_masked_nickname(user_data['main_auth_type'], user_data['main_auth_value'], user_data['id'])
+
         row = [
-            user_data['id'], user_data['pw'], user_data['name'], user_data['phone'],
-            'user', 'pending',
-            user_data['univ'], user_data['job'], user_data['asset'],
+            user_data['id'], user_data['pw'], user_data['phone'], user_data['email'],
+            'user', 'pending', # role, status
+            user_data['univ'], user_data['job'], user_data['asset'], # 상세 정보
             ", ".join(user_data['interests']),
             datetime.now().strftime("%Y-%m-%d"),
-            user_data['link_univ'],  # 대학 인증 링크
-            user_data['link_job'],   # 직장 인증 링크
-            user_data['link_asset']  # 자산 인증 링크
+            user_data['link_univ'], user_data['link_job'], user_data['link_asset'],
+            nickname # 생성된 익명 닉네임 저장
         ]
         sh.append_row(row)
 
@@ -1235,24 +1268,22 @@ def add_user_to_sheet(user_data):
 # ------------------------------------------------------------------
 if 'page' not in st.session_state: st.session_state.page = 'login'
 
-# [강제 스타일 적용] 혹시 config.toml이 안 먹힐 경우를 대비한 2차 방어선
+# 스타일 설정
 st.markdown("""
     <style>
     .stApp { background-color: #ffffff; color: #000000; }
-    .stTextInput input, .stSelectbox, .stMultiSelect { color: #000000; }
     </style>
 """, unsafe_allow_html=True)
 
 if st.session_state.page == 'login':
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("<h1 style='text-align: center; color: black;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
+    st.markdown("<br><br><h1 style='text-align: center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
     
     _, col_m, _ = st.columns([1, 1.5, 1])
     
     with col_m:
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
 
-        # [Step 1] 선택
+        # [Step 1] 선택 화면
         if st.session_state.login_step == 'choice':
             if st.button("로그인", use_container_width=True, type="primary"):
                 st.session_state.login_step = 'login_input'
@@ -1265,113 +1296,140 @@ if st.session_state.page == 'login':
                 st.session_state.page = 'calendar'
                 st.rerun()
 
-        # [Step 2] 로그인
+        # [Step 2] 로그인 화면
         elif st.session_state.login_step == 'login_input':
             st.markdown("### 🔑 로그인")
-            login_id = st.text_input("아이디", placeholder="User ID")
+            login_id = st.text_input("아이디")
             login_pw = st.text_input("비밀번호", type="password")
             
             c1, c2 = st.columns(2)
             if c1.button("접속", use_container_width=True, type="primary"):
-                with st.spinner("확인 중..."):
-                    users = load_users_from_sheet()
-                    user = next((item for item in users if str(item["id"]) == login_id), None)
-                    
-                    if user and str(user['pw']) == login_pw:
-                        if user['role'] == 'admin':
-                            st.session_state.auth_status = 'admin'
-                            st.success("관리자 접속")
-                            st.session_state.page = 'calendar'
-                            st.rerun()
-                        else:
-                            st.session_state.user_info = user
-                            if user['status'] == 'approved':
-                                st.session_state.auth_status = 'user'
-                                st.success(f"환영합니다! {user['name']}님")
-                            else:
-                                st.session_state.auth_status = 'guest'
-                                st.warning("승인 대기 중입니다. (기능 제한)")
-                            st.session_state.page = 'calendar'
-                            st.rerun()
+                users = load_users_from_sheet()
+                user = next((item for item in users if str(item["id"]) == login_id), None)
+                
+                if user and str(user['pw']) == login_pw:
+                    if user['role'] == 'admin':
+                        st.session_state.auth_status = 'admin'
+                        st.session_state.page = 'calendar'
+                        st.rerun()
                     else:
-                        st.error("정보가 일치하지 않습니다.")
+                        st.session_state.user_info = user
+                        if user['status'] == 'approved':
+                            st.session_state.auth_status = 'user'
+                            st.success(f"반갑습니다! {user.get('nickname', user['id'])}님") # 닉네임 표시
+                        else:
+                            st.session_state.auth_status = 'guest'
+                            st.warning("승인 대기 중입니다.")
+                        st.session_state.page = 'calendar'
+                        st.rerun()
+                else:
+                    st.error("정보가 일치하지 않습니다.")
 
             if c2.button("취소", use_container_width=True):
                 st.session_state.login_step = 'choice'
                 st.rerun()
 
-        # [Step 3] 회원가입 (사진 업로드 추가)
+        # [Step 3] 회원가입 화면 (개선됨)
         elif st.session_state.login_step == 'signup_input':
             st.markdown("### 📝 가입 신청")
             
+            # 세션 상태 초기화
+            if 'email_verified' not in st.session_state: st.session_state.email_verified = False
+            if 'auth_code' not in st.session_state: st.session_state.auth_code = None
+
             with st.form("signup_form", clear_on_submit=False):
                 st.markdown("**1. 기본 정보**")
-                new_id = st.text_input("아이디", placeholder="영문/숫자")
+                new_id = st.text_input("아이디 (영문/숫자)")
                 new_pw = st.text_input("비밀번호", type="password")
-                new_name = st.text_input("이름")
                 new_phone = st.text_input("휴대폰 번호")
                 
+                # 이메일 인증
+                c_e1, c_e2 = st.columns([2, 1])
+                email_input = c_e1.text_input("이메일 주소")
+                if c_e2.form_submit_button("인증번호 전송"):
+                    if email_input:
+                        code, success = send_verification_email(email_input)
+                        if success:
+                            st.session_state.auth_code = code
+                            st.success("메일이 발송되었습니다!")
+                        else:
+                            st.error(f"전송 실패: {code}")
+                    else:
+                        st.warning("이메일을 입력하세요.")
+                
+                code_input = st.text_input("인증번호 입력")
+                
                 st.markdown("---")
-                st.markdown("**2. 인증 정보 및 사진 업로드**")
-                st.caption("※ 모든 항목에 증빙 사진을 업로드해야 합니다.")
-
-                # 대학 인증
-                col_u1, col_u2 = st.columns([1, 1.5])
-                in_univ = col_u1.text_input("출신 대학/학과")
-                file_univ = col_u2.file_uploader("🎓 학생증/졸업증명서", type=['jpg', 'png'], key='f_univ')
-
-                # 직장 인증
-                col_j1, col_j2 = st.columns([1, 1.5])
-                in_job = col_j1.text_input("직업/직장명")
-                file_job = col_j2.file_uploader("💼 명함/재직증명서", type=['jpg', 'png'], key='f_job')
-
-                # 자산 인증
-                col_a1, col_a2 = st.columns([1, 1.5])
-                in_asset = col_a1.selectbox("자산 규모", ["10억 미만", "10억~30억", "30억~80억", "80억~200억", "200억 이상"])
-                file_asset = col_a2.file_uploader("💰 잔고/소득증명", type=['jpg', 'png'], key='f_asset')
+                st.markdown("**2. 선택 인증 (하나만 선택하여 업로드)**")
+                st.caption("※ 인증한 정보가 아이디와 결합되어 표시됩니다. (예: 서울대 *****)")
+                
+                auth_choice = st.radio("인증할 항목 선택", ["대학 인증", "직장 인증", "자산 인증"], horizontal=True)
+                
+                # 선택에 따른 입력창 표시
+                in_univ, in_job, in_asset = "", "", ""
+                file_univ, file_job, file_asset = None, None, None
+                
+                if auth_choice == "대학 인증":
+                    in_univ = st.text_input("대학명/학과")
+                    file_univ = st.file_uploader("학생증/졸업증명서", type=['jpg', 'png'])
+                elif auth_choice == "직장 인증":
+                    in_job = st.text_input("직장명/직업")
+                    file_job = st.file_uploader("명함/재직증명서", type=['jpg', 'png'])
+                elif auth_choice == "자산 인증":
+                    in_asset = st.selectbox("자산 규모", ["10억 미만", "10억~30억", "30억~80억", "80억 이상"])
+                    file_asset = st.file_uploader("잔고 증명서", type=['jpg', 'png'])
 
                 st.markdown("---")
-                interests = st.multiselect("관심 분야", ["미국주식", "부동산", "거시경제", "취업/이직", "대체투자", "이민/유학"])
+                interests = st.multiselect("관심 분야", ["미국주식", "부동산", "거시경제", "선택 안 함"])
 
                 submitted = st.form_submit_button("가입 신청 완료", use_container_width=True, type="primary")
                 
                 if submitted:
-                    if not (new_id and new_pw and new_name and new_phone and in_univ and in_job):
-                        st.error("필수 정보를 입력해주세요.")
-                    elif not (file_univ and file_job and file_asset):
-                        st.error("모든 인증 사진을 업로드해주세요.")
+                    # 유효성 검사
+                    if not (new_id and new_pw and new_phone and email_input):
+                        st.error("기본 정보를 모두 입력해주세요.")
+                    elif code_input != st.session_state.auth_code:
+                        st.error("인증번호가 일치하지 않습니다.")
+                    elif (auth_choice == "대학 인증" and not file_univ) or \
+                         (auth_choice == "직장 인증" and not file_job) or \
+                         (auth_choice == "자산 인증" and not file_asset):
+                        st.error(f"{auth_choice} 증빙 사진을 업로드해주세요.")
                     else:
-                        with st.spinner("사진을 드라이브에 저장 중입니다... (잠시만 기다려주세요)"):
-                            # 1. 중복 ID 체크
-                            users = load_users_from_sheet()
-                            if any(str(u['id']) == new_id for u in users):
-                                st.error("이미 사용 중인 아이디입니다.")
-                            else:
-                                # 2. 사진 업로드
-                                link_univ = upload_photo_to_drive(file_univ, f"{new_id}_univ")
-                                link_job = upload_photo_to_drive(file_job, f"{new_id}_job")
-                                link_asset = upload_photo_to_drive(file_asset, f"{new_id}_asset")
-                                
-                                # 3. 시트에 저장
-                                user_data = {
-                                    "id": new_id, "pw": new_pw, "name": new_name, "phone": new_phone,
-                                    "univ": in_univ, "job": in_job, "asset": in_asset,
-                                    "interests": interests,
-                                    "link_univ": link_univ,
-                                    "link_job": link_job,
-                                    "link_asset": link_asset
-                                }
-                                add_user_to_sheet(user_data)
-                                
-                                st.success("신청 완료! 관리자가 확인 후 승인합니다.")
-                                st.balloons()
-                                st.session_state.login_step = 'choice'
-                                st.rerun()
+                        with st.spinner("가입 처리 중..."):
+                            # 파일 업로드 및 링크 생성
+                            link_univ = upload_photo_to_drive(file_univ, f"{new_id}_univ")
+                            link_job = upload_photo_to_drive(file_job, f"{new_id}_job")
+                            link_asset = upload_photo_to_drive(file_asset, f"{new_id}_asset")
+                            
+                            # 대표 인증 정보 설정
+                            main_auth_type = ""
+                            main_auth_value = ""
+                            if auth_choice == "대학 인증":
+                                main_auth_type = "univ"
+                                main_auth_value = in_univ
+                            elif auth_choice == "직장 인증":
+                                main_auth_type = "job"
+                                main_auth_value = in_job
+                            elif auth_choice == "자산 인증":
+                                main_auth_type = "asset"
+                                main_auth_value = in_asset
+
+                            user_data = {
+                                "id": new_id, "pw": new_pw, "phone": new_phone, "email": email_input,
+                                "univ": in_univ, "job": in_job, "asset": in_asset,
+                                "interests": interests,
+                                "link_univ": link_univ, "link_job": link_job, "link_asset": link_asset,
+                                "main_auth_type": main_auth_type,
+                                "main_auth_value": main_auth_value
+                            }
+                            add_user_to_sheet(user_data)
+                            st.success("신청 완료! 승인 대기 상태가 됩니다.")
+                            st.session_state.login_step = 'choice'
+                            st.rerun()
 
             if st.button("취소"):
                 st.session_state.login_step = 'choice'
                 st.rerun()
-
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
@@ -3089,6 +3147,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
