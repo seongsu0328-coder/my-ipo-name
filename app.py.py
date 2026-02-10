@@ -1083,11 +1083,12 @@ def get_real_news_rss(company_name):
 
     except Exception as e:
         return []
-# [핵심] 함수 이름 변경 (캐시 초기화 효과)
+
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_ai_summary_final(query):
-    tavily_key = st.secrets.get("TAVILY_API_KEY")
-    groq_key = st.secrets.get("GROQ_API_KEY") 
+    # [수정] 대문자/소문자 모두 대응하여 키를 확실히 가져옵니다.
+    tavily_key = st.secrets.get("TAVILY_API_KEY") or st.secrets.get("tavily_api_key")
+    groq_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key")
 
     if not tavily_key or not groq_key:
         return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets를 확인하세요.</p>"
@@ -1099,7 +1100,7 @@ def get_ai_summary_final(query):
         if not search_result.get('results'): return None 
         context = "\n".join([r['content'] for r in search_result['results']])
 
-        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
+        # 2. LLM 호출 (요청하신 필수 작성 원칙 반영)
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -1127,53 +1128,40 @@ def get_ai_summary_final(query):
         
         raw_result = response.choices[0].message.content
         
-        # --- [요청하신 정제 로직 + 문단 강제 분할] ---
-        
-        # 1. 텍스트 정제 (요청하신 코드 그대로 적용)
+        # --- [정제 로직 + 문단 강제 분할 유지] ---
         text = html.unescape(raw_result)
         replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
         for k, v in replacements.items(): text = text.replace(k, v)
         
-        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호, 줄바꿈(\s)만 허용)
-        # 주의: \s가 없으면 줄바꿈도 다 사라지므로 \s는 꼭 있어야 합니다.
+        # 특수문자 제거 및 줄바꿈 유지
         text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
         
-        # 2. 문단 강제 분리 로직 (Brute Force Split)
-        # (1) 우선 줄바꿈(엔터) 기준으로 잘라봅니다.
+        # 문단 강제 분리 로직
         paragraphs = [p.strip() for p in re.split(r'\n+', text.strip()) if len(p) > 30]
 
-        # (2) [비상장치] 만약 AI가 줄바꿈을 안 줘서 덩어리가 1~2개뿐이라면?
-        # -> 마침표(.)를 기준으로 문장을 다 뜯어낸 뒤 강제로 3등분 합니다.
         if len(paragraphs) < 3:
-            # 문장 단위로 분해 (마침표 뒤 공백 기준)
             sentences = re.split(r'(?<=\.)\s+', text.strip())
             total_sents = len(sentences)
             
             if total_sents >= 3:
-                # 3등분 계산 (올림 나눗셈)
                 chunk_size = (total_sents // 3) + 1
-                
                 p1 = " ".join(sentences[:chunk_size])
                 p2 = " ".join(sentences[chunk_size : chunk_size*2])
                 p3 = " ".join(sentences[chunk_size*2 :])
-                
-                # 다시 리스트로 합침 (빈 내용 제외)
                 paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
             else:
-                # 문장이 너무 적으면 그냥 통으로 1개만 반환
                 paragraphs = [text]
 
-        # 3. HTML 태그 포장 (화면 렌더링용)
-        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
+        # 3. HTML 태그 포장 (요청하신 스타일 그대로 적용)
         html_output = ""
         for p in paragraphs:
             html_output += f"""
             <p style='
-                display: block;          /* 블록 요소 지정 */
-                text-indent: 14px;       /* 첫 줄 들여쓰기 */
-                margin-bottom: 20px;     /* 문단 아래 공백 */
-                line-height: 1.8;        /* 줄 간격 */
-                text-align: justify;     /* 양쪽 정렬 */
+                display: block;
+                text-indent: 14px;
+                margin-bottom: 20px;
+                line-height: 1.8;
+                text-align: justify;
                 margin-top: 0;
             '>
                 {p}
@@ -3239,6 +3227,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
