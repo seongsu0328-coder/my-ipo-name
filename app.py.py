@@ -1172,12 +1172,12 @@ if st.session_state.page == 'login':
                 st.rerun()
                 
             # 버튼 2: 신규 회원 가입
-            if st.button("회원가입 (인증회원)", use_container_width=True):
+            if st.button("회원가입", use_container_width=True):
                 st.session_state.login_step = 'ask_signup'
                 st.rerun()
                 
             # 버튼 3: 비회원 둘러보기
-            if st.button("익명으로 구경하기", use_container_width=True):
+            if st.button("구경하기", use_container_width=True):
                 st.session_state.auth_status = 'guest'
                 st.session_state.user_info = {"display_name": "익명 손님"} # 게스트용 정보
                 st.session_state.page = 'calendar'
@@ -3051,6 +3051,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
