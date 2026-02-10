@@ -25,6 +25,15 @@ import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - �
 from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
 
+# --- [텍스트 정리 함수: 누락된 부분 추가] ---
+def clean_text_final(text):
+    if not text:
+        return ""
+    # 마크다운 볼드(**), 헤더(##) 등 불필요한 기호 제거
+    text = text.replace("**", "").replace("##", "").replace("###", "")
+    # 앞뒤 공백 제거
+    return text.strip()
+
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
 # ---------------------------------------------------------
@@ -3072,6 +3081,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
