@@ -1149,13 +1149,16 @@ def get_ai_summary_final(query):
 DRIVE_FOLDER_ID = "1wdhRo-0CBr0HBpYdI5zxRs_BQHQwyMcr?hl=ko"  
 
 # ------------------------------------------------------------------
-# [기능 1] 구글 시트 연결 (드라이브 X, 오직 시트만)
+# [기능 1] 구글 시트 연결 (권한 범위 수정됨!)
 # ------------------------------------------------------------------
 @st.cache_resource
 def get_sheet_client():
     try:
-        # 시트 권한만 요청
-        scope = ['https://spreadsheets.google.com/feeds']
+        # 👇 여기가 수정되었습니다! (범위를 넓혔습니다)
+        scope = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
+        ]
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
@@ -2989,6 +2992,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
