@@ -2877,7 +2877,9 @@ elif st.session_state.page == 'detail':
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
                         st.error(f"Consensus: {rating_val}", help=rating_help)
                     else:
-                        st.info(f"등급: {rating_val}", help=rating_help)
+                        st.info(f"등급: {rating_val}")
+                        # 만약 설명(help) 내용도 보여주고 싶다면 아래 줄을 추가하세요:
+                        st.caption(f"💡 참고: {rating_help}")
             
                 with s_col2:
                     # IPO Scoop Score 동적 툴팁 생성
@@ -3081,6 +3083,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
