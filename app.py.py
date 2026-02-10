@@ -13,6 +13,12 @@ import html
 import re
 from datetime import datetime, timedelta
 
+# [추가됨] 구글 시트 연동 및 외부 API 라이브러리
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from tavily import TavilyClient
+from openai import OpenAI
+
 # --- [AI 및 검색 라이브러리 통합] ---
 from openai import OpenAI             # ✅ Groq(뉴스 요약)용
 import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
@@ -3051,6 +3057,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
