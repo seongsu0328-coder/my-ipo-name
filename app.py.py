@@ -1,4 +1,4 @@
-import base 64
+import base64
 import io 
 import streamlit as st
 import requests
@@ -3196,6 +3196,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
