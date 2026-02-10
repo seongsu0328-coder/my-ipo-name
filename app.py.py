@@ -2756,8 +2756,12 @@ elif st.session_state.page == 'detail':
                     st.write("**[Analyst Ratings]**")
                     
                     # 실제 출력 및 help 적용
+                    # st.metric을 사용하면 help 옵션이 정상 작동하고 에러가 사라집니다.
+                    st.metric(label="Consensus Rating", value=rating_val, help=rating_help)
+                    
+                    # 상태에 따른 색상 피드백은 아래와 같이 별도로 간단히 추가할 수 있습니다.
                     if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
-                        st.success(f"Consensus: {rating_val}", help=rating_help)
+                        st.caption("✅ 시장의 긍정적인 평가를 받고 있습니다.")
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
                         st.error(f"Consensus: {rating_val}", help=rating_help)
                     else:
@@ -2779,7 +2783,7 @@ elif st.session_state.page == 'detail':
                         score_help += f"- ⭐ {k}개: {v}{is_current}\n"
             
                     st.write("**[IPO Scoop Score]**")
-                    st.warning(f"Expected Score: ⭐ {score_val}", help=score_help)
+                    st.metric(label="Expected IPO Score", value=f"⭐ {score_val}", help=score_help)
             
                 # 참고 소스 링크
                 sources = result.get('links', [])
@@ -2965,6 +2969,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
