@@ -1453,7 +1453,35 @@ if st.session_state.page == 'login':
             if st.button("취소"):
                 st.session_state.login_step = 'choice'
                 st.rerun()
-                
+
+       # 👇👇👇 [여기에 진단 버튼 추가!] 👇👇👇
+        st.markdown("---")
+        st.caption("🔧 개발자용 긴급 도구")
+        
+        if st.button("🚨 로봇 연결 진단하기", use_container_width=True):
+            client, drive_service = get_gcp_clients()
+            st.write("--- [진단 결과] ---")
+            
+            # 1. 로봇 이메일 확인
+            try:
+                my_email = client.auth.service_account_email
+                st.info(f"🤖 로봇 이메일: {my_email}")
+                st.caption("👉 이 이메일이 구글 드라이브 폴더에 [편집자]로 초대되어 있어야 합니다!")
+            except:
+                st.error("❌ secrets.toml 문제: 로봇 이메일을 못 읽어옴.")
+
+            # 2. 폴더 ID 확인
+            st.write(f"📂 설정된 폴더 ID: `{DRIVE_FOLDER_ID}`")
+
+            # 3. 폴더 접속 시도
+            try:
+                folder = drive_service.files().get(fileId=DRIVE_FOLDER_ID, fields="name").execute()
+                st.success(f"✅ 접속 성공! 폴더명: [{folder['name']}]")
+                st.write("🎉 이제 가입하면 업로드 됩니다!")
+            except Exception as e:
+                st.error("❌ 접속 실패! (403 = 초대 안됨 / 404 = ID 틀림)")
+                st.code(str(e))
+            
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
     # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
@@ -3170,6 +3198,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
