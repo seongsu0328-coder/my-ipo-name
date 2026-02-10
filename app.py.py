@@ -1148,133 +1148,297 @@ def get_ai_summary_final(query):
 # [설정] 아까 복사한 폴더 ID를 여기에 넣으세요!
 DRIVE_FOLDER_ID = "1wdhRo-0CBr0HBpYdI5zxRs_BQHQwyMcr?hl=ko"  
 
+# [설정] 구글 드라이브 폴더 ID (따옴표 안에 정확히 유지)
+DRIVE_FOLDER_ID = "1wdhRo-0CBr0HBpYdI5zxRs_BQHQwyMcr?hl=ko"  
+
 # ------------------------------------------------------------------
-# [기능 1] 구글 시트 연결 (권한 범위 수정됨!)
+# [기능 1] 구글 연결 (시트 + 드라이브 권한 수정됨)
 # ------------------------------------------------------------------
 @st.cache_resource
-def get_sheet_client():
+def get_gcp_clients():
     try:
-        # 👇 여기가 수정되었습니다! (범위를 넓혔습니다)
+        # 권한 범위를 넓게 설정 (수정된 부분)
         scope = [
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive'
         ]
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-        return client
+        
+        # 1. 시트 클라이언트
+        gspread_client = gspread.authorize(creds)
+        
+        # 2. 드라이브 서비스
+        drive_service = build('drive', 'v3', credentials=creds)
+        
+        return gspread_client, drive_service
     except Exception as e:
         st.error(f"❌ 구글 연결 실패: {e}")
-        return None
+        return None, None
 
 # ------------------------------------------------------------------
-# [기능 2] 유저 데이터 처리 (읽기/쓰기)
+# [기능 2] 파일 업로드 함수
 # ------------------------------------------------------------------
-def load_users():
-    client = get_sheet_client()
+def upload_photo_to_drive(file_obj, filename_prefix):
+    if file_obj is None:
+        return "미인증"
+    
+    client, drive_service = get_gcp_clients()
+    if not drive_service:
+        return "오류"
+
+    try:
+        file_metadata = {
+            'name': f"{filename_prefix}_{file_obj.name}",
+            'parents': [DRIVE_FOLDER_ID]
+        }
+        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type)
+        file = drive_service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id, webViewLink'
+        ).execute()
+        return file.get('webViewLink')
+    except Exception as e:
+        return f"업로드실패({str(e)})"
+
+# ------------------------------------------------------------------
+# [기능 3] 이메일 인증 함수 (SMTP)
+# ------------------------------------------------------------------
+def send_verification_email(to_email):
+    code = "".join(random.choices(string.digits, k=6))
+    
+    try:
+        smtp_info = st.secrets["smtp"]
+        sender_email = smtp_info["email_address"]
+        password = smtp_info["app_password"]
+
+        msg = MIMEText(f"[Unicorn Finder] 인증번호는 [{code}] 입니다.")
+        msg['Subject'] = "이메일 인증번호 안내"
+        msg['From'] = sender_email
+        msg['To'] = to_email
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, password)
+            server.send_message(msg)
+            
+        return code, True
+    except Exception as e:
+        return str(e), False
+
+# ------------------------------------------------------------------
+# [기능 4] 유저 데이터 처리 & 닉네임 생성
+# ------------------------------------------------------------------
+def load_users_from_sheet():
+    client, _ = get_gcp_clients()
     if client:
         try:
             sh = client.open("unicorn_users").sheet1
             return sh.get_all_records()
-        except Exception as e:
-            st.error(f"시트 읽기 오류: {e}")
+        except:
             return []
     return []
 
-def add_user(user_data):
-    client = get_sheet_client()
+def create_composite_nickname(user_data):
+    """인증된 정보 + 마스킹된 ID 결합"""
+    prefixes = []
+    
+    # 1. 대학
+    if user_data.get('link_univ') and user_data['link_univ'] not in ["미인증", "오류"]:
+        if user_data.get('univ'): prefixes.append(user_data['univ'])
+
+    # 2. 직장
+    if user_data.get('link_job') and user_data['link_job'] not in ["미인증", "오류"]:
+        if user_data.get('job'): prefixes.append(user_data['job'])
+
+    # 3. 자산
+    if user_data.get('link_asset') and user_data['link_asset'] not in ["미인증", "오류"]:
+        if user_data.get('asset'):
+            val = user_data['asset']
+            if "자산" not in val: val += "자산가"
+            prefixes.append(val)
+
+    # 4. 아이디 마스킹
+    original_id = user_data.get('id', '')
+    masked_id = "*" * len(original_id)
+    
+    if not prefixes:
+        return f"미인증 {masked_id}"
+    else:
+        return f"{' '.join(prefixes)} {masked_id}"
+
+def add_user_to_sheet(user_data):
+    client, _ = get_gcp_clients()
     if client:
-        try:
-            sh = client.open("unicorn_users").sheet1
-            # 사진 링크 대신 '테스트'라고 저장
-            row = [
-                user_data['id'], user_data['pw'], user_data['phone'], "email_skip",
-                'user', 'pending', # role, status (핵심!)
-                user_data['univ'], user_data['job'], user_data['asset'],
-                "관심분야생략",
-                datetime.now().strftime("%Y-%m-%d"),
-                "link_skip", "link_skip", "link_skip", # 사진 링크 자리
-                f"{user_data['univ']} {user_data['job']} ******" # 닉네임 임시 생성
-            ]
-            sh.append_row(row)
-            return True
-        except Exception as e:
-            st.error(f"데이터 저장 실패: {e}")
-            return False
-    return False
+        sh = client.open("unicorn_users").sheet1
+        
+        # 닉네임 생성
+        nickname = create_composite_nickname(user_data)
+
+        row = [
+            user_data['id'], user_data['pw'], user_data['phone'], user_data['email'],
+            'user', 'pending', # 초기 상태는 항상 대기
+            user_data['univ'], user_data['job'], user_data['asset'],
+            ", ".join(user_data['interests']),
+            datetime.now().strftime("%Y-%m-%d"),
+            user_data['link_univ'], user_data['link_job'], user_data['link_asset'],
+            nickname
+        ]
+        sh.append_row(row)
 
 # ------------------------------------------------------------------
 # [화면] UI 시작
 # ------------------------------------------------------------------
-st.markdown("<h1 style='text-align: center;'>🦄 Unicorn Finder (테스트 모드)</h1>", unsafe_allow_html=True)
-
 if 'page' not in st.session_state: st.session_state.page = 'login'
-if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
 
-# 1. 초기 선택 화면
-if st.session_state.login_step == 'choice':
-    c1, c2 = st.columns(2)
-    if c1.button("로그인", use_container_width=True, type="primary"):
-        st.session_state.login_step = 'login_input'
-        st.rerun()
-    if c2.button("가입 신청 (테스트)", use_container_width=True):
-        st.session_state.login_step = 'signup_input'
-        st.rerun()
+st.markdown("""
+    <style>
+    .stApp { background-color: #ffffff; color: #000000; }
+    </style>
+""", unsafe_allow_html=True)
 
-# 2. 로그인 화면
-elif st.session_state.login_step == 'login_input':
-    st.markdown("### 🔑 로그인 테스트")
-    login_id = st.text_input("아이디")
-    login_pw = st.text_input("비밀번호", type="password")
+if st.session_state.page == 'login':
+    st.markdown("<br><br><h1 style='text-align: center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
     
-    if st.button("접속 시도", use_container_width=True, type="primary"):
-        users = load_users()
-        user = next((u for u in users if str(u["id"]) == login_id), None)
-        
-        if user and str(user['pw']) == login_pw:
-            # [핵심] 승인 여부 체크 로직
-            if user['status'] == 'approved':
-                st.success(f"✅ 로그인 성공! 환영합니다, {user['id']}님.")
-                st.balloons()
-            else:
-                st.warning("⏳ [승인 대기 중] 관리자가 아직 승인하지 않았습니다.")
-                st.info("💡 팁: 구글 시트에서 status를 'approved'로 바꾸고 다시 시도하세요.")
-        else:
-            st.error("❌ 아이디 또는 비밀번호가 틀렸습니다.")
-
-    if st.button("뒤로가기"):
-        st.session_state.login_step = 'choice'
-        st.rerun()
-
-# 3. 가입 신청 화면 (입력 최소화)
-elif st.session_state.login_step == 'signup_input':
-    st.markdown("### 📝 가입 신청 (약식)")
+    _, col_m, _ = st.columns([1, 1.5, 1])
     
-    with st.form("signup_test"):
-        new_id = st.text_input("아이디")
-        new_pw = st.text_input("비밀번호", type="password")
-        new_phone = st.text_input("전화번호")
-        st.markdown("---")
-        in_univ = st.text_input("대학 (인증 생략)")
-        in_job = st.text_input("직업 (인증 생략)")
-        in_asset = st.selectbox("자산", ["10억 미만", "10억 이상"])
-        
-        if st.form_submit_button("신청서 제출"):
-            if new_id and new_pw:
-                user_data = {
-                    "id": new_id, "pw": new_pw, "phone": new_phone,
-                    "univ": in_univ, "job": in_job, "asset": in_asset
-                }
-                if add_user(user_data):
-                    st.success("✅ 신청 완료! 구글 시트를 확인하세요.")
-                    st.session_state.login_step = 'choice'
-                    st.rerun()
-            else:
-                st.error("아이디와 비번은 필수입니다.")
+    with col_m:
+        if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
 
-    if st.button("취소"):
-        st.session_state.login_step = 'choice'
-        st.rerun()
+        # [Step 1] 선택 화면 (비회원 둘러보기 복구됨!)
+        if st.session_state.login_step == 'choice':
+            if st.button("로그인", use_container_width=True, type="primary"):
+                st.session_state.login_step = 'login_input'
+                st.rerun()
+                
+            if st.button("회원가입 신청 (승인제)", use_container_width=True):
+                st.session_state.login_step = 'signup_input'
+                st.rerun()
+                
+            # 👇 [복구 완료] 비회원 둘러보기 버튼
+            if st.button("비회원 둘러보기 (로그인 없이 입장)", use_container_width=True):
+                st.session_state.auth_status = 'guest'
+                st.session_state.page = 'calendar' # 캘린더 화면으로 이동
+                st.rerun()
+
+        # [Step 2] 로그인 화면
+        elif st.session_state.login_step == 'login_input':
+            st.markdown("### 🔑 로그인")
+            login_id = st.text_input("아이디")
+            login_pw = st.text_input("비밀번호", type="password")
+            
+            c1, c2 = st.columns(2)
+            if c1.button("접속", use_container_width=True, type="primary"):
+                users = load_users_from_sheet()
+                user = next((item for item in users if str(item["id"]) == login_id), None)
+                
+                if user and str(user['pw']) == login_pw:
+                    if user['role'] == 'admin':
+                        st.session_state.auth_status = 'admin'
+                        st.session_state.page = 'calendar'
+                        st.rerun()
+                    else:
+                        st.session_state.user_info = user
+                        if user['status'] == 'approved':
+                            st.session_state.auth_status = 'user'
+                            st.success(f"반갑습니다! {user.get('nickname', user['id'])}님")
+                            time.sleep(1) 
+                            st.session_state.page = 'calendar'
+                            st.rerun()
+                        else:
+                            st.session_state.auth_status = 'guest'
+                            st.warning("⏳ 승인 대기 중입니다. (관리자 승인 후 접속 가능)")
+                else:
+                    st.error("정보가 일치하지 않습니다.")
+
+            if c2.button("취소", use_container_width=True):
+                st.session_state.login_step = 'choice'
+                st.rerun()
+
+        # [Step 3] 회원가입 화면
+        elif st.session_state.login_step == 'signup_input':
+            st.markdown("### 📝 가입 신청")
+            
+            if 'email_verified' not in st.session_state: st.session_state.email_verified = False
+            if 'auth_code' not in st.session_state: st.session_state.auth_code = None
+
+            with st.form("signup_form", clear_on_submit=False):
+                st.markdown("**1. 기본 정보**")
+                new_id = st.text_input("아이디 (영문/숫자)")
+                new_pw = st.text_input("비밀번호", type="password")
+                new_phone = st.text_input("휴대폰 번호")
+                
+                # 이메일 인증
+                c_e1, c_e2 = st.columns([2, 1])
+                email_input = c_e1.text_input("이메일 주소")
+                if c_e2.form_submit_button("인증번호 전송"):
+                    if email_input:
+                        code, success = send_verification_email(email_input)
+                        if success:
+                            st.session_state.auth_code = code
+                            st.success("메일 발송 완료! (스팸함도 확인하세요)")
+                        else:
+                            st.error(f"전송 실패: {code}")
+                    else:
+                        st.warning("이메일을 입력하세요.")
+                
+                code_input = st.text_input("인증번호 입력")
+                
+                st.markdown("---")
+                st.markdown("**2. 선택 인증 (원하는 항목만 입력)**")
+                st.caption("※ 인증된 정보는 아이디와 함께 표시됩니다. (예: 서울대 의사 ******)")
+                
+                # [대학]
+                col_u1, col_u2 = st.columns([1, 1.5])
+                in_univ = col_u1.text_input("대학/학과명")
+                file_univ = col_u2.file_uploader("🎓 학생증/졸업증명서", type=['jpg', 'png'], key='f_univ')
+
+                # [직장]
+                col_j1, col_j2 = st.columns([1, 1.5])
+                in_job = col_j1.text_input("직장/직업명")
+                file_job = col_j2.file_uploader("💼 명함/재직증명서", type=['jpg', 'png'], key='f_job')
+
+                # [자산]
+                col_a1, col_a2 = st.columns([1, 1.5])
+                in_asset = col_a1.selectbox("자산 규모", ["(선택안함)", "10억 미만", "10억~30억", "30억~80억", "80억 이상"])
+                file_asset = col_a2.file_uploader("💰 잔고 증명서", type=['jpg', 'png'], key='f_asset')
+
+                st.markdown("---")
+                interests = st.multiselect("관심 분야", ["미국주식", "부동산", "거시경제", "선택 안 함"])
+
+                submitted = st.form_submit_button("가입 신청 완료", use_container_width=True, type="primary")
+                
+                if submitted:
+                    # 필수값 검사
+                    if not (new_id and new_pw and new_phone and email_input):
+                        st.error("기본 정보를 모두 입력해주세요.")
+                    elif code_input != st.session_state.auth_code:
+                        st.error("이메일 인증번호가 일치하지 않습니다.")
+                    else:
+                        with st.spinner("가입 처리 중... (사진 업로드 포함)"):
+                            # 파일 업로드 (없으면 '미인증' 반환됨)
+                            link_univ = upload_photo_to_drive(file_univ, f"{new_id}_univ")
+                            link_job = upload_photo_to_drive(file_job, f"{new_id}_job")
+                            link_asset = upload_photo_to_drive(file_asset, f"{new_id}_asset")
+                            
+                            # 자산 선택안함 처리
+                            final_asset = in_asset if in_asset != "(선택안함)" else ""
+
+                            user_data = {
+                                "id": new_id, "pw": new_pw, "phone": new_phone, "email": email_input,
+                                "univ": in_univ, "job": in_job, "asset": final_asset,
+                                "interests": interests,
+                                "link_univ": link_univ, "link_job": link_job, "link_asset": link_asset
+                            }
+                            
+                            add_user_to_sheet(user_data)
+                            st.success("신청 완료! 관리자 승인 후 로그인 가능합니다.")
+                            st.session_state.login_step = 'choice'
+                            st.rerun()
+
+            if st.button("취소"):
+                st.session_state.login_step = 'choice'
+                st.rerun()
                 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
@@ -2992,6 +3156,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
