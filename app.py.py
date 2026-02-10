@@ -48,40 +48,43 @@ def clean_text_final(text):
     return text.strip()
 
 # ------------------------------------------------------------------
-# [무적 모드] 공백/대소문자 무시하고 키 찾기
+# [최종 병기] 전방위 API 키 탐색
 # ------------------------------------------------------------------
-try:
-    # 모든 키 이름을 가져와서 소문자로 바꾸고 공백을 제거한 사본을 만듭니다.
-    all_keys = {k.strip().lower(): v for k, v in st.secrets.to_dict().items()}
+def find_key_anywhere(target_key):
+    target_key = target_key.lower().strip()
     
-    # 우리가 필요한 키들 (소문자 기준)
-    GENAI_KEY = all_keys.get("genai_api_key")
-    TAVILY_KEY = all_keys.get("tavily_api_key")
-    GROQ_KEY = all_keys.get("groq_api_key")
+    # 1. 메인 레벨에서 찾기
+    for k, v in st.secrets.items():
+        if k.lower().strip() == target_key: return v
+    
+    # 2. 하위 섹션(gcp_service_account, smtp 등) 내부까지 뒤지기
+    for section_name in st.secrets.keys():
+        section = st.secrets.get(section_name)
+        if isinstance(section, dict):
+            for k, v in section.items():
+                if k.lower().strip() == target_key: return v
+    return None
 
-    if GENAI_KEY and TAVILY_KEY:
-        # 라이브러리 설정
-        genai.configure(api_key=GENAI_KEY)
-        tavily = TavilyClient(api_key=TAVILY_KEY)
-        
-        if GROQ_KEY:
-            client_groq = OpenAI(
-                base_url="https://api.groq.com/openai/v1",
-                api_key=GROQ_KEY
-            )
-        # 성공하면 아무 메시지도 띄우지 않고 조용히 넘어갑니다.
-    else:
-        # 만약 그래도 못 찾으면, 시스템에 등록된 실제 이름을 화면에 보여줍니다.
-        st.error("🚨 키를 여전히 찾을 수 없습니다.")
-        st.write("📂 **현재 Secrets에 등록된 실제 이름들:**")
-        st.code(list(st.secrets.to_dict().keys()))
-        st.info("💡 위 목록에 이름이 있는데도 안 된다면 Secrets 창에서 키 이름 앞뒤에 공백이 있는지 확인하세요.")
-        st.stop()
+# 키 로드 시도
+GENAI_KEY = find_key_anywhere("GENAI_API_KEY")
+TAVILY_KEY = find_key_anywhere("TAVILY_API_KEY")
+GROQ_KEY = find_key_anywhere("GROQ_API_KEY")
 
-except Exception as e:
-    st.error(f"❌ 시스템 오류: {str(e)}")
+if GENAI_KEY and TAVILY_KEY:
+    genai.configure(api_key=GENAI_KEY)
+    tavily = TavilyClient(api_key=TAVILY_KEY)
+    # 성공 시 조용히 진행
+else:
+    st.error("🚨 [비상] 모든 구석을 뒤졌지만 키를 찾지 못했습니다.")
+    st.write("📂 **인식된 섹션 목록:**", list(st.secrets.keys()))
+    
+    # 진짜로 Secrets에 뭐가 들어있는지 구조를 출력 (보안상 키값은 제외)
+    debug_info = {}
+    for k, v in st.secrets.to_dict().items():
+        if isinstance(v, dict): debug_info[k] = list(v.keys())
+        else: debug_info[k] = "Value Present"
+    st.json(debug_info)
     st.stop()
-
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
 # ---------------------------------------------------------
@@ -3236,6 +3239,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
