@@ -1183,44 +1183,42 @@ def upload_photo_to_drive(file_obj, filename_prefix):
     if file_obj is None:
         return "미인증"
     
+    # 1. 클라이언트 연결
     client, drive_service = get_gcp_clients()
     if not drive_service:
-        return "오류"
+        return "구글연결실패"
 
     try:
-        # [안전장치 1] 파일 커서 초기화 (필수)
+        # 2. 파일 준비
         file_obj.seek(0)
-        
-        # [안전장치 2] 메모리에 안전하게 복사 (Broken Pipe 방지)
         file_content = io.BytesIO(file_obj.read())
         
-        # 파일 정보 설정
         file_metadata = {
             'name': f"{filename_prefix}_{file_obj.name}",
             'parents': [DRIVE_FOLDER_ID]
         }
         
-        # 업로드 준비 (이어올리기 모드)
         media = MediaIoBaseUpload(
             file_content, 
             mimetype=file_obj.type,
-            resumable=True 
+            resumable=True
         )
         
-        # [안전장치 3] 업로드 실행 (공유 폴더 권한 강제 적용)
+        # 3. 업로드 실행
         file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
             fields='id, webViewLink',
-            supportsAllDrives=True  # 👈 핵심! 이거 없으면 403 에러
+            supportsAllDrives=True
         ).execute()
         
         return file.get('webViewLink')
         
     except Exception as e:
-        # 에러가 나면 화면에 원인을 출력해줌
-        st.error(f"업로드 중 에러 발생: {e}") 
-        return f"업로드실패"
+        # 👇 에러가 나면 '업로드실패' 뒤에 '진짜 이유'를 붙여서 반환함
+        error_msg = f"에러: {str(e)}"
+        print(error_msg) # 로그에도 출력
+        return error_msg
 
 # ------------------------------------------------------------------
 # [기능 3] 이메일 인증 함수 (SMTP)
@@ -3204,6 +3202,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
