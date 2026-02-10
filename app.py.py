@@ -1146,7 +1146,7 @@ def get_ai_summary_final(query):
         return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
         
 # [설정] 구글 드라이브 폴더 ID (따옴표 안에 정확히 유지)
-DRIVE_FOLDER_ID = "1wdhRo-0CBr0HBpYdI5zxRs_BQHQwyMcr?hl=ko"  
+DRIVE_FOLDER_ID = "1wdhRo-0CBr0HBpYdI5zxRs_BQHQwyMcr"  
 
 # ------------------------------------------------------------------
 # [기능 1] 구글 연결 (시트 + 드라이브 권한 수정됨)
@@ -3153,6 +3153,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
