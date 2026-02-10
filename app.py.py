@@ -530,16 +530,23 @@ def get_us_ipo_analysis(ticker_symbol):
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- 세션 초기화 ---
-for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock', 'watchlist', 'view_mode', 'news_topic']:
+# 'posts'를 아래 리스트에 추가했습니다.
+for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock', 'watchlist', 'view_mode', 'news_topic', 'posts']:
     if key not in st.session_state:
-        if key == 'page': st.session_state[key] = 'login'
-        elif key == 'watchlist': st.session_state[key] = []
-        elif key in ['vote_data', 'comment_data', 'user_votes']: st.session_state[key] = {}
-        elif key == 'view_mode': st.session_state[key] = 'all'
-        elif key == 'news_topic': st.session_state[key] = "💰 공모가 범위/확정 소식"
-        else: st.session_state[key] = None
-
+        if key == 'page': 
+            st.session_state[key] = 'login'
+        # posts와 watchlist는 목록 형태이므로 빈 리스트([])로 초기화
+        elif key in ['watchlist', 'posts']: 
+            st.session_state[key] = []
+        elif key in ['vote_data', 'comment_data', 'user_votes']: 
+            st.session_state[key] = {}
+        elif key == 'view_mode': 
+            st.session_state[key] = 'all'
+        elif key == 'news_topic': 
+            st.session_state[key] = "💰 공모가 범위/확정 소식"
+        else: 
+            st.session_state[key] = None
+            
 # --- CSS 스타일 ---
 st.markdown("""
     <style>
@@ -2969,6 +2976,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
