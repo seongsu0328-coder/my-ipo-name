@@ -2984,7 +2984,12 @@ elif st.session_state.page == 'detail':
                     
                     # 실제 출력 및 help 적용
                     if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
-                        st.success(f"Consensus: {rating_val}", help=rating_help)
+                        # ✅ (수정 후) help를 지우세요!
+                        st.success(f"Consensus: {rating_val}")
+                        
+                        # (선택사항) 설명이 꼭 필요하면 바로 밑에 작게 적어주세요.
+                        if rating_help:
+                            st.caption(f"ℹ️ {rating_help}")
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
                         st.error(f"Consensus: {rating_val}", help=rating_help)
                     else:
@@ -3196,6 +3201,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
