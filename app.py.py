@@ -1175,8 +1175,10 @@ def get_gcp_clients():
         return None, None
 
 # ------------------------------------------------------------------
-# [기능 2] 파일 업로드 함수 (Broken pipe 방지용 안전 버전)
+# [기능 2] 파일 업로드 함수 (최종 완결판: 끊김 방지 + 권한 해결)
 # ------------------------------------------------------------------
+import io  # <--- (혹시 맨 위에 없으면 꼭 추가해주세요!)
+
 def upload_photo_to_drive(file_obj, filename_prefix):
     if file_obj is None:
         return "미인증"
@@ -1186,35 +1188,39 @@ def upload_photo_to_drive(file_obj, filename_prefix):
         return "오류"
 
     try:
-        # [안전장치 1] 파일 커서를 맨 앞으로 초기화 (중요!)
+        # [안전장치 1] 파일 커서 초기화 (필수)
         file_obj.seek(0)
         
-        # [안전장치 2] 파일을 메모리에 안전하게 복사해서 전송 (Broken Pipe 방지)
+        # [안전장치 2] 메모리에 안전하게 복사 (Broken Pipe 방지)
         file_content = io.BytesIO(file_obj.read())
         
-        # 파일 메타데이터
+        # 파일 정보 설정
         file_metadata = {
             'name': f"{filename_prefix}_{file_obj.name}",
             'parents': [DRIVE_FOLDER_ID]
         }
         
-        # 업로드 준비 (resumable=True로 안정성 강화)
+        # 업로드 준비 (이어올리기 모드)
         media = MediaIoBaseUpload(
             file_content, 
             mimetype=file_obj.type,
             resumable=True 
         )
         
-        # 업로드 실행
+        # [안전장치 3] 업로드 실행 (공유 폴더 권한 강제 적용)
         file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
-            fields='id, webViewLink',   # 👈 여기 콤마(,) 필수!
-            supportsAllDrives=True      # 👈 신의 한 수 (추가 완료)
+            fields='id, webViewLink',
+            supportsAllDrives=True  # 👈 핵심! 이거 없으면 403 에러
         ).execute()
         
+        return file.get('webViewLink')
+        
     except Exception as e:
-        return f"업로드실패({str(e)})"
+        # 에러가 나면 화면에 원인을 출력해줌
+        st.error(f"업로드 중 에러 발생: {e}") 
+        return f"업로드실패"
 
 # ------------------------------------------------------------------
 # [기능 3] 이메일 인증 함수 (SMTP)
@@ -3198,6 +3204,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
