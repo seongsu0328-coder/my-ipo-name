@@ -25,6 +25,10 @@ import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - �
 from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
 
+# --- [초기화 코드: 게시판 저장소 만들기] ---
+if 'posts' not in st.session_state:
+    st.session_state['posts'] = []  # 게시글 담을 빈 리스트 생성
+
 # 여기에 붙여넣으세요! (이 위치가 가장 안전합니다)
 def clean_text_final(text):
     if not text:
@@ -3085,6 +3089,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
