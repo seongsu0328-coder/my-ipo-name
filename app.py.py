@@ -2899,35 +2899,65 @@ elif st.session_state.page == 'detail':
                     st.caption("아직 게시글이 없습니다.")
                 else:
                     for p in sid_posts:
-                        # 1. 커뮤니티 감성의 슬림한 리스트 디자인 적용
                         with st.container():
-                            # HTML/CSS로 카테고리, 제목, 아이콘 레이아웃 구성
+                            # 1. 댓글이 있으면 댓글수, 없으면 조회수를 표시하는 로직
+                            c_count = p.get('comment_count', 0)
+                            if c_count > 0:
+                                stat_display = f"💬 {c_count}"
+                            else:
+                                stat_display = f"👁️ {p.get('views', 0)}"
+
+                            # 2. 디자인: Flexbox를 사용해 한 줄에 배치 (좌측 정렬 / 우측 정렬)
                             st.markdown(f"""
-                                <div style="line-height: 1.5; margin-bottom: 5px;">
-                                    <div style="color: #888; font-size: 13px; font-weight: 500; margin-bottom: 2px;">{p.get('category', '일반')}</div>
-                                    <div style="color: #000; font-size: 16px; font-weight: 600; margin-bottom: 5px;">{p.get('title')}</div>
-                                    <div style="display: flex; align-items: center; gap: 12px; color: #666; font-size: 13px;">
-                                        <span style="display: flex; align-items: center; gap: 4px;">👍 {p.get('likes', 0)}</span>
-                                        <span style="display: flex; align-items: center; gap: 4px;">💬 {p.get('comment_count', 0)}</span>
+                                <div style="
+                                    display: flex; 
+                                    justify-content: space-between; 
+                                    align-items: center; 
+                                    padding: 12px 4px; 
+                                    border-bottom: 1px solid #f0f0f0;
+                                ">
+                                    <div style="
+                                        flex: 1; 
+                                        white-space: nowrap; 
+                                        overflow: hidden; 
+                                        text-overflow: ellipsis; 
+                                        padding-right: 15px;
+                                    ">
+                                        <span style="color: #ff4b4b; font-size: 13px; font-weight: bold;">
+                                            [{p.get('category', '일반')}]
+                                        </span>
+                                        <span style="color: #333; font-size: 15px; font-weight: 600; margin-left: 6px;">
+                                            {p.get('title')}
+                                        </span>
+                                    </div>
+                                    
+                                    <div style="
+                                        display: flex; 
+                                        align-items: center; 
+                                        gap: 10px; 
+                                        font-size: 13px; 
+                                        color: #666; 
+                                        white-space: nowrap;
+                                    ">
+                                        <span>👍 {p.get('likes', 0)}</span>
+                                        <span style="min-width: 40px; text-align: right;">{stat_display}</span>
                                     </div>
                                 </div>
                             """, unsafe_allow_html=True)
                             
-                            # 2. 실제 클릭 영역 (투명 버튼으로 제목 위를 덮는 느낌)
-                            # Streamlit 제약상 버튼을 완전히 투명하게 하기는 어려우므로, 
-                            # '상세보기' 버튼을 아주 작고 깔끔하게 배치하거나 제목 자체를 버튼으로 유지합니다.
-                            if st.button("내용 보기", key=f"go_{p['id']}", use_container_width=True):
+                            # 3. 투명 버튼 역할 (클릭 시 상세 이동)
+                            # 버튼을 누르면 view_post_id를 설정하고 새로고침하여 상세 화면으로 진입
+                            if st.button("👆 상세 내용 보기", key=f"go_{p['id']}", use_container_width=True):
                                 st.session_state.view_post_id = p['id']
-                                p['views'] = p.get('views', 0) + 1
+                                p['views'] = p.get('views', 0) + 1  # 조회수 1 증가
                                 st.rerun()
-                            
-                            st.markdown('<div style="border-bottom: 1px solid #f0f0f0; margin: 10px 0;"></div>', unsafe_allow_html=True)
                 
                 
                 
                 
                 
                 
+
 
 
 
