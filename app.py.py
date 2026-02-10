@@ -15,6 +15,7 @@ import html
 import re
 import string  # 문자열 처리 (추가됨)
 import smtplib # 이메일 발송 (추가됨)
+import json
 from datetime import datetime, timedelta # 날짜/시간 (병합됨)
 from email.mime.text import MIMEText # 이메일 텍스트 (추가됨)
 
@@ -3201,6 +3202,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
