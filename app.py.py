@@ -2897,7 +2897,9 @@ elif st.session_state.page == 'detail':
                         score_help += f"- ⭐ {k}개: {v}{is_current}\n"
             
                     st.write("**[IPO Scoop Score]**")
-                    st.warning(f"Expected Score: ⭐ {score_val}", help=score_help)
+                    st.warning(f"Expected Score: ⭐ {score_val}")
+                    # 설명이 꼭 필요하다면 아래 줄을 추가하세요:
+                    st.caption(score_help)
             
                 # 참고 소스 링크
                 sources = result.get('links', [])
@@ -3083,6 +3085,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
