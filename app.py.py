@@ -48,33 +48,39 @@ def clean_text_final(text):
     return text.strip()
 
 # ------------------------------------------------------------------
-# [업그레이드] API 키 연결 (대소문자 무관하게 찾기)
+# [디버깅 모드] API 키 상태 점검
 # ------------------------------------------------------------------
-try:
-    # 1. 다양한 이름 후보군으로 키를 찾아봅니다.
-    GENAI_KEY = st.secrets.get("genai_api_key") or st.secrets.get("GENAI_API_KEY")
-    TAVILY_KEY = st.secrets.get("tavily_api_key") or st.secrets.get("TAVILY_API_KEY")
-    GROQ_KEY = st.secrets.get("groq_api_key") or st.secrets.get("GROQ_API_KEY")
+st.write("### 🔍 API 연결 상태 점검")
 
-    # 2. 찾은 키가 있는지 검사
-    if not GENAI_KEY or not TAVILY_KEY:
-        # 어떤 키가 비어있는지 상세히 알려줍니다.
-        missing = []
-        if not GENAI_KEY: missing.append("genai_api_key")
-        if not TAVILY_KEY: missing.append("tavily_api_key")
-        
-        st.error(f"⚠️ API 키 이름 불일치! Secrets에 다음 이름으로 저장되어 있는지 확인하세요: {', '.join(missing)}")
-        st.info("💡 팁: secrets.toml에 'genai_api_key'라고 똑같이 적으셨나요?")
-        st.stop()
+def check_key(key_name):
+    key_val = st.secrets.get(key_name)
+    if key_val:
+        # 키의 앞 5글자만 보여주고 나머지는 마스킹 (보안 유지)
+        masked_val = key_val[:5] + "*" * 10
+        st.write(f"✅ `{key_name}`: 연결됨 ({masked_val})")
+        return key_val
+    else:
+        st.write(f"❌ `{key_name}`: **찾을 수 없음**")
+        return None
 
-    # 3. 라이브러리 설정
+# 키 점검 시작
+GENAI_KEY = check_key("genai_api_key")
+TAVILY_KEY = check_key("tavily_api_key")
+GROQ_KEY = check_key("groq_api_key")
+
+# 전체 세팅 확인
+if not GENAI_KEY or not TAVILY_KEY:
+    st.error("🚨 필수 API 키가 누락되었습니다. Streamlit Cloud의 Secrets 설정을 다시 확인하세요.")
+    
+    # 팁: 대소문자 문제인지 확인하기 위해 모든 키 목록 출력 (값은 숨김)
+    st.write("---")
+    st.write("📂 **현재 시스템이 인식한 모든 키 목록:**")
+    st.write(list(st.secrets.to_dict().keys()))
+    st.stop()
+else:
+    st.success("🎉 모든 필수 키가 정상적으로 로드되었습니다!")
     genai.configure(api_key=GENAI_KEY)
     tavily = TavilyClient(api_key=TAVILY_KEY)
-
-except Exception as e:
-    st.error(f"❌ 설정 읽기 실패: {str(e)}")
-    st.stop()
-
 
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
@@ -3230,6 +3236,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
