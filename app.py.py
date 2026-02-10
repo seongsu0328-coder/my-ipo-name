@@ -1035,11 +1035,13 @@ def get_real_news_rss(company_name):
 # [핵심] 함수 이름 변경 (캐시 초기화 효과)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_ai_summary_final(query):
-    tavily_key = st.secrets.get("TAVILY_API_KEY")
-    groq_key = st.secrets.get("GROQ_API_KEY") 
+    # [수정] 대문자든 소문자든 있는 쪽을 무조건 가져옵니다.
+    tavily_key = st.secrets.get("TAVILY_API_KEY") or st.secrets.get("tavily_api_key")
+    groq_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key")
 
+    # 두 키 중 하나라도 없으면 그때만 에러를 띄웁니다.
     if not tavily_key or not groq_key:
-        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets를 확인하세요.</p>"
+        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets 창에 TAVILY_API_KEY와 GROQ_API_KEY가 있는지 확인하세요.</p>"
 
     try:
         # 1. Tavily 검색
@@ -2979,6 +2981,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
