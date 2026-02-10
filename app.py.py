@@ -48,34 +48,38 @@ def clean_text_final(text):
     return text.strip()
 
 # ------------------------------------------------------------------
-# [최종] API 키 연결 (대문자 이름에 맞춤)
+# [무적 모드] 공백/대소문자 무시하고 키 찾기
 # ------------------------------------------------------------------
 try:
-    # 1. 현재 Secrets에 등록된 대문자 이름으로 가져오기
-    GENAI_KEY = st.secrets.get("GENAI_API_KEY")
-    TAVILY_KEY = st.secrets.get("TAVILY_API_KEY")
-    GROQ_KEY = st.secrets.get("GROQ_API_KEY")
+    # 모든 키 이름을 가져와서 소문자로 바꾸고 공백을 제거한 사본을 만듭니다.
+    all_keys = {k.strip().lower(): v for k, v in st.secrets.to_dict().items()}
+    
+    # 우리가 필요한 키들 (소문자 기준)
+    GENAI_KEY = all_keys.get("genai_api_key")
+    TAVILY_KEY = all_keys.get("tavily_api_key")
+    GROQ_KEY = all_keys.get("groq_api_key")
 
-    # 2. 키 확인 및 라이브러리 설정
     if GENAI_KEY and TAVILY_KEY:
+        # 라이브러리 설정
         genai.configure(api_key=GENAI_KEY)
         tavily = TavilyClient(api_key=TAVILY_KEY)
         
-        # Groq 클라이언트 설정 (필요 시)
         if GROQ_KEY:
             client_groq = OpenAI(
                 base_url="https://api.groq.com/openai/v1",
                 api_key=GROQ_KEY
             )
-        
-        # 디버깅 메시지 삭제 (성공 시 깔끔하게 화면 유지)
-        # st.success("✅ API 연결 성공!") 
+        # 성공하면 아무 메시지도 띄우지 않고 조용히 넘어갑니다.
     else:
-        st.error("🚨 여전히 키를 찾을 수 없습니다. 대소문자를 다시 확인하세요.")
+        # 만약 그래도 못 찾으면, 시스템에 등록된 실제 이름을 화면에 보여줍니다.
+        st.error("🚨 키를 여전히 찾을 수 없습니다.")
+        st.write("📂 **현재 Secrets에 등록된 실제 이름들:**")
+        st.code(list(st.secrets.to_dict().keys()))
+        st.info("💡 위 목록에 이름이 있는데도 안 된다면 Secrets 창에서 키 이름 앞뒤에 공백이 있는지 확인하세요.")
         st.stop()
 
 except Exception as e:
-    st.error(f"❌ API 설정 중 오류 발생: {str(e)}")
+    st.error(f"❌ 시스템 오류: {str(e)}")
     st.stop()
 
 # ---------------------------------------------------------
@@ -3232,6 +3236,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
