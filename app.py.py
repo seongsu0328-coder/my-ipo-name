@@ -1209,10 +1209,9 @@ def upload_photo_to_drive(file_obj, filename_prefix):
         file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
-            fields='id, webViewLink'
+            fields='id, webViewLink',   # 👈 여기 콤마(,) 필수!
+            supportsAllDrives=True      # 👈 신의 한 수 (추가 완료)
         ).execute()
-        
-        return file.get('webViewLink')
         
     except Exception as e:
         return f"업로드실패({str(e)})"
@@ -3171,6 +3170,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
