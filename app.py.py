@@ -1,3 +1,4 @@
+import io 
 import streamlit as st
 import requests
 import pandas as pd
@@ -1174,7 +1175,7 @@ def get_gcp_clients():
         return None, None
 
 # ------------------------------------------------------------------
-# [기능 2] 파일 업로드 함수
+# [기능 2] 파일 업로드 함수 (Broken pipe 방지용 안전 버전)
 # ------------------------------------------------------------------
 def upload_photo_to_drive(file_obj, filename_prefix):
     if file_obj is None:
@@ -1185,17 +1186,34 @@ def upload_photo_to_drive(file_obj, filename_prefix):
         return "오류"
 
     try:
+        # [안전장치 1] 파일 커서를 맨 앞으로 초기화 (중요!)
+        file_obj.seek(0)
+        
+        # [안전장치 2] 파일을 메모리에 안전하게 복사해서 전송 (Broken Pipe 방지)
+        file_content = io.BytesIO(file_obj.read())
+        
+        # 파일 메타데이터
         file_metadata = {
             'name': f"{filename_prefix}_{file_obj.name}",
             'parents': [DRIVE_FOLDER_ID]
         }
-        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type)
+        
+        # 업로드 준비 (resumable=True로 안정성 강화)
+        media = MediaIoBaseUpload(
+            file_content, 
+            mimetype=file_obj.type,
+            resumable=True 
+        )
+        
+        # 업로드 실행
         file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
             fields='id, webViewLink'
         ).execute()
+        
         return file.get('webViewLink')
+        
     except Exception as e:
         return f"업로드실패({str(e)})"
 
@@ -3153,6 +3171,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
