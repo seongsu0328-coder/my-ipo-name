@@ -2720,7 +2720,7 @@ elif st.session_state.page == 'detail':
                 st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
         
             # --- (2) Seeking Alpha & Morningstar 섹션 ---
-            with st.expander("Pros & Cons of Renaissance Capital IPO, Seeking Alpha & Morningstar ", expanded=False):
+            with st.expander("Pros and Cons of Renaissance Capital IPO, Seeking Alpha & Morningstar ", expanded=False):
                 # 여기도 혹시 모르니 세척 로직 적용
                 raw_pro_con = result.get('pro_con', '')
                 pro_con = clean_text_final(raw_pro_con)
@@ -2981,6 +2981,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
