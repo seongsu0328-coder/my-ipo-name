@@ -99,8 +99,13 @@ def upload_photo_to_drive(file_obj, filename_prefix):
             'parents': [DRIVE_FOLDER_ID]
         }
         
-        # resumable=True와 chunksize 추가 (Broken Pipe 방지용)
-        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type, resumable=True, chunksize=100*1024)
+        # 100*1024 대신 구글 규격에 맞는 256*1024로 변경
+        media = MediaIoBaseUpload(
+            file_obj, 
+            mimetype=file_obj.type, 
+            resumable=True, 
+            chunksize=256*1024  # 256KB 단위로 전송
+        )
         
         file = drive_service.files().create(
             body=file_metadata, 
