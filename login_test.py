@@ -92,13 +92,17 @@ def update_user_visibility(user_id, visibility_data):
     if client:
         try:
             sh = client.open("unicorn_users").sheet1
-            cell = sh.find(str(user_id))
+            # 1열(A열)에서 유저 아이디와 정확히 일치는 셀 찾기
+            cell = sh.find(str(user_id), in_column=1) 
+            
             if cell:
+                # 리스트를 "True,False,True" 형태의 문자열로 변환
                 visibility_str = ",".join([str(v) for v in visibility_data])
+                # 15번째 열(O열) 업데이트
                 sh.update_cell(cell.row, 15, visibility_str)
                 return True
         except Exception as e:
-            st.error(f"시트 업데이트 실패: {e}")
+            st.error(f"시트 통신 오류: {e}")
     return False
 
 def upload_photo_to_drive(file_obj, filename_prefix):
@@ -311,19 +315,19 @@ elif st.session_state.page == 'main_app':
 
     # [수정된 부분] 설정 저장 버튼 클릭 시 실제 시트 업데이트 수행
     if st.button("설정 저장", type="primary"):
-        with st.spinner("구글 시트에 설정을 저장 중입니다..."):
-            # 체크박스 상태를 리스트로 만듦
-            visibility_data = [show_univ, show_job, show_asset]
+        with st.spinner("시트 업데이트 중..."):
+            # 체크박스의 실시간 값(True/False)을 리스트로 묶음
+            current_settings = [show_univ, show_job, show_asset]
             
-            # 1. 구글 시트 업데이트 함수 호출
-            success = update_user_visibility(user.get('id'), visibility_data)
+            # 함수 실행
+            success = update_user_visibility(user.get('id'), current_settings)
             
             if success:
-                st.success("✅ 노출 설정이 구글 시트에 영구 저장되었습니다!")
-                # 2. 현재 로그인 세션 정보도 즉시 업데이트 (재로그인 없이 반영되도록)
-                st.session_state.user_info['visibility'] = ",".join([str(v) for v in visibility_data])
+                st.success("✅ 시트 저장 성공!")
+                # 세션 상태도 동기화 (이게 빠지면 화면만 바뀌고 데이터는 옛날 것임)
+                st.session_state.user_info['visibility'] = ",".join([str(v) for v in current_settings])
             else:
-                st.error("❌ 저장에 실패했습니다. 시트의 15번째 열(visibility)을 확인해 주세요.")
+                st.error("❌ 시트 저장 실패!")
 
     # --- 6. 로그아웃 버튼 ---
     if st.button("로그아웃"):
