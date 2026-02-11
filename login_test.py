@@ -90,11 +90,31 @@ def add_user(data):
 
 def upload_photo_to_drive(file_obj, filename_prefix):
     if file_obj is None: return "미제출"
-    _, drive_service = get_gcp_clients()
-    file_metadata = {'name': f"{filename_prefix}_{file_obj.name}", 'parents': [DRIVE_FOLDER_ID]}
-    media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type)
-    file = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
-    return file.get('webViewLink')
+    try:
+        _, drive_service = get_gcp_clients()
+        
+        # [중요] 파일 읽기 위치를 처음으로 되돌립니다.
+        file_obj.seek(0)
+        
+        file_metadata = {
+            'name': f"{filename_prefix}_{file_obj.name}", 
+            'parents': [DRIVE_FOLDER_ID]
+        }
+        
+        # 파일 타입과 데이터를 다시 한 번 명확히 지정
+        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type, resumable=True)
+        
+        file = drive_service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id, webViewLink'
+        ).execute()
+        
+        return file.get('webViewLink')
+    except Exception as e:
+        # 에러가 나도 프로세스가 죽지 않게 기록만 남깁니다.
+        st.error(f"📂 드라이브 업로드 실패 ({filename_prefix}): {e}")
+        return "업로드 실패(오류)"
 
 def send_email_code(to_email, code):
     try:
