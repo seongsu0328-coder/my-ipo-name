@@ -244,8 +244,23 @@ if st.session_state.page == 'login':
 elif st.session_state.page == 'main_app':
     user = st.session_state.user_info
     st.title("Main App")
-    st.write(f"접속 중인 닉네임: **{user['display_name']}**")
+
+    if user:
+        # 1. 아이디는 전체 마스킹
+        user_id = user.get('id', '')
+        masked_id = "*" * len(str(user_id))
+        
+        # 2. 닉네임은 시트의 display_name 사용
+        display_name = user.get('display_name', '회원')
+        
+        # 화면 표시
+        st.write(f"접속 중인 아이디: **{masked_id}**")
+        st.write(f"접속 중인 닉네임: **{display_name}**")
+        
+        # 3. [2026-02-09] 지침에 따른 직업 표시 (시트 헤더가 job_title인지 꼭 확인!)
+        st.write(f"직업: **{user.get('job_title', '정보 없음')}**")
     
+    # --- 상태 메시지 및 로그아웃 (한 번만 표시) ---
     if user['role'] == 'restricted':
         st.error("🚫 인증된 정보가 없어 글쓰기 기능이 제한된 계정입니다.")
     else:
