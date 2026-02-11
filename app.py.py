@@ -1122,68 +1122,51 @@ def get_ai_summary_final(query):
 # --- 화면 제어 및 로그인 화면 시작 ---
 
 if st.session_state.page == 'login':
-    # [스타일] 로그인 화면 전용 CSS
-    st.markdown("""
-        <style>
-        .login-container { padding-top: 2rem; }
-        .stButton button { height: 50px; font-weight: bold; }
-        </style>
-    """, unsafe_allow_html=True)
-
+    # 아래 코드들은 모두 동일하게 'Tab' 한 번(또는 공백 4칸) 안으로 들어가 있어야 합니다.
     st.write("<br>" * 2, unsafe_allow_html=True)  # 여백 조절
     
-    #  상단 타이틀
-    t_col1, t_col2, t_col3 = st.columns([1, 0.8, 1])
+    # [추가] 상단 타이틀 이미지 표시 영역
+    t_col1, t_col2, t_col3 = st.columns([1, 0.8, 1]) # 이미지 크기 조절을 위한 컬럼 분할
     with t_col2:
         img_path = "title_unicorn.png"
         if os.path.exists(img_path):
             st.image(img_path, use_container_width=True)
         else:
-            st.markdown("<h2 style='text-align:center;'>🦄 Unicorn Finder</h2>", unsafe_allow_html=True)
+            # 로컬에 파일이 없을 경우를 대비해 GitHub Raw URL 방식을 사용할 수도 있습니다.
+            pass
 
     st.write("<br>", unsafe_allow_html=True)
     _, col_m, _ = st.columns([1, 1.2, 1])
     
-    # [가상 DB] 사용자 정보를 담는 딕셔너리로 변경 (Key: 전화번호, Value: 유저정보 Dict)
+    # [가상 DB] 가입된 사용자 목록을 기억하기 위한 임시 저장소
     if 'db_users' not in st.session_state:
-        # 테스트용 관리자 계정 (예시)
-        st.session_state.db_users = {
-            "010-0000-0000": {
-                "univ": "서울대학교",
-                "job": "개발자",
-                "asset": 50,
-                "tier": "🥈 실버",
-                "badge": "job", # 이 유저는 직업을 대표 태그로 설정
-                "display_name": "개발자 ******"
-            }
-        }
+        st.session_state.db_users = ["010-0000-0000"] # 테스트용: 관리자 번호는 이미 가입된 것으로 간주
     
     with col_m:
         # 로그인 단계 초기화
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
 
-        # [Step 1] 첫 선택 화면
+        # [Step 1] 첫 선택 화면 (로그인 vs 회원가입 분리)
         if st.session_state.login_step == 'choice':
             st.write("")
             
-            # 버튼 1: 기존 회원 로그인
+            # 버튼 1: 기존 회원 로그인 (바로 입력창으로)
             if st.button("로그인", use_container_width=True, type="primary"):
-                st.session_state.login_step = 'login_input'
+                st.session_state.login_step = 'login_input' # 로그인 입력 단계로 이동
                 st.rerun()
                 
-            # 버튼 2: 신규 회원 가입
-            if st.button("회원가입 (인증회원)", use_container_width=True):
-                st.session_state.login_step = 'ask_signup'
+            # 버튼 2: 신규 회원 가입 (안내 화면으로)
+            if st.button("회원가입", use_container_width=True):
+                st.session_state.login_step = 'ask_signup' # 가입 안내 단계로 이동
                 st.rerun()
                 
             # 버튼 3: 비회원 둘러보기
-            if st.button("익명으로 구경하기", use_container_width=True):
+            if st.button("구경하기", use_container_width=True):
                 st.session_state.auth_status = 'guest'
-                st.session_state.user_info = {"display_name": "익명 손님"} # 게스트용 정보
-                st.session_state.page = 'calendar'
+                st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
                 st.rerun()
 
-        # [Step 2-A] 로그인 입력 화면
+        # [Step 2-A] 로그인 입력 화면 (기존 회원용)
         elif st.session_state.login_step == 'login_input':
             st.markdown("### 🔑 로그인")
             phone_login = st.text_input("가입하신 휴대폰 번호를 입력하세요", placeholder="010-0000-0000", key="login_phone")
@@ -1191,38 +1174,27 @@ if st.session_state.page == 'login':
             l_c1, l_c2 = st.columns([2, 1])
             with l_c1:
                 if st.button("접속하기", use_container_width=True, type="primary"):
-                    # 딕셔너리 키(전화번호) 확인
+                    # 가입된 번호인지 확인
                     if phone_login in st.session_state.db_users:
                         st.session_state.auth_status = 'user'
-                        st.session_state.user_phone = phone_login
-                        
-                        # [중요] 로그인 시 유저 정보를 세션에 로드
-                        user_data = st.session_state.db_users[phone_login]
-                        st.session_state.user_info = user_data 
-                        
-                        st.success(f"반갑습니다! {user_data['display_name']}님")
-                        st.session_state.page = 'calendar'
+                        st.session_state.user_phone = phone_login # 세션에 정보 저장
+                        st.success(f"반갑습니다! {phone_login}님")
+                        st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
                         st.session_state.login_step = 'choice'
                         st.rerun()
                     else:
-                        st.error("가입되지 않은 번호입니다.")
+                        st.error("가입되지 않은 번호입니다. 회원가입을 먼저 진행해주세요.")
             with l_c2:
                 if st.button("뒤로가기", use_container_width=True):
                     st.session_state.login_step = 'choice'
                     st.rerun()
 
-        # [Step 2-B] 회원가입 안내
+        # [Step 2-B] 회원가입 안내 화면 (신규 회원용)
         elif st.session_state.login_step == 'ask_signup':
-            st.info("🔒 IPO 정보 공유를 위해 최소한의 인증이 필요합니다.")
-            st.markdown("""
-            <small>
-            회원가입 시 **출신학교, 직장, 자산** 중 하나를 선택하여 공개해야 합니다.<br>
-            (나머지 정보와 아이디는 철저히 비공개 처리됩니다.)
-            </small>
-            """, unsafe_allow_html=True)
+            st.info("회원가입시 IPO정보알림받기 및 관심기업관리가 가능합니다.")
             c1, c2 = st.columns(2)
             if c1.button("✅ 가입 진행", use_container_width=True):
-                st.session_state.login_step = 'signup_input'
+                st.session_state.login_step = 'signup_input' # 가입 입력 단계로 이동
                 st.rerun()
             if c2.button("❌ 취소", use_container_width=True):
                 st.session_state.login_step = 'choice'
@@ -1230,104 +1202,37 @@ if st.session_state.page == 'login':
 
         # [Step 3] 가입 정보 입력 (신규 회원용)
         elif st.session_state.login_step == 'signup_input':
-            st.markdown("### 📝 멤버십 가입 신청")
+            st.markdown("### 📝 정보 입력")
+            phone_signup = st.text_input("사용하실 휴대폰 번호를 입력하세요", placeholder="010-0000-0000", key="signup_phone")
             
-            with st.form("signup_form"):
-                st.caption("기본 정보 (비공개, ID로 사용)")
-                phone_new = st.text_input("휴대폰 번호", placeholder="010-xxxx-xxxx")
-                
-                st.markdown("---")
-                st.caption("인증 정보 (이 중 하나를 대표 태그로 설정)")
-                
-                # 정보 입력란
-                col_univ, col_job = st.columns(2)
-                with col_univ:
-                    univ_input = st.text_input("출신 대학/학과", placeholder="예: 서울대 의예과")
-                with col_job:
-                    job_input = st.text_input("직업/직장", placeholder="예: 전문의, 삼성전자")
-                
-                # 자산 입력 및 등급 자동 계산 안내
-                asset_input = st.number_input("보유 자산 (단위: 억 원)", min_value=0, step=1, help="인증된 자산 규모를 입력해주세요.")
-                
-                # 자산 등급 미리보기 로직
-                tier_preview = "🌱 새싹"
-                if asset_input >= 200: tier_preview = "💎 다이아몬드 (200억↑)"
-                elif asset_input >= 80: tier_preview = "🥇 골드 (80억↑)"
-                elif asset_input >= 30: tier_preview = "🥈 실버 (30억↑)"
-                elif asset_input >= 10: tier_preview = "🥉 브론즈 (10억↑)"
-                
-                if asset_input > 0:
-                    st.caption(f"예상 등급: {tier_preview}")
-
-                st.markdown("---")
-                st.write("📢 **커뮤니티에서 사용할 대표 태그를 선택하세요.**")
-                badge_choice = st.radio(
-                    "공개할 정보를 선택해주세요 (나머지는 비공개됨)",
-                    ["school", "job", "asset"],
-                    captions=[
-                        f"학교: {univ_input if univ_input else '(입력필요)'} ******",
-                        f"직업: {job_input if job_input else '(입력필요)'} ******",
-                        f"자산: {tier_preview} ******"
-                    ],
-                    horizontal=True
-                )
-
-                submit = st.form_submit_button("가입 완료", use_container_width=True, type="primary")
-
-                if submit:
-                    # 유효성 검사
-                    if len(phone_new) < 10:
-                        st.error("휴대폰 번호를 올바르게 입력해주세요.")
-                    elif phone_new in st.session_state.db_users:
-                        st.error("이미 가입된 번호입니다.")
-                    elif not (univ_input and job_input): # 간단한 체크
-                         st.error("학교와 직업 정보를 모두 입력해주세요 (비공개라도 입력 필수).")
-                    else:
-                        # [로직] 자산 등급 최종 확정
-                        final_tier = "🌱 "
-                        if asset_input >= 200: final_tier = "💎 다이아몬드"
-                        elif asset_input >= 80: final_tier = "🥇 골드"
-                        elif asset_input >= 30: final_tier = "🥈 실버"
-                        elif asset_input >= 10: final_tier = "🥉 브론즈"
-                        
-                        # [로직] 보여질 닉네임(Display Name) 생성
-                        # 요구하신 대로 "정보 + ******" 형태
-                        display_text = ""
-                        if badge_choice == 'school':
-                            display_text = f"{univ_input} ******"
-                        elif badge_choice == 'job':
-                            display_text = f"{job_input} ******"
-                        elif badge_choice == 'asset':
-                            display_text = f"{final_tier} ******"
-                        
-                        # DB 저장
-                        st.session_state.db_users[phone_new] = {
-                            "univ": univ_input,
-                            "job": job_input,
-                            "asset": asset_input,
-                            "tier": final_tier,
-                            "badge": badge_choice,
-                            "display_name": display_text
-                        }
-                        
-                        # 자동 로그인 처리
-                        st.session_state.auth_status = 'user'
-                        st.session_state.user_phone = phone_new
-                        st.session_state.user_info = st.session_state.db_users[phone_new]
-                        
-                        st.balloons()
-                        st.toast(f"환영합니다! '{display_text}'님으로 활동합니다.")
-                        st.session_state.page = 'calendar'
-                        st.session_state.login_step = 'choice'
-                        st.rerun()
-            
-            if st.button("취소하고 돌아가기"):
-                st.session_state.login_step = 'choice'
-                st.rerun()
+            s_c1, s_c2 = st.columns([2, 1])
+            with s_c1:
+                if st.button("가입 완료", use_container_width=True, type="primary"):
+                    if len(phone_signup) >= 10:
+                        # 이미 존재하는지 확인
+                        if phone_signup in st.session_state.db_users:
+                            st.warning("이미 가입된 번호입니다. '기존 회원 로그인'을 이용해주세요.")
+                        else:
+                            # [DB 저장] 신규 회원을 리스트에 추가
+                            st.session_state.db_users.append(phone_signup)
+                            
+                            st.session_state.auth_status = 'user'
+                            st.session_state.user_phone = phone_signup
+                            st.balloons() # 가입 축하 효과
+                            st.toast("회원가입을 축하합니다!", icon="🎉")
+                            st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
+                            st.session_state.login_step = 'choice'
+                            st.rerun()
+                    else: st.error("올바른 번호를 입력해주세요.")
+            with s_c2:
+                if st.button("취소", key="back_signup"):
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
 
     st.write("<br>" * 2, unsafe_allow_html=True)
     q = get_daily_quote()
     
+    # [수정] 한글(kor)이 추가된 HTML 디자인
     st.markdown(f"""
         <div class='quote-card'>
             <b>"{q['eng']}"</b>
@@ -1337,6 +1242,7 @@ if st.session_state.page == 'login':
             <small>- {q['author']} -</small>
         </div>
     """, unsafe_allow_html=True)
+
 
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
@@ -2993,66 +2899,35 @@ elif st.session_state.page == 'detail':
                     st.caption("아직 게시글이 없습니다.")
                 else:
                     for p in sid_posts:
+                        # 1. 커뮤니티 감성의 슬림한 리스트 디자인 적용
                         with st.container():
-                            # 1. 댓글이 있으면 댓글수, 없으면 조회수를 표시하는 로직
-                            c_count = p.get('comment_count', 0)
-                            if c_count > 0:
-                                stat_display = f"💬 {c_count}"
-                            else:
-                                stat_display = f"👁️ {p.get('views', 0)}"
-
-                            # 2. 디자인: Flexbox를 사용해 한 줄에 배치 (좌측 정렬 / 우측 정렬)
+                            # HTML/CSS로 카테고리, 제목, 아이콘 레이아웃 구성
                             st.markdown(f"""
-                                <div style="
-                                    display: flex; 
-                                    justify-content: space-between; 
-                                    align-items: center; 
-                                    padding: 12px 4px; 
-                                    border-bottom: 1px solid #f0f0f0;
-                                ">
-                                    <div style="
-                                        flex: 1; 
-                                        white-space: nowrap; 
-                                        overflow: hidden; 
-                                        text-overflow: ellipsis; 
-                                        padding-right: 15px;
-                                    ">
-                                        <span style="color: #ff4b4b; font-size: 13px; font-weight: bold;">
-                                            [{p.get('category', '일반')}]
-                                        </span>
-                                        <span style="color: #333; font-size: 15px; font-weight: 600; margin-left: 6px;">
-                                            {p.get('title')}
-                                        </span>
-                                    </div>
-                                    
-                                    <div style="
-                                        display: flex; 
-                                        align-items: center; 
-                                        gap: 10px; 
-                                        font-size: 13px; 
-                                        color: #666; 
-                                        white-space: nowrap;
-                                    ">
-                                        <span>👍 {p.get('likes', 0)}</span>
-                                        <span style="min-width: 40px; text-align: right;">{stat_display}</span>
+                                <div style="line-height: 1.5; margin-bottom: 5px;">
+                                    <div style="color: #888; font-size: 13px; font-weight: 500; margin-bottom: 2px;">{p.get('category', '일반')}</div>
+                                    <div style="color: #000; font-size: 16px; font-weight: 600; margin-bottom: 5px;">{p.get('title')}</div>
+                                    <div style="display: flex; align-items: center; gap: 12px; color: #666; font-size: 13px;">
+                                        <span style="display: flex; align-items: center; gap: 4px;">👍 {p.get('likes', 0)}</span>
+                                        <span style="display: flex; align-items: center; gap: 4px;">💬 {p.get('comment_count', 0)}</span>
                                     </div>
                                 </div>
                             """, unsafe_allow_html=True)
                             
-                            # 3. 투명 버튼 역할 (클릭 시 상세 이동)
-                            # 버튼을 누르면 view_post_id를 설정하고 새로고침하여 상세 화면으로 진입
-                            if st.button("👆 상세 내용 보기", key=f"go_{p['id']}", use_container_width=True):
+                            # 2. 실제 클릭 영역 (투명 버튼으로 제목 위를 덮는 느낌)
+                            # Streamlit 제약상 버튼을 완전히 투명하게 하기는 어려우므로, 
+                            # '상세보기' 버튼을 아주 작고 깔끔하게 배치하거나 제목 자체를 버튼으로 유지합니다.
+                            if st.button("내용 보기", key=f"go_{p['id']}", use_container_width=True):
                                 st.session_state.view_post_id = p['id']
-                                p['views'] = p.get('views', 0) + 1  # 조회수 1 증가
+                                p['views'] = p.get('views', 0) + 1
                                 st.rerun()
+                            
+                            st.markdown('<div style="border-bottom: 1px solid #f0f0f0; margin: 10px 0;"></div>', unsafe_allow_html=True)
                 
                 
                 
                 
                 
                 
-
-
 
 
 
