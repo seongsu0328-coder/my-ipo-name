@@ -92,20 +92,21 @@ def upload_photo_to_drive(file_obj, filename_prefix):
     if file_obj is None: return "미제출"
     try:
         _, drive_service = get_gcp_clients()
-        
-        # [핵심] 파일 읽기 위치를 처음으로 초기화
-        file_obj.seek(0) 
+        file_obj.seek(0)
         
         file_metadata = {
             'name': f"{filename_prefix}_{file_obj.name}", 
             'parents': [DRIVE_FOLDER_ID]
         }
+        
         media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type)
         
+        # supportsAllDrives=True 옵션을 추가하여 서비스 계정의 쿼터 제한을 우회합니다.
         file = drive_service.files().create(
             body=file_metadata, 
             media_body=media, 
-            fields='id, webViewLink'
+            fields='id, webViewLink',
+            supportsAllDrives=True  # 이 부분이 핵심입니다!
         ).execute()
         
         return file.get('webViewLink')
