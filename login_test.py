@@ -108,6 +108,13 @@ def upload_photo_to_drive(file_obj, filename_prefix):
             fields='id, webViewLink',
             supportsAllDrives=True  # 이 부분이 누락되면 연결이 끊길 수 있습니다.
         ).execute()
+
+        # 2. [추가할 부분] 링크 권한 부여 (이게 핵심입니다!)
+        drive_service.permissions().create(
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'viewer'},
+            supportsAllDrives=True
+        ).execute()
         
         return file.get('webViewLink')
     except Exception as e:
