@@ -70,7 +70,10 @@ def save_user_to_sheets(user_data):
         worksheet.append_row(row)
         return True, "성공"
     except Exception as e:
-        return False, str(e)
+        # 에러의 상세 내용을 출력하도록 수정
+        import traceback
+        error_details = traceback.format_exc()
+        return False, f"상세 에러: {str(e)}\n{error_details}"
 
 def generate_verification_code():
     return str(random.randint(100000, 999999))
@@ -3301,6 +3304,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
