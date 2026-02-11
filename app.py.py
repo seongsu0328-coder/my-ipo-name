@@ -11,19 +11,39 @@ import random
 import math
 import html
 import re
-from datetime import datetime, timedelta
+import string  # 문자열 처리 (추가됨)
+import smtplib # 이메일 발송 (추가됨)
+from datetime import datetime, timedelta # 날짜/시간 (병합됨)
+from email.mime.text import MIMEText # 이메일 텍스트 (추가됨)
 
 # [추가됨] 구글 시트 연동 및 외부 API 라이브러리
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from tavily import TavilyClient
 from openai import OpenAI
+from oauth2client.service_account import ServiceAccountCredentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+
 
 # --- [AI 및 검색 라이브러리 통합] ---
 from openai import OpenAI             # ✅ Groq(뉴스 요약)용
 import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
 from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
+
+# --- [초기화 코드: 게시판 저장소 만들기] ---
+if 'posts' not in st.session_state:
+    st.session_state['posts'] = []  # 게시글 담을 빈 리스트 생성
+
+# 여기에 붙여넣으세요! (이 위치가 가장 안전합니다)
+def clean_text_final(text):
+    if not text:
+        return ""
+    text = str(text)
+    text = text.replace("**", "").replace("##", "").replace("###", "")
+    return text.strip()
+
 
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
@@ -1125,181 +1145,137 @@ def get_ai_summary_final(query):
     except Exception as e:
         return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
         
+# [설정] 아까 복사한 폴더 ID를 여기에 넣으세요!
+DRIVE_FOLDER_ID = "1wdhRo-0CBr0HBpYdI5zxRs_BQHQwyMcr?hl=ko"  
+
 # ------------------------------------------------------------------
-# [기능 1] 구글 시트 DB 연결 함수 (캐싱하여 속도 향상)
+# [기능 1] 구글 시트 연결 (권한 범위 수정됨!)
 # ------------------------------------------------------------------
 @st.cache_resource
-def get_db_connection():
+def get_sheet_client():
     try:
-        # Secrets에서 인증 정보 가져오기
-        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        # 👇 여기가 수정되었습니다! (범위를 넓혔습니다)
+        scope = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
+        ]
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
-        
-        # 구글 시트 파일명으로 열기 (반드시 공유 설정이 되어 있어야 함)
-        sh = client.open("unicorn_users") 
-        return sh.sheet1  # 첫 번째 시트를 가져옴
+        return client
     except Exception as e:
-        st.error(f"❌ 구글 시트 연결 실패: {e}")
+        st.error(f"❌ 구글 연결 실패: {e}")
         return None
 
 # ------------------------------------------------------------------
-# [기능 2] 유저 데이터 가져오기 & 저장하기
+# [기능 2] 유저 데이터 처리 (읽기/쓰기)
 # ------------------------------------------------------------------
-def load_users_from_sheet():
-    sheet = get_db_connection()
-    if sheet:
-        return sheet.get_all_records() # 리스트 형태의 딕셔너리 반환
+def load_users():
+    client = get_sheet_client()
+    if client:
+        try:
+            sh = client.open("unicorn_users").sheet1
+            return sh.get_all_records()
+        except Exception as e:
+            st.error(f"시트 읽기 오류: {e}")
+            return []
     return []
 
-def add_user_to_sheet(user_data):
-    sheet = get_db_connection()
-    if sheet:
-        # 헤더 순서: id, pw, name, phone, role, status, univ, job, asset, interests, join_date
-        row = [
-            user_data['id'], user_data['pw'], user_data['name'], user_data['phone'],
-            'user', 'pending',  # 기본값: role=user, status=pending (대기중)
-            user_data['univ'], user_data['job'], user_data['asset'], 
-            ", ".join(user_data['interests']), # 리스트는 문자열로 변환 저장
-            datetime.now().strftime("%Y-%m-%d")
-        ]
-        sheet.append_row(row)
+def add_user(user_data):
+    client = get_sheet_client()
+    if client:
+        try:
+            sh = client.open("unicorn_users").sheet1
+            # 사진 링크 대신 '테스트'라고 저장
+            row = [
+                user_data['id'], user_data['pw'], user_data['phone'], "email_skip",
+                'user', 'pending', # role, status (핵심!)
+                user_data['univ'], user_data['job'], user_data['asset'],
+                "관심분야생략",
+                datetime.now().strftime("%Y-%m-%d"),
+                "link_skip", "link_skip", "link_skip", # 사진 링크 자리
+                f"{user_data['univ']} {user_data['job']} ******" # 닉네임 임시 생성
+            ]
+            sh.append_row(row)
+            return True
+        except Exception as e:
+            st.error(f"데이터 저장 실패: {e}")
+            return False
+    return False
 
 # ------------------------------------------------------------------
-# [화면] 로그인 및 회원가입 UI
+# [화면] UI 시작
 # ------------------------------------------------------------------
+st.markdown("<h1 style='text-align: center;'>🦄 Unicorn Finder (테스트 모드)</h1>", unsafe_allow_html=True)
+
 if 'page' not in st.session_state: st.session_state.page = 'login'
+if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
 
-if st.session_state.page == 'login':
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("<h1 style='text-align: center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: gray;'>IPO 투자자를 위한 프라이빗 커뮤니티</p>", unsafe_allow_html=True)
+# 1. 초기 선택 화면
+if st.session_state.login_step == 'choice':
+    c1, c2 = st.columns(2)
+    if c1.button("로그인", use_container_width=True, type="primary"):
+        st.session_state.login_step = 'login_input'
+        st.rerun()
+    if c2.button("가입 신청 (테스트)", use_container_width=True):
+        st.session_state.login_step = 'signup_input'
+        st.rerun()
 
-    _, col_m, _ = st.columns([1, 1.5, 1])
+# 2. 로그인 화면
+elif st.session_state.login_step == 'login_input':
+    st.markdown("### 🔑 로그인 테스트")
+    login_id = st.text_input("아이디")
+    login_pw = st.text_input("비밀번호", type="password")
     
-    with col_m:
-        if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
+    if st.button("접속 시도", use_container_width=True, type="primary"):
+        users = load_users()
+        user = next((u for u in users if str(u["id"]) == login_id), None)
+        
+        if user and str(user['pw']) == login_pw:
+            # [핵심] 승인 여부 체크 로직
+            if user['status'] == 'approved':
+                st.success(f"✅ 로그인 성공! 환영합니다, {user['id']}님.")
+                st.balloons()
+            else:
+                st.warning("⏳ [승인 대기 중] 관리자가 아직 승인하지 않았습니다.")
+                st.info("💡 팁: 구글 시트에서 status를 'approved'로 바꾸고 다시 시도하세요.")
+        else:
+            st.error("❌ 아이디 또는 비밀번호가 틀렸습니다.")
 
-        # [Step 1] 선택 화면
-        if st.session_state.login_step == 'choice':
-            if st.button("로그인", use_container_width=True, type="primary"):
-                st.session_state.login_step = 'login_input'
-                st.rerun()
-            if st.button("회원가입 신청 (승인제)", use_container_width=True):
-                st.session_state.login_step = 'signup_input'
-                st.rerun()
-            if st.button("비회원 둘러보기", use_container_width=True):
-                st.session_state.auth_status = 'guest'
-                st.session_state.page = 'calendar'
-                st.rerun()
+    if st.button("뒤로가기"):
+        st.session_state.login_step = 'choice'
+        st.rerun()
 
-        # [Step 2] 로그인 처리 (구글 시트 대조)
-        elif st.session_state.login_step == 'login_input':
-            st.markdown("### 🔑 로그인")
-            login_id = st.text_input("아이디", placeholder="User ID")
-            login_pw = st.text_input("비밀번호", type="password")
-            
-            c1, c2 = st.columns(2)
-            if c1.button("접속", use_container_width=True, type="primary"):
-                with st.spinner("사용자 확인 중..."):
-                    users = load_users_from_sheet()
-                    # 아이디 검색 (문자열로 변환하여 비교)
-                    user = next((item for item in users if str(item["id"]) == login_id), None)
-                    
-                    if user and str(user['pw']) == login_pw:
-                        # 1. 관리자 확인
-                        if user['role'] == 'admin':
-                            st.session_state.auth_status = 'admin'
-                            st.success("관리자 모드로 접속합니다.")
-                            st.session_state.page = 'calendar' 
-                            st.rerun()
-                        
-                        # 2. 일반 유저
-                        else:
-                            st.session_state.user_info = user
-                            # status 컬럼 확인 (pending / approved)
-                            if user['status'] == 'approved':
-                                st.session_state.auth_status = 'user'
-                                st.success(f"환영합니다! {user['name']}님")
-                            else:
-                                st.session_state.auth_status = 'guest'
-                                st.warning("⏳ 현재 '승인 대기' 상태입니다. (기능 제한됨)")
-                                st.info("관리자가 승인하면 정회원 기능을 사용할 수 있습니다.")
-                            
-                            st.session_state.page = 'calendar'
-                            st.rerun()
-                    else:
-                        st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
-
-            if c2.button("취소", use_container_width=True):
-                st.session_state.login_step = 'choice'
-                st.rerun()
-
-        # [Step 3] 회원가입 신청 (구글 시트에 저장)
-        elif st.session_state.login_step == 'signup_input':
-            st.markdown("### 📝 정회원 승인 신청")
-            st.info("신뢰할 수 있는 커뮤니티를 위해 필수 정보를 입력해주세요.")
-
-            with st.form("signup_form"):
-                new_id = st.text_input("아이디 (필수)", placeholder="영문/숫자")
-                new_pw = st.text_input("비밀번호 (필수)", type="password")
-                new_name = st.text_input("이름 (실명)", placeholder="홍길동")
-                new_phone = st.text_input("휴대폰 번호", placeholder="01012345678")
-                
-                st.markdown("---")
-                col_u, col_j = st.columns(2)
-                in_univ = col_u.text_input("출신 대학/학과")
-                in_job = col_j.text_input("직업/직장명")
-                in_asset = st.selectbox("자산 규모", ["10억 미만", "10억~30억 (브론즈)", "30억~80억 (실버)", "80억~200억 (골드)", "200억 이상 (다이아)"])
-                
-                st.markdown("**📂 인증 서류 제출 안내**")
-                st.caption("가입 신청 후 관리자 이메일(admin@unicorn.com)로 증빙 서류를 보내주세요.")
-
-                interests = st.multiselect("관심 분야", ["미국주식", "부동산", "거시경제", "취업/이직", "대체투자", "이민/유학"])
-
-                submitted = st.form_submit_button("가입 신청 하기", use_container_width=True, type="primary")
-                
-                if submitted:
-                    if not (new_id and new_pw and new_name and new_phone):
-                        st.error("필수 정보를 모두 입력해주세요.")
-                    else:
-                        with st.spinner("저장 중..."):
-                            # 중복 ID 체크
-                            users = load_users_from_sheet()
-                            if any(str(u['id']) == new_id for u in users):
-                                st.error("이미 존재하는 아이디입니다.")
-                            else:
-                                # 구글 시트에 저장
-                                user_data = {
-                                    "id": new_id, "pw": new_pw, "name": new_name, "phone": new_phone,
-                                    "univ": in_univ, "job": in_job, "asset": in_asset,
-                                    "interests": interests
-                                }
-                                add_user_to_sheet(user_data)
-                                st.success("✅ 가입 신청이 완료되었습니다! 관리자 승인 대기 중입니다.")
-                                st.balloons()
-                                st.session_state.login_step = 'choice'
-                                st.rerun()
-
-            if st.button("취소"):
-                st.session_state.login_step = 'choice'
-                st.rerun()
-                
-    st.write("<br>" * 2, unsafe_allow_html=True)
-    q = get_daily_quote()
+# 3. 가입 신청 화면 (입력 최소화)
+elif st.session_state.login_step == 'signup_input':
+    st.markdown("### 📝 가입 신청 (약식)")
     
-    st.markdown(f"""
-        <div class='quote-card'>
-            <b>"{q['eng']}"</b>
-            <br>
-            <span style='font-size:14px; color:#555; font-weight:normal;'>{q['kor']}</span>
-            <br><br>
-            <small>- {q['author']} -</small>
-        </div>
-    """, unsafe_allow_html=True)
+    with st.form("signup_test"):
+        new_id = st.text_input("아이디")
+        new_pw = st.text_input("비밀번호", type="password")
+        new_phone = st.text_input("전화번호")
+        st.markdown("---")
+        in_univ = st.text_input("대학 (인증 생략)")
+        in_job = st.text_input("직업 (인증 생략)")
+        in_asset = st.selectbox("자산", ["10억 미만", "10억 이상"])
+        
+        if st.form_submit_button("신청서 제출"):
+            if new_id and new_pw:
+                user_data = {
+                    "id": new_id, "pw": new_pw, "phone": new_phone,
+                    "univ": in_univ, "job": in_job, "asset": in_asset
+                }
+                if add_user(user_data):
+                    st.success("✅ 신청 완료! 구글 시트를 확인하세요.")
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
+            else:
+                st.error("아이디와 비번은 필수입니다.")
 
-
+    if st.button("취소"):
+        st.session_state.login_step = 'choice'
+        st.rerun()
+                
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
     # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
@@ -2808,7 +2784,9 @@ elif st.session_state.page == 'detail':
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
                         st.error(f"Consensus: {rating_val}", help=rating_help)
                     else:
-                        st.info(f"등급: {rating_val}", help=rating_help)
+                        st.info(f"등급: {rating_val}")
+                        # 만약 설명(help) 내용도 보여주고 싶다면 아래 줄을 추가하세요:
+                        st.caption(f"💡 참고: {rating_help}")
             
                 with s_col2:
                     # IPO Scoop Score 동적 툴팁 생성
@@ -2826,7 +2804,9 @@ elif st.session_state.page == 'detail':
                         score_help += f"- ⭐ {k}개: {v}{is_current}\n"
             
                     st.write("**[IPO Scoop Score]**")
-                    st.warning(f"Expected Score: ⭐ {score_val}", help=score_help)
+                    st.warning(f"Expected Score: ⭐ {score_val}")
+                    # 설명이 꼭 필요하다면 아래 줄을 추가하세요:
+                    st.caption(score_help)
             
                 # 참고 소스 링크
                 sources = result.get('links', [])
@@ -3012,6 +2992,17 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
+
+
+
+
+
+
+
+
+
+
 
 
 
