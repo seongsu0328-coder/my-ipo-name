@@ -62,35 +62,13 @@ def upload_photo_to_drive(file_obj, filename_prefix):
     return file.get('webViewLink')
 
 # ==========================================
-# [기능 2] 인증번호 발송 로직
+# [기능 2] 인증번호 발송 로직 (가상 모드)
 # ==========================================
 def send_email_code(to_email, code):
-    # 실제 이메일을 보내려면 Gmail 앱 비밀번호 설정이 필요합니다.
-    # 현재는 테스트를 위해 화면에 팝업을 띄우는 것으로 대체하거나, 
-    # 나중에 st.secrets에 이메일 계정 정보를 넣고 아래 주석을 푸시면 진짜 메일이 갑니다.
-    
-    """
-    try:
-        sender_email = st.secrets["email"]["address"]
-        sender_pw = st.secrets["email"]["password"]
-        msg = MIMEText(f"Unicorn Finder 인증번호는 [{code}] 입니다.")
-        msg['Subject'] = "Unicorn Finder 회원가입 인증번호"
-        msg['To'] = to_email
-        
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, sender_pw)
-        server.sendmail(sender_email, to_email, msg.as_string())
-        server.quit()
-        return True
-    except Exception as e:
-        return False
-    """
-    # ⬇️ 현재는 이메일 연동 전이므로 성공했다고 가정하고 로그만 찍습니다.
+    st.toast(f"📧 [가상 이메일 수신] {to_email}로 인증번호 [{code}]가 도착했습니다!", icon="📩")
     return True
 
 def send_sms_code(phone, code):
-    # 실제 상용망 연동 전이므로 화면에 팝업을 띄워서 사용자(테스터)에게 알려줍니다.
     st.toast(f"📱 [가상 SMS 수신] {phone} 번호로 인증번호 [{code}]가 도착했습니다!", icon="📩")
     return True
 
@@ -100,9 +78,10 @@ def send_sms_code(phone, code):
 if 'page' not in st.session_state: st.session_state.page = 'login'
 if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
 
-# 회원가입 진행 단계 기록용 세션
 if 'signup_stage' not in st.session_state: st.session_state.signup_stage = 1
 if 'temp_user_data' not in st.session_state: st.session_state.temp_user_data = {}
+if 'auth_code' not in st.session_state: st.session_state.auth_code = ""
+if 'auth_method' not in st.session_state: st.session_state.auth_method = ""
 
 if st.session_state.page == 'login':
     st.markdown("<h2 style='text-align: center;'>🦄 Unicorn Finder</h2>", unsafe_allow_html=True)
@@ -117,7 +96,7 @@ if st.session_state.page == 'login':
             st.rerun()
         if col2.button("📝 신규 가입 신청", use_container_width=True):
             st.session_state.login_step = 'signup_input'
-            st.session_state.signup_stage = 1 # 가입 1단계부터 시작
+            st.session_state.signup_stage = 1 
             st.rerun()
 
     # ----------------------------------------------------
@@ -151,7 +130,7 @@ if st.session_state.page == 'login':
     # ----------------------------------------------------
     elif st.session_state.login_step == 'signup_input':
         
-        # [1단계: 기본 정보 입력 및 인증번호 발송]
+        # 🟢 [1단계: 기본 정보 입력 및 인증 수단 선택]
         if st.session_state.signup_stage == 1:
             st.subheader("1단계: 기본 정보 입력")
             with st.form("stage1_form"):
@@ -159,6 +138,10 @@ if st.session_state.page == 'login':
                 new_pw = st.text_input("비밀번호", type="password")
                 new_phone = st.text_input("연락처 ('-' 제외 숫자만)", placeholder="01012345678")
                 new_email = st.text_input("이메일 주소")
+                
+                st.markdown("---")
+                # ✨ 사용자에게 인증 수단 선택권 부여
+                auth_choice = st.radio("본인 인증 수단을 선택하세요", ["휴대폰 번호로 인증", "이메일로 인증"], horizontal=True)
                 
                 if st.form_submit_button("인증번호 받기", use_container_width=True, type="primary"):
                     if not (new_id and new_pw and new_phone and new_email):
@@ -168,18 +151,20 @@ if st.session_state.page == 'login':
                         if any(str(u.get('id')) == new_id for u in users):
                             st.error("이미 사용 중인 아이디입니다.")
                         else:
-                            # 6자리 랜덤 인증번호 생성
-                            st.session_state.code_phone = str(random.randint(100000, 999999))
-                            st.session_state.code_email = str(random.randint(100000, 999999))
+                            # 6자리 랜덤 인증번호 1개 생성
+                            st.session_state.auth_code = str(random.randint(100000, 999999))
                             
-                            # 임시 저장
+                            # 선택한 수단에 따라 처리
+                            if auth_choice == "휴대폰 번호로 인증":
+                                st.session_state.auth_method = "phone"
+                                send_sms_code(new_phone, st.session_state.auth_code)
+                            else:
+                                st.session_state.auth_method = "email"
+                                send_email_code(new_email, st.session_state.auth_code)
+                            
                             st.session_state.temp_user_data = {
                                 "id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email
                             }
-                            
-                            # 가상 발송 처리
-                            send_sms_code(new_phone, st.session_state.code_phone)
-                            st.toast(f"📧 [가상 이메일 수신] {new_email}로 인증번호 [{st.session_state.code_email}]이 도착했습니다!", icon="📩")
                             
                             st.session_state.signup_stage = 2
                             st.rerun()
@@ -187,27 +172,32 @@ if st.session_state.page == 'login':
                 st.session_state.login_step = 'choice'
                 st.rerun()
 
-        # [2단계: 인증번호 확인]
+        # 🟢 [2단계: 선택한 수단으로 인증번호 확인]
         elif st.session_state.signup_stage == 2:
             st.subheader("2단계: 본인 인증")
-            st.info("입력하신 연락처와 이메일로 발송된 인증번호를 입력해주세요.\n**(현재는 우측 하단이나 우측 상단 팝업 알림에 뜬 숫자를 넣으시면 됩니다!)**")
+            
+            # 선택한 수단에 맞는 텍스트 동적 출력
+            method_text = "연락처" if st.session_state.auth_method == "phone" else "이메일"
+            icon = "📱" if st.session_state.auth_method == "phone" else "📧"
+            
+            st.info(f"선택하신 {method_text}로 발송된 인증번호를 입력해주세요.\n**(현재 우측 알림에 뜬 숫자를 넣으시면 됩니다!)**")
             
             with st.form("stage2_form"):
-                input_phone_code = st.text_input("📱 문자 인증번호 6자리")
-                input_email_code = st.text_input("📧 이메일 인증번호 6자리")
+                input_code = st.text_input(f"{icon} {method_text} 인증번호 6자리")
                 
                 if st.form_submit_button("인증 완료 및 다음 단계", use_container_width=True, type="primary"):
-                    if input_phone_code == st.session_state.code_phone and input_email_code == st.session_state.code_email:
+                    if input_code == st.session_state.auth_code:
                         st.success("본인 인증이 완료되었습니다!")
                         st.session_state.signup_stage = 3
                         st.rerun()
                     else:
                         st.error("인증번호가 일치하지 않습니다. 다시 확인해주세요.")
-            if st.button("이전 단계로 돌아가기"):
+            
+            if st.button("이전 단계로 돌아가기 (다시 받기)"):
                 st.session_state.signup_stage = 1
                 st.rerun()
 
-        # [3단계: 서류 업로드 및 최종 가입]
+        # 🟢 [3단계: 서류 업로드 및 최종 가입]
         elif st.session_state.signup_stage == 3:
             st.subheader("3단계: 자격 증빙 서류 업로드")
             st.caption("정식 회원으로 승인받기 위한 필수 서류입니다.")
@@ -233,12 +223,10 @@ if st.session_state.page == 'login':
                         with st.spinner("서류를 업로드하고 가입을 마무리하는 중입니다... (약 15초 소요)"):
                             td = st.session_state.temp_user_data
                             
-                            # 1. 구글 드라이브에 사진 업로드
                             l_univ = upload_photo_to_drive(file_univ, f"{td['id']}_univ")
                             l_job = upload_photo_to_drive(file_job, f"{td['id']}_job")
                             l_asset = upload_photo_to_drive(file_asset, f"{td['id']}_asset")
                             
-                            # 2. 구글 시트에 최종 저장
                             final_user_data = {
                                 "id": td['id'], "pw": td['pw'], "email": td['email'], "phone": td['phone'],
                                 "univ": in_univ, "job": in_job, "asset": in_asset, "interests": interests,
@@ -248,7 +236,6 @@ if st.session_state.page == 'login':
                             
                             st.success("✅ 가입 신청이 완료되었습니다! 관리자 승인 후 이용 가능합니다.")
                             
-                            # 세션 초기화
                             st.session_state.signup_stage = 1
                             st.session_state.temp_user_data = {}
                             st.session_state.login_step = 'choice'
