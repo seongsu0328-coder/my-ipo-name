@@ -99,27 +99,27 @@ def upload_photo_to_drive(file_obj, filename_prefix):
             'parents': [DRIVE_FOLDER_ID]
         }
         
-        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type)
+        # resumable=True와 chunksize 추가 (Broken Pipe 방지용)
+        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type, resumable=True, chunksize=100*1024)
         
-        # supportsAllDrives=True 옵션을 추가하여 서비스 계정의 쿼터 제한을 우회합니다.
         file = drive_service.files().create(
             body=file_metadata, 
             media_body=media, 
             fields='id, webViewLink',
-            supportsAllDrives=True  # 이 부분이 누락되면 연결이 끊길 수 있습니다.
+            supportsAllDrives=True
         ).execute()
 
-        # 2. [추가할 부분] 링크 권한 부여 (이게 핵심입니다!)
         drive_service.permissions().create(
             fileId=file.get('id'),
-            body={'type': 'anyone', 'role': 'reader'},  # 'viewer'를 'reader'로 변경
+            body={'type': 'anyone', 'role': 'reader'},
             supportsAllDrives=True
         ).execute()
         
         return file.get('webViewLink')
     except Exception as e:
-        st.error(f"📂 업로드 에러 상세: {e}")
-        return f"업로드 실패: {e}"
+        # 에러 발생 시 재시도 안내 출력
+        st.error(f"📂 업로드 실패 (네트워크 확인 필요): {e}")
+        return "업로드 실패"
         
 def send_email_code(to_email, code):
     try:
@@ -246,14 +246,23 @@ elif st.session_state.page == 'main_app':
     st.title("Main App")
 
     if user:
-        # 1. 아이디 및 기본 정보 표시
+        # [실시간 닉네임 조합 로직]
+        # 시트에 저장된 display_name을 쓰는 대신, 현재 설정에 따라 새로 만듭니다.
         user_id = user.get('id', '')
-        masked_id = "*" * len(str(user_id))
-        display_name = user.get('display_name', '회원')
+        masked_id = user_id[:3] + "***"
+        
+        display_parts = []
+        # 나중에 시트에서 show_univ 등의 값을 읽어오도록 확장 가능
+        display_parts.append(user.get('univ', ''))
+        display_parts.append(user.get('job_title', ''))
+        display_parts.append(get_asset_grade(user.get('asset', '')))
+        
+        # 실제 표시용 (비어있는 값 제외)
+        final_nickname = " ".join([p for p in display_parts if p] + [masked_id])
         
         st.write(f"접속 중인 아이디: **{masked_id}**")
-        st.write(f"접속 중인 닉네임: **{display_name}**")
-        st.write(f"직업: **{user.get('job_title', '정보 없음')}**")
+        st.write(f"접속 중인 닉네임: **{final_nickname}**")
+        st.write(f"직업(상세): **{user.get('job_title', '정보 없음')}**")
     
     # 2. 상태 메시지 표시
     if user['role'] == 'restricted':
