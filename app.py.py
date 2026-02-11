@@ -1350,10 +1350,7 @@ if st.session_state.page == 'login':
                     
             st.markdown("</div>", unsafe_allow_html=True)
 
-                    else:
-                    # 에러 내용을 화면에 빨간색으로 출력하게 변경
-                    st.error(f"메일 발송 실패 원인: {msg}")  
-                    st.warning(f"[TEST MODE] 인증번호: {generated_code}")
+                 
 
         # ---------------------------------------------------------
         # [Step 2] 인증 서류 제출 (학교, 직장, 자산)
@@ -3231,6 +3228,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
