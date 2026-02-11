@@ -1296,7 +1296,7 @@ if st.session_state.page == 'login':
                 code_input = st.text_input("인증번호 6자리", placeholder="인증번호 입력", disabled=not st.session_state.auth_code_sent, key="auth_code_input")
             
             with ac2:
-                st.write("") # 줄맞춤
+                st.write("") # 줄맞춤용
                 st.write("") 
                 if st.button("인증번호 발송", use_container_width=True):
                     if auth_method == "이메일 인증" and new_email:
@@ -1310,8 +1310,9 @@ if st.session_state.page == 'login':
                         if success:
                             st.toast(f"📧 {new_email}로 전송되었습니다.", icon="✅")
                         else:
-                            # 테스트 모드 (SMTP 미설정 시)
-                            st.warning(f"[TEST] 인증번호: {gen_code}")
+                            # 🚨 [여기 수정됨] 에러 메시지 확인용 코드
+                            st.error(f"메일 발송 실패 원인: {msg}")  
+                            st.warning(f"[TEST MODE] 인증번호: {gen_code}")
                         
                         st.session_state.auth_code_sent = True
                         st.rerun()
@@ -1348,6 +1349,11 @@ if st.session_state.page == 'login':
                     st.rerun()
                     
             st.markdown("</div>", unsafe_allow_html=True)
+
+                    else:
+                    # 에러 내용을 화면에 빨간색으로 출력하게 변경
+                    st.error(f"메일 발송 실패 원인: {msg}")  
+                    st.warning(f"[TEST MODE] 인증번호: {generated_code}")
 
         # ---------------------------------------------------------
         # [Step 2] 인증 서류 제출 (학교, 직장, 자산)
@@ -3225,6 +3231,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
