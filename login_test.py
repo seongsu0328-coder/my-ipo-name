@@ -329,3 +329,60 @@ elif st.session_state.page == 'main_app':
     if st.button("로그아웃"):
         st.session_state.clear()
         st.rerun()
+
+    # --- 7. 멤버 리스트 (타인 노출 설정 반영 버전) ---
+        st.divider()
+        st.subheader("👥 유니콘 멤버 리스트")
+        
+        if st.button("멤버 목록 불러오기", use_container_width=True):
+            with st.spinner("최신 멤버 정보를 동기화 중..."):
+                all_users = load_users()
+                
+                if not all_users:
+                    st.info("아직 가입된 멤버가 없습니다.")
+                else:
+                    # 목록 출력 시작
+                    for u in all_users:
+                        # 1. 자기 자신은 목록에서 제외
+                        if str(u.get('id')) == str(user.get('id')):
+                            continue
+                        
+                        # 2. 아이디 전체 마스킹
+                        target_id = str(u.get('id', ''))
+                        m_id = "*" * len(target_id)
+                        
+                        # 3. 해당 유저의 노출 설정(15열) 해석
+                        raw_vis = u.get('visibility', 'True,True,True')
+                        if not raw_vis: raw_vis = 'True,True,True'
+                        
+                        vis_parts = str(raw_vis).split(',')
+                        v_univ = vis_parts[0] == 'True' if len(vis_parts) > 0 else True
+                        v_job = vis_parts[1] == 'True' if len(vis_parts) > 1 else True
+                        v_asset = vis_parts[2] == 'True' if len(vis_parts) > 2 else True
+                        
+                        # 4. 상대방 설정에 따른 실시간 닉네임 조합
+                        u_info_parts = []
+                        if v_univ: 
+                            u_info_parts.append(u.get('univ', ''))
+                        if v_job: 
+                            # 요청하신대로 job_title을 사용합니다.
+                            u_info_parts.append(u.get('job_title', ''))
+                        if v_asset: 
+                            u_tier = get_asset_grade(u.get('asset', ''))
+                            u_info_parts.append(u_tier)
+                        
+                        u_prefix = " ".join([p for p in u_info_parts if p])
+                        
+                        # 최종 닉네임 (아이디와 공백 없이 결합)
+                        u_display = f"{u_prefix}{m_id}" if u_prefix else m_id
+                        
+                        # 5. 멤버 카드 디자인
+                        with st.expander(f"✨ {u_display}"):
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                st.write(f"🎓 **대학**: {u.get('univ') if v_univ else '(비공개)'}")
+                                st.write(f"💼 **직업**: {u.get('job_title') if v_job else '(비공개)'}")
+                            with c2:
+                                current_tier = get_asset_grade(u.get('asset', ''))
+                                st.write(f"💰 **등급**: {current_tier if v_asset else '(비공개)'}")
+                                st.write(f"✅ **상태**: {u.get('status', 'pending')}")
