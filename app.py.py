@@ -2684,7 +2684,7 @@ elif st.session_state.page == 'detail':
                 result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
         
             # --- (1) Renaissance Capital 섹션 ---
-            with st.expander("Renaissance Capital IPO 요약", expanded=False):
+            with st.expander("Summary of Renaissance Capital IPO, Seeking Alpha & Morningstar", expanded=False):
                 
                 # 1. 데이터 가져오기 (결과가 리스트일 경우를 대비해 처리)
                 raw_val = result.get('summary', '')
@@ -2720,7 +2720,7 @@ elif st.session_state.page == 'detail':
                 st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
         
             # --- (2) Seeking Alpha & Morningstar 섹션 ---
-            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
+            with st.expander("Pros & Cons of Renaissance Capital IPO, Seeking Alpha & Morningstar ", expanded=False):
                 # 여기도 혹시 모르니 세척 로직 적용
                 raw_pro_con = result.get('pro_con', '')
                 pro_con = clean_text_final(raw_pro_con)
@@ -2981,6 +2981,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
