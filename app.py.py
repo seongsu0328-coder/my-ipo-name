@@ -38,58 +38,42 @@ def get_gspread_client():
     return gspread.authorize(creds)
 
 # [회원 정보 저장 함수]
-def save_user_to_sheets(user_data):
+def save_user_to_sheets(data):
     try:
-        # 📍 디버깅용: 함수 시작 알림
-        # st.write("시트 저장 함수 시작됨...") 
-        
-        client = get_gspread_client()
-        sheet_url = "https://docs.google.com/spreadsheets/d/1grbNyzEv2TzTDRMKrGBTI21v6qmZRnv42M2Z6UhNXTc/edit#gid=0"
-        spreadsheet = client.open_by_url(sheet_url)
-        worksheet = spreadsheet.get_worksheet(0)
+        # 1. 구글 클라이언트 호출 (테스트 코드의 gcp_service_account 시크릿 사용)
+        client, _ = get_gcp_clients() 
+        if not client:
+            return False, "구글 서비스 연결 실패"
 
+        # 2. 시트 열기 (공유해주신 시트 ID 사용)
+        spreadsheet_id = "1grbNyzEv2TzTDRMKrGBTI21v6qmZRnv42M2Z6UhNXTc"
+        sh = client.open_by_key(spreadsheet_id).sheet1
+
+        # 3. 15개 열 데이터 조립 (테스트 코드의 row 구조 반영)
+        # ID, PW, Email, Phone, Role, Status, Univ, Job, Asset, DisplayName, Time, Link1, Link2, Link3, Visibility
         row = [
-            user_data.get('id'), user_data.get('pw'), user_data.get('email'),
-            user_data.get('phone'), "user", "pending", user_data.get('univ'),
-            user_data.get('job_title'), user_data.get('asset'),
-            user_data.get('display_name'), datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "", "", "", "public"
+            str(data.get('id')),               # 1. ID
+            str(data.get('pw')),               # 2. PW
+            str(data.get('email')),            # 3. Email
+            str(data.get('phone')),            # 4. Phone
+            "user",                            # 5. Role (기본값)
+            "pending",                         # 6. Status (승인대기)
+            data.get('univ', ""),              # 7. 대학명
+            data.get('job_title', ""),         # 8. 직업명
+            data.get('asset', ""),             # 9. 자산규모
+            data.get('display_name', ""),      # 10. 최종 닉네임
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # 11. 가입시간
+            "미제출",                          # 12. 대학증빙링크 (추후 업로드 기능 연결 시 수정)
+            "미제출",                          # 13. 직업증빙링크
+            "미제출",                          # 14. 자산증빙링크
+            "True,True,True"                  # 15. 노출 설정 초기값 (Visibility)
         ]
-        
-        worksheet.append_row(row)
+
+        # 4. 데이터 추가
+        sh.append_row(row)
         return True, "성공"
     except Exception as e:
-        import traceback
-        return False, f"상세에러: {str(e)}\n{traceback.format_exc()}"
-
-def generate_verification_code():
-    return str(random.randint(100000, 999999))
-
-def send_email_code(to_email, code):
-    # 1. smtp 섹션 안의 값을 가져오도록 수정
-    try:
-        # secrets.toml의 [smtp] 섹션에서 값을 읽어옵니다.
-        email_user = st.secrets["smtp"]["email_address"]
-        email_password = st.secrets["smtp"]["app_password"]
-    except (KeyError, st.errors.StreamlitAPIException):
-        # [smtp] 섹션이 없거나 내부 키가 없을 경우 에러 메시지 반환
-        return False, "Secrets에서 [smtp] 섹션이나 설정을 찾을 수 없습니다."
-
-    # 2. 실제 이메일 발송 로직
-    try:
-        msg = MIMEText(f"안녕하세요. Unicorn Finder 입니다.\n인증번호는 [{code}] 입니다.")
-        msg['Subject'] = '[Unicorn Finder] 회원가입 인증번호'
-        msg['From'] = email_user
-        msg['To'] = to_email
-
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(email_user, email_password)
-            server.sendmail(email_user, to_email, msg.as_string())
-        
-        return True, "이메일이 발송되었습니다."
-    except Exception as e:
-        return False, f"발송 중 오류 발생: {str(e)}"
+        return False, str(e)
 
 # --- [여기(최상단)에 함수를 두어야 아래에서 인식합니다] ---
 def clean_text_final(text):
@@ -3250,6 +3234,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
