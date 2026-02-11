@@ -11,39 +11,13 @@ import random
 import math
 import html
 import re
-import string  # 문자열 처리 (추가됨)
-import smtplib # 이메일 발송 (추가됨)
-from datetime import datetime, timedelta # 날짜/시간 (병합됨)
-from email.mime.text import MIMEText # 이메일 텍스트 (추가됨)
-
-# [추가됨] 구글 시트 연동 및 외부 API 라이브러리
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from tavily import TavilyClient
-from openai import OpenAI
-from oauth2client.service_account import ServiceAccountCredentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-
+from datetime import datetime, timedelta
 
 # --- [AI 및 검색 라이브러리 통합] ---
 from openai import OpenAI             # ✅ Groq(뉴스 요약)용
 import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
 from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
-
-# --- [초기화 코드: 게시판 저장소 만들기] ---
-if 'posts' not in st.session_state:
-    st.session_state['posts'] = []  # 게시글 담을 빈 리스트 생성
-
-# 여기에 붙여넣으세요! (이 위치가 가장 안전합니다)
-def clean_text_final(text):
-    if not text:
-        return ""
-    text = str(text)
-    text = text.replace("**", "").replace("##", "").replace("###", "")
-    return text.strip()
-
 
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
@@ -1145,298 +1119,132 @@ def get_ai_summary_final(query):
     except Exception as e:
         return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
         
-# [설정] 구글 드라이브 폴더 ID (따옴표 안에 정확히 유지)
-DRIVE_FOLDER_ID = "1wdhRo-0CBr0HBpYdI5zxRs_BQHQwyMcr"  
-
-# ------------------------------------------------------------------
-# [기능 1] 구글 연결 (시트 + 드라이브 권한 수정됨)
-# ------------------------------------------------------------------
-@st.cache_resource
-def get_gcp_clients():
-    try:
-        # 권한 범위를 넓게 설정 (수정된 부분)
-        scope = [
-            'https://www.googleapis.com/auth/spreadsheets',
-            'https://www.googleapis.com/auth/drive'
-        ]
-        creds_dict = st.secrets["gcp_service_account"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        
-        # 1. 시트 클라이언트
-        gspread_client = gspread.authorize(creds)
-        
-        # 2. 드라이브 서비스
-        drive_service = build('drive', 'v3', credentials=creds)
-        
-        return gspread_client, drive_service
-    except Exception as e:
-        st.error(f"❌ 구글 연결 실패: {e}")
-        return None, None
-
-# ------------------------------------------------------------------
-# [기능 2] 파일 업로드 함수
-# ------------------------------------------------------------------
-def upload_photo_to_drive(file_obj, filename_prefix):
-    if file_obj is None:
-        return "미인증"
-    
-    client, drive_service = get_gcp_clients()
-    if not drive_service:
-        return "오류"
-
-    try:
-        file_metadata = {
-            'name': f"{filename_prefix}_{file_obj.name}",
-            'parents': [DRIVE_FOLDER_ID]
-        }
-        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type)
-        file = drive_service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id, webViewLink'
-        ).execute()
-        return file.get('webViewLink')
-    except Exception as e:
-        return f"업로드실패({str(e)})"
-
-# ------------------------------------------------------------------
-# [기능 3] 이메일 인증 함수 (SMTP)
-# ------------------------------------------------------------------
-def send_verification_email(to_email):
-    code = "".join(random.choices(string.digits, k=6))
-    
-    try:
-        smtp_info = st.secrets["smtp"]
-        sender_email = smtp_info["email_address"]
-        password = smtp_info["app_password"]
-
-        msg = MIMEText(f"[Unicorn Finder] 인증번호는 [{code}] 입니다.")
-        msg['Subject'] = "이메일 인증번호 안내"
-        msg['From'] = sender_email
-        msg['To'] = to_email
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender_email, password)
-            server.send_message(msg)
-            
-        return code, True
-    except Exception as e:
-        return str(e), False
-
-# ------------------------------------------------------------------
-# [기능 4] 유저 데이터 처리 & 닉네임 생성
-# ------------------------------------------------------------------
-def load_users_from_sheet():
-    client, _ = get_gcp_clients()
-    if client:
-        try:
-            sh = client.open("unicorn_users").sheet1
-            return sh.get_all_records()
-        except:
-            return []
-    return []
-
-def create_composite_nickname(user_data):
-    """인증된 정보 + 마스킹된 ID 결합"""
-    prefixes = []
-    
-    # 1. 대학
-    if user_data.get('link_univ') and user_data['link_univ'] not in ["미인증", "오류"]:
-        if user_data.get('univ'): prefixes.append(user_data['univ'])
-
-    # 2. 직장
-    if user_data.get('link_job') and user_data['link_job'] not in ["미인증", "오류"]:
-        if user_data.get('job'): prefixes.append(user_data['job'])
-
-    # 3. 자산
-    if user_data.get('link_asset') and user_data['link_asset'] not in ["미인증", "오류"]:
-        if user_data.get('asset'):
-            val = user_data['asset']
-            if "자산" not in val: val += "자산가"
-            prefixes.append(val)
-
-    # 4. 아이디 마스킹
-    original_id = user_data.get('id', '')
-    masked_id = "*" * len(original_id)
-    
-    if not prefixes:
-        return f"미인증 {masked_id}"
-    else:
-        return f"{' '.join(prefixes)} {masked_id}"
-
-def add_user_to_sheet(user_data):
-    client, _ = get_gcp_clients()
-    if client:
-        sh = client.open("unicorn_users").sheet1
-        
-        # 닉네임 생성
-        nickname = create_composite_nickname(user_data)
-
-        row = [
-            user_data['id'], user_data['pw'], user_data['phone'], user_data['email'],
-            'user', 'pending', # 초기 상태는 항상 대기
-            user_data['univ'], user_data['job'], user_data['asset'],
-            ", ".join(user_data['interests']),
-            datetime.now().strftime("%Y-%m-%d"),
-            user_data['link_univ'], user_data['link_job'], user_data['link_asset'],
-            nickname
-        ]
-        sh.append_row(row)
-
-# ------------------------------------------------------------------
-# [화면] UI 시작
-# ------------------------------------------------------------------
-if 'page' not in st.session_state: st.session_state.page = 'login'
-
-st.markdown("""
-    <style>
-    .stApp { background-color: #ffffff; color: #000000; }
-    </style>
-""", unsafe_allow_html=True)
+# --- 화면 제어 및 로그인 화면 시작 ---
 
 if st.session_state.page == 'login':
-    st.markdown("<br><br><h1 style='text-align: center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
+    # 아래 코드들은 모두 동일하게 'Tab' 한 번(또는 공백 4칸) 안으로 들어가 있어야 합니다.
+    st.write("<br>" * 2, unsafe_allow_html=True)  # 여백 조절
     
-    _, col_m, _ = st.columns([1, 1.5, 1])
+    # [추가] 상단 타이틀 이미지 표시 영역
+    t_col1, t_col2, t_col3 = st.columns([1, 0.8, 1]) # 이미지 크기 조절을 위한 컬럼 분할
+    with t_col2:
+        img_path = "title_unicorn.png"
+        if os.path.exists(img_path):
+            st.image(img_path, use_container_width=True)
+        else:
+            # 로컬에 파일이 없을 경우를 대비해 GitHub Raw URL 방식을 사용할 수도 있습니다.
+            pass
+
+    st.write("<br>", unsafe_allow_html=True)
+    _, col_m, _ = st.columns([1, 1.2, 1])
+    
+    # [가상 DB] 가입된 사용자 목록을 기억하기 위한 임시 저장소
+    if 'db_users' not in st.session_state:
+        st.session_state.db_users = ["010-0000-0000"] # 테스트용: 관리자 번호는 이미 가입된 것으로 간주
     
     with col_m:
+        # 로그인 단계 초기화
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
 
-        # [Step 1] 선택 화면 (비회원 둘러보기 복구됨!)
+        # [Step 1] 첫 선택 화면 (로그인 vs 회원가입 분리)
         if st.session_state.login_step == 'choice':
+            st.write("")
+            
+            # 버튼 1: 기존 회원 로그인 (바로 입력창으로)
             if st.button("로그인", use_container_width=True, type="primary"):
-                st.session_state.login_step = 'login_input'
+                st.session_state.login_step = 'login_input' # 로그인 입력 단계로 이동
                 st.rerun()
                 
-            if st.button("회원가입 신청 (승인제)", use_container_width=True):
-                st.session_state.login_step = 'signup_input'
+            # 버튼 2: 신규 회원 가입 (안내 화면으로)
+            if st.button("회원가입", use_container_width=True):
+                st.session_state.login_step = 'ask_signup' # 가입 안내 단계로 이동
                 st.rerun()
                 
-            # 👇 [복구 완료] 비회원 둘러보기 버튼
-            if st.button("비회원 둘러보기 (로그인 없이 입장)", use_container_width=True):
+            # 버튼 3: 비회원 둘러보기
+            if st.button("구경하기", use_container_width=True):
                 st.session_state.auth_status = 'guest'
-                st.session_state.page = 'calendar' # 캘린더 화면으로 이동
+                st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
                 st.rerun()
 
-        # [Step 2] 로그인 화면
+        # [Step 2-A] 로그인 입력 화면 (기존 회원용)
         elif st.session_state.login_step == 'login_input':
             st.markdown("### 🔑 로그인")
-            login_id = st.text_input("아이디")
-            login_pw = st.text_input("비밀번호", type="password")
+            phone_login = st.text_input("가입하신 휴대폰 번호를 입력하세요", placeholder="010-0000-0000", key="login_phone")
             
-            c1, c2 = st.columns(2)
-            if c1.button("접속", use_container_width=True, type="primary"):
-                users = load_users_from_sheet()
-                user = next((item for item in users if str(item["id"]) == login_id), None)
-                
-                if user and str(user['pw']) == login_pw:
-                    if user['role'] == 'admin':
-                        st.session_state.auth_status = 'admin'
-                        st.session_state.page = 'calendar'
+            l_c1, l_c2 = st.columns([2, 1])
+            with l_c1:
+                if st.button("접속하기", use_container_width=True, type="primary"):
+                    # 가입된 번호인지 확인
+                    if phone_login in st.session_state.db_users:
+                        st.session_state.auth_status = 'user'
+                        st.session_state.user_phone = phone_login # 세션에 정보 저장
+                        st.success(f"반갑습니다! {phone_login}님")
+                        st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
+                        st.session_state.login_step = 'choice'
                         st.rerun()
                     else:
-                        st.session_state.user_info = user
-                        if user['status'] == 'approved':
-                            st.session_state.auth_status = 'user'
-                            st.success(f"반갑습니다! {user.get('nickname', user['id'])}님")
-                            time.sleep(1) 
-                            st.session_state.page = 'calendar'
-                            st.rerun()
-                        else:
-                            st.session_state.auth_status = 'guest'
-                            st.warning("⏳ 승인 대기 중입니다. (관리자 승인 후 접속 가능)")
-                else:
-                    st.error("정보가 일치하지 않습니다.")
+                        st.error("가입되지 않은 번호입니다. 회원가입을 먼저 진행해주세요.")
+            with l_c2:
+                if st.button("뒤로가기", use_container_width=True):
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
 
-            if c2.button("취소", use_container_width=True):
+        # [Step 2-B] 회원가입 안내 화면 (신규 회원용)
+        elif st.session_state.login_step == 'ask_signup':
+            st.info("회원가입시 IPO정보알림받기 및 관심기업관리가 가능합니다.")
+            c1, c2 = st.columns(2)
+            if c1.button("✅ 가입 진행", use_container_width=True):
+                st.session_state.login_step = 'signup_input' # 가입 입력 단계로 이동
+                st.rerun()
+            if c2.button("❌ 취소", use_container_width=True):
                 st.session_state.login_step = 'choice'
                 st.rerun()
 
-        # [Step 3] 회원가입 화면
+        # [Step 3] 가입 정보 입력 (신규 회원용)
         elif st.session_state.login_step == 'signup_input':
-            st.markdown("### 📝 가입 신청")
+            st.markdown("### 📝 정보 입력")
+            phone_signup = st.text_input("사용하실 휴대폰 번호를 입력하세요", placeholder="010-0000-0000", key="signup_phone")
             
-            if 'email_verified' not in st.session_state: st.session_state.email_verified = False
-            if 'auth_code' not in st.session_state: st.session_state.auth_code = None
-
-            with st.form("signup_form", clear_on_submit=False):
-                st.markdown("**1. 기본 정보**")
-                new_id = st.text_input("아이디 (영문/숫자)")
-                new_pw = st.text_input("비밀번호", type="password")
-                new_phone = st.text_input("휴대폰 번호")
-                
-                # 이메일 인증
-                c_e1, c_e2 = st.columns([2, 1])
-                email_input = c_e1.text_input("이메일 주소")
-                if c_e2.form_submit_button("인증번호 전송"):
-                    if email_input:
-                        code, success = send_verification_email(email_input)
-                        if success:
-                            st.session_state.auth_code = code
-                            st.success("메일 발송 완료! (스팸함도 확인하세요)")
+            s_c1, s_c2 = st.columns([2, 1])
+            with s_c1:
+                if st.button("가입 완료", use_container_width=True, type="primary"):
+                    if len(phone_signup) >= 10:
+                        # 이미 존재하는지 확인
+                        if phone_signup in st.session_state.db_users:
+                            st.warning("이미 가입된 번호입니다. '기존 회원 로그인'을 이용해주세요.")
                         else:
-                            st.error(f"전송 실패: {code}")
-                    else:
-                        st.warning("이메일을 입력하세요.")
-                
-                code_input = st.text_input("인증번호 입력")
-                
-                st.markdown("---")
-                st.markdown("**2. 선택 인증 (원하는 항목만 입력)**")
-                st.caption("※ 인증된 정보는 아이디와 함께 표시됩니다. (예: 서울대 의사 ******)")
-                
-                # [대학]
-                col_u1, col_u2 = st.columns([1, 1.5])
-                in_univ = col_u1.text_input("대학/학과명")
-                file_univ = col_u2.file_uploader("🎓 학생증/졸업증명서", type=['jpg', 'png'], key='f_univ')
-
-                # [직장]
-                col_j1, col_j2 = st.columns([1, 1.5])
-                in_job = col_j1.text_input("직장/직업명")
-                file_job = col_j2.file_uploader("💼 명함/재직증명서", type=['jpg', 'png'], key='f_job')
-
-                # [자산]
-                col_a1, col_a2 = st.columns([1, 1.5])
-                in_asset = col_a1.selectbox("자산 규모", ["(선택안함)", "10억 미만", "10억~30억", "30억~80억", "80억 이상"])
-                file_asset = col_a2.file_uploader("💰 잔고 증명서", type=['jpg', 'png'], key='f_asset')
-
-                st.markdown("---")
-                interests = st.multiselect("관심 분야", ["미국주식", "부동산", "거시경제", "선택 안 함"])
-
-                submitted = st.form_submit_button("가입 신청 완료", use_container_width=True, type="primary")
-                
-                if submitted:
-                    # 필수값 검사
-                    if not (new_id and new_pw and new_phone and email_input):
-                        st.error("기본 정보를 모두 입력해주세요.")
-                    elif code_input != st.session_state.auth_code:
-                        st.error("이메일 인증번호가 일치하지 않습니다.")
-                    else:
-                        with st.spinner("가입 처리 중... (사진 업로드 포함)"):
-                            # 파일 업로드 (없으면 '미인증' 반환됨)
-                            link_univ = upload_photo_to_drive(file_univ, f"{new_id}_univ")
-                            link_job = upload_photo_to_drive(file_job, f"{new_id}_job")
-                            link_asset = upload_photo_to_drive(file_asset, f"{new_id}_asset")
+                            # [DB 저장] 신규 회원을 리스트에 추가
+                            st.session_state.db_users.append(phone_signup)
                             
-                            # 자산 선택안함 처리
-                            final_asset = in_asset if in_asset != "(선택안함)" else ""
-
-                            user_data = {
-                                "id": new_id, "pw": new_pw, "phone": new_phone, "email": email_input,
-                                "univ": in_univ, "job": in_job, "asset": final_asset,
-                                "interests": interests,
-                                "link_univ": link_univ, "link_job": link_job, "link_asset": link_asset
-                            }
-                            
-                            add_user_to_sheet(user_data)
-                            st.success("신청 완료! 관리자 승인 후 로그인 가능합니다.")
+                            st.session_state.auth_status = 'user'
+                            st.session_state.user_phone = phone_signup
+                            st.balloons() # 가입 축하 효과
+                            st.toast("회원가입을 축하합니다!", icon="🎉")
+                            st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
                             st.session_state.login_step = 'choice'
                             st.rerun()
+                    else: st.error("올바른 번호를 입력해주세요.")
+            with s_c2:
+                if st.button("취소", key="back_signup"):
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
 
-            if st.button("취소"):
-                st.session_state.login_step = 'choice'
-                st.rerun()
-                
+    st.write("<br>" * 2, unsafe_allow_html=True)
+    q = get_daily_quote()
+    
+    # [수정] 한글(kor)이 추가된 HTML 디자인
+    st.markdown(f"""
+        <div class='quote-card'>
+            <b>"{q['eng']}"</b>
+            <br>
+            <span style='font-size:14px; color:#555; font-weight:normal;'>{q['kor']}</span>
+            <br><br>
+            <small>- {q['author']} -</small>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
     # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
@@ -2945,9 +2753,7 @@ elif st.session_state.page == 'detail':
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
                         st.error(f"Consensus: {rating_val}", help=rating_help)
                     else:
-                        st.info(f"등급: {rating_val}")
-                        # 만약 설명(help) 내용도 보여주고 싶다면 아래 줄을 추가하세요:
-                        st.caption(f"💡 참고: {rating_help}")
+                        st.info(f"등급: {rating_val}", help=rating_help)
             
                 with s_col2:
                     # IPO Scoop Score 동적 툴팁 생성
@@ -2965,9 +2771,7 @@ elif st.session_state.page == 'detail':
                         score_help += f"- ⭐ {k}개: {v}{is_current}\n"
             
                     st.write("**[IPO Scoop Score]**")
-                    st.warning(f"Expected Score: ⭐ {score_val}")
-                    # 설명이 꼭 필요하다면 아래 줄을 추가하세요:
-                    st.caption(score_help)
+                    st.warning(f"Expected Score: ⭐ {score_val}", help=score_help)
             
                 # 참고 소스 링크
                 sources = result.get('links', [])
@@ -3153,23 +2957,6 @@ elif st.session_state.page == 'detail':
                 
                 
                 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
