@@ -23,20 +23,24 @@ st.set_page_config(page_title="로그인 테스트", layout="centered")
 def get_gcp_clients():
     try:
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        # secrets.toml에서 정보 가져오기
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         gspread_client = gspread.authorize(creds)
         drive_service = build('drive', 'v3', credentials=creds)
         return gspread_client, drive_service
     except Exception as e:
-        st.error("구글 연결 실패. Secrets를 확인하세요.")
+        st.error(f"구글 연결 실패: secrets 설정을 확인하세요. ({e})")
         return None, None
 
 def load_users():
     client, _ = get_gcp_clients()
     if client:
-        sh = client.open("unicorn_users").sheet1
-        return sh.get_all_records()
+        try:
+            sh = client.open("unicorn_users").sheet1
+            return sh.get_all_records()
+        except:
+            return []
     return []
 
 def add_user(data):
@@ -62,18 +66,55 @@ def upload_photo_to_drive(file_obj, filename_prefix):
     return file.get('webViewLink')
 
 # ==========================================
-# [기능 2] 인증번호 발송 로직 (가상 모드)
+# [기능 2] 실제 인증번호 발송 로직 (수정됨)
 # ==========================================
 def send_email_code(to_email, code):
-    st.toast(f"📧 [가상 이메일 수신] {to_email}로 인증번호 [{code}]가 도착했습니다!", icon="📩")
-    return True
+    """
+    SMTP를 사용하여 실제 이메일을 발송합니다.
+    st.secrets['smtp'] 설정이 필요합니다.
+    """
+    try:
+        # secrets에서 계정 정보 로드
+        sender_email = st.secrets["smtp"]["email_id"]
+        sender_pw = st.secrets["smtp"]["email_pw"]
+
+        # 이메일 내용 구성
+        subject = "[Unicorn Finder] 본인 인증번호 안내"
+        body = f"""
+        안녕하세요, Unicorn Finder입니다.
+        
+        요청하신 인증번호는 [{code}] 입니다.
+        화면에 인증번호를 입력하여 가입을 진행해 주세요.
+        
+        감사합니다.
+        """
+        
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = sender_email
+        msg['To'] = to_email
+
+        # 지메일 SMTP 서버 연결 (587 포트)
+        with smtplib.SMTP('smtp.gmail.com', 587) as s:
+            s.starttls() # 보안 연결 시작
+            s.login(sender_email, sender_pw) # 로그인
+            s.sendmail(sender_email, to_email, msg.as_string()) # 전송
+            
+        st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
+        return True
+        
+    except Exception as e:
+        st.error(f"❌ 이메일 전송 실패: {e}")
+        st.info("Tip: .streamlit/secrets.toml 파일에 [smtp] 설정이 올바른지, Gmail 앱 비밀번호를 사용했는지 확인하세요.")
+        return False
 
 def send_sms_code(phone, code):
-    st.toast(f"📱 [가상 SMS 수신] {phone} 번호로 인증번호 [{code}]가 도착했습니다!", icon="📩")
+    # SMS는 비용 문제로 가상 모드 유지 (필요 시 Twilio/CoolSMS 등 API 연동 필요)
+    st.toast(f"📱 [가상 SMS] {phone} 번호로 인증번호 [{code}]가 도착했습니다!", icon="📩")
     return True
 
 # ==========================================
-# [화면] UI 제어 로직 (3단계 흐름)
+# [화면] UI 제어 로직
 # ==========================================
 if 'page' not in st.session_state: st.session_state.page = 'login'
 if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
@@ -141,7 +182,7 @@ if st.session_state.page == 'login':
                 
                 st.markdown("---")
                 # ✨ 사용자에게 인증 수단 선택권 부여
-                auth_choice = st.radio("본인 인증 수단을 선택하세요", ["휴대폰 번호로 인증", "이메일로 인증"], horizontal=True)
+                auth_choice = st.radio("본인 인증 수단을 선택하세요", ["휴대폰 번호로 인증 (가상)", "이메일로 인증 (실제)"], horizontal=True)
                 
                 if st.form_submit_button("인증번호 받기", use_container_width=True, type="primary"):
                     if not (new_id and new_pw and new_phone and new_email):
@@ -152,22 +193,28 @@ if st.session_state.page == 'login':
                             st.error("이미 사용 중인 아이디입니다.")
                         else:
                             # 6자리 랜덤 인증번호 1개 생성
-                            st.session_state.auth_code = str(random.randint(100000, 999999))
+                            code = str(random.randint(100000, 999999))
+                            st.session_state.auth_code = code
+                            
+                            is_sent = False
                             
                             # 선택한 수단에 따라 처리
-                            if auth_choice == "휴대폰 번호로 인증":
+                            if "휴대폰" in auth_choice:
                                 st.session_state.auth_method = "phone"
-                                send_sms_code(new_phone, st.session_state.auth_code)
+                                is_sent = send_sms_code(new_phone, code)
                             else:
                                 st.session_state.auth_method = "email"
-                                send_email_code(new_email, st.session_state.auth_code)
+                                # 여기서 실제 메일 전송 함수 호출
+                                with st.spinner("이메일 전송 중..."):
+                                    is_sent = send_email_code(new_email, code)
                             
-                            st.session_state.temp_user_data = {
-                                "id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email
-                            }
-                            
-                            st.session_state.signup_stage = 2
-                            st.rerun()
+                            if is_sent:
+                                st.session_state.temp_user_data = {
+                                    "id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email
+                                }
+                                st.session_state.signup_stage = 2
+                                st.rerun()
+            
             if st.button("처음으로"):
                 st.session_state.login_step = 'choice'
                 st.rerun()
@@ -180,7 +227,9 @@ if st.session_state.page == 'login':
             method_text = "연락처" if st.session_state.auth_method == "phone" else "이메일"
             icon = "📱" if st.session_state.auth_method == "phone" else "📧"
             
-            st.info(f"선택하신 {method_text}로 발송된 인증번호를 입력해주세요.\n**(현재 우측 알림에 뜬 숫자를 넣으시면 됩니다!)**")
+            msg_guide = "**(우측 알림을 확인하세요!)**" if st.session_state.auth_method == "phone" else "**(메일함을 확인하세요!)**"
+
+            st.info(f"선택하신 {method_text}로 발송된 인증번호를 입력해주세요.\n{msg_guide}")
             
             with st.form("stage2_form"):
                 input_code = st.text_input(f"{icon} {method_text} 인증번호 6자리")
