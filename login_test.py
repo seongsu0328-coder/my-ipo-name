@@ -69,43 +69,31 @@ def upload_photo_to_drive(file_obj, filename_prefix):
 # [기능 2] 실제 인증번호 발송 로직 (수정됨)
 # ==========================================
 def send_email_code(to_email, code):
-    """
-    SMTP를 사용하여 실제 이메일을 발송합니다.
-    st.secrets['smtp'] 설정이 필요합니다.
-    """
     try:
-        # secrets에서 계정 정보 로드
-        sender_email = st.secrets["smtp"]["email_id"]
-        sender_pw = st.secrets["smtp"]["email_pw"]
+        # Streamlit Cloud의 Secrets에서 직접 가져오기
+        sender_email = st.secrets["email_id"]
+        sender_pw = st.secrets["email_pw"]
 
-        # 이메일 내용 구성
         subject = "[Unicorn Finder] 본인 인증번호 안내"
-        body = f"""
-        안녕하세요, Unicorn Finder입니다.
-        
-        요청하신 인증번호는 [{code}] 입니다.
-        화면에 인증번호를 입력하여 가입을 진행해 주세요.
-        
-        감사합니다.
-        """
+        body = f"안녕하세요. 요청하신 인증번호는 [{code}] 입니다.\n앱 화면에 입력해 주세요."
         
         msg = MIMEText(body)
         msg['Subject'] = subject
         msg['From'] = sender_email
         msg['To'] = to_email
 
-        # 지메일 SMTP 서버 연결 (587 포트)
+        # Gmail SMTP 서버 설정
         with smtplib.SMTP('smtp.gmail.com', 587) as s:
-            s.starttls() # 보안 연결 시작
-            s.login(sender_email, sender_pw) # 로그인
-            s.sendmail(sender_email, to_email, msg.as_string()) # 전송
+            s.starttls()
+            s.login(sender_email, sender_pw)
+            s.sendmail(sender_email, to_email, msg.as_string())
             
-        st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
+        st.toast(f"📧 {to_email}로 실제 인증 메일을 발송했습니다!", icon="✅")
         return True
         
     except Exception as e:
+        # 에러 발생 시 상세 정보 출력
         st.error(f"❌ 이메일 전송 실패: {e}")
-        st.info("Tip: .streamlit/secrets.toml 파일에 [smtp] 설정이 올바른지, Gmail 앱 비밀번호를 사용했는지 확인하세요.")
         return False
 
 def send_sms_code(phone, code):
