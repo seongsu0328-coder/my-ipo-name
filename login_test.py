@@ -334,59 +334,106 @@ elif st.session_state.page == 'main_app':
         st.session_state.clear()
         st.rerun()
 
-    # --- 7. 멤버 리스트 (타인 노출 설정 반영 버전) ---
+    # ==========================================
+    # 📍 여기(6번과 7번 사이)에 추가됩니다!
+    # ==========================================
+    if user.get('role') == 'admin':
         st.divider()
-        st.subheader("👥 유니콘 멤버 리스트")
+        st.subheader("🛠️ 관리자 전용: 가입 승인 관리")
         
-        if st.button("멤버 목록 불러오기", use_container_width=True):
-            with st.spinner("최신 멤버 정보를 동기화 중..."):
-                all_users = load_users()
-                
-                if not all_users:
-                    st.info("아직 가입된 멤버가 없습니다.")
-                else:
-                    # 목록 출력 시작
-                    for u in all_users:
-                        # 1. 자기 자신은 목록에서 제외
-                        if str(u.get('id')) == str(user.get('id')):
-                            continue
+        # 승인 처리 함수 정의
+        def approve_user_status(user_id_to_approve):
+            client, _ = get_gcp_clients()
+            if client:
+                try:
+                    sh = client.open("unicorn_users").sheet1
+                    cell = sh.find(str(user_id_to_approve), in_column=1)
+                    if cell:
+                        sh.update_cell(cell.row, 6, "approved") # 6번째 열이 status
+                        return True
+                except Exception as e:
+                    st.error(f"승인 오류: {e}")
+            return False
+
+        if st.button("🔄 승인 대기 목록 불러오기"):
+            all_users = load_users()
+            pending_users = [u for u in all_users if u.get('status') == 'pending']
+            
+            if not pending_users:
+                st.info("현재 승인 대기 중인 유저가 없습니다.")
+            else:
+                for pu in pending_users:
+                    with st.expander(f"📝 신청자: {pu.get('id')} ({pu.get('univ') or '대학미기재'})"):
+                        st.write(f"**이메일**: {pu.get('email')} | **연락처**: {pu.get('phone')}")
                         
-                        # 2. 아이디 전체 마스킹
-                        target_id = str(u.get('id', ''))
-                        m_id = "*" * len(target_id)
+                        # 증빙 링크 버튼
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
+                            if pu.get('link_univ') != "미제출": st.link_button("🎓 대학 증빙", pu.get('link_univ'))
+                        with c2:
+                            if pu.get('link_job') != "미제출": st.link_button("💼 직업 증빙", pu.get('link_job'))
+                        with c3:
+                            if pu.get('link_asset') != "미제출": st.link_button("💰 자산 증빙", pu.get('link_asset'))
                         
-                        # 3. 해당 유저의 노출 설정(15열) 해석
-                        raw_vis = u.get('visibility', 'True,True,True')
-                        if not raw_vis: raw_vis = 'True,True,True'
-                        
-                        vis_parts = str(raw_vis).split(',')
-                        v_univ = vis_parts[0] == 'True' if len(vis_parts) > 0 else True
-                        v_job = vis_parts[1] == 'True' if len(vis_parts) > 1 else True
-                        v_asset = vis_parts[2] == 'True' if len(vis_parts) > 2 else True
-                        
-                        # 4. 상대방 설정에 따른 실시간 닉네임 조합
-                        u_info_parts = []
-                        if v_univ: 
-                            u_info_parts.append(u.get('univ', ''))
-                        if v_job: 
-                            # 요청하신대로 job_title을 사용합니다.
-                            u_info_parts.append(u.get('job_title', ''))
-                        if v_asset: 
-                            u_tier = get_asset_grade(u.get('asset', ''))
-                            u_info_parts.append(u_tier)
-                        
-                        u_prefix = " ".join([p for p in u_info_parts if p])
-                        
-                        # 최종 닉네임 (아이디와 공백 없이 결합)
-                        u_display = f"{u_prefix}{m_id}" if u_prefix else m_id
-                        
-                        # 5. 멤버 카드 디자인
-                        with st.expander(f"✨ {u_display}"):
-                            c1, c2 = st.columns(2)
-                            with c1:
-                                st.write(f"🎓 **대학**: {u.get('univ') if v_univ else '(비공개)'}")
-                                st.write(f"💼 **직업**: {u.get('job_title') if v_job else '(비공개)'}")
-                            with c2:
-                                current_tier = get_asset_grade(u.get('asset', ''))
-                                st.write(f"💰 **등급**: {current_tier if v_asset else '(비공개)'}")
-                                st.write(f"✅ **상태**: {u.get('status', 'pending')}")
+                        st.divider()
+                        if st.button(f"✅ {pu.get('id')} 승인하기", key=f"admin_app_{pu.get('id')}"):
+                            if approve_user_status(pu.get('id')):
+                                st.success(f"{pu.get('id')} 승인 완료!")
+                                st.rerun()     
+
+    # --- 7. 멤버 리스트 (타인 노출 설정 반영 버전) ---
+    st.divider()
+    st.subheader("👥 유니콘 멤버 리스트")
+    
+    if st.button("멤버 목록 불러오기", use_container_width=True):
+        with st.spinner("최신 멤버 정보를 동기화 중..."):
+            all_users = load_users()
+            
+            if not all_users:
+                st.info("아직 가입된 멤버가 없습니다.")
+            else:
+                # 목록 출력 시작
+                for u in all_users:
+                    # 1. 자기 자신은 목록에서 제외
+                    if str(u.get('id')) == str(user.get('id')):
+                        continue
+                    
+                    # 2. 아이디 전체 마스킹
+                    target_id = str(u.get('id', ''))
+                    m_id = "*" * len(target_id)
+                    
+                    # 3. 해당 유저의 노출 설정(15열) 해석
+                    raw_vis = u.get('visibility', 'True,True,True')
+                    if not raw_vis: raw_vis = 'True,True,True'
+                    
+                    vis_parts = str(raw_vis).split(',')
+                    v_univ = vis_parts[0] == 'True' if len(vis_parts) > 0 else True
+                    v_job = vis_parts[1] == 'True' if len(vis_parts) > 1 else True
+                    v_asset = vis_parts[2] == 'True' if len(vis_parts) > 2 else True
+                    
+                    # 4. 상대방 설정에 따른 실시간 닉네임 조합
+                    u_info_parts = []
+                    if v_univ: 
+                        u_info_parts.append(u.get('univ', ''))
+                    if v_job: 
+                        # 요청하신대로 job_title을 사용합니다.
+                        u_info_parts.append(u.get('job_title', ''))
+                    if v_asset: 
+                        u_tier = get_asset_grade(u.get('asset', ''))
+                        u_info_parts.append(u_tier)
+                    
+                    u_prefix = " ".join([p for p in u_info_parts if p])
+                    
+                    # 최종 닉네임 (아이디와 공백 없이 결합)
+                    u_display = f"{u_prefix}{m_id}" if u_prefix else m_id
+                    
+                    # 5. 멤버 카드 디자인
+                    with st.expander(f"✨ {u_display}"):
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.write(f"🎓 **대학**: {u.get('univ') if v_univ else '(비공개)'}")
+                            st.write(f"💼 **직업**: {u.get('job_title') if v_job else '(비공개)'}")
+                        with c2:
+                            current_tier = get_asset_grade(u.get('asset', ''))
+                            st.write(f"💰 **등급**: {current_tier if v_asset else '(비공개)'}")
+                            st.write(f"✅ **상태**: {u.get('status', 'pending')}")
