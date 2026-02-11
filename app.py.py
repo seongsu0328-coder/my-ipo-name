@@ -27,15 +27,12 @@ def generate_verification_code():
     return str(random.randint(100000, 999999))
 
 def send_email_code(to_email, code):
-    """
-    실제 이메일 발송 함수
-    (st.secrets에 EMAIL_USER, EMAIL_PASSWORD가 설정되어 있어야 작동)
-    """
-    email_user = st.secrets.get("EMAIL_USER")
-    email_password = st.secrets.get("EMAIL_PASSWORD")
-    
-    if not email_user or not email_password:
-        return False, "SMTP 설정이 없습니다. (테스트 모드: 코드가 화면에 표시됩니다)"
+    # .get() 보다는 직접 접근이 더 확실합니다.
+    try:
+        email_user = st.secrets["EMAIL_USER"]
+        email_password = st.secrets["EMAIL_PASSWORD"]
+    except:
+        return False, "Streamlit Secrets에 EMAIL_USER 또는 EMAIL_PASSWORD가 없습니다."
 
     try:
         msg = MIMEText(f"인증번호는 [{code}] 입니다.")
@@ -3236,6 +3233,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
