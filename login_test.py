@@ -70,19 +70,18 @@ def upload_photo_to_drive(file_obj, filename_prefix):
 # ==========================================
 def send_email_code(to_email, code):
     try:
-        # Streamlit Cloud의 Secrets에서 직접 가져오기
+        # 설정하신 이름과 정확히 일치해야 합니다.
         sender_email = st.secrets["email_id"]
         sender_pw = st.secrets["email_pw"]
 
         subject = "[Unicorn Finder] 본인 인증번호 안내"
-        body = f"안녕하세요. 요청하신 인증번호는 [{code}] 입니다.\n앱 화면에 입력해 주세요."
+        body = f"안녕하세요. 요청하신 인증번호는 [{code}] 입니다."
         
         msg = MIMEText(body)
         msg['Subject'] = subject
         msg['From'] = sender_email
         msg['To'] = to_email
 
-        # Gmail SMTP 서버 설정
         with smtplib.SMTP('smtp.gmail.com', 587) as s:
             s.starttls()
             s.login(sender_email, sender_pw)
@@ -90,9 +89,7 @@ def send_email_code(to_email, code):
             
         st.toast(f"📧 {to_email}로 실제 인증 메일을 발송했습니다!", icon="✅")
         return True
-        
     except Exception as e:
-        # 에러 발생 시 상세 정보 출력
         st.error(f"❌ 이메일 전송 실패: {e}")
         return False
 
