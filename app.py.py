@@ -9,23 +9,13 @@ import time
 import uuid
 import random
 import math
-import html
-import re
 from datetime import datetime, timedelta
+from openai import OpenAI  # ✅ OpenAI 임포트
 
-# --- [AI 및 검색 라이브러리 통합] ---
-from openai import OpenAI             # ✅ Groq(뉴스 요약)용
-import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
-from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
+# --- [AI 및 검색 기능] ---
+import google.generativeai as genai
 from duckduckgo_search import DDGS
-
-# --- [여기(최상단)에 함수를 두어야 아래에서 인식합니다] ---
-def clean_text_final(text):
-    if not text:
-        return ""
-    text = str(text)
-    text = text.replace("**", "").replace("##", "").replace("###", "")
-    return text.strip()
+from tavily import TavilyClient  # ✅ 표준 패키지명
 
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
@@ -75,7 +65,7 @@ def display_disclaimer():
     st.markdown("<br>", unsafe_allow_html=True) # 약간의 여백
     st.divider()
     st.caption("""
-        **이용 유의사항** 본 서비스는 자체 알고리즘과 AI 모델을 활용한 요약 정보를 제공하며, 원저작권자의 권리를 존중합니다. 요약본은 원문과 차이가 있을 수 있으므로 반드시 원문을 확인하시기 바랍니다. 모든 투자 결정의 최종 책임은 사용자 본인에게 있습니다.
+        **서비스 이용 유의사항** 본 서비스는 자체 알고리즘과 AI 모델을 활용한 요약 정보를 제공하며, 원저작권자의 권리를 존중합니다. 요약본은 원문과 차이가 있을 수 있으므로 반드시 원문을 확인하시기 바랍니다. 모든 투자 결정의 최종 책임은 사용자 본인에게 있습니다.
     """)
 
 # ---------------------------------------------------------
@@ -282,10 +272,7 @@ def get_ai_analysis(company_name, topic, points):
 @st.cache_data(show_spinner=False, ttl=86400) 
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
-    
-    # model 객체는 외부(app.py 전역)에서 정의된 것을 사용한다고 가정합니다.
-    # 만약 함수 내에서 정의가 필요하다면 model = genai.GenerativeModel('gemini-1.5-flash') 등을 추가해야 합니다.
-    if not tavily_key:
+    if not tavily_key or not model:
         return {"rating": "N/A", "pro_con": "API Key 설정 필요", "summary": "설정을 확인하세요.", "links": []}
 
     try:
@@ -306,7 +293,6 @@ def get_cached_ipo_analysis(ticker, company_name):
             search_context += f"Source: {r['url']}\nContent: {r['content']}\n\n"
             links.append({"title": r['title'], "link": r['url']})
 
-        # --- [프롬프트 수정: 링크 포함 금지 지침 추가] ---
         prompt = f"""
         당신은 월가 출신의 IPO 전문 분석가입니다. 아래 제공된 {company_name} ({ticker})에 대한 기관 데이터를 바탕으로 심층 분석을 수행하세요.
         
@@ -318,7 +304,6 @@ def get_cached_ipo_analysis(ticker, company_name):
         2. 긍정의견(Pros) 2가지와 부정의견(Cons) 2가지를 구체적인 수치나 근거를 들어 요약하세요.
         3. Rating은 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
         4. Summary는 전문적인 톤으로 3줄 이내로 작성하세요.
-        5. **중요: 답변 내용(Summary 포함)에 'Source:', 'http...', '출처' 등 링크 정보를 절대 포함하지 마세요. 오직 분석 텍스트만 작성하세요.**
 
         [응답 형식]:
         Rating: (이곳에 작성)
@@ -328,37 +313,26 @@ def get_cached_ipo_analysis(ticker, company_name):
         Summary: (이곳에 작성)
         """
 
-        # [재시도 로직]
+        # [재시도 로직 추가]
         max_retries = 3
         for i in range(max_retries):
             try:
-                # model이 정의되어 있다고 가정 (없으면 에러 발생하므로 주의)
                 response_obj = model.generate_content(prompt)
                 response_text = response_obj.text
 
+                import re
                 rating = re.search(r"Rating:\s*(.*)", response_text, re.I)
                 pro_con = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
                 summary = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
-                
-                # --- [후처리: 혹시 모를 링크 제거 로직] ---
-                raw_summary = summary.group(1).strip() if summary else response_text
-                
-                # 'Source:' 또는 'http'가 나오면 그 뒷부분은 잘라냄
-                if "Source:" in raw_summary:
-                    clean_summary = raw_summary.split("Source:")[0].strip()
-                elif "http" in raw_summary:
-                    clean_summary = raw_summary.split("http")[0].strip()
-                else:
-                    clean_summary = raw_summary
 
                 return {
                     "rating": rating.group(1).strip() if rating else "Neutral",
                     "pro_con": pro_con.group(1).strip() if pro_con else "분석 데이터 추출 실패",
-                    "summary": clean_summary, # 깨끗해진 요약본 적용
+                    "summary": summary.group(1).strip() if summary else response_text,
                     "links": links[:5]
                 }
             except Exception as e:
-                # 429 에러 처리 (API 한도 초과 시 대기)
+                # 429 에러 처리
                 if "429" in str(e) or "quota" in str(e).lower():
                     time.sleep(2 * (i + 1))
                     continue
@@ -530,23 +504,16 @@ def get_us_ipo_analysis(ticker_symbol):
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# 'posts'를 아래 리스트에 추가했습니다.
-for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock', 'watchlist', 'view_mode', 'news_topic', 'posts']:
+# --- 세션 초기화 ---
+for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock', 'watchlist', 'view_mode', 'news_topic']:
     if key not in st.session_state:
-        if key == 'page': 
-            st.session_state[key] = 'login'
-        # posts와 watchlist는 목록 형태이므로 빈 리스트([])로 초기화
-        elif key in ['watchlist', 'posts']: 
-            st.session_state[key] = []
-        elif key in ['vote_data', 'comment_data', 'user_votes']: 
-            st.session_state[key] = {}
-        elif key == 'view_mode': 
-            st.session_state[key] = 'all'
-        elif key == 'news_topic': 
-            st.session_state[key] = "💰 공모가 범위/확정 소식"
-        else: 
-            st.session_state[key] = None
-            
+        if key == 'page': st.session_state[key] = 'login'
+        elif key == 'watchlist': st.session_state[key] = []
+        elif key in ['vote_data', 'comment_data', 'user_votes']: st.session_state[key] = {}
+        elif key == 'view_mode': st.session_state[key] = 'all'
+        elif key == 'news_topic': st.session_state[key] = "💰 공모가 범위/확정 소식"
+        else: st.session_state[key] = None
+
 # --- CSS 스타일 ---
 st.markdown("""
     <style>
@@ -937,12 +904,55 @@ def analyze_sentiment(text):
 @st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
 @st.cache_data(ttl=3600)
 def get_real_news_rss(company_name, ticker=""):
+    import re
     import requests
-import xml.etree.ElementTree as ET
-import urllib.parse
-import re
+    import xml.etree.ElementTree as ET
+    import urllib.parse
 
-# [1] 뉴스 감성 분석 함수 (내부 연산용)
+    try:
+        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE).strip()
+        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
+        enc_query = urllib.parse.quote(query)
+        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
+
+        response = requests.get(url, timeout=5)
+        root = ET.fromstring(response.content)
+        
+        news_items = []
+        items = root.findall('./channel/item')
+        
+        for item in items[:10]: # 조금 넉넉히 가져옴
+            title_en = item.find('title').text
+            link = item.find('link').text
+            pubDate = item.find('pubDate').text
+            
+            if clean_name.lower() not in title_en.lower():
+                continue
+
+            sent_label, bg, color = analyze_sentiment(title_en)
+            
+            try:
+                date_str = " ".join(pubDate.split(' ')[1:3])
+            except:
+                date_str = "Recent"
+
+            news_items.append({
+                "title": title_en,  
+                "link": link, 
+                "date": date_str,
+                "sent_label": sent_label, 
+                "bg": bg, 
+                "color": color
+            })
+            
+            if len(news_items) >= 5:
+                break
+                
+        return news_items
+    except Exception as e:
+        return []
+
+# [추가: 뉴스 감성 분석 함수]
 def analyze_sentiment(text):
     text = text.lower()
     pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
@@ -957,53 +967,21 @@ def analyze_sentiment(text):
     elif score < 0: return "부정", "#fce8e6", "#d93025"
     else: return "일반", "#f1f3f4", "#5f6368"
 
-# [2] 통합 뉴스 검색 함수 (RSS 검색 + AI 번역 결합)
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300)
 def get_real_news_rss(company_name):
-    """구글 뉴스 RSS 검색 + 정밀 필터링 + AI 번역"""
+    """구글 뉴스 RSS + 한글 번역 + 감성 분석"""
     try:
-        import time
-        
-        # [수정 1] 회사 이름 정제 로직 강화 (특수문자 제거 및 콤마 처리)
-        # 1차: 법인명 제거 (Inc, Corp 등)
-        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE)
-        # 2차: 콤마(,) 등 특수문자 제거하고 앞뒤 공백 정리
-        clean_name = re.sub(r'[^\w\s]', '', clean_name).strip()
-        
-        # 검색어 생성
-        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
-        enc_query = urllib.parse.quote(query)
-        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
-
-        response = requests.get(url, timeout=5)
+        query = f"{company_name} stock news"
+        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        response = requests.get(url, timeout=3)
         root = ET.fromstring(response.content)
         
         news_items = []
-        items = root.findall('./channel/item')
-        
-        # [수정 2] 검색어의 핵심 단어 리스트 추출 (예: "SOLV Energy" -> ["solv", "energy"])
-        # 단, "Energy", "Bio" 같은 일반 명사도 회사명의 일부라면 필수 조건으로 봅니다.
-        name_parts = [part.lower() for part in clean_name.split() if len(part) > 1]
-
-        for item in items[:5]: 
+        for item in root.findall('./channel/item')[:5]:
             title_en = item.find('title').text
             link = item.find('link').text
             pubDate = item.find('pubDate').text
             
-            title_lower = title_en.lower()
-
-            # [핵심 수정] 단순 포함 여부가 아니라, 회사 이름의 '모든 단어'가 제목에 있는지 검사
-            # 예: "SOLV Energy" -> 제목에 "solv"와 "energy"가 둘 다 없으면 탈락시킴
-            # 이렇게 하면 "Solventum (SOLV)" 뉴스는 "energy"가 없어서 걸러집니다.
-            is_match = True
-            for part in name_parts:
-                if part not in title_lower:
-                    is_match = False
-                    break
-            
-            if not is_match:
-                continue
-
             # 1. 감성 분석
             sent_label, bg, color = analyze_sentiment(title_en)
             
@@ -1011,46 +989,60 @@ def get_real_news_rss(company_name):
             try: date_str = " ".join(pubDate.split(' ')[1:3])
             except: date_str = "Recent"
 
-            # 3. AI 번역
-            title_ko = translate_news_title(title_en)
-
+            # 3. 한글 번역 (보강된 로직)
+            title_ko = ""
+            try:
+                import time
+                time.sleep(0.2) # 연속 호출 방지
+                
+                trans_url = "https://api.mymemory.translated.net/get"
+                params = {
+                    'q': title_en, 
+                    'langpair': 'en|ko',
+                    'de': 'your_email@example.com' # 실제 메일주소를 적으면 더 안정적입니다.
+                }
+                
+                res_raw = requests.get(trans_url, params=params, timeout=3)
+                
+                if res_raw.status_code == 200:
+                    res = res_raw.json()
+                    if res.get('responseStatus') == 200:
+                        raw_text = res['responseData']['translatedText']
+                        title_ko = raw_text.replace("&quot;", "'").replace("&amp;", "&").replace("&#39;", "'")
+            except:
+                title_ko = "" 
+            
+            # [중요] news_items에 담는 형식을 출력부와 맞춥니다.
             news_items.append({
-                "title": title_en,      
-                "title_ko": title_ko,   
+                "title": title_en,      # 원문 영어 제목
+                "title_ko": title_ko,   # 번역된 한글 제목 (실패 시 빈 문자열)
                 "link": link, 
                 "date": date_str,
                 "sent_label": sent_label, 
                 "bg": bg, 
-                "color": color,
-                "display_tag": "일반" 
+                "color": color
             })
-            
-            if len(news_items) >= 5:
-                break
-                
         return news_items
+    except: return []
 
-    except Exception as e:
-        return []
-# [핵심] 함수 이름 변경 (캐시 초기화 효과)
+# [수정] Tavily 검색 + Groq(무료 AI) 요약 함수 (최신 모델 적용)
 @st.cache_data(show_spinner=False, ttl=86400)
-def get_ai_summary_final(query):
-    # [수정] 대문자든 소문자든 있는 쪽을 무조건 가져옵니다.
-    tavily_key = st.secrets.get("TAVILY_API_KEY") or st.secrets.get("tavily_api_key")
-    groq_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key")
+def get_ai_summary(query):
+    tavily_key = st.secrets.get("TAVILY_API_KEY")
+    groq_key = st.secrets.get("GROQ_API_KEY") 
 
-    # 두 키 중 하나라도 없으면 그때만 에러를 띄웁니다.
     if not tavily_key or not groq_key:
-        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets 창에 TAVILY_API_KEY와 GROQ_API_KEY가 있는지 확인하세요.</p>"
+        return "⚠️ API 키 설정 오류: Secrets를 확인하세요."
 
     try:
-        # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=7)
-        if not search_result.get('results'): return None 
-        context = "\n".join([r['content'] for r in search_result['results']])
+        
+        if not search_result.get('results'):
+            return None 
 
-        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
+        context = "\n".join([r['content'] for r in search_result['results']])
+        
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -1058,84 +1050,51 @@ def get_ai_summary_final(query):
             messages=[
                 {
                     "role": "system", 
-                    "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
-[필수 작성 원칙]
-1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
-2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
-   - 1문단: 비즈니스 모델 및 경쟁 우위
-   - 2문단: 재무 현황 및 공모 자금 활용
-   - 3문단: 향후 전망 및 투자 의견
-3. 문체: '~습니다' 체를 사용하고, 문장 시작에 불필요한 접속사나 사명을 반복하지 마세요.
-4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 오직 줄글로만 작성하세요."""
+                    "content": """당신은 월스트리트 출신의 시니어 애널리스트이자 경제 신문 편집장입니다. 
+제공된 영문 컨텍스트를 분석하여 한국 투자자를 위한 '전문 기업 분석 리포트'를 작성하세요. 
+
+[반드시 준수해야 할 5가지 원칙]
+1. 금융 전문 용어 의역 (직역 금지):
+   - 'Bellwether' -> '시장 향방을 가늠할 지표' 또는 '업계 풍향계'로 번역.
+   - 'Insurtech' -> '인슈어테크'로 표기.
+   - 'Crowded/Congested market' -> '포화된 시장' 또는 '경쟁이 치열한 시장'으로 번역 (한자 '拥挤' 절대 사용 금지).
+   - 'Disciplined growth' -> '수익성 중심의 절제된 성장'으로 번역.
+
+2. 문체 및 톤: 
+   - '~하는 중이다', '~를 가지고 있다' 같은 번역투를 지양하세요.
+   - '~을 기록했습니다', '~로 평가받습니다', '~을 구축했습니다' 등 공적이고 신뢰감 있는 문어체를 사용하세요.
+
+3. 데이터 중심 구성:
+   - '정보가 없다'는 변명은 생략하고 확인된 사실(Fact)과 수치만 나열하세요.
+   - 창업자 배경, 핵심 수익 모델(BM), 경쟁 우위, 재무적 지표(매출, 이익 등)를 논리적으로 연결하세요.
+
+4. 가독성 강화 (긴급 수정):
+   - **중요**: 별표(**)나 마크다운 강조 기호를 절대 사용하지 마세요. 
+   - 핵심 수치는 기호 없이 텍스트로만 강조하여 나열하세요.
+   - 불필요한 수식어는 걷어내고 10문장 이내의 완성된 문단으로 작성하세요.
+
+5. 인코딩 무결성 및 언어 정제:
+   - 한자(Chinese), 베트남어 등 제3국 언어 토큰이 섞이지 않도록 순수 한국어만 사용하세요.
+   - 필요 시 영문 병기(예: Bellwether)만 허용합니다."""
                 },
                 {
                     "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 데이터를 바탕으로 전문적인 3문단 리포트를 작성하세요."
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위의 5가지 원칙을 엄수하여, 특히 기호(**)를 모두 제거한 순수 한글 텍스트 리포트를 작성해줘."
                 }
             ],
-            temperature=0.1
+            temperature=0.0 # 정확도 최우선
         )
         
         raw_result = response.choices[0].message.content
         
-        # --- [요청하신 정제 로직 + 문단 강제 분할] ---
+        # [2단계 안전장치] AI가 실수로 넣은 기호를 파이썬에서 강제로 삭제
+        clean_result = raw_result.replace("**", "").replace("*", "").replace("#", "").strip()
         
-        # 1. 텍스트 정제 (요청하신 코드 그대로 적용)
-        text = html.unescape(raw_result)
-        replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
-        for k, v in replacements.items(): text = text.replace(k, v)
-        
-        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호, 줄바꿈(\s)만 허용)
-        # 주의: \s가 없으면 줄바꿈도 다 사라지므로 \s는 꼭 있어야 합니다.
-        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
-        
-        # 2. 문단 강제 분리 로직 (Brute Force Split)
-        # (1) 우선 줄바꿈(엔터) 기준으로 잘라봅니다.
-        paragraphs = [p.strip() for p in re.split(r'\n+', text.strip()) if len(p) > 30]
-
-        # (2) [비상장치] 만약 AI가 줄바꿈을 안 줘서 덩어리가 1~2개뿐이라면?
-        # -> 마침표(.)를 기준으로 문장을 다 뜯어낸 뒤 강제로 3등분 합니다.
-        if len(paragraphs) < 3:
-            # 문장 단위로 분해 (마침표 뒤 공백 기준)
-            sentences = re.split(r'(?<=\.)\s+', text.strip())
-            total_sents = len(sentences)
-            
-            if total_sents >= 3:
-                # 3등분 계산 (올림 나눗셈)
-                chunk_size = (total_sents // 3) + 1
-                
-                p1 = " ".join(sentences[:chunk_size])
-                p2 = " ".join(sentences[chunk_size : chunk_size*2])
-                p3 = " ".join(sentences[chunk_size*2 :])
-                
-                # 다시 리스트로 합침 (빈 내용 제외)
-                paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
-            else:
-                # 문장이 너무 적으면 그냥 통으로 1개만 반환
-                paragraphs = [text]
-
-        # 3. HTML 태그 포장 (화면 렌더링용)
-        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
-        html_output = ""
-        for p in paragraphs:
-            html_output += f"""
-            <p style='
-                display: block;          /* 블록 요소 지정 */
-                text-indent: 14px;       /* 첫 줄 들여쓰기 */
-                margin-bottom: 20px;     /* 문단 아래 공백 */
-                line-height: 1.8;        /* 줄 간격 */
-                text-align: justify;     /* 양쪽 정렬 */
-                margin-top: 0;
-            '>
-                {p}
-            </p>
-            """
-            
-        return html_output
+        return clean_content # 변수명 통일 (최종 반환)
 
     except Exception as e:
-        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
-        
+        return f"🚫 오류: {str(e)}"
+
 # --- 화면 제어 및 로그인 화면 시작 ---
 
 if st.session_state.page == 'login':
@@ -1965,25 +1924,14 @@ elif st.session_state.page == 'detail':
             
             # [1] 기업 심층 분석 섹션 (Expander 적용)
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
-                # 쿼리 정의 (이 줄이 꼭 있어야 합니다!)
                 q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
-                
                 with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
-                    # 👇 함수 이름 final로 변경 (캐시 문제 해결됨)
-                    biz_info = get_ai_summary_final(q_biz) 
-                    
+                    biz_info = get_ai_summary(q_biz)
                     if biz_info:
-                        # 스타일에서 white-space 제거하고, 공백 없이 딱 붙여 넣기
                         st.markdown(f"""
-                        <div style="
-                            background-color: #f8f9fa; 
-                            padding: 22px; 
-                            border-radius: 12px; 
-                            border-left: 5px solid #6e8efb; 
-                            color: #333; 
-                            font-family: 'Pretendard', sans-serif;
-                            font-size: 15px;
-                        ">{biz_info}</div>
+                        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #6e8efb; color: #333; line-height: 1.6;">
+                            {biz_info}
+                        </div>
                         """, unsafe_allow_html=True)
                     else:
                         st.error("⚠️ 정보를 찾을 수 없습니다.")
@@ -2681,131 +2629,77 @@ elif st.session_state.page == 'detail':
         # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
         with tab4:
             with st.spinner(f"전문 기관 데이터를 정밀 수집 중..."):
+                # 쿼리를 더 구체화하여 호출 (함수 내부에서 이를 활용하도록 수정 필요)
                 result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
         
             # --- (1) Renaissance Capital 섹션 ---
-            with st.expander("Summary of Renaissance Capital IPO, Seeking Alpha & Morningstar", expanded=False):
+            with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 
-                # 1. 데이터 가져오기 (결과가 리스트일 경우를 대비해 처리)
-                raw_val = result.get('summary', '')
-                summary_raw = raw_val[0] if isinstance(raw_val, list) else str(raw_val)
-            
-                # 2. [초강력 절단 방식] 'Source' 또는 'http' 기준 분할
-                if summary_raw and len(summary_raw.strip()) > 0:
-                    import re
-                    
-                    # 가. 다양한 출처 표기법 대응 (Source:, 출처:, http, https 등)
-                    # 패턴 설명: (대소문자무시)Source 문구 또는 http로 시작하는 모든 지점
-                    pattern = r'(?i)source|출처|https?://'
-                    
-                    # 나. 해당 패턴이 발견되는 가장 첫 번째 지점을 기준으로 앞부분만 취함
-                    parts = re.split(pattern, summary_raw)
-                    summary = parts[0].strip()
-                    
-                    # 다. 문장 끝에 남은 지저분한 기호들 정리
-                    summary = summary.rstrip(' ,.:;-\n\t')
-                else:
-                    summary = ""
-            
-                # 3. 결과 출력
-                if not summary or "분석 불가" in summary:
+                summary = result.get('summary', '')
+                if "분석 불가" in summary or not summary:
                     st.warning("Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다. (비상장 또는 데이터 업데이트 지연)")
                 else:
-                    # 최종 정제된 요약본 출력
                     st.info(summary)
                 
-                # 4. 하단 버튼 (기존 유지)
+                # Renaissance 검색 링크 수정 (더 범용적인 검색 페이지로 연결)
                 q = stock['symbol'] if stock['symbol'] else stock['name']
+                #  수정된 검색 URL: Google을 통해 해당 사이트 내 결과를 직접 찾도록 유도
                 search_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
                 st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
         
             # --- (2) Seeking Alpha & Morningstar 섹션 ---
-            with st.expander("Pros and Cons of Renaissance Capital IPO, Seeking Alpha & Morningstar ", expanded=False):
-                # 여기도 혹시 모르니 세척 로직 적용
-                raw_pro_con = result.get('pro_con', '')
-                pro_con = clean_text_final(raw_pro_con)
+            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
                 
+                
+                pro_con = result.get('pro_con', '')
                 if "의견 수집 중" in pro_con or not pro_con:
-                    st.error("AI가 실시간 리포트 본문을 읽어오는데 실패했습니다.")
+                    # 💡 [개선] 데이터가 없을 경우를 대비한 수동 검색 안내
+                    st.error("AI가 실시간 리포트 본문을 읽어오는데 실패했습니다. (권한 제한)")
+                    st.markdown(f"**{stock['symbol']}**에 대한 최신 분석글이 Seeking Alpha에 존재합니다. 아래 링크에서 직접 확인하실 수 있습니다.")
                 else:
-                    # 정제된 pro_con 출력
                     st.success(f"**주요 긍정/부정 의견**\n\n{pro_con}")
-                
+        
+                st.markdown("---")
                 c1, c2 = st.columns(2)
                 with c1:
+                    # Seeking Alpha는 분석 탭으로 바로 연결
                     st.link_button("Seeking Alpha 분석글 보기", f"https://seekingalpha.com/symbol/{q}/analysis")
                 with c2:
+                    # Morningstar는 검색 결과 페이지로 연결
                     st.link_button("Morningstar 검색 결과", f"https://www.morningstar.com/search?query={q}")
 
 
             # --- (3) Institutional Sentiment 섹션 ---
             with st.expander("Sentiment Score", expanded=False):
                 s_col1, s_col2 = st.columns(2)
-                
-                # 데이터 가져오기 및 세척
-                rating_val = str(result.get('rating', 'Hold')).strip()
-                score_val = str(result.get('score', '3')).strip()
-            
                 with s_col1:
-                    # Analyst Ratings 동적 툴팁 생성
-                    # 현재 값에 따라 (현재) 표시를 붙여줍니다.
-                    r_list = {
-                        "Strong Buy": "적극 매수 추천",
-                        "Buy": "매수 추천",
-                        "Hold": "보유 및 중립 관망",
-                        "Neutral": "보유 및 중립 관망",
-                        "Sell": "매도 및 비중 축소"
-                    }
-                    
-                    rating_help = "**[Analyst Ratings 설명]**\n애널리스트 투자의견 컨센서스입니다.\n\n"
-                    for k, v in r_list.items():
-                        is_current = " **(현재)**" if k.lower() in rating_val.lower() else ""
-                        rating_help += f"- **{k}**: {v}{is_current}\n"
-            
                     st.write("**[Analyst Ratings]**")
-                    
-                    # 실제 출력 및 help 적용
-                    # st.metric을 사용하면 help 옵션이 정상 작동하고 에러가 사라집니다.
-                    st.metric(label="Consensus Rating", value=rating_val, help=rating_help)
-                    
-                    # 상태에 따른 색상 피드백은 아래와 같이 별도로 간단히 추가할 수 있습니다.
+                    rating_val = result.get('rating', 'Neutral')
                     if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
-                        st.caption("✅ 시장의 긍정적인 평가를 받고 있습니다.")
+                        st.success(f"Consensus: {rating_val}")
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
-                        st.error(f"Consensus: {rating_val}", help=rating_help)
+                        st.error(f"Consensus: {rating_val}")
                     else:
-                      
-                        # 설명(help)은 그 아래에 작게 표시
-                        if rating_help:
-                            st.caption(f"ℹ️ {rating_help}")
-                                    
-                with s_col2:
-                    # IPO Scoop Score 동적 툴팁 생성
-                    s_list = {
-                        "5": "대박 (Moonshot)",
-                        "4": "강력한 수익",
-                        "3": "양호 (Good)",
-                        "2": "미미한 수익 예상",
-                        "1": "공모가 하회 위험"
-                    }
-                    
-                    score_help = "**[IPO Scoop Score 설명]**\n상장 첫날 수익률 기대치입니다.\n\n"
-                    for k, v in s_list.items():
-                        is_current = f" **(현재 {score_val}점)**" if k == score_val else ""
-                        score_help += f"- ⭐ {k}개: {v}{is_current}\n"
-            
-                    st.write("**[IPO Scoop Score]**")
-                    st.metric(label="Expected IPO Score", value=f"⭐ {score_val}", help=score_help)
+                        st.info(f"등급: {rating_val}")
 
-                    # 👇 여기 아래 두 줄을 추가하세요!
-                    if score_help:
-                        st.caption(f"ℹ️ {score_help}")
-            
+
+                with s_col2:
+                    st.write("**[IPO Scoop Score]**")
+                    # 점수가 없을 경우 기본 3점 부여 (추론)
+                    score_val = result.get('score', '3')
+                    st.warning(f"Expected Score: ⭐ {score_val}")
+         
+
+                st.markdown("---")
+                st.markdown('<p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">긍정/부정 근거</p>', unsafe_allow_html=True)
+                st.write(result.get('pro_con', '내용 없음'))
+
+
                 # 참고 소스 링크
                 sources = result.get('links', [])
                 if sources:
-                    st.markdown('<br><p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">참고 리포트 출처</p>', unsafe_allow_html=True)
-                    for src in sources[:4]:
+                    st.markdown('<p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">참고 리포트 출처</p>', unsafe_allow_html=True)
+                    for src in sources[:4]: # 상위 4개만
                         st.markdown(f"- [{src['title']}]({src['link']})")
 
 
@@ -2841,190 +2735,208 @@ elif st.session_state.page == 'detail':
                     break
         
         # =========================================================
-        # --- Tab 5: 종목 토론 및 투자 결정 ---
+        # --- Tab 5: 최종 투자 결정 (종목 상세 페이지 내) ---
         # =========================================================
         with tab5:
-            # 스타일 설정 (기존 흰색 배경 유지 + 커뮤니티 스타일 추가)
+            # ---------------------------------------------------------------------------
+            # [스타일 강제 통일] 스마트폰 다크모드 무시 -> 흰 배경/검은 글씨 고정
+            # ---------------------------------------------------------------------------
             st.markdown("""
                 <style>
-                .post-container { border-bottom: 1px solid #eee; padding: 10px 0; cursor: pointer; }
-                .post-category { color: #ff4b4b; font-size: 12px; font-weight: bold; }
-                .post-title { font-size: 16px; font-weight: 500; margin: 3px 0; color: #000; }
-                .post-meta { color: #888; font-size: 12px; }
-                .detail-category { color: #ff4b4b; font-size: 14px; font-weight: bold; }
-                .detail-title { font-size: 22px; font-weight: bold; margin-top: 5px; }
-                .detail-author { font-size: 14px; font-weight: 500; color: #333; margin-top: 10px; }
-                .detail-info { color: #888; font-size: 12px; margin-bottom: 15px; }
-                .detail-content { font-size: 16px; line-height: 1.6; padding: 20px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
-                .reaction-bar { display: flex; gap: 15px; font-size: 14px; margin-top: 10px; font-weight: bold; }
+                /* 1. 전체 앱 배경 흰색, 글자 검은색 강제 적용 */
+                .stApp {
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                }
+                
+                /* 2. 모든 텍스트(문단, 제목, 리스트 등) 검은색 */
+                p, h1, h2, h3, h4, h5, h6, span, li, div {
+                    color: #000000 !important;
+                }
+        
+                /* 3. Expander (접는 메뉴) 스타일 */
+                .streamlit-expanderHeader {
+                    background-color: #f8f9fa !important; /* 연한 회색 */
+                    color: #000000 !important;
+                    border: 1px solid #ddd !important;
+                }
+                div[data-testid="stExpanderDetails"] {
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                    border: 1px solid #ddd !important;
+                    border-top: none !important;
+                }
+        
+                /* 4. 입력창 (텍스트 박스) 스타일 */
+                .stTextInput input, .stTextArea textarea {
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                    border: 1px solid #ccc !important;
+                }
+                
+                /* 5. 캡션 및 작은 글씨 */
+                div[data-testid="stCaptionContainer"] {
+                    color: #333333 !important;
+                }
+        
+                /* 6. 알림 박스 (Info, Warning 등) 텍스트 */
+                div[data-testid="stAlert"] p {
+                    color: #000000 !important;
+                }
                 </style>
             """, unsafe_allow_html=True)
+            
+            # 1. 환경 설정 및 데이터 초기화
+            ADMIN_PHONE = "010-0000-0000" 
+            sid = stock['symbol']
+            current_user_phone = st.session_state.get('user_phone', 'guest')
+            user_id = st.session_state.get('user_id')
+            is_admin = (current_user_phone == ADMIN_PHONE)
+            
+            # 세션 상태 초기화 (한 번에 처리)
+            for key in ['posts', 'watchlist', 'watchlist_predictions', 'vote_data']:
+                if key not in st.session_state: st.session_state[key] = [] if key in ['posts', 'watchlist'] else {}
+            
+            if sid not in st.session_state.vote_data:
+                st.session_state.vote_data[sid] = {'u': 10, 'f': 3} 
         
-            # 1. 상세 페이지 이동용 세션 관리
-            if 'view_post_id' not in st.session_state:
-                st.session_state.view_post_id = None
-        
-            # --- [A] 게시글 상세 보기 화면 ---
-            if st.session_state.view_post_id:
-                post = next((p for p in st.session_state.posts if p['id'] == st.session_state.view_post_id), None)
-                
-                if post:
-                    if st.button("⬅️ 목록으로"):
-                        st.session_state.view_post_id = None
-                        st.rerun()
-        
-                    st.markdown(f"""
-                        <div class="detail-category">{post.get('category')}</div>
-                        <div class="detail-title">{post.get('title')}</div>
-                        <div class="detail-author">👤 {post.get('author')[:7]}***</div>
-                        <div class="detail-info">작성일 {post.get('date')} &nbsp;&nbsp; 조회수 {post.get('views', 0)} &nbsp;&nbsp; 댓글 {post.get('comment_count', 0)}</div>
-                        <div class="detail-content">{post.get('content').replace('\\n', '<br>')}</div>
-                    """, unsafe_allow_html=True)
-        
-                    # 하단 좋아요/댓글 섹션
-                    c1, c2, c3 = st.columns([1, 1, 4])
-                    with c1:
-                        if st.button(f"👍 좋아요 {post.get('likes', 0)}", key=f"det_l_{post['id']}", use_container_width=True):
-                            post['likes'] += 1 # 실제 운영시는 handle_post_reaction 사용
-                            st.rerun()
-                    with c2:
-                        st.button(f"💬 댓글 {post.get('comment_count', 0)}", key=f"det_c_{post['id']}", use_container_width=True)
-                    
-                    # (옵션) 댓글 목록 표시 로직 추가 가능
-                    st.divider()
-        
-            # --- [B] 게시글 목록 화면 ---
+            # ---------------------------------------------------------
+            # 2. 투자 분석 결과 섹션 (차트 시각화)
+            # ---------------------------------------------------------
+            ud = st.session_state.user_decisions.get(sid, {})
+            
+            # Step 5(ipo_report)까지 포함된 단계 구성
+            steps = [
+                ('filing', 'Step 1'), ('news', 'Step 2'), 
+                ('macro', 'Step 3'), ('company', 'Step 4'), 
+                ('ipo_report', 'Step 5')
+            ]
+            
+            missing_steps = [label for step, label in steps if not ud.get(step)]
+            
+            if missing_steps:
+                st.info(f"모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 결과가 공개됩니다.")
             else:
-                # 상단 분석 결과 섹션 (기존 코드 유지)
-                # ... (기존 차트 및 점수 코드) ...
-        
-                st.subheader(f"💬 {sid} 토론방")
+                # 점수 맵핑 통합 관리
+                score_map = {
+                    "긍정적": 1, "수용적": 1, "침체": 1, "안정적": 1, "저평가": 1, "매수": 1,
+                    "중립적": 0, "중립": 0, "적정": 0,
+                    "부정적": -1, "회의적": -1, "버블": -1, "고평가": -1, "매도": -1
+                }
                 
-                # 글쓰기 버튼 (로그인 확인)
-                if st.session_state.get('auth_status') == 'user':
-                    if st.button(f" {sid} 인사이트 공유하기", use_container_width=True):
-                        st.session_state.writing_mode = True
+                # 유저 점수 계산 (Step 1 ~ 5)
+                user_score = sum(score_map.get(ud.get(s[0], "중립적"), 0) for s in steps)
                 
-                # 글쓰기 폼
-                if st.session_state.get('writing_mode'):
-                    with st.form("new_post_form"):
-                        new_t = st.text_input("제목")
-                        new_c = st.text_area("내용")
-                        if st.form_submit_button("등록"):
-                            st.session_state.posts.insert(0, {
-                                "id": str(uuid.uuid4()), "category": sid, "title": new_t, "content": new_c,
-                                "author": current_user_phone, "date": "방금 전", "likes": 0, "views": 0, "comment_count": 0
-                            })
-                            st.session_state.writing_mode = False
-                            st.rerun()
-        
-                st.divider()
-        
-                # 게시글 리스트 출력 섹션
-                sid_posts = [p for p in st.session_state.posts if p.get('category') == sid]
+                # 커뮤니티 시뮬레이션 데이터
+                np.random.seed(42)
+                community_scores = np.clip(np.random.normal(0, 1.5, 1000).round().astype(int), -5, 5)
+                user_percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
                 
-                if not sid_posts:
-                    st.caption("아직 게시글이 없습니다.")
+                # 지표 출력
+                m1, m2 = st.columns(2)
+                m1.metric("시장 참여자 낙관도", "52.4%", help="평균 낙관 수준입니다.")
+                m2.metric("나의 분석 위치", f"{user_percentile:.1f}%", f"{user_score}점")
+                
+                # 차트 생성
+                score_counts = pd.Series(community_scores).value_counts().sort_index()
+                score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
+                
+                fig = go.Figure(go.Bar(
+                    x=score_counts.index, y=score_counts.values, 
+                    marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
+                    hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
+                ))
+                fig.update_layout(height=180, margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(title="분석 점수 (-5 ~ +5)"), 
+                                  yaxis=dict(showticklabels=False), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig, use_container_width=True)
+        
+            # ---------------------------------------------------------
+            # 3. 전망 투표 및 관심종목
+            # ---------------------------------------------------------
+            st.markdown('<p style="font-size: 15px; font-weight: 600; margin-top: 10px; margin-bottom: 5px;">향후 전망 투표</p>', unsafe_allow_html=True)
+            
+            if st.session_state.get('auth_status') == 'user':
+                if sid not in st.session_state.watchlist:
+                    st.caption("선택 시 관심종목 보관함에 자동 저장됩니다.")
+                    c_up, c_down = st.columns(2)
+                    if c_up.button("📈 상승", key=f"up_{sid}", use_container_width=True, type="primary"):
+                        st.session_state.watchlist.append(sid)
+                        st.session_state.watchlist_predictions[sid] = "UP"
+                        st.session_state.vote_data[sid]['u'] += 1
+                        st.rerun()
+                    if c_down.button("📉 하락", key=f"dn_{sid}", use_container_width=True):
+                        st.session_state.watchlist.append(sid)
+                        st.session_state.watchlist_predictions[sid] = "DOWN"
+                        st.session_state.vote_data[sid]['f'] += 1
+                        st.rerun()
                 else:
-                    for p in sid_posts:
-                        with st.container():
-                            # 1. 댓글이 있으면 댓글수, 없으면 조회수를 표시하는 로직
-                            c_count = p.get('comment_count', 0)
-                            if c_count > 0:
-                                stat_display = f"💬 {c_count}"
-                            else:
-                                stat_display = f"👁️ {p.get('views', 0)}"
-
-                            # 2. 디자인: Flexbox를 사용해 한 줄에 배치 (좌측 정렬 / 우측 정렬)
-                            st.markdown(f"""
-                                <div style="
-                                    display: flex; 
-                                    justify-content: space-between; 
-                                    align-items: center; 
-                                    padding: 12px 4px; 
-                                    border-bottom: 1px solid #f0f0f0;
-                                ">
-                                    <div style="
-                                        flex: 1; 
-                                        white-space: nowrap; 
-                                        overflow: hidden; 
-                                        text-overflow: ellipsis; 
-                                        padding-right: 15px;
-                                    ">
-                                        <span style="color: #ff4b4b; font-size: 13px; font-weight: bold;">
-                                            [{p.get('category', '일반')}]
-                                        </span>
-                                        <span style="color: #333; font-size: 15px; font-weight: 600; margin-left: 6px;">
-                                            {p.get('title')}
-                                        </span>
-                                    </div>
-                                    
-                                    <div style="
-                                        display: flex; 
-                                        align-items: center; 
-                                        gap: 10px; 
-                                        font-size: 13px; 
-                                        color: #666; 
-                                        white-space: nowrap;
-                                    ">
-                                        <span>👍 {p.get('likes', 0)}</span>
-                                        <span style="min-width: 40px; text-align: right;">{stat_display}</span>
-                                    </div>
-                                </div>
-                            """, unsafe_allow_html=True)
-                            
-                            # 3. 투명 버튼 역할 (클릭 시 상세 이동)
-                            # 버튼을 누르면 view_post_id를 설정하고 새로고침하여 상세 화면으로 진입
-                            if st.button("👆 상세 내용 보기", key=f"go_{p['id']}", use_container_width=True):
-                                st.session_state.view_post_id = p['id']
-                                p['views'] = p.get('views', 0) + 1  # 조회수 1 증가
+                    pred = st.session_state.watchlist_predictions.get(sid, "N/A")
+                    st.success(f"✅ 보관 중 (나의 예측: **{pred}**)")
+                    if st.button("보관 해제", key=f"rm_{sid}", use_container_width=True):
+                        st.session_state.watchlist.remove(sid)
+                        st.session_state.vote_data[sid]['u' if pred=="UP" else 'f'] -= 1
+                        del st.session_state.watchlist_predictions[sid]
+                        st.rerun()
+            else:
+                st.warning("🔒 로그인 후 투표 및 보관이 가능합니다.")
+        
+          
+        
+            # ---------------------------------------------------------
+            # 4. 종목 토론방 (반복 로직 제거 버전)
+            # ---------------------------------------------------------
+            sid_posts = [p for p in st.session_state.posts if p.get('category') == sid]
+            
+            if sid_posts:
+                for p in sid_posts[:10]:
+                    title = p.get('title', '').strip()
+                    clean_title = title if f"[{sid}]" in title else f"[{sid}] {title}"
+                    header = f"{clean_title} | 👤 {p.get('author')[:7]}*** | {p.get('date')}"
+                    
+                    with st.expander(header):
+                        st.write(p.get('content'))
+                        st.divider()
+                        
+                        # 반응 버튼 섹션 (통합 함수 호출)
+                        col_l, col_d, col_spacer, col_edit, col_del = st.columns([0.7, 0.7, 3.5, 0.6, 0.6])
+                        
+                        with col_l:
+                            if st.button(f"👍 {p.get('likes', 0)}", key=f"l_{p['id']}"):
+                                handle_post_reaction(p['id'], 'likes', user_id)
+                        with col_d:
+                            if st.button(f"👎 {p.get('dislikes', 0)}", key=f"d_{p['id']}"):
+                                handle_post_reaction(p['id'], 'dislikes', user_id)
+                        
+                        # 수정/삭제 (권한 확인)
+                        if (current_user_phone == p.get('author')) or is_admin:
+                            with col_edit: st.button("📝", key=f"e_{p['id']}")
+                            with col_del:
+                                if st.button("🗑️", key=f"del_{p['id']}"):
+                                    st.session_state.posts = [item for item in st.session_state.posts if item['id'] != p['id']]
+                                    st.rerun()
+            else:
+                st.caption(f"💬 {sid}에 대한 첫 의견을 남겨보세요!")
+        
+            # 5. 글쓰기 섹션
+            show_write = st.expander(f"📝 {sid} 의견 나누기", expanded=False)
+            if st.session_state.get('auth_status') == 'user':
+                with show_write:
+                    with st.form(key=f"write_{sid}", clear_on_submit=True):
+                        new_title = st.text_input("제목")
+                        new_content = st.text_area("내용")
+                        if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
+                            if new_title and new_content:
+                                st.session_state.posts.insert(0, {
+                                    "id": str(uuid.uuid4()), "category": sid, "title": new_title,
+                                    "content": new_content, "author": current_user_phone,
+                                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                    "likes": 0, "dislikes": 0, "uid": user_id
+                                })
                                 st.rerun()
-                
-                
-                
-                
-                
-                
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            else:
+                with show_write: st.warning("🔒 로그인 후 참여할 수 있습니다.")
+        
+    
 
 
 
