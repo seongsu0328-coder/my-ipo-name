@@ -2796,6 +2796,10 @@ elif st.session_state.page == 'detail':
             
                     st.write("**[IPO Scoop Score]**")
                     st.metric(label="Expected IPO Score", value=f"⭐ {score_val}", help=score_help)
+
+                    # 👇 여기 아래 두 줄을 추가하세요!
+                    if score_help:
+                        st.caption(f"ℹ️ {score_help}")
             
                 # 참고 소스 링크
                 sources = result.get('links', [])
@@ -2981,6 +2985,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
