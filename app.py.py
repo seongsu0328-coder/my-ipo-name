@@ -25,59 +25,6 @@ import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - �
 from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
 
-# ==========================================
-# [설정] 구글 드라이브 및 연동 설정
-# ==========================================
-# 📍 본인의 구글 드라이브 폴더 ID를 여기에 넣으세요 (문자열)
-DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2" 
-
-# ==========================================
-# [함수 정의] 구글 드라이브 업로드 로직
-# ==========================================
-def upload_photo_to_drive(file_obj, filename_prefix):
-    """파일을 구글 드라이브에 업로드하고 공유 가능한 링크 반환"""
-    if file_obj is None: 
-        return "미제출"
-    try:
-        # get_gcp_clients() 함수를 통해 인증 정보 획득
-        _, drive_service = get_gcp_clients()
-        if not drive_service:
-            return "드라이브 연결 실패"
-
-        file_obj.seek(0)
-        
-        file_metadata = {
-            'name': f"{filename_prefix}_{file_obj.name}", 
-            'parents': [DRIVE_FOLDER_ID]
-        }
-        
-        from googleapiclient.http import MediaIoBaseUpload
-        media = MediaIoBaseUpload(
-            file_obj, 
-            mimetype=file_obj.type, 
-            resumable=True, 
-            chunksize=256*1024
-        )
-        
-        # 파일 생성
-        file = drive_service.files().create(
-            body=file_metadata, 
-            media_body=media, 
-            fields='id, webViewLink',
-            supportsAllDrives=True
-        ).execute()
-
-        # 관리자가 바로 볼 수 있도록 권한 설정 (누구나 링크가 있으면 보기 가능)
-        drive_service.permissions().create(
-            fileId=file.get('id'),
-            body={'type': 'anyone', 'role': 'reader'},
-            supportsAllDrives=True
-        ).execute()
-        
-        return file.get('webViewLink')
-    except Exception as e:
-        return f"업로드 실패: {str(e)}"
-        
 # [구글 시트 접속 함수]
 def get_gspread_client():
     # secrets.toml에 저장된 gspread 관련 정보를 가져옵니다.
@@ -90,136 +37,72 @@ def get_gspread_client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     return gspread.authorize(creds)
 
-# --- [모든 로직의 상단: 함수 정의 구역] ---
-@st.cache_resource
-def get_gcp_clients():
-    """구글 서비스 계정 인증 및 클라이언트 생성"""
+# [회원 정보 저장 함수]
+def save_user_to_sheets(user_data):
     try:
-        from oauth2client.service_account import ServiceAccountCredentials
-        import gspread
-        from googleapiclient.discovery import build
+        client = get_gspread_client()
+        # 알려주신 시트 URL로 연결
+        sheet_url = "https://docs.google.com/spreadsheets/d/1grbNyzEv2TzTDRMKrGBTI21v6qmZRnv42M2Z6UhNXTc/edit#gid=0"
+        spreadsheet = client.open_by_url(sheet_url)
+        worksheet = spreadsheet.get_worksheet(0) # 첫 번째 시트
+
+        # 15개 열 순서: 
+        # id, pw, email, phone, role, status, univ, job_title, asset, 
+        # display_name, created_at, link_univ, link_job, link_asset, visibility
+        row = [
+            user_data.get('id'),
+            user_data.get('pw'),
+            user_data.get('email'),
+            user_data.get('phone'),
+            "user",                # role
+            "pending",             # status (승인 대기)
+            user_data.get('univ'),
+            user_data.get('job_title'),
+            user_data.get('asset'),
+            user_data.get('display_name'), # 선택한 뱃지 + 마스킹ID
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # created_at
+            "", # link_univ (파일 업로드 구현 시 드라이브 링크)
+            "", # link_job
+            "", # link_asset
+            "public"               # visibility
+        ]
         
-        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        
-        # Secrets 설정 확인 (gcp_service_account 섹션 사용)
-        if "gcp_service_account" in st.secrets:
-            creds_dict = st.secrets["gcp_service_account"]
-        else:
-            # 혹시 다른 이름으로 저장되어 있을 경우를 대비
-            creds_dict = st.secrets["gspread"] 
-            
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        gspread_client = gspread.authorize(creds)
-        drive_service = build('drive', 'v3', credentials=creds)
-        
-        return gspread_client, drive_service
+        worksheet.append_row(row)
+        return True, "성공"
     except Exception as e:
-        st.error(f"구글 연결 설정 오류: {e}")
-        return None, None
-        
+        # 에러의 상세 내용을 출력하도록 수정
+        import traceback
+        error_details = traceback.format_exc()
+        return False, f"상세 에러: {str(e)}\n{error_details}"
+
 def generate_verification_code():
-    """6자리 랜덤 인증번호 생성"""
-    import random
     return str(random.randint(100000, 999999))
 
 def send_email_code(to_email, code):
-    """이메일 발송 함수"""
-    import smtplib
-    from email.mime.text import MIMEText
+    # 1. smtp 섹션 안의 값을 가져오도록 수정
     try:
-        # Secrets 설정 확인 (smtp 섹션이 있는지 체크)
-        if "smtp" in st.secrets:
-            sender_email = st.secrets["smtp"]["email_address"]
-            sender_pw = st.secrets["smtp"]["app_password"]
-        else:
-            sender_email = st.secrets["email_address"]
-            sender_pw = st.secrets["app_password"]
-            
-        msg = MIMEText(f"안녕하세요. 인증번호는 [{code}] 입니다.")
-        msg['Subject'] = "[Unicorn Finder] 본인 인증번호"
-        msg['From'] = sender_email
+        # secrets.toml의 [smtp] 섹션에서 값을 읽어옵니다.
+        email_user = st.secrets["smtp"]["email_address"]
+        email_password = st.secrets["smtp"]["app_password"]
+    except (KeyError, st.errors.StreamlitAPIException):
+        # [smtp] 섹션이 없거나 내부 키가 없을 경우 에러 메시지 반환
+        return False, "Secrets에서 [smtp] 섹션이나 설정을 찾을 수 없습니다."
+
+    # 2. 실제 이메일 발송 로직
+    try:
+        msg = MIMEText(f"안녕하세요. Unicorn Finder 입니다.\n인증번호는 [{code}] 입니다.")
+        msg['Subject'] = '[Unicorn Finder] 회원가입 인증번호'
+        msg['From'] = email_user
         msg['To'] = to_email
+
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(email_user, email_password)
+            server.sendmail(email_user, to_email, msg.as_string())
         
-        with smtplib.SMTP('smtp.gmail.com', 587) as s:
-            s.starttls()
-            s.login(sender_email, sender_pw)
-            s.sendmail(sender_email, to_email, msg.as_string())
         return True, "이메일이 발송되었습니다."
     except Exception as e:
-        return False, f"이메일 전송 실패: {str(e)}"
-
-#사진 업로드 함수 
-def upload_photo_to_drive(file_obj, filename_prefix):
-    """파일을 구글 드라이브에 업로드하고 공유 가능한 링크 반환"""
-    if file_obj is None: return "미제출"
-    try:
-        # DRIVE_FOLDER_ID가 전역 변수로 선언되어 있어야 합니다.
-        _, drive_service = get_gcp_clients()
-        file_obj.seek(0)
-        
-        file_metadata = {
-            'name': f"{filename_prefix}_{file_obj.name}", 
-            'parents': [DRIVE_FOLDER_ID] # 상단에 폴더 ID 정의 필수
-        }
-        
-        from googleapiclient.http import MediaIoBaseUpload
-        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type, resumable=True, chunksize=256*1024)
-        
-        file = drive_service.files().create(
-            body=file_metadata, 
-            media_body=media, 
-            fields='id, webViewLink',
-            supportsAllDrives=True
-        ).execute()
-
-        # 누구나 링크가 있으면 볼 수 있게 권한 설정 (관리자 확인용)
-        drive_service.permissions().create(
-            fileId=file.get('id'),
-            body={'type': 'anyone', 'role': 'reader'},
-            supportsAllDrives=True
-        ).execute()
-        
-        return file.get('webViewLink')
-    except Exception as e:
-        return f"업로드 실패: {str(e)}"
-
-# [회원 정보 저장 함수]
-def save_user_to_sheets(data):
-    try:
-        # 1. 구글 클라이언트 호출 (테스트 코드의 gcp_service_account 시크릿 사용)
-        client, _ = get_gcp_clients() 
-        if not client:
-            return False, "구글 서비스 연결 실패"
-
-        # 2. 시트 열기 (공유해주신 시트 ID 사용)
-        spreadsheet_id = "1grbNyzEv2TzTDRMKrGBTI21v6qmZRnv42M2Z6UhNXTc"
-        sh = client.open_by_key(spreadsheet_id).sheet1
-
-        # 3. 15개 열 데이터 조립 (테스트 코드의 row 구조 반영)
-        # ID, PW, Email, Phone, Role, Status, Univ, Job, Asset, DisplayName, Time, Link1, Link2, Link3, Visibility
-        row = [
-            str(data.get('id')),               # 1. ID
-            str(data.get('pw')),               # 2. PW
-            str(data.get('email')),            # 3. Email
-            str(data.get('phone')),            # 4. Phone
-            "user",                            # 5. Role (기본값)
-            "pending",                         # 6. Status (승인대기)
-            data.get('univ', ""),              # 7. 대학명
-            data.get('job_title', ""),         # 8. 직업명
-            data.get('asset', ""),             # 9. 자산규모
-            data.get('display_name', ""),      # 10. 최종 닉네임
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # 11. 가입시간
-            "미제출",                          # 12. 대학증빙링크 (추후 업로드 기능 연결 시 수정)
-            "미제출",                          # 13. 직업증빙링크
-            "미제출",                          # 14. 자산증빙링크
-            "True,True,True"                  # 15. 노출 설정 초기값 (Visibility)
-        ]
-
-        # 4. 데이터 추가
-        sh.append_row(row)
-        return True, "성공"
-    except Exception as e:
-        return False, str(e)
+        return False, f"발송 중 오류 발생: {str(e)}"
 
 # --- [여기(최상단)에 함수를 두어야 아래에서 인식합니다] ---
 def clean_text_final(text):
@@ -1410,7 +1293,7 @@ if st.session_state.page == 'login':
             # 버튼 3: 구경하기
             if st.button("구경하기", use_container_width=True):
                 st.session_state.auth_status = 'guest'
-                
+                st.session_state.page = 'calendar'
                 st.rerun()
 
         # ---------------------------------------------------------
@@ -1429,7 +1312,7 @@ if st.session_state.page == 'login':
                         st.session_state.auth_status = 'user'
                         st.session_state.user_id = l_id
                         st.success(f"반갑습니다 {l_id}님!")
-                        
+                        st.session_state.page = 'calendar'
                         st.session_state.login_step = 'choice' # 다음번을 위해 초기화
                         st.rerun()
                     else:
@@ -1520,152 +1403,130 @@ if st.session_state.page == 'login':
                  
 
         # ---------------------------------------------------------
-        # [Step 2] 인증 서류 제출 (위젯 키 분리 및 자동 저장 보강)
+        # [Step 2] 인증 서류 제출 (학교, 직장, 자산)
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_step_2':
             st.markdown("<div class='auth-card'><h5>📑 추가 인증 (선택)</h5>", unsafe_allow_html=True)
             st.success("✅ 1단계 본인인증 완료! 활동 뱃지를 획득하세요.")
-            
+            st.info("최소 1개 이상의 항목을 인증해야 가입이 완료됩니다.")
+
+            # 입력 데이터를 저장할 딕셔너리 초기화
             if 'cert_data' not in st.session_state:
                 st.session_state.cert_data = {"school": None, "job": None, "asset": None}
 
             # 1. 학교/학과 인증
             with st.expander("🎓 학교/학과 인증 (선택)", expanded=True):
                 school_name = st.text_input("학교명 (예: 서울대)", key="input_school")
-                school_file = st.file_uploader("재학/졸업 증명서", type=['jpg', 'png', 'pdf'], key="file_school_upload")
+                school_file = st.file_uploader("재학/졸업 증명서", type=['jpg', 'png', 'pdf'], key="file_school")
                 if school_name and school_file:
                     st.caption(f"✅ 인증 대기: {school_name}")
-                    st.session_state['file_school'] = school_file
-                    st.session_state.cert_data["school"] = school_name # 즉시 반영
 
             # 2. 직업/직장 인증
             with st.expander("💼 직업/직장 인증 (선택)", expanded=False):
                 job_name = st.text_input("직업/직장명 (예: 의사, 삼성전자)", key="input_job")
-                job_file = st.file_uploader("재직 증명서/명함", type=['jpg', 'png', 'pdf'], key="file_job_upload")
+                job_file = st.file_uploader("재직 증명서/명함", type=['jpg', 'png', 'pdf'], key="file_job")
                 if job_name and job_file:
                     st.caption(f"✅ 인증 대기: {job_name}")
-                    st.session_state['file_job'] = job_file
-                    st.session_state.cert_data["job"] = job_name # 즉시 반영
 
-            # 3. 자산 규모 인증
+            # 3. 자산 규모 인증 (요청하신 등급 적용)
             with st.expander("💰 자산 규모 인증 (선택)", expanded=False):
                 asset_tier = st.selectbox(
                     "인증할 자산 구간을 선택하세요",
                     ["선택안함", "10억 (Bronze)", "30억 (Silver)", "50억 (Gold)", "100억 (Diamond)"],
                     key="input_asset"
                 )
-                asset_file = st.file_uploader("잔고/부동산 증명서", type=['jpg', 'png', 'pdf'], key="file_asset_upload")
+                asset_file = st.file_uploader("잔고/부동산 증명서", type=['jpg', 'png', 'pdf'], key="file_asset")
+                
                 if asset_tier != "선택안함" and asset_file:
                     st.caption(f"✅ 인증 대기: {asset_tier}")
-                    st.session_state['file_asset'] = asset_file
-                    st.session_state.cert_data["asset"] = asset_tier # 즉시 반영
 
             st.write("<br>", unsafe_allow_html=True)
 
+            # 심사 요청 버튼
             if st.button("인증 서류 제출 및 다음", type="primary", use_container_width=True):
-                has_school = bool(st.session_state.get('file_school'))
-                has_job = bool(st.session_state.get('file_job'))
-                has_asset = bool(st.session_state.get('file_asset'))
+                # 최소 1개 이상 입력했는지 검증
+                has_school = bool(school_name and school_file)
+                has_job = bool(job_name and job_file)
+                has_asset = bool(asset_tier != "선택안함" and asset_file)
 
                 if not (has_school or has_job or has_asset):
-                    st.error("최소 한 가지 카테고리는 인증 서류와 함께 제출해야 합니다.")
+                    st.error("최소 한 가지 카테고리는 인증해야 합니다.")
                 else:
+                    # [데이터 임시 저장]
+                    # 실제로는 여기서 관리자에게 승인 요청을 보내거나, OCR로 자동 검증을 합니다.
+                    # 여기서는 '즉시 승인' 되었다고 가정하고 Step 3로 넘깁니다.
+                    st.session_state.cert_data = {
+                        "school": school_name if has_school else None,
+                        "job": job_name if has_job else None,
+                        "asset": asset_tier if has_asset else None
+                    }
                     st.session_state.login_step = 'signup_step_3'
                     st.rerun()
 
         # ---------------------------------------------------------
-        # [Step 3] 최종 프로필 설정 및 사진 업로드 + 시트 저장 (검증 완료)
+        # [Step 3] 최종 프로필 설정 및 구글 시트 저장 (이 블록으로 교체!)
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_step_3':
             st.markdown("<div class='auth-card'><h5>👤 프로필 설정</h5>", unsafe_allow_html=True)
+            st.success("서류 제출이 완료되었습니다! (가승인)")
             
-            temp_data = st.session_state.get('temp_signup_data', {})
-            raw_id = temp_data.get('id', 'unknown')
-            masked_id = "*" * len(raw_id) 
+            # 1. ID 마스킹 및 옵션 구성 로직
+            raw_id = st.session_state.temp_signup_data.get('id', 'unknown')
+            masked_id = raw_id[:4] + "*" * (len(raw_id) - 4) if len(raw_id) > 4 else raw_id[:1] + "*" * (len(raw_id) - 1)
             
-            cert = st.session_state.get('cert_data', {})
+            cert = st.session_state.cert_data
             options = []
             if cert.get('school'): options.append(f"🎓 {cert['school']}")
             if cert.get('job'): options.append(f"💼 {cert['job']}")
             if cert.get('asset'):
-                grade = cert['asset'].split(' ')[0]
+                tier = cert['asset'].split(' ')[0]
                 badge = "💎" if "100억" in cert['asset'] else "🥇" if "50억" in cert['asset'] else "🥈" if "30억" in cert['asset'] else "🥉"
-                options.append(f"{badge} {grade} 자산가")
+                options.append(f"{badge} {tier} 자산가")
+            
             if not options: options.append("🌱 새싹 회원")
 
-            selected_tag = st.radio("커뮤니티 대표 타이틀 선택", options)
-            preview_str = f"{selected_tag} {masked_id}"
-            st.info(f"👀 **미리보기**: {preview_str}")
-
-            # --- 🔍 여기부터 디버깅 코드 시작 ---
-            st.markdown("---")
-            st.subheader("🛠️ 데이터 전달 상태 점검")
-            col1, col2, col3 = st.columns(3)
+            selected_tag = st.radio("공개할 대표 타이틀", options)
+            preview_str = f"{selected_tag} | {masked_id}"
             
-            with col1:
-                has_s = st.session_state.get('file_school') is not None
-                st.metric("학교 서류", "보유" if has_s else "없음")
-            with col2:
-                has_j = st.session_state.get('file_job') is not None
-                st.metric("직장 서류", "보유" if has_j else "없음")
-            with col3:
-                has_a = st.session_state.get('file_asset') is not None
-                st.metric("자산 서류", "보유" if has_a else "없음")
-            
-            if not (has_s or has_j or has_a):
-                st.warning("⚠️ 현재 메모리에 저장된 파일이 하나도 없습니다. Step 2에서 파일을 다시 업로드해야 합니다.")
-            
-            if st.button("🚀 최종 가입 신청 완료", type="primary", use_container_width=True):
-                with st.spinner("📄 서류 업로드 및 데이터 기록 중..."):
-                    try:
-                        # 파일 객체 가져오기
-                        f_school = st.session_state.get('file_school')
-                        f_job = st.session_state.get('file_job')
-                        f_asset = st.session_state.get('file_asset')
+            st.info(f"👀 **미리보기**\n\n### {preview_str}")
+            st.write("<br>", unsafe_allow_html=True)
 
-                        # 구글 드라이브 업로드 (비동기 처리처럼 순차적 진행)
-                        l_u = upload_photo_to_drive(f_school, f"{raw_id}_univ")
-                        l_j = upload_photo_to_drive(f_job, f"{raw_id}_job")
-                        l_a = upload_photo_to_drive(f_asset, f"{raw_id}_asset")
+            # 2. 가입 완료 버튼 및 시트 저장 실행
+            if st.button("🎉 회원가입 완료 및 데이터 저장", type="primary", use_container_width=True):
+                user_info = {
+                    "id": raw_id,
+                    "pw": st.session_state.temp_signup_data.get('pw'),
+                    "email": st.session_state.temp_signup_data.get('email'),
+                    "phone": st.session_state.temp_signup_data.get('phone'),
+                    "univ": cert.get('school', ""),
+                    "job_title": cert.get('job', ""),
+                    "asset": cert.get('asset', ""),
+                    "display_name": preview_str
+                }
 
-                        final_user_data = {
-                            "id": raw_id,
-                            "pw": temp_data.get('pw'),
-                            "email": temp_data.get('email'),
-                            "phone": temp_data.get('phone'),
-                            "univ": cert.get('school', ""),
-                            "job_title": cert.get('job', ""),
-                            "asset": cert.get('asset', ""),
-                            "display_name": preview_str,
-                            "link_univ": l_u,
-                            "link_job": l_j,
-                            "link_asset": l_a,
-                            "visibility": "True,True,True" 
-                        }
+                st.write("⏳ 데이터베이스 연결 시도 중...") 
 
-                        success, msg = save_user_to_sheets(final_user_data)
-                        
-                        if success:
-                            st.success("✅ 신청 완료! 관리자 승인 후 이용 가능합니다.")
-                            st.balloons()
-                            time.sleep(2)
-                            
-                            # 가입 신청 완료 후 모든 파일 세션 초기화 (보안 및 메모리 관리)
-                            for k in ['file_school', 'file_job', 'file_asset']:
-                                if k in st.session_state: del st.session_state[k]
-                            
-                            st.session_state.login_step = 'choice'
-                            st.rerun()
-                        else:
-                            st.error(f"❌ 저장 실패: {msg}")
-                    except Exception as e:
-                        st.error(f"⚠️ 처리 중 오류 발생: {e}")
+                with st.spinner("구글 시트에 회원 정보를 기록 중입니다..."):
+                    # 여기서 우리가 만든 저장 함수 호출
+                    success, msg = save_user_to_sheets(user_info)
+                
+                if success:
+                    st.balloons()
+                    st.success("✅ 구글 시트 저장 성공!")
+                    time.sleep(1)
+                    
+                    # 로그인 성공 처리 후 메인 화면으로 이동
+                    st.session_state.auth_status = 'user'
+                    st.session_state.user_id = raw_id
+                    st.session_state.user_badge = selected_tag
+                    st.session_state.page = 'calendar'
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
+                else:
+                    st.error(f"❌ 저장 실패: {msg}")
 
             st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 🚨 [매우 중요] 로그인 페이지 조건문이 여기서 완전히 끝나야 함 (들여쓰기 제거)
-# ---------------------------------------------------------
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
     # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
@@ -1866,11 +1727,11 @@ elif st.session_state.page == 'calendar':
         elif selected_menu == main_text:
             st.session_state.view_mode = 'all'
             # 메인 목록 페이지 이름이 'calendar'라면 'calendar'로, 'main'이라면 'main'으로 맞춰주세요.
-             
+            st.session_state.page = 'calendar' 
             
         elif selected_menu == watch_text:
             st.session_state.view_mode = 'watchlist'
-             
+            st.session_state.page = 'calendar' 
             
         elif selected_menu == board_text:
             st.session_state.page = 'board'
@@ -2106,11 +1967,11 @@ elif st.session_state.page == 'detail':
             elif selected_menu == main_text:
                 st.session_state.view_mode = 'all'
                 # [중요] 하얀 화면 방지: 메인 목록 페이지 이름이 'calendar'라면 여기를 'calendar'로 유지
-                 
+                st.session_state.page = 'calendar' 
             
             elif selected_menu == watch_text:
                 st.session_state.view_mode = 'watchlist'
-                 # 위와 동일하게 설정
+                st.session_state.page = 'calendar' # 위와 동일하게 설정
             
             elif selected_menu == board_text:
                 st.session_state.page = 'board'
@@ -3401,18 +3262,6 @@ elif st.session_state.page == 'detail':
                 
                 
                 
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
