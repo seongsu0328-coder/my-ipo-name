@@ -1350,26 +1350,144 @@ if st.session_state.page == 'login':
             st.markdown("</div>", unsafe_allow_html=True)
 
         # ---------------------------------------------------------
-        # [Step 2-C] 회원가입 2단계 (질문자님의 2번 요청 대기)
+        # [Step 2] 인증 서류 제출 (학교, 직장, 자산)
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_step_2':
-            st.markdown("<div class='auth-card'><h5>📝 회원가입 (2단계)</h5>", unsafe_allow_html=True)
-            st.success("✅ 본인 인증이 완료되었습니다.")
+            st.markdown("<div class='auth-card'><h5>📑 추가 인증 (선택)</h5>", unsafe_allow_html=True)
+            st.success("✅ 1단계 본인인증 완료! 활동 뱃지를 획득하세요.")
+            st.info("최소 1개 이상의 항목을 인증해야 가입이 완료됩니다.")
+
+            # 입력 데이터를 저장할 딕셔너리 초기화
+            if 'cert_data' not in st.session_state:
+                st.session_state.cert_data = {"school": None, "job": None, "asset": None}
+
+            # 1. 학교/학과 인증
+            with st.expander("🎓 학교/학과 인증 (선택)", expanded=True):
+                school_name = st.text_input("학교명 (예: 서울대)", key="input_school")
+                school_file = st.file_uploader("재학/졸업 증명서", type=['jpg', 'png', 'pdf'], key="file_school")
+                if school_name and school_file:
+                    st.caption(f"✅ 인증 대기: {school_name}")
+
+            # 2. 직업/직장 인증
+            with st.expander("💼 직업/직장 인증 (선택)", expanded=False):
+                job_name = st.text_input("직업/직장명 (예: 의사, 삼성전자)", key="input_job")
+                job_file = st.file_uploader("재직 증명서/명함", type=['jpg', 'png', 'pdf'], key="file_job")
+                if job_name and job_file:
+                    st.caption(f"✅ 인증 대기: {job_name}")
+
+            # 3. 자산 규모 인증 (요청하신 등급 적용)
+            with st.expander("💰 자산 규모 인증 (선택)", expanded=False):
+                asset_tier = st.selectbox(
+                    "인증할 자산 구간을 선택하세요",
+                    ["선택안함", "10억 (Bronze)", "30억 (Silver)", "50억 (Gold)", "100억 (Diamond)"],
+                    key="input_asset"
+                )
+                asset_file = st.file_uploader("잔고/부동산 증명서", type=['jpg', 'png', 'pdf'], key="file_asset")
+                
+                if asset_tier != "선택안함" and asset_file:
+                    st.caption(f"✅ 인증 대기: {asset_tier}")
+
+            st.write("<br>", unsafe_allow_html=True)
+
+            # 심사 요청 버튼
+            if st.button("인증 서류 제출 및 다음", type="primary", use_container_width=True):
+                # 최소 1개 이상 입력했는지 검증
+                has_school = bool(school_name and school_file)
+                has_job = bool(job_name and job_file)
+                has_asset = bool(asset_tier != "선택안함" and asset_file)
+
+                if not (has_school or has_job or has_asset):
+                    st.error("최소 한 가지 카테고리는 인증해야 합니다.")
+                else:
+                    # [데이터 임시 저장]
+                    # 실제로는 여기서 관리자에게 승인 요청을 보내거나, OCR로 자동 검증을 합니다.
+                    # 여기서는 '즉시 승인' 되었다고 가정하고 Step 3로 넘깁니다.
+                    st.session_state.cert_data = {
+                        "school": school_name if has_school else None,
+                        "job": job_name if has_job else None,
+                        "asset": asset_tier if has_asset else None
+                    }
+                    st.session_state.login_step = 'signup_step_3'
+                    st.rerun()
+
+        # ---------------------------------------------------------
+        # [Step 3] 최종 프로필 설정 (대표 태그 선택 + ID 마스킹)
+        # ---------------------------------------------------------
+        elif st.session_state.login_step == 'signup_step_3':
+            st.markdown("<div class='auth-card'><h5>👤 프로필 설정</h5>", unsafe_allow_html=True)
+            st.success("서류 제출이 완료되었습니다! (가승인)")
             
-            st.info("여기에 질문자님의 [2번 요청사항]이 구현될 예정입니다.")
-            st.caption("출신 대학, 직군, 자산 규모 등의 추가 정보를 입력받는 화면을 만들까요?")
+            # 1. ID 마스킹 로직 (앞 4글자만 보여주고 나머지는 *)
+            raw_id = st.session_state.temp_signup_data.get('id', 'unknown')
+            if len(raw_id) > 4:
+                masked_id = raw_id[:4] + "*" * (len(raw_id) - 4)
+            else:
+                masked_id = raw_id[:1] + "*" * (len(raw_id) - 1)
+
+            st.write(f"**아이디 표시 예시:** `{masked_id}` (익명 처리됨)")
+            st.write("커뮤니티 활동 시 사용할 **대표 타이틀**을 하나 선택해주세요.")
             
-            if st.button("처음으로 (테스트 종료)"):
+            # 2. 선택 가능한 옵션 구성
+            options = []
+            cert = st.session_state.cert_data
+            
+            # (1) 학교 옵션
+            if cert['school']:
+                options.append(f"🎓 {cert['school']}")
+            # (2) 직업 옵션
+            if cert['job']:
+                options.append(f"💼 {cert['job']}")
+            # (3) 자산 옵션 (등급별 아이콘 매핑)
+            if cert['asset']:
+                # 자산 등급에 따른 뱃지 처리
+                tier_clean = cert['asset'].split(' ')[0] # 10억, 30억...
+                if "100억" in cert['asset']: badge = "💎"
+                elif "50억" in cert['asset']: badge = "🥇"
+                elif "30억" in cert['asset']: badge = "🥈"
+                else: badge = "🥉"
+                options.append(f"{badge} {tier_clean} 자산가")
+
+            # 기본 옵션 (인증 안 된 경우 대비, 로직상 여기 올 일은 없음)
+            if not options: options.append("🌱 새싹 회원")
+
+            # 3. 라디오 버튼으로 선택
+            selected_tag = st.radio("공개할 대표 타이틀", options)
+
+            st.divider()
+            
+            # 4. 최종 미리보기
+            preview_str = f"{selected_tag} | {masked_id}"
+            st.info(f"👀 **다른 사람에게 보이는 모습**\n\n### {preview_str}")
+
+            st.write("<br>", unsafe_allow_html=True)
+
+            # 5. 가입 완료 버튼
+            if st.button("🎉 회원가입 완료하기", type="primary", use_container_width=True):
+                # [DB 저장 로직]
+                # 1. temp_signup_data (기본정보)
+                # 2. cert_data (인증정보)
+                # 3. selected_tag (대표 뱃지)
+                # 위 정보들을 실제 User DB에 저장해야 합니다.
+                
+                # 여기서는 세션에 로그인 처리만 진행
+                final_phone = st.session_state.temp_signup_data['phone']
+                st.session_state.db_users.append(final_phone) # 전화번호로 로그인 체크하므로 추가
+                st.session_state.db_users.append(raw_id)      # 아이디로도 로그인 체크 가능하도록 추가
+                
+                st.session_state.auth_status = 'user'
+                st.session_state.user_phone = final_phone
+                st.session_state.user_id = raw_id
+                st.session_state.user_badge = selected_tag # 뱃지 저장
+                
+                st.balloons()
+                st.toast("환영합니다! 유니콘 파인더의 멤버가 되셨습니다.", icon="🦄")
+                time.sleep(1.5)
+                
+                st.session_state.page = 'calendar'
                 st.session_state.login_step = 'choice'
                 st.rerun()
-                
+
             st.markdown("</div>", unsafe_allow_html=True)
-
-    # 하단 명언 UI
-    st.write("<br>" * 3, unsafe_allow_html=True)
-    q = get_daily_quote()
-    st.markdown(f"<div class='quote-card'><b>\"{q['eng']}\"</b><br><span style='font-size:14px; color:#555;'>{q['kor']}</span><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
-
 
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
@@ -3107,6 +3225,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
