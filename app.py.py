@@ -10,40 +10,14 @@ import uuid
 import random
 import math
 import html
-import re
-import string  # 문자열 처리 (추가됨)
-import smtplib # 이메일 발송 (추가됨)
-from datetime import datetime, timedelta # 날짜/시간 (병합됨)
-from email.mime.text import MIMEText # 이메일 텍스트 (추가됨)
+import re  
+from datetime import datetime, timedelta
+from openai import OpenAI  # ✅ OpenAI 임포트
 
-# [추가됨] 구글 시트 연동 및 외부 API 라이브러리
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from tavily import TavilyClient
-from openai import OpenAI
-from oauth2client.service_account import ServiceAccountCredentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-
-
-# --- [AI 및 검색 라이브러리 통합] ---
-from openai import OpenAI             # ✅ Groq(뉴스 요약)용
-import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
-from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
+# --- [AI 및 검색 기능] ---
+import google.generativeai as genai
 from duckduckgo_search import DDGS
-
-# --- [초기화 코드: 게시판 저장소 만들기] ---
-if 'posts' not in st.session_state:
-    st.session_state['posts'] = []  # 게시글 담을 빈 리스트 생성
-
-# 여기에 붙여넣으세요! (이 위치가 가장 안전합니다)
-def clean_text_final(text):
-    if not text:
-        return ""
-    text = str(text)
-    text = text.replace("**", "").replace("##", "").replace("###", "")
-    return text.strip()
-
+from tavily import TavilyClient  # ✅ Tavily API 클라이언트
 
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
@@ -300,16 +274,14 @@ def get_ai_analysis(company_name, topic, points):
 @st.cache_data(show_spinner=False, ttl=86400) 
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
-    
-    # model 객체는 외부(app.py 전역)에서 정의된 것을 사용한다고 가정합니다.
-    # 만약 함수 내에서 정의가 필요하다면 model = genai.GenerativeModel('gemini-1.5-flash') 등을 추가해야 합니다.
-    if not tavily_key:
+    # model 객체는 외부에서 정의되어 있다고 가정합니다.
+    if not tavily_key or not model:
         return {"rating": "N/A", "pro_con": "API Key 설정 필요", "summary": "설정을 확인하세요.", "links": []}
 
     try:
         tavily = TavilyClient(api_key=tavily_key)
         
-        # 쿼리 최적화
+        # [기본 로직 유지] 쿼리 최적화
         site_query = f"(site:renaissancecapital.com OR site:seekingalpha.com OR site:morningstar.com) {company_name} {ticker} stock IPO analysis 2025 2026"
         
         search_result = tavily.search(query=site_query, search_depth="advanced", max_results=10)
@@ -324,7 +296,7 @@ def get_cached_ipo_analysis(ticker, company_name):
             search_context += f"Source: {r['url']}\nContent: {r['content']}\n\n"
             links.append({"title": r['title'], "link": r['url']})
 
-        # --- [프롬프트 수정: 링크 포함 금지 지침 추가] ---
+        # [기본 로직 유지 + 지침 강화] 프롬프트에 URL 금지 명령 명시
         prompt = f"""
         당신은 월가 출신의 IPO 전문 분석가입니다. 아래 제공된 {company_name} ({ticker})에 대한 기관 데이터를 바탕으로 심층 분석을 수행하세요.
         
@@ -336,7 +308,7 @@ def get_cached_ipo_analysis(ticker, company_name):
         2. 긍정의견(Pros) 2가지와 부정의견(Cons) 2가지를 구체적인 수치나 근거를 들어 요약하세요.
         3. Rating은 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
         4. Summary는 전문적인 톤으로 3줄 이내로 작성하세요.
-        5. **중요: 답변 내용(Summary 포함)에 'Source:', 'http...', '출처' 등 링크 정보를 절대 포함하지 마세요. 오직 분석 텍스트만 작성하세요.**
+        5. 중요: 답변 본문에 'Source:'나 'https://'로 시작하는 링크를 절대 포함하지 마세요.
 
         [응답 형식]:
         Rating: (이곳에 작성)
@@ -346,38 +318,40 @@ def get_cached_ipo_analysis(ticker, company_name):
         Summary: (이곳에 작성)
         """
 
-        # [재시도 로직]
+        # [기본 로직 유지] 재시도 메커니즘
         max_retries = 3
         for i in range(max_retries):
             try:
-                # model이 정의되어 있다고 가정 (없으면 에러 발생하므로 주의)
                 response_obj = model.generate_content(prompt)
                 response_text = response_obj.text
 
-                rating = re.search(r"Rating:\s*(.*)", response_text, re.I)
-                pro_con = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
-                summary = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
+                import re
                 
-                # --- [후처리: 혹시 모를 링크 제거 로직] ---
-                raw_summary = summary.group(1).strip() if summary else response_text
-                
-                # 'Source:' 또는 'http'가 나오면 그 뒷부분은 잘라냄
-                if "Source:" in raw_summary:
-                    clean_summary = raw_summary.split("Source:")[0].strip()
-                elif "http" in raw_summary:
-                    clean_summary = raw_summary.split("http")[0].strip()
-                else:
-                    clean_summary = raw_summary
+                # 정규식으로 각 파트 추출 (기존 로직 동일)
+                rating_match = re.search(r"Rating:\s*(.*)", response_text, re.I)
+                pro_con_match = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
+                summary_match = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
 
+                # --- [추가된 텍스트 세척 함수: 로직 보강] ---
+                def clean_output(text):
+                    if not text: return ""
+                    # 1. 'Source:' 단어 기준 절단 (가장 확실함)
+                    text = re.split(r'(?i)source', text)[0]
+                    # 2. 남아있는 URL 패턴 제거
+                    text = re.sub(r'https?://\S+', '', text)
+                    return text.strip().rstrip(' ,.:-')
+
+                # 최종 결과 가공
                 return {
-                    "rating": rating.group(1).strip() if rating else "Neutral",
-                    "pro_con": pro_con.group(1).strip() if pro_con else "분석 데이터 추출 실패",
-                    "summary": clean_summary, # 깨끗해진 요약본 적용
+                    "rating": rating_match.group(1).strip() if rating_match else "Neutral",
+                    "pro_con": clean_output(pro_con_match.group(1)) if pro_con_match else "분석 데이터 추출 실패",
+                    "summary": clean_output(summary_match.group(1)) if summary_match else response_text,
                     "links": links[:5]
                 }
             except Exception as e:
-                # 429 에러 처리 (API 한도 초과 시 대기)
+                # [기본 로직 유지] 429 에러 및 쿼터 초과 처리
                 if "429" in str(e) or "quota" in str(e).lower():
+                    import time
                     time.sleep(2 * (i + 1))
                     continue
                 return {"rating": "Error", "pro_con": f"오류 발생: {e}", "summary": "분석 중 문제가 발생했습니다.", "links": []}
@@ -948,12 +922,55 @@ def analyze_sentiment(text):
 @st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
 @st.cache_data(ttl=3600)
 def get_real_news_rss(company_name, ticker=""):
+    import re
     import requests
-import xml.etree.ElementTree as ET
-import urllib.parse
-import re
+    import xml.etree.ElementTree as ET
+    import urllib.parse
 
-# [1] 뉴스 감성 분석 함수 (내부 연산용)
+    try:
+        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE).strip()
+        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
+        enc_query = urllib.parse.quote(query)
+        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
+
+        response = requests.get(url, timeout=5)
+        root = ET.fromstring(response.content)
+        
+        news_items = []
+        items = root.findall('./channel/item')
+        
+        for item in items[:10]: # 조금 넉넉히 가져옴
+            title_en = item.find('title').text
+            link = item.find('link').text
+            pubDate = item.find('pubDate').text
+            
+            if clean_name.lower() not in title_en.lower():
+                continue
+
+            sent_label, bg, color = analyze_sentiment(title_en)
+            
+            try:
+                date_str = " ".join(pubDate.split(' ')[1:3])
+            except:
+                date_str = "Recent"
+
+            news_items.append({
+                "title": title_en,  
+                "link": link, 
+                "date": date_str,
+                "sent_label": sent_label, 
+                "bg": bg, 
+                "color": color
+            })
+            
+            if len(news_items) >= 5:
+                break
+                
+        return news_items
+    except Exception as e:
+        return []
+
+# [추가: 뉴스 감성 분석 함수]
 def analyze_sentiment(text):
     text = text.lower()
     pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
@@ -968,53 +985,21 @@ def analyze_sentiment(text):
     elif score < 0: return "부정", "#fce8e6", "#d93025"
     else: return "일반", "#f1f3f4", "#5f6368"
 
-# [2] 통합 뉴스 검색 함수 (RSS 검색 + AI 번역 결합)
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300)
 def get_real_news_rss(company_name):
-    """구글 뉴스 RSS 검색 + 정밀 필터링 + AI 번역"""
+    """구글 뉴스 RSS + 한글 번역 + 감성 분석"""
     try:
-        import time
-        
-        # [수정 1] 회사 이름 정제 로직 강화 (특수문자 제거 및 콤마 처리)
-        # 1차: 법인명 제거 (Inc, Corp 등)
-        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE)
-        # 2차: 콤마(,) 등 특수문자 제거하고 앞뒤 공백 정리
-        clean_name = re.sub(r'[^\w\s]', '', clean_name).strip()
-        
-        # 검색어 생성
-        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
-        enc_query = urllib.parse.quote(query)
-        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
-
-        response = requests.get(url, timeout=5)
+        query = f"{company_name} stock news"
+        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        response = requests.get(url, timeout=3)
         root = ET.fromstring(response.content)
         
         news_items = []
-        items = root.findall('./channel/item')
-        
-        # [수정 2] 검색어의 핵심 단어 리스트 추출 (예: "SOLV Energy" -> ["solv", "energy"])
-        # 단, "Energy", "Bio" 같은 일반 명사도 회사명의 일부라면 필수 조건으로 봅니다.
-        name_parts = [part.lower() for part in clean_name.split() if len(part) > 1]
-
-        for item in items[:5]: 
+        for item in root.findall('./channel/item')[:5]:
             title_en = item.find('title').text
             link = item.find('link').text
             pubDate = item.find('pubDate').text
             
-            title_lower = title_en.lower()
-
-            # [핵심 수정] 단순 포함 여부가 아니라, 회사 이름의 '모든 단어'가 제목에 있는지 검사
-            # 예: "SOLV Energy" -> 제목에 "solv"와 "energy"가 둘 다 없으면 탈락시킴
-            # 이렇게 하면 "Solventum (SOLV)" 뉴스는 "energy"가 없어서 걸러집니다.
-            is_match = True
-            for part in name_parts:
-                if part not in title_lower:
-                    is_match = False
-                    break
-            
-            if not is_match:
-                continue
-
             # 1. 감성 분석
             sent_label, bg, color = analyze_sentiment(title_en)
             
@@ -1022,44 +1007,60 @@ def get_real_news_rss(company_name):
             try: date_str = " ".join(pubDate.split(' ')[1:3])
             except: date_str = "Recent"
 
-            # 3. AI 번역
-            title_ko = translate_news_title(title_en)
-
+            # 3. 한글 번역 (보강된 로직)
+            title_ko = ""
+            try:
+                import time
+                time.sleep(0.2) # 연속 호출 방지
+                
+                trans_url = "https://api.mymemory.translated.net/get"
+                params = {
+                    'q': title_en, 
+                    'langpair': 'en|ko',
+                    'de': 'your_email@example.com' # 실제 메일주소를 적으면 더 안정적입니다.
+                }
+                
+                res_raw = requests.get(trans_url, params=params, timeout=3)
+                
+                if res_raw.status_code == 200:
+                    res = res_raw.json()
+                    if res.get('responseStatus') == 200:
+                        raw_text = res['responseData']['translatedText']
+                        title_ko = raw_text.replace("&quot;", "'").replace("&amp;", "&").replace("&#39;", "'")
+            except:
+                title_ko = "" 
+            
+            # [중요] news_items에 담는 형식을 출력부와 맞춥니다.
             news_items.append({
-                "title": title_en,      
-                "title_ko": title_ko,   
+                "title": title_en,      # 원문 영어 제목
+                "title_ko": title_ko,   # 번역된 한글 제목 (실패 시 빈 문자열)
                 "link": link, 
                 "date": date_str,
                 "sent_label": sent_label, 
                 "bg": bg, 
-                "color": color,
-                "display_tag": "일반" 
+                "color": color
             })
-            
-            if len(news_items) >= 5:
-                break
-                
         return news_items
+    except: return []
 
-    except Exception as e:
-        return []
-# [핵심] 함수 이름 변경 (캐시 초기화 효과)
+# [수정] Tavily 검색 + Groq(무료 AI) 요약 함수 (최신 모델 적용)
 @st.cache_data(show_spinner=False, ttl=86400)
-def get_ai_summary_final(query):
+def get_ai_summary(query):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
     groq_key = st.secrets.get("GROQ_API_KEY") 
 
     if not tavily_key or not groq_key:
-        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets를 확인하세요.</p>"
+        return "⚠️ API 키 설정 오류: Secrets를 확인하세요."
 
     try:
-        # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=7)
-        if not search_result.get('results'): return None 
-        context = "\n".join([r['content'] for r in search_result['results']])
+        
+        if not search_result.get('results'):
+            return None 
 
-        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
+        context = "\n".join([r['content'] for r in search_result['results']])
+        
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -1068,214 +1069,186 @@ def get_ai_summary_final(query):
                 {
                     "role": "system", 
                     "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
-[필수 작성 원칙]
-1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
-2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
-   - 1문단: 비즈니스 모델 및 경쟁 우위
-   - 2문단: 재무 현황 및 공모 자금 활용
-   - 3문단: 향후 전망 및 투자 의견
-3. 문체: '~습니다' 체를 사용하고, 문장 시작에 불필요한 접속사나 사명을 반복하지 마세요.
-4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 오직 줄글로만 작성하세요."""
+[리포트 작성 원칙]
+1. 문장력 개선: 'AGI Inc는', '이 기업은'으로 문장을 시작하지 마세요. 
+   - 예: '마르시아노 테스타 창업자가 이끄는 경영진은~', '수익 모델의 근간은~', '현재 추진 중인 IPO의 목적은~', '보유한 핵심 기술력은~' 등 주어를 다양화하여 전문 기사처럼 작성하세요.
+2. 전문 포맷(3문단 구성): 
+   - 1문단 [Business Summary]: 비즈니스 모델과 경쟁 우위 중심
+   - 2문단 [Financial Review]: 재무 지표 및 IPO 자금 조달 규모 중심
+   - 3문단 [Future Outlook]: 향후 성장 전략 및 종합 투자 의견
+3. 편집: 제목이나 별표(**)는 절대 쓰지 마세요. 100% 한글 경어체(~습니다)만 사용하세요."""
                 },
                 {
                     "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 데이터를 바탕으로 전문적인 3문단 리포트를 작성하세요."
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 사명 반복을 피하고 전문적인 분석 리포트 형식으로 작성해 주세요."
                 }
             ],
-            temperature=0.1
+            temperature=0.0 
         )
         
         raw_result = response.choices[0].message.content
         
-        # --- [요청하신 정제 로직 + 문단 강제 분할] ---
+        # --- [강력 후처리: 레이아웃 물리적 재조립] ---
         
-        # 1. 텍스트 정제 (요청하신 코드 그대로 적용)
-        text = html.unescape(raw_result)
-        replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
-        for k, v in replacements.items(): text = text.replace(k, v)
+        # 1. HTML 엔티티 제거 및 마크다운 세척
+        clean_text = html.unescape(raw_result)
+        clean_text = re.sub(r'\*|#', '', clean_text).strip()
+
+        # 2. AI가 넣은 모든 공백과 줄바꿈을 완전히 삭제하여 리스트화
+        # 여기서 불규칙한 '6칸 들여쓰기' 등이 완전히 박멸됩니다.
+        raw_lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
         
-        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호, 줄바꿈(\s)만 허용)
-        # 주의: \s가 없으면 줄바꿈도 다 사라지므로 \s는 꼭 있어야 합니다.
-        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
-        
-        # 2. 문단 강제 분리 로직 (Brute Force Split)
-        # (1) 우선 줄바꿈(엔터) 기준으로 잘라봅니다.
-        paragraphs = [p.strip() for p in re.split(r'\n+', text.strip()) if len(p) > 30]
-
-        # (2) [비상장치] 만약 AI가 줄바꿈을 안 줘서 덩어리가 1~2개뿐이라면?
-        # -> 마침표(.)를 기준으로 문장을 다 뜯어낸 뒤 강제로 3등분 합니다.
-        if len(paragraphs) < 3:
-            # 문장 단위로 분해 (마침표 뒤 공백 기준)
-            sentences = re.split(r'(?<=\.)\s+', text.strip())
-            total_sents = len(sentences)
-            
-            if total_sents >= 3:
-                # 3등분 계산 (올림 나눗셈)
-                chunk_size = (total_sents // 3) + 1
-                
-                p1 = " ".join(sentences[:chunk_size])
-                p2 = " ".join(sentences[chunk_size : chunk_size*2])
-                p3 = " ".join(sentences[chunk_size*2 :])
-                
-                # 다시 리스트로 합침 (빈 내용 제외)
-                paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
-            else:
-                # 문장이 너무 적으면 그냥 통으로 1개만 반환
-                paragraphs = [text]
-
-        # 3. HTML 태그 포장 (화면 렌더링용)
-        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
-        html_output = ""
-        for p in paragraphs:
-            html_output += f"""
-            <p style='
-                display: block;          /* 블록 요소 지정 */
-                text-indent: 14px;       /* 첫 줄 들여쓰기 */
-                margin-bottom: 20px;     /* 문단 아래 공백 */
-                line-height: 1.8;        /* 줄 간격 */
-                text-align: justify;     /* 양쪽 정렬 */
-                margin-top: 0;
-            '>
-                {p}
-            </p>
-            """
-            
-        return html_output
-
-    except Exception as e:
-        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
-        
-# [설정] 아까 복사한 폴더 ID를 여기에 넣으세요!
-DRIVE_FOLDER_ID = "1wdhRo-0CBr0HBpYdI5zxRs_BQHQwyMcr?hl=ko"  
-
-# ------------------------------------------------------------------
-# [기능 1] 구글 시트 연결 (권한 범위 수정됨!)
-# ------------------------------------------------------------------
-@st.cache_resource
-def get_sheet_client():
-    try:
-        # 👇 여기가 수정되었습니다! (범위를 넓혔습니다)
-        scope = [
-            'https://www.googleapis.com/auth/spreadsheets',
-            'https://www.googleapis.com/auth/drive'
-        ]
-        creds_dict = st.secrets["gcp_service_account"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-        return client
-    except Exception as e:
-        st.error(f"❌ 구글 연결 실패: {e}")
-        return None
-
-# ------------------------------------------------------------------
-# [기능 2] 유저 데이터 처리 (읽기/쓰기)
-# ------------------------------------------------------------------
-def load_users():
-    client = get_sheet_client()
-    if client:
-        try:
-            sh = client.open("unicorn_users").sheet1
-            return sh.get_all_records()
-        except Exception as e:
-            st.error(f"시트 읽기 오류: {e}")
-            return []
-    return []
-
-def add_user(user_data):
-    client = get_sheet_client()
-    if client:
-        try:
-            sh = client.open("unicorn_users").sheet1
-            # 사진 링크 대신 '테스트'라고 저장
-            row = [
-                user_data['id'], user_data['pw'], user_data['phone'], "email_skip",
-                'user', 'pending', # role, status (핵심!)
-                user_data['univ'], user_data['job'], user_data['asset'],
-                "관심분야생략",
-                datetime.now().strftime("%Y-%m-%d"),
-                "link_skip", "link_skip", "link_skip", # 사진 링크 자리
-                f"{user_data['univ']} {user_data['job']} ******" # 닉네임 임시 생성
-            ]
-            sh.append_row(row)
-            return True
-        except Exception as e:
-            st.error(f"데이터 저장 실패: {e}")
-            return False
-    return False
-
-# ------------------------------------------------------------------
-# [화면] UI 시작
-# ------------------------------------------------------------------
-st.markdown("<h1 style='text-align: center;'>🦄 Unicorn Finder (테스트 모드)</h1>", unsafe_allow_html=True)
-
-if 'page' not in st.session_state: st.session_state.page = 'login'
-if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
-
-# 1. 초기 선택 화면
-if st.session_state.login_step == 'choice':
-    c1, c2 = st.columns(2)
-    if c1.button("로그인", use_container_width=True, type="primary"):
-        st.session_state.login_step = 'login_input'
-        st.rerun()
-    if c2.button("가입 신청 (테스트)", use_container_width=True):
-        st.session_state.login_step = 'signup_input'
-        st.rerun()
-
-# 2. 로그인 화면
-elif st.session_state.login_step == 'login_input':
-    st.markdown("### 🔑 로그인 테스트")
-    login_id = st.text_input("아이디")
-    login_pw = st.text_input("비밀번호", type="password")
-    
-    if st.button("접속 시도", use_container_width=True, type="primary"):
-        users = load_users()
-        user = next((u for u in users if str(u["id"]) == login_id), None)
-        
-        if user and str(user['pw']) == login_pw:
-            # [핵심] 승인 여부 체크 로직
-            if user['status'] == 'approved':
-                st.success(f"✅ 로그인 성공! 환영합니다, {user['id']}님.")
-                st.balloons()
-            else:
-                st.warning("⏳ [승인 대기 중] 관리자가 아직 승인하지 않았습니다.")
-                st.info("💡 팁: 구글 시트에서 status를 'approved'로 바꾸고 다시 시도하세요.")
+        # 3. 3개 문단으로 강제 재구성 (내용 유지)
+        if len(raw_lines) >= 3:
+            # 첫 줄(1문단), 두 번째 줄(2문단), 나머지(3문단)로 나누어 재조립
+            # 각 문단 시작에만 정확히 공백 2칸 부여
+            p1 = "  " + raw_lines[0]
+            p2 = "  " + raw_lines[1]
+            p3 = "  " + " ".join(raw_lines[2:])
+            final_content = f"{p1}\n\n{p2}\n\n{p3}"
         else:
-            st.error("❌ 아이디 또는 비밀번호가 틀렸습니다.")
+            # 문단이 부족할 경우 전체에 들여쓰기만 적용
+            final_content = "\n\n".join(["  " + line for line in raw_lines])
 
-    if st.button("뒤로가기"):
-        st.session_state.login_step = 'choice'
-        st.rerun()
-
-# 3. 가입 신청 화면 (입력 최소화)
-elif st.session_state.login_step == 'signup_input':
-    st.markdown("### 📝 가입 신청 (약식)")
-    
-    with st.form("signup_test"):
-        new_id = st.text_input("아이디")
-        new_pw = st.text_input("비밀번호", type="password")
-        new_phone = st.text_input("전화번호")
-        st.markdown("---")
-        in_univ = st.text_input("대학 (인증 생략)")
-        in_job = st.text_input("직업 (인증 생략)")
-        in_asset = st.selectbox("자산", ["10억 미만", "10억 이상"])
+        # 4. 오타 치환 (里程碑 -> 이정표 등)
+        replacements = {"里程碑": "이정표", "quyet": "의사", "普通": "보통", "决策": "의사결정"}
+        for err, fix in replacements.items():
+            final_content = final_content.replace(err, fix)
+            
+        # 5. 한글/숫자/공백/문장부호 외 불필요한 외래어 파편 최종 제거
+        final_content = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w\n]', '', final_content)
         
-        if st.form_submit_button("신청서 제출"):
-            if new_id and new_pw:
-                user_data = {
-                    "id": new_id, "pw": new_pw, "phone": new_phone,
-                    "univ": in_univ, "job": in_job, "asset": in_asset
-                }
-                if add_user(user_data):
-                    st.success("✅ 신청 완료! 구글 시트를 확인하세요.")
+        return final_content
+
+    except Exception as e:
+        return f"🚫 오류: {str(e)}"
+        
+# --- 화면 제어 및 로그인 화면 시작 ---
+
+if st.session_state.page == 'login':
+    # 아래 코드들은 모두 동일하게 'Tab' 한 번(또는 공백 4칸) 안으로 들어가 있어야 합니다.
+    st.write("<br>" * 2, unsafe_allow_html=True)  # 여백 조절
+    
+    # [추가] 상단 타이틀 이미지 표시 영역
+    t_col1, t_col2, t_col3 = st.columns([1, 0.8, 1]) # 이미지 크기 조절을 위한 컬럼 분할
+    with t_col2:
+        img_path = "title_unicorn.png"
+        if os.path.exists(img_path):
+            st.image(img_path, use_container_width=True)
+        else:
+            # 로컬에 파일이 없을 경우를 대비해 GitHub Raw URL 방식을 사용할 수도 있습니다.
+            pass
+
+    st.write("<br>", unsafe_allow_html=True)
+    _, col_m, _ = st.columns([1, 1.2, 1])
+    
+    # [가상 DB] 가입된 사용자 목록을 기억하기 위한 임시 저장소
+    if 'db_users' not in st.session_state:
+        st.session_state.db_users = ["010-0000-0000"] # 테스트용: 관리자 번호는 이미 가입된 것으로 간주
+    
+    with col_m:
+        # 로그인 단계 초기화
+        if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
+
+        # [Step 1] 첫 선택 화면 (로그인 vs 회원가입 분리)
+        if st.session_state.login_step == 'choice':
+            st.write("")
+            
+            # 버튼 1: 기존 회원 로그인 (바로 입력창으로)
+            if st.button("로그인", use_container_width=True, type="primary"):
+                st.session_state.login_step = 'login_input' # 로그인 입력 단계로 이동
+                st.rerun()
+                
+            # 버튼 2: 신규 회원 가입 (안내 화면으로)
+            if st.button("회원가입", use_container_width=True):
+                st.session_state.login_step = 'ask_signup' # 가입 안내 단계로 이동
+                st.rerun()
+                
+            # 버튼 3: 비회원 둘러보기
+            if st.button("구경하기", use_container_width=True):
+                st.session_state.auth_status = 'guest'
+                st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
+                st.rerun()
+
+        # [Step 2-A] 로그인 입력 화면 (기존 회원용)
+        elif st.session_state.login_step == 'login_input':
+            st.markdown("### 🔑 로그인")
+            phone_login = st.text_input("가입하신 휴대폰 번호를 입력하세요", placeholder="010-0000-0000", key="login_phone")
+            
+            l_c1, l_c2 = st.columns([2, 1])
+            with l_c1:
+                if st.button("접속하기", use_container_width=True, type="primary"):
+                    # 가입된 번호인지 확인
+                    if phone_login in st.session_state.db_users:
+                        st.session_state.auth_status = 'user'
+                        st.session_state.user_phone = phone_login # 세션에 정보 저장
+                        st.success(f"반갑습니다! {phone_login}님")
+                        st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
+                        st.session_state.login_step = 'choice'
+                        st.rerun()
+                    else:
+                        st.error("가입되지 않은 번호입니다. 회원가입을 먼저 진행해주세요.")
+            with l_c2:
+                if st.button("뒤로가기", use_container_width=True):
                     st.session_state.login_step = 'choice'
                     st.rerun()
-            else:
-                st.error("아이디와 비번은 필수입니다.")
 
-    if st.button("취소"):
-        st.session_state.login_step = 'choice'
-        st.rerun()
-                
+        # [Step 2-B] 회원가입 안내 화면 (신규 회원용)
+        elif st.session_state.login_step == 'ask_signup':
+            st.info("회원가입시 IPO정보알림받기 및 관심기업관리가 가능합니다.")
+            c1, c2 = st.columns(2)
+            if c1.button("✅ 가입 진행", use_container_width=True):
+                st.session_state.login_step = 'signup_input' # 가입 입력 단계로 이동
+                st.rerun()
+            if c2.button("❌ 취소", use_container_width=True):
+                st.session_state.login_step = 'choice'
+                st.rerun()
+
+        # [Step 3] 가입 정보 입력 (신규 회원용)
+        elif st.session_state.login_step == 'signup_input':
+            st.markdown("### 📝 정보 입력")
+            phone_signup = st.text_input("사용하실 휴대폰 번호를 입력하세요", placeholder="010-0000-0000", key="signup_phone")
+            
+            s_c1, s_c2 = st.columns([2, 1])
+            with s_c1:
+                if st.button("가입 완료", use_container_width=True, type="primary"):
+                    if len(phone_signup) >= 10:
+                        # 이미 존재하는지 확인
+                        if phone_signup in st.session_state.db_users:
+                            st.warning("이미 가입된 번호입니다. '기존 회원 로그인'을 이용해주세요.")
+                        else:
+                            # [DB 저장] 신규 회원을 리스트에 추가
+                            st.session_state.db_users.append(phone_signup)
+                            
+                            st.session_state.auth_status = 'user'
+                            st.session_state.user_phone = phone_signup
+                            st.balloons() # 가입 축하 효과
+                            st.toast("회원가입을 축하합니다!", icon="🎉")
+                            st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
+                            st.session_state.login_step = 'choice'
+                            st.rerun()
+                    else: st.error("올바른 번호를 입력해주세요.")
+            with s_c2:
+                if st.button("취소", key="back_signup"):
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
+
+    st.write("<br>" * 2, unsafe_allow_html=True)
+    q = get_daily_quote()
+    
+    # [수정] 한글(kor)이 추가된 HTML 디자인
+    st.markdown(f"""
+        <div class='quote-card'>
+            <b>"{q['eng']}"</b>
+            <br>
+            <span style='font-size:14px; color:#555; font-weight:normal;'>{q['kor']}</span>
+            <br><br>
+            <small>- {q['author']} -</small>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
     # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
@@ -1979,15 +1952,13 @@ elif st.session_state.page == 'detail':
             
             # [1] 기업 심층 분석 섹션 (Expander 적용)
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
-                # 쿼리 정의 (이 줄이 꼭 있어야 합니다!)
                 q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
                 
                 with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
-                    # 👇 함수 이름 final로 변경 (캐시 문제 해결됨)
-                    biz_info = get_ai_summary_final(q_biz) 
+                    biz_info = get_ai_summary(q_biz) # 이 함수가 제가 위에서 드린 '최종 수정본'이어야 합니다.
                     
                     if biz_info:
-                        # 스타일에서 white-space 제거하고, 공백 없이 딱 붙여 넣기
+                        # 기존 스타일에 font-family와 가독성 요소를 조금 더 정교하게 다듬었습니다.
                         st.markdown(f"""
                         <div style="
                             background-color: #f8f9fa; 
@@ -1995,9 +1966,14 @@ elif st.session_state.page == 'detail':
                             border-radius: 12px; 
                             border-left: 5px solid #6e8efb; 
                             color: #333; 
-                            font-family: 'Pretendard', sans-serif;
+                            line-height: 1.9; 
+                            white-space: pre-wrap; 
                             font-size: 15px;
-                        ">{biz_info}</div>
+                            font-family: 'Pretendard', -apple-system, sans-serif;
+                            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
+                        ">
+                            {biz_info}
+                        </div>
                         """, unsafe_allow_html=True)
                     else:
                         st.error("⚠️ 정보를 찾을 수 없습니다.")
@@ -2784,9 +2760,7 @@ elif st.session_state.page == 'detail':
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
                         st.error(f"Consensus: {rating_val}", help=rating_help)
                     else:
-                        st.info(f"등급: {rating_val}")
-                        # 만약 설명(help) 내용도 보여주고 싶다면 아래 줄을 추가하세요:
-                        st.caption(f"💡 참고: {rating_help}")
+                        st.info(f"등급: {rating_val}", help=rating_help)
             
                 with s_col2:
                     # IPO Scoop Score 동적 툴팁 생성
@@ -2804,9 +2778,7 @@ elif st.session_state.page == 'detail':
                         score_help += f"- ⭐ {k}개: {v}{is_current}\n"
             
                     st.write("**[IPO Scoop Score]**")
-                    st.warning(f"Expected Score: ⭐ {score_val}")
-                    # 설명이 꼭 필요하다면 아래 줄을 추가하세요:
-                    st.caption(score_help)
+                    st.warning(f"Expected Score: ⭐ {score_val}", help=score_help)
             
                 # 참고 소스 링크
                 sources = result.get('links', [])
@@ -2934,86 +2906,35 @@ elif st.session_state.page == 'detail':
                     st.caption("아직 게시글이 없습니다.")
                 else:
                     for p in sid_posts:
+                        # 1. 커뮤니티 감성의 슬림한 리스트 디자인 적용
                         with st.container():
-                            # 1. 댓글이 있으면 댓글수, 없으면 조회수를 표시하는 로직
-                            c_count = p.get('comment_count', 0)
-                            if c_count > 0:
-                                stat_display = f"💬 {c_count}"
-                            else:
-                                stat_display = f"👁️ {p.get('views', 0)}"
-
-                            # 2. 디자인: Flexbox를 사용해 한 줄에 배치 (좌측 정렬 / 우측 정렬)
+                            # HTML/CSS로 카테고리, 제목, 아이콘 레이아웃 구성
                             st.markdown(f"""
-                                <div style="
-                                    display: flex; 
-                                    justify-content: space-between; 
-                                    align-items: center; 
-                                    padding: 12px 4px; 
-                                    border-bottom: 1px solid #f0f0f0;
-                                ">
-                                    <div style="
-                                        flex: 1; 
-                                        white-space: nowrap; 
-                                        overflow: hidden; 
-                                        text-overflow: ellipsis; 
-                                        padding-right: 15px;
-                                    ">
-                                        <span style="color: #ff4b4b; font-size: 13px; font-weight: bold;">
-                                            [{p.get('category', '일반')}]
-                                        </span>
-                                        <span style="color: #333; font-size: 15px; font-weight: 600; margin-left: 6px;">
-                                            {p.get('title')}
-                                        </span>
-                                    </div>
-                                    
-                                    <div style="
-                                        display: flex; 
-                                        align-items: center; 
-                                        gap: 10px; 
-                                        font-size: 13px; 
-                                        color: #666; 
-                                        white-space: nowrap;
-                                    ">
-                                        <span>👍 {p.get('likes', 0)}</span>
-                                        <span style="min-width: 40px; text-align: right;">{stat_display}</span>
+                                <div style="line-height: 1.5; margin-bottom: 5px;">
+                                    <div style="color: #888; font-size: 13px; font-weight: 500; margin-bottom: 2px;">{p.get('category', '일반')}</div>
+                                    <div style="color: #000; font-size: 16px; font-weight: 600; margin-bottom: 5px;">{p.get('title')}</div>
+                                    <div style="display: flex; align-items: center; gap: 12px; color: #666; font-size: 13px;">
+                                        <span style="display: flex; align-items: center; gap: 4px;">👍 {p.get('likes', 0)}</span>
+                                        <span style="display: flex; align-items: center; gap: 4px;">💬 {p.get('comment_count', 0)}</span>
                                     </div>
                                 </div>
                             """, unsafe_allow_html=True)
                             
-                            # 3. 투명 버튼 역할 (클릭 시 상세 이동)
-                            # 버튼을 누르면 view_post_id를 설정하고 새로고침하여 상세 화면으로 진입
-                            if st.button("👆 상세 내용 보기", key=f"go_{p['id']}", use_container_width=True):
+                            # 2. 실제 클릭 영역 (투명 버튼으로 제목 위를 덮는 느낌)
+                            # Streamlit 제약상 버튼을 완전히 투명하게 하기는 어려우므로, 
+                            # '상세보기' 버튼을 아주 작고 깔끔하게 배치하거나 제목 자체를 버튼으로 유지합니다.
+                            if st.button("내용 보기", key=f"go_{p['id']}", use_container_width=True):
                                 st.session_state.view_post_id = p['id']
-                                p['views'] = p.get('views', 0) + 1  # 조회수 1 증가
+                                p['views'] = p.get('views', 0) + 1
                                 st.rerun()
+                            
+                            st.markdown('<div style="border-bottom: 1px solid #f0f0f0; margin: 10px 0;"></div>', unsafe_allow_html=True)
                 
                 
                 
                 
                 
                 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
