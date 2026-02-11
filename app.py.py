@@ -1280,7 +1280,7 @@ if st.session_state.page == 'login':
             # 버튼 3: 구경하기
             if st.button("구경하기", use_container_width=True):
                 st.session_state.auth_status = 'guest'
-                st.session_state.page = 'calendar'
+                
                 st.rerun()
 
         # ---------------------------------------------------------
@@ -1299,7 +1299,7 @@ if st.session_state.page == 'login':
                         st.session_state.auth_status = 'user'
                         st.session_state.user_id = l_id
                         st.success(f"반갑습니다 {l_id}님!")
-                        st.session_state.page = 'calendar'
+                        
                         st.session_state.login_step = 'choice' # 다음번을 위해 초기화
                         st.rerun()
                     else:
@@ -1451,46 +1451,30 @@ if st.session_state.page == 'login':
                     st.rerun()
 
         # ---------------------------------------------------------
-        # [Step 3] 최종 프로필 설정 및 구글 시트 저장 (이 블록으로 교체!)
+        # [Step 3] 최종 프로필 설정 (기존 코드 통합 및 수정본)
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_step_3':
             st.markdown("<div class='auth-card'><h5>👤 프로필 설정</h5>", unsafe_allow_html=True)
-            st.success("인증 서류 제출이 확인되었습니다.")
             
-            # 1. ID 마스킹 로직
+            # (1) ID 마스킹 및 옵션 구성 (기존 로직 유지)
             raw_id = st.session_state.temp_signup_data.get('id', 'unknown')
             masked_id = raw_id[:4] + "*" * (len(raw_id) - 4) if len(raw_id) > 4 else raw_id[:1] + "*" * (len(raw_id) - 1)
-            
-            # 2. 옵션 구성 로직 (인증 데이터 기반)
             cert = st.session_state.cert_data
             options = []
-            
-            # (1) 학교/학과
-            if cert.get('school'): 
-                options.append(f"🎓 {cert['school']}")
-            # (2) 직업/직장
-            if cert.get('job'): 
-                options.append(f"💼 {cert['job']}")
-            # (3) 자산 등급
+            if cert.get('school'): options.append(f"🎓 {cert['school']}")
+            if cert.get('job'): options.append(f"💼 {cert['job']}")
             if cert.get('asset'):
-                tier_label = cert['asset'].split(' ')[0] # '10억', '30억' 등 추출
+                tier = cert['asset'].split(' ')[0]
                 badge = "💎" if "100억" in cert['asset'] else "🥇" if "50억" in cert['asset'] else "🥈" if "30억" in cert['asset'] else "🥉"
-                options.append(f"{badge} {tier_label} 자산가")
-            
-            # 인증된 항목이 전혀 없는 경우 (예외 처리)
-            if not options: 
-                options.append("🌱 새싹 회원")
+                options.append(f"{badge} {tier} 자산가")
+            if not options: options.append("🌱 새싹 회원")
 
-            # 3. 사용자 타이틀 선택 UI
-            selected_tag = st.radio("커뮤니티 활동 시 사용할 대표 타이틀을 선택하세요", options)
+            selected_tag = st.radio("공개할 대표 타이틀", options)
             preview_str = f"{selected_tag} | {masked_id}"
-            
-            st.info(f"👀 **다른 사람에게 보이는 모습**\n\n### {preview_str}")
-            st.write("<br>", unsafe_allow_html=True)
+            st.info(f"👀 미리보기: {preview_str}")
 
-            # 4. 최종 저장 버튼 및 프로세스
+            # (2) 🚨 핵심: 저장 버튼 로직
             if st.button("🚀 최종 가입 및 데이터 저장", type="primary", use_container_width=True):
-                # 데이터 조립
                 user_info = {
                     "id": raw_id,
                     "pw": st.session_state.temp_signup_data.get('pw'),
@@ -1502,34 +1486,30 @@ if st.session_state.page == 'login':
                     "display_name": preview_str
                 }
 
-                # 상태 표시를 위한 플레이스홀더
                 msg_placeholder = st.empty()
-                msg_placeholder.info("⏳ 데이터베이스(Google Sheets)에 연결 중...")
+                msg_placeholder.info("⏳ 시트 저장 중...")
 
-                # 구글 시트 저장 함수 호출
-                with st.spinner("회원 정보를 안전하게 기록하고 있습니다..."):
-                    success, msg = save_user_to_sheets(user_info)
+                success, msg = save_user_to_sheets(user_info)
                 
                 if success:
-                    msg_placeholder.success("✅ 회원가입 및 시트 기록이 완료되었습니다!")
+                    msg_placeholder.success("✅ 저장 완료! 이동합니다.")
                     st.balloons()
-                    time.sleep(2)
-                    
-                    # 로그인 세션 활성화 및 페이지 이동
+                    time.sleep(1.5)
+                    # 여기서만 상태값을 바꿉니다.
                     st.session_state.auth_status = 'user'
                     st.session_state.user_id = raw_id
-                    st.session_state.user_badge = selected_tag
                     st.session_state.page = 'calendar'
                     st.session_state.login_step = 'choice'
                     st.rerun()
                 else:
-                    # 실패 시 페이지 이동을 차단하고 상세 에러 표시
                     msg_placeholder.error(f"❌ 저장 실패: {msg}")
-                    st.warning("스프레드시트 공유 설정에서 서비스 계정 이메일이 '편집자'로 추가되었는지 확인하세요.")
-                    st.stop() # 여기서 실행 중단
+                    st.stop() # 실패 시 다음 코드로 넘어가지 않게 차단
 
             st.markdown("</div>", unsafe_allow_html=True)
 
+# ---------------------------------------------------------
+# 🚨 [매우 중요] 로그인 페이지 조건문이 여기서 완전히 끝나야 함 (들여쓰기 제거)
+# ---------------------------------------------------------
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
     # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
@@ -1730,11 +1710,11 @@ elif st.session_state.page == 'calendar':
         elif selected_menu == main_text:
             st.session_state.view_mode = 'all'
             # 메인 목록 페이지 이름이 'calendar'라면 'calendar'로, 'main'이라면 'main'으로 맞춰주세요.
-            st.session_state.page = 'calendar' 
+             
             
         elif selected_menu == watch_text:
             st.session_state.view_mode = 'watchlist'
-            st.session_state.page = 'calendar' 
+             
             
         elif selected_menu == board_text:
             st.session_state.page = 'board'
@@ -1970,11 +1950,11 @@ elif st.session_state.page == 'detail':
             elif selected_menu == main_text:
                 st.session_state.view_mode = 'all'
                 # [중요] 하얀 화면 방지: 메인 목록 페이지 이름이 'calendar'라면 여기를 'calendar'로 유지
-                st.session_state.page = 'calendar' 
+                 
             
             elif selected_menu == watch_text:
                 st.session_state.view_mode = 'watchlist'
-                st.session_state.page = 'calendar' # 위와 동일하게 설정
+                 # 위와 동일하게 설정
             
             elif selected_menu == board_text:
                 st.session_state.page = 'board'
@@ -3265,6 +3245,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
