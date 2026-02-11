@@ -1455,31 +1455,42 @@ if st.session_state.page == 'login':
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_step_3':
             st.markdown("<div class='auth-card'><h5>👤 프로필 설정</h5>", unsafe_allow_html=True)
-            st.success("서류 제출이 완료되었습니다! (가승인)")
+            st.success("인증 서류 제출이 확인되었습니다.")
             
-            # 1. ID 마스킹 및 옵션 구성 로직
+            # 1. ID 마스킹 로직
             raw_id = st.session_state.temp_signup_data.get('id', 'unknown')
             masked_id = raw_id[:4] + "*" * (len(raw_id) - 4) if len(raw_id) > 4 else raw_id[:1] + "*" * (len(raw_id) - 1)
             
+            # 2. 옵션 구성 로직 (인증 데이터 기반)
             cert = st.session_state.cert_data
             options = []
-            if cert.get('school'): options.append(f"🎓 {cert['school']}")
-            if cert.get('job'): options.append(f"💼 {cert['job']}")
-            if cert.get('asset'):
-                tier = cert['asset'].split(' ')[0]
-                badge = "💎" if "100억" in cert['asset'] else "🥇" if "50억" in cert['asset'] else "🥈" if "30억" in cert['asset'] else "🥉"
-                options.append(f"{badge} {tier} 자산가")
             
-            if not options: options.append("🌱 새싹 회원")
+            # (1) 학교/학과
+            if cert.get('school'): 
+                options.append(f"🎓 {cert['school']}")
+            # (2) 직업/직장
+            if cert.get('job'): 
+                options.append(f"💼 {cert['job']}")
+            # (3) 자산 등급
+            if cert.get('asset'):
+                tier_label = cert['asset'].split(' ')[0] # '10억', '30억' 등 추출
+                badge = "💎" if "100억" in cert['asset'] else "🥇" if "50억" in cert['asset'] else "🥈" if "30억" in cert['asset'] else "🥉"
+                options.append(f"{badge} {tier_label} 자산가")
+            
+            # 인증된 항목이 전혀 없는 경우 (예외 처리)
+            if not options: 
+                options.append("🌱 새싹 회원")
 
-            selected_tag = st.radio("공개할 대표 타이틀", options)
+            # 3. 사용자 타이틀 선택 UI
+            selected_tag = st.radio("커뮤니티 활동 시 사용할 대표 타이틀을 선택하세요", options)
             preview_str = f"{selected_tag} | {masked_id}"
             
-            st.info(f"👀 **미리보기**\n\n### {preview_str}")
+            st.info(f"👀 **다른 사람에게 보이는 모습**\n\n### {preview_str}")
             st.write("<br>", unsafe_allow_html=True)
 
-            # 2. 가입 완료 버튼 및 시트 저장 실행
-            if st.button("🎉 회원가입 완료 및 데이터 저장", type="primary", use_container_width=True):
+            # 4. 최종 저장 버튼 및 프로세스
+            if st.button("🚀 최종 가입 및 데이터 저장", type="primary", use_container_width=True):
+                # 데이터 조립
                 user_info = {
                     "id": raw_id,
                     "pw": st.session_state.temp_signup_data.get('pw'),
@@ -1491,18 +1502,20 @@ if st.session_state.page == 'login':
                     "display_name": preview_str
                 }
 
-                st.write("⏳ 데이터베이스 연결 시도 중...") 
+                # 상태 표시를 위한 플레이스홀더
+                msg_placeholder = st.empty()
+                msg_placeholder.info("⏳ 데이터베이스(Google Sheets)에 연결 중...")
 
-                with st.spinner("구글 시트에 회원 정보를 기록 중입니다..."):
-                    # 여기서 우리가 만든 저장 함수 호출
+                # 구글 시트 저장 함수 호출
+                with st.spinner("회원 정보를 안전하게 기록하고 있습니다..."):
                     success, msg = save_user_to_sheets(user_info)
                 
                 if success:
+                    msg_placeholder.success("✅ 회원가입 및 시트 기록이 완료되었습니다!")
                     st.balloons()
-                    st.success("✅ 구글 시트 저장 성공!")
-                    time.sleep(1)
+                    time.sleep(2)
                     
-                    # 로그인 성공 처리 후 메인 화면으로 이동
+                    # 로그인 세션 활성화 및 페이지 이동
                     st.session_state.auth_status = 'user'
                     st.session_state.user_id = raw_id
                     st.session_state.user_badge = selected_tag
@@ -1510,7 +1523,10 @@ if st.session_state.page == 'login':
                     st.session_state.login_step = 'choice'
                     st.rerun()
                 else:
-                    st.error(f"❌ 저장 실패: {msg}")
+                    # 실패 시 페이지 이동을 차단하고 상세 에러 표시
+                    msg_placeholder.error(f"❌ 저장 실패: {msg}")
+                    st.warning("스프레드시트 공유 설정에서 서비스 계정 이메일이 '편집자'로 추가되었는지 확인하세요.")
+                    st.stop() # 여기서 실행 중단
 
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -3249,6 +3265,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
