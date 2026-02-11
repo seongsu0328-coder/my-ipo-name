@@ -70,23 +70,9 @@ def upload_photo_to_drive(file_obj, filename_prefix):
 # ==========================================
 def send_email_code(to_email, code):
     try:
-        # [체크 1] Secrets 자체가 비어있는지 확인
-        if not st.secrets:
-            st.error("Secrets 설정이 완전히 비어있습니다.")
-            return False
-
-        # [체크 2] 현재 앱이 인식 중인 키 목록을 화면에 출력 (문제 해결 후 삭제 가능)
-        available_keys = list(st.secrets.keys())
-        
-        # 키가 없을 경우 상세 안내
-        if "email_id" not in st.secrets:
-            st.error(f"❌ 'email_id' 키를 찾을 수 없습니다.")
-            st.info(f"현재 인식된 키: {available_keys}")
-            st.info("Streamlit Cloud 설정(Settings > Secrets)에서 email_id = '...' 형식으로 입력했는지 확인하세요.")
-            return False
-
-        sender_email = st.secrets["email_id"]
-        sender_pw = st.secrets["email_pw"]
+        # 현재 인식된 키 이름('email_address', 'app_password')으로 수정했습니다.
+        sender_email = st.secrets["email_address"]
+        sender_pw = st.secrets["app_password"]
 
         subject = "[Unicorn Finder] 본인 인증번호 안내"
         body = f"안녕하세요. 요청하신 인증번호는 [{code}] 입니다."
