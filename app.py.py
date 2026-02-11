@@ -10,14 +10,30 @@ import uuid
 import random
 import math
 import html
-import re  
+import re
+import smtplib
 from datetime import datetime, timedelta
-from openai import OpenAI  # ✅ OpenAI 임포트
+from email.mime.text import MIMEText
 
-# --- [AI 및 검색 기능] ---
-import google.generativeai as genai
+# --- [1. 구글 API 및 인증 관련 (회원관리용)] ---
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+
+# --- [2. AI 및 검색 라이브러리 (기존 메인 기능)] ---
+from openai import OpenAI             # Groq(뉴스 요약)용
+import google.generativeai as genai   # Gemini(메인 종목 분석)용
+from tavily import TavilyClient       # Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
-from tavily import TavilyClient  # ✅ Tavily API 클라이언트
+
+# --- [여기(최상단)에 함수를 두어야 아래에서 인식합니다] ---
+def clean_text_final(text):
+    if not text:
+        return ""
+    text = str(text)
+    text = text.replace("**", "").replace("##", "").replace("###", "")
+    return text.strip()
 
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
@@ -274,14 +290,16 @@ def get_ai_analysis(company_name, topic, points):
 @st.cache_data(show_spinner=False, ttl=86400) 
 def get_cached_ipo_analysis(ticker, company_name):
     tavily_key = st.secrets.get("TAVILY_API_KEY")
-    # model 객체는 외부에서 정의되어 있다고 가정합니다.
-    if not tavily_key or not model:
+    
+    # model 객체는 외부(app.py 전역)에서 정의된 것을 사용한다고 가정합니다.
+    # 만약 함수 내에서 정의가 필요하다면 model = genai.GenerativeModel('gemini-1.5-flash') 등을 추가해야 합니다.
+    if not tavily_key:
         return {"rating": "N/A", "pro_con": "API Key 설정 필요", "summary": "설정을 확인하세요.", "links": []}
 
     try:
         tavily = TavilyClient(api_key=tavily_key)
         
-        # [기본 로직 유지] 쿼리 최적화
+        # 쿼리 최적화
         site_query = f"(site:renaissancecapital.com OR site:seekingalpha.com OR site:morningstar.com) {company_name} {ticker} stock IPO analysis 2025 2026"
         
         search_result = tavily.search(query=site_query, search_depth="advanced", max_results=10)
@@ -296,7 +314,7 @@ def get_cached_ipo_analysis(ticker, company_name):
             search_context += f"Source: {r['url']}\nContent: {r['content']}\n\n"
             links.append({"title": r['title'], "link": r['url']})
 
-        # [기본 로직 유지 + 지침 강화] 프롬프트에 URL 금지 명령 명시
+        # --- [프롬프트 수정: 링크 포함 금지 지침 추가] ---
         prompt = f"""
         당신은 월가 출신의 IPO 전문 분석가입니다. 아래 제공된 {company_name} ({ticker})에 대한 기관 데이터를 바탕으로 심층 분석을 수행하세요.
         
@@ -308,7 +326,7 @@ def get_cached_ipo_analysis(ticker, company_name):
         2. 긍정의견(Pros) 2가지와 부정의견(Cons) 2가지를 구체적인 수치나 근거를 들어 요약하세요.
         3. Rating은 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
         4. Summary는 전문적인 톤으로 3줄 이내로 작성하세요.
-        5. 중요: 답변 본문에 'Source:'나 'https://'로 시작하는 링크를 절대 포함하지 마세요.
+        5. **중요: 답변 내용(Summary 포함)에 'Source:', 'http...', '출처' 등 링크 정보를 절대 포함하지 마세요. 오직 분석 텍스트만 작성하세요.**
 
         [응답 형식]:
         Rating: (이곳에 작성)
@@ -318,40 +336,38 @@ def get_cached_ipo_analysis(ticker, company_name):
         Summary: (이곳에 작성)
         """
 
-        # [기본 로직 유지] 재시도 메커니즘
+        # [재시도 로직]
         max_retries = 3
         for i in range(max_retries):
             try:
+                # model이 정의되어 있다고 가정 (없으면 에러 발생하므로 주의)
                 response_obj = model.generate_content(prompt)
                 response_text = response_obj.text
 
-                import re
+                rating = re.search(r"Rating:\s*(.*)", response_text, re.I)
+                pro_con = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
+                summary = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
                 
-                # 정규식으로 각 파트 추출 (기존 로직 동일)
-                rating_match = re.search(r"Rating:\s*(.*)", response_text, re.I)
-                pro_con_match = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
-                summary_match = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
+                # --- [후처리: 혹시 모를 링크 제거 로직] ---
+                raw_summary = summary.group(1).strip() if summary else response_text
+                
+                # 'Source:' 또는 'http'가 나오면 그 뒷부분은 잘라냄
+                if "Source:" in raw_summary:
+                    clean_summary = raw_summary.split("Source:")[0].strip()
+                elif "http" in raw_summary:
+                    clean_summary = raw_summary.split("http")[0].strip()
+                else:
+                    clean_summary = raw_summary
 
-                # --- [추가된 텍스트 세척 함수: 로직 보강] ---
-                def clean_output(text):
-                    if not text: return ""
-                    # 1. 'Source:' 단어 기준 절단 (가장 확실함)
-                    text = re.split(r'(?i)source', text)[0]
-                    # 2. 남아있는 URL 패턴 제거
-                    text = re.sub(r'https?://\S+', '', text)
-                    return text.strip().rstrip(' ,.:-')
-
-                # 최종 결과 가공
                 return {
-                    "rating": rating_match.group(1).strip() if rating_match else "Neutral",
-                    "pro_con": clean_output(pro_con_match.group(1)) if pro_con_match else "분석 데이터 추출 실패",
-                    "summary": clean_output(summary_match.group(1)) if summary_match else response_text,
+                    "rating": rating.group(1).strip() if rating else "Neutral",
+                    "pro_con": pro_con.group(1).strip() if pro_con else "분석 데이터 추출 실패",
+                    "summary": clean_summary, # 깨끗해진 요약본 적용
                     "links": links[:5]
                 }
             except Exception as e:
-                # [기본 로직 유지] 429 에러 및 쿼터 초과 처리
+                # 429 에러 처리 (API 한도 초과 시 대기)
                 if "429" in str(e) or "quota" in str(e).lower():
-                    import time
                     time.sleep(2 * (i + 1))
                     continue
                 return {"rating": "Error", "pro_con": f"오류 발생: {e}", "summary": "분석 중 문제가 발생했습니다.", "links": []}
@@ -522,16 +538,23 @@ def get_us_ipo_analysis(ticker_symbol):
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# --- 세션 초기화 ---
-for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock', 'watchlist', 'view_mode', 'news_topic']:
+# 'posts'를 아래 리스트에 추가했습니다.
+for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock', 'watchlist', 'view_mode', 'news_topic', 'posts']:
     if key not in st.session_state:
-        if key == 'page': st.session_state[key] = 'login'
-        elif key == 'watchlist': st.session_state[key] = []
-        elif key in ['vote_data', 'comment_data', 'user_votes']: st.session_state[key] = {}
-        elif key == 'view_mode': st.session_state[key] = 'all'
-        elif key == 'news_topic': st.session_state[key] = "💰 공모가 범위/확정 소식"
-        else: st.session_state[key] = None
-
+        if key == 'page': 
+            st.session_state[key] = 'login'
+        # posts와 watchlist는 목록 형태이므로 빈 리스트([])로 초기화
+        elif key in ['watchlist', 'posts']: 
+            st.session_state[key] = []
+        elif key in ['vote_data', 'comment_data', 'user_votes']: 
+            st.session_state[key] = {}
+        elif key == 'view_mode': 
+            st.session_state[key] = 'all'
+        elif key == 'news_topic': 
+            st.session_state[key] = "💰 공모가 범위/확정 소식"
+        else: 
+            st.session_state[key] = None
+            
 # --- CSS 스타일 ---
 st.markdown("""
     <style>
@@ -922,55 +945,12 @@ def analyze_sentiment(text):
 @st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
 @st.cache_data(ttl=3600)
 def get_real_news_rss(company_name, ticker=""):
-    import re
     import requests
-    import xml.etree.ElementTree as ET
-    import urllib.parse
+import xml.etree.ElementTree as ET
+import urllib.parse
+import re
 
-    try:
-        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE).strip()
-        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
-        enc_query = urllib.parse.quote(query)
-        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
-
-        response = requests.get(url, timeout=5)
-        root = ET.fromstring(response.content)
-        
-        news_items = []
-        items = root.findall('./channel/item')
-        
-        for item in items[:10]: # 조금 넉넉히 가져옴
-            title_en = item.find('title').text
-            link = item.find('link').text
-            pubDate = item.find('pubDate').text
-            
-            if clean_name.lower() not in title_en.lower():
-                continue
-
-            sent_label, bg, color = analyze_sentiment(title_en)
-            
-            try:
-                date_str = " ".join(pubDate.split(' ')[1:3])
-            except:
-                date_str = "Recent"
-
-            news_items.append({
-                "title": title_en,  
-                "link": link, 
-                "date": date_str,
-                "sent_label": sent_label, 
-                "bg": bg, 
-                "color": color
-            })
-            
-            if len(news_items) >= 5:
-                break
-                
-        return news_items
-    except Exception as e:
-        return []
-
-# [추가: 뉴스 감성 분석 함수]
+# [1] 뉴스 감성 분석 함수 (내부 연산용)
 def analyze_sentiment(text):
     text = text.lower()
     pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
@@ -985,21 +965,53 @@ def analyze_sentiment(text):
     elif score < 0: return "부정", "#fce8e6", "#d93025"
     else: return "일반", "#f1f3f4", "#5f6368"
 
-@st.cache_data(ttl=300)
+# [2] 통합 뉴스 검색 함수 (RSS 검색 + AI 번역 결합)
+@st.cache_data(ttl=3600)
 def get_real_news_rss(company_name):
-    """구글 뉴스 RSS + 한글 번역 + 감성 분석"""
+    """구글 뉴스 RSS 검색 + 정밀 필터링 + AI 번역"""
     try:
-        query = f"{company_name} stock news"
-        url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
-        response = requests.get(url, timeout=3)
+        import time
+        
+        # [수정 1] 회사 이름 정제 로직 강화 (특수문자 제거 및 콤마 처리)
+        # 1차: 법인명 제거 (Inc, Corp 등)
+        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE)
+        # 2차: 콤마(,) 등 특수문자 제거하고 앞뒤 공백 정리
+        clean_name = re.sub(r'[^\w\s]', '', clean_name).strip()
+        
+        # 검색어 생성
+        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
+        enc_query = urllib.parse.quote(query)
+        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
+
+        response = requests.get(url, timeout=5)
         root = ET.fromstring(response.content)
         
         news_items = []
-        for item in root.findall('./channel/item')[:5]:
+        items = root.findall('./channel/item')
+        
+        # [수정 2] 검색어의 핵심 단어 리스트 추출 (예: "SOLV Energy" -> ["solv", "energy"])
+        # 단, "Energy", "Bio" 같은 일반 명사도 회사명의 일부라면 필수 조건으로 봅니다.
+        name_parts = [part.lower() for part in clean_name.split() if len(part) > 1]
+
+        for item in items[:5]: 
             title_en = item.find('title').text
             link = item.find('link').text
             pubDate = item.find('pubDate').text
             
+            title_lower = title_en.lower()
+
+            # [핵심 수정] 단순 포함 여부가 아니라, 회사 이름의 '모든 단어'가 제목에 있는지 검사
+            # 예: "SOLV Energy" -> 제목에 "solv"와 "energy"가 둘 다 없으면 탈락시킴
+            # 이렇게 하면 "Solventum (SOLV)" 뉴스는 "energy"가 없어서 걸러집니다.
+            is_match = True
+            for part in name_parts:
+                if part not in title_lower:
+                    is_match = False
+                    break
+            
+            if not is_match:
+                continue
+
             # 1. 감성 분석
             sent_label, bg, color = analyze_sentiment(title_en)
             
@@ -1007,60 +1019,46 @@ def get_real_news_rss(company_name):
             try: date_str = " ".join(pubDate.split(' ')[1:3])
             except: date_str = "Recent"
 
-            # 3. 한글 번역 (보강된 로직)
-            title_ko = ""
-            try:
-                import time
-                time.sleep(0.2) # 연속 호출 방지
-                
-                trans_url = "https://api.mymemory.translated.net/get"
-                params = {
-                    'q': title_en, 
-                    'langpair': 'en|ko',
-                    'de': 'your_email@example.com' # 실제 메일주소를 적으면 더 안정적입니다.
-                }
-                
-                res_raw = requests.get(trans_url, params=params, timeout=3)
-                
-                if res_raw.status_code == 200:
-                    res = res_raw.json()
-                    if res.get('responseStatus') == 200:
-                        raw_text = res['responseData']['translatedText']
-                        title_ko = raw_text.replace("&quot;", "'").replace("&amp;", "&").replace("&#39;", "'")
-            except:
-                title_ko = "" 
-            
-            # [중요] news_items에 담는 형식을 출력부와 맞춥니다.
+            # 3. AI 번역
+            title_ko = translate_news_title(title_en)
+
             news_items.append({
-                "title": title_en,      # 원문 영어 제목
-                "title_ko": title_ko,   # 번역된 한글 제목 (실패 시 빈 문자열)
+                "title": title_en,      
+                "title_ko": title_ko,   
                 "link": link, 
                 "date": date_str,
                 "sent_label": sent_label, 
                 "bg": bg, 
-                "color": color
+                "color": color,
+                "display_tag": "일반" 
             })
+            
+            if len(news_items) >= 5:
+                break
+                
         return news_items
-    except: return []
 
-# [수정] Tavily 검색 + Groq(무료 AI) 요약 함수 (최신 모델 적용)
+    except Exception as e:
+        return []
+# [핵심] 함수 이름 변경 (캐시 초기화 효과)
 @st.cache_data(show_spinner=False, ttl=86400)
-def get_ai_summary(query):
-    tavily_key = st.secrets.get("TAVILY_API_KEY")
-    groq_key = st.secrets.get("GROQ_API_KEY") 
+def get_ai_summary_final(query):
+    # [수정] 대문자든 소문자든 있는 쪽을 무조건 가져옵니다.
+    tavily_key = st.secrets.get("TAVILY_API_KEY") or st.secrets.get("tavily_api_key")
+    groq_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key")
 
+    # 두 키 중 하나라도 없으면 그때만 에러를 띄웁니다.
     if not tavily_key or not groq_key:
-        return "⚠️ API 키 설정 오류: Secrets를 확인하세요."
+        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets 창에 TAVILY_API_KEY와 GROQ_API_KEY가 있는지 확인하세요.</p>"
 
     try:
+        # 1. Tavily 검색
         tavily = TavilyClient(api_key=tavily_key)
         search_result = tavily.search(query=query, search_depth="basic", max_results=7)
-        
-        if not search_result.get('results'):
-            return None 
-
+        if not search_result.get('results'): return None 
         context = "\n".join([r['content'] for r in search_result['results']])
-        
+
+        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -1069,59 +1067,82 @@ def get_ai_summary(query):
                 {
                     "role": "system", 
                     "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
-[리포트 작성 원칙]
-1. 문장력 개선: 'AGI Inc는', '이 기업은'으로 문장을 시작하지 마세요. 
-   - 예: '마르시아노 테스타 창업자가 이끄는 경영진은~', '수익 모델의 근간은~', '현재 추진 중인 IPO의 목적은~', '보유한 핵심 기술력은~' 등 주어를 다양화하여 전문 기사처럼 작성하세요.
-2. 전문 포맷(3문단 구성): 
-   - 1문단 [Business Summary]: 비즈니스 모델과 경쟁 우위 중심
-   - 2문단 [Financial Review]: 재무 지표 및 IPO 자금 조달 규모 중심
-   - 3문단 [Future Outlook]: 향후 성장 전략 및 종합 투자 의견
-3. 편집: 제목이나 별표(**)는 절대 쓰지 마세요. 100% 한글 경어체(~습니다)만 사용하세요."""
+[필수 작성 원칙]
+1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
+2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
+   - 1문단: 비즈니스 모델 및 경쟁 우위
+   - 2문단: 재무 현황 및 공모 자금 활용
+   - 3문단: 향후 전망 및 투자 의견
+3. 문체: '~습니다' 체를 사용하고, 문장 시작에 불필요한 접속사나 사명을 반복하지 마세요.
+4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 오직 줄글로만 작성하세요."""
                 },
                 {
                     "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 원칙에 따라 사명 반복을 피하고 전문적인 분석 리포트 형식으로 작성해 주세요."
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 데이터를 바탕으로 전문적인 3문단 리포트를 작성하세요."
                 }
             ],
-            temperature=0.0 
+            temperature=0.1
         )
         
         raw_result = response.choices[0].message.content
         
-        # --- [강력 후처리: 레이아웃 물리적 재조립] ---
+        # --- [요청하신 정제 로직 + 문단 강제 분할] ---
         
-        # 1. HTML 엔티티 제거 및 마크다운 세척
-        clean_text = html.unescape(raw_result)
-        clean_text = re.sub(r'\*|#', '', clean_text).strip()
-
-        # 2. AI가 넣은 모든 공백과 줄바꿈을 완전히 삭제하여 리스트화
-        # 여기서 불규칙한 '6칸 들여쓰기' 등이 완전히 박멸됩니다.
-        raw_lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
+        # 1. 텍스트 정제 (요청하신 코드 그대로 적용)
+        text = html.unescape(raw_result)
+        replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
+        for k, v in replacements.items(): text = text.replace(k, v)
         
-        # 3. 3개 문단으로 강제 재구성 (내용 유지)
-        if len(raw_lines) >= 3:
-            # 첫 줄(1문단), 두 번째 줄(2문단), 나머지(3문단)로 나누어 재조립
-            # 각 문단 시작에만 정확히 공백 2칸 부여
-            p1 = "  " + raw_lines[0]
-            p2 = "  " + raw_lines[1]
-            p3 = "  " + " ".join(raw_lines[2:])
-            final_content = f"{p1}\n\n{p2}\n\n{p3}"
-        else:
-            # 문단이 부족할 경우 전체에 들여쓰기만 적용
-            final_content = "\n\n".join(["  " + line for line in raw_lines])
+        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호, 줄바꿈(\s)만 허용)
+        # 주의: \s가 없으면 줄바꿈도 다 사라지므로 \s는 꼭 있어야 합니다.
+        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
+        
+        # 2. 문단 강제 분리 로직 (Brute Force Split)
+        # (1) 우선 줄바꿈(엔터) 기준으로 잘라봅니다.
+        paragraphs = [p.strip() for p in re.split(r'\n+', text.strip()) if len(p) > 30]
 
-        # 4. 오타 치환 (里程碑 -> 이정표 등)
-        replacements = {"里程碑": "이정표", "quyet": "의사", "普通": "보통", "决策": "의사결정"}
-        for err, fix in replacements.items():
-            final_content = final_content.replace(err, fix)
+        # (2) [비상장치] 만약 AI가 줄바꿈을 안 줘서 덩어리가 1~2개뿐이라면?
+        # -> 마침표(.)를 기준으로 문장을 다 뜯어낸 뒤 강제로 3등분 합니다.
+        if len(paragraphs) < 3:
+            # 문장 단위로 분해 (마침표 뒤 공백 기준)
+            sentences = re.split(r'(?<=\.)\s+', text.strip())
+            total_sents = len(sentences)
             
-        # 5. 한글/숫자/공백/문장부호 외 불필요한 외래어 파편 최종 제거
-        final_content = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w\n]', '', final_content)
-        
-        return final_content
+            if total_sents >= 3:
+                # 3등분 계산 (올림 나눗셈)
+                chunk_size = (total_sents // 3) + 1
+                
+                p1 = " ".join(sentences[:chunk_size])
+                p2 = " ".join(sentences[chunk_size : chunk_size*2])
+                p3 = " ".join(sentences[chunk_size*2 :])
+                
+                # 다시 리스트로 합침 (빈 내용 제외)
+                paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
+            else:
+                # 문장이 너무 적으면 그냥 통으로 1개만 반환
+                paragraphs = [text]
+
+        # 3. HTML 태그 포장 (화면 렌더링용)
+        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
+        html_output = ""
+        for p in paragraphs:
+            html_output += f"""
+            <p style='
+                display: block;          /* 블록 요소 지정 */
+                text-indent: 14px;       /* 첫 줄 들여쓰기 */
+                margin-bottom: 20px;     /* 문단 아래 공백 */
+                line-height: 1.8;        /* 줄 간격 */
+                text-align: justify;     /* 양쪽 정렬 */
+                margin-top: 0;
+            '>
+                {p}
+            </p>
+            """
+            
+        return html_output
 
     except Exception as e:
-        return f"🚫 오류: {str(e)}"
+        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
         
 # --- 화면 제어 및 로그인 화면 시작 ---
 
@@ -1952,13 +1973,15 @@ elif st.session_state.page == 'detail':
             
             # [1] 기업 심층 분석 섹션 (Expander 적용)
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
+                # 쿼리 정의 (이 줄이 꼭 있어야 합니다!)
                 q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
                 
                 with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
-                    biz_info = get_ai_summary(q_biz) # 이 함수가 제가 위에서 드린 '최종 수정본'이어야 합니다.
+                    # 👇 함수 이름 final로 변경 (캐시 문제 해결됨)
+                    biz_info = get_ai_summary_final(q_biz) 
                     
                     if biz_info:
-                        # 기존 스타일에 font-family와 가독성 요소를 조금 더 정교하게 다듬었습니다.
+                        # 스타일에서 white-space 제거하고, 공백 없이 딱 붙여 넣기
                         st.markdown(f"""
                         <div style="
                             background-color: #f8f9fa; 
@@ -1966,14 +1989,9 @@ elif st.session_state.page == 'detail':
                             border-radius: 12px; 
                             border-left: 5px solid #6e8efb; 
                             color: #333; 
-                            line-height: 1.9; 
-                            white-space: pre-wrap; 
+                            font-family: 'Pretendard', sans-serif;
                             font-size: 15px;
-                            font-family: 'Pretendard', -apple-system, sans-serif;
-                            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
-                        ">
-                            {biz_info}
-                        </div>
+                        ">{biz_info}</div>
                         """, unsafe_allow_html=True)
                     else:
                         st.error("⚠️ 정보를 찾을 수 없습니다.")
@@ -2674,7 +2692,7 @@ elif st.session_state.page == 'detail':
                 result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
         
             # --- (1) Renaissance Capital 섹션 ---
-            with st.expander("Renaissance Capital IPO 요약", expanded=False):
+            with st.expander("Summary of Renaissance Capital IPO, Seeking Alpha & Morningstar", expanded=False):
                 
                 # 1. 데이터 가져오기 (결과가 리스트일 경우를 대비해 처리)
                 raw_val = result.get('summary', '')
@@ -2710,7 +2728,7 @@ elif st.session_state.page == 'detail':
                 st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
         
             # --- (2) Seeking Alpha & Morningstar 섹션 ---
-            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
+            with st.expander("Pros and Cons of Renaissance Capital IPO, Seeking Alpha & Morningstar ", expanded=False):
                 # 여기도 혹시 모르니 세척 로직 적용
                 raw_pro_con = result.get('pro_con', '')
                 pro_con = clean_text_final(raw_pro_con)
@@ -2755,13 +2773,20 @@ elif st.session_state.page == 'detail':
                     st.write("**[Analyst Ratings]**")
                     
                     # 실제 출력 및 help 적용
+                    # st.metric을 사용하면 help 옵션이 정상 작동하고 에러가 사라집니다.
+                    st.metric(label="Consensus Rating", value=rating_val, help=rating_help)
+                    
+                    # 상태에 따른 색상 피드백은 아래와 같이 별도로 간단히 추가할 수 있습니다.
                     if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
-                        st.success(f"Consensus: {rating_val}", help=rating_help)
+                        st.caption("✅ 시장의 긍정적인 평가를 받고 있습니다.")
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
                         st.error(f"Consensus: {rating_val}", help=rating_help)
                     else:
-                        st.info(f"등급: {rating_val}", help=rating_help)
-            
+                      
+                        # 설명(help)은 그 아래에 작게 표시
+                        if rating_help:
+                            st.caption(f"ℹ️ {rating_help}")
+                                    
                 with s_col2:
                     # IPO Scoop Score 동적 툴팁 생성
                     s_list = {
@@ -2778,7 +2803,11 @@ elif st.session_state.page == 'detail':
                         score_help += f"- ⭐ {k}개: {v}{is_current}\n"
             
                     st.write("**[IPO Scoop Score]**")
-                    st.warning(f"Expected Score: ⭐ {score_val}", help=score_help)
+                    st.metric(label="Expected IPO Score", value=f"⭐ {score_val}", help=score_help)
+
+                    # 👇 여기 아래 두 줄을 추가하세요!
+                    if score_help:
+                        st.caption(f"ℹ️ {score_help}")
             
                 # 참고 소스 링크
                 sources = result.get('links', [])
@@ -2906,35 +2935,80 @@ elif st.session_state.page == 'detail':
                     st.caption("아직 게시글이 없습니다.")
                 else:
                     for p in sid_posts:
-                        # 1. 커뮤니티 감성의 슬림한 리스트 디자인 적용
                         with st.container():
-                            # HTML/CSS로 카테고리, 제목, 아이콘 레이아웃 구성
+                            # 1. 댓글이 있으면 댓글수, 없으면 조회수를 표시하는 로직
+                            c_count = p.get('comment_count', 0)
+                            if c_count > 0:
+                                stat_display = f"💬 {c_count}"
+                            else:
+                                stat_display = f"👁️ {p.get('views', 0)}"
+
+                            # 2. 디자인: Flexbox를 사용해 한 줄에 배치 (좌측 정렬 / 우측 정렬)
                             st.markdown(f"""
-                                <div style="line-height: 1.5; margin-bottom: 5px;">
-                                    <div style="color: #888; font-size: 13px; font-weight: 500; margin-bottom: 2px;">{p.get('category', '일반')}</div>
-                                    <div style="color: #000; font-size: 16px; font-weight: 600; margin-bottom: 5px;">{p.get('title')}</div>
-                                    <div style="display: flex; align-items: center; gap: 12px; color: #666; font-size: 13px;">
-                                        <span style="display: flex; align-items: center; gap: 4px;">👍 {p.get('likes', 0)}</span>
-                                        <span style="display: flex; align-items: center; gap: 4px;">💬 {p.get('comment_count', 0)}</span>
+                                <div style="
+                                    display: flex; 
+                                    justify-content: space-between; 
+                                    align-items: center; 
+                                    padding: 12px 4px; 
+                                    border-bottom: 1px solid #f0f0f0;
+                                ">
+                                    <div style="
+                                        flex: 1; 
+                                        white-space: nowrap; 
+                                        overflow: hidden; 
+                                        text-overflow: ellipsis; 
+                                        padding-right: 15px;
+                                    ">
+                                        <span style="color: #ff4b4b; font-size: 13px; font-weight: bold;">
+                                            [{p.get('category', '일반')}]
+                                        </span>
+                                        <span style="color: #333; font-size: 15px; font-weight: 600; margin-left: 6px;">
+                                            {p.get('title')}
+                                        </span>
+                                    </div>
+                                    
+                                    <div style="
+                                        display: flex; 
+                                        align-items: center; 
+                                        gap: 10px; 
+                                        font-size: 13px; 
+                                        color: #666; 
+                                        white-space: nowrap;
+                                    ">
+                                        <span>👍 {p.get('likes', 0)}</span>
+                                        <span style="min-width: 40px; text-align: right;">{stat_display}</span>
                                     </div>
                                 </div>
                             """, unsafe_allow_html=True)
                             
-                            # 2. 실제 클릭 영역 (투명 버튼으로 제목 위를 덮는 느낌)
-                            # Streamlit 제약상 버튼을 완전히 투명하게 하기는 어려우므로, 
-                            # '상세보기' 버튼을 아주 작고 깔끔하게 배치하거나 제목 자체를 버튼으로 유지합니다.
-                            if st.button("내용 보기", key=f"go_{p['id']}", use_container_width=True):
+                            # 3. 투명 버튼 역할 (클릭 시 상세 이동)
+                            # 버튼을 누르면 view_post_id를 설정하고 새로고침하여 상세 화면으로 진입
+                            if st.button("👆 상세 내용 보기", key=f"go_{p['id']}", use_container_width=True):
                                 st.session_state.view_post_id = p['id']
-                                p['views'] = p.get('views', 0) + 1
+                                p['views'] = p.get('views', 0) + 1  # 조회수 1 증가
                                 st.rerun()
-                            
-                            st.markdown('<div style="border-bottom: 1px solid #f0f0f0; margin: 10px 0;"></div>', unsafe_allow_html=True)
                 
                 
                 
                 
                 
                 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
