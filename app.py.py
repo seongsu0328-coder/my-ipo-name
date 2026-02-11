@@ -1520,38 +1520,32 @@ if st.session_state.page == 'login':
                  
 
         # ---------------------------------------------------------
-        # [Step 2] 인증 서류 제출 (학교, 직장, 자산)
+        # [Step 2] 인증 서류 제출 (위젯 키 분리 및 자동 저장 보강)
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_step_2':
             st.markdown("<div class='auth-card'><h5>📑 추가 인증 (선택)</h5>", unsafe_allow_html=True)
             st.success("✅ 1단계 본인인증 완료! 활동 뱃지를 획득하세요.")
-            st.info("최소 1개 이상의 항목을 인증해야 가입이 완료됩니다.")
-
-            # 세션 초기화
+            
             if 'cert_data' not in st.session_state:
                 st.session_state.cert_data = {"school": None, "job": None, "asset": None}
 
             # 1. 학교/학과 인증
             with st.expander("🎓 학교/학과 인증 (선택)", expanded=True):
                 school_name = st.text_input("학교명 (예: 서울대)", key="input_school")
-                # 📍 위젯 키를 "file_school_upload"로 변경
                 school_file = st.file_uploader("재학/졸업 증명서", type=['jpg', 'png', 'pdf'], key="file_school_upload")
-                
                 if school_name and school_file:
                     st.caption(f"✅ 인증 대기: {school_name}")
-                    # 📍 세션 저장은 "file_school"이라는 이름으로 수행 (위젯 키와 충돌 없음)
                     st.session_state['file_school'] = school_file
+                    st.session_state.cert_data["school"] = school_name # 즉시 반영
 
             # 2. 직업/직장 인증
             with st.expander("💼 직업/직장 인증 (선택)", expanded=False):
                 job_name = st.text_input("직업/직장명 (예: 의사, 삼성전자)", key="input_job")
-                # 📍 위젯 키를 "file_job_upload"로 변경
                 job_file = st.file_uploader("재직 증명서/명함", type=['jpg', 'png', 'pdf'], key="file_job_upload")
-                
                 if job_name and job_file:
                     st.caption(f"✅ 인증 대기: {job_name}")
-                    # 📍 세션 저장은 "file_job"
                     st.session_state['file_job'] = job_file
+                    st.session_state.cert_data["job"] = job_name # 즉시 반영
 
             # 3. 자산 규모 인증
             with st.expander("💰 자산 규모 인증 (선택)", expanded=False):
@@ -1560,46 +1554,35 @@ if st.session_state.page == 'login':
                     ["선택안함", "10억 (Bronze)", "30억 (Silver)", "50억 (Gold)", "100억 (Diamond)"],
                     key="input_asset"
                 )
-                # 📍 위젯 키를 "file_asset_upload"로 변경
                 asset_file = st.file_uploader("잔고/부동산 증명서", type=['jpg', 'png', 'pdf'], key="file_asset_upload")
-                
                 if asset_tier != "선택안함" and asset_file:
                     st.caption(f"✅ 인증 대기: {asset_tier}")
-                    # 📍 세션 저장은 "file_asset"
                     st.session_state['file_asset'] = asset_file
+                    st.session_state.cert_data["asset"] = asset_tier # 즉시 반영
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # 심사 요청 버튼
             if st.button("인증 서류 제출 및 다음", type="primary", use_container_width=True):
-                # 📍 세션에 저장된 파일 객체가 있는지 확인
-                has_school = bool(school_name and st.session_state.get('file_school'))
-                has_job = bool(job_name and st.session_state.get('file_job'))
-                has_asset = bool(asset_tier != "선택안함" and st.session_state.get('file_asset'))
+                has_school = bool(st.session_state.get('file_school'))
+                has_job = bool(st.session_state.get('file_job'))
+                has_asset = bool(st.session_state.get('file_asset'))
 
                 if not (has_school or has_job or has_asset):
                     st.error("최소 한 가지 카테고리는 인증 서류와 함께 제출해야 합니다.")
                 else:
-                    st.session_state.cert_data = {
-                        "school": school_name if has_school else None,
-                        "job": job_name if has_job else None,
-                        "asset": asset_tier if has_asset else None
-                    }
                     st.session_state.login_step = 'signup_step_3'
                     st.rerun()
 
         # ---------------------------------------------------------
-        # [Step 3] 최종 프로필 설정 및 사진 업로드 + 시트 저장
+        # [Step 3] 최종 프로필 설정 및 사진 업로드 + 시트 저장 (검증 완료)
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_step_3':
             st.markdown("<div class='auth-card'><h5>👤 프로필 설정</h5>", unsafe_allow_html=True)
             
-            # 1. 데이터 로드 및 마스킹
             temp_data = st.session_state.get('temp_signup_data', {})
             raw_id = temp_data.get('id', 'unknown')
             masked_id = "*" * len(raw_id) 
             
-            # 2. 타이틀 옵션 구성
             cert = st.session_state.get('cert_data', {})
             options = []
             if cert.get('school'): options.append(f"🎓 {cert['school']}")
@@ -1614,17 +1597,19 @@ if st.session_state.page == 'login':
             preview_str = f"{selected_tag} {masked_id}"
             st.info(f"👀 **미리보기**: {preview_str}")
 
-            # 3. [핵심] 가입 신청 및 업로드 버튼
             if st.button("🚀 최종 가입 신청 완료", type="primary", use_container_width=True):
                 with st.spinner("📄 서류 업로드 및 데이터 기록 중..."):
                     try:
-                        # 📍 [추가] 구글 드라이브 파일 업로드 실행
-                        # Step 2에서 st.session_state에 저장해둔 파일 객체들을 불러옵니다.
-                        l_u = upload_photo_to_drive(st.session_state.get('file_school'), f"{raw_id}_univ")
-                        l_j = upload_photo_to_drive(st.session_state.get('file_job'), f"{raw_id}_job")
-                        l_a = upload_photo_to_drive(st.session_state.get('file_asset'), f"{raw_id}_asset")
+                        # 파일 객체 가져오기
+                        f_school = st.session_state.get('file_school')
+                        f_job = st.session_state.get('file_job')
+                        f_asset = st.session_state.get('file_asset')
 
-                        # 📍 최종 데이터 조립 (업로드된 링크 포함)
+                        # 구글 드라이브 업로드 (비동기 처리처럼 순차적 진행)
+                        l_u = upload_photo_to_drive(f_school, f"{raw_id}_univ")
+                        l_j = upload_photo_to_drive(f_job, f"{raw_id}_job")
+                        l_a = upload_photo_to_drive(f_asset, f"{raw_id}_asset")
+
                         final_user_data = {
                             "id": raw_id,
                             "pw": temp_data.get('pw'),
@@ -1640,7 +1625,6 @@ if st.session_state.page == 'login':
                             "visibility": "True,True,True" 
                         }
 
-                        # 시트 저장 함수 실행
                         success, msg = save_user_to_sheets(final_user_data)
                         
                         if success:
@@ -1648,7 +1632,10 @@ if st.session_state.page == 'login':
                             st.balloons()
                             time.sleep(2)
                             
-                            # 세션 상태 초기화 및 이동
+                            # 가입 신청 완료 후 모든 파일 세션 초기화 (보안 및 메모리 관리)
+                            for k in ['file_school', 'file_job', 'file_asset']:
+                                if k in st.session_state: del st.session_state[k]
+                            
                             st.session_state.login_step = 'choice'
                             st.rerun()
                         else:
@@ -3396,6 +3383,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
