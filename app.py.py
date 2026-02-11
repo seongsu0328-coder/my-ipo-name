@@ -2774,7 +2774,7 @@ elif st.session_state.page == 'detail':
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
                         st.error(f"Consensus: {rating_val}", help=rating_help)
                     else:
-                        st.info(f"등급: {rating_val}")
+                      
                         # 설명(help)은 그 아래에 작게 표시
                         if rating_help:
                             st.caption(f"ℹ️ {rating_help}")
@@ -2985,6 +2985,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
