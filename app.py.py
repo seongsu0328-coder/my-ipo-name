@@ -1597,6 +1597,24 @@ if st.session_state.page == 'login':
             preview_str = f"{selected_tag} {masked_id}"
             st.info(f"👀 **미리보기**: {preview_str}")
 
+            # --- 🔍 여기부터 디버깅 코드 시작 ---
+            st.markdown("---")
+            st.subheader("🛠️ 데이터 전달 상태 점검")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                has_s = st.session_state.get('file_school') is not None
+                st.metric("학교 서류", "보유" if has_s else "없음")
+            with col2:
+                has_j = st.session_state.get('file_job') is not None
+                st.metric("직장 서류", "보유" if has_j else "없음")
+            with col3:
+                has_a = st.session_state.get('file_asset') is not None
+                st.metric("자산 서류", "보유" if has_a else "없음")
+            
+            if not (has_s or has_j or has_a):
+                st.warning("⚠️ 현재 메모리에 저장된 파일이 하나도 없습니다. Step 2에서 파일을 다시 업로드해야 합니다.")
+            
             if st.button("🚀 최종 가입 신청 완료", type="primary", use_container_width=True):
                 with st.spinner("📄 서류 업로드 및 데이터 기록 중..."):
                     try:
@@ -3383,6 +3401,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
