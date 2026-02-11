@@ -1514,49 +1514,40 @@ if st.session_state.page == 'login':
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # ---------------------------------------------------------
-            # 📍 [여기서부터 교체!] 기존 버튼 로직을 구글 시트 저장 버전으로 교체
-            # ---------------------------------------------------------
+            # [Step 3] 가입 완료 버튼 로직
             if st.button("🎉 회원가입 완료하기", type="primary", use_container_width=True):
-                # 1. 저장할 데이터 묶기
+                # 1. 저장할 데이터 최종 조립
                 user_info = {
                     "id": st.session_state.temp_signup_data['id'],
                     "pw": st.session_state.temp_signup_data['pw'],
                     "email": st.session_state.temp_signup_data['email'],
                     "phone": st.session_state.temp_signup_data['phone'],
-                    "univ": st.session_state.cert_data.get('school'),
-                    "job_title": st.session_state.cert_data.get('job'),
-                    "asset": st.session_state.cert_data.get('asset'),
-                    "display_name": preview_str  # '뱃지 | 마스킹ID'
+                    "univ": st.session_state.cert_data.get('school', ""),
+                    "job_title": st.session_state.cert_data.get('job', ""),
+                    "asset": st.session_state.cert_data.get('asset', ""),
+                    "display_name": preview_str  # 뱃지 | 마스킹ID
                 }
-
-                # 2. 구글 시트 저장 실행 (st.spinner로 사용자에게 알림)
-                with st.spinner("회원 정보를 안전하게 저장 중입니다..."):
+            
+                # 2. 구글 시트 저장 실행 및 결과 수신
+                with st.spinner("구글 시트에 회원 정보를 기록 중입니다..."):
+                    # 여기서 함수를 호출하고 결과(True/False)와 메시지(msg)를 받습니다.
                     success, msg = save_user_to_sheets(user_info)
                     
                 if success:
-                    # [기존 세션 로그인 처리 유지]
-                    final_phone = user_info['phone']
-                    st.session_state.db_users.append(final_phone)
-                    st.session_state.db_users.append(user_info['id'])
-                    
-                    st.session_state.auth_status = 'user'
-                    st.session_state.user_phone = final_phone
-                    st.session_state.user_id = user_info['id']
-                    st.session_state.user_badge = selected_tag
-                    
+                    # 저장 성공 시에만 기존 세션 로그인 처리 및 페이지 이동
                     st.balloons()
-                    st.success("회원가입이 완료되었습니다! 관리자 승인 후 모든 기능을 이용하실 수 있습니다.")
-                    time.sleep(2)
+                    st.success("회원가입 완료! 시트에 데이터가 기록되었습니다.")
                     
+                    # 실제 세션 데이터 업데이트
+                    st.session_state.auth_status = 'user'
+                    st.session_state.user_id = user_info['id']
+                    st.session_state.user_phone = user_info['phone']
                     st.session_state.page = 'calendar'
-                    st.session_state.login_step = 'choice'
                     st.rerun()
                 else:
-                    # 저장 실패 시 에러 메시지 표시
-                    st.error(f"저장 중 오류가 발생했습니다: {msg}")
-
-            st.markdown("</div>", unsafe_allow_html=True)
+                    # 🚨 중요: 저장이 실패하면 페이지를 넘기지 않고 에러를 화면에 띄웁니다.
+                    st.error(f"❌ 구글 시트 저장 실패!\n{msg}")
+                    # 여기서 멈추기 때문에 사용자는 에러 내용을 읽을 수 있습니다.
 
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
@@ -3294,6 +3285,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
