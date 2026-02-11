@@ -27,30 +27,33 @@ def generate_verification_code():
     return str(random.randint(100000, 999999))
 
 def send_email_code(to_email, code):
-    # 디버깅용: Secrets에 키가 존재하는지 체크
-    if "EMAIL_USER" not in st.secrets:
-        return False, "Secrets에서 EMAIL_USER 키를 찾을 수 없습니다. (설정창을 확인하세요)"
-    
+    """실제 이메일 발송 함수 (Streamlit Secrets 필수)"""
+    # 1. 먼저 Secrets에 설정이 되어 있는지 체크
+    if "EMAIL_USER" not in st.secrets or "EMAIL_PASSWORD" not in st.secrets:
+        return False, "Streamlit Secrets에 EMAIL_USER 또는 EMAIL_PASSWORD가 설정되지 않았습니다."
+
     email_user = st.secrets["EMAIL_USER"]
     email_password = st.secrets["EMAIL_PASSWORD"]
-    # ... 나머지 로직 동일
-    except:
-        return False, "Streamlit Secrets에 EMAIL_USER 또는 EMAIL_PASSWORD가 없습니다."
 
+    # 2. 실제 발송 시도
     try:
-        msg = MIMEText(f"인증번호는 [{code}] 입니다.")
+        # 이메일 내용 구성
+        msg = MIMEText(f"안녕하세요. Unicorn Finder 입니다.\n\n회원가입 인증번호는 [{code}] 입니다.\n정확하게 입력해 주세요.")
         msg['Subject'] = '[Unicorn Finder] 회원가입 인증번호'
         msg['From'] = email_user
         msg['To'] = to_email
 
-        # Gmail SMTP 예시 (587 포트)
+        # Gmail SMTP 서버 연결 및 발송
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
+            server.starttls()  # 보안 연결 시작
             server.login(email_user, email_password)
             server.sendmail(email_user, to_email, msg.as_string())
-        return True, "이메일이 발송되었습니다."
+        
+        return True, "이메일이 성공적으로 발송되었습니다."
+
     except Exception as e:
-        return False, f"이메일 발송 실패: {str(e)}"
+        # 발송 과정에서 발생하는 에러 메시지를 반환
+        return False, f"SMTP 발송 에러: {str(e)}"
 
 # --- [여기(최상단)에 함수를 두어야 아래에서 인식합니다] ---
 def clean_text_final(text):
@@ -3236,6 +3239,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
