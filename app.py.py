@@ -13,6 +13,8 @@ import html
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
+import smtplib
+from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 
 # --- [AI 및 검색 라이브러리 통합] ---
@@ -20,6 +22,35 @@ from openai import OpenAI             # ✅ Groq(뉴스 요약)용
 import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
 from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
+
+def generate_verification_code():
+    return str(random.randint(100000, 999999))
+
+def send_email_code(to_email, code):
+    """
+    실제 이메일 발송 함수
+    (st.secrets에 EMAIL_USER, EMAIL_PASSWORD가 설정되어 있어야 작동)
+    """
+    email_user = st.secrets.get("EMAIL_USER")
+    email_password = st.secrets.get("EMAIL_PASSWORD")
+    
+    if not email_user or not email_password:
+        return False, "SMTP 설정이 없습니다. (테스트 모드: 코드가 화면에 표시됩니다)"
+
+    try:
+        msg = MIMEText(f"인증번호는 [{code}] 입니다.")
+        msg['Subject'] = '[Unicorn Finder] 회원가입 인증번호'
+        msg['From'] = email_user
+        msg['To'] = to_email
+
+        # Gmail SMTP 예시 (587 포트)
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(email_user, email_password)
+            server.sendmail(email_user, to_email, msg.as_string())
+        return True, "이메일이 발송되었습니다."
+    except Exception as e:
+        return False, f"이메일 발송 실패: {str(e)}"
 
 # --- [여기(최상단)에 함수를 두어야 아래에서 인식합니다] ---
 def clean_text_final(text):
@@ -1156,129 +1187,189 @@ def get_ai_summary_final(query):
     except Exception as e:
         return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
         
-# --- 화면 제어 및 로그인 화면 시작 ---
-
+# --- [1. 로그인 & 회원가입 페이지] ---
 if st.session_state.page == 'login':
-    # 아래 코드들은 모두 동일하게 'Tab' 한 번(또는 공백 4칸) 안으로 들어가 있어야 합니다.
-    st.write("<br>" * 2, unsafe_allow_html=True)  # 여백 조절
     
-    # [추가] 상단 타이틀 이미지 표시 영역
-    t_col1, t_col2, t_col3 = st.columns([1, 0.8, 1]) # 이미지 크기 조절을 위한 컬럼 분할
-    with t_col2:
-        img_path = "title_unicorn.png"
-        if os.path.exists(img_path):
-            st.image(img_path, use_container_width=True)
-        else:
-            # 로컬에 파일이 없을 경우를 대비해 GitHub Raw URL 방식을 사용할 수도 있습니다.
-            pass
+    # 1. 스타일링
+    st.markdown("""
+    <style>
+        .login-title {
+            font-size: 2.5rem !important; font-weight: 800 !important;
+            background: linear-gradient(to right, #6a11cb 0%, #2575fc 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-align: center; margin-bottom: 5px;
+        }
+        .login-subtitle { text-align: center; color: #666; margin-bottom: 30px; }
+        .auth-card {
+            background-color: white; padding: 30px; border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #f0f0f0;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-    st.write("<br>", unsafe_allow_html=True)
-    _, col_m, _ = st.columns([1, 1.2, 1])
-    
-    # [가상 DB] 가입된 사용자 목록을 기억하기 위한 임시 저장소
-    if 'db_users' not in st.session_state:
-        st.session_state.db_users = ["010-0000-0000"] # 테스트용: 관리자 번호는 이미 가입된 것으로 간주
-    
-    with col_m:
-        # 로그인 단계 초기화
+    # 2. 화면 레이아웃 (중앙 정렬)
+    col_spacer1, col_center, col_spacer2 = st.columns([1, 4, 1])
+
+    with col_center:
+        st.write("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; font-size: 50px;'>🦄</div>", unsafe_allow_html=True)
+        st.markdown("<h1 class='login-title'>Unicorn Finder</h1>", unsafe_allow_html=True)
+        st.markdown("<p class='login-subtitle'>스타트업 투자 인사이트 플랫폼</p>", unsafe_allow_html=True)
+
+        # 상태 초기화
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
+        
+        # 가상 DB 초기화 (없을 경우)
+        if 'db_users' not in st.session_state: st.session_state.db_users = ["admin"]
 
-        # [Step 1] 첫 선택 화면 (로그인 vs 회원가입 분리)
+        # ---------------------------------------------------------
+        # [Step 1] 첫 선택 화면 (버튼 3개)
+        # ---------------------------------------------------------
         if st.session_state.login_step == 'choice':
-            st.write("")
+            st.write("<br>", unsafe_allow_html=True)
             
-            # 버튼 1: 기존 회원 로그인 (바로 입력창으로)
-            if st.button("로그인", use_container_width=True, type="primary"):
-                st.session_state.login_step = 'login_input' # 로그인 입력 단계로 이동
+            # 버튼 1: 로그인
+            if st.button("🔐 로그인", use_container_width=True, type="primary"):
+                st.session_state.login_step = 'login_input'
                 st.rerun()
                 
-            # 버튼 2: 신규 회원 가입 (안내 화면으로)
-            if st.button("회원가입", use_container_width=True):
-                st.session_state.login_step = 'ask_signup' # 가입 안내 단계로 이동
+            # 버튼 2: 회원가입 (누르면 인증 화면으로 이동)
+            if st.button("📝 회원가입", use_container_width=True):
+                st.session_state.login_step = 'signup_input' # 이동!
+                st.session_state.auth_code_sent = False      # 인증 상태 초기화
                 st.rerun()
                 
-            # 버튼 3: 비회원 둘러보기
-            if st.button("구경하기", use_container_width=True):
+            # 버튼 3: 구경하기
+            if st.button("👀 구경하기 (비회원)", use_container_width=True):
                 st.session_state.auth_status = 'guest'
-                st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
+                st.session_state.page = 'calendar'
                 st.rerun()
 
-        # [Step 2-A] 로그인 입력 화면 (기존 회원용)
+        # ---------------------------------------------------------
+        # [Step 2-A] 로그인 입력 화면
+        # ---------------------------------------------------------
         elif st.session_state.login_step == 'login_input':
-            st.markdown("### 🔑 로그인")
-            phone_login = st.text_input("가입하신 휴대폰 번호를 입력하세요", placeholder="010-0000-0000", key="login_phone")
+            st.markdown("<div class='auth-card'><h5>🔑 로그인</h5>", unsafe_allow_html=True)
+            l_id = st.text_input("아이디", key="login_id_input")
+            l_pw = st.text_input("비밀번호", type="password", key="login_pw_input")
             
-            l_c1, l_c2 = st.columns([2, 1])
-            with l_c1:
+            c1, c2 = st.columns([2, 1])
+            with c1:
                 if st.button("접속하기", use_container_width=True, type="primary"):
-                    # 가입된 번호인지 확인
-                    if phone_login in st.session_state.db_users:
+                    # 관리자 테스트 or DB 확인
+                    if (l_id == "admin" and l_pw == "1234") or (l_id in st.session_state.db_users):
                         st.session_state.auth_status = 'user'
-                        st.session_state.user_phone = phone_login # 세션에 정보 저장
-                        st.success(f"반갑습니다! {phone_login}님")
-                        st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
-                        st.session_state.login_step = 'choice'
+                        st.session_state.user_id = l_id
+                        st.success(f"반갑습니다 {l_id}님!")
+                        st.session_state.page = 'calendar'
+                        st.session_state.login_step = 'choice' # 다음번을 위해 초기화
                         st.rerun()
                     else:
-                        st.error("가입되지 않은 번호입니다. 회원가입을 먼저 진행해주세요.")
-            with l_c2:
-                if st.button("뒤로가기", use_container_width=True):
+                        st.error("가입되지 않은 아이디거나 비밀번호가 틀렸습니다.")
+            with c2:
+                if st.button("취소", use_container_width=True):
                     st.session_state.login_step = 'choice'
                     st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        # [Step 2-B] 회원가입 안내 화면 (신규 회원용)
-        elif st.session_state.login_step == 'ask_signup':
-            st.info("회원가입시 IPO정보알림받기 및 관심기업관리가 가능합니다.")
-            c1, c2 = st.columns(2)
-            if c1.button("✅ 가입 진행", use_container_width=True):
-                st.session_state.login_step = 'signup_input' # 가입 입력 단계로 이동
-                st.rerun()
-            if c2.button("❌ 취소", use_container_width=True):
+        # ---------------------------------------------------------
+        # [Step 2-B] 회원가입 & 인증 화면 (요청하신 기능 구현)
+        # ---------------------------------------------------------
+        elif st.session_state.login_step == 'signup_input':
+            st.markdown("<div class='auth-card'><h5>📝 회원가입 (1단계)</h5>", unsafe_allow_html=True)
+            
+            new_id = st.text_input("아이디", placeholder="사용할 아이디", key="sign_id")
+            new_pw = st.text_input("비밀번호", type="password", placeholder="비밀번호", key="sign_pw")
+            new_phone = st.text_input("휴대폰 번호", placeholder="010-0000-0000", key="sign_phone")
+            new_email = st.text_input("이메일", placeholder="example@email.com", key="sign_email")
+
+            st.markdown("---")
+            st.caption("🔒 본인 확인을 위해 인증이 필요합니다.")
+            
+            # 인증 수단 선택
+            auth_method = st.radio("인증 방식", ["이메일 인증", "휴대폰 인증(준비중)"], horizontal=True, label_visibility="collapsed")
+
+            # 인증번호 발송/입력 UI
+            ac1, ac2 = st.columns([2, 1])
+            with ac1:
+                # 인증번호 입력창 (발송 전에는 비활성화)
+                if 'auth_code_sent' not in st.session_state: st.session_state.auth_code_sent = False
+                code_input = st.text_input("인증번호 6자리", placeholder="인증번호 입력", disabled=not st.session_state.auth_code_sent, key="auth_code_input")
+            
+            with ac2:
+                st.write("") # 줄맞춤
+                st.write("") 
+                if st.button("인증번호 발송", use_container_width=True):
+                    if auth_method == "이메일 인증" and new_email:
+                        # 1. 코드 생성
+                        gen_code = generate_verification_code()
+                        st.session_state.real_code = gen_code
+                        
+                        # 2. 발송 시도
+                        success, msg = send_email_code(new_email, gen_code)
+                        
+                        if success:
+                            st.toast(f"📧 {new_email}로 전송되었습니다.", icon="✅")
+                        else:
+                            # 테스트 모드 (SMTP 미설정 시)
+                            st.warning(f"[TEST] 인증번호: {gen_code}")
+                        
+                        st.session_state.auth_code_sent = True
+                        st.rerun()
+                    elif auth_method == "휴대폰 인증(준비중)":
+                        st.error("휴대폰 인증은 준비 중입니다.")
+                    else:
+                        st.warning("이메일을 입력해주세요.")
+
+            st.write("<br>", unsafe_allow_html=True)
+            
+            # 하단 버튼 (다음 단계 / 취소)
+            b1, b2 = st.columns([2, 1])
+            with b1:
+                if st.button("인증확인 및 다음단계", type="primary", use_container_width=True):
+                    # 검증 로직
+                    if not (new_id and new_pw and new_phone and new_email):
+                        st.error("모든 정보를 입력해주세요.")
+                    elif st.session_state.auth_code_sent and str(code_input) == str(st.session_state.real_code):
+                        st.success("인증 성공!")
+                        
+                        # [임시 저장] Step 2(질문 2번 내용)를 위해 데이터 보관
+                        st.session_state.temp_signup_data = {
+                            "id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email
+                        }
+                        
+                        # [이동] Step 2 화면으로 전환
+                        st.session_state.login_step = 'signup_step_2'
+                        st.rerun()
+                    else:
+                        st.error("인증번호가 틀렸거나 전송되지 않았습니다.")
+            with b2:
+                if st.button("취소", use_container_width=True, key="cancel_signup"):
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
+                    
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # ---------------------------------------------------------
+        # [Step 2-C] 회원가입 2단계 (질문자님의 2번 요청 대기)
+        # ---------------------------------------------------------
+        elif st.session_state.login_step == 'signup_step_2':
+            st.markdown("<div class='auth-card'><h5>📝 회원가입 (2단계)</h5>", unsafe_allow_html=True)
+            st.success("✅ 본인 인증이 완료되었습니다.")
+            
+            st.info("여기에 질문자님의 [2번 요청사항]이 구현될 예정입니다.")
+            st.caption("출신 대학, 직군, 자산 규모 등의 추가 정보를 입력받는 화면을 만들까요?")
+            
+            if st.button("처음으로 (테스트 종료)"):
                 st.session_state.login_step = 'choice'
                 st.rerun()
+                
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        # [Step 3] 가입 정보 입력 (신규 회원용)
-        elif st.session_state.login_step == 'signup_input':
-            st.markdown("### 📝 정보 입력")
-            phone_signup = st.text_input("사용하실 휴대폰 번호를 입력하세요", placeholder="010-0000-0000", key="signup_phone")
-            
-            s_c1, s_c2 = st.columns([2, 1])
-            with s_c1:
-                if st.button("가입 완료", use_container_width=True, type="primary"):
-                    if len(phone_signup) >= 10:
-                        # 이미 존재하는지 확인
-                        if phone_signup in st.session_state.db_users:
-                            st.warning("이미 가입된 번호입니다. '기존 회원 로그인'을 이용해주세요.")
-                        else:
-                            # [DB 저장] 신규 회원을 리스트에 추가
-                            st.session_state.db_users.append(phone_signup)
-                            
-                            st.session_state.auth_status = 'user'
-                            st.session_state.user_phone = phone_signup
-                            st.balloons() # 가입 축하 효과
-                            st.toast("회원가입을 축하합니다!", icon="🎉")
-                            st.session_state.page = 'calendar' # [수정 완료] stats -> calendar
-                            st.session_state.login_step = 'choice'
-                            st.rerun()
-                    else: st.error("올바른 번호를 입력해주세요.")
-            with s_c2:
-                if st.button("취소", key="back_signup"):
-                    st.session_state.login_step = 'choice'
-                    st.rerun()
-
-    st.write("<br>" * 2, unsafe_allow_html=True)
+    # 하단 명언 UI
+    st.write("<br>" * 3, unsafe_allow_html=True)
     q = get_daily_quote()
-    
-    # [수정] 한글(kor)이 추가된 HTML 디자인
-    st.markdown(f"""
-        <div class='quote-card'>
-            <b>"{q['eng']}"</b>
-            <br>
-            <span style='font-size:14px; color:#555; font-weight:normal;'>{q['kor']}</span>
-            <br><br>
-            <small>- {q['author']} -</small>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"<div class='quote-card'><b>\"{q['eng']}\"</b><br><span style='font-size:14px; color:#555;'>{q['kor']}</span><br><br><small>- {q['author']} -</small></div>", unsafe_allow_html=True)
 
 
 
@@ -3017,6 +3108,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
