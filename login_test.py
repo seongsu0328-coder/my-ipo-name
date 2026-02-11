@@ -87,6 +87,20 @@ def add_user(data):
         ]
         sh.append_row(row)
 
+def update_user_visibility(user_id, visibility_data):
+    client, _ = get_gcp_clients()
+    if client:
+        try:
+            sh = client.open("unicorn_users").sheet1
+            cell = sh.find(str(user_id))
+            if cell:
+                visibility_str = ",".join([str(v) for v in visibility_data])
+                sh.update_cell(cell.row, 15, visibility_str)
+                return True
+        except Exception as e:
+            st.error(f"시트 업데이트 실패: {e}")
+    return False
+
 def upload_photo_to_drive(file_obj, filename_prefix):
     if file_obj is None: return "미제출"
     try:
