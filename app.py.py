@@ -40,40 +40,27 @@ def get_gspread_client():
 # [회원 정보 저장 함수]
 def save_user_to_sheets(user_data):
     try:
+        # 📍 디버깅용: 함수 시작 알림
+        # st.write("시트 저장 함수 시작됨...") 
+        
         client = get_gspread_client()
-        # 알려주신 시트 URL로 연결
         sheet_url = "https://docs.google.com/spreadsheets/d/1grbNyzEv2TzTDRMKrGBTI21v6qmZRnv42M2Z6UhNXTc/edit#gid=0"
         spreadsheet = client.open_by_url(sheet_url)
-        worksheet = spreadsheet.get_worksheet(0) # 첫 번째 시트
+        worksheet = spreadsheet.get_worksheet(0)
 
-        # 15개 열 순서: 
-        # id, pw, email, phone, role, status, univ, job_title, asset, 
-        # display_name, created_at, link_univ, link_job, link_asset, visibility
         row = [
-            user_data.get('id'),
-            user_data.get('pw'),
-            user_data.get('email'),
-            user_data.get('phone'),
-            "user",                # role
-            "pending",             # status (승인 대기)
-            user_data.get('univ'),
-            user_data.get('job_title'),
-            user_data.get('asset'),
-            user_data.get('display_name'), # 선택한 뱃지 + 마스킹ID
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # created_at
-            "", # link_univ (파일 업로드 구현 시 드라이브 링크)
-            "", # link_job
-            "", # link_asset
-            "public"               # visibility
+            user_data.get('id'), user_data.get('pw'), user_data.get('email'),
+            user_data.get('phone'), "user", "pending", user_data.get('univ'),
+            user_data.get('job_title'), user_data.get('asset'),
+            user_data.get('display_name'), datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "", "", "", "public"
         ]
         
         worksheet.append_row(row)
         return True, "성공"
     except Exception as e:
-        # 에러의 상세 내용을 출력하도록 수정
         import traceback
-        error_details = traceback.format_exc()
-        return False, f"상세 에러: {str(e)}\n{error_details}"
+        return False, f"상세에러: {str(e)}\n{traceback.format_exc()}"
 
 def generate_verification_code():
     return str(random.randint(100000, 999999))
@@ -3262,6 +3249,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
