@@ -11,20 +11,12 @@ import random
 import math
 import html
 import re
-import smtplib
 from datetime import datetime, timedelta
-from email.mime.text import MIMEText
 
-# --- [1. 구글 API 및 인증 관련 (회원관리용)] ---
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-
-# --- [2. AI 및 검색 라이브러리 (기존 메인 기능)] ---
-from openai import OpenAI             # Groq(뉴스 요약)용
-import google.generativeai as genai   # Gemini(메인 종목 분석)용
-from tavily import TavilyClient       # Tavily(뉴스 검색)용
+# --- [AI 및 검색 라이브러리 통합] ---
+from openai import OpenAI             # ✅ Groq(뉴스 요약)용
+import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
+from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
 
 # --- [여기(최상단)에 함수를 두어야 아래에서 인식합니다] ---
@@ -2993,7 +2985,6 @@ elif st.session_state.page == 'detail':
                 
                 
                 
-
 
 
 
