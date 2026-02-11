@@ -25,6 +25,59 @@ import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - �
 from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
 
+# ==========================================
+# [설정] 구글 드라이브 및 연동 설정
+# ==========================================
+# 📍 본인의 구글 드라이브 폴더 ID를 여기에 넣으세요 (문자열)
+DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2" 
+
+# ==========================================
+# [함수 정의] 구글 드라이브 업로드 로직
+# ==========================================
+def upload_photo_to_drive(file_obj, filename_prefix):
+    """파일을 구글 드라이브에 업로드하고 공유 가능한 링크 반환"""
+    if file_obj is None: 
+        return "미제출"
+    try:
+        # get_gcp_clients() 함수를 통해 인증 정보 획득
+        _, drive_service = get_gcp_clients()
+        if not drive_service:
+            return "드라이브 연결 실패"
+
+        file_obj.seek(0)
+        
+        file_metadata = {
+            'name': f"{filename_prefix}_{file_obj.name}", 
+            'parents': [DRIVE_FOLDER_ID]
+        }
+        
+        from googleapiclient.http import MediaIoBaseUpload
+        media = MediaIoBaseUpload(
+            file_obj, 
+            mimetype=file_obj.type, 
+            resumable=True, 
+            chunksize=256*1024
+        )
+        
+        # 파일 생성
+        file = drive_service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id, webViewLink',
+            supportsAllDrives=True
+        ).execute()
+
+        # 관리자가 바로 볼 수 있도록 권한 설정 (누구나 링크가 있으면 보기 가능)
+        drive_service.permissions().create(
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'reader'},
+            supportsAllDrives=True
+        ).execute()
+        
+        return file.get('webViewLink')
+    except Exception as e:
+        return f"업로드 실패: {str(e)}"
+        
 # [구글 시트 접속 함수]
 def get_gspread_client():
     # secrets.toml에 저장된 gspread 관련 정보를 가져옵니다.
@@ -95,9 +148,40 @@ def send_email_code(to_email, code):
     except Exception as e:
         return False, f"이메일 전송 실패: {str(e)}"
 
+#사진 업로드 함수 
+def upload_photo_to_drive(file_obj, filename_prefix):
+    """파일을 구글 드라이브에 업로드하고 공유 가능한 링크 반환"""
+    if file_obj is None: return "미제출"
+    try:
+        # DRIVE_FOLDER_ID가 전역 변수로 선언되어 있어야 합니다.
+        _, drive_service = get_gcp_clients()
+        file_obj.seek(0)
+        
+        file_metadata = {
+            'name': f"{filename_prefix}_{file_obj.name}", 
+            'parents': [DRIVE_FOLDER_ID] # 상단에 폴더 ID 정의 필수
+        }
+        
+        from googleapiclient.http import MediaIoBaseUpload
+        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type, resumable=True, chunksize=256*1024)
+        
+        file = drive_service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id, webViewLink',
+            supportsAllDrives=True
+        ).execute()
 
-
-# ------------------------------------------
+        # 누구나 링크가 있으면 볼 수 있게 권한 설정 (관리자 확인용)
+        drive_service.permissions().create(
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'reader'},
+            supportsAllDrives=True
+        ).execute()
+        
+        return file.get('webViewLink')
+    except Exception as e:
+        return f"업로드 실패: {str(e)}"
 
 # [회원 정보 저장 함수]
 def save_user_to_sheets(data):
@@ -1443,7 +1527,6 @@ if st.session_state.page == 'login':
             st.success("✅ 1단계 본인인증 완료! 활동 뱃지를 획득하세요.")
             st.info("최소 1개 이상의 항목을 인증해야 가입이 완료됩니다.")
 
-            # 입력 데이터를 저장할 딕셔너리 초기화
             if 'cert_data' not in st.session_state:
                 st.session_state.cert_data = {"school": None, "job": None, "asset": None}
 
@@ -1453,6 +1536,8 @@ if st.session_state.page == 'login':
                 school_file = st.file_uploader("재학/졸업 증명서", type=['jpg', 'png', 'pdf'], key="file_school")
                 if school_name and school_file:
                     st.caption(f"✅ 인증 대기: {school_name}")
+                    # 📍 중요: 파일 객체를 세션에 보관
+                    st.session_state['file_school'] = school_file
 
             # 2. 직업/직장 인증
             with st.expander("💼 직업/직장 인증 (선택)", expanded=False):
@@ -1460,8 +1545,10 @@ if st.session_state.page == 'login':
                 job_file = st.file_uploader("재직 증명서/명함", type=['jpg', 'png', 'pdf'], key="file_job")
                 if job_name and job_file:
                     st.caption(f"✅ 인증 대기: {job_name}")
+                    # 📍 중요: 파일 객체를 세션에 보관
+                    st.session_state['file_job'] = job_file
 
-            # 3. 자산 규모 인증 (요청하신 등급 적용)
+            # 3. 자산 규모 인증
             with st.expander("💰 자산 규모 인증 (선택)", expanded=False):
                 asset_tier = st.selectbox(
                     "인증할 자산 구간을 선택하세요",
@@ -1469,25 +1556,23 @@ if st.session_state.page == 'login':
                     key="input_asset"
                 )
                 asset_file = st.file_uploader("잔고/부동산 증명서", type=['jpg', 'png', 'pdf'], key="file_asset")
-                
                 if asset_tier != "선택안함" and asset_file:
                     st.caption(f"✅ 인증 대기: {asset_tier}")
+                    # 📍 중요: 파일 객체를 세션에 보관
+                    st.session_state['file_asset'] = asset_file
 
             st.write("<br>", unsafe_allow_html=True)
 
             # 심사 요청 버튼
             if st.button("인증 서류 제출 및 다음", type="primary", use_container_width=True):
-                # 최소 1개 이상 입력했는지 검증
-                has_school = bool(school_name and school_file)
-                has_job = bool(job_name and job_file)
-                has_asset = bool(asset_tier != "선택안함" and asset_file)
+                # 파일이 실제로 세션에 있는지 한 번 더 체크
+                has_school = bool(school_name and st.session_state.get('file_school'))
+                has_job = bool(job_name and st.session_state.get('file_job'))
+                has_asset = bool(asset_tier != "선택안함" and st.session_state.get('file_asset'))
 
                 if not (has_school or has_job or has_asset):
-                    st.error("최소 한 가지 카테고리는 인증해야 합니다.")
+                    st.error("최소 한 가지 카테고리는 인증 서류와 함께 제출해야 합니다.")
                 else:
-                    # [데이터 임시 저장]
-                    # 실제로는 여기서 관리자에게 승인 요청을 보내거나, OCR로 자동 검증을 합니다.
-                    # 여기서는 '즉시 승인' 되었다고 가정하고 Step 3로 넘깁니다.
                     st.session_state.cert_data = {
                         "school": school_name if has_school else None,
                         "job": job_name if has_job else None,
@@ -1497,36 +1582,42 @@ if st.session_state.page == 'login':
                     st.rerun()
 
         # ---------------------------------------------------------
-        # [Step 3] 최종 프로필 설정 및 구글 시트 저장 (테스트 코드 로직 적용)
+        # [Step 3] 최종 프로필 설정 및 사진 업로드 + 시트 저장
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_step_3':
             st.markdown("<div class='auth-card'><h5>👤 프로필 설정</h5>", unsafe_allow_html=True)
             
-            # 1. 테스트 코드 방식의 데이터 로드
+            # 1. 데이터 로드 및 마스킹
             temp_data = st.session_state.get('temp_signup_data', {})
             raw_id = temp_data.get('id', 'unknown')
-            masked_id = "*" * len(raw_id) # 테스트 코드는 전체 마스킹 방식을 사용하셨네요.
+            masked_id = "*" * len(raw_id) 
             
-            # 2. 옵션 구성
+            # 2. 타이틀 옵션 구성
             cert = st.session_state.get('cert_data', {})
             options = []
             if cert.get('school'): options.append(f"🎓 {cert['school']}")
             if cert.get('job'): options.append(f"💼 {cert['job']}")
             if cert.get('asset'):
-                # 테스트 코드의 등급 판별 함수(get_asset_grade) 로직 적용
                 grade = cert['asset'].split(' ')[0]
-                options.append(f"💰 {grade} 자산가")
+                badge = "💎" if "100억" in cert['asset'] else "🥇" if "50억" in cert['asset'] else "🥈" if "30억" in cert['asset'] else "🥉"
+                options.append(f"{badge} {grade} 자산가")
             if not options: options.append("🌱 새싹 회원")
 
             selected_tag = st.radio("커뮤니티 대표 타이틀 선택", options)
             preview_str = f"{selected_tag} {masked_id}"
             st.info(f"👀 **미리보기**: {preview_str}")
 
-            # 3. [핵심] 가입 신청 버튼 (테스트 코드의 add_user 로직 통합)
+            # 3. [핵심] 가입 신청 및 업로드 버튼
             if st.button("🚀 최종 가입 신청 완료", type="primary", use_container_width=True):
-                with st.spinner("회원 정보를 데이터베이스에 안전하게 기록 중..."):
+                with st.spinner("📄 서류 업로드 및 데이터 기록 중..."):
                     try:
-                        # 📍 테스트 코드처럼 버튼 클릭 시점에 최종 데이터 조립
+                        # 📍 [추가] 구글 드라이브 파일 업로드 실행
+                        # Step 2에서 st.session_state에 저장해둔 파일 객체들을 불러옵니다.
+                        l_u = upload_photo_to_drive(st.session_state.get('file_school'), f"{raw_id}_univ")
+                        l_j = upload_photo_to_drive(st.session_state.get('file_job'), f"{raw_id}_job")
+                        l_a = upload_photo_to_drive(st.session_state.get('file_asset'), f"{raw_id}_asset")
+
+                        # 📍 최종 데이터 조립 (업로드된 링크 포함)
                         final_user_data = {
                             "id": raw_id,
                             "pw": temp_data.get('pw'),
@@ -1536,7 +1627,9 @@ if st.session_state.page == 'login':
                             "job_title": cert.get('job', ""),
                             "asset": cert.get('asset', ""),
                             "display_name": preview_str,
-                            # 테스트 코드에서 사용한 15번째 열(visibility) 초기값 설정
+                            "link_univ": l_u,
+                            "link_job": l_j,
+                            "link_asset": l_a,
                             "visibility": "True,True,True" 
                         }
 
@@ -1544,11 +1637,11 @@ if st.session_state.page == 'login':
                         success, msg = save_user_to_sheets(final_user_data)
                         
                         if success:
-                            st.success("✅ 가입 신청이 완료되었습니다! 관리자 승인 후 이용 가능합니다.")
+                            st.success("✅ 신청 완료! 관리자 승인 후 이용 가능합니다.")
                             st.balloons()
                             time.sleep(2)
                             
-                            # 성공 시에만 초기 화면으로 이동 (테스트 코드 방식)
+                            # 세션 상태 초기화 및 이동
                             st.session_state.login_step = 'choice'
                             st.rerun()
                         else:
@@ -3296,6 +3389,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
