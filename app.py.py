@@ -37,6 +37,12 @@ def get_gspread_client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     return gspread.authorize(creds)
 
+# 인증번호 정의 구역
+def generate_verification_code():
+    """6자리 랜덤 인증번호를 생성하는 함수"""
+    import random
+    return str(random.randint(100000, 999999))
+
 # [회원 정보 저장 함수]
 def save_user_to_sheets(data):
     try:
@@ -3234,6 +3240,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
