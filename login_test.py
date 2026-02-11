@@ -54,11 +54,11 @@ def add_user(data):
     if client:
         sh = client.open("unicorn_users").sheet1
         
-        # 1. 아이디 익명화 (앞 3글자 제외 나머지 *)
+        # 1. 아이디 익명화 (닉네임 생성용)
         user_id = data['id']
         masked_id = user_id[:3] + "*" * (len(user_id) - 3) if len(user_id) > 3 else user_id + "***"
         
-        # 2. 인증 항목 결합 (대학, 직장, 자산등급)
+        # 2. 인증 항목 결합
         display_parts = []
         auth_count = 0
         
@@ -73,18 +73,17 @@ def add_user(data):
             display_parts.append(grade)
             auth_count += 1
             
-        # 최종 표시용 닉네임 (예: 서울대 의사 Silver abc***)
         display_name = " ".join(display_parts + [masked_id])
-        
-        # 3. 권한 설정 (하나도 인증 안 했으면 restricted)
         role = "user" if auth_count > 0 else "restricted"
         
+        # 3. [수정됨] 15번째 열(visibility) 기본값 추가
         row = [
             data['id'], data['pw'], data['email'], data['phone'],
-            role, 'pending', # role(글쓰기제한용), status
+            role, 'pending', 
             data['univ'], data['job'], data['asset'], display_name,
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            data['link_univ'], data['link_job'], data['link_asset']
+            data['link_univ'], data['link_job'], data['link_asset'],
+            "True,True,True"  # <--- 이 부분이 15번째 열에 들어갑니다.
         ]
         sh.append_row(row)
 
