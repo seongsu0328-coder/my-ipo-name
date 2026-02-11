@@ -35,19 +35,17 @@ DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 # [함수 정의] 구글 드라이브 업로드 로직
 # ==========================================
 def upload_photo_to_drive(file_obj, filename_prefix):
-    """구글 드라이브 업로드 및 공유 링크 생성 (단일화된 최신 버전)"""
+    """파일을 구글 드라이브에 업로드하고 공유 가능한 링크 반환"""
     if file_obj is None: 
         return "미제출"
     try:
-        # get_gcp_clients()를 통해 인증 정보 획득
-        _, drive_service = get_gcp_clients() 
+        # get_gcp_clients() 함수를 통해 인증 정보 획득
+        _, drive_service = get_gcp_clients()
         if not drive_service:
             return "드라이브 연결 실패"
 
-        # 파일 읽기 위치 초기화
         file_obj.seek(0)
         
-        # 파일 메타데이터 설정
         file_metadata = {
             'name': f"{filename_prefix}_{file_obj.name}", 
             'parents': [DRIVE_FOLDER_ID]
@@ -61,18 +59,18 @@ def upload_photo_to_drive(file_obj, filename_prefix):
             chunksize=256*1024
         )
         
-        # 드라이브에 파일 생성
+        # 파일 생성
         file = drive_service.files().create(
             body=file_metadata, 
             media_body=media, 
-            fields='id, webViewLink', 
+            fields='id, webViewLink',
             supportsAllDrives=True
         ).execute()
 
-        # 누구나 링크가 있으면 볼 수 있도록 권한 설정 (관리자 승인용)
+        # 관리자가 바로 볼 수 있도록 권한 설정 (누구나 링크가 있으면 보기 가능)
         drive_service.permissions().create(
-            fileId=file.get('id'), 
-            body={'type': 'anyone', 'role': 'reader'}, 
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'reader'},
             supportsAllDrives=True
         ).execute()
         
@@ -150,7 +148,40 @@ def send_email_code(to_email, code):
     except Exception as e:
         return False, f"이메일 전송 실패: {str(e)}"
 
+#사진 업로드 함수 
+def upload_photo_to_drive(file_obj, filename_prefix):
+    """파일을 구글 드라이브에 업로드하고 공유 가능한 링크 반환"""
+    if file_obj is None: return "미제출"
+    try:
+        # DRIVE_FOLDER_ID가 전역 변수로 선언되어 있어야 합니다.
+        _, drive_service = get_gcp_clients()
+        file_obj.seek(0)
+        
+        file_metadata = {
+            'name': f"{filename_prefix}_{file_obj.name}", 
+            'parents': [DRIVE_FOLDER_ID] # 상단에 폴더 ID 정의 필수
+        }
+        
+        from googleapiclient.http import MediaIoBaseUpload
+        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type, resumable=True, chunksize=256*1024)
+        
+        file = drive_service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id, webViewLink',
+            supportsAllDrives=True
+        ).execute()
 
+        # 누구나 링크가 있으면 볼 수 있게 권한 설정 (관리자 확인용)
+        drive_service.permissions().create(
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'reader'},
+            supportsAllDrives=True
+        ).execute()
+        
+        return file.get('webViewLink')
+    except Exception as e:
+        return f"업로드 실패: {str(e)}"
 
 # [회원 정보 저장 함수]
 def save_user_to_sheets(data):
@@ -793,36 +824,21 @@ def get_us_ipo_analysis(ticker_symbol):
 # 1. 페이지 설정
 st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 
-# 관리할 모든 키 리스트 (파일 관련 키 3개 포함)
-session_keys = [
-    'page', 'auth_status', 'vote_data', 'comment_data', 'user_votes', 
-    'selected_stock', 'watchlist', 'view_mode', 'news_topic', 'posts', 
-    'file_school', 'file_job', 'file_asset'
-]
-
-for key in session_keys:
+# 'posts'를 아래 리스트에 추가했습니다.
+for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock', 'watchlist', 'view_mode', 'news_topic', 'posts']:
     if key not in st.session_state:
-        # 1. 페이지 기본값 설정
-        if key == 'page':
+        if key == 'page': 
             st.session_state[key] = 'login'
-        
-        # 2. 리스트(목록) 형태 초기화
-        elif key in ['watchlist', 'posts']:
+        # posts와 watchlist는 목록 형태이므로 빈 리스트([])로 초기화
+        elif key in ['watchlist', 'posts']: 
             st.session_state[key] = []
-            
-        # 3. 딕셔너리(데이터 뭉치) 형태 초기화
-        elif key in ['vote_data', 'comment_data', 'user_votes']:
+        elif key in ['vote_data', 'comment_data', 'user_votes']: 
             st.session_state[key] = {}
-            
-        # 4. 특정 문자열 기본값 설정
-        elif key == 'view_mode':
+        elif key == 'view_mode': 
             st.session_state[key] = 'all'
-        elif key == 'news_topic':
+        elif key == 'news_topic': 
             st.session_state[key] = "💰 공모가 범위/확정 소식"
-            
-        # 5. 파일 객체 및 기타 (None으로 초기화)
-        # 📍 'file_school', 'file_job', 'file_asset'이 여기에 포함됩니다.
-        else:
+        else: 
             st.session_state[key] = None
             
 # --- CSS 스타일 ---
@@ -1558,24 +1574,22 @@ if st.session_state.page == 'login':
                     st.rerun()
 
         # ---------------------------------------------------------
-        # [Step 3] 최종 프로필 설정 및 사진 업로드 + 시트 저장 (통합형)
+        # [Step 3] 최종 프로필 설정 및 사진 업로드 + 시트 저장 (검증 완료)
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_step_3':
             st.markdown("<div class='auth-card'><h5>👤 프로필 설정</h5>", unsafe_allow_html=True)
             
-            # 1. 기초 데이터 로드
             temp_data = st.session_state.get('temp_signup_data', {})
             raw_id = temp_data.get('id', 'unknown')
             masked_id = "*" * len(raw_id) 
-            cert = st.session_state.get('cert_data', {})
             
-            # 2. 타이틀 옵션 구성 (뱃지 포함)
+            cert = st.session_state.get('cert_data', {})
             options = []
             if cert.get('school'): options.append(f"🎓 {cert['school']}")
             if cert.get('job'): options.append(f"💼 {cert['job']}")
             if cert.get('asset'):
                 grade = cert['asset'].split(' ')[0]
-                badge = "💎" if "100" in cert['asset'] else "🥇" if "50" in cert['asset'] else "🥈" if "30" in cert['asset'] else "🥉"
+                badge = "💎" if "100억" in cert['asset'] else "🥇" if "50억" in cert['asset'] else "🥈" if "30억" in cert['asset'] else "🥉"
                 options.append(f"{badge} {grade} 자산가")
             if not options: options.append("🌱 새싹 회원")
 
@@ -1583,40 +1597,42 @@ if st.session_state.page == 'login':
             preview_str = f"{selected_tag} {masked_id}"
             st.info(f"👀 **미리보기**: {preview_str}")
 
-            # 🔍 [디버깅 섹션] 버튼 누르기 전 파일 상태 실시간 모니터링
+            # --- 🔍 여기부터 디버깅 코드 시작 ---
             st.markdown("---")
             st.subheader("🛠️ 데이터 전달 상태 점검")
-            d_col1, d_col2, d_col3 = st.columns(3)
-            with d_col1:
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
                 has_s = st.session_state.get('file_school') is not None
                 st.metric("학교 서류", "보유" if has_s else "없음")
-            with d_col2:
+            with col2:
                 has_j = st.session_state.get('file_job') is not None
                 st.metric("직장 서류", "보유" if has_j else "없음")
-            with d_col3:
+            with col3:
                 has_a = st.session_state.get('file_asset') is not None
                 st.metric("자산 서류", "보유" if has_a else "없음")
             
             if not (has_s or has_j or has_a):
-                st.warning("⚠️ 현재 메모리에 저장된 파일이 없습니다. Step 2에서 서류를 다시 선택해야 합니다.")
-
-            # 3. [핵심] 가입 신청 및 업로드 실행
+                st.warning("⚠️ 현재 메모리에 저장된 파일이 하나도 없습니다. Step 2에서 파일을 다시 업로드해야 합니다.")
+            
             if st.button("🚀 최종 가입 신청 완료", type="primary", use_container_width=True):
                 with st.spinner("📄 서류 업로드 및 데이터 기록 중..."):
                     try:
-                        # (1) 세션에서 파일 객체 명확히 추출
-                        f_s = st.session_state.get('file_school')
-                        f_j = st.session_state.get('file_job')
-                        f_a = st.session_state.get('file_asset')
+                        # 파일 객체 가져오기
+                        f_school = st.session_state.get('file_school')
+                        f_job = st.session_state.get('file_job')
+                        f_asset = st.session_state.get('file_asset')
 
-                        # (2) 구글 드라이브 업로드 실행 (함수 1회 호출로 링크 획득)
-                        l_u = upload_photo_to_drive(f_s, f"{raw_id}_univ")
-                        l_j = upload_photo_to_drive(f_j, f"{raw_id}_job")
-                        l_a = upload_photo_to_drive(f_a, f"{raw_id}_asset")
+                        # 구글 드라이브 업로드 (비동기 처리처럼 순차적 진행)
+                        l_u = upload_photo_to_drive(f_school, f"{raw_id}_univ")
+                        l_j = upload_photo_to_drive(f_job, f"{raw_id}_job")
+                        l_a = upload_photo_to_drive(f_asset, f"{raw_id}_asset")
 
-                        # (3) 데이터 조립 (테스트 코드의 **temp_data 방식 적용)
                         final_user_data = {
-                            **temp_data, 
+                            "id": raw_id,
+                            "pw": temp_data.get('pw'),
+                            "email": temp_data.get('email'),
+                            "phone": temp_data.get('phone'),
                             "univ": cert.get('school', ""),
                             "job_title": cert.get('job', ""),
                             "asset": cert.get('asset', ""),
@@ -1627,7 +1643,6 @@ if st.session_state.page == 'login':
                             "visibility": "True,True,True" 
                         }
 
-                        # (4) 구글 시트 최종 저장
                         success, msg = save_user_to_sheets(final_user_data)
                         
                         if success:
@@ -1637,7 +1652,7 @@ if st.session_state.page == 'login':
                             
                             # 가입 신청 완료 후 모든 파일 세션 초기화 (보안 및 메모리 관리)
                             for k in ['file_school', 'file_job', 'file_asset']:
-                                st.session_state[k] = None
+                                if k in st.session_state: del st.session_state[k]
                             
                             st.session_state.login_step = 'choice'
                             st.rerun()
@@ -3386,8 +3401,6 @@ elif st.session_state.page == 'detail':
                 
                 
                 
-
-
 
 
 
