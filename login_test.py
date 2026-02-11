@@ -14,7 +14,7 @@ from email.mime.text import MIMEText
 # ==========================================
 DRIVE_FOLDER_ID = "14_M1_9RMJBcPe1dTkpWfihMwC2-DZlBo"
 
-st.set_page_config(page_title="로그인 테스트", layout="centered")
+st.set_page_config(page_title="Unicorn Finder", layout="centered")
 
 # ==========================================
 # [기능 1] 구글 클라이언트 연결
@@ -23,14 +23,13 @@ st.set_page_config(page_title="로그인 테스트", layout="centered")
 def get_gcp_clients():
     try:
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        # secrets.toml에서 정보 가져오기
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         gspread_client = gspread.authorize(creds)
         drive_service = build('drive', 'v3', credentials=creds)
         return gspread_client, drive_service
     except Exception as e:
-        st.error(f"구글 연결 실패: secrets 설정을 확인하세요. ({e})")
+        st.error(f"구글 연결 실패: {e}")
         return None, None
 
 def load_users():
@@ -43,14 +42,29 @@ def load_users():
             return []
     return []
 
+# 💎 자산 등급 분류 함수 (요청하신 기준 반영)
+def get_asset_grade(asset_text):
+    if asset_text == "10억 미만":
+        return "Bronze"
+    elif asset_text == "10억~30억":
+        return "Silver"
+    elif asset_text == "30억~80억":
+        return "Gold"
+    elif asset_text == "80억 이상":
+        return "Diamond"
+    return "Unknown"
+
 def add_user(data):
     client, _ = get_gcp_clients()
     if client:
         sh = client.open("unicorn_users").sheet1
+        # 등급 자동 계산
+        grade = get_asset_grade(data['asset'])
+        
         row = [
             data['id'], data['pw'], data['email'], data['phone'],
-            'user', 'pending',
-            data['univ'], data['job'], data['asset'],
+            'user', 'pending', # role, status
+            data['univ'], data['job'], data['asset'], grade, # 등급 열 추가
             ", ".join(data['interests']),
             datetime.now().strftime("%Y-%m-%d"),
             data['link_univ'], data['link_job'], data['link_asset']
@@ -66,13 +80,17 @@ def upload_photo_to_drive(file_obj, filename_prefix):
     return file.get('webViewLink')
 
 # ==========================================
-# [기능 2] 실제 인증번호 발송 로직 (수정됨)
+# [기능 2] 이메일 발송 로직 (계층 구조 해결)
 # ==========================================
 def send_email_code(to_email, code):
     try:
-        # 현재 인식된 키 이름('email_address', 'app_password')으로 수정했습니다.
-        sender_email = st.secrets["email_address"]
-        sender_pw = st.secrets["app_password"]
+        # [smtp] 섹션이 있는 경우와 없는 경우 모두 대응하도록 짭니다.
+        if "smtp" in st.secrets:
+            sender_email = st.secrets["smtp"]["email_address"]
+            sender_pw = st.secrets["smtp"]["app_password"]
+        else:
+            sender_email = st.secrets["email_address"]
+            sender_pw = st.secrets["app_password"]
 
         subject = "[Unicorn Finder] 본인 인증번호 안내"
         body = f"안녕하세요. 요청하신 인증번호는 [{code}] 입니다."
@@ -87,17 +105,18 @@ def send_email_code(to_email, code):
             s.login(sender_email, sender_pw)
             s.sendmail(sender_email, to_email, msg.as_string())
             
-        st.toast(f"📧 {to_email}로 실제 인증 메일을 발송했습니다!", icon="✅")
+        st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
         return True
     except Exception as e:
-        st.error(f"❌ 이메일 전송 중 오류 발생: {e}")
+        st.error(f"❌ 이메일 전송 실패: {e}")
+        # 디버깅: 현재 secrets 구조 확인
+        st.write("사용 가능한 키:", list(st.secrets.keys()))
         return False
 
 def send_sms_code(phone, code):
-    # SMS는 비용 문제로 가상 모드 유지 (필요 시 Twilio/CoolSMS 등 API 연동 필요)
     st.toast(f"📱 [가상 SMS] {phone} 번호로 인증번호 [{code}]가 도착했습니다!", icon="📩")
     return True
-
+    
 # ==========================================
 # [화면] UI 제어 로직
 # ==========================================
