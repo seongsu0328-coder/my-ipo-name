@@ -248,47 +248,56 @@ if st.session_state.page == 'login':
 
 elif st.session_state.page == 'main_app':
     user = st.session_state.user_info
-    st.title("Main App")
+    st.title("🦄 Unicorn Finder")
 
     if user:
-        # [실시간 닉네임 조합 로직]
-        # 시트에 저장된 display_name을 쓰는 대신, 현재 설정에 따라 새로 만듭니다.
-        user_id = user.get('id', '')
-        masked_id = user_id[:3] + "***"
+        # --- 1. [데이터 준비] 아이디 전체 마스킹 및 노출 제어 ---
+        user_id = str(user.get('id', ''))
+        # 아이디 전체를 *로 처리 (요청 사항)
+        masked_id = "*" * len(user_id)
         
+        # --- 2. [UI] 내 정보 노출 설정 (가독성을 위해 위로 배치 가능) ---
+        st.divider()
+        st.subheader("⚙️ 내 정보 노출 설정")
+        
+        # 사용자가 체크박스를 조작하면 아래 final_nickname이 실시간으로 바뀝니다.
+        show_univ = st.checkbox("대학 정보 노출", value=True, key="chk_univ")
+        show_job = st.checkbox("직업 정보 노출", value=True, key="chk_job")
+        show_asset = st.checkbox("자산 등급 노출", value=True, key="chk_asset")
+
+        # --- 3. [실시간 로직] 체크박스 상태에 따른 닉네임 조합 ---
         display_parts = []
-        # 나중에 시트에서 show_univ 등의 값을 읽어오도록 확장 가능
-        display_parts.append(user.get('univ', ''))
-        display_parts.append(user.get('job_title', ''))
-        display_parts.append(get_asset_grade(user.get('asset', '')))
+        if show_univ:
+            display_parts.append(user.get('univ', ''))
+        if show_job:
+            display_parts.append(user.get('job_title', ''))
+        if show_asset:
+            # 기존에 정의된 get_asset_grade 함수 사용
+            tier = get_asset_grade(user.get('asset', ''))
+            display_parts.append(tier)
         
-        # 실제 표시용 (비어있는 값 제외)
+        # 최종 표시용 닉네임 조합 (마스킹된 아이디 포함)
         final_nickname = " ".join([p for p in display_parts if p] + [masked_id])
+
+        # --- 4. [화면 출력] 최종 결과물 ---
+        st.divider()
+        st.write(f"👤 접속 중인 아이디: **{masked_id}**")
+        st.write(f"📛 표시될 닉네임: **{final_nickname}**")
         
-        st.write(f"접속 중인 아이디: **{masked_id}**")
-        st.write(f"접속 중인 닉네임: **{final_nickname}**")
-        st.write(f"직업(상세): **{user.get('job_title', '정보 없음')}**")
-    
-    # 2. 상태 메시지 표시
+        # 직업 상세 정보는 시트 수정 내용 반영
+        st.write(f"💼 상세 직업명: **{user.get('job_title', '정보 없음')}**")
+
+    # --- 5. 상태 메시지 및 관리 ---
     if user['role'] == 'restricted':
-        st.error("🚫 인증된 정보가 없어 글쓰기 기능이 제한된 계정입니다.")
+        st.error("🚫 인증된 정보가 없어 일부 기능(글쓰기 등)이 제한됩니다.")
     else:
         st.success("✅ 인증 회원입니다. 모든 기능을 이용할 수 있습니다.")
 
-    # 3. [2026-02-09] 내 정보 노출 설정 (들여쓰기 확인!)
-    st.divider()
-    st.subheader("⚙️ 내 정보 노출 설정")
+    if st.button("설정 저장", type="primary"):
+        # 현재는 화면 반영만 되며, 실제 시트 업데이트 로직은 15번째 열 추가 후 연동 가능합니다.
+        st.success("설정이 임시 저장되었습니다! (세션 유지 동안 반영)")
 
-    # 가입 시점에 따라 시트에 기존 설정이 없을 수 있으므로 기본값은 True로 설정
-    show_univ = st.checkbox("대학 정보 노출", value=True)
-    show_job = st.checkbox("직업 정보 노출", value=True)
-    show_asset = st.checkbox("자산 등급 노출", value=True)
-
-    if st.button("설정 저장"):
-        # 여기에 추후 시트 업데이트 로직이 들어갈 예정입니다.
-        st.success("노출 설정이 저장되었습니다! (다음 로그인 시 반영)")
-        
-    # 4. 로그아웃 버튼
     if st.button("로그아웃"):
-        st.session_state.page = 'login'
+        # 세션 초기화 후 로그인 화면으로 이동
+        st.session_state.clear()
         st.rerun()
