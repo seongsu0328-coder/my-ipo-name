@@ -1351,37 +1351,27 @@ if st.session_state.page == 'login':
                 st.write("") 
                 st.write("") 
                 if st.button("인증번호 발송", use_container_width=True):
-                    # 🔍 1. 이메일 입력값 확인 (가장 먼저 체크)
                     if not new_email:
-                        st.error("이메일 주소가 비어있습니다. 입력 후 다시 시도하세요.")
+                        st.error("이메일 주소를 입력해주세요.")
                     elif auth_method == "이메일 인증":
-                        # 진행 상황 표시
-                        with st.status("인증번호 생성 및 발송 시도 중...", expanded=True) as status:
-                            # 🔍 2. 코드 생성
+                        with st.status("인증번호 발송 중...", expanded=False) as status:
                             gen_code = generate_verification_code()
                             st.session_state.real_code = gen_code
                             
-                            st.write(f"임시 번호 생성됨: {gen_code}")
+                            success, msg = send_email_code(new_email, gen_code)
                             
-                            # 🔍 3. 발송 함수 호출
-                            try:
-                                success, msg = send_email_code(new_email, gen_code)
+                            if success:
+                                st.session_state.auth_code_sent = True # 1. 상태 변경
+                                status.update(label="발송 성공!", state="complete")
+                                st.toast(f"📧 {new_email}로 전송되었습니다.")
                                 
-                                if success:
-                                    status.update(label="발송 성공!", state="complete", expanded=False)
-                                    st.toast(f"📧 {new_email}로 전송되었습니다.", icon="✅")
-                                else:
-                                    status.update(label="발송 실패", state="error", expanded=True)
-                                    st.error(f"상세 에러: {msg}")
-                                    st.warning(f"테스트용 번호: {gen_code}")
-                            except Exception as e:
-                                status.update(label="시스템 오류", state="error")
-                                st.error(f"함수 실행 중 튕김: {str(e)}")
-                        
-                        st.session_state.auth_code_sent = True
-                        # st.rerun()  # 🚨 일단 주석 처리 (입력값이 날아가는지 확인용)
-                    elif auth_method == "휴대폰 인증(준비중)":
-                        st.error("휴대폰 인증은 준비 중입니다.")
+                                # 📍 [핵심] 즉시 재실행하여 입력창을 활성화시킵니다.
+                                time.sleep(0.5) # 토스트 메시지를 보여줄 아주 짧은 시간
+                                st.rerun() 
+                            else:
+                                status.update(label="발송 실패", state="error")
+                                st.error(f"상세 에러: {msg}")
+                                st.warning(f"테스트용 번호: {gen_code}")
             
             # 하단 버튼 (다음 단계 / 취소)
             b1, b2 = st.columns([2, 1])
@@ -3304,6 +3294,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
