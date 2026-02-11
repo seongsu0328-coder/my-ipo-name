@@ -14,6 +14,8 @@ import re
 import urllib.parse
 import xml.etree.ElementTree as ET
 import smtplib
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 
@@ -22,6 +24,53 @@ from openai import OpenAI             # ✅ Groq(뉴스 요약)용
 import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
 from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
+
+# [구글 시트 접속 함수]
+def get_gspread_client():
+    # secrets.toml에 저장된 gspread 관련 정보를 가져옵니다.
+    # (일반적으로 [gspread] 또는 [connections.gspread] 섹션에 저장된 JSON 데이터 활용)
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    
+    # gspread 설정 방식에 따라 아래 코드를 조정하세요.
+    # 보통 st.secrets["gspread"]에 JSON 내용이 통째로 들어있다고 가정합니다.
+    creds_dict = st.secrets["gspread"] 
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    return gspread.authorize(creds)
+
+# [회원 정보 저장 함수]
+def save_user_to_sheets(user_data):
+    try:
+        client = get_gspread_client()
+        # 알려주신 시트 URL로 연결
+        sheet_url = "https://docs.google.com/spreadsheets/d/1grbNyzEv2TzTDRMKrGBTI21v6qmZRnv42M2Z6UhNXTc/edit#gid=0"
+        spreadsheet = client.open_by_url(sheet_url)
+        worksheet = spreadsheet.get_worksheet(0) # 첫 번째 시트
+
+        # 15개 열 순서: 
+        # id, pw, email, phone, role, status, univ, job_title, asset, 
+        # display_name, created_at, link_univ, link_job, link_asset, visibility
+        row = [
+            user_data.get('id'),
+            user_data.get('pw'),
+            user_data.get('email'),
+            user_data.get('phone'),
+            "user",                # role
+            "pending",             # status (승인 대기)
+            user_data.get('univ'),
+            user_data.get('job_title'),
+            user_data.get('asset'),
+            user_data.get('display_name'), # 선택한 뱃지 + 마스킹ID
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # created_at
+            "", # link_univ (파일 업로드 구현 시 드라이브 링크)
+            "", # link_job
+            "", # link_asset
+            "public"               # visibility
+        ]
+        
+        worksheet.append_row(row)
+        return True, "성공"
+    except Exception as e:
+        return False, str(e)
 
 def generate_verification_code():
     return str(random.randint(100000, 999999))
@@ -1474,31 +1523,47 @@ if st.session_state.page == 'login':
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # 5. 가입 완료 버튼
+            # ---------------------------------------------------------
+            # 📍 [여기서부터 교체!] 기존 버튼 로직을 구글 시트 저장 버전으로 교체
+            # ---------------------------------------------------------
             if st.button("🎉 회원가입 완료하기", type="primary", use_container_width=True):
-                # [DB 저장 로직]
-                # 1. temp_signup_data (기본정보)
-                # 2. cert_data (인증정보)
-                # 3. selected_tag (대표 뱃지)
-                # 위 정보들을 실제 User DB에 저장해야 합니다.
-                
-                # 여기서는 세션에 로그인 처리만 진행
-                final_phone = st.session_state.temp_signup_data['phone']
-                st.session_state.db_users.append(final_phone) # 전화번호로 로그인 체크하므로 추가
-                st.session_state.db_users.append(raw_id)      # 아이디로도 로그인 체크 가능하도록 추가
-                
-                st.session_state.auth_status = 'user'
-                st.session_state.user_phone = final_phone
-                st.session_state.user_id = raw_id
-                st.session_state.user_badge = selected_tag # 뱃지 저장
-                
-                st.balloons()
-                st.toast("환영합니다! 유니콘 파인더의 멤버가 되셨습니다.", icon="🦄")
-                time.sleep(1.5)
-                
-                st.session_state.page = 'calendar'
-                st.session_state.login_step = 'choice'
-                st.rerun()
+                # 1. 저장할 데이터 묶기
+                user_info = {
+                    "id": st.session_state.temp_signup_data['id'],
+                    "pw": st.session_state.temp_signup_data['pw'],
+                    "email": st.session_state.temp_signup_data['email'],
+                    "phone": st.session_state.temp_signup_data['phone'],
+                    "univ": st.session_state.cert_data.get('school'),
+                    "job_title": st.session_state.cert_data.get('job'),
+                    "asset": st.session_state.cert_data.get('asset'),
+                    "display_name": preview_str  # '뱃지 | 마스킹ID'
+                }
+
+                # 2. 구글 시트 저장 실행 (st.spinner로 사용자에게 알림)
+                with st.spinner("회원 정보를 안전하게 저장 중입니다..."):
+                    success, msg = save_user_to_sheets(user_info)
+                    
+                if success:
+                    # [기존 세션 로그인 처리 유지]
+                    final_phone = user_info['phone']
+                    st.session_state.db_users.append(final_phone)
+                    st.session_state.db_users.append(user_info['id'])
+                    
+                    st.session_state.auth_status = 'user'
+                    st.session_state.user_phone = final_phone
+                    st.session_state.user_id = user_info['id']
+                    st.session_state.user_badge = selected_tag
+                    
+                    st.balloons()
+                    st.success("회원가입이 완료되었습니다! 관리자 승인 후 모든 기능을 이용하실 수 있습니다.")
+                    time.sleep(2)
+                    
+                    st.session_state.page = 'calendar'
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
+                else:
+                    # 저장 실패 시 에러 메시지 표시
+                    st.error(f"저장 중 오류가 발생했습니다: {msg}")
 
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -3238,6 +3303,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
