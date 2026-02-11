@@ -304,14 +304,28 @@ elif st.session_state.page == 'main_app':
         st.write(f"💼 상세 직업명: **{user.get('job_title', '정보 없음')}**")
 
     # --- 5. 상태 메시지 및 관리 ---
-    if user['role'] == 'restricted':
+    if user.get('role') == 'restricted':
         st.error("🚫 인증된 정보가 없어 일부 기능이 제한됩니다.")
     else:
         st.success("✅ 인증 회원입니다. 모든 기능을 이용할 수 있습니다.")
 
+    # [수정된 부분] 설정 저장 버튼 클릭 시 실제 시트 업데이트 수행
     if st.button("설정 저장", type="primary"):
-        st.success("설정이 임시 저장되었습니다!")
+        with st.spinner("구글 시트에 설정을 저장 중입니다..."):
+            # 체크박스 상태를 리스트로 만듦
+            visibility_data = [show_univ, show_job, show_asset]
+            
+            # 1. 구글 시트 업데이트 함수 호출
+            success = update_user_visibility(user.get('id'), visibility_data)
+            
+            if success:
+                st.success("✅ 노출 설정이 구글 시트에 영구 저장되었습니다!")
+                # 2. 현재 로그인 세션 정보도 즉시 업데이트 (재로그인 없이 반영되도록)
+                st.session_state.user_info['visibility'] = ",".join([str(v) for v in visibility_data])
+            else:
+                st.error("❌ 저장에 실패했습니다. 시트의 15번째 열(visibility)을 확인해 주세요.")
 
+    # --- 6. 로그아웃 버튼 ---
     if st.button("로그아웃"):
         st.session_state.clear()
         st.rerun()
