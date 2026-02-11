@@ -1212,9 +1212,8 @@ if st.session_state.page == 'login':
 
     with col_center:
         st.write("<br>", unsafe_allow_html=True)
-        st.markdown("<div style='text-align:center; font-size: 50px;'>🦄</div>", unsafe_allow_html=True)
-        st.markdown("<h1 class='login-title'>Unicorn Finder</h1>", unsafe_allow_html=True)
-        st.markdown("<p class='login-subtitle'>스타트업 투자 인사이트 플랫폼</p>", unsafe_allow_html=True)
+        st.markdown("<h1 class='login-title'>UnicornFinder</h1>", unsafe_allow_html=True)
+        
 
         # 상태 초기화
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
@@ -1229,18 +1228,18 @@ if st.session_state.page == 'login':
             st.write("<br>", unsafe_allow_html=True)
             
             # 버튼 1: 로그인
-            if st.button("🔐 로그인", use_container_width=True, type="primary"):
+            if st.button("로그인", use_container_width=True, type="primary"):
                 st.session_state.login_step = 'login_input'
                 st.rerun()
                 
             # 버튼 2: 회원가입 (누르면 인증 화면으로 이동)
-            if st.button("📝 회원가입", use_container_width=True):
+            if st.button("회원가입", use_container_width=True):
                 st.session_state.login_step = 'signup_input' # 이동!
                 st.session_state.auth_code_sent = False      # 인증 상태 초기화
                 st.rerun()
                 
             # 버튼 3: 구경하기
-            if st.button("👀 구경하기 (비회원)", use_container_width=True):
+            if st.button("구경하기", use_container_width=True):
                 st.session_state.auth_status = 'guest'
                 st.session_state.page = 'calendar'
                 st.rerun()
@@ -3108,6 +3107,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
