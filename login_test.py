@@ -200,6 +200,43 @@ def send_approval_email(to_email, user_id):
         st.error(f"📧 승인 메일 전송 실패: {e}")
         return False
 
+def send_rejection_email(to_email, user_id, reason):
+    try:
+        if "smtp" in st.secrets:
+            sender_email = st.secrets["smtp"]["email_address"]
+            sender_pw = st.secrets["smtp"]["app_password"]
+        else:
+            sender_email = st.secrets["email_address"]
+            sender_pw = st.secrets["app_password"]
+            
+        subject = "[Unicorn Finder] 가입 승인 보류 안내"
+        body = f"""
+        안녕하세요, {user_id}님. 
+        Unicorn Finder 운영팀입니다.
+        
+        제출해주신 증빙 서류에 보완이 필요하여 승인이 잠시 보류되었습니다.
+        
+        [보류 사유]
+        {reason}
+        
+        위 사유를 확인하신 후 다시 신청해주시면 신속히 재검토하겠습니다.
+        감사합니다.
+        """
+        
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = sender_email
+        msg['To'] = to_email
+        
+        with smtplib.SMTP('smtp.gmail.com', 587) as s:
+            s.starttls()
+            s.login(sender_email, sender_pw)
+            s.sendmail(sender_email, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        st.error(f"📧 보류 메일 전송 실패: {e}")
+        return False
+
 # ==========================================
 # [화면] UI 제어 로직
 # ==========================================
@@ -412,26 +449,39 @@ elif st.session_state.page == 'main_app':
                         
                         st.divider()
 
-                        # --- 관리자 승인 버튼 로직 (메일 발송 포함 수정 버전) ---
-                        if st.button(f"✅ {pu.get('id')} 승인하기", key=f"admin_app_{pu.get('id')}"):
-                            with st.spinner("승인 처리 및 알림 메일 발송 중..."):
-                                # 1. 시트 상태 변경 (status를 approved로)
-                                if approve_user_status(pu.get('id')):
-                                    
-                                    # 2. 이메일 주소 가져오기
-                                    target_email = pu.get('email')
-                                    
-                                    # 3. 승인 알림 메일 발송
-                                    if target_email:
-                                        # 상단에 정의한 send_approval_email 함수를 호출합니다.
-                                        mail_success = send_approval_email(target_email, pu.get('id'))
-                                        
-                                        if mail_success:
-                                            st.success(f"🎉 {pu.get('id')}님 승인 완료! 안내 메일을 발송했습니다.")
+                        # --- [관리자 승인/보류 섹션] ---
+                        # 1. 보류 사유 입력 칸
+                        rej_reason = st.text_input("보류 사유 (메일 발송용)", placeholder="예: 서류가 흐릿합니다. 다시 업로드해주세요.", key=f"rej_input_{pu.get('id')}")
+                        
+                        col_btn1, col_btn2 = st.columns(2)
+                        
+                        with col_btn1:
+                            # [승인 버튼]
+                            if st.button(f"✅ {pu.get('id')} 승인하기", key=f"admin_app_{pu.get('id')}"):
+                                with st.spinner("승인 처리 중..."):
+                                    if approve_user_status(pu.get('id')):
+                                        target_email = pu.get('email')
+                                        if target_email:
+                                            send_approval_email(target_email, pu.get('id'))
+                                            st.success("승인 및 알림 발송 완료!")
+                                        st.rerun()
+
+                        with col_btn2:
+                            # [보류 버튼]
+                            if st.button(f"❌ {pu.get('id')} 보류하기", key=f"admin_rej_{pu.get('id')}"):
+                                if not rej_reason:
+                                    st.warning("보류 사유를 입력해야 메일을 보낼 수 있습니다.")
+                                else:
+                                    with st.spinner("보류 알림 발송 중..."):
+                                        target_email = pu.get('email')
+                                        if target_email:
+                                            # 보류 메일 발송
+                                            if send_rejection_email(target_email, pu.get('id'), rej_reason):
+                                                st.info(f"알림 발송 완료. 해당 유저는 시트에서 수동으로 관리하거나 삭제할 수 있습니다.")
+                                            else:
+                                                st.error("메일 발송 실패")
                                         else:
-                                            st.warning(f"✅ 승인은 완료되었으나, 메일 발송 중 오류가 발생했습니다.")
-                                    else:
-                                        st.warning(f"✅ {pu.get('id')} 승인은 완료되었으나, 등록된 이메일이 없습니다.")
+                                            st.warning("이메일 정보가 없습니다.")
                                     
                                     # 4. 목록 갱신을 위해 재실행
                                     st.rerun()
