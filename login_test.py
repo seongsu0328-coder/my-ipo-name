@@ -9,7 +9,7 @@ from googleapiclient.http import MediaIoBaseUpload
 # ==========================================
 # [설정] 구글 드라이브 폴더 ID (필수 입력)
 # ==========================================
-DRIVE_FOLDER_ID = "여기에_구글드라이브_폴더ID를_붙여넣으세요"
+DRIVE_FOLDER_ID = "14_M1_9RMJBcPe1dTkpWfihMwC2-DZlBo"
 
 # 페이지 설정 (라이트 테마 강제)
 st.set_page_config(page_title="로그인 테스트", layout="centered")
