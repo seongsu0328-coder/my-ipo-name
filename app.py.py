@@ -27,10 +27,13 @@ def generate_verification_code():
     return str(random.randint(100000, 999999))
 
 def send_email_code(to_email, code):
-    # .get() 보다는 직접 접근이 더 확실합니다.
-    try:
-        email_user = st.secrets["EMAIL_USER"]
-        email_password = st.secrets["EMAIL_PASSWORD"]
+    # 디버깅용: Secrets에 키가 존재하는지 체크
+    if "EMAIL_USER" not in st.secrets:
+        return False, "Secrets에서 EMAIL_USER 키를 찾을 수 없습니다. (설정창을 확인하세요)"
+    
+    email_user = st.secrets["EMAIL_USER"]
+    email_password = st.secrets["EMAIL_PASSWORD"]
+    # ... 나머지 로직 동일
     except:
         return False, "Streamlit Secrets에 EMAIL_USER 또는 EMAIL_PASSWORD가 없습니다."
 
@@ -3233,6 +3236,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
