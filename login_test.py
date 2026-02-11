@@ -89,22 +89,17 @@ def add_user(data):
         sh.append_row(row)
 
 def upload_photo_to_drive(file_obj, filename_prefix):
-    if file_obj is None: 
-        return "미제출"
+    if file_obj is None: return "미제출"
     try:
         _, drive_service = get_gcp_clients()
-        if drive_service is None:
-            return "드라이브 서비스 연결 실패"
-
-        # 파일 포인터 초기화
-        file_obj.seek(0)
+        
+        # [핵심] 파일 읽기 위치를 처음으로 초기화
+        file_obj.seek(0) 
         
         file_metadata = {
             'name': f"{filename_prefix}_{file_obj.name}", 
             'parents': [DRIVE_FOLDER_ID]
         }
-        
-        # resumable=True를 제거하고 기본 업로드로 시도 (연결 안정성 우선)
         media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type)
         
         file = drive_service.files().create(
@@ -115,10 +110,8 @@ def upload_photo_to_drive(file_obj, filename_prefix):
         
         return file.get('webViewLink')
     except Exception as e:
-        # 에러를 화면에 크게 띄우고 중단되지 않게 함
-        st.error(f"⚠️ 드라이브 업로드 중 문제 발생: {str(e)}")
-        # 실패했다는 기록을 남겨서 가입 프로세스는 유지
-        return f"업로드 실패({str(e)})"
+        st.error(f"📂 업로드 에러 상세: {e}")
+        return f"업로드 실패: {e}"
         
 def send_email_code(to_email, code):
     try:
