@@ -106,7 +106,7 @@ def upload_photo_to_drive(file_obj, filename_prefix):
             body=file_metadata, 
             media_body=media, 
             fields='id, webViewLink',
-            supportsAllDrives=True  # 이 부분이 핵심입니다!
+            supportsAllDrives=True  # 이 부분이 누락되면 연결이 끊길 수 있습니다.
         ).execute()
         
         return file.get('webViewLink')
