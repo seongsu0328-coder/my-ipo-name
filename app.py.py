@@ -1238,9 +1238,7 @@ def get_ai_summary_final(query):
         
 # --- [1. 로그인 & 회원가입 페이지] ---
 if st.session_state.page == 'login':
-    # 디버깅용 (잠시만 사용하고 지우세요)
-    st.write("현재 인식된 설정 키:", list(st.secrets.keys()))
-
+  
     # 1. 스타일링
     st.markdown("""
     <style>
@@ -3303,6 +3301,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
