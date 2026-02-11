@@ -1464,91 +1464,68 @@ if st.session_state.page == 'login':
                     st.rerun()
 
         # ---------------------------------------------------------
-        # [Step 3] 최종 프로필 설정 (대표 태그 선택 + ID 마스킹)
+        # [Step 3] 최종 프로필 설정 및 구글 시트 저장 (이 블록으로 교체!)
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_step_3':
             st.markdown("<div class='auth-card'><h5>👤 프로필 설정</h5>", unsafe_allow_html=True)
             st.success("서류 제출이 완료되었습니다! (가승인)")
             
-            # 1. ID 마스킹 로직 (앞 4글자만 보여주고 나머지는 *)
+            # 1. ID 마스킹 및 옵션 구성 로직
             raw_id = st.session_state.temp_signup_data.get('id', 'unknown')
-            if len(raw_id) > 4:
-                masked_id = raw_id[:4] + "*" * (len(raw_id) - 4)
-            else:
-                masked_id = raw_id[:1] + "*" * (len(raw_id) - 1)
-
-            st.write(f"**아이디 표시 예시:** `{masked_id}` (익명 처리됨)")
-            st.write("커뮤니티 활동 시 사용할 **대표 타이틀**을 하나 선택해주세요.")
+            masked_id = raw_id[:4] + "*" * (len(raw_id) - 4) if len(raw_id) > 4 else raw_id[:1] + "*" * (len(raw_id) - 1)
             
-            # 2. 선택 가능한 옵션 구성
-            options = []
             cert = st.session_state.cert_data
+            options = []
+            if cert.get('school'): options.append(f"🎓 {cert['school']}")
+            if cert.get('job'): options.append(f"💼 {cert['job']}")
+            if cert.get('asset'):
+                tier = cert['asset'].split(' ')[0]
+                badge = "💎" if "100억" in cert['asset'] else "🥇" if "50억" in cert['asset'] else "🥈" if "30억" in cert['asset'] else "🥉"
+                options.append(f"{badge} {tier} 자산가")
             
-            # (1) 학교 옵션
-            if cert['school']:
-                options.append(f"🎓 {cert['school']}")
-            # (2) 직업 옵션
-            if cert['job']:
-                options.append(f"💼 {cert['job']}")
-            # (3) 자산 옵션 (등급별 아이콘 매핑)
-            if cert['asset']:
-                # 자산 등급에 따른 뱃지 처리
-                tier_clean = cert['asset'].split(' ')[0] # 10억, 30억...
-                if "100억" in cert['asset']: badge = "💎"
-                elif "50억" in cert['asset']: badge = "🥇"
-                elif "30억" in cert['asset']: badge = "🥈"
-                else: badge = "🥉"
-                options.append(f"{badge} {tier_clean} 자산가")
-
-            # 기본 옵션 (인증 안 된 경우 대비, 로직상 여기 올 일은 없음)
             if not options: options.append("🌱 새싹 회원")
 
-            # 3. 라디오 버튼으로 선택
             selected_tag = st.radio("공개할 대표 타이틀", options)
-
-            st.divider()
-            
-            # 4. 최종 미리보기
             preview_str = f"{selected_tag} | {masked_id}"
-            st.info(f"👀 **다른 사람에게 보이는 모습**\n\n### {preview_str}")
-
+            
+            st.info(f"👀 **미리보기**\n\n### {preview_str}")
             st.write("<br>", unsafe_allow_html=True)
 
-            # [Step 3] 가입 완료 버튼 로직
-            if st.button("🎉 회원가입 완료하기", type="primary", use_container_width=True):
-                # 1. 저장할 데이터 최종 조립
+            # 2. 가입 완료 버튼 및 시트 저장 실행
+            if st.button("🎉 회원가입 완료 및 데이터 저장", type="primary", use_container_width=True):
                 user_info = {
-                    "id": st.session_state.temp_signup_data['id'],
-                    "pw": st.session_state.temp_signup_data['pw'],
-                    "email": st.session_state.temp_signup_data['email'],
-                    "phone": st.session_state.temp_signup_data['phone'],
-                    "univ": st.session_state.cert_data.get('school', ""),
-                    "job_title": st.session_state.cert_data.get('job', ""),
-                    "asset": st.session_state.cert_data.get('asset', ""),
-                    "display_name": preview_str  # 뱃지 | 마스킹ID
+                    "id": raw_id,
+                    "pw": st.session_state.temp_signup_data.get('pw'),
+                    "email": st.session_state.temp_signup_data.get('email'),
+                    "phone": st.session_state.temp_signup_data.get('phone'),
+                    "univ": cert.get('school', ""),
+                    "job_title": cert.get('job', ""),
+                    "asset": cert.get('asset', ""),
+                    "display_name": preview_str
                 }
-            
-                # 2. 구글 시트 저장 실행 및 결과 수신
+
+                st.write("⏳ 데이터베이스 연결 시도 중...") 
+
                 with st.spinner("구글 시트에 회원 정보를 기록 중입니다..."):
-                    # 여기서 함수를 호출하고 결과(True/False)와 메시지(msg)를 받습니다.
+                    # 여기서 우리가 만든 저장 함수 호출
                     success, msg = save_user_to_sheets(user_info)
-                    
+                
                 if success:
-                    # 저장 성공 시에만 기존 세션 로그인 처리 및 페이지 이동
                     st.balloons()
-                    st.success("회원가입 완료! 시트에 데이터가 기록되었습니다.")
+                    st.success("✅ 구글 시트 저장 성공!")
+                    time.sleep(1)
                     
-                    # 실제 세션 데이터 업데이트
+                    # 로그인 성공 처리 후 메인 화면으로 이동
                     st.session_state.auth_status = 'user'
-                    st.session_state.user_id = user_info['id']
-                    st.session_state.user_phone = user_info['phone']
+                    st.session_state.user_id = raw_id
+                    st.session_state.user_badge = selected_tag
                     st.session_state.page = 'calendar'
+                    st.session_state.login_step = 'choice'
                     st.rerun()
                 else:
-                    # 🚨 중요: 저장이 실패하면 페이지를 넘기지 않고 에러를 화면에 띄웁니다.
-                    st.error(f"❌ 구글 시트 저장 실패!\n{msg}")
-                    # 여기서 멈추기 때문에 사용자는 에러 내용을 읽을 수 있습니다.
+                    st.error(f"❌ 저장 실패: {msg}")
 
+            st.markdown("</div>", unsafe_allow_html=True)
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
@@ -3285,6 +3262,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
