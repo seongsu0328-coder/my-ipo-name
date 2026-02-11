@@ -2780,7 +2780,7 @@ elif st.session_state.page == 'detail':
                             st.caption(f"ℹ️ {rating_help}")
                                     
                 with s_col2:
-                    # IPO Scoop Score 동적 툴팁 생성
+                    # IPO Scoop Score 동적 설명 생성
                     s_list = {
                         "5": "대박 (Moonshot)",
                         "4": "강력한 수익",
@@ -2789,13 +2789,29 @@ elif st.session_state.page == 'detail':
                         "1": "공모가 하회 위험"
                     }
                     
+                    # 툴팁용(help)과 화면 출력용을 동일한 형식으로 구성
                     score_help = "**[IPO Scoop Score 설명]**\n상장 첫날 수익률 기대치입니다.\n\n"
                     for k, v in s_list.items():
                         is_current = f" **(현재 {score_val}점)**" if k == score_val else ""
                         score_help += f"- ⭐ {k}개: {v}{is_current}\n"
             
                     st.write("**[IPO Scoop Score]**")
+                    
+                    # 1. 메인 메트릭 출력 (마우스 올리면 툴팁 나옴)
                     st.metric(label="Expected IPO Score", value=f"⭐ {score_val}", help=score_help)
+                    
+                    # 2. [추가] Analyst Ratings와 동일하게 화면에 직접 설명 표시
+                    # 점수에 따라 상태 색상(success, info, warning)을 변경하면 더 보기 좋습니다.
+                    if score_val in ["4", "5"]:
+                        st.success(f"평가: {s_list.get(score_val, '정보 없음')}")
+                    elif score_val == "3":
+                        st.info(f"평가: {s_list.get(score_val, '정보 없음')}")
+                    else:
+                        st.warning(f"평가: {s_list.get(score_val, '정보 없음')}")
+
+                    # 3. 상세 리스트 화면 출력 (Analyst Ratings와 형식 맞춤)
+                    if score_help:
+                        st.caption(f"ℹ️ {score_help}")
             
                 # 참고 소스 링크
                 sources = result.get('links', [])
@@ -2981,6 +2997,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
