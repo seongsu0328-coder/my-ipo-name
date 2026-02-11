@@ -1527,25 +1527,30 @@ if st.session_state.page == 'login':
             st.success("✅ 1단계 본인인증 완료! 활동 뱃지를 획득하세요.")
             st.info("최소 1개 이상의 항목을 인증해야 가입이 완료됩니다.")
 
+            # 세션 초기화
             if 'cert_data' not in st.session_state:
                 st.session_state.cert_data = {"school": None, "job": None, "asset": None}
 
             # 1. 학교/학과 인증
             with st.expander("🎓 학교/학과 인증 (선택)", expanded=True):
                 school_name = st.text_input("학교명 (예: 서울대)", key="input_school")
-                school_file = st.file_uploader("재학/졸업 증명서", type=['jpg', 'png', 'pdf'], key="file_school")
+                # 📍 위젯 키를 "file_school_upload"로 변경
+                school_file = st.file_uploader("재학/졸업 증명서", type=['jpg', 'png', 'pdf'], key="file_school_upload")
+                
                 if school_name and school_file:
                     st.caption(f"✅ 인증 대기: {school_name}")
-                    # 📍 중요: 파일 객체를 세션에 보관
+                    # 📍 세션 저장은 "file_school"이라는 이름으로 수행 (위젯 키와 충돌 없음)
                     st.session_state['file_school'] = school_file
 
             # 2. 직업/직장 인증
             with st.expander("💼 직업/직장 인증 (선택)", expanded=False):
                 job_name = st.text_input("직업/직장명 (예: 의사, 삼성전자)", key="input_job")
-                job_file = st.file_uploader("재직 증명서/명함", type=['jpg', 'png', 'pdf'], key="file_job")
+                # 📍 위젯 키를 "file_job_upload"로 변경
+                job_file = st.file_uploader("재직 증명서/명함", type=['jpg', 'png', 'pdf'], key="file_job_upload")
+                
                 if job_name and job_file:
                     st.caption(f"✅ 인증 대기: {job_name}")
-                    # 📍 중요: 파일 객체를 세션에 보관
+                    # 📍 세션 저장은 "file_job"
                     st.session_state['file_job'] = job_file
 
             # 3. 자산 규모 인증
@@ -1555,17 +1560,19 @@ if st.session_state.page == 'login':
                     ["선택안함", "10억 (Bronze)", "30억 (Silver)", "50억 (Gold)", "100억 (Diamond)"],
                     key="input_asset"
                 )
-                asset_file = st.file_uploader("잔고/부동산 증명서", type=['jpg', 'png', 'pdf'], key="file_asset")
+                # 📍 위젯 키를 "file_asset_upload"로 변경
+                asset_file = st.file_uploader("잔고/부동산 증명서", type=['jpg', 'png', 'pdf'], key="file_asset_upload")
+                
                 if asset_tier != "선택안함" and asset_file:
                     st.caption(f"✅ 인증 대기: {asset_tier}")
-                    # 📍 중요: 파일 객체를 세션에 보관
+                    # 📍 세션 저장은 "file_asset"
                     st.session_state['file_asset'] = asset_file
 
             st.write("<br>", unsafe_allow_html=True)
 
             # 심사 요청 버튼
             if st.button("인증 서류 제출 및 다음", type="primary", use_container_width=True):
-                # 파일이 실제로 세션에 있는지 한 번 더 체크
+                # 📍 세션에 저장된 파일 객체가 있는지 확인
                 has_school = bool(school_name and st.session_state.get('file_school'))
                 has_job = bool(job_name and st.session_state.get('file_job'))
                 has_asset = bool(asset_tier != "선택안함" and st.session_state.get('file_asset'))
@@ -3389,6 +3396,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
