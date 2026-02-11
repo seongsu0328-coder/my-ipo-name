@@ -112,7 +112,7 @@ def upload_photo_to_drive(file_obj, filename_prefix):
         # 2. [추가할 부분] 링크 권한 부여 (이게 핵심입니다!)
         drive_service.permissions().create(
             fileId=file.get('id'),
-            body={'type': 'anyone', 'role': 'viewer'},
+            body={'type': 'anyone', 'role': 'reader'},  # 'viewer'를 'reader'로 변경
             supportsAllDrives=True
         ).execute()
         
