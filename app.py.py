@@ -37,11 +37,40 @@ def get_gspread_client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     return gspread.authorize(creds)
 
-# 인증번호 정의 구역
+# --- [모든 로직의 상단: 함수 정의 구역] ---
+
 def generate_verification_code():
-    """6자리 랜덤 인증번호를 생성하는 함수"""
+    """6자리 랜덤 인증번호 생성"""
     import random
     return str(random.randint(100000, 999999))
+
+def send_email_code(to_email, code):
+    """이메일 발송 함수"""
+    import smtplib
+    from email.mime.text import MIMEText
+    try:
+        # Secrets 설정 확인 (smtp 섹션이 있는지 체크)
+        if "smtp" in st.secrets:
+            sender_email = st.secrets["smtp"]["email_address"]
+            sender_pw = st.secrets["smtp"]["app_password"]
+        else:
+            sender_email = st.secrets["email_address"]
+            sender_pw = st.secrets["app_password"]
+            
+        msg = MIMEText(f"안녕하세요. 인증번호는 [{code}] 입니다.")
+        msg['Subject'] = "[Unicorn Finder] 본인 인증번호"
+        msg['From'] = sender_email
+        msg['To'] = to_email
+        
+        with smtplib.SMTP('smtp.gmail.com', 587) as s:
+            s.starttls()
+            s.login(sender_email, sender_pw)
+            s.sendmail(sender_email, to_email, msg.as_string())
+        return True, "이메일이 발송되었습니다."
+    except Exception as e:
+        return False, f"이메일 전송 실패: {str(e)}"
+
+# ------------------------------------------
 
 # [회원 정보 저장 함수]
 def save_user_to_sheets(data):
@@ -3240,6 +3269,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
