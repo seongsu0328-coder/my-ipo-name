@@ -12,7 +12,7 @@ from email.mime.text import MIMEText
 # ==========================================
 # [설정] 구글 드라이브 폴더 ID (필수 입력)
 # ==========================================
-DRIVE_FOLDER_ID = "0AJsjUZV_k6uPUk9PVA?ms=pt:1552%3Bs:1075"
+DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 
 st.set_page_config(page_title="Unicorn Finder", layout="centered")
 
