@@ -11,6 +11,8 @@ import random
 import math
 import html
 import re
+import urllib.parse
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
 # --- [AI 및 검색 라이브러리 통합] ---
@@ -26,6 +28,98 @@ def clean_text_final(text):
     text = str(text)
     text = text.replace("**", "").replace("##", "").replace("###", "")
     return text.strip()
+
+# [1] 뉴스 감성 분석 함수 (분리됨)
+def analyze_sentiment(text):
+    text = text.lower()
+    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
+    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
+    score = 0
+    for w in pos_words:
+        if w in text: score += 1
+    for w in neg_words:
+        if w in text: score -= 1
+    
+    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
+    elif score < 0: return "부정", "#fce8e6", "#d93025"
+    else: return "일반", "#f1f3f4", "#5f6368"
+
+# [2] 통합 뉴스 검색 함수 (RSS 검색 + AI 번역 결합)
+@st.cache_data(ttl=3600)
+def get_real_news_rss(company_name):
+    """구글 뉴스 RSS 검색 + 정밀 필터링 + AI 번역"""
+    try:
+        import time
+        
+        # [수정 1] 회사 이름 정제 로직 강화 (특수문자 제거 및 콤마 처리)
+        # 1차: 법인명 제거 (Inc, Corp 등)
+        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE)
+        # 2차: 콤마(,) 등 특수문자 제거하고 앞뒤 공백 정리
+        clean_name = re.sub(r'[^\w\s]', '', clean_name).strip()
+        
+        # 검색어 생성
+        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
+        enc_query = urllib.parse.quote(query)
+        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
+
+        response = requests.get(url, timeout=5)
+        root = ET.fromstring(response.content)
+        
+        news_items = []
+        items = root.findall('./channel/item')
+        
+        # [수정 2] 검색어의 핵심 단어 리스트 추출 (예: "SOLV Energy" -> ["solv", "energy"])
+        # 단, "Energy", "Bio" 같은 일반 명사도 회사명의 일부라면 필수 조건으로 봅니다.
+        name_parts = [part.lower() for part in clean_name.split() if len(part) > 1]
+
+        for item in items[:5]: 
+            title_en = item.find('title').text
+            link = item.find('link').text
+            pubDate = item.find('pubDate').text
+            
+            title_lower = title_en.lower()
+
+            # [핵심 수정] 단순 포함 여부가 아니라, 회사 이름의 '모든 단어'가 제목에 있는지 검사
+            # 예: "SOLV Energy" -> 제목에 "solv"와 "energy"가 둘 다 없으면 탈락시킴
+            # 이렇게 하면 "Solventum (SOLV)" 뉴스는 "energy"가 없어서 걸러집니다.
+            is_match = True
+            for part in name_parts:
+                if part not in title_lower:
+                    is_match = False
+                    break
+            
+            if not is_match:
+                continue
+
+            # 1. 감성 분석
+            sent_label, bg, color = analyze_sentiment(title_en)
+            
+            # 2. 날짜 포맷
+            try: date_str = " ".join(pubDate.split(' ')[1:3])
+            except: date_str = "Recent"
+
+            # 3. AI 번역
+            title_ko = translate_news_title(title_en)
+
+            news_items.append({
+                "title": title_en,      
+                "title_ko": title_ko,   
+                "link": link, 
+                "date": date_str,
+                "sent_label": sent_label, 
+                "bg": bg, 
+                "color": color,
+                "display_tag": "일반" 
+            })
+            
+            if len(news_items) >= 5:
+                break
+                
+        return news_items
+
+    except Exception as e:
+        return []
+
 
 # ---------------------------------------------------------
 # 1. 앱 전체 스타일 설정 (CSS)
@@ -957,81 +1051,7 @@ def analyze_sentiment(text):
     elif score < 0: return "부정", "#fce8e6", "#d93025"
     else: return "일반", "#f1f3f4", "#5f6368"
 
-# [2] 통합 뉴스 검색 함수 (RSS 검색 + AI 번역 결합)
-@st.cache_data(ttl=3600)
-def get_real_news_rss(company_name):
-    """구글 뉴스 RSS 검색 + 정밀 필터링 + AI 번역"""
-    try:
-        import time
-        
-        # [수정 1] 회사 이름 정제 로직 강화 (특수문자 제거 및 콤마 처리)
-        # 1차: 법인명 제거 (Inc, Corp 등)
-        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE)
-        # 2차: 콤마(,) 등 특수문자 제거하고 앞뒤 공백 정리
-        clean_name = re.sub(r'[^\w\s]', '', clean_name).strip()
-        
-        # 검색어 생성
-        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
-        enc_query = urllib.parse.quote(query)
-        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
 
-        response = requests.get(url, timeout=5)
-        root = ET.fromstring(response.content)
-        
-        news_items = []
-        items = root.findall('./channel/item')
-        
-        # [수정 2] 검색어의 핵심 단어 리스트 추출 (예: "SOLV Energy" -> ["solv", "energy"])
-        # 단, "Energy", "Bio" 같은 일반 명사도 회사명의 일부라면 필수 조건으로 봅니다.
-        name_parts = [part.lower() for part in clean_name.split() if len(part) > 1]
-
-        for item in items[:5]: 
-            title_en = item.find('title').text
-            link = item.find('link').text
-            pubDate = item.find('pubDate').text
-            
-            title_lower = title_en.lower()
-
-            # [핵심 수정] 단순 포함 여부가 아니라, 회사 이름의 '모든 단어'가 제목에 있는지 검사
-            # 예: "SOLV Energy" -> 제목에 "solv"와 "energy"가 둘 다 없으면 탈락시킴
-            # 이렇게 하면 "Solventum (SOLV)" 뉴스는 "energy"가 없어서 걸러집니다.
-            is_match = True
-            for part in name_parts:
-                if part not in title_lower:
-                    is_match = False
-                    break
-            
-            if not is_match:
-                continue
-
-            # 1. 감성 분석
-            sent_label, bg, color = analyze_sentiment(title_en)
-            
-            # 2. 날짜 포맷
-            try: date_str = " ".join(pubDate.split(' ')[1:3])
-            except: date_str = "Recent"
-
-            # 3. AI 번역
-            title_ko = translate_news_title(title_en)
-
-            news_items.append({
-                "title": title_en,      
-                "title_ko": title_ko,   
-                "link": link, 
-                "date": date_str,
-                "sent_label": sent_label, 
-                "bg": bg, 
-                "color": color,
-                "display_tag": "일반" 
-            })
-            
-            if len(news_items) >= 5:
-                break
-                
-        return news_items
-
-    except Exception as e:
-        return []
 # [핵심] 함수 이름 변경 (캐시 초기화 효과)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_ai_summary_final(query):
@@ -2997,6 +3017,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
