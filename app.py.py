@@ -38,7 +38,32 @@ def get_gspread_client():
     return gspread.authorize(creds)
 
 # --- [모든 로직의 상단: 함수 정의 구역] ---
-
+@st.cache_resource
+def get_gcp_clients():
+    """구글 서비스 계정 인증 및 클라이언트 생성"""
+    try:
+        from oauth2client.service_account import ServiceAccountCredentials
+        import gspread
+        from googleapiclient.discovery import build
+        
+        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        
+        # Secrets 설정 확인 (gcp_service_account 섹션 사용)
+        if "gcp_service_account" in st.secrets:
+            creds_dict = st.secrets["gcp_service_account"]
+        else:
+            # 혹시 다른 이름으로 저장되어 있을 경우를 대비
+            creds_dict = st.secrets["gspread"] 
+            
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        gspread_client = gspread.authorize(creds)
+        drive_service = build('drive', 'v3', credentials=creds)
+        
+        return gspread_client, drive_service
+    except Exception as e:
+        st.error(f"구글 연결 설정 오류: {e}")
+        return None, None
+        
 def generate_verification_code():
     """6자리 랜덤 인증번호 생성"""
     import random
@@ -69,6 +94,8 @@ def send_email_code(to_email, code):
         return True, "이메일이 발송되었습니다."
     except Exception as e:
         return False, f"이메일 전송 실패: {str(e)}"
+
+
 
 # ------------------------------------------
 
@@ -3269,6 +3296,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
