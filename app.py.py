@@ -43,6 +43,19 @@ DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 # --- 데이터 로직 (캐싱 최적화 적용) ---
 MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
 
+@st.cache_resource
+def get_gcp_clients():
+    try:
+        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        creds_dict = st.secrets["gcp_service_account"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        gspread_client = gspread.authorize(creds)
+        drive_service = build('drive', 'v3', credentials=creds)
+        return gspread_client, drive_service
+    except Exception as e:
+        st.error(f"구글 연결 실패: {e}")
+        return None, None
+
 @st.cache_data(ttl=43200) # 12시간마다 갱신
 def get_daily_quote():
     # 1. 예비용 명언 리스트 (한글 번역 추가됨)
@@ -307,20 +320,6 @@ def get_ai_summary_final(query):
 
     except Exception as e:
         return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
-
-
-@st.cache_resource
-def get_gcp_clients():
-    try:
-        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        creds_dict = st.secrets["gcp_service_account"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        gspread_client = gspread.authorize(creds)
-        drive_service = build('drive', 'v3', credentials=creds)
-        return gspread_client, drive_service
-    except Exception as e:
-        st.error(f"구글 연결 실패: {e}")
-        return None, None
 
 def load_users():
     client, _ = get_gcp_clients()
