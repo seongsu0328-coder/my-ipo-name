@@ -1690,7 +1690,7 @@ if st.session_state.page == 'login':
                                 time.sleep(0.5) # 대기 시간을 줄입니다.
                                 st.rerun()
     
-    elif st.session_state.page == 'main_app':
+    elif st.session_state.page == 'calendar':
         user = st.session_state.user_info
         st.title("🦄 Unicorn Finder")
     
