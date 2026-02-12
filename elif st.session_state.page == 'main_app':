@@ -1309,17 +1309,6 @@ def get_extended_ipo_data(api_key):
     df = df.dropna(subset=['공모일_dt'])
     
     return df
-    
-    # 데이터프레임 생성 및 중복 제거
-    df = pd.DataFrame(all_data)
-    df = df.drop_duplicates(subset=['symbol', 'date'])
-    
-    # 🔥 [중요] 날짜 변환 보정: 'date' 컬럼을 바탕으로 '공모일_dt'를 생성하고 시분을 제거
-    # errors='coerce'를 써서 잘못된 날짜 형식은 NaT로 변환 후 삭제합니다.
-    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
-    df = df.dropna(subset=['공모일_dt'])
-    
-    return df
 
 # 주가(Price)는 15분마다 업데이트되도록 캐싱 설정 (900초 = 15분)
 @st.cache_data(ttl=900)
@@ -3659,6 +3648,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
