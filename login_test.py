@@ -461,7 +461,8 @@ def render_navbar():
 # [화면] UI 제어 로직 (로그인 / 회원가입 / 구경하기 분할)
 # ==========================================
 # --- [세션 상태 초기화] ---
-# 앱이 처음 실행될 때 필요한 변수들을 미리 만들어둡니다.
+# 변수가 없어서 발생하는 AttributeError를 방지하기 위해 모든 필수 변수를 등록합니다.
+
 if 'page' not in st.session_state:
     st.session_state.page = 'login'
 
@@ -477,6 +478,14 @@ if 'auth_status' not in st.session_state:
 if 'user_info' not in st.session_state:
     st.session_state.user_info = {}
 
+# 👈 [추가됨] 에러 방지를 위한 핵심 변수
+if 'watchlist' not in st.session_state:
+    st.session_state.watchlist = []
+
+if 'view_mode' not in st.session_state:
+    st.session_state.view_mode = 'all'
+
+# --- [UI 시작] ---
 if st.session_state.page == 'login':
     st.markdown("<h1 style='text-align: center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
     st.write("<br>", unsafe_allow_html=True)
