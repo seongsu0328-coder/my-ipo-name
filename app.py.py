@@ -387,38 +387,47 @@ import plotly.graph_objects as go
 # 1. 자동 모델 선택 함수 (안전장치 강화 버전)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_latest_stable_model():
-    # 1. API 키 확인
     genai_key = st.secrets.get("GENAI_API_KEY")
-    if not genai_key: 
-        return None
-    
+    if not genai_key: return 'gemini-1.5-flash' # 키 없으면 기본값
+
     try:
         genai.configure(api_key=genai_key)
         
-        # [핵심 로직] 안전장치 필터링
-        # 조건 1: 'generateContent' 지원
-        # 조건 2: 이름에 'flash' 포함
-        # 조건 3: 검증된 버전 ('1.5' 또는 '2.0')만 허용 -> '2.5' 등 미출시 버전 차단
-        models = [
-            m.name for m in genai.list_models() 
-            if 'generateContent' in m.supported_generation_methods 
-            and 'flash' in m.name
-            and ('1.5' in m.name or '2.0' in m.name)
-        ]
+        # 1. 구글에서 현재 사용 가능한 모든 모델 리스트를 가져옵니다.
+        all_models = genai.list_models()
         
-        # [정렬 로직] 안정성 우선 (1.5 > 2.0)
-        # 1.5가 포함된 모델을 리스트 앞쪽으로 보냄 (True가 1, False가 0이므로 reverse=True 시 1.5가 앞)
-        models.sort(key=lambda x: '1.5' in x, reverse=True)
+        candidate_models = []
+
+        for m in all_models:
+            # 조건: 'generateContent' 지원하고 이름에 'flash'가 있어야 함
+            if 'generateContent' in m.supported_generation_methods and 'flash' in m.name:
+                
+                # [핵심] 이름에서 버전 숫자만 뽑아냅니다. (예: gemini-1.5-flash -> 1.5)
+                # 정규표현식: (\d+\.\d+) -> 숫자.숫자 패턴을 찾음
+                match = re.search(r'gemini-(\d+\.\d+)-flash', m.name)
+                
+                if match:
+                    version_float = float(match.group(1)) # 문자열 "1.5"를 숫자 1.5로 변환
+                    candidate_models.append({
+                        "name": m.name,
+                        "version": version_float
+                    })
+
+        if not candidate_models:
+            return 'gemini-1.5-flash' # 검색 실패 시 안전한 기본값
+
+        # 2. 버전 숫자가 높은 순서대로 정렬합니다. (내림차순)
+        # 예: [2.0, 1.5, 1.0] 순으로 정렬됨
+        candidate_models.sort(key=lambda x: x["version"], reverse=True)
+
+        # 3. 가장 높은 버전의 모델 이름을 반환합니다.
+        # 즉, 나중에 1.6이나 3.0이 나오면 알아서 그게 1등이 되어 선택됩니다.
+        best_model = candidate_models[0]["name"]
         
-        # 리스트가 비어있지 않다면 첫 번째(가장 안정적인) 모델 반환
-        if models:
-            return models[0]
-            
-        # 검색된 모델이 없을 경우 강제 기본값
-        return 'gemini-1.5-flash'
-        
+        return best_model
+
     except Exception as e:
-        # 에러 발생 시(API 호출 실패 등) 안전하게 기본 모델 반환
+        # API 에러, 네트워크 오류 등 발생 시 무조건 1.5-flash로 고정 (앱 멈춤 방지)
         return 'gemini-1.5-flash'
 
 # 2. 전역 모델 객체 생성
@@ -3275,6 +3284,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
