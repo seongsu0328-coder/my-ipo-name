@@ -1,29 +1,14 @@
 import streamlit as st
-import requests
 import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-import xml.etree.ElementTree as ET
-import os
-import time
-import uuid
-import random
-import math
-import html
-import re
-import urllib.parse
-import xml.etree.ElementTree as ET
-import smtplib
+from datetime import datetime
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import random
+import smtplib
+import time
 from email.mime.text import MIMEText
-from datetime import datetime, timedelta
-
-# --- [AI 및 검색 라이브러리 통합] ---
-from openai import OpenAI             # ✅ Groq(뉴스 요약)용
-import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
-from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
-from duckduckgo_search import DDGS
 
 # ==========================================
 # [설정] 구글 드라이브 폴더 ID (필수 입력)
