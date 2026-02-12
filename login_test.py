@@ -18,7 +18,7 @@ DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 st.set_page_config(page_title="Unicorn Finder", layout="centered", page_icon="🦄")
 
 # ==========================================
-# 2. 백엔드 기능 (구글, 이메일, 업로드)
+# 2. 백엔드 기능 (구글, 이메일, 업로드) - [기존 기능 100% 보존]
 # ==========================================
 @st.cache_resource
 def get_gcp_clients():
@@ -100,7 +100,6 @@ def upload_photo_to_drive(file_obj, filename_prefix):
         _, drive_service = get_gcp_clients()
         file_obj.seek(0)
         file_metadata = {'name': f"{filename_prefix}_{file_obj.name}", 'parents': [DRIVE_FOLDER_ID]}
-        # Broken Pie 방지: 청크 사이즈 5MB로 상향
         media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type, resumable=True, chunksize=5 * 1024 * 1024)
         file = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
         drive_service.permissions().create(fileId=file.get('id'), body={'type': 'anyone', 'role': 'reader'}, supportsAllDrives=True).execute()
@@ -159,10 +158,9 @@ def save_user_to_sheets(user_data):
     return add_user(user_data) 
 
 # ==========================================
-# [UI] 블랙 스타일 네비게이션바 (메인, 관심, 게시판)
+# [UI] 블랙 스타일 네비게이션바 (NEW)
 # ==========================================
 def render_navbar():
-    # 스타일 정의
     st.markdown("""
         <style>
         div[data-testid="stPills"] div[role="radiogroup"] button {
@@ -195,7 +193,6 @@ def render_navbar():
     
     menu_options = [login_text, main_text, watch_text, board_text]
     
-    # 기본 선택값 로직
     default_sel = None 
     if st.session_state.page == 'calendar':
         default_sel = watch_text if st.session_state.view_mode == 'watchlist' else main_text
@@ -211,7 +208,6 @@ def render_navbar():
         label_visibility="collapsed"
     )
 
-    # 페이지 이동 로직
     if selected_menu == login_text:
         if is_logged_in: st.session_state.clear()
         st.session_state.page = 'login'
@@ -264,7 +260,7 @@ if st.session_state.page == 'login':
         if st.button("👀 로그인 없이 구경하기", use_container_width=True):
             st.session_state.auth_status = 'guest'
             st.session_state.user_info = {'id': 'Guest', 'role': 'guest'}
-            st.session_state.page = 'calendar' # 구경하기는 바로 캘린더로
+            st.session_state.page = 'calendar' 
             st.rerun()
 
     elif st.session_state.login_step == 'login_input':
@@ -370,13 +366,12 @@ if st.session_state.page == 'login':
                         time.sleep(1); st.rerun()
 
 # ==========================================
-# [PAGE 2] 메인 앱 (설정 & 회원관리) - [수정됨]
+# [PAGE 2] 메인 앱 (설정 & 관리) - [수정됨: 멤버리스트 삭제 완료]
 # ==========================================
 elif st.session_state.page == 'main_app':
-    render_navbar() # 👈 네비게이션 바 적용
+    render_navbar() 
     
     user = st.session_state.user_info
-    # (타이틀 제거됨)
 
     if user:
         user_id = str(user.get('id', ''))
@@ -384,7 +379,7 @@ elif st.session_state.page == 'main_app':
         
         # 1. 노출 설정
         st.subheader("⚙️ 내 정보 노출 및 권한 설정")
-        st.caption("하나 이상의 정보를 노출해야 '글쓰기/투표' 권한이 활성화됩니다.")
+        st.caption("체크한 항목만 게시판 활동 시 닉네임에 표시됩니다.")
         
         vis = str(user.get('visibility', 'True,True,True')).split(',')
         v_u = vis[0] == 'True' if len(vis) > 0 else True
@@ -392,11 +387,11 @@ elif st.session_state.page == 'main_app':
         v_a = vis[2] == 'True' if len(vis) > 2 else True
         
         c1, c2, c3 = st.columns(3)
-        show_univ = c1.checkbox("🎓 대학 정보", value=v_u)
-        show_job = c2.checkbox("💼 직업 정보", value=v_j)
-        show_asset = c3.checkbox("💰 자산 등급", value=v_a)
+        show_univ = c1.checkbox("🎓 대학", value=v_u)
+        show_job = c2.checkbox("💼 직업", value=v_j)
+        show_asset = c3.checkbox("💰 자산", value=v_a)
         
-        # 2. 상태 표시
+        # 2. 닉네임 미리보기 (게시판에서 보일 모습)
         is_public = any([show_univ, show_job, show_asset])
         info_parts = []
         if show_univ: info_parts.append(user.get('univ', ''))
@@ -408,7 +403,7 @@ elif st.session_state.page == 'main_app':
         
         st.divider()
         c_info, c_stat = st.columns([2,1])
-        c_info.markdown(f"**닉네임 미리보기**: `{final_nick}`")
+        c_info.markdown(f"**게시판 닉네임 미리보기**:\n### `{final_nick}`")
         
         role, status = user.get('role'), user.get('status')
         if role == 'restricted': c_stat.error("🔒 Basic (미인증)")
@@ -419,53 +414,11 @@ elif st.session_state.page == 'main_app':
         if st.button("설정 저장", type="primary", use_container_width=True):
             if update_user_visibility(user['id'], [show_univ, show_job, show_asset]):
                 st.session_state.user_info['visibility'] = f"{show_univ},{show_job},{show_asset}"
-                st.toast("✅ 저장 완료!")
+                st.toast("✅ 설정이 저장되었습니다!")
                 time.sleep(0.5); st.rerun()
             else: st.error("저장 실패")
 
-    # 3. [복구됨] 멤버 리스트 섹션
-    st.divider()
-    st.subheader("👥 유니콘 멤버 리스트")
-    
-    if st.button("멤버 목록 불러오기", use_container_width=True):
-        with st.spinner("로딩 중..."):
-            all_users = load_users()
-            if not all_users:
-                st.info("멤버가 없습니다.")
-            else:
-                for u in all_users:
-                    if str(u.get('id')) == str(user.get('id')): continue
-                    
-                    # 상대방 정보 마스킹 및 노출 확인
-                    raw_vis = u.get('visibility', 'True,True,True')
-                    if not raw_vis: raw_vis = 'True,True,True'
-                    vis_parts = str(raw_vis).split(',')
-                    
-                    v_univ = vis_parts[0] == 'True' if len(vis_parts) > 0 else True
-                    v_job = vis_parts[1] == 'True' if len(vis_parts) > 1 else True
-                    v_asset = vis_parts[2] == 'True' if len(vis_parts) > 2 else True
-                    
-                    u_info = []
-                    if v_univ: u_info.append(u.get('univ', ''))
-                    if v_job: u_info.append(u.get('job', '') or u.get('job_title', ''))
-                    if v_asset: u_info.append(get_asset_grade(u.get('asset', '')))
-                    
-                    u_prefix = " ".join([p for p in u_info if p])
-                    target_id = str(u.get('id', ''))
-                    m_id = "*" * len(target_id)
-                    u_display = f"{u_prefix}{m_id}" if u_prefix else m_id
-                    
-                    with st.expander(f"✨ {u_display}"):
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            st.write(f"🎓 {u.get('univ') if v_univ else '(비공개)'}")
-                            st.write(f"💼 {u.get('job_title') if v_job else '(비공개)'}")
-                        with c2:
-                            tier = get_asset_grade(u.get('asset', ''))
-                            st.write(f"💰 {tier if v_asset else '(비공개)'}")
-                            st.write(f"✅ {u.get('status', 'pending')}")
-
-    # 4. 관리자 승인 메뉴 (하단)
+    # 3. 관리자 메뉴 (하단 유지)
     if user.get('role') == 'admin':
         st.divider()
         st.subheader("🛠️ 관리자 승인")
@@ -490,7 +443,7 @@ elif st.session_state.page == 'main_app':
                         st.success("승인 완료"); st.rerun()
 
 # ==========================================
-# [PAGE 3] 캘린더 (추후 통합)
+# [PAGE 3] 캘린더
 # ==========================================
 elif st.session_state.page == 'calendar':
     render_navbar()
