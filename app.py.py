@@ -30,84 +30,300 @@ from duckduckgo_search import DDGS
 # ==========================================
 DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 
-# [구글 시트 접속 함수]
-def get_gspread_client():
-    # secrets.toml에 저장된 gspread 관련 정보를 가져옵니다.
-    # (일반적으로 [gspread] 또는 [connections.gspread] 섹션에 저장된 JSON 데이터 활용)
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    
-    # gspread 설정 방식에 따라 아래 코드를 조정하세요.
-    # 보통 st.secrets["gspread"]에 JSON 내용이 통째로 들어있다고 가정합니다.
-    creds_dict = st.secrets["gspread"] 
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    return gspread.authorize(creds)
-
-# [회원 정보 저장 함수]
-def save_user_to_sheets(user_data):
+# ==========================================
+# [기능] 구글 연결 및 유저 관리
+# ==========================================
+@st.cache_resource
+def get_gcp_clients():
     try:
-        client = get_gspread_client()
-        # 알려주신 시트 URL로 연결
-        sheet_url = "https://docs.google.com/spreadsheets/d/1grbNyzEv2TzTDRMKrGBTI21v6qmZRnv42M2Z6UhNXTc/edit#gid=0"
-        spreadsheet = client.open_by_url(sheet_url)
-        worksheet = spreadsheet.get_worksheet(0) # 첫 번째 시트
+        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        creds_dict = st.secrets["gcp_service_account"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        gspread_client = gspread.authorize(creds)
+        drive_service = build('drive', 'v3', credentials=creds)
+        return gspread_client, drive_service
+    except Exception as e:
+        st.error(f"구글 연결 실패: {e}")
+        return None, None
 
-        # 15개 열 순서: 
-        # id, pw, email, phone, role, status, univ, job_title, asset, 
-        # display_name, created_at, link_univ, link_job, link_asset, visibility
+def load_users():
+    client, _ = get_gcp_clients()
+    if client:
+        try:
+            sh = client.open("unicorn_users").sheet1
+            return sh.get_all_records()
+        except:
+            return []
+    return []
+
+def get_asset_grade(asset_text):
+    if asset_text == "10억 미만": return "Bronze"
+    elif asset_text == "10억~30억": return "Silver"
+    elif asset_text == "30억~80억": return "Gold"
+    elif asset_text == "80억 이상": return "Diamond"
+    return ""
+
+def add_user(data):
+    client, _ = get_gcp_clients()
+    if client:
+        sh = client.open("unicorn_users").sheet1
+        
+        # 1. 아이디 익명화 (닉네임 생성용)
+        user_id = data['id']
+        masked_id = user_id[:3] + "*" * (len(user_id) - 3) if len(user_id) > 3 else user_id + "***"
+        
+        # 2. 인증 항목 결합
+        display_parts = []
+        auth_count = 0
+        
+        if data['univ'] and data['link_univ'] != "미제출":
+            display_parts.append(data['univ'])
+            auth_count += 1
+        if data['job'] and data['link_job'] != "미제출":
+            display_parts.append(data['job'])
+            auth_count += 1
+        if data['asset'] and data['link_asset'] != "미제출":
+            grade = get_asset_grade(data['asset'])
+            display_parts.append(grade)
+            auth_count += 1
+            
+        display_name = " ".join(display_parts + [masked_id])
+        role = "user" if auth_count > 0 else "restricted"
+        
+        # 3. [수정됨] 15번째 열(visibility) 기본값 추가
         row = [
-            user_data.get('id'),
-            user_data.get('pw'),
-            user_data.get('email'),
-            user_data.get('phone'),
-            "user",                # role
-            "pending",             # status (승인 대기)
-            user_data.get('univ'),
-            user_data.get('job_title'),
-            user_data.get('asset'),
-            user_data.get('display_name'), # 선택한 뱃지 + 마스킹ID
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # created_at
-            "", # link_univ (파일 업로드 구현 시 드라이브 링크)
-            "", # link_job
-            "", # link_asset
-            "public"               # visibility
+            data['id'], data['pw'], data['email'], data['phone'],
+            role, 'pending', 
+            data['univ'], data['job'], data['asset'], display_name,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            data['link_univ'], data['link_job'], data['link_asset'],
+            "True,True,True"  # <--- 이 부분이 15번째 열에 들어갑니다.
         ]
+        sh.append_row(row)
+
+def update_user_visibility(user_id, visibility_data):
+    client, _ = get_gcp_clients()
+    if client:
+        try:
+            sh = client.open("unicorn_users").sheet1
+            # 1열(A열)에서 유저 아이디와 정확히 일치는 셀 찾기
+            cell = sh.find(str(user_id), in_column=1) 
+            
+            if cell:
+                # 리스트를 "True,False,True" 형태의 문자열로 변환
+                visibility_str = ",".join([str(v) for v in visibility_data])
+                # 15번째 열(O열) 업데이트
+                sh.update_cell(cell.row, 15, visibility_str)
+                return True
+        except Exception as e:
+            st.error(f"시트 통신 오류: {e}")
+    return False
+
+def upload_photo_to_drive(file_obj, filename_prefix):
+    if file_obj is None: return "미제출"
+    try:
+        _, drive_service = get_gcp_clients()
+        file_obj.seek(0)
         
-        worksheet.append_row(row)
-        return True, "성공"
+        file_metadata = {
+            'name': f"{filename_prefix}_{file_obj.name}", 
+            'parents': [DRIVE_FOLDER_ID]
+        }
+        
+        # 100*1024 대신 구글 규격에 맞는 256*1024로 변경
+        media = MediaIoBaseUpload(
+            file_obj, 
+            mimetype=file_obj.type, 
+            resumable=True, 
+            chunksize=256*1024  # 256KB 단위로 전송
+        )
+        
+        file = drive_service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id, webViewLink',
+            supportsAllDrives=True
+        ).execute()
+
+        drive_service.permissions().create(
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'reader'},
+            supportsAllDrives=True
+        ).execute()
+        
+        return file.get('webViewLink')
     except Exception as e:
-        # 에러의 상세 내용을 출력하도록 수정
-        import traceback
-        error_details = traceback.format_exc()
-        return False, f"상세 에러: {str(e)}\n{error_details}"
-
-def generate_verification_code():
-    return str(random.randint(100000, 999999))
-
+        # 에러 발생 시 재시도 안내 출력
+        st.error(f"📂 업로드 실패 (네트워크 확인 필요): {e}")
+        return "업로드 실패"
+        
 def send_email_code(to_email, code):
-    # 1. smtp 섹션 안의 값을 가져오도록 수정
     try:
-        # secrets.toml의 [smtp] 섹션에서 값을 읽어옵니다.
-        email_user = st.secrets["smtp"]["email_address"]
-        email_password = st.secrets["smtp"]["app_password"]
-    except (KeyError, st.errors.StreamlitAPIException):
-        # [smtp] 섹션이 없거나 내부 키가 없을 경우 에러 메시지 반환
-        return False, "Secrets에서 [smtp] 섹션이나 설정을 찾을 수 없습니다."
-
-    # 2. 실제 이메일 발송 로직
-    try:
-        msg = MIMEText(f"안녕하세요. Unicorn Finder 입니다.\n인증번호는 [{code}] 입니다.")
-        msg['Subject'] = '[Unicorn Finder] 회원가입 인증번호'
-        msg['From'] = email_user
+        if "smtp" in st.secrets:
+            sender_email = st.secrets["smtp"]["email_address"]
+            sender_pw = st.secrets["smtp"]["app_password"]
+        else:
+            sender_email = st.secrets["email_address"]
+            sender_pw = st.secrets["app_password"]
+        msg = MIMEText(f"안녕하세요. 인증번호는 [{code}] 입니다.")
+        msg['Subject'] = "[Unicorn Finder] 본인 인증번호"
+        msg['From'] = sender_email
         msg['To'] = to_email
-
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(email_user, email_password)
-            server.sendmail(email_user, to_email, msg.as_string())
-        
-        return True, "이메일이 발송되었습니다."
+        with smtplib.SMTP('smtp.gmail.com', 587) as s:
+            s.starttls()
+            s.login(sender_email, sender_pw)
+            s.sendmail(sender_email, to_email, msg.as_string())
+        st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
+        return True
     except Exception as e:
-        return False, f"발송 중 오류 발생: {str(e)}"
+        st.error(f"❌ 이메일 전송 실패: {e}")
+        return False
+
+# 📍 승인 알림 메일 함수 추가
+def send_approval_email(to_email, user_id):
+    try:
+        # secrets에서 설정 가져오기 (기존 이메일 설정 활용)
+        if "smtp" in st.secrets:
+            sender_email = st.secrets["smtp"]["email_address"]
+            sender_pw = st.secrets["smtp"]["app_password"]
+        else:
+            sender_email = st.secrets["email_address"]
+            sender_pw = st.secrets["app_password"]
+            
+        subject = "[Unicorn Finder] 가입 승인 안내"
+        body = f"""
+        안녕하세요, {user_id}님!
+        
+        축하합니다! Unicorn Finder의 회원 가입이 승인되었습니다.
+        이제 로그인하여 모든 서비스를 정상적으로 이용하실 수 있습니다.
+        
+        유니콘이 되신 것을 환영합니다! 🦄
+        """
+        
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = sender_email
+        msg['To'] = to_email
+        
+        with smtplib.SMTP('smtp.gmail.com', 587) as s:
+            s.starttls()
+            s.login(sender_email, sender_pw)
+            s.sendmail(sender_email, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        st.error(f"📧 승인 메일 전송 실패: {e}")
+        return False
+
+def save_user_to_sheets(user_data):
+    """회원가입 정보를 구글 시트에 최종 기록하는 함수"""
+    # 1. 구글 클라이언트 가져오기 (이 함수도 정의되어 있어야 합니다)
+    client, _ = get_gcp_clients()
+    
+    if client:
+        try:
+            # 2. 시트 열기 (시트 이름: unicorn_users)
+            sh = client.open("unicorn_users").sheet1
+            
+            # 3. 15개 열 데이터 매핑 (A열 ~ O열)
+            # ID, PW, Email, Phone, Role, Status, Univ, Job, Asset, Display, Date, Link_U, Link_J, Link_A, Visibility
+            row = [
+                user_data.get('id'),
+                user_data.get('pw'),
+                user_data.get('email'),
+                user_data.get('phone'),
+                user_data.get('role', 'restricted'), # 기본값 restricted
+                user_data.get('status', 'pending'),  # 기본값 pending
+                user_data.get('univ', ''),
+                user_data.get('job', ''),   # job 또는 job_title
+                user_data.get('asset', ''),
+                user_data.get('display_name', ''),
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # 가입일
+                user_data.get('link_univ', '미제출'),
+                user_data.get('link_job', '미제출'),
+                user_data.get('link_asset', '미제출'),
+                "True,True,True" # 기본 노출 설정 (모두 공개)
+            ]
+            
+            # 4. 행 추가
+            sh.append_row(row)
+            return True
+            
+        except Exception as e:
+            st.error(f"구글 시트 저장 중 오류 발생: {str(e)}")
+            return False
+    
+    return False
+
+def send_rejection_email(to_email, user_id, reason):
+    try:
+        if "smtp" in st.secrets:
+            sender_email = st.secrets["smtp"]["email_address"]
+            sender_pw = st.secrets["smtp"]["app_password"]
+        else:
+            sender_email = st.secrets["email_address"]
+            sender_pw = st.secrets["app_password"]
+            
+        subject = "[Unicorn Finder] 가입 승인 보류 안내"
+        body = f"""
+        안녕하세요, {user_id}님. 
+        Unicorn Finder 운영팀입니다.
+        
+        제출해주신 증빙 서류에 보완이 필요하여 승인이 잠시 보류되었습니다.
+        
+        [보류 사유]
+        {reason}
+        
+        위 사유를 확인하신 후 다시 신청해주시면 신속히 재검토하겠습니다.
+        감사합니다.
+        """
+        
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = sender_email
+        msg['To'] = to_email
+        
+        with smtplib.SMTP('smtp.gmail.com', 587) as s:
+            s.starttls()
+            s.login(sender_email, sender_pw)
+            s.sendmail(sender_email, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        st.error(f"📧 보류 메일 전송 실패: {e}")
+        return False
+
+# --- [신규 추가: 권한 관리 로직] ---
+def check_permission(action):
+    """
+    권한 체크 로직 (노출 설정 반영 버전)
+    """
+    auth_status = st.session_state.get('auth_status')
+    user_info = st.session_state.get('user_info', {})
+    user_role = user_info.get('role', 'restricted')
+    user_status = user_info.get('status', 'pending')
+    
+    # [신규] 유저의 노출 설정 확인
+    vis_str = str(user_info.get('visibility', 'True,True,True'))
+    is_public_mode = 'True' in vis_str # 하나라도 True가 있으면 공개 모드
+
+    if action == 'view':
+        return True
+    
+    if action == 'watchlist':
+        return auth_status == 'user'
+    
+    if action == 'write':
+        # 1. 로그인 했는가?
+        if auth_status == 'user':
+            # 2. 관리자면 무조건 통과
+            if user_info.get('role') == 'admin': return True
+            
+            # 3. 일반 유저 조건: (서류제출함) AND (관리자 승인됨) AND (정보 공개 중임)
+            if (user_role == 'user') and (user_status == 'approved') and is_public_mode:
+                return True
+                
+        return False
+        
+    return False
 
 # --- [여기(최상단)에 함수를 두어야 아래에서 인식합니다] ---
 def clean_text_final(text):
@@ -3443,6 +3659,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
