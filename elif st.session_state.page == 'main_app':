@@ -947,66 +947,223 @@ def get_us_ipo_analysis(ticker_symbol):
     except Exception as e:
         return {"status": "Error"}
 
-# 1. 페이지 설정
-st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
+# ==========================================
+# [4] 메인 실행부 (Main Logic) - 여기서부터 끝까지 교체하세요
+# ==========================================
 
-# 'posts'를 아래 리스트에 추가했습니다.
-for key in ['page', 'auth_status', 'vote_data', 'comment_data', 'selected_stock', 'watchlist', 'view_mode', 'news_topic', 'posts']:
+# 1. 페이지 설정 (반드시 가장 먼저 실행되어야 함)
+try:
+    st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
+except:
+    pass # 이미 설정되어 있다면 패스
+
+# 2. 세션 상태 안전 초기화
+for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view_mode', 'user_info', 'selected_stock']:
     if key not in st.session_state:
-        if key == 'page': 
-            st.session_state[key] = 'login'
-        # posts와 watchlist는 목록 형태이므로 빈 리스트([])로 초기화
-        elif key in ['watchlist', 'posts']: 
-            st.session_state[key] = []
-        elif key in ['vote_data', 'comment_data', 'user_votes']: 
-            st.session_state[key] = {}
-        elif key == 'view_mode': 
-            st.session_state[key] = 'all'
-        elif key == 'news_topic': 
-            st.session_state[key] = "💰 공모가 범위/확정 소식"
-        else: 
-            st.session_state[key] = None
+        if key == 'page': st.session_state[key] = 'login'
+        elif key == 'watchlist': st.session_state[key] = []
+        elif key == 'posts': st.session_state[key] = []
+        elif key == 'user_decisions': st.session_state[key] = {}
+        elif key == 'view_mode': st.session_state[key] = 'all'
+        else: st.session_state[key] = None
+
+# 3. 공통 UI 함수 정의 (전역)
+def draw_decision_box(step_key, title, options):
+    """사용자 투표/판단 박스를 그리는 함수"""
+    sid = st.session_state.get('selected_stock', {}).get('symbol', 'UNKNOWN')
+    
+    # 결정 데이터 공간 확보
+    if sid not in st.session_state.user_decisions:
+        st.session_state.user_decisions[sid] = {}
+        
+    st.write("---")
+    st.markdown(f"##### {title}")
+    
+    current_val = st.session_state.user_decisions[sid].get(step_key)
+    choice = st.radio(
+        label=f"판단_{step_key}",
+        options=options,
+        index=options.index(current_val) if current_val in options else None,
+        key=f"dec_{sid}_{step_key}",
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    if choice:
+        st.session_state.user_decisions[sid][step_key] = choice
+
+def handle_post_reaction(post_id, reaction_type, user_id):
+    """게시글 좋아요/싫어요 처리 함수"""
+    if not user_id:
+        st.toast("🔒 로그인이 필요한 기능입니다.")
+        return
+
+    for p in st.session_state.posts:
+        if p['id'] == post_id:
+            user_list_key = 'like_users' if reaction_type == 'likes' else 'dislike_users'
+            p.setdefault(user_list_key, [])
             
-# --- CSS 스타일 ---
+            if user_id not in p[user_list_key]:
+                p[reaction_type] = p.get(reaction_type, 0) + 1
+                p[user_list_key].append(user_id)
+                st.rerun()
+            else:
+                st.toast("이미 참여하셨습니다.")
+            break
+
+# --- CSS 스타일 적용 ---
 st.markdown("""
     <style>
-    /* 전체 앱 스타일 */
     .stApp { background-color: #FFFFFF; color: #333333; }
-    
-    .intro-card {
-        background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
-        padding: 50px 30px; border-radius: 30px; color: white !important;
-        text-align: center; margin-top: 20px; 
-        box-shadow: 0 20px 40px rgba(110, 142, 251, 0.3);
-    }
-    .intro-title { font-size: 40px; font-weight: 900; margin-bottom: 10px; color: white !important; }
-    
-    .feature-grid { display: flex; justify-content: space-around; gap: 15px; margin-bottom: 25px; }
-    .feature-item {
-        background: rgba(255, 255, 255, 0.2);
-        padding: 20px 10px; border-radius: 20px; flex: 1;
-        backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3);
-        color: white !important; text-align: center;
-    }
-    
-    .grid-card { 
-        background-color: #ffffff !important; 
-        padding: 25px; border-radius: 20px; 
-        border: 1px solid #eef2ff; box-shadow: 0 10px 20px rgba(0,0,0,0.05); 
-        text-align: center; color: #333333 !important; height: 100%;
-    }
-    
-    .quote-card {
-        background: linear-gradient(145deg, #ffffff, #f9faff);
-        padding: 25px; border-radius: 20px; border-top: 5px solid #6e8efb;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.05); text-align: center;
-        max-width: 650px; margin: 40px auto; color: #333333 !important;
-    }
-    
-    .comment-box { background-color: #f8f9fa; padding: 10px; border-radius: 10px; margin-bottom: 5px; border-left: 3px solid #dee2e6; color: #333; }
-    button p { font-weight: bold !important; }
+    div.stButton > button { border-radius: 8px; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
+
+
+# ==========================================
+# [PAGE ROUTING] 페이지 전환 로직
+# ==========================================
+
+# ---------------------------------------------------------
+# CASE 1: 로그인 페이지
+# ---------------------------------------------------------
+if st.session_state.page == 'login':
+    st.markdown("<h1 style='text-align: center;'>🦄 UnicornFinder</h1>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        tab_login, tab_signup = st.tabs(["로그인", "회원가입"])
+        
+        with tab_login:
+            with st.form("login_form"):
+                l_id = st.text_input("아이디")
+                l_pw = st.text_input("비밀번호", type="password")
+                if st.form_submit_button("로그인", use_container_width=True, type="primary"):
+                    users = load_users()
+                    user = next((u for u in users if str(u.get("id")) == l_id), None)
+                    
+                    if user and str(user.get('pw')) == l_pw:
+                        st.session_state.auth_status = 'user'
+                        st.session_state.user_info = user
+                        st.session_state.page = 'calendar' # 로그인 성공 시 메인으로
+                        st.rerun()
+                    else:
+                        st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
+            
+            if st.button("구경하기 (게스트)", use_container_width=True):
+                st.session_state.auth_status = 'guest'
+                st.session_state.user_info = {'role': 'guest', 'id': 'guest'}
+                st.session_state.page = 'calendar'
+                st.rerun()
+
+        with tab_signup:
+            st.info("회원가입 기능 준비 중입니다.")
+            # (여기에 필요시 회원가입 로직 추가 가능)
+
+# ---------------------------------------------------------
+# CASE 2: 메인 캘린더 (Calendar)
+# ---------------------------------------------------------
+elif st.session_state.page == 'calendar':
+    st.markdown("### 📅 IPO 캘린더")
+    
+    # 상단 메뉴바
+    c1, c2, c3 = st.columns(3)
+    if c1.button("🏠 메인 (새로고침)"): 
+        st.session_state.view_mode = 'all'
+        st.rerun()
+    if c2.button(f"⭐ 관심종목 ({len(st.session_state.watchlist)})"): 
+        st.session_state.view_mode = 'watchlist'
+        st.rerun()
+    if c3.button("💬 게시판"): 
+        st.session_state.page = 'board'
+        st.rerun()
+
+    # 데이터 로드 (수정된 함수 사용)
+    # API KEY는 Secrets에서 가져오도록 변경
+    api_key = st.secrets.get("FINNHUB_API_KEY", "YOUR_DEFAULT_KEY") 
+    df = get_extended_ipo_data(api_key) 
+    
+    # 뷰 모드에 따른 필터링
+    if st.session_state.view_mode == 'watchlist':
+        if not st.session_state.watchlist:
+            st.warning("관심 종목이 비어있습니다.")
+            display_df = pd.DataFrame()
+        else:
+            display_df = df[df['symbol'].isin(st.session_state.watchlist)] if not df.empty else df
+            if st.button("전체 목록 보기"):
+                st.session_state.view_mode = 'all'
+                st.rerun()
+    else:
+        # 기본: 향후 30일 + 과거 데이터 일부
+        today = datetime.now().date()
+        # 예시로 최근~미래 데이터만 필터링
+        display_df = df if not df.empty else pd.DataFrame()
+
+    # 리스트 출력
+    if not display_df.empty:
+        # 날짜순 정렬
+        display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+        
+        for idx, row in display_df.iterrows():
+            with st.container():
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    # 클릭 시 상세 페이지로 이동
+                    if st.button(f"🦄 {row['name']} ({row['symbol']})", key=f"btn_{idx}"):
+                        st.session_state.selected_stock = row.to_dict()
+                        st.session_state.page = 'detail'
+                        st.rerun()
+                with c2:
+                    st.caption(f"{row['date']}")
+                st.divider()
+    else:
+        st.info("표시할 데이터가 없습니다.")
+
+# ---------------------------------------------------------
+# CASE 3: 상세 페이지 (Detail)
+# ---------------------------------------------------------
+elif st.session_state.page == 'detail':
+    stock = st.session_state.selected_stock
+    if not stock:
+        st.session_state.page = 'calendar'
+        st.rerun()
+
+    if st.button("⬅️ 목록으로 돌아가기"):
+        st.session_state.page = 'calendar'
+        st.rerun()
+        
+    st.title(f"{stock['name']} ({stock['symbol']})")
+    
+    # 탭 구성
+    t0, t1, t2, t3, t4, t5 = st.tabs(["공시", "뉴스", "거시", "미시", "기관", "토론"])
+    
+    with t0:
+        st.info("공시 분석 탭입니다.")
+        # (여기에 공시 로직 추가)
+        
+    with t1:
+        st.info("뉴스 분석 탭입니다.")
+        # (여기에 뉴스 로직 추가)
+        
+    with t5:
+        st.subheader("토론방")
+        # (게시판 연결 로직)
+
+# ---------------------------------------------------------
+# CASE 4: 게시판 (Board)
+# ---------------------------------------------------------
+elif st.session_state.page == 'board':
+    st.title("💬 통합 게시판")
+    if st.button("🏠 메인으로"):
+        st.session_state.page = 'calendar'
+        st.rerun()
+        
+    # 게시글 목록 출력
+    if not st.session_state.posts:
+        st.info("작성된 게시글이 없습니다.")
+    
+    for p in st.session_state.posts:
+        with st.expander(f"{p.get('title')} ({p.get('author')})"):
+            st.write(p.get('content'))
 
 
 
@@ -3648,6 +3805,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
