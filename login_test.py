@@ -276,7 +276,6 @@ if st.session_state.page == 'login':
                         "id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email
                     }
                     if "이메일" in auth_choice:
-                        from __main__ import send_email_code # 함수 호출
                         send_email_code(new_email, code)
                     else:
                         st.toast(f"📱 인증번호: {code}", icon="✅")
