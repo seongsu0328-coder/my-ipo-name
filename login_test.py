@@ -281,28 +281,33 @@ def send_rejection_email(to_email, user_id, reason):
 # --- [신규 추가: 권한 관리 로직] ---
 def check_permission(action):
     """
-    action: 'view' (조회), 'watchlist' (관심등록), 'write' (글쓰기/투표)
-    유저 상태에 따라 실행 가능 여부를 True/False로 반환합니다.
+    권한 체크 로직 (노출 설정 반영 버전)
     """
-    auth_status = st.session_state.get('auth_status') # 'user', 'guest', None
+    auth_status = st.session_state.get('auth_status')
     user_info = st.session_state.get('user_info', {})
-    user_role = user_info.get('role', 'restricted') # 'user', 'restricted', 'admin'
-    user_status = user_info.get('status', 'pending') # 'approved', 'pending'
+    user_role = user_info.get('role', 'restricted')
+    user_status = user_info.get('status', 'pending')
+    
+    # [신규] 유저의 노출 설정 확인
+    vis_str = str(user_info.get('visibility', 'True,True,True'))
+    is_public_mode = 'True' in vis_str # 하나라도 True가 있으면 공개 모드
 
-    # 1. 단순 조회: 누구나 가능
     if action == 'view':
         return True
     
-    # 2. 관심 종목 등록: 로그인한 회원(미인증 포함)만 가능
     if action == 'watchlist':
         return auth_status == 'user'
     
-    # 3. 글쓰기 및 투표: 인증 완료된 회원 또는 관리자만 가능
     if action == 'write':
+        # 1. 로그인 했는가?
         if auth_status == 'user':
-            # 관리자이거나, 일반유저 중 승인이 완료된 경우
-            if user_info.get('role') == 'admin' or (user_role == 'user' and user_status == 'approved'):
+            # 2. 관리자면 무조건 통과
+            if user_info.get('role') == 'admin': return True
+            
+            # 3. 일반 유저 조건: (서류제출함) AND (관리자 승인됨) AND (정보 공개 중임)
+            if (user_role == 'user') and (user_status == 'approved') and is_public_mode:
                 return True
+                
         return False
         
     return False
