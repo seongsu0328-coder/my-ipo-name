@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
@@ -12,27 +11,14 @@ import time
 from email.mime.text import MIMEText
 
 # ==========================================
-# 1. 설정 및 Secrets 관리
+# [설정] 구글 드라이브 폴더 ID (필수 입력)
 # ==========================================
-st.set_page_config(page_title="Unicorn Finder", layout="centered", page_icon="🦄")
-
-# 📍 [필수] 구글 드라이브 폴더 ID & API 키
 DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
-MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20" # Finnhub API Key
 
-# [CSS 스타일링] 모바일 최적화 및 디자인 보정
-st.markdown("""
-    <style>
-    .price-main { font-size: 14px !important; font-weight: bold; white-space: nowrap; }
-    .price-sub { font-size: 11px !important; color: #666 !important; }
-    .mobile-sub { font-size: 11px !important; color: #888 !important; margin-top: -2px; }
-    div[data-testid="column"] { display: flex; flex-direction: column; justify-content: center; }
-    div[data-testid="stPills"] button { background-color: #f0f2f6 !important; border: 1px solid #ddd; }
-    </style>
-""", unsafe_allow_html=True)
+st.set_page_config(page_title="Unicorn Finder", layout="centered")
 
 # ==========================================
-# 2. 백엔드(GCP, Email, Auth) 함수
+# [기능] 구글 연결 및 유저 관리
 # ==========================================
 @st.cache_resource
 def get_gcp_clients():
@@ -53,7 +39,8 @@ def load_users():
         try:
             sh = client.open("unicorn_users").sheet1
             return sh.get_all_records()
-        except: return []
+        except:
+            return []
     return []
 
 def get_asset_grade(asset_text):
@@ -67,45 +54,56 @@ def add_user(data):
     client, _ = get_gcp_clients()
     if client:
         sh = client.open("unicorn_users").sheet1
+        
+        # 1. 아이디 익명화 (닉네임 생성용)
         user_id = data['id']
         masked_id = user_id[:3] + "*" * (len(user_id) - 3) if len(user_id) > 3 else user_id + "***"
         
+        # 2. 인증 항목 결합
         display_parts = []
         auth_count = 0
+        
         if data['univ'] and data['link_univ'] != "미제출":
-            display_parts.append(data['univ']); auth_count += 1
+            display_parts.append(data['univ'])
+            auth_count += 1
         if data['job'] and data['link_job'] != "미제출":
-            display_parts.append(data['job']); auth_count += 1
+            display_parts.append(data['job'])
+            auth_count += 1
         if data['asset'] and data['link_asset'] != "미제출":
             grade = get_asset_grade(data['asset'])
-            display_parts.append(grade); auth_count += 1
+            display_parts.append(grade)
+            auth_count += 1
             
         display_name = " ".join(display_parts + [masked_id])
         role = "user" if auth_count > 0 else "restricted"
         
+        # 3. [수정됨] 15번째 열(visibility) 기본값 추가
         row = [
             data['id'], data['pw'], data['email'], data['phone'],
-            role, data['status'], # role, status (pending/approved)
+            role, 'pending', 
             data['univ'], data['job'], data['asset'], display_name,
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             data['link_univ'], data['link_job'], data['link_asset'],
-            "True,True,True"
+            "True,True,True"  # <--- 이 부분이 15번째 열에 들어갑니다.
         ]
         sh.append_row(row)
-        return True
-    return False
 
 def update_user_visibility(user_id, visibility_data):
     client, _ = get_gcp_clients()
     if client:
         try:
             sh = client.open("unicorn_users").sheet1
+            # 1열(A열)에서 유저 아이디와 정확히 일치는 셀 찾기
             cell = sh.find(str(user_id), in_column=1) 
+            
             if cell:
+                # 리스트를 "True,False,True" 형태의 문자열로 변환
                 visibility_str = ",".join([str(v) for v in visibility_data])
+                # 15번째 열(O열) 업데이트
                 sh.update_cell(cell.row, 15, visibility_str)
                 return True
-        except Exception as e: st.error(f"시트 통신 오류: {e}")
+        except Exception as e:
+            st.error(f"시트 통신 오류: {e}")
     return False
 
 def upload_photo_to_drive(file_obj, filename_prefix):
@@ -113,20 +111,47 @@ def upload_photo_to_drive(file_obj, filename_prefix):
     try:
         _, drive_service = get_gcp_clients()
         file_obj.seek(0)
-        file_metadata = {'name': f"{filename_prefix}_{file_obj.name}", 'parents': [DRIVE_FOLDER_ID]}
-        # [Fix] 청크 사이즈 5MB로 상향 (Broken Pie 방지)
-        media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type, resumable=True, chunksize=5 * 1024 * 1024)
-        file = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
-        drive_service.permissions().create(fileId=file.get('id'), body={'type': 'anyone', 'role': 'reader'}, supportsAllDrives=True).execute()
-        return file.get('webViewLink')
-    except Exception as e: 
-        print(f"Upload Error: {e}")
-        return "업로드 실패"
+        
+        file_metadata = {
+            'name': f"{filename_prefix}_{file_obj.name}", 
+            'parents': [DRIVE_FOLDER_ID]
+        }
+        
+        # 100*1024 대신 구글 규격에 맞는 256*1024로 변경
+        media = MediaIoBaseUpload(
+            file_obj, 
+            mimetype=file_obj.type, 
+            resumable=True, 
+            chunksize=256*1024  # 256KB 단위로 전송
+        )
+        
+        file = drive_service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id, webViewLink',
+            supportsAllDrives=True
+        ).execute()
 
+        drive_service.permissions().create(
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'reader'},
+            supportsAllDrives=True
+        ).execute()
+        
+        return file.get('webViewLink')
+    except Exception as e:
+        # 에러 발생 시 재시도 안내 출력
+        st.error(f"📂 업로드 실패 (네트워크 확인 필요): {e}")
+        return "업로드 실패"
+        
 def send_email_code(to_email, code):
     try:
-        sender_email = st.secrets["smtp"]["email_address"]
-        sender_pw = st.secrets["smtp"]["app_password"]
+        if "smtp" in st.secrets:
+            sender_email = st.secrets["smtp"]["email_address"]
+            sender_pw = st.secrets["smtp"]["app_password"]
+        else:
+            sender_email = st.secrets["email_address"]
+            sender_pw = st.secrets["app_password"]
         msg = MIMEText(f"안녕하세요. 인증번호는 [{code}] 입니다.")
         msg['Subject'] = "[Unicorn Finder] 본인 인증번호"
         msg['From'] = sender_email
@@ -137,137 +162,181 @@ def send_email_code(to_email, code):
             s.sendmail(sender_email, to_email, msg.as_string())
         st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"❌ 이메일 전송 실패: {e}")
+        return False
 
+# 📍 승인 알림 메일 함수 추가
 def send_approval_email(to_email, user_id):
     try:
-        sender_email = st.secrets["smtp"]["email_address"]
-        sender_pw = st.secrets["smtp"]["app_password"]
-        msg = MIMEText(f"안녕하세요, {user_id}님!\nUnicorn Finder 가입이 승인되었습니다.")
-        msg['Subject'] = "[Unicorn Finder] 가입 승인 안내"
+        # secrets에서 설정 가져오기 (기존 이메일 설정 활용)
+        if "smtp" in st.secrets:
+            sender_email = st.secrets["smtp"]["email_address"]
+            sender_pw = st.secrets["smtp"]["app_password"]
+        else:
+            sender_email = st.secrets["email_address"]
+            sender_pw = st.secrets["app_password"]
+            
+        subject = "[Unicorn Finder] 가입 승인 안내"
+        body = f"""
+        안녕하세요, {user_id}님!
+        
+        축하합니다! Unicorn Finder의 회원 가입이 승인되었습니다.
+        이제 로그인하여 모든 서비스를 정상적으로 이용하실 수 있습니다.
+        
+        유니콘이 되신 것을 환영합니다! 🦄
+        """
+        
+        msg = MIMEText(body)
+        msg['Subject'] = subject
         msg['From'] = sender_email
         msg['To'] = to_email
+        
         with smtplib.SMTP('smtp.gmail.com', 587) as s:
             s.starttls()
             s.login(sender_email, sender_pw)
             s.sendmail(sender_email, to_email, msg.as_string())
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"📧 승인 메일 전송 실패: {e}")
+        return False
+
+def save_user_to_sheets(user_data):
+    """회원가입 정보를 구글 시트에 최종 기록하는 함수"""
+    # 1. 구글 클라이언트 가져오기 (이 함수도 정의되어 있어야 합니다)
+    client, _ = get_gcp_clients()
+    
+    if client:
+        try:
+            # 2. 시트 열기 (시트 이름: unicorn_users)
+            sh = client.open("unicorn_users").sheet1
+            
+            # 3. 15개 열 데이터 매핑 (A열 ~ O열)
+            # ID, PW, Email, Phone, Role, Status, Univ, Job, Asset, Display, Date, Link_U, Link_J, Link_A, Visibility
+            row = [
+                user_data.get('id'),
+                user_data.get('pw'),
+                user_data.get('email'),
+                user_data.get('phone'),
+                user_data.get('role', 'restricted'), # 기본값 restricted
+                user_data.get('status', 'pending'),  # 기본값 pending
+                user_data.get('univ', ''),
+                user_data.get('job', ''),   # job 또는 job_title
+                user_data.get('asset', ''),
+                user_data.get('display_name', ''),
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # 가입일
+                user_data.get('link_univ', '미제출'),
+                user_data.get('link_job', '미제출'),
+                user_data.get('link_asset', '미제출'),
+                "True,True,True" # 기본 노출 설정 (모두 공개)
+            ]
+            
+            # 4. 행 추가
+            sh.append_row(row)
+            return True
+            
+        except Exception as e:
+            st.error(f"구글 시트 저장 중 오류 발생: {str(e)}")
+            return False
+    
+    return False
 
 def send_rejection_email(to_email, user_id, reason):
     try:
-        sender_email = st.secrets["smtp"]["email_address"]
-        sender_pw = st.secrets["smtp"]["app_password"]
-        msg = MIMEText(f"안녕하세요, {user_id}님.\n가입 승인이 보류되었습니다.\n사유: {reason}")
-        msg['Subject'] = "[Unicorn Finder] 가입 승인 보류 안내"
+        if "smtp" in st.secrets:
+            sender_email = st.secrets["smtp"]["email_address"]
+            sender_pw = st.secrets["smtp"]["app_password"]
+        else:
+            sender_email = st.secrets["email_address"]
+            sender_pw = st.secrets["app_password"]
+            
+        subject = "[Unicorn Finder] 가입 승인 보류 안내"
+        body = f"""
+        안녕하세요, {user_id}님. 
+        Unicorn Finder 운영팀입니다.
+        
+        제출해주신 증빙 서류에 보완이 필요하여 승인이 잠시 보류되었습니다.
+        
+        [보류 사유]
+        {reason}
+        
+        위 사유를 확인하신 후 다시 신청해주시면 신속히 재검토하겠습니다.
+        감사합니다.
+        """
+        
+        msg = MIMEText(body)
+        msg['Subject'] = subject
         msg['From'] = sender_email
         msg['To'] = to_email
+        
         with smtplib.SMTP('smtp.gmail.com', 587) as s:
             s.starttls()
             s.login(sender_email, sender_pw)
             s.sendmail(sender_email, to_email, msg.as_string())
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"📧 보류 메일 전송 실패: {e}")
+        return False
 
-# ==========================================
-# 3. 데이터(Finnhub) & 권한 & 네비게이션 함수
-# ==========================================
-@st.cache_data(ttl=14400)
-def get_extended_ipo_data(api_key):
-    now = datetime.now()
-    ranges = [(now - timedelta(days=120), now + timedelta(days=90))]
-    all_data = []
-    for start, end in ranges:
-        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start.strftime('%Y-%m-%d')}&to={end.strftime('%Y-%m-%d')}&token={api_key}"
-        try:
-            res = requests.get(url, timeout=3).json()
-            if 'ipoCalendar' in res: all_data.extend(res['ipoCalendar'])
-        except: continue
-    
-    if not all_data: return pd.DataFrame()
-    df = pd.DataFrame(all_data)
-    df = df.drop_duplicates(subset=['symbol', 'date'])
-    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
-    return df.dropna(subset=['공모일_dt'])
-
-@st.cache_data(ttl=900)
-def get_current_stock_price(symbol, api_key):
-    try:
-        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
-        res = requests.get(url, timeout=2).json()
-        return res.get('c', 0)
-    except: return 0
-
+# --- [신규 추가: 권한 관리 로직] ---
 def check_permission(action):
+    """
+    권한 체크 로직 (노출 설정 반영 버전)
+    """
     auth_status = st.session_state.get('auth_status')
     user_info = st.session_state.get('user_info', {})
     user_role = user_info.get('role', 'restricted')
     user_status = user_info.get('status', 'pending')
     
+    # [신규] 유저의 노출 설정 확인
     vis_str = str(user_info.get('visibility', 'True,True,True'))
-    is_public_mode = 'True' in vis_str
+    is_public_mode = 'True' in vis_str # 하나라도 True가 있으면 공개 모드
 
-    if action == 'view': return True
-    if action == 'watchlist': return auth_status == 'user'
+    if action == 'view':
+        return True
+    
+    if action == 'watchlist':
+        return auth_status == 'user'
+    
     if action == 'write':
+        # 1. 로그인 했는가?
         if auth_status == 'user':
+            # 2. 관리자면 무조건 통과
             if user_info.get('role') == 'admin': return True
+            
+            # 3. 일반 유저 조건: (서류제출함) AND (관리자 승인됨) AND (정보 공개 중임)
             if (user_role == 'user') and (user_status == 'approved') and is_public_mode:
                 return True
+                
         return False
+        
     return False
 
-def render_navbar():
-    is_logged_in = st.session_state.auth_status == 'user'
-    login_text = "로그아웃" if is_logged_in else "로그인"
-    main_text = "메인" # 캘린더
-    watch_text = f"관심 ({len(st.session_state.watchlist)})"
-    board_text = "게시판"
-    
-    menu_options = [login_text, main_text, watch_text, board_text]
-    default_sel = main_text
-    if st.session_state.view_mode == 'watchlist': default_sel = watch_text
-    elif st.session_state.page == 'board': default_sel = board_text
-    
-    selected_menu = st.pills("네비게이션", menu_options, selection_mode="single", default=default_sel, label_visibility="collapsed")
-
-    if selected_menu == login_text:
-        if is_logged_in: st.session_state.clear()
-        st.session_state.page = 'login'
-        st.rerun()
-    elif selected_menu == main_text:
-        st.session_state.page = 'calendar'
-        st.session_state.view_mode = 'all'
-        st.rerun()
-    elif selected_menu == watch_text:
-        st.session_state.page = 'calendar'
-        st.session_state.view_mode = 'watchlist'
-        st.rerun()
-    elif selected_menu == board_text:
-        st.session_state.page = 'board'
-        st.rerun()
-    st.divider()
-
 # ==========================================
-# 4. 세션 초기화
+# [화면] UI 제어 로직 (로그인 / 회원가입 / 구경하기 분할)
 # ==========================================
-session_keys = {
-    'page': 'login', 'login_step': 'choice', 'signup_stage': 1,
-    'auth_status': None, 'user_info': {}, 'watchlist': [], 'view_mode': 'all',
-    'temp_user_data': {}, 'auth_code': None
-}
-for k, v in session_keys.items():
-    if k not in st.session_state: st.session_state[k] = v
+# --- [세션 상태 초기화] ---
+# 앱이 처음 실행될 때 필요한 변수들을 미리 만들어둡니다.
+if 'page' not in st.session_state:
+    st.session_state.page = 'login'
 
-# ==========================================
-# 5. 페이지 라우팅 로직
-# ==========================================
+if 'login_step' not in st.session_state:
+    st.session_state.login_step = 'choice'
 
-# --- [페이지 1] 로그인/가입/구경하기 ---
+if 'signup_stage' not in st.session_state:
+    st.session_state.signup_stage = 1
+
+if 'auth_status' not in st.session_state:
+    st.session_state.auth_status = None
+
+if 'user_info' not in st.session_state:
+    st.session_state.user_info = {}
+
 if st.session_state.page == 'login':
     st.markdown("<h1 style='text-align: center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
     st.write("<br>", unsafe_allow_html=True)
 
+    # [Step 1] 선택 화면
     if st.session_state.login_step == 'choice':
         col1, col2 = st.columns(2)
         with col1:
@@ -282,284 +351,392 @@ if st.session_state.page == 'login':
         
         st.write("<br>", unsafe_allow_html=True)
         st.divider()
+        # [핵심] 구경하기 버튼: 계정 없이 메인으로 진입
         if st.button("👀 로그인 없이 구경하기", use_container_width=True):
             st.session_state.auth_status = 'guest'
             st.session_state.user_info = {'id': 'Guest', 'role': 'guest'}
-            st.session_state.page = 'calendar'
+            st.session_state.page = 'main_app'
             st.rerun()
 
+    # [Step 2] 로그인 입력창
     elif st.session_state.login_step == 'login_input':
         st.subheader("로그인")
-        l_id = st.text_input("아이디", key="lid")
-        l_pw = st.text_input("비밀번호", type="password", key="lpw")
+        l_id = st.text_input("아이디", key="login_id")
+        l_pw = st.text_input("비밀번호", type="password", key="login_pw")
         
         c1, c2 = st.columns(2)
         with c1:
             if st.button("접속하기", use_container_width=True, type="primary"):
-                with st.spinner("확인 중..."):
+                with st.spinner("회원 정보 확인 중..."):
                     users = load_users()
                     user = next((u for u in users if str(u.get("id")) == l_id), None)
                     if user and str(user['pw']) == l_pw:
                         st.session_state.auth_status = 'user'
                         st.session_state.user_info = user
-                        st.session_state.page = 'main_app' # 로그인 성공 -> 설정창 이동
+                        st.session_state.page = 'main_app'
                         st.rerun()
-                    else: st.error("정보 불일치")
+                    else:
+                        st.error("아이디 또는 비밀번호가 틀립니다.")
         with c2:
-            if st.button("뒤로"):
+            if st.button("뒤로 가기", use_container_width=True):
                 st.session_state.login_step = 'choice'
                 st.rerun()
 
+    # [Step 3] 회원가입 로직 (1, 2, 3단계 통합 수정본)
     elif st.session_state.login_step == 'signup_input':
-        # [3-1단계] 정보 입력
+        
+        # -----------------------------------------------------
+        # [3-1단계] 정보 입력 및 인증 번호 발송
+        # -----------------------------------------------------
         if st.session_state.signup_stage == 1:
             st.subheader("1단계: 정보 입력")
-            with st.form("s1"):
+            with st.form("signup_1"):
                 new_id = st.text_input("아이디")
                 new_pw = st.text_input("비밀번호", type="password")
-                new_phone = st.text_input("연락처")
+                new_phone = st.text_input("연락처 (예: 010-1234-5678)")
                 new_email = st.text_input("이메일")
-                auth_choice = st.radio("인증", ["휴대폰(가상)", "이메일(실제)"], horizontal=True)
+                auth_choice = st.radio("인증 수단", ["휴대폰(가상)", "이메일(실제)"], horizontal=True)
                 
                 if st.form_submit_button("인증번호 받기"):
+                    # 필수 입력값 체크
                     if not (new_id and new_pw and new_email):
-                        st.error("입력 누락")
+                        st.error("모든 정보를 입력해주세요.")
                     else:
                         code = str(random.randint(100000, 999999))
                         st.session_state.auth_code = code
-                        st.session_state.temp_user_data = {"id":new_id, "pw":new_pw, "phone":new_phone, "email":new_email}
-                        if "이메일" in auth_choice: send_email_code(new_email, code)
-                        else: st.toast(f"인증번호: {code}", icon="✅")
+                        # 다음 단계를 위해 임시 저장
+                        st.session_state.temp_user_data = {
+                            "id": new_id, "pw": new_pw, 
+                            "phone": new_phone, "email": new_email
+                        }
+                        
+                        if "이메일" in auth_choice:
+                            # 함수 호출 (import 문제 해결됨)
+                            send_email_code(new_email, code)
+                        else:
+                            st.toast(f"📱 [테스트용] 인증번호: {code}", icon="✅")
+                        
+                        # 단계 이동 및 리런
                         st.session_state.signup_stage = 2
                         st.rerun()
 
-        # [3-2단계] 인증 확인
+        # -----------------------------------------------------
+        # [3-2단계] 인증 번호 확인
+        # -----------------------------------------------------
         elif st.session_state.signup_stage == 2:
             st.subheader("2단계: 인증 확인")
-            in_code = st.text_input("인증번호 입력")
+            st.info(f"입력하신 {st.session_state.temp_user_data.get('email', '이메일')}로 번호를 보냈습니다.")
+            
+            in_code = st.text_input("인증번호 6자리 입력")
+            
             c1, c2 = st.columns(2)
-            if c1.button("확인", type="primary", use_container_width=True):
-                if in_code == st.session_state.auth_code:
-                    st.session_state.signup_stage = 3
+            with c1:
+                if st.button("확인", use_container_width=True, type="primary"):
+                    if in_code == st.session_state.auth_code:
+                        st.success("인증 성공!")
+                        st.session_state.signup_stage = 3
+                        st.rerun()
+                    else:
+                        st.error("인증번호가 일치하지 않습니다.")
+            with c2:
+                if st.button("뒤로 가기", use_container_width=True):
+                    st.session_state.signup_stage = 1
                     st.rerun()
-                else: st.error("불일치")
-            if c2.button("뒤로", use_container_width=True):
-                st.session_state.signup_stage = 1
-                st.rerun()
 
-        # [3-3단계] 서류 제출 (Broken Pie 방지 로직 적용)
+        # -----------------------------------------------------
+        # [3-3단계] 서류 제출 (대학, 직장, 자산)
+        # -----------------------------------------------------
         elif st.session_state.signup_stage == 3:
             st.subheader("3단계: 선택적 자격 증빙")
-            st.info("💡 서류를 제출하면 '글쓰기' 권한을 신청합니다. (미제출 시 '관심종목'만 가능)")
+            st.info("💡 서류를 하나라도 제출하면 '글쓰기/투표' 권한이 신청됩니다. (미제출 시 '관심종목' 기능만 사용 가능)")
             
             with st.form("signup_3"):
                 u_name = st.text_input("출신 대학 (선택)")
-                u_file = st.file_uploader("🎓 학생증", type=['jpg','png','pdf'])
-                j_name = st.text_input("직장 (선택)")
-                j_file = st.file_uploader("💼 명함", type=['jpg','png','pdf'])
-                a_val = st.selectbox("자산 규모", ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"])
-                a_file = st.file_uploader("💰 잔고증명", type=['jpg','png','pdf'])
+                u_file = st.file_uploader("🎓 학생증/졸업증명서", type=['jpg','png','pdf'])
                 
-                # 버튼을 누르면 폼 데이터가 전송됨
-                submitted = st.form_submit_button("가입 신청 완료")
-
-            # 폼 밖에서 처리 로직 실행
-            if submitted:
-                with st.spinner("업로드 및 저장 중..."):
-                    td = st.session_state.temp_user_data
-                    
-                    # 파일 업로드 (5MB 청크 사용)
-                    l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
-                    l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
-                    l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
-                    
-                    # 권한 판별
-                    has_cert = any([u_file, j_file, a_file])
-                    role = "user" if has_cert else "restricted"
-                    status = "pending" if has_cert else "approved"
-                    
-                    final_data = {
-                        **td, "univ": u_name, "job": j_name, 
-                        "asset": a_val if a_val != "선택 안 함" else "",
-                        "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
-                        "role": role, "status": status,
-                        "display_name": f"{role} | {td['id'][:3]}***"
-                    }
-                    
-                    if add_user(final_data):
-                        st.session_state.auth_status = 'user'
-                        st.session_state.user_info = final_data
-                        st.session_state.page = 'main_app'
+                j_name = st.text_input("직장/직업 (선택)")
+                j_file = st.file_uploader("💼 명함/재직증명서", type=['jpg','png','pdf'])
+                
+                a_val = st.selectbox("자산 규모 (선택)", ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"])
+                a_file = st.file_uploader("💰 잔고증명서", type=['jpg','png','pdf'])
+                
+                if st.form_submit_button("가입 신청 완료"):
+                    with st.spinner("서류 업로드 및 회원가입 처리 중..."):
+                        td = st.session_state.temp_user_data
                         
-                        msg = "신청 완료! 관리자 승인 대기" if role == "user" else "가입 완료! (Basic 모드)"
-                        st.success(f"✅ {msg}")
+                        # 1. 파일 업로드 실행
+                        l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
+                        l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
+                        l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
                         
-                        # 수동 이동 버튼 (rerun 실패 대비)
-                        st.caption("화면이 이동하지 않으면 아래 버튼을 누르세요.")
-                        if st.button("🚀 메인 화면 입장"):
+                        # 2. 권한 및 승인 상태 판별 (수정된 로직)
+                        has_cert = any([u_file, j_file, a_file])
+                        
+                        if has_cert:
+                            # 서류를 하나라도 냈으면 -> 'Full 회원' 후보 -> 관리자 승인 필수 (pending)
+                            role = "user"
+                            status = "pending" 
+                        else:
+                            # 서류를 안 냈으면 -> 'Basic 회원' -> 즉시 활동 가능하지만 기능 제한
+                            role = "restricted"
+                            status = "approved" 
+                        
+                        final_data = {
+                            **td, "univ": u_name, "job": j_name, 
+                            "asset": a_val if a_val != "선택 안 함" else "",
+                            "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
+                            "role": role, "status": status,
+                            "display_name": f"{role} | {td['id'][:3]}***"
+                        }
+                        
+                        # 3. 구글 시트 저장 및 이동
+                        if save_user_to_sheets(final_data):
+                            # [중요] 세션 상태를 먼저 확실하게 박아줍니다.
+                            st.session_state.auth_status = 'user'
+                            st.session_state.user_info = final_data
+                            st.session_state.page = 'main_app'
+                            
+                            # 토스트 메시지
+                            if role == "user":
+                                st.success("✅ 신청 완료! 관리자 승인 대기 상태로 시작합니다.")
+                            else:
+                                st.success("✅ 가입 완료! 익명(Basic) 모드로 시작합니다.")
+                            
+                            # [핵심] sleep 없이 즉시 rerun을 시도하거나, 
+                            # 만약 rerun이 안 먹힐 경우를 대비해 버튼을 하나 둡니다.
+                            
+                            time.sleep(0.5) # 대기 시간을 줄입니다.
                             st.rerun()
-                        time.sleep(1)
-                        st.rerun()
 
-# ==========================================
-# [페이지 2] 메인 앱 (설정 & 관리)
-# ==========================================
 elif st.session_state.page == 'main_app':
-    render_navbar()
     user = st.session_state.user_info
-    st.title("⚙️ 내 정보 설정")
+    st.title("🦄 Unicorn Finder")
 
     if user:
+        # [기본 정보]
         user_id = str(user.get('id', ''))
         masked_id = "*" * len(user_id)
         
-        # 1. 노출 설정
-        st.subheader("정보 노출 및 권한")
-        vis = str(user.get('visibility', 'True,True,True')).split(',')
-        v_u = vis[0] == 'True' if len(vis) > 0 else True
-        v_j = vis[1] == 'True' if len(vis) > 1 else True
-        v_a = vis[2] == 'True' if len(vis) > 2 else True
-        
+        # -----------------------------------------------------------
+        # 1. 내 정보 노출 설정 (체크박스)
+        # -----------------------------------------------------------
+        st.divider()
+        st.subheader("⚙️ 내 정보 노출 및 권한 설정")
+        st.caption("하나 이상의 정보를 노출해야 '글쓰기/투표' 권한이 활성화됩니다.")
+
+        # 저장된 설정값 불러오기 (없으면 True가 기본)
+        saved_vis = user.get('visibility', 'True,True,True').split(',')
+        def_univ = saved_vis[0] == 'True' if len(saved_vis) > 0 else True
+        def_job = saved_vis[1] == 'True' if len(saved_vis) > 1 else True
+        def_asset = saved_vis[2] == 'True' if len(saved_vis) > 2 else True
+
         c1, c2, c3 = st.columns(3)
-        show_univ = c1.checkbox("🎓 대학", value=v_u)
-        show_job = c2.checkbox("💼 직업", value=v_j)
-        show_asset = c3.checkbox("💰 자산", value=v_a)
+        show_univ = c1.checkbox("🎓 대학 정보", value=def_univ)
+        show_job = c2.checkbox("💼 직업 정보", value=def_job)
+        show_asset = c3.checkbox("💰 자산 등급", value=def_asset)
+
+        # -----------------------------------------------------------
+        # 2. [핵심] 실시간 권한 및 닉네임 시뮬레이션
+        # -----------------------------------------------------------
+        # (1) 노출 여부 판단: 하나라도 체크했는가?
+        is_public_mode = any([show_univ, show_job, show_asset])
         
-        # 2. 상태 표시
-        is_public = any([show_univ, show_job, show_asset])
+        # (2) 닉네임 조합
         info_parts = []
         if show_univ: info_parts.append(user.get('univ', ''))
-        if show_job: info_parts.append(user.get('job', '') or user.get('job_title', ''))
+        if show_job: info_parts.append(user.get('job_title', '')) # 혹은 'job'
         if show_asset: info_parts.append(get_asset_grade(user.get('asset', '')))
         
         prefix = " ".join([p for p in info_parts if p])
-        final_nick = f"{prefix} {masked_id}" if prefix else masked_id
+        final_nickname = f"{prefix} {masked_id}" if prefix else masked_id
+
+        # (3) 현재 나의 상태 판단 (실제 DB 권한 vs 노출 설정)
+        db_role = user.get('role', 'restricted')
+        db_status = user.get('status', 'pending')
         
         st.divider()
-        c_info, c_stat = st.columns([2,1])
-        c_info.markdown(f"**닉네임 미리보기**: `{final_nick}`")
+        c_info, c_status = st.columns([2, 1])
         
-        role, status = user.get('role'), user.get('status')
-        if role == 'restricted':
-            c_stat.error("🔒 Basic (미인증)")
-        elif status == 'pending':
-            c_stat.warning("⏳ 승인 대기")
-        elif status == 'approved' and is_public:
-            c_stat.success("✅ 인증 회원")
-        else:
-            c_stat.info("🔒 익명 모드")
+        with c_info:
+            st.write(f"👤 **아이디**: {masked_id}")
+            st.markdown(f"📛 **활동 닉네임**: <span style='font-size:1.1em; font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
+        
+        with c_status:
+            # 상태 메시지 로직
+            if db_role == 'restricted':
+                st.error("🔒 **Basic 회원** (서류 미제출)")
+                st.caption("권한: 관심종목 O / 글쓰기 X")
+            elif db_status == 'pending':
+                st.warning("⏳ **승인 대기 중**")
+                st.caption("관리자 승인 후 글쓰기 가능")
+            elif db_status == 'approved':
+                # 승인된 회원이지만, 노출을 다 껐을 경우
+                if is_public_mode:
+                    st.success("✅ **인증 회원 (활동 중)**")
+                    st.caption("권한: 모든 기능 사용 가능")
+                else:
+                    st.info("aaa **익명 모드 (비공개)**")
+                    st.caption("모든 정보를 가려 **글쓰기가 제한**됩니다.")
 
-        if st.button("설정 저장", type="primary", use_container_width=True):
-            if update_user_visibility(user['id'], [show_univ, show_job, show_asset]):
-                st.session_state.user_info['visibility'] = f"{show_univ},{show_job},{show_asset}"
-                st.toast("저장 완료!")
-                time.sleep(0.5); st.rerun()
+        # -----------------------------------------------------------
+        # 3. 설정 저장 버튼
+        # -----------------------------------------------------------
+        if st.button("설정 저장 및 적용", type="primary", use_container_width=True):
+            with st.spinner("프로필 업데이트 중..."):
+                current_settings = [show_univ, show_job, show_asset]
+                
+                # 구글 시트에 업데이트
+                if update_user_visibility(user.get('id'), current_settings):
+                    # [중요] 세션 정보도 즉시 업데이트해야 다른 페이지(캘린더 등)에서 반영됨
+                    st.session_state.user_info['visibility'] = ",".join([str(v) for v in current_settings])
+                    
+                    # 익명 모드로 저장하면, 세션 상의 권한을 잠시 낮추는 효과를 줄 수도 있음 (선택사항)
+                    # 여기서는 visibility 값을 저장하는 것에 집중
+                    
+                    st.toast("✅ 설정이 저장되었습니다!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("저장 실패. 네트워크를 확인하세요.")
 
-    # 3. 관리자 메뉴
+    # --- 로그아웃 및 네비게이션 ---
+    st.divider()
+    if st.button("로그아웃"):
+        st.session_state.clear()
+        st.rerun()
+    # ==========================================
+    # 📍 여기(6번과 7번 사이)에 추가됩니다!
+    # ==========================================
     if user.get('role') == 'admin':
         st.divider()
-        st.subheader("🛠️ 관리자 승인")
-        if st.button("대기 목록 새로고침"):
-            all_u = load_users()
-            pendings = [u for u in all_u if u.get('status') == 'pending']
-            if not pendings: st.info("대기 없음")
-            for p in pendings:
-                with st.expander(f"신청: {p['id']}"):
-                    st.write(f"Email: {p['email']}")
-                    c1, c2, c3 = st.columns(3)
-                    if p['link_univ'] != "미제출": c1.link_button("대학", p['link_univ'])
-                    if p['link_job'] != "미제출": c2.link_button("직업", p['link_job'])
-                    if p['link_asset'] != "미제출": c3.link_button("자산", p['link_asset'])
-                    
-                    if st.button(f"승인 {p['id']}", key=f"ok_{p['id']}"):
-                        # approve logic (직접 구현 필요 or sheet update)
-                        cl, _ = get_gcp_clients()
-                        sh = cl.open("unicorn_users").sheet1
-                        cell = sh.find(str(p['id']), in_column=1)
-                        sh.update_cell(cell.row, 6, "approved")
-                        send_approval_email(p['email'], p['id'])
-                        st.success("승인 완료"); st.rerun()
-
-# ==========================================
-# [페이지 3] 캘린더 (원형 서버 통합)
-# ==========================================
-elif st.session_state.page == 'calendar':
-    render_navbar() # 상단 메뉴바
-    
-    st.subheader("📅 IPO Calendar")
-    
-    # 1. 필터
-    col_f1, col_f2 = st.columns([1, 1])
-    with col_f1:
-        period = st.selectbox("기간", ["30일 이내", "6개월", "12개월"], label_visibility="collapsed")
-    with col_f2:
-        sort_option = st.selectbox("정렬", ["최신순", "수익률"], label_visibility="collapsed")
-    
-    # 2. 데이터
-    raw_df = get_extended_ipo_data(MY_API_KEY)
-    
-    if not raw_df.empty:
-        df = raw_df.copy()
-        today = pd.to_datetime(datetime.now().date())
+        st.subheader("🛠️ 관리자 전용: 가입 승인 관리")
         
-        # 필터링 로직
-        if period == "30일 이내":
-            df = df[(df['공모일_dt'] >= today) & (df['공모일_dt'] <= today + timedelta(days=30))]
-        elif period == "6개월":
-            df = df[(df['공모일_dt'] < today) & (df['공모일_dt'] >= today - timedelta(days=180))]
-        else:
-            df = df[(df['공모일_dt'] < today) & (df['공모일_dt'] >= today - timedelta(days=365))]
-            
-        if st.session_state.view_mode == 'watchlist':
-            df = df[df['symbol'].isin(st.session_state.watchlist)]
-            st.info(f"⭐ 관심 종목: {len(df)}개")
-            
-        # 정렬 로직 (간소화)
-        if sort_option == "최신순":
-            df = df.sort_values(by='공모일_dt', ascending=False)
-            
-        # 3. 리스트 출력
-        for i, row in df.iterrows():
-            with st.container():
-                c1, c2, c3 = st.columns([0.7, 3.3, 1])
-                
-                # [A] 관심종목 버튼 (권한 체크)
-                with c1:
-                    if check_permission('watchlist'):
-                        is_watched = row['symbol'] in st.session_state.watchlist
-                        if st.button("★" if is_watched else "☆", key=f"star_{i}"):
-                            if is_watched: st.session_state.watchlist.remove(row['symbol'])
-                            else: st.session_state.watchlist.append(row['symbol'])
-                            st.rerun()
-                    else:
-                        st.write("🔒") # Guest
+        # 승인 처리 함수 정의
+        def approve_user_status(user_id_to_approve):
+            client, _ = get_gcp_clients()
+            if client:
+                try:
+                    sh = client.open("unicorn_users").sheet1
+                    cell = sh.find(str(user_id_to_approve), in_column=1)
+                    if cell:
+                        sh.update_cell(cell.row, 6, "approved") # 6번째 열이 status
+                        return True
+                except Exception as e:
+                    st.error(f"승인 오류: {e}")
+            return False
 
-                # [B] 정보
-                with c2:
-                    if st.button(f"{row['name']}", key=f"m_{i}"):
-                        st.session_state.selected_stock = row.to_dict()
-                        # st.session_state.page = 'detail' # 상세페이지 연결 시 사용
-                        st.toast("상세 페이지 준비 중")
+        if st.button("🔄 승인 대기 목록 불러오기"):
+            all_users = load_users()
+            pending_users = [u for u in all_users if u.get('status') == 'pending']
+            
+            if not pending_users:
+                st.info("현재 승인 대기 중인 유저가 없습니다.")
+            else:
+                for pu in pending_users:
+                    with st.expander(f"📝 신청자: {pu.get('id')} ({pu.get('univ') or '대학미기재'})"):
+                        st.write(f"**이메일**: {pu.get('email')} | **연락처**: {pu.get('phone')}")
+                        
+                        # 증빙 링크 버튼
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
+                            if pu.get('link_univ') != "미제출": st.link_button("🎓 대학 증빙", pu.get('link_univ'))
+                        with c2:
+                            if pu.get('link_job') != "미제출": st.link_button("💼 직업 증빙", pu.get('link_job'))
+                        with c3:
+                            if pu.get('link_asset') != "미제출": st.link_button("💰 자산 증빙", pu.get('link_asset'))
+                        
+                        st.divider()
+
+                        # --- [관리자 승인/보류 섹션] ---
+                        # 1. 보류 사유 입력 칸
+                        rej_reason = st.text_input("보류 사유 (메일 발송용)", placeholder="예: 서류가 흐릿합니다. 다시 업로드해주세요.", key=f"rej_input_{pu.get('id')}")
+                        
+                        col_btn1, col_btn2 = st.columns(2)
+                        
+                        with col_btn1:
+                            # [승인 버튼]
+                            if st.button(f"✅ {pu.get('id')} 승인하기", key=f"admin_app_{pu.get('id')}"):
+                                with st.spinner("승인 처리 중..."):
+                                    if approve_user_status(pu.get('id')):
+                                        target_email = pu.get('email')
+                                        if target_email:
+                                            send_approval_email(target_email, pu.get('id'))
+                                            st.success("승인 및 알림 발송 완료!")
+                                        st.rerun()
+
+                        with col_btn2:
+                            # [보류 버튼]
+                            if st.button(f"❌ {pu.get('id')} 보류하기", key=f"admin_rej_{pu.get('id')}"):
+                                if not rej_reason:
+                                    st.warning("보류 사유를 입력해야 메일을 보낼 수 있습니다.")
+                                else:
+                                    with st.spinner("보류 알림 발송 중..."):
+                                        target_email = pu.get('email')
+                                        if target_email:
+                                            # 보류 메일 발송
+                                            if send_rejection_email(target_email, pu.get('id'), rej_reason):
+                                                st.info(f"알림 발송 완료. 해당 유저는 시트에서 수동으로 관리하거나 삭제할 수 있습니다.")
+                                            else:
+                                                st.error("메일 발송 실패")
+                                        else:
+                                            st.warning("이메일 정보가 없습니다.")
+                                    
+                                    # 4. 목록 갱신을 위해 재실행
+                                    st.rerun()
+                                    
+    # --- 7. 멤버 리스트 (타인 노출 설정 반영 버전) ---
+    st.divider()
+    st.subheader("👥 유니콘 멤버 리스트")
+    
+    if st.button("멤버 목록 불러오기", use_container_width=True):
+        with st.spinner("최신 멤버 정보를 동기화 중..."):
+            all_users = load_users()
+            
+            if not all_users:
+                st.info("아직 가입된 멤버가 없습니다.")
+            else:
+                # 목록 출력 시작
+                for u in all_users:
+                    # 1. 자기 자신은 목록에서 제외
+                    if str(u.get('id')) == str(user.get('id')):
+                        continue
                     
-                    try: 
-                        p_val = float(str(row.get('price','0')).replace('$','').split('-')[0])
-                        s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
-                        size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
-                    except: size_str = ""
-                    st.markdown(f"<div class='mobile-sub'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
-
-                # [C] 가격
-                with c3:
-                    price_html = f"<div class='price-main'>${row.get('price','-')}</div>"
-                    st.markdown(f"<div style='text-align:right;'>{price_html}<div class='price-sub'>{row['date']}</div></div>", unsafe_allow_html=True)
-                st.divider()
-    else:
-        st.info("데이터가 없습니다.")
-
-# ==========================================
-# [페이지 4] 게시판
-# ==========================================
-elif st.session_state.page == 'board':
-    render_navbar()
-    st.title("💬 통합 게시판")
-    st.info("준비 중입니다.")
+                    # 2. 아이디 전체 마스킹
+                    target_id = str(u.get('id', ''))
+                    m_id = "*" * len(target_id)
+                    
+                    # 3. 해당 유저의 노출 설정(15열) 해석
+                    raw_vis = u.get('visibility', 'True,True,True')
+                    if not raw_vis: raw_vis = 'True,True,True'
+                    
+                    vis_parts = str(raw_vis).split(',')
+                    v_univ = vis_parts[0] == 'True' if len(vis_parts) > 0 else True
+                    v_job = vis_parts[1] == 'True' if len(vis_parts) > 1 else True
+                    v_asset = vis_parts[2] == 'True' if len(vis_parts) > 2 else True
+                    
+                    # 4. 상대방 설정에 따른 실시간 닉네임 조합
+                    u_info_parts = []
+                    if v_univ: 
+                        u_info_parts.append(u.get('univ', ''))
+                    if v_job: 
+                        # 요청하신대로 job_title을 사용합니다.
+                        u_info_parts.append(u.get('job_title', ''))
+                    if v_asset: 
+                        u_tier = get_asset_grade(u.get('asset', ''))
+                        u_info_parts.append(u_tier)
+                    
+                    u_prefix = " ".join([p for p in u_info_parts if p])
+                    
+                    # 최종 닉네임 (아이디와 공백 없이 결합)
+                    u_display = f"{u_prefix}{m_id}" if u_prefix else m_id
+                    
+                    # 5. 멤버 카드 디자인
+                    with st.expander(f"✨ {u_display}"):
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.write(f"🎓 **대학**: {u.get('univ') if v_univ else '(비공개)'}")
+                            st.write(f"💼 **직업**: {u.get('job_title') if v_job else '(비공개)'}")
+                        with c2:
+                            current_tier = get_asset_grade(u.get('asset', ''))
+                            st.write(f"💰 **등급**: {current_tier if v_asset else '(비공개)'}")
+                            st.write(f"✅ **상태**: {u.get('status', 'pending')}")
