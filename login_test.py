@@ -55,6 +55,19 @@ session_defaults = {
 for k, v in session_defaults.items():
     if k not in st.session_state: st.session_state[k] = v
 
+# ---------------------------------------------------------
+# [필수 함수] 주가 조회 함수 (NameError 방지용 최상단 배치)
+# ---------------------------------------------------------
+@st.cache_data(ttl=900)
+def get_current_stock_price(symbol, api_key):
+    try:
+        import requests
+        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
+        res = requests.get(url, timeout=2).json()
+        return res.get('c', 0)
+    except:
+        return 0
+
 # ==========================================
 # 3. 백엔드 함수 (Google Drive/Sheets/Auth)
 # ==========================================
