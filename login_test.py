@@ -267,25 +267,62 @@ def check_permission(action):
     return False
 
 # ==========================================
-# [화면] UI 제어 로직
+# [화면] UI 제어 로직 (로그인 / 회원가입 / 구경하기 분할)
 # ==========================================
-if 'page' not in st.session_state: st.session_state.page = 'login'
-if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
-if 'signup_stage' not in st.session_state: st.session_state.signup_stage = 1
-if 'temp_user_data' not in st.session_state: st.session_state.temp_user_data = {}
-
 if st.session_state.page == 'login':
-    st.markdown("<h2 style='text-align: center;'>🦄 Unicorn Finder</h2>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
+    st.write("<br>", unsafe_allow_html=True)
 
+    # [Step 1] 선택 화면
     if st.session_state.login_step == 'choice':
         col1, col2 = st.columns(2)
-        if col1.button("🔑 로그인", use_container_width=True, type="primary"):
-            st.session_state.login_step = 'login_input'
+        with col1:
+            if st.button("🔑 로그인", use_container_width=True, type="primary"):
+                st.session_state.login_step = 'login_input'
+                st.rerun()
+        with col2:
+            if st.button("📝 신규 회원가입", use_container_width=True):
+                st.session_state.login_step = 'signup_input'
+                st.session_state.signup_stage = 1
+                st.rerun()
+        
+        st.write("<br>", unsafe_allow_html=True)
+        st.divider()
+        # [핵심] 구경하기 버튼: 계정 없이 메인으로 진입
+        if st.button("👀 로그인 없이 구경하기", use_container_width=True):
+            st.session_state.auth_status = 'guest'
+            st.session_state.user_info = {'id': 'Guest', 'role': 'guest'}
+            st.session_state.page = 'main_app'
             st.rerun()
-        if col2.button("📝 신규 가입", use_container_width=True):
-            st.session_state.login_step = 'signup_input'
-            st.session_state.signup_stage = 1
-            st.rerun()
+
+    # [Step 2] 로그인 입력창
+    elif st.session_state.login_step == 'login_input':
+        st.subheader("로그인")
+        l_id = st.text_input("아이디", key="login_id")
+        l_pw = st.text_input("비밀번호", type="password", key="login_pw")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("접속하기", use_container_width=True, type="primary"):
+                with st.spinner("회원 정보 확인 중..."):
+                    users = load_users()
+                    user = next((u for u in users if str(u.get("id")) == l_id), None)
+                    if user and str(user['pw']) == l_pw:
+                        st.session_state.auth_status = 'user'
+                        st.session_state.user_info = user
+                        st.session_state.page = 'main_app'
+                        st.rerun()
+                    else:
+                        st.error("아이디 또는 비밀번호가 틀립니다.")
+        with c2:
+            if st.button("뒤로 가기", use_container_width=True):
+                st.session_state.login_step = 'choice'
+                st.rerun()
+
+    # [Step 3] 회원가입 로직 (기존 스테이지 유지)
+    elif st.session_state.login_step == 'signup_input':
+        # ... (기존 회원가입 signup_stage 1, 2, 3 코드를 여기에 그대로 두시면 됩니다)
+        pass # 기존 코드 유지
 
     elif st.session_state.login_step == 'login_input':
         st.subheader("로그인")
