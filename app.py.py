@@ -12,20 +12,21 @@ import math
 import html
 import re
 import urllib.parse
-import xml.etree.ElementTree as ET
 import smtplib
 import gspread
+import io
 from oauth2client.service_account import ServiceAccountCredentials
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 
-# --- [AI 및 검색 라이브러리 통합] ---
+# --- [구글 서비스 라이브러리] ---
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
-import io
-from openai import OpenAI             # ✅ Groq(뉴스 요약)용
-import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - 지우면 안 됨!
-from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
+
+# --- [AI 및 검색 라이브러리] ---
+from openai import OpenAI
+import google.generativeai as genai
+from tavily import TavilyClient
 from duckduckgo_search import DDGS
 
 
