@@ -399,7 +399,7 @@ if st.session_state.page == 'login':
                     if user and str(user['pw']) == l_pw:
                         st.session_state.auth_status = 'user'
                         st.session_state.user_info = user
-                        st.session_state.page = 'main_app'
+                        st.session_state.page = 'calendar'
                         st.rerun()
                     else:
                         st.error("아이디 또는 비밀번호가 틀립니다.")
