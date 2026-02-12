@@ -15,6 +15,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import smtplib
 import gspread
+from googleapiclient.http import MediaIoBaseUpload # 사진 업로드용 필수
 from oauth2client.service_account import ServiceAccountCredentials
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
@@ -500,6 +501,14 @@ if 'watchlist' not in st.session_state:
 if 'view_mode' not in st.session_state:
     st.session_state.view_mode = 'all'
 
+# --- [초기화 구역] ---
+# 변수들이 미리 선언되어야 'len()' 함수 등에서 에러가 나지 않습니다.
+if 'page' not in st.session_state: st.session_state.page = 'login'
+if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
+if 'watchlist' not in st.session_state: st.session_state.watchlist = []
+if 'view_mode' not in st.session_state: st.session_state.view_mode = 'all'
+if 'auth_status' not in st.session_state: st.session_state.auth_status = None
+    
 # --- [UI 시작] ---
 if st.session_state.page == 'login':
     st.markdown("<h1 style='text-align: center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
@@ -917,6 +926,9 @@ elif st.session_state.page == 'main_app':
 # ==========================================
 # 3. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
+    # [1] 먼저 상단 메뉴바를 화면에 그립니다.
+    render_navbar()
+    
     # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
     st.markdown("""
         <style>
@@ -1076,7 +1088,8 @@ elif st.session_state.page == 'calendar':
     is_logged_in = st.session_state.auth_status == 'user'
     login_text = "로그아웃" if is_logged_in else "로그인"
     main_text = "메인"  # '홈'에서 '메인'으로 변경
-    watch_text = f"관심 ({len(st.session_state.watchlist)})"
+    watch_count = len(st.session_state.get('watchlist', [])) # 👈 안전하게 가져오기
+    watch_text = f"관심 ({watch_count})"
     board_text = "게시판"
     
     # 순서 조정: 로그인 -> 메인 -> 관심 -> 게시판
