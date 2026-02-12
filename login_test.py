@@ -55,6 +55,65 @@ session_defaults = {
 for k, v in session_defaults.items():
     if k not in st.session_state: st.session_state[k] = v
 
+# ==========================================
+# [필수] 백엔드 엔진 함수 (코드 상단 배치)
+# ==========================================
+
+def send_email_code(to_email, code):
+    """이메일 인증번호 실제 발송 함수"""
+    try:
+        email_user = st.secrets["smtp"]["email_address"]
+        email_password = st.secrets["smtp"]["app_password"]
+        
+        msg = MIMEText(f"안녕하세요. Unicorn Finder 입니다.\n인증번호는 [{code}] 입니다.")
+        msg['Subject'] = '[Unicorn Finder] 회원가입 인증번호'
+        msg['From'] = email_user
+        msg['To'] = to_email
+
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(email_user, email_password)
+            server.sendmail(email_user, to_email, msg.as_string())
+        st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
+        return True, "성공"
+    except Exception as e:
+        st.error(f"이메일 발송 실패: {e}")
+        return False, str(e)
+
+def load_users():
+    """구글 시트에서 전체 유저 명단 로드"""
+    client, _ = get_gcp_clients()
+    if client:
+        try:
+            # 시트 이름 'unicorn_users' 확인 필수
+            return client.open("unicorn_users").sheet1.get_all_records()
+        except Exception as e:
+            st.error(f"유저 데이터 로드 실패: {e}")
+            return []
+    return []
+
+def save_user_to_sheets(user_data):
+    """회원가입 정보를 구글 시트에 최종 기록"""
+    client, _ = get_gcp_clients()
+    if client:
+        try:
+            sh = client.open("unicorn_users").sheet1
+            # 15개 열 구조 (ID, PW, Email, Phone, Role, Status, Univ, Job, Asset, Display, Date, Link_U, Link_J, Link_A, Visibility)
+            row = [
+                user_data.get('id'), user_data.get('pw'), user_data.get('email'), user_data.get('phone'),
+                user_data.get('role'), user_data.get('status'),
+                user_data.get('univ',''), user_data.get('job_title',''), user_data.get('asset',''),
+                user_data.get('display_name',''), datetime.now().strftime("%Y-%m-%d"),
+                user_data.get('link_univ',''), user_data.get('link_job',''), user_data.get('link_asset',''),
+                "True,True,True" # 초기 노출 설정
+            ]
+            sh.append_row(row)
+            return True
+        except Exception as e:
+            st.error(f"시트 저장 중 오류: {e}")
+            return False
+    return False
+
 # ---------------------------------------------------------
 # [필수 함수] 주가 조회 함수 (NameError 방지용 최상단 배치)
 # ---------------------------------------------------------
