@@ -35,6 +35,275 @@ DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 # ==========================================
 # [기능] 구글 연결 및 유저 관리
 # ==========================================
+# --- 데이터 로직 (캐싱 최적화 적용) ---
+MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
+
+@st.cache_data(ttl=43200) # 12시간마다 갱신
+def get_daily_quote():
+    # 1. 예비용 명언 리스트 (한글 번역 추가됨)
+    backup_quotes = [
+        {"eng": "Opportunities don't happen. You create them.", "kor": "기회는 찾아오는 것이 아닙니다. 당신이 만드는 것입니다.", "author": "Chris Grosser"},
+        {"eng": "The best way to predict the future is to create it.", "kor": "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것입니다.", "author": "Peter Drucker"},
+        {"eng": "Do not be embarrassed by your failures, learn from them and start again.", "kor": "실패를 부끄러워하지 마세요. 배우고 다시 시작하세요.", "author": "Richard Branson"},
+        {"eng": "Innovation distinguishes between a leader and a follower.", "kor": "혁신이 리더와 추종자를 구분합니다.", "author": "Steve Jobs"},
+        {"eng": "It’s not about ideas. It’s about making ideas happen.", "kor": "아이디어 자체가 중요한 게 아닙니다. 실행하는 것이 중요합니다.", "author": "Scott Belsky"},
+        {"eng": "The only way to do great work is to love what you do.", "kor": "위대한 일을 하는 유일한 방법은 그 일을 사랑하는 것입니다.", "author": "Steve Jobs"},
+        {"eng": "Risk comes from not knowing what you're doing.", "kor": "위험은 자신이 무엇을 하는지 모르는 데서 옵니다.", "author": "Warren Buffett"},
+        {"eng": "Success is walking from failure to failure with no loss of enthusiasm.", "kor": "성공이란 열정을 잃지 않고 실패를 거듭해 나가는 능력입니다.", "author": "Winston Churchill"}
+    ]
+
+    try:
+        # 1. API로 영어 명언 가져오기
+        res = requests.get("https://api.quotable.io/random?tags=business", timeout=2).json()
+        eng_text = res['content']
+        author = res['author']
+        
+        # 2. 한글 번역 시도 (기존 뉴스 번역 API 활용)
+        kor_text = ""
+        try:
+            trans_url = "https://api.mymemory.translated.net/get"
+            trans_res = requests.get(trans_url, params={'q': eng_text, 'langpair': 'en|ko'}, timeout=2).json()
+            if trans_res['responseStatus'] == 200:
+                kor_text = trans_res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
+        except:
+            pass # 번역 실패 시 빈 칸
+
+        # 번역 실패 시 예비 멘트 혹은 영어만 리턴 방지
+        if not kor_text: 
+            kor_text = "Global Business Quote"
+
+        return {"eng": eng_text, "kor": kor_text, "author": author}
+
+    except:
+        # API 실패 시, 예비 리스트에서 랜덤 선택
+        return random.choice(backup_quotes)
+@st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
+def get_financial_metrics(symbol, api_key):
+    try:
+        url = f"https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={api_key}"
+        res = requests.get(url, timeout=5).json()
+        metrics = res.get('metric', {})
+        return {
+            "growth": metrics.get('salesGrowthYoy', None),
+            "op_margin": metrics.get('operatingMarginTTM', None),
+            "net_margin": metrics.get('netProfitMarginTTM', None),
+            "debt_equity": metrics.get('totalDebt/totalEquityQuarterly', None)
+        } if metrics else None
+    except: return None
+
+@st.cache_data(ttl=86400) # 24시간 (기업 프로필도 거의 안 바뀜)
+def get_company_profile(symbol, api_key):
+    try:
+        url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={api_key}"
+        res = requests.get(url, timeout=5).json()
+        return res if res and 'name' in res else None
+    except: return None
+
+@st.cache_data(ttl=14400)
+def get_extended_ipo_data(api_key):
+    now = datetime.now()
+    
+    # [핵심 수정] 구간을 나눌 때 서로 겹치게(Overlap) 설정합니다.
+    # 180일과 181일로 딱 나누지 않고, 200일/170일 식으로 겹치게 하여 경계 누락을 방지합니다.
+    ranges = [
+        (now - timedelta(days=200), now + timedelta(days=120)),  # 구간 1: 현재~과거 200일 (약 6.5개월)
+        (now - timedelta(days=380), now - timedelta(days=170)), # 구간 2: 과거 170일~380일
+        (now - timedelta(days=560), now - timedelta(days=350))  # 구간 3: 과거 350일~560일
+    ]
+    
+    all_data = []
+    for start_dt, end_dt in ranges:
+        start_str = start_dt.strftime('%Y-%m-%d')
+        end_str = end_dt.strftime('%Y-%m-%d')
+        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
+        
+        try:
+            # 호출 사이 간격을 아주 약간 주어 Rate Limit 안정성 확보
+            time.sleep(0.3) 
+            res = requests.get(url, timeout=7).json()
+            ipo_list = res.get('ipoCalendar', [])
+            if ipo_list:
+                all_data.extend(ipo_list)
+        except:
+            continue
+    
+    if not all_data: 
+        return pd.DataFrame()
+    
+    # 데이터프레임 생성
+    df = pd.DataFrame(all_data)
+    
+    # [중요] 구간을 겹치게 가져왔으므로 여기서 중복을 확실히 제거합니다.
+    df = df.drop_duplicates(subset=['symbol', 'date'])
+    
+    # 날짜 변환 및 보정
+    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
+    df = df.dropna(subset=['공모일_dt'])
+    
+    return df
+
+# 주가(Price)는 15분마다 업데이트되도록 캐싱 설정 (900초 = 15분)
+@st.cache_data(ttl=900)
+def get_current_stock_price(symbol, api_key):
+    try:
+        # Finnhub API를 통해 실시간 시세를 가져옴
+        # 15분 이내에 같은 symbol로 호출하면 API를 쏘지 않고 저장된 값을 반환합니다.
+        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
+        res = requests.get(url, timeout=2).json()
+        
+        # 'c'는 Current Price(현재가)를 의미합니다.
+        current_p = res.get('c', 0)
+        
+        # 데이터가 유효한지(0이 아닌지) 확인 후 반환
+        return current_p if current_p else 0
+    except Exception as e:
+        # 에러 발생 시 로그를 남기지 않고 0을 반환하여 앱 중단 방지
+        return 0
+
+# [뉴스 감성 분석 함수 - 내부 연산이므로 별도 캐싱 불필요]
+def analyze_sentiment(text):
+    text = text.lower()
+    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
+    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
+    score = 0
+    for w in pos_words:
+        if w in text: score += 1
+    for w in neg_words:
+        if w in text: score -= 1
+    
+    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
+    elif score < 0: return "부정", "#fce8e6", "#d93025"
+    else: return "일반", "#f1f3f4", "#5f6368"
+
+@st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
+@st.cache_data(ttl=3600)
+def get_real_news_rss(company_name, ticker=""):
+    import requests
+import xml.etree.ElementTree as ET
+import urllib.parse
+import re
+
+# [1] 뉴스 감성 분석 함수 (내부 연산용)
+def analyze_sentiment(text):
+    text = text.lower()
+    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
+    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
+    score = 0
+    for w in pos_words:
+        if w in text: score += 1
+    for w in neg_words:
+        if w in text: score -= 1
+    
+    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
+    elif score < 0: return "부정", "#fce8e6", "#d93025"
+    else: return "일반", "#f1f3f4", "#5f6368"
+
+
+# [핵심] 함수 이름 변경 (캐시 초기화 효과)
+@st.cache_data(show_spinner=False, ttl=86400)
+def get_ai_summary_final(query):
+    # [수정] 대문자든 소문자든 있는 쪽을 무조건 가져옵니다.
+    tavily_key = st.secrets.get("TAVILY_API_KEY") or st.secrets.get("tavily_api_key")
+    groq_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key")
+
+    # 두 키 중 하나라도 없으면 그때만 에러를 띄웁니다.
+    if not tavily_key or not groq_key:
+        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets 창에 TAVILY_API_KEY와 GROQ_API_KEY가 있는지 확인하세요.</p>"
+
+    try:
+        # 1. Tavily 검색
+        tavily = TavilyClient(api_key=tavily_key)
+        search_result = tavily.search(query=query, search_depth="basic", max_results=7)
+        if not search_result.get('results'): return None 
+        context = "\n".join([r['content'] for r in search_result['results']])
+
+        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
+        client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
+        
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile", 
+            messages=[
+                {
+                    "role": "system", 
+                    "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
+[필수 작성 원칙]
+1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
+2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
+   - 1문단: 비즈니스 모델 및 경쟁 우위
+   - 2문단: 재무 현황 및 공모 자금 활용
+   - 3문단: 향후 전망 및 투자 의견
+3. 문체: '~습니다' 체를 사용하고, 문장 시작에 불필요한 접속사나 사명을 반복하지 마세요.
+4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 오직 줄글로만 작성하세요."""
+                },
+                {
+                    "role": "user", 
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 데이터를 바탕으로 전문적인 3문단 리포트를 작성하세요."
+                }
+            ],
+            temperature=0.1
+        )
+        
+        raw_result = response.choices[0].message.content
+        
+        # --- [요청하신 정제 로직 + 문단 강제 분할] ---
+        
+        # 1. 텍스트 정제 (요청하신 코드 그대로 적용)
+        text = html.unescape(raw_result)
+        replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
+        for k, v in replacements.items(): text = text.replace(k, v)
+        
+        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호, 줄바꿈(\s)만 허용)
+        # 주의: \s가 없으면 줄바꿈도 다 사라지므로 \s는 꼭 있어야 합니다.
+        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
+        
+        # 2. 문단 강제 분리 로직 (Brute Force Split)
+        # (1) 우선 줄바꿈(엔터) 기준으로 잘라봅니다.
+        paragraphs = [p.strip() for p in re.split(r'\n+', text.strip()) if len(p) > 30]
+
+        # (2) [비상장치] 만약 AI가 줄바꿈을 안 줘서 덩어리가 1~2개뿐이라면?
+        # -> 마침표(.)를 기준으로 문장을 다 뜯어낸 뒤 강제로 3등분 합니다.
+        if len(paragraphs) < 3:
+            # 문장 단위로 분해 (마침표 뒤 공백 기준)
+            sentences = re.split(r'(?<=\.)\s+', text.strip())
+            total_sents = len(sentences)
+            
+            if total_sents >= 3:
+                # 3등분 계산 (올림 나눗셈)
+                chunk_size = (total_sents // 3) + 1
+                
+                p1 = " ".join(sentences[:chunk_size])
+                p2 = " ".join(sentences[chunk_size : chunk_size*2])
+                p3 = " ".join(sentences[chunk_size*2 :])
+                
+                # 다시 리스트로 합침 (빈 내용 제외)
+                paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
+            else:
+                # 문장이 너무 적으면 그냥 통으로 1개만 반환
+                paragraphs = [text]
+
+        # 3. HTML 태그 포장 (화면 렌더링용)
+        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
+        html_output = ""
+        for p in paragraphs:
+            html_output += f"""
+            <p style='
+                display: block;          /* 블록 요소 지정 */
+                text-indent: 14px;       /* 첫 줄 들여쓰기 */
+                margin-bottom: 20px;     /* 문단 아래 공백 */
+                line-height: 1.8;        /* 줄 간격 */
+                text-align: justify;     /* 양쪽 정렬 */
+                margin-top: 0;
+            '>
+                {p}
+            </p>
+            """
+            
+        return html_output
+
+    except Exception as e:
+        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
+
+
 @st.cache_resource
 def get_gcp_clients():
     try:
@@ -2241,274 +2510,6 @@ if st.session_state.get('page') == 'board':
             st.warning("🔒 로그인 후 글을 남길 수 있습니다.")
 
 
-# --- 데이터 로직 (캐싱 최적화 적용) ---
-MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
-
-@st.cache_data(ttl=43200) # 12시간마다 갱신
-def get_daily_quote():
-    # 1. 예비용 명언 리스트 (한글 번역 추가됨)
-    backup_quotes = [
-        {"eng": "Opportunities don't happen. You create them.", "kor": "기회는 찾아오는 것이 아닙니다. 당신이 만드는 것입니다.", "author": "Chris Grosser"},
-        {"eng": "The best way to predict the future is to create it.", "kor": "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것입니다.", "author": "Peter Drucker"},
-        {"eng": "Do not be embarrassed by your failures, learn from them and start again.", "kor": "실패를 부끄러워하지 마세요. 배우고 다시 시작하세요.", "author": "Richard Branson"},
-        {"eng": "Innovation distinguishes between a leader and a follower.", "kor": "혁신이 리더와 추종자를 구분합니다.", "author": "Steve Jobs"},
-        {"eng": "It’s not about ideas. It’s about making ideas happen.", "kor": "아이디어 자체가 중요한 게 아닙니다. 실행하는 것이 중요합니다.", "author": "Scott Belsky"},
-        {"eng": "The only way to do great work is to love what you do.", "kor": "위대한 일을 하는 유일한 방법은 그 일을 사랑하는 것입니다.", "author": "Steve Jobs"},
-        {"eng": "Risk comes from not knowing what you're doing.", "kor": "위험은 자신이 무엇을 하는지 모르는 데서 옵니다.", "author": "Warren Buffett"},
-        {"eng": "Success is walking from failure to failure with no loss of enthusiasm.", "kor": "성공이란 열정을 잃지 않고 실패를 거듭해 나가는 능력입니다.", "author": "Winston Churchill"}
-    ]
-
-    try:
-        # 1. API로 영어 명언 가져오기
-        res = requests.get("https://api.quotable.io/random?tags=business", timeout=2).json()
-        eng_text = res['content']
-        author = res['author']
-        
-        # 2. 한글 번역 시도 (기존 뉴스 번역 API 활용)
-        kor_text = ""
-        try:
-            trans_url = "https://api.mymemory.translated.net/get"
-            trans_res = requests.get(trans_url, params={'q': eng_text, 'langpair': 'en|ko'}, timeout=2).json()
-            if trans_res['responseStatus'] == 200:
-                kor_text = trans_res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
-        except:
-            pass # 번역 실패 시 빈 칸
-
-        # 번역 실패 시 예비 멘트 혹은 영어만 리턴 방지
-        if not kor_text: 
-            kor_text = "Global Business Quote"
-
-        return {"eng": eng_text, "kor": kor_text, "author": author}
-
-    except:
-        # API 실패 시, 예비 리스트에서 랜덤 선택
-        return random.choice(backup_quotes)
-@st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
-def get_financial_metrics(symbol, api_key):
-    try:
-        url = f"https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={api_key}"
-        res = requests.get(url, timeout=5).json()
-        metrics = res.get('metric', {})
-        return {
-            "growth": metrics.get('salesGrowthYoy', None),
-            "op_margin": metrics.get('operatingMarginTTM', None),
-            "net_margin": metrics.get('netProfitMarginTTM', None),
-            "debt_equity": metrics.get('totalDebt/totalEquityQuarterly', None)
-        } if metrics else None
-    except: return None
-
-@st.cache_data(ttl=86400) # 24시간 (기업 프로필도 거의 안 바뀜)
-def get_company_profile(symbol, api_key):
-    try:
-        url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={api_key}"
-        res = requests.get(url, timeout=5).json()
-        return res if res and 'name' in res else None
-    except: return None
-
-@st.cache_data(ttl=14400)
-def get_extended_ipo_data(api_key):
-    now = datetime.now()
-    
-    # [핵심 수정] 구간을 나눌 때 서로 겹치게(Overlap) 설정합니다.
-    # 180일과 181일로 딱 나누지 않고, 200일/170일 식으로 겹치게 하여 경계 누락을 방지합니다.
-    ranges = [
-        (now - timedelta(days=200), now + timedelta(days=120)),  # 구간 1: 현재~과거 200일 (약 6.5개월)
-        (now - timedelta(days=380), now - timedelta(days=170)), # 구간 2: 과거 170일~380일
-        (now - timedelta(days=560), now - timedelta(days=350))  # 구간 3: 과거 350일~560일
-    ]
-    
-    all_data = []
-    for start_dt, end_dt in ranges:
-        start_str = start_dt.strftime('%Y-%m-%d')
-        end_str = end_dt.strftime('%Y-%m-%d')
-        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
-        
-        try:
-            # 호출 사이 간격을 아주 약간 주어 Rate Limit 안정성 확보
-            time.sleep(0.3) 
-            res = requests.get(url, timeout=7).json()
-            ipo_list = res.get('ipoCalendar', [])
-            if ipo_list:
-                all_data.extend(ipo_list)
-        except:
-            continue
-    
-    if not all_data: 
-        return pd.DataFrame()
-    
-    # 데이터프레임 생성
-    df = pd.DataFrame(all_data)
-    
-    # [중요] 구간을 겹치게 가져왔으므로 여기서 중복을 확실히 제거합니다.
-    df = df.drop_duplicates(subset=['symbol', 'date'])
-    
-    # 날짜 변환 및 보정
-    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
-    df = df.dropna(subset=['공모일_dt'])
-    
-    return df
-
-# 주가(Price)는 15분마다 업데이트되도록 캐싱 설정 (900초 = 15분)
-@st.cache_data(ttl=900)
-def get_current_stock_price(symbol, api_key):
-    try:
-        # Finnhub API를 통해 실시간 시세를 가져옴
-        # 15분 이내에 같은 symbol로 호출하면 API를 쏘지 않고 저장된 값을 반환합니다.
-        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
-        res = requests.get(url, timeout=2).json()
-        
-        # 'c'는 Current Price(현재가)를 의미합니다.
-        current_p = res.get('c', 0)
-        
-        # 데이터가 유효한지(0이 아닌지) 확인 후 반환
-        return current_p if current_p else 0
-    except Exception as e:
-        # 에러 발생 시 로그를 남기지 않고 0을 반환하여 앱 중단 방지
-        return 0
-
-# [뉴스 감성 분석 함수 - 내부 연산이므로 별도 캐싱 불필요]
-def analyze_sentiment(text):
-    text = text.lower()
-    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
-    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
-    score = 0
-    for w in pos_words:
-        if w in text: score += 1
-    for w in neg_words:
-        if w in text: score -= 1
-    
-    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
-    elif score < 0: return "부정", "#fce8e6", "#d93025"
-    else: return "일반", "#f1f3f4", "#5f6368"
-
-@st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
-@st.cache_data(ttl=3600)
-def get_real_news_rss(company_name, ticker=""):
-    import requests
-import xml.etree.ElementTree as ET
-import urllib.parse
-import re
-
-# [1] 뉴스 감성 분석 함수 (내부 연산용)
-def analyze_sentiment(text):
-    text = text.lower()
-    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
-    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
-    score = 0
-    for w in pos_words:
-        if w in text: score += 1
-    for w in neg_words:
-        if w in text: score -= 1
-    
-    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
-    elif score < 0: return "부정", "#fce8e6", "#d93025"
-    else: return "일반", "#f1f3f4", "#5f6368"
-
-
-# [핵심] 함수 이름 변경 (캐시 초기화 효과)
-@st.cache_data(show_spinner=False, ttl=86400)
-def get_ai_summary_final(query):
-    # [수정] 대문자든 소문자든 있는 쪽을 무조건 가져옵니다.
-    tavily_key = st.secrets.get("TAVILY_API_KEY") or st.secrets.get("tavily_api_key")
-    groq_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key")
-
-    # 두 키 중 하나라도 없으면 그때만 에러를 띄웁니다.
-    if not tavily_key or not groq_key:
-        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets 창에 TAVILY_API_KEY와 GROQ_API_KEY가 있는지 확인하세요.</p>"
-
-    try:
-        # 1. Tavily 검색
-        tavily = TavilyClient(api_key=tavily_key)
-        search_result = tavily.search(query=query, search_depth="basic", max_results=7)
-        if not search_result.get('results'): return None 
-        context = "\n".join([r['content'] for r in search_result['results']])
-
-        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
-        client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
-        
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", 
-            messages=[
-                {
-                    "role": "system", 
-                    "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
-[필수 작성 원칙]
-1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
-2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
-   - 1문단: 비즈니스 모델 및 경쟁 우위
-   - 2문단: 재무 현황 및 공모 자금 활용
-   - 3문단: 향후 전망 및 투자 의견
-3. 문체: '~습니다' 체를 사용하고, 문장 시작에 불필요한 접속사나 사명을 반복하지 마세요.
-4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 오직 줄글로만 작성하세요."""
-                },
-                {
-                    "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 데이터를 바탕으로 전문적인 3문단 리포트를 작성하세요."
-                }
-            ],
-            temperature=0.1
-        )
-        
-        raw_result = response.choices[0].message.content
-        
-        # --- [요청하신 정제 로직 + 문단 강제 분할] ---
-        
-        # 1. 텍스트 정제 (요청하신 코드 그대로 적용)
-        text = html.unescape(raw_result)
-        replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
-        for k, v in replacements.items(): text = text.replace(k, v)
-        
-        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호, 줄바꿈(\s)만 허용)
-        # 주의: \s가 없으면 줄바꿈도 다 사라지므로 \s는 꼭 있어야 합니다.
-        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
-        
-        # 2. 문단 강제 분리 로직 (Brute Force Split)
-        # (1) 우선 줄바꿈(엔터) 기준으로 잘라봅니다.
-        paragraphs = [p.strip() for p in re.split(r'\n+', text.strip()) if len(p) > 30]
-
-        # (2) [비상장치] 만약 AI가 줄바꿈을 안 줘서 덩어리가 1~2개뿐이라면?
-        # -> 마침표(.)를 기준으로 문장을 다 뜯어낸 뒤 강제로 3등분 합니다.
-        if len(paragraphs) < 3:
-            # 문장 단위로 분해 (마침표 뒤 공백 기준)
-            sentences = re.split(r'(?<=\.)\s+', text.strip())
-            total_sents = len(sentences)
-            
-            if total_sents >= 3:
-                # 3등분 계산 (올림 나눗셈)
-                chunk_size = (total_sents // 3) + 1
-                
-                p1 = " ".join(sentences[:chunk_size])
-                p2 = " ".join(sentences[chunk_size : chunk_size*2])
-                p3 = " ".join(sentences[chunk_size*2 :])
-                
-                # 다시 리스트로 합침 (빈 내용 제외)
-                paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
-            else:
-                # 문장이 너무 적으면 그냥 통으로 1개만 반환
-                paragraphs = [text]
-
-        # 3. HTML 태그 포장 (화면 렌더링용)
-        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
-        html_output = ""
-        for p in paragraphs:
-            html_output += f"""
-            <p style='
-                display: block;          /* 블록 요소 지정 */
-                text-indent: 14px;       /* 첫 줄 들여쓰기 */
-                margin-bottom: 20px;     /* 문단 아래 공백 */
-                line-height: 1.8;        /* 줄 간격 */
-                text-align: justify;     /* 양쪽 정렬 */
-                margin-top: 0;
-            '>
-                {p}
-            </p>
-            """
-            
-        return html_output
-
-    except Exception as e:
-        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
-        
 
         # -------------------------------------------------------------------------
         # [5] 탭 메뉴 구성
