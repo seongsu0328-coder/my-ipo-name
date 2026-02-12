@@ -313,6 +313,82 @@ def check_permission(action):
     return False
 
 # ==========================================
+# [추가됨] 상단 네비게이션 메뉴 (블랙 스타일)
+# ==========================================
+def render_navbar():
+    # 1. CSS 스타일 정의 (블랙 & 화이트)
+    st.markdown("""
+        <style>
+        div[data-testid="stPills"] div[role="radiogroup"] button {
+            border: none !important;
+            outline: none !important;
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border-radius: 20px !important;
+            padding: 6px 15px !important;
+            margin-right: 5px !important;
+            box-shadow: none !important;
+        }
+        div[data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #444444 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+        div[data-testid="stPills"] div[data-baseweb="pill"] {
+            border: none !important;
+            background: transparent !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # 2. 메뉴 구성
+    is_logged_in = st.session_state.get('auth_status') == 'user'
+    login_text = "로그아웃" if is_logged_in else "로그인"
+    main_text = "메인"
+    watch_text = f"관심 ({len(st.session_state.get('watchlist', []))})"
+    board_text = "게시판"
+    
+    menu_options = [login_text, main_text, watch_text, board_text]
+
+    # 3. 현재 페이지에 따른 기본 선택값 설정
+    default_sel = None
+    if st.session_state.get('page') == 'calendar':
+        default_sel = watch_text if st.session_state.get('view_mode') == 'watchlist' else main_text
+    elif st.session_state.get('page') == 'board':
+        default_sel = board_text
+    # main_app(설정) 페이지에서는 선택 안 함(None)
+
+    # 4. 메뉴 출력
+    selected_menu = st.pills(
+        label="내비게이션",
+        options=menu_options,
+        selection_mode="single",
+        default=default_sel,
+        key=f"nav_{st.session_state.get('page')}", 
+        label_visibility="collapsed"
+    )
+
+    # 5. 이동 로직
+    if selected_menu == login_text:
+        if is_logged_in:
+            st.session_state.clear()
+        st.session_state.page = 'login'
+        st.rerun()
+    elif selected_menu == main_text:
+        st.session_state.page = 'calendar' # 캘린더로 이동
+        st.session_state.view_mode = 'all'
+        st.rerun()
+    elif selected_menu == watch_text:
+        st.session_state.page = 'calendar'
+        st.session_state.view_mode = 'watchlist'
+        st.rerun()
+    elif selected_menu == board_text:
+        st.session_state.page = 'board'
+        st.rerun()
+    
+    st.write("") # 하단 여백
+    
+# ==========================================
 # [화면] UI 제어 로직 (로그인 / 회원가입 / 구경하기 분할)
 # ==========================================
 # --- [세션 상태 초기화] ---
@@ -351,11 +427,11 @@ if st.session_state.page == 'login':
         
         st.write("<br>", unsafe_allow_html=True)
         st.divider()
-        # [핵심] 구경하기 버튼: 계정 없이 메인으로 진입
+        # [수정됨] 구경하기 -> 캘린더 페이지로 바로 이동
         if st.button("👀 로그인 없이 구경하기", use_container_width=True):
             st.session_state.auth_status = 'guest'
             st.session_state.user_info = {'id': 'Guest', 'role': 'guest'}
-            st.session_state.page = 'main_app'
+            st.session_state.page = 'calendar' # 여기가 바뀜!
             st.rerun()
 
     # [Step 2] 로그인 입력창
@@ -508,10 +584,12 @@ if st.session_state.page == 'login':
                             time.sleep(0.5) # 대기 시간을 줄입니다.
                             st.rerun()
 
+# [수정됨] 메인 앱 (설정 페이지) - 타이틀 제거, 네비게이션 적용
 elif st.session_state.page == 'main_app':
+    render_navbar() # 👈 네비게이션 바 실행
+    
     user = st.session_state.user_info
-    st.title("🦄 Unicorn Finder")
-
+    # st.title("🦄 Unicorn Finder") <- 제거됨
     if user:
         # [기본 정보]
         user_id = str(user.get('id', ''))
@@ -740,3 +818,16 @@ elif st.session_state.page == 'main_app':
                             current_tier = get_asset_grade(u.get('asset', ''))
                             st.write(f"💰 **등급**: {current_tier if v_asset else '(비공개)'}")
                             st.write(f"✅ **상태**: {u.get('status', 'pending')}")
+
+# ==========================================
+# [추가됨] 캘린더 & 게시판 페이지 (빈 껍데기)
+# ==========================================
+elif st.session_state.page == 'calendar':
+    render_navbar()
+    st.title("📅 IPO Calendar")
+    st.info("여기에 캘린더가 표시됩니다.")
+
+elif st.session_state.page == 'board':
+    render_navbar()
+    st.title("💬 통합 게시판")
+    st.info("준비 중입니다.")
