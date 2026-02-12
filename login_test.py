@@ -494,7 +494,7 @@ if st.session_state.page == 'login':
                             # [중요] 세션 상태를 먼저 확실하게 박아줍니다.
                             st.session_state.auth_status = 'user'
                             st.session_state.user_info = final_data
-                            st.session_state.page = 'main_app'
+                            st.session_state.page = 'calendar'
                             
                             # 토스트 메시지
                             if role == "user":
