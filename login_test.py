@@ -269,6 +269,23 @@ def check_permission(action):
 # ==========================================
 # [화면] UI 제어 로직 (로그인 / 회원가입 / 구경하기 분할)
 # ==========================================
+# --- [세션 상태 초기화] ---
+# 앱이 처음 실행될 때 필요한 변수들을 미리 만들어둡니다.
+if 'page' not in st.session_state:
+    st.session_state.page = 'login'
+
+if 'login_step' not in st.session_state:
+    st.session_state.login_step = 'choice'
+
+if 'signup_stage' not in st.session_state:
+    st.session_state.signup_stage = 1
+
+if 'auth_status' not in st.session_state:
+    st.session_state.auth_status = None
+
+if 'user_info' not in st.session_state:
+    st.session_state.user_info = {}
+
 if st.session_state.page == 'login':
     st.markdown("<h1 style='text-align: center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
     st.write("<br>", unsafe_allow_html=True)
