@@ -387,30 +387,38 @@ import plotly.graph_objects as go
 # 1. 자동 모델 선택 함수 (안전장치 강화 버전)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_latest_stable_model():
+    # 1. API 키 확인
     genai_key = st.secrets.get("GENAI_API_KEY")
-    if not genai_key: return None
+    if not genai_key: 
+        return None
     
     try:
         genai.configure(api_key=genai_key)
         
-        # [핵심 수정] 1. 'flash'가 포함되면서
-        # 2. 동시에 '1.5' 또는 '2.0' 같은 검증된 버전 숫자가 있는 것만 가져옵니다.
-        # 이렇게 하면 '2.5' 같은 미출시/오류 유발 모델을 피할 수 있습니다.
+        # [핵심 로직] 안전장치 필터링
+        # 조건 1: 'generateContent' 지원
+        # 조건 2: 이름에 'flash' 포함
+        # 조건 3: 검증된 버전 ('1.5' 또는 '2.0')만 허용 -> '2.5' 등 미출시 버전 차단
         models = [
             m.name for m in genai.list_models() 
             if 'generateContent' in m.supported_generation_methods 
             and 'flash' in m.name
-            and ('1.5' in m.name or '2.0' in m.name)  # 👈 안전장치 추가!
+            and ('1.5' in m.name or '2.0' in m.name)
         ]
         
-        # 정렬: 1.5 버전을 가장 우선순위로 둡니다 (가장 안정적임)
-        # 만약 2.0을 먼저 쓰고 싶으시면 '2.0' in x 로 바꾸시면 됩니다.
-        models.sort(key=lambda x: '1.5' in x, reverse=True) 
+        # [정렬 로직] 안정성 우선 (1.5 > 2.0)
+        # 1.5가 포함된 모델을 리스트 앞쪽으로 보냄 (True가 1, False가 0이므로 reverse=True 시 1.5가 앞)
+        models.sort(key=lambda x: '1.5' in x, reverse=True)
         
-        # 리스트가 비어있다면(혹시 모를 상황 대비) 강제로 1.5-flash 반환
-        return models[0] if models else 'gemini-1.5-flash'
+        # 리스트가 비어있지 않다면 첫 번째(가장 안정적인) 모델 반환
+        if models:
+            return models[0]
+            
+        # 검색된 모델이 없을 경우 강제 기본값
+        return 'gemini-1.5-flash'
         
-    except Exception:
+    except Exception as e:
+        # 에러 발생 시(API 호출 실패 등) 안전하게 기본 모델 반환
         return 'gemini-1.5-flash'
 
 # 2. 전역 모델 객체 생성
@@ -3267,6 +3275,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
