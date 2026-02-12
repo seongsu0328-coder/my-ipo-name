@@ -355,7 +355,33 @@ if st.session_state.page == 'login':
         if st.button("👀 로그인 없이 구경하기", use_container_width=True):
             st.session_state.auth_status = 'guest'
             st.session_state.user_info = {'id': 'Guest', 'role': 'guest'}
-            st.session_state.page = 'main_app'
+            st.session_state.page = '    # [Step 1] 선택 화면
+    if st.session_state.login_step == 'choice':
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔑 로그인", use_container_width=True, type="primary"):
+                st.session_state.login_step = 'login_input'
+                st.rerun()
+        with col2:
+            if st.button("📝 신규 회원가입", use_container_width=True):
+                st.session_state.login_step = 'signup_input'
+                st.session_state.signup_stage = 1
+                st.rerun()
+        
+        st.write("<br>", unsafe_allow_html=True)
+        st.divider()
+        # [핵심] 구경하기 버튼: 계정 없이 메인으로 진입
+        if st.button("👀 로그인 없이 구경하기", use_container_width=True):
+            st.session_state.auth_status = 'guest'
+            st.session_state.user_info = {'id': 'Guest', 'role': 'guest'}
+            st.session_state.page = 'calendar'
+            st.rerun()
+
+    # [Step 2] 로그인 입력창
+    elif st.session_state.login_step == 'login_input':
+        st.subheader("로그인")
+        l_id = st.text_input("아이디", key="login_id")
+        l_pw = st.text_input("비밀번호", type="password", key="login_pw")'
             st.rerun()
 
     # [Step 2] 로그인 입력창
@@ -508,7 +534,7 @@ if st.session_state.page == 'login':
                             time.sleep(0.5) # 대기 시간을 줄입니다.
                             st.rerun()
 
-elif st.session_state.page == 'main_app':
+elif st.session_state.page == 'calendar':
     user = st.session_state.user_info
     st.title("🦄 Unicorn Finder")
 
