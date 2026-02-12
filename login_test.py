@@ -200,6 +200,46 @@ def send_approval_email(to_email, user_id):
         st.error(f"📧 승인 메일 전송 실패: {e}")
         return False
 
+def save_user_to_sheets(user_data):
+    """회원가입 정보를 구글 시트에 최종 기록하는 함수"""
+    # 1. 구글 클라이언트 가져오기 (이 함수도 정의되어 있어야 합니다)
+    client, _ = get_gcp_clients()
+    
+    if client:
+        try:
+            # 2. 시트 열기 (시트 이름: unicorn_users)
+            sh = client.open("unicorn_users").sheet1
+            
+            # 3. 15개 열 데이터 매핑 (A열 ~ O열)
+            # ID, PW, Email, Phone, Role, Status, Univ, Job, Asset, Display, Date, Link_U, Link_J, Link_A, Visibility
+            row = [
+                user_data.get('id'),
+                user_data.get('pw'),
+                user_data.get('email'),
+                user_data.get('phone'),
+                user_data.get('role', 'restricted'), # 기본값 restricted
+                user_data.get('status', 'pending'),  # 기본값 pending
+                user_data.get('univ', ''),
+                user_data.get('job', ''),   # job 또는 job_title
+                user_data.get('asset', ''),
+                user_data.get('display_name', ''),
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # 가입일
+                user_data.get('link_univ', '미제출'),
+                user_data.get('link_job', '미제출'),
+                user_data.get('link_asset', '미제출'),
+                "True,True,True" # 기본 노출 설정 (모두 공개)
+            ]
+            
+            # 4. 행 추가
+            sh.append_row(row)
+            return True
+            
+        except Exception as e:
+            st.error(f"구글 시트 저장 중 오류 발생: {str(e)}")
+            return False
+    
+    return False
+
 def send_rejection_email(to_email, user_id, reason):
     try:
         if "smtp" in st.secrets:
