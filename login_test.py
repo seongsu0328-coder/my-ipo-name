@@ -480,13 +480,20 @@ if st.session_state.page == 'login':
                         
                         # 3. 구글 시트 저장
                         if save_user_to_sheets(final_data):
+                            # [메시지 출력]
                             if role == "user":
-                                st.success("✅ 신청 완료! 관리자 승인 후 모든 기능을 이용할 수 있습니다.")
+                                st.success("✅ 신청 완료! (관리자 승인 대기 중)")
                             else:
-                                st.success("✅ 가입 완료! 즉시 관심종목 기능을 이용할 수 있습니다.")
+                                st.success("✅ 가입 완료! (즉시 이용 가능)")
                             
-                            # 로그인 초기 화면으로 이동
-                            st.session_state.login_step = 'choice'
+                            # -------------------------------------------------------
+                            # [핵심 변경] 로그인 화면 대신 -> 메인 앱(설정창)으로 직행
+                            # -------------------------------------------------------
+                            st.session_state.page = 'main_app'       # 페이지 이동
+                            st.session_state.auth_status = 'user'    # 로그인 상태로 변경
+                            st.session_state.user_info = final_data  # 방금 가입한 정보 입력
+                            
+                            # 잠시 후 이동
                             time.sleep(2)
                             st.rerun()
 
