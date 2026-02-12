@@ -1393,7 +1393,7 @@ if st.session_state.page == 'login':
                         if user and str(user['pw']) == l_pw:
                             st.session_state.auth_status = 'user'
                             st.session_state.user_info = user
-                            st.session_state.page = 'main_app'
+                            st.session_state.page = 'calendar'
                             st.rerun()
                         else:
                             st.error("아이디 또는 비밀번호가 틀립니다.")
@@ -1509,12 +1509,12 @@ if st.session_state.page == 'login':
                                 "display_name": f"{role} | {td['id'][:3]}***"
                             }
                             
+                            
                             # 3. 구글 시트 저장 및 이동
                             if save_user_to_sheets(final_data):
-                                # [중요] 세션 상태를 먼저 확실하게 박아줍니다.
                                 st.session_state.auth_status = 'user'
                                 st.session_state.user_info = final_data
-                                st.session_state.page = 'calendar'
+                                st.session_state.page = 'setup' # ✅ 'setup' 페이지로 보내서 설정을 먼저 하게 합니다.
                                 
                                 # 토스트 메시지
                                 if role == "user":
@@ -1760,6 +1760,109 @@ if st.session_state.page == 'login':
                                 current_tier = get_asset_grade(u.get('asset', ''))
                                 st.write(f"💰 **등급**: {current_tier if v_asset else '(비공개)'}")
                                 st.write(f"✅ **상태**: {u.get('status', 'pending')}")
+
+# ---------------------------------------------------------
+# [NEW] 가입 직후 설정 페이지 (Setup) - 요청하신 코드 적용됨
+# ---------------------------------------------------------
+elif st.session_state.page == 'setup':
+    user = st.session_state.user_info
+    st.title("⚙️ 초기 설정 (Onboarding)")
+    
+    if user:
+        # [기본 변수 정의] 보내주신 코드가 작동하기 위해 필요
+        user_id = str(user.get('id', ''))
+        masked_id = user_id[:3] + "*" * (len(user_id) - 3) if len(user_id) > 3 else user_id + "***"
+        
+        st.info(f"환영합니다, {masked_id}님! 활동 닉네임과 노출 범위를 확인해주세요.")
+        
+        # ===========================================================
+        # 👇 요청하신 코드가 여기서부터 그대로 들어갑니다 👇
+        # ===========================================================
+        
+        # -----------------------------------------------------------
+        # 1. 내 정보 노출 설정 (체크박스)
+        # -----------------------------------------------------------
+        st.divider()
+        st.subheader("⚙️ 내 정보 노출 및 권한 설정")
+        st.caption("하나 이상의 정보를 노출해야 '글쓰기/투표' 권한이 활성화됩니다.")
+
+        # 저장된 설정값 불러오기 (없으면 True가 기본)
+        saved_vis = user.get('visibility', 'True,True,True').split(',')
+        def_univ = saved_vis[0] == 'True' if len(saved_vis) > 0 else True
+        def_job = saved_vis[1] == 'True' if len(saved_vis) > 1 else True
+        def_asset = saved_vis[2] == 'True' if len(saved_vis) > 2 else True
+
+        c1, c2, c3 = st.columns(3)
+        show_univ = c1.checkbox("🎓 대학 정보", value=def_univ)
+        show_job = c2.checkbox("💼 직업 정보", value=def_job)
+        show_asset = c3.checkbox("💰 자산 등급", value=def_asset)
+
+        # -----------------------------------------------------------
+        # 2. [핵심] 실시간 권한 및 닉네임 시뮬레이션
+        # -----------------------------------------------------------
+        # (1) 노출 여부 판단: 하나라도 체크했는가?
+        is_public_mode = any([show_univ, show_job, show_asset])
+        
+        # (2) 닉네임 조합
+        info_parts = []
+        if show_univ: info_parts.append(user.get('univ', ''))
+        if show_job: info_parts.append(user.get('job', '')) # job_title 대신 job 사용 (가입시 job으로 저장됨)
+        if show_asset: info_parts.append(get_asset_grade(user.get('asset', '')))
+        
+        prefix = " ".join([p for p in info_parts if p])
+        final_nickname = f"{prefix} {masked_id}" if prefix else masked_id
+
+        # (3) 현재 나의 상태 판단 (실제 DB 권한 vs 노출 설정)
+        db_role = user.get('role', 'restricted')
+        db_status = user.get('status', 'pending')
+        
+        st.divider()
+        c_info, c_status = st.columns([2, 1])
+        
+        with c_info:
+            st.write(f"👤 **아이디**: {masked_id}")
+            st.markdown(f"📛 **활동 닉네임**: <span style='font-size:1.1em; font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
+        
+        with c_status:
+            # 상태 메시지 로직
+            if db_role == 'restricted':
+                st.error("🔒 **Basic 회원** (서류 미제출)")
+                st.caption("권한: 관심종목 O / 글쓰기 X")
+            elif db_status == 'pending':
+                st.warning("⏳ **승인 대기 중**")
+                st.caption("관리자 승인 후 글쓰기 가능")
+            elif db_status == 'approved':
+                # 승인된 회원이지만, 노출을 다 껐을 경우
+                if is_public_mode:
+                    st.success("✅ **인증 회원 (활동 중)**")
+                    st.caption("권한: 모든 기능 사용 가능")
+                else:
+                    st.info("🔒 **익명 모드 (비공개)**")
+                    st.caption("모든 정보를 가려 **글쓰기가 제한**됩니다.")
+
+        # ===========================================================
+        # 👆 요청하신 코드 끝 👆
+        # ===========================================================
+
+        st.write("<br>", unsafe_allow_html=True)
+
+        # -----------------------------------------------------------
+        # 3. 설정 저장 버튼 (이걸 눌러야 캘린더로 이동!)
+        # -----------------------------------------------------------
+        if st.button("설정 저장하고 시작하기 🚀", type="primary", use_container_width=True):
+            with st.spinner("설정 적용 중..."):
+                current_settings = [show_univ, show_job, show_asset]
+                
+                # 구글 시트 업데이트
+                if update_user_visibility(user.get('id'), current_settings):
+                    # 세션 정보 업데이트
+                    st.session_state.user_info['visibility'] = ",".join([str(v) for v in current_settings])
+                    
+                    # [📍 이동 로직] 여기서 비로소 메인(캘린더) 화면으로 넘어갑니다.
+                    st.session_state.page = 'calendar' 
+                    st.rerun()
+                else:
+                    st.error("저장 실패. 네트워크를 확인하세요.")
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 if st.session_state.page == 'calendar':
@@ -2142,7 +2245,8 @@ if st.session_state.page == 'calendar':
         else:
             st.info("조건에 맞는 종목이 없습니다.")
 
-        
+
+
 
 # 5. 상세 페이지 (이동 로직 보정 + 디자인 + NameError 방지 통합본)
 elif st.session_state.page == 'detail':
