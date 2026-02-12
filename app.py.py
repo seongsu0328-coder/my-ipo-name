@@ -25,6 +25,8 @@ import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - �
 from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
 
+MY_API_KEY = st.secrets["FINNHUB_API_KEY"]
+
 # ==========================================
 # [설정] 구글 드라이브 폴더 ID (필수 입력)
 # ==========================================
