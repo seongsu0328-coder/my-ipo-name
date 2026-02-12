@@ -25,6 +25,11 @@ import google.generativeai as genai   # ✅ Gemini(메인 종목 분석)용 - �
 from tavily import TavilyClient       # ✅ Tavily(뉴스 검색)용
 from duckduckgo_search import DDGS
 
+# ==========================================
+# [설정] 구글 드라이브 폴더 ID (필수 입력)
+# ==========================================
+DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
+
 # [구글 시트 접속 함수]
 def get_gspread_client():
     # secrets.toml에 저장된 gspread 관련 정보를 가져옵니다.
@@ -3284,6 +3289,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
