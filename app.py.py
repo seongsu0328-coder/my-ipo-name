@@ -1289,6 +1289,29 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# ==========================================
+# [PAGE ROUTING] 세션 상태 안전 초기화
+# ==========================================
+
+# 필수 변수들이 세션에 없으면 초기값 설정
+if 'page' not in st.session_state:
+    st.session_state.page = 'login'
+
+if 'login_step' not in st.session_state:
+    st.session_state.login_step = 'choice'
+
+if 'signup_stage' not in st.session_state:
+    st.session_state.signup_stage = 1
+
+if 'auth_status' not in st.session_state:
+    st.session_state.auth_status = None
+
+if 'user_info' not in st.session_state:
+    st.session_state.user_info = {}
+
+# '🦄 Unicorn Finder' 제목 출력 부분은 삭제했습니다.
+# 바로 아래에 기존의 if st.session_state.page == 'login': 로직이 이어지면 됩니다.
+
 
 # --- [1. 로그인 & 회원가입 페이지] ---
 if st.session_state.page == 'login':
