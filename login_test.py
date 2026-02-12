@@ -205,130 +205,146 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 화면 1: 로그인 & 회원가입 (Test Server Logic)
+# 화면 1: 로그인 & 회원가입 (테스트 서버 기능 100% 복원)
 # ---------------------------------------------------------
 if st.session_state.page == 'login':
     st.markdown("<h1 style='text-align:center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
     st.write("")
 
+    # [Step 1] 최초 선택 화면
     if st.session_state.login_step == 'choice':
-        c1, c2, c3 = st.columns([1, 1, 1])
-        with c2:
-            # 1. 로그인
+        col1, col2 = st.columns(2)
+        with col1:
             if st.button("🔑 로그인", use_container_width=True, type="primary"):
                 st.session_state.login_step = 'login_input'
                 st.rerun()
-            
-            # 2. 회원가입 (Basic / Full 통합)
-            if st.button("📝 회원가입", use_container_width=True):
+        with col2:
+            if st.button("📝 신규 가입", use_container_width=True):
                 st.session_state.login_step = 'signup_input'
+                st.session_state.signup_stage = 1 # 테스트 서버의 stage 개념 도입
                 st.rerun()
-            
-            # 3. 구경하기 (Guest)
-            st.divider()
-            if st.button("👀 구경하기 (Guest Mode)", use_container_width=True):
-                st.session_state.auth_status = 'guest'
-                st.session_state.user_role = 'guest'
-                st.session_state.user_id = 'Guest'
-                st.session_state.page = 'calendar'
-                st.rerun()
-
-    elif st.session_state.login_step == 'login_input':
-        # (로그인 입력 UI - 생략 없이 구현)
-        st.markdown("<div class='auth-card'><h5>로그인</h5>", unsafe_allow_html=True)
-        lid = st.text_input("아이디")
-        lpw = st.text_input("비밀번호", type="password")
         
-        if st.button("접속하기", type="primary", use_container_width=True):
+        st.divider()
+        if st.button("👀 구경하기 (Guest Mode)", use_container_width=True):
+            st.session_state.auth_status = 'guest'
+            st.session_state.user_role = 'guest'
+            st.session_state.user_id = 'Guest'
+            st.session_state.page = 'calendar'
+            st.rerun()
+
+    # [Step 2] 로그인 입력
+    elif st.session_state.login_step == 'login_input':
+        st.subheader("로그인")
+        l_id = st.text_input("아이디")
+        l_pw = st.text_input("비밀번호", type="password")
+        
+        if st.button("로그인 완료", use_container_width=True, type="primary"):
             users = load_users()
-            user = next((u for u in users if str(u['id']) == lid), None)
-            
-            if user and str(user['pw']) == lpw:
-                # 권한 할당 로직
-                st.session_state.auth_status = 'user'
-                st.session_state.user_id = lid
-                st.session_state.user_info = user 
-                
-                # Role Check (Full vs Restricted)
-                if user['role'] == 'admin': st.session_state.user_role = 'admin'
-                elif user['role'] == 'user' and user['status'] == 'approved':
-                    st.session_state.user_role = 'user' # Full Member
+            user = next((u for u in users if str(u.get("id")) == l_id), None)
+            if user and str(user['pw']) == l_pw:
+                if user['status'] == 'approved' or user['role'] == 'admin':
+                    st.session_state.page = 'calendar'
+                    st.session_state.auth_status = 'user'
+                    st.session_state.user_id = l_id
+                    st.session_state.user_info = user
+                    st.session_state.user_role = user['role']
+                    st.rerun()
                 else:
-                    # status가 pending이거나 role이 restricted인 경우
-                    st.session_state.user_role = 'restricted' # Basic Member
-                
-                st.success(f"환영합니다! ({st.session_state.user_role} 모드)")
-                time.sleep(0.5)
-                st.session_state.page = 'calendar'
-                st.rerun()
+                    st.warning("⏳ 승인 대기 중입니다.")
             else:
                 st.error("정보가 일치하지 않습니다.")
-        
-        if st.button("취소", use_container_width=True):
+        if st.button("뒤로"):
             st.session_state.login_step = 'choice'
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
+    # [Step 3] 회원가입 (기존 테스트 서버 로직 100% 복원)
     elif st.session_state.login_step == 'signup_input':
-        # (회원가입 1단계: ID/PW/Email) - 간소화
-        st.markdown("<div class='auth-card'><h5>회원가입 (기본정보)</h5>", unsafe_allow_html=True)
-        new_id = st.text_input("아이디")
-        new_pw = st.text_input("비밀번호", type="password")
-        new_email = st.text_input("이메일")
-        
-        if st.button("다음 (인증 선택)", type="primary"):
-            st.session_state.temp_signup_data = {'id': new_id, 'pw': new_pw, 'email': new_email, 'phone': '000'}
-            st.session_state.login_step = 'signup_step_2'
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    elif st.session_state.login_step == 'signup_step_2':
-        # (회원가입 2단계: 서류 제출 - 여기가 핵심 분기점)
-        st.markdown("<div class='auth-card'><h5>추가 인증 (선택사항)</h5>", unsafe_allow_html=True)
-        st.info("💡 서류를 제출하면 **'글쓰기/투표'** 권한이 부여됩니다.\n제출하지 않으면 **'관심종목'** 기능만 사용 가능합니다.")
-        
-        # 파일 업로더
-        f_school = st.file_uploader("🎓 학력 증빙", key="fu_school")
-        f_job = st.file_uploader("💼 재직 증빙", key="fu_job")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("건너뛰기 (Basic 회원)", use_container_width=True):
-                # 서류 없이 가입 -> Role: Restricted
-                final_data = {
-                    **st.session_state.temp_signup_data,
-                    "role": "restricted", "status": "active", # 즉시 활동 가능하지만 제한됨
-                    "display_name": f"Basic | {st.session_state.temp_signup_data['id']}"
-                }
-                if save_user_to_sheets(final_data):
-                    st.success("가입 완료! (Basic 등급)")
-                    st.session_state.login_step = 'choice'
-                    time.sleep(1)
+        # 3-1단계: 정보 입력 (휴대폰 번호 포함)
+        if st.session_state.get('signup_stage') == 1:
+            st.subheader("1단계: 정보 입력")
+            with st.form("signup_1"):
+                new_id = st.text_input("아이디")
+                new_pw = st.text_input("비밀번호", type="password")
+                new_phone = st.text_input("연락처 (010-0000-0000)")
+                new_email = st.text_input("이메일")
+                auth_choice = st.radio("인증 수단 선택", ["휴대폰(가상)", "이메일(실제)"], horizontal=True)
+                
+                if st.form_submit_button("인증번호 받기"):
+                    code = str(random.randint(100000, 999999))
+                    st.session_state.auth_code = code
+                    st.session_state.temp_user_data = {
+                        "id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email
+                    }
+                    if "이메일" in auth_choice:
+                        from __main__ import send_email_code # 함수 호출
+                        send_email_code(new_email, code)
+                    else:
+                        st.toast(f"📱 인증번호: {code}", icon="✅")
+                    
+                    st.session_state.signup_stage = 2
                     st.rerun()
-        
-        with col2:
-            if st.button("제출 및 승인요청 (Full 회원)", type="primary", use_container_width=True):
-                if not (f_school or f_job):
-                    st.error("최소 1개의 파일을 업로드해야 승인 요청이 가능합니다.")
+
+        # 3-2단계: 인증번호 확인
+        elif st.session_state.get('signup_stage') == 2:
+            st.subheader("2단계: 인증 확인")
+            in_code = st.text_input("인증번호 6자리 입력")
+            if st.button("확인"):
+                if in_code == st.session_state.get('auth_code'):
+                    st.success("인증 성공!")
+                    st.session_state.signup_stage = 3
+                    st.rerun()
                 else:
-                    # 파일 업로드 진행
-                    with st.spinner("업로드 중..."):
-                        l_s = upload_photo_to_drive(f_school, f"{st.session_state.temp_signup_data['id']}_school")
-                        l_j = upload_photo_to_drive(f_job, f"{st.session_state.temp_signup_data['id']}_job")
+                    st.error("인증번호가 일치하지 않습니다.")
+            if st.button("이전으로"):
+                st.session_state.signup_stage = 1
+                st.rerun()
+
+        # 3-3단계: 서류 제출 (대학, 직장, 자산 등급 선택 및 파일 업로드)
+        elif st.session_state.get('signup_stage') == 3:
+            st.subheader("3단계: 선택적 자격 증빙")
+            st.info("💡 서류를 하나라도 인증해야 '글쓰기/투표' 권한이 생깁니다. 익명 활동을 원하시면 바로 가입 신청을 누르세요.")
+            
+            with st.form("signup_3"):
+                u_name = st.text_input("출신 대학 (선택)")
+                u_file = st.file_uploader("🎓 학생증/졸업증명서", type=['jpg','png','pdf'])
+                
+                j_name = st.text_input("직장/직업 (선택)")
+                j_file = st.file_uploader("💼 명함/재직증명서", type=['jpg','png','pdf'])
+                
+                a_val = st.selectbox("자산 규모 (선택)", ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"])
+                a_file = st.file_uploader("💰 잔고증명서", type=['jpg','png','pdf'])
+                
+                if st.form_submit_button("가입 신청 완료"):
+                    with st.spinner("서류 업로드 및 정보 저장 중..."):
+                        td = st.session_state.temp_user_data
+                        
+                        # 파일 업로드 (있을 때만 진행)
+                        l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
+                        l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
+                        l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
+                        
+                        # 권한 판별: 서류가 하나라도 있으면 'user(Full)', 없으면 'restricted(Basic)'
+                        has_cert = any([u_file, j_file, a_file])
+                        role = "user" if has_cert else "restricted"
+                        status = "pending" if has_cert else "approved" # 미인증은 즉시 승인, 인증은 관리자 승인 대기
                         
                         final_data = {
-                            **st.session_state.temp_signup_data,
-                            "role": "user", "status": "pending", # 승인 대기
-                            "display_name": f"Pending | {st.session_state.temp_signup_data['id']}",
-                            "link_univ": l_s, "link_job": l_j
+                            **td, "univ": u_name, "job": j_name, 
+                            "asset": a_val if a_val != "선택 안 함" else "",
+                            "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
+                            "role": role, "status": status,
+                            "display_name": f"{role} | {td['id'][:3]}***"
                         }
+                        
                         if save_user_to_sheets(final_data):
-                            st.success("승인 요청 완료! 관리자 검토 후 풀액세스 권한이 부여됩니다.")
+                            if role == "user":
+                                st.success("신청 완료! 관리자 승인 후 모든 기능을 이용할 수 있습니다.")
+                            else:
+                                st.success("가입 완료! 즉시 관심종목 기능을 이용할 수 있습니다.")
+                            
                             st.session_state.login_step = 'choice'
                             time.sleep(2)
                             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
 
 # ---------------------------------------------------------
 # 화면 2: 메인 앱 (Calendar + Detail + Board)
