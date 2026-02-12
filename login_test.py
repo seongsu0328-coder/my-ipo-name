@@ -336,87 +336,118 @@ if st.session_state.page == 'login':
                 st.session_state.login_step = 'choice'
                 st.rerun()
 
-    # [Step 3] 회원가입 로직 (기존 스테이지 유지)
+    # [Step 3] 회원가입 로직 (1, 2, 3단계 통합 수정본)
     elif st.session_state.login_step == 'signup_input':
-        # ... (기존 회원가입 signup_stage 1, 2, 3 코드를 여기에 그대로 두시면 됩니다)
-        pass # 기존 코드 유지
-
-    elif st.session_state.login_step == 'login_input':
-        st.subheader("로그인")
-        l_id = st.text_input("아이디")
-        l_pw = st.text_input("비밀번호", type="password")
-        if st.button("로그인 완료", use_container_width=True, type="primary"):
-            users = load_users()
-            user = next((u for u in users if str(u.get("id")) == l_id), None)
-            if user and str(user['pw']) == l_pw:
-                if user['status'] == 'approved' or user['role'] == 'admin':
-                    st.session_state.page = 'main_app'
-                    st.session_state.user_info = user
-                    st.rerun()
-                else: st.warning("⏳ 승인 대기 중입니다.")
-            else: st.error("정보가 일치하지 않습니다.")
-        if st.button("뒤로"):
-            st.session_state.login_step = 'choice'
-            st.rerun()
-
-    elif st.session_state.login_step == 'signup_input':
+        
+        # -----------------------------------------------------
+        # [3-1단계] 정보 입력 및 인증 번호 발송
+        # -----------------------------------------------------
         if st.session_state.signup_stage == 1:
             st.subheader("1단계: 정보 입력")
             with st.form("signup_1"):
                 new_id = st.text_input("아이디")
                 new_pw = st.text_input("비밀번호", type="password")
-                new_phone = st.text_input("연락처")
+                new_phone = st.text_input("연락처 (예: 010-1234-5678)")
                 new_email = st.text_input("이메일")
                 auth_choice = st.radio("인증 수단", ["휴대폰(가상)", "이메일(실제)"], horizontal=True)
+                
                 if st.form_submit_button("인증번호 받기"):
-                    code = str(random.randint(100000, 999999))
-                    st.session_state.auth_code = code
-                    st.session_state.temp_user_data = {"id":new_id, "pw":new_pw, "phone":new_phone, "email":new_email}
-                    if "이메일" in auth_choice: send_email_code(new_email, code)
-                    else: st.toast(f"📱 인증번호: {code}")
-                    st.session_state.signup_stage = 2
-                    st.rerun()
+                    # 필수 입력값 체크
+                    if not (new_id and new_pw and new_email):
+                        st.error("모든 정보를 입력해주세요.")
+                    else:
+                        code = str(random.randint(100000, 999999))
+                        st.session_state.auth_code = code
+                        # 다음 단계를 위해 임시 저장
+                        st.session_state.temp_user_data = {
+                            "id": new_id, "pw": new_pw, 
+                            "phone": new_phone, "email": new_email
+                        }
+                        
+                        if "이메일" in auth_choice:
+                            # 함수 호출 (import 문제 해결됨)
+                            send_email_code(new_email, code)
+                        else:
+                            st.toast(f"📱 [테스트용] 인증번호: {code}", icon="✅")
+                        
+                        # 단계 이동 및 리런
+                        st.session_state.signup_stage = 2
+                        st.rerun()
 
+        # -----------------------------------------------------
+        # [3-2단계] 인증 번호 확인
+        # -----------------------------------------------------
         elif st.session_state.signup_stage == 2:
             st.subheader("2단계: 인증 확인")
-            in_code = st.text_input("인증번호 입력")
-            if st.button("확인"):
-                if in_code == st.session_state.auth_code:
-                    st.session_state.signup_stage = 3
+            st.info(f"입력하신 {st.session_state.temp_user_data.get('email', '이메일')}로 번호를 보냈습니다.")
+            
+            in_code = st.text_input("인증번호 6자리 입력")
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("확인", use_container_width=True, type="primary"):
+                    if in_code == st.session_state.auth_code:
+                        st.success("인증 성공!")
+                        st.session_state.signup_stage = 3
+                        st.rerun()
+                    else:
+                        st.error("인증번호가 일치하지 않습니다.")
+            with c2:
+                if st.button("뒤로 가기", use_container_width=True):
+                    st.session_state.signup_stage = 1
                     st.rerun()
-                else: st.error("번호가 틀렸습니다.")
 
+        # -----------------------------------------------------
+        # [3-3단계] 서류 제출 (대학, 직장, 자산)
+        # -----------------------------------------------------
         elif st.session_state.signup_stage == 3:
             st.subheader("3단계: 선택적 자격 증빙")
-            st.info("💡 원하는 항목만 업로드하세요. 인증이 하나도 없으면 글쓰기가 제한됩니다.")
+            st.info("💡 서류를 하나라도 제출하면 '글쓰기/투표' 권한이 신청됩니다. (미제출 시 '관심종목' 기능만 사용 가능)")
             
             with st.form("signup_3"):
                 u_name = st.text_input("출신 대학 (선택)")
-                u_file = st.file_uploader("🎓 학생증/졸업증명서", type=['jpg','png'])
+                u_file = st.file_uploader("🎓 학생증/졸업증명서", type=['jpg','png','pdf'])
                 
                 j_name = st.text_input("직장/직업 (선택)")
-                j_file = st.file_uploader("💼 명함/재직증명서", type=['jpg','png'])
+                j_file = st.file_uploader("💼 명함/재직증명서", type=['jpg','png','pdf'])
                 
                 a_val = st.selectbox("자산 규모 (선택)", ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"])
-                a_file = st.file_uploader("💰 잔고증명서", type=['jpg','png'])
+                a_file = st.file_uploader("💰 잔고증명서", type=['jpg','png','pdf'])
                 
                 if st.form_submit_button("가입 신청 완료"):
-                    with st.spinner("처리 중..."):
+                    with st.spinner("서류 업로드 및 회원가입 처리 중..."):
                         td = st.session_state.temp_user_data
-                        # 파일 업로드 (파일이 있을 때만 진행)
+                        
+                        # 1. 파일 업로드 실행 (파일이 있는 경우에만)
                         l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
                         l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
                         l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
                         
+                        # 2. 권한 판별 로직
+                        # 서류가 하나라도 있으면 'user(Full)', 없으면 'restricted(Basic)'
+                        has_cert = any([u_file, j_file, a_file])
+                        role = "user" if has_cert else "restricted"
+                        status = "pending" if has_cert else "approved" # 미인증은 즉시 승인
+                        
                         final_data = {
                             **td, "univ": u_name, "job": j_name, 
                             "asset": a_val if a_val != "선택 안 함" else "",
-                            "link_univ": l_u, "link_job": l_j, "link_asset": l_a
+                            "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
+                            "role": role, "status": status,
+                            "display_name": f"{role} | {td['id'][:3]}***"
                         }
-                        add_user(final_data)
-                        st.success("신청 완료! 관리자 승인 후 이용 가능합니다.")
-                        st.session_state.login_step = 'choice'
-                        st.rerun()
+                        
+                        # 3. 구글 시트 저장
+                        if save_user_to_sheets(final_data):
+                            if role == "user":
+                                st.success("✅ 신청 완료! 관리자 승인 후 모든 기능을 이용할 수 있습니다.")
+                            else:
+                                st.success("✅ 가입 완료! 즉시 관심종목 기능을 이용할 수 있습니다.")
+                            
+                            # 로그인 초기 화면으로 이동
+                            st.session_state.login_step = 'choice'
+                            time.sleep(2)
+                            st.rerun()
 
 elif st.session_state.page == 'main_app':
     user = st.session_state.user_info
