@@ -1324,31 +1324,29 @@ if st.session_state.page == 'login':
                 st.rerun()
 
         # ---------------------------------------------------------
-        # [Step 2-A] 로그인 입력 화면
-        # ---------------------------------------------------------
+        # [Step 2] 로그인 입력창
         elif st.session_state.login_step == 'login_input':
-            st.markdown("<div class='auth-card'><h5>🔑 로그인</h5>", unsafe_allow_html=True)
-            l_id = st.text_input("아이디", key="login_id_input")
-            l_pw = st.text_input("비밀번호", type="password", key="login_pw_input")
+            st.subheader("로그인")
+            l_id = st.text_input("아이디", key="login_id")
+            l_pw = st.text_input("비밀번호", type="password", key="login_pw")
             
-            c1, c2 = st.columns([2, 1])
+            c1, c2 = st.columns(2)
             with c1:
                 if st.button("접속하기", use_container_width=True, type="primary"):
-                    # 관리자 테스트 or DB 확인
-                    if (l_id == "admin" and l_pw == "1234") or (l_id in st.session_state.db_users):
-                        st.session_state.auth_status = 'user'
-                        st.session_state.user_id = l_id
-                        st.success(f"반갑습니다 {l_id}님!")
-                        st.session_state.page = 'calendar'
-                        st.session_state.login_step = 'choice' # 다음번을 위해 초기화
-                        st.rerun()
-                    else:
-                        st.error("가입되지 않은 아이디거나 비밀번호가 틀렸습니다.")
+                    with st.spinner("회원 정보 확인 중..."):
+                        users = load_users()
+                        user = next((u for u in users if str(u.get("id")) == l_id), None)
+                        if user and str(user['pw']) == l_pw:
+                            st.session_state.auth_status = 'user'
+                            st.session_state.user_info = user
+                            st.session_state.page = 'main_app'
+                            st.rerun()
+                        else:
+                            st.error("아이디 또는 비밀번호가 틀립니다.")
             with c2:
-                if st.button("취소", use_container_width=True):
+                if st.button("뒤로 가기", use_container_width=True):
                     st.session_state.login_step = 'choice'
                     st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
 
         # ---------------------------------------------------------
         # [Step 2-B] 회원가입 & 인증 화면 (요청하신 기능 구현)
@@ -3289,6 +3287,7 @@ elif st.session_state.page == 'detail':
                 
                 
                 
+
 
 
 
