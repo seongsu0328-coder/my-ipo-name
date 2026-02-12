@@ -891,12 +891,539 @@ elif st.session_state.page == 'main_app':
 # ==========================================
 # [추가됨] 캘린더 & 게시판 페이지 (빈 껍데기)
 # ==========================================
+# 3. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 elif st.session_state.page == 'calendar':
-    render_navbar()
-    st.title("📅 IPO Calendar")
-    st.info("여기에 캘린더가 표시됩니다.")
+    # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
+    st.markdown("""
+        <style>
+        /* 1. 기본 설정 */
+        * { box-sizing: border-box !important; }
+        body { color: #333333; }
+        
+        /* 2. 상단 여백 확보 (메인 페이지라 여백을 조금 줄임) */
+        .block-container { 
+            padding-top: 2rem !important; 
+            padding-left: 0.5rem !important; 
+            padding-right: 0.5rem !important; 
+            max-width: 100% !important; 
+        }
 
-elif st.session_state.page == 'board':
-    render_navbar()
-    st.title("💬 통합 게시판")
-    st.info("준비 중입니다.")
+        /* [NEW] 상단 메뉴 버튼 스타일 (둥글고 크게) */
+        div[data-testid="column"] button {
+            border-radius: 12px !important;
+            height: 50px !important;
+            font-weight: bold !important;
+        }
+
+        /* 3. 버튼 스타일 (리스트용 타이트한 스타일) */
+        .stButton button {
+            background-color: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            color: #333 !important;
+            text-align: left !important;
+            box-shadow: none !important;
+            width: 100% !important;
+            display: block !important;
+            overflow: hidden !important;
+            white-space: nowrap !important;
+            text-overflow: ellipsis !important;
+            height: auto !important;
+            line-height: 1.1 !important;
+        }
+        .stButton button p { font-weight: bold; font-size: 14px; margin-bottom: 0px; }
+
+        /* 4. [모바일 레이아웃 핵심] */
+        @media (max-width: 640px) {
+            
+            /* (A) 상단 필터: 줄바꿈 허용 */
+            div[data-testid="stHorizontalBlock"]:nth-of-type(1) {
+                flex-wrap: wrap !important;
+                gap: 10px !important;
+                padding-bottom: 5px !important;
+            }
+            div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div {
+                min-width: 100% !important;
+                max-width: 100% !important;
+                flex: 1 1 100% !important;
+            }
+
+            /* (B) 리스트 구역: 가로 고정 & 수직 중앙 정렬 */
+            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) {
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                gap: 0px !important;
+                width: 100% !important;
+                align-items: center !important; 
+            }
+
+            /* (C) 컬럼 내부 정렬 강제 */
+            div[data-testid="column"] {
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important; 
+                min-width: 0px !important;
+                padding: 0px 2px !important;
+            }
+
+            /* (D) 리스트 컬럼 비율 (7:3) */
+            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(1) {
+                flex: 0 0 70% !important;
+                max-width: 70% !important;
+                overflow: hidden !important;
+            }
+            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(2) {
+                flex: 0 0 30% !important;
+                max-width: 30% !important;
+            }
+
+            /* (E) 폰트 및 간격 미세 조정 */
+            .mobile-sub { font-size: 10px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px; line-height: 1.1; }
+            .price-main { font-size: 13px !important; font-weight: bold; white-space: nowrap; line-height: 1.1; }
+            .price-sub { font-size: 10px !important; color: #666 !important; white-space: nowrap; line-height: 1.1; }
+            .date-text { font-size: 10px !important; color: #888 !important; margin-top: 1px; line-height: 1.1; }
+            .header-text { font-size: 12px !important; line-height: 1.0; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # ---------------------------------------------------------
+    # [ANDROID-FIX] 안드로이드 셀렉트박스 닫힘 강제 패치
+    # ---------------------------------------------------------
+    st.markdown("""
+        <style>
+        /* 1. 선택 후 파란색 테두리(포커스) 제거 */
+        .stSelectbox div[data-baseweb="select"]:focus-within {
+            border-color: transparent !important;
+            box-shadow: none !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # 2. 자바스크립트를 이용해 현재 활성화된(Focus) 입력창을 강제로 닫음
+    # 화면이 로드될 때마다 실행되어 모바일 키보드나 드롭다운을 숨깁니다.
+    st.components.v1.html("""
+        <script>
+            var mainDoc = window.parent.document;
+            var activeEl = mainDoc.activeElement;
+            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.getAttribute('role') === 'combobox')) {
+                activeEl.blur();
+            }
+        </script>
+    """, height=0)
+     
+
+    # ---------------------------------------------------------
+    # 1. [STYLE] 블랙 배경 + 화이트 글씨 (테두리 없음)
+    # ---------------------------------------------------------
+    st.markdown("""
+        <style>
+        /* 기본 버튼: 검정 배경 / 흰 글씨 */
+        div[data-testid="stPills"] div[role="radiogroup"] button {
+            border: none !important;
+            outline: none !important;
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border-radius: 20px !important;
+            padding: 6px 15px !important;
+            margin-right: 5px !important;
+            box-shadow: none !important;
+        }
+
+        /* 선택된 버튼: 진한 회색 배경 (구분용) */
+        div[data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #444444 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+
+        /* 스트림릿 기본 테두리 제거 */
+        div[data-testid="stPills"] div[data-baseweb="pill"] {
+            border: none !important;
+            background: transparent !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # ---------------------------------------------------------
+    # 2. 메뉴 텍스트 및 현재 상태 정의 (명칭 및 순서 변경)
+    # ---------------------------------------------------------
+    is_logged_in = st.session_state.auth_status == 'user'
+    login_text = "로그아웃" if is_logged_in else "로그인"
+    main_text = "메인"  # '홈'에서 '메인'으로 변경
+    watch_text = f"관심 ({len(st.session_state.watchlist)})"
+    board_text = "게시판"
+    
+    # 순서 조정: 로그인 -> 메인 -> 관심 -> 게시판
+    menu_options = [login_text, main_text, watch_text, board_text]
+
+    # 현재 어떤 페이지에 있는지 계산하여 기본 선택값(Default) 설정
+    default_sel = main_text
+    if st.session_state.get('page') == 'login': 
+        default_sel = login_text
+    elif st.session_state.get('view_mode') == 'watchlist': 
+        default_sel = watch_text
+    elif st.session_state.get('page') == 'board': 
+        default_sel = board_text
+
+    # ---------------------------------------------------------
+    # 3. 메뉴 표시 (st.pills)
+    # ---------------------------------------------------------
+    selected_menu = st.pills(
+        label="내비게이션",
+        options=menu_options,
+        selection_mode="single",
+        default=default_sel,
+        key="top_nav_pills_v10", # 키값 갱신
+        label_visibility="collapsed"
+    )
+
+    # ---------------------------------------------------------
+    # 4. 클릭 감지 및 페이지 이동 로직 (보정 완료)
+    # ---------------------------------------------------------
+    if selected_menu and selected_menu != default_sel:
+        if selected_menu == login_text:
+            if is_logged_in: 
+                st.session_state.auth_status = None # 로그아웃 처리
+            st.session_state.page = 'login'
+            
+        elif selected_menu == main_text:
+            st.session_state.view_mode = 'all'
+            # 메인 목록 페이지 이름이 'calendar'라면 'calendar'로, 'main'이라면 'main'으로 맞춰주세요.
+            st.session_state.page = 'calendar' 
+            
+        elif selected_menu == watch_text:
+            st.session_state.view_mode = 'watchlist'
+            st.session_state.page = 'calendar' 
+            
+        elif selected_menu == board_text:
+            st.session_state.page = 'board'
+        
+        # 설정 변경 후 화면 즉시 갱신
+        st.rerun()
+
+    
+    # ---------------------------------------------------------
+    # [기존 데이터 로직] - 과거 데이터 누락 방지 수정본
+    # ---------------------------------------------------------
+    all_df_raw = get_extended_ipo_data(MY_API_KEY)
+    
+    # 데이터 수집 범위 확인
+    if not all_df_raw.empty:
+        min_date = all_df_raw['date'].min()
+        max_date = all_df_raw['date'].max()
+        st.sidebar.info(f"📊 수집된 데이터 범위:\n{min_date} ~ {max_date}")
+        
+    view_mode = st.session_state.get('view_mode', 'all')
+    
+    if not all_df_raw.empty:
+        # 🔥 [수정] exchange가 없어도 삭제하지 않고 '-'로 채워서 유지합니다.
+        all_df = all_df_raw.copy()
+        all_df['exchange'] = all_df['exchange'].fillna('-')
+        
+        # 유효한 심볼이 있는 데이터만 유지
+        all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
+        
+        # 날짜 형식 통일 (normalize로 시간 제거)
+        all_df['공모일_dt'] = pd.to_datetime(all_df['date'], errors='coerce').dt.normalize()
+        all_df = all_df.dropna(subset=['공모일_dt'])
+        
+        today_dt = pd.to_datetime(datetime.now().date())
+        
+        # 2. 필터 로직
+        if view_mode == 'watchlist':
+            st.markdown("### ⭐ 내가 찜한 유니콘")
+            if st.button("🔄 전체 목록 보기", use_container_width=True):
+                st.session_state.view_mode = 'all'
+                st.rerun()
+                
+            display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
+            
+            if display_df.empty:
+                st.info("아직 관심 종목에 담은 기업이 없습니다.")
+        else:
+            # 일반 캘린더 모드
+            col_f1, col_f2 = st.columns([1, 1]) 
+            with col_f1:
+                period = st.selectbox(
+                    label="조회 기간", 
+                    options=["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"],
+                    key="filter_period",
+                    label_visibility="collapsed"
+                )
+            with col_f2:
+                sort_option = st.selectbox(
+                    label="정렬 순서", 
+                    options=["최신순", "수익률"],
+                    key="filter_sort",
+                    label_visibility="collapsed"
+                )
+            
+            # [수정본] 기간별 데이터 필터링 로직
+            if period == "상장 예정 (30일)":
+                # 오늘 포함 미래 30일까지 (공모가 미확정 종목 포함 가능성 대비)
+                display_df = all_df[(all_df['공모일_dt'] >= today_dt) & (all_df['공모일_dt'] <= today_dt + timedelta(days=30))]
+            else:
+                # '지난 X개월' 선택 시: 오늘 이전(과거) 데이터 중 해당 기간 내 것만 필터링
+                if period == "지난 6개월":
+                    start_date = today_dt - timedelta(days=180)
+                elif period == "지난 12개월":
+                    start_date = today_dt - timedelta(days=365)
+                elif period == "지난 18개월":
+                    start_date = today_dt - timedelta(days=540)
+                
+                # 🔥 핵심 수정: 오늘(today_dt)을 기준으로 '과거' 데이터 전체를 긁어오도록 범위 명확화
+                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
+
+                # [추가 검증] 만약 6개월 데이터가 여전히 부족하다면?
+                # API가 반환하는 전체 데이터셋(all_df_raw)에 해당 날짜가 있는지 확인하는 디버깅용 메시지
+                if display_df.empty and not all_df_raw.empty:
+                    st.sidebar.warning(f"⚠️ {period} 범위에 해당하는 데이터가 API 응답에 없습니다.")
+
+        # [정렬 로직]
+        if 'live_price' not in display_df.columns:
+            display_df['live_price'] = 0.0
+
+        if not display_df.empty:
+            if sort_option == "최신순": 
+                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+                
+            elif sort_option == "수익률":
+                with st.spinner("🔄 실시간 시세 조회 중..."):
+                    returns = []
+                    prices = []
+                    for idx, row in display_df.iterrows():
+                        try:
+                            p_raw = str(row.get('price','0')).replace('$','').split('-')[0]
+                            p_ipo = float(p_raw) if p_raw else 0
+                            p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
+                            
+                            if p_ipo > 0 and p_curr > 0:
+                                ret = ((p_curr - p_ipo) / p_ipo) * 100
+                            else:
+                                ret = -9999
+                        except: 
+                            ret = -9999
+                            p_curr = 0
+                        returns.append(ret)
+                        prices.append(p_curr)
+                    
+                    display_df['temp_return'] = returns
+                    display_df['live_price'] = prices
+                    display_df = display_df.sort_values(by='temp_return', ascending=False)
+
+        # ----------------------------------------------------------------
+        # [핵심] 리스트 레이아웃 (7 : 3 비율) - 기존 디자인 유지
+        # ----------------------------------------------------------------
+        if not display_df.empty:
+            for i, row in display_df.iterrows():
+                p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
+                p_val = p_val if p_val and p_val > 0 else 0
+                
+                # 가격 HTML
+                live_p = row.get('live_price', 0)
+                if live_p > 0:
+                    pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
+                    if pct > 0:
+                        change_color = "#e61919" 
+                        arrow = "▲"
+                    elif pct < 0:
+                        change_color = "#1919e6" 
+                        arrow = "▼"
+                    else:
+                        change_color = "#333333" 
+                        arrow = ""
+
+                    price_html = f"""
+                        <div class='price-main' style='color:{change_color} !important;'>
+                            ${live_p:,.2f} ({arrow}{pct:+.1f}%)
+                        </div>
+                        <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
+                    """
+                else:
+                    price_html = f"""
+                        <div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div>
+                        <div class='price-sub' style='color:#666666 !important;'>공모가</div>
+                    """
+                
+                date_html = f"<div class='date-text'>{row['date']}</div>"
+
+                c1, c2 = st.columns([7, 3])
+                
+                with c1:
+                    # 기업명 버튼
+                    if st.button(f"{row['name']}", key=f"btn_list_{i}"):
+                        st.session_state.selected_stock = row.to_dict()
+                        st.session_state.page = 'detail'
+                        st.rerun()
+                    
+                    try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
+                    except: s_val = 0
+                    size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
+                    
+                    st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
+
+                with c2:
+                    st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
+                
+                st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
+
+        else:
+            st.info("조건에 맞는 종목이 없습니다.")
+
+        
+
+# 5. 상세 페이지 (이동 로직 보정 + 디자인 + NameError 방지 통합본)
+elif st.session_state.page == 'detail':
+    stock = st.session_state.selected_stock
+    
+    # [1] 변수 초기화
+    profile = None
+    fin_data = None
+    current_p = 0
+    off_val = 0
+
+    if stock:
+        # -------------------------------------------------------------------------
+        # [2] 상단 메뉴바 (블랙 스타일 & 이동 로직 보정)
+        # -------------------------------------------------------------------------
+        st.markdown("""
+            <style>
+            div[data-testid="stPills"] div[role="radiogroup"] button {
+                border: none !important;
+                background-color: #000000 !important;
+                color: #ffffff !important;
+                border-radius: 20px !important;
+                padding: 6px 15px !important;
+                margin-right: 5px !important;
+                box-shadow: none !important;
+            }
+            div[data-testid="stPills"] button[aria-selected="true"] {
+                background-color: #444444 !important;
+                font-weight: 800 !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
+        is_logged_in = st.session_state.auth_status == 'user'
+        login_text = "로그아웃" if is_logged_in else "로그인"
+        main_text = "메인"
+        watch_text = f"관심 ({len(st.session_state.watchlist)})"
+        board_text = "게시판"
+        
+        menu_options = [login_text, main_text, watch_text, board_text]
+        
+        # 상세 페이지에서는 선택된 메뉴가 없도록 index를 None에 가깝게 유지하거나 새로운 키 사용
+        selected_menu = st.pills(
+            label="nav", 
+            options=menu_options, 
+            selection_mode="single", 
+            key="detail_nav_final_v7", 
+            label_visibility="collapsed"
+        )
+
+        if selected_menu:
+            if selected_menu == login_text:
+                if is_logged_in: st.session_state.auth_status = None
+                st.session_state.page = 'login'
+            
+            elif selected_menu == main_text:
+                st.session_state.view_mode = 'all'
+                # [중요] 하얀 화면 방지: 메인 목록 페이지 이름이 'calendar'라면 여기를 'calendar'로 유지
+                st.session_state.page = 'calendar' 
+            
+            elif selected_menu == watch_text:
+                st.session_state.view_mode = 'watchlist'
+                st.session_state.page = 'calendar' # 위와 동일하게 설정
+            
+            elif selected_menu == board_text:
+                st.session_state.page = 'board'
+            
+            st.rerun()
+
+
+        # -------------------------------------------------------------------------
+        # [3] 사용자 판단 로직 (함수 정의)
+        # -------------------------------------------------------------------------
+        if 'user_decisions' not in st.session_state:
+            st.session_state.user_decisions = {}
+        
+        sid = stock['symbol']
+        if sid not in st.session_state.user_decisions:
+            st.session_state.user_decisions[sid] = {"news": None, "filing": None, "macro": None, "company": None}
+
+        def draw_decision_box(step_key, title, options):
+            st.write("---")
+            st.markdown(f"##### {title}")
+            current_val = st.session_state.user_decisions[sid].get(step_key)
+            choice = st.radio(
+                label=f"판단_{step_key}",
+                options=options,
+                index=options.index(current_val) if current_val in options else None,
+                key=f"dec_{sid}_{step_key}",
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+            if choice:
+                st.session_state.user_decisions[sid][step_key] = choice
+
+        # -------------------------------------------------------------------------
+        # [4] 데이터 로딩 및 헤더 구성 (폰트 크기 최적화 버전)
+        # -------------------------------------------------------------------------
+        today = datetime.now().date()
+        try: 
+            ipo_dt = stock['공모일_dt'].date() if hasattr(stock['공모일_dt'], 'date') else pd.to_datetime(stock['공모일_dt']).date()
+        except: 
+            ipo_dt = today
+        
+        status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
+        date_str = ipo_dt.strftime('%Y-%m-%d')
+
+        with st.spinner(f"🤖 {stock['name']} 분석 중..."):
+            try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
+            except: off_val = 0
+            try:
+                current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
+                profile = get_company_profile(stock['symbol'], MY_API_KEY) 
+                fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
+            except: pass
+
+        # 수익률 계산 및 HTML 구성 (오타 수정 버전)
+        if current_p > 0 and off_val > 0:
+            pct = ((current_p - off_val) / off_val) * 100
+            color = "#00ff41" if pct >= 0 else "#ff4b4b"
+            icon = "▲" if pct >= 0 else "▼"
+            # 폰트 크기를 탭 메뉴와 맞추기 위해 스타일 조정
+            p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 현재 ${current_p} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
+        else:
+            # 여기 시작 부분에 f" 를 정확히 넣었습니다.
+            p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 상장 대기)</span>"
+
+        # 기업명 출력 (h3 급 크기로 줄여서 탭 메뉴와 조화롭게 변경)
+        st.markdown(f"""
+            <div style='margin-bottom: -10px;'>
+                <span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> 
+                {p_info}
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("") # 미세 여백
+
+        # -------------------------------------------------------------------------
+        # [CSS 추가] 탭 텍스트 색상 검정색으로 강제 고정 (모바일 가독성 해결)
+        # -------------------------------------------------------------------------
+        st.markdown("""
+        <style>
+            /* 1. 탭 버튼 내부의 텍스트 색상 지정 */
+            .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+                color: #333333 !important; /* 검은색 강제 적용 */
+                font-weight: bold !important; /* 굵게 표시 */
+            }
+            
+            /* 2. 탭 마우스 오버 시 색상 (선택 사항) */
+            .stTabs [data-baseweb="tab-list"] button:hover [data-testid="stMarkdownContainer"] p {
+                color: #004e92 !important; /* 마우스 올렸을 때 파란색 */
+            }
+        </style>
+        """, unsafe_allow_html=True)
