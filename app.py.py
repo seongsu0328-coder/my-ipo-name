@@ -2031,7 +2031,7 @@ def get_ai_summary_final(query):
         
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
-elif st.session_state.page == 'calendar':
+if st.session_state.page == 'calendar':
     # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
     st.markdown("""
         <style>
