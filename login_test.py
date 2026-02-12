@@ -18,6 +18,75 @@ DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 st.set_page_config(page_title="Unicorn Finder", layout="centered")
 
 # ==========================================
+# [추가] 본서버 UI 연동을 위한 핵심 백엔드 함수
+# ==========================================
+
+# 1. Finnhub API KEY 설정 (사용자 요청 반영)
+MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
+
+# 2. 실시간 주가 조회 함수 (NameError 방지)
+@st.cache_data(ttl=900)
+def get_current_stock_price(symbol, api_key):
+    try:
+        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
+        res = requests.get(url, timeout=2).json()
+        return res.get('c', 0)
+    except:
+        return 0
+
+# 3. 기업 프로필 조회 함수 (로고, 산업군 등)
+@st.cache_data(ttl=86400)
+def get_company_profile(symbol, api_key):
+    try:
+        url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={api_key}"
+        res = requests.get(url, timeout=3).json()
+        return res if res and 'name' in res else None
+    except:
+        return None
+
+# 4. 재무 지표 조회 함수 (성장률, 이익률 등)
+@st.cache_data(ttl=43200)
+def get_financial_metrics(symbol, api_key):
+    try:
+        url = f"https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={api_key}"
+        res = requests.get(url, timeout=3).json()
+        metrics = res.get('metric', {})
+        if metrics:
+            return {
+                "growth": metrics.get('salesGrowthYoy', None),
+                "op_margin": metrics.get('operatingMarginTTM', None),
+                "net_margin": metrics.get('netProfitMarginTTM', None),
+                "debt_equity": metrics.get('totalDebt/totalEquityQuarterly', None)
+            }
+        return None
+    except:
+        return None
+
+# 5. 확장 IPO 데이터 수집 함수 (과거 데이터 누락 방지용)
+@st.cache_data(ttl=14400)
+def get_extended_ipo_data(api_key):
+    now = datetime.now()
+    # 과거 18개월 ~ 미래 3개월 범위를 커버하여 데이터 유실 방지
+    ranges = [
+        (now - timedelta(days=540), now + timedelta(days=90))
+    ]
+    all_data = []
+    for start, end in ranges:
+        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start.strftime('%Y-%m-%d')}&to={end.strftime('%Y-%m-%d')}&token={api_key}"
+        try:
+            res = requests.get(url, timeout=5).json()
+            if 'ipoCalendar' in res:
+                all_data.extend(res['ipoCalendar'])
+        except:
+            continue
+    
+    if not all_data: return pd.DataFrame()
+    df = pd.DataFrame(all_data)
+    df = df.drop_duplicates(subset=['symbol', 'date'])
+    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
+    return df.dropna(subset=['공모일_dt'])
+
+# ==========================================
 # [기능] 구글 연결 및 유저 관리
 # ==========================================
 @st.cache_resource
