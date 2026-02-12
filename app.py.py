@@ -3,7 +3,6 @@ import requests
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import xml.etree.ElementTree as ET
 import os
 import time
 import uuid
@@ -15,11 +14,14 @@ import urllib.parse
 import smtplib
 import gspread
 import io
+import xml.etree.ElementTree as ET
 from oauth2client.service_account import ServiceAccountCredentials
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 
-# --- [구글 서비스 라이브러리] ---
+# ==========================================
+# [중요] 구글 라이브러리 - 이 위치가 반드시 함수보다 위여야 합니다!
+# ==========================================
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
@@ -29,31 +31,32 @@ import google.generativeai as genai
 from tavily import TavilyClient
 from duckduckgo_search import DDGS
 
-
-MY_API_KEY = st.secrets["FINNHUB_API_KEY"]
-
 # ==========================================
-# [설정] 구글 드라이브 폴더 ID (필수 입력)
+# [설정] 전역 변수
 # ==========================================
 DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
+MY_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 
 # ==========================================
-# [기능] 구글 연결 및 유저 관리
+# [기능] 1. 구글 연결 핵심 함수 (최우선 순위)
 # ==========================================
-# --- 데이터 로직 (캐싱 최적화 적용) ---
-MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
-
 @st.cache_resource
 def get_gcp_clients():
     try:
+        # 이 함수가 실행될 때 위에서 import한 'build'를 사용합니다.
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        
         gspread_client = gspread.authorize(creds)
+        # 여기서 build가 정의되어 있어야 에러가 안 납니다.
         drive_service = build('drive', 'v3', credentials=creds)
+        
         return gspread_client, drive_service
     except Exception as e:
-        st.error(f"구글 연결 실패: {e}")
+        # 만약 여기서 'name build is not defined'가 뜬다면 
+        # 위쪽의 import build 줄이 지워졌는지 확인해야 합니다.
+        st.error(f"구글 연결 초기화 실패: {e}")
         return None, None
 
 @st.cache_data(ttl=43200) # 12시간마다 갱신
