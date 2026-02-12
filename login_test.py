@@ -491,17 +491,21 @@ if st.session_state.page == 'login':
                         
                         # 3. 구글 시트 저장 및 이동
                         if save_user_to_sheets(final_data):
-                            # 로그인 세션에 정보 심어주기
+                            # [중요] 세션 상태를 먼저 확실하게 박아줍니다.
                             st.session_state.auth_status = 'user'
                             st.session_state.user_info = final_data
                             st.session_state.page = 'main_app'
                             
+                            # 토스트 메시지
                             if role == "user":
-                                st.toast("✅ 신청 완료! 관리자 승인 대기 상태로 시작합니다.")
+                                st.success("✅ 신청 완료! 관리자 승인 대기 상태로 시작합니다.")
                             else:
-                                st.toast("✅ 가입 완료! 익명(Basic) 모드로 시작합니다.")
+                                st.success("✅ 가입 완료! 익명(Basic) 모드로 시작합니다.")
                             
-                            time.sleep(1)
+                            # [핵심] sleep 없이 즉시 rerun을 시도하거나, 
+                            # 만약 rerun이 안 먹힐 경우를 대비해 버튼을 하나 둡니다.
+                            
+                            time.sleep(0.5) # 대기 시간을 줄입니다.
                             st.rerun()
 
 elif st.session_state.page == 'main_app':
