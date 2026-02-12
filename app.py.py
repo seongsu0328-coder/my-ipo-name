@@ -1460,576 +1460,6 @@ if st.session_state.page == 'login':
                                 st.write(f"💰 **등급**: {current_tier if v_asset else '(비공개)'}")
                                 st.write(f"✅ **상태**: {u.get('status', 'pending')}")
 
-# ---------------------------------------------------------
-# CASE 2: 메인 캘린더 (Calendar)
-# ---------------------------------------------------------
-elif st.session_state.page == 'calendar':
-    st.markdown("### 📅 IPO 캘린더")
-    
-    # 상단 메뉴바
-    c1, c2, c3 = st.columns(3)
-    if c1.button("🏠 메인 (새로고침)"): 
-        st.session_state.view_mode = 'all'
-        st.rerun()
-    if c2.button(f"⭐ 관심종목 ({len(st.session_state.watchlist)})"): 
-        st.session_state.view_mode = 'watchlist'
-        st.rerun()
-    if c3.button("💬 게시판"): 
-        st.session_state.page = 'board'
-        st.rerun()
-
-    # 데이터 로드 (수정된 함수 사용)
-    # API KEY는 Secrets에서 가져오도록 변경
-    api_key = st.secrets.get("FINNHUB_API_KEY", "YOUR_DEFAULT_KEY") 
-    df = get_extended_ipo_data(api_key) 
-    
-    # 뷰 모드에 따른 필터링
-    if st.session_state.view_mode == 'watchlist':
-        if not st.session_state.watchlist:
-            st.warning("관심 종목이 비어있습니다.")
-            display_df = pd.DataFrame()
-        else:
-            display_df = df[df['symbol'].isin(st.session_state.watchlist)] if not df.empty else df
-            if st.button("전체 목록 보기"):
-                st.session_state.view_mode = 'all'
-                st.rerun()
-    else:
-        # 기본: 향후 30일 + 과거 데이터 일부
-        today = datetime.now().date()
-        # 예시로 최근~미래 데이터만 필터링
-        display_df = df if not df.empty else pd.DataFrame()
-
-    # 리스트 출력
-    if not display_df.empty:
-        # 날짜순 정렬
-        display_df = display_df.sort_values(by='공모일_dt', ascending=False)
-        
-        for idx, row in display_df.iterrows():
-            with st.container():
-                c1, c2 = st.columns([3, 1])
-                with c1:
-                    # 클릭 시 상세 페이지로 이동
-                    if st.button(f"🦄 {row['name']} ({row['symbol']})", key=f"btn_{idx}"):
-                        st.session_state.selected_stock = row.to_dict()
-                        st.session_state.page = 'detail'
-                        st.rerun()
-                with c2:
-                    st.caption(f"{row['date']}")
-                st.divider()
-    else:
-        st.info("표시할 데이터가 없습니다.")
-
-# ---------------------------------------------------------
-# CASE 3: 상세 페이지 (Detail)
-# ---------------------------------------------------------
-elif st.session_state.page == 'detail':
-    stock = st.session_state.selected_stock
-    if not stock:
-        st.session_state.page = 'calendar'
-        st.rerun()
-
-    if st.button("⬅️ 목록으로 돌아가기"):
-        st.session_state.page = 'calendar'
-        st.rerun()
-        
-    st.title(f"{stock['name']} ({stock['symbol']})")
-    
-    # 탭 구성
-    t0, t1, t2, t3, t4, t5 = st.tabs(["공시", "뉴스", "거시", "미시", "기관", "토론"])
-    
-    with t0:
-        st.info("공시 분석 탭입니다.")
-        # (여기에 공시 로직 추가)
-        
-    with t1:
-        st.info("뉴스 분석 탭입니다.")
-        # (여기에 뉴스 로직 추가)
-        
-    with t5:
-        st.subheader("토론방")
-        # (게시판 연결 로직)
-
-# ---------------------------------------------------------
-# CASE 4: 게시판 (Board)
-# ---------------------------------------------------------
-elif st.session_state.page == 'board':
-    st.title("💬 통합 게시판")
-    if st.button("🏠 메인으로"):
-        st.session_state.page = 'calendar'
-        st.rerun()
-        
-    # 게시글 목록 출력
-    if not st.session_state.posts:
-        st.info("작성된 게시글이 없습니다.")
-    
-    for p in st.session_state.posts:
-        with st.expander(f"{p.get('title')} ({p.get('author')})"):
-            st.write(p.get('content'))
-
-
-
-# --- [1. 최상단 페이지 컨트롤러] ---
-if st.session_state.get('page') == 'board':
-    
-    # ---------------------------------------------------------
-    # 1. [STYLE] 블랙 배경 + 화이트 글씨 (제공해주신 스타일 적용)
-    # ---------------------------------------------------------
-    st.markdown("""
-        <style>
-        div[data-testid="stPills"] div[role="radiogroup"] button {
-            border: none !important;
-            outline: none !important;
-            background-color: #000000 !important;
-            color: #ffffff !important;
-            border-radius: 20px !important;
-            padding: 6px 15px !important;
-            margin-right: 5px !important;
-            box-shadow: none !important;
-        }
-        div[data-testid="stPills"] button[aria-selected="true"] {
-            background-color: #444444 !important;
-            color: #ffffff !important;
-            font-weight: 800 !important;
-        }
-        div[data-testid="stPills"] div[data-baseweb="pill"] {
-            border: none !important;
-            background: transparent !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # ---------------------------------------------------------
-    # 2. 메뉴 텍스트 정의 및 페이지 이동 로직
-    # ---------------------------------------------------------
-    is_logged_in = st.session_state.get('auth_status') == 'user'
-    login_text = "로그아웃" if is_logged_in else "로그인"
-    main_text = "메인"
-    watch_text = f"관심 ({len(st.session_state.get('watchlist', []))})"
-    board_text = "게시판"
-    
-    menu_options = [login_text, main_text, watch_text, board_text]
-
-    # 현재 게시판 페이지이므로 기본 선택값은 board_text
-    selected_menu = st.pills(
-        label="내비게이션",
-        options=menu_options,
-        selection_mode="single",
-        default=board_text,
-        key="top_nav_board_page", 
-        label_visibility="collapsed"
-    )
-
-    # ✨ [핵심] 메뉴 클릭 시 페이지 이동 로직 ✨
-    if selected_menu == login_text:
-        if is_logged_in:
-            st.session_state.auth_status = None
-            st.session_state.page = 'login'
-        else:
-            st.session_state.page = 'login'
-        st.rerun()
-    elif selected_menu == main_text:
-        st.session_state.page = 'calendar' # 메인(캘린더) 페이지로 이동
-        st.session_state.view_mode = 'all'
-        st.rerun()
-    elif selected_menu == watch_text:
-        st.session_state.page = 'calendar' # 캘린더 페이지로 가되
-        st.session_state.view_mode = 'watchlist' # 관심 종목 모드로 변경
-        st.rerun()
-    # '게시판' 선택 시에는 현재 페이지이므로 아무 작업 안 함
-
-    # ---------------------------------------------------------
-    # 3. 통합 게시판 본문 (헤더 중복 제거 및 10개 노출 버전)
-    # ---------------------------------------------------------
-    
-    # [설정] 관리자 및 사용자 확인
-    ADMIN_PHONE = "010-0000-0000"  # 실제 관리자 번호로 수정하세요
-    current_user_phone = st.session_state.get('user_phone', 'guest')
-    is_admin = (current_user_phone == ADMIN_PHONE)
-    user_id = st.session_state.get('user_id')
-    
-    # [1. 상단: 게시글 리스트 섹션]
-    posts = st.session_state.get('posts', [])
-    
-    if 'search_word' not in st.session_state:
-        st.session_state.search_word = ""
-    
-    # 검색 필터링 로직
-    if st.session_state.search_word:
-        sw = st.session_state.search_word.upper()
-        display_posts = [p for p in posts if sw in p.get('category', '').upper() or sw in p.get('title', '').upper()]
-    else:
-        display_posts = posts
-    
-    # --- 리스트 출력 시작 (최대 10개 노출) ---
-    if display_posts:
-        for idx, p in enumerate(display_posts[:10]):  # 👈 기존 20개에서 10개로 변경
-            
-            # [수정 1] 종목명 중복 제거 및 헤더 형식 변경
-            category = p.get('category', '').strip()
-            title = p.get('title', '').strip()
-            
-            # 제목 자체에 이미 [종목]이 포함되어 있는지 확인하여 중복 방지
-            if category and f"[{category}]" in title:
-                clean_title = title  # 이미 포함되어 있으면 그대로 사용
-            elif category:
-                clean_title = f"[{category}] {title}" # 없으면 붙여줌
-            else:
-                clean_title = title
-    
-            # 최종 헤더 문자열 (별표 제거)
-            combined_header = f"{clean_title} | 👤 {p.get('author')} | {p.get('date')}"
-            
-            with st.expander(combined_header, expanded=False):
-                st.write(p.get('content'))
-                st.divider()
-                
-                # 버튼 레이아웃
-                col_l, col_d, col_spacer, col_edit, col_del = st.columns([0.7, 0.7, 3.5, 0.6, 0.6])
-                
-                with col_l:
-                    if st.button(f"👍 {p.get('likes', 0)}", key=f"like_{p['id']}"):
-                        if user_id and user_id not in p.get('like_users', []):
-                            p['likes'] = p.get('likes', 0) + 1
-                            p.setdefault('like_users', []).append(user_id)
-                            st.rerun()
-                with col_d:
-                    if st.button(f"👎 {p.get('dislikes', 0)}", key=f"dis_{p['id']}"):
-                        if user_id and user_id not in p.get('dislike_users', []):
-                            p['dislikes'] = p.get('dislikes', 0) + 1
-                            p.setdefault('dislike_users', []).append(user_id)
-                            st.rerun()
-    
-                # 수정 및 삭제 권한 확인
-                if (current_user_phone == p.get('author')) or is_admin:
-                    with col_edit:
-                        if st.button("📝", key=f"edit_{p['id']}"):
-                            st.info("수정 기능 준비 중입니다.")
-                    with col_del:
-                        if st.button("🗑️", key=f"del_{p['id']}"):
-                            st.session_state.posts = [item for item in st.session_state.posts if item['id'] != p['id']]
-                            st.rerun()
-            st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
-    else:
-        st.caption("게시글이 없습니다.")
-    
-    st.markdown("---")
-    
-    # [2. 하단: 검색창 및 글쓰기 버튼 가로 배치]
-    col_search, col_write = st.columns([3, 1])
-    
-    with col_search:
-        st.session_state.search_word = st.text_input(
-            "🔍 검색", 
-            value=st.session_state.search_word,
-            placeholder="종목명 또는 제목으로 검색...",
-            label_visibility="collapsed",
-            key="board_search_input_final"
-        )
-    
-    with col_write:
-        show_write = st.expander("📝 글쓰기", expanded=False)
-    
-    # [3. 글쓰기 폼 로직]
-    if st.session_state.get('auth_status') == 'user':
-        with show_write:
-            with st.form(key="unique_write_form_v3", clear_on_submit=True):
-                w_col1, w_col2 = st.columns([1, 2])
-                with w_col1:
-                    new_cat = st.text_input("종목명", placeholder="예: TSLA")
-                with w_col2:
-                    new_title = st.text_input("제목", placeholder="제목을 입력하세요")
-                new_content = st.text_area("내용", placeholder="인사이트를 공유해 주세요")
-                
-                if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
-                    if new_title and new_content:
-                        new_post = {
-                            "id": str(uuid.uuid4()),
-                            "category": new_cat.upper() if new_cat else "공통",
-                            "title": new_title, 
-                            "content": new_content,
-                            "author": current_user_phone,
-                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "likes": 0, "dislikes": 0,
-                            "like_users": [], "dislike_users": [],
-                            "uid": user_id
-                        }
-                        if 'posts' not in st.session_state: st.session_state.posts = []
-                        st.session_state.posts.insert(0, new_post)
-                        st.rerun()
-    else:
-        with show_write:
-            st.warning("🔒 로그인 후 글을 남길 수 있습니다.")
-
-
-# --- 데이터 로직 (캐싱 최적화 적용) ---
-MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
-
-@st.cache_data(ttl=43200) # 12시간마다 갱신
-def get_daily_quote():
-    # 1. 예비용 명언 리스트 (한글 번역 추가됨)
-    backup_quotes = [
-        {"eng": "Opportunities don't happen. You create them.", "kor": "기회는 찾아오는 것이 아닙니다. 당신이 만드는 것입니다.", "author": "Chris Grosser"},
-        {"eng": "The best way to predict the future is to create it.", "kor": "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것입니다.", "author": "Peter Drucker"},
-        {"eng": "Do not be embarrassed by your failures, learn from them and start again.", "kor": "실패를 부끄러워하지 마세요. 배우고 다시 시작하세요.", "author": "Richard Branson"},
-        {"eng": "Innovation distinguishes between a leader and a follower.", "kor": "혁신이 리더와 추종자를 구분합니다.", "author": "Steve Jobs"},
-        {"eng": "It’s not about ideas. It’s about making ideas happen.", "kor": "아이디어 자체가 중요한 게 아닙니다. 실행하는 것이 중요합니다.", "author": "Scott Belsky"},
-        {"eng": "The only way to do great work is to love what you do.", "kor": "위대한 일을 하는 유일한 방법은 그 일을 사랑하는 것입니다.", "author": "Steve Jobs"},
-        {"eng": "Risk comes from not knowing what you're doing.", "kor": "위험은 자신이 무엇을 하는지 모르는 데서 옵니다.", "author": "Warren Buffett"},
-        {"eng": "Success is walking from failure to failure with no loss of enthusiasm.", "kor": "성공이란 열정을 잃지 않고 실패를 거듭해 나가는 능력입니다.", "author": "Winston Churchill"}
-    ]
-
-    try:
-        # 1. API로 영어 명언 가져오기
-        res = requests.get("https://api.quotable.io/random?tags=business", timeout=2).json()
-        eng_text = res['content']
-        author = res['author']
-        
-        # 2. 한글 번역 시도 (기존 뉴스 번역 API 활용)
-        kor_text = ""
-        try:
-            trans_url = "https://api.mymemory.translated.net/get"
-            trans_res = requests.get(trans_url, params={'q': eng_text, 'langpair': 'en|ko'}, timeout=2).json()
-            if trans_res['responseStatus'] == 200:
-                kor_text = trans_res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
-        except:
-            pass # 번역 실패 시 빈 칸
-
-        # 번역 실패 시 예비 멘트 혹은 영어만 리턴 방지
-        if not kor_text: 
-            kor_text = "Global Business Quote"
-
-        return {"eng": eng_text, "kor": kor_text, "author": author}
-
-    except:
-        # API 실패 시, 예비 리스트에서 랜덤 선택
-        return random.choice(backup_quotes)
-@st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
-def get_financial_metrics(symbol, api_key):
-    try:
-        url = f"https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={api_key}"
-        res = requests.get(url, timeout=5).json()
-        metrics = res.get('metric', {})
-        return {
-            "growth": metrics.get('salesGrowthYoy', None),
-            "op_margin": metrics.get('operatingMarginTTM', None),
-            "net_margin": metrics.get('netProfitMarginTTM', None),
-            "debt_equity": metrics.get('totalDebt/totalEquityQuarterly', None)
-        } if metrics else None
-    except: return None
-
-@st.cache_data(ttl=86400) # 24시간 (기업 프로필도 거의 안 바뀜)
-def get_company_profile(symbol, api_key):
-    try:
-        url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={api_key}"
-        res = requests.get(url, timeout=5).json()
-        return res if res and 'name' in res else None
-    except: return None
-
-@st.cache_data(ttl=14400)
-def get_extended_ipo_data(api_key):
-    now = datetime.now()
-    
-    # [핵심 수정] 구간을 나눌 때 서로 겹치게(Overlap) 설정합니다.
-    # 180일과 181일로 딱 나누지 않고, 200일/170일 식으로 겹치게 하여 경계 누락을 방지합니다.
-    ranges = [
-        (now - timedelta(days=200), now + timedelta(days=120)),  # 구간 1: 현재~과거 200일 (약 6.5개월)
-        (now - timedelta(days=380), now - timedelta(days=170)), # 구간 2: 과거 170일~380일
-        (now - timedelta(days=560), now - timedelta(days=350))  # 구간 3: 과거 350일~560일
-    ]
-    
-    all_data = []
-    for start_dt, end_dt in ranges:
-        start_str = start_dt.strftime('%Y-%m-%d')
-        end_str = end_dt.strftime('%Y-%m-%d')
-        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
-        
-        try:
-            # 호출 사이 간격을 아주 약간 주어 Rate Limit 안정성 확보
-            time.sleep(0.3) 
-            res = requests.get(url, timeout=7).json()
-            ipo_list = res.get('ipoCalendar', [])
-            if ipo_list:
-                all_data.extend(ipo_list)
-        except:
-            continue
-    
-    if not all_data: 
-        return pd.DataFrame()
-    
-    # 데이터프레임 생성
-    df = pd.DataFrame(all_data)
-    
-    # [중요] 구간을 겹치게 가져왔으므로 여기서 중복을 확실히 제거합니다.
-    df = df.drop_duplicates(subset=['symbol', 'date'])
-    
-    # 날짜 변환 및 보정
-    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
-    df = df.dropna(subset=['공모일_dt'])
-    
-    return df
-
-# 주가(Price)는 15분마다 업데이트되도록 캐싱 설정 (900초 = 15분)
-@st.cache_data(ttl=900)
-def get_current_stock_price(symbol, api_key):
-    try:
-        # Finnhub API를 통해 실시간 시세를 가져옴
-        # 15분 이내에 같은 symbol로 호출하면 API를 쏘지 않고 저장된 값을 반환합니다.
-        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
-        res = requests.get(url, timeout=2).json()
-        
-        # 'c'는 Current Price(현재가)를 의미합니다.
-        current_p = res.get('c', 0)
-        
-        # 데이터가 유효한지(0이 아닌지) 확인 후 반환
-        return current_p if current_p else 0
-    except Exception as e:
-        # 에러 발생 시 로그를 남기지 않고 0을 반환하여 앱 중단 방지
-        return 0
-
-# [뉴스 감성 분석 함수 - 내부 연산이므로 별도 캐싱 불필요]
-def analyze_sentiment(text):
-    text = text.lower()
-    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
-    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
-    score = 0
-    for w in pos_words:
-        if w in text: score += 1
-    for w in neg_words:
-        if w in text: score -= 1
-    
-    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
-    elif score < 0: return "부정", "#fce8e6", "#d93025"
-    else: return "일반", "#f1f3f4", "#5f6368"
-
-@st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
-@st.cache_data(ttl=3600)
-def get_real_news_rss(company_name, ticker=""):
-    import requests
-import xml.etree.ElementTree as ET
-import urllib.parse
-import re
-
-# [1] 뉴스 감성 분석 함수 (내부 연산용)
-def analyze_sentiment(text):
-    text = text.lower()
-    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
-    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
-    score = 0
-    for w in pos_words:
-        if w in text: score += 1
-    for w in neg_words:
-        if w in text: score -= 1
-    
-    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
-    elif score < 0: return "부정", "#fce8e6", "#d93025"
-    else: return "일반", "#f1f3f4", "#5f6368"
-
-
-# [핵심] 함수 이름 변경 (캐시 초기화 효과)
-@st.cache_data(show_spinner=False, ttl=86400)
-def get_ai_summary_final(query):
-    # [수정] 대문자든 소문자든 있는 쪽을 무조건 가져옵니다.
-    tavily_key = st.secrets.get("TAVILY_API_KEY") or st.secrets.get("tavily_api_key")
-    groq_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key")
-
-    # 두 키 중 하나라도 없으면 그때만 에러를 띄웁니다.
-    if not tavily_key or not groq_key:
-        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets 창에 TAVILY_API_KEY와 GROQ_API_KEY가 있는지 확인하세요.</p>"
-
-    try:
-        # 1. Tavily 검색
-        tavily = TavilyClient(api_key=tavily_key)
-        search_result = tavily.search(query=query, search_depth="basic", max_results=7)
-        if not search_result.get('results'): return None 
-        context = "\n".join([r['content'] for r in search_result['results']])
-
-        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
-        client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
-        
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", 
-            messages=[
-                {
-                    "role": "system", 
-                    "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
-[필수 작성 원칙]
-1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
-2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
-   - 1문단: 비즈니스 모델 및 경쟁 우위
-   - 2문단: 재무 현황 및 공모 자금 활용
-   - 3문단: 향후 전망 및 투자 의견
-3. 문체: '~습니다' 체를 사용하고, 문장 시작에 불필요한 접속사나 사명을 반복하지 마세요.
-4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 오직 줄글로만 작성하세요."""
-                },
-                {
-                    "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 데이터를 바탕으로 전문적인 3문단 리포트를 작성하세요."
-                }
-            ],
-            temperature=0.1
-        )
-        
-        raw_result = response.choices[0].message.content
-        
-        # --- [요청하신 정제 로직 + 문단 강제 분할] ---
-        
-        # 1. 텍스트 정제 (요청하신 코드 그대로 적용)
-        text = html.unescape(raw_result)
-        replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
-        for k, v in replacements.items(): text = text.replace(k, v)
-        
-        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호, 줄바꿈(\s)만 허용)
-        # 주의: \s가 없으면 줄바꿈도 다 사라지므로 \s는 꼭 있어야 합니다.
-        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
-        
-        # 2. 문단 강제 분리 로직 (Brute Force Split)
-        # (1) 우선 줄바꿈(엔터) 기준으로 잘라봅니다.
-        paragraphs = [p.strip() for p in re.split(r'\n+', text.strip()) if len(p) > 30]
-
-        # (2) [비상장치] 만약 AI가 줄바꿈을 안 줘서 덩어리가 1~2개뿐이라면?
-        # -> 마침표(.)를 기준으로 문장을 다 뜯어낸 뒤 강제로 3등분 합니다.
-        if len(paragraphs) < 3:
-            # 문장 단위로 분해 (마침표 뒤 공백 기준)
-            sentences = re.split(r'(?<=\.)\s+', text.strip())
-            total_sents = len(sentences)
-            
-            if total_sents >= 3:
-                # 3등분 계산 (올림 나눗셈)
-                chunk_size = (total_sents // 3) + 1
-                
-                p1 = " ".join(sentences[:chunk_size])
-                p2 = " ".join(sentences[chunk_size : chunk_size*2])
-                p3 = " ".join(sentences[chunk_size*2 :])
-                
-                # 다시 리스트로 합침 (빈 내용 제외)
-                paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
-            else:
-                # 문장이 너무 적으면 그냥 통으로 1개만 반환
-                paragraphs = [text]
-
-        # 3. HTML 태그 포장 (화면 렌더링용)
-        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
-        html_output = ""
-        for p in paragraphs:
-            html_output += f"""
-            <p style='
-                display: block;          /* 블록 요소 지정 */
-                text-indent: 14px;       /* 첫 줄 들여쓰기 */
-                margin-bottom: 20px;     /* 문단 아래 공백 */
-                line-height: 1.8;        /* 줄 간격 */
-                text-align: justify;     /* 양쪽 정렬 */
-                margin-top: 0;
-            '>
-                {p}
-            </p>
-            """
-            
-        return html_output
-
-    except Exception as e:
-        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
-        
-
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 if st.session_state.page == 'calendar':
     # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
@@ -2566,6 +1996,517 @@ elif st.session_state.page == 'detail':
             }
         </style>
         """, unsafe_allow_html=True)
+        
+# ---------------------------------------------------------
+# CASE 3: 상세 페이지 (Detail)
+# ---------------------------------------------------------
+elif st.session_state.page == 'detail':
+    stock = st.session_state.selected_stock
+    if not stock:
+        st.session_state.page = 'calendar'
+        st.rerun()
+
+    if st.button("⬅️ 목록으로 돌아가기"):
+        st.session_state.page = 'calendar'
+        st.rerun()
+        
+    st.title(f"{stock['name']} ({stock['symbol']})")
+    
+    # 탭 구성
+    t0, t1, t2, t3, t4, t5 = st.tabs(["공시", "뉴스", "거시", "미시", "기관", "토론"])
+    
+    with t0:
+        st.info("공시 분석 탭입니다.")
+        # (여기에 공시 로직 추가)
+        
+    with t1:
+        st.info("뉴스 분석 탭입니다.")
+        # (여기에 뉴스 로직 추가)
+        
+    with t5:
+        st.subheader("토론방")
+        # (게시판 연결 로직)
+
+# ---------------------------------------------------------
+# CASE 4: 게시판 (Board)
+# ---------------------------------------------------------
+elif st.session_state.page == 'board':
+    st.title("💬 통합 게시판")
+    if st.button("🏠 메인으로"):
+        st.session_state.page = 'calendar'
+        st.rerun()
+        
+    # 게시글 목록 출력
+    if not st.session_state.posts:
+        st.info("작성된 게시글이 없습니다.")
+    
+    for p in st.session_state.posts:
+        with st.expander(f"{p.get('title')} ({p.get('author')})"):
+            st.write(p.get('content'))
+
+
+
+# --- [1. 최상단 페이지 컨트롤러] ---
+if st.session_state.get('page') == 'board':
+    
+    # ---------------------------------------------------------
+    # 1. [STYLE] 블랙 배경 + 화이트 글씨 (제공해주신 스타일 적용)
+    # ---------------------------------------------------------
+    st.markdown("""
+        <style>
+        div[data-testid="stPills"] div[role="radiogroup"] button {
+            border: none !important;
+            outline: none !important;
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border-radius: 20px !important;
+            padding: 6px 15px !important;
+            margin-right: 5px !important;
+            box-shadow: none !important;
+        }
+        div[data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #444444 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+        div[data-testid="stPills"] div[data-baseweb="pill"] {
+            border: none !important;
+            background: transparent !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # ---------------------------------------------------------
+    # 2. 메뉴 텍스트 정의 및 페이지 이동 로직
+    # ---------------------------------------------------------
+    is_logged_in = st.session_state.get('auth_status') == 'user'
+    login_text = "로그아웃" if is_logged_in else "로그인"
+    main_text = "메인"
+    watch_text = f"관심 ({len(st.session_state.get('watchlist', []))})"
+    board_text = "게시판"
+    
+    menu_options = [login_text, main_text, watch_text, board_text]
+
+    # 현재 게시판 페이지이므로 기본 선택값은 board_text
+    selected_menu = st.pills(
+        label="내비게이션",
+        options=menu_options,
+        selection_mode="single",
+        default=board_text,
+        key="top_nav_board_page", 
+        label_visibility="collapsed"
+    )
+
+    # ✨ [핵심] 메뉴 클릭 시 페이지 이동 로직 ✨
+    if selected_menu == login_text:
+        if is_logged_in:
+            st.session_state.auth_status = None
+            st.session_state.page = 'login'
+        else:
+            st.session_state.page = 'login'
+        st.rerun()
+    elif selected_menu == main_text:
+        st.session_state.page = 'calendar' # 메인(캘린더) 페이지로 이동
+        st.session_state.view_mode = 'all'
+        st.rerun()
+    elif selected_menu == watch_text:
+        st.session_state.page = 'calendar' # 캘린더 페이지로 가되
+        st.session_state.view_mode = 'watchlist' # 관심 종목 모드로 변경
+        st.rerun()
+    # '게시판' 선택 시에는 현재 페이지이므로 아무 작업 안 함
+
+    # ---------------------------------------------------------
+    # 3. 통합 게시판 본문 (헤더 중복 제거 및 10개 노출 버전)
+    # ---------------------------------------------------------
+    
+    # [설정] 관리자 및 사용자 확인
+    ADMIN_PHONE = "010-0000-0000"  # 실제 관리자 번호로 수정하세요
+    current_user_phone = st.session_state.get('user_phone', 'guest')
+    is_admin = (current_user_phone == ADMIN_PHONE)
+    user_id = st.session_state.get('user_id')
+    
+    # [1. 상단: 게시글 리스트 섹션]
+    posts = st.session_state.get('posts', [])
+    
+    if 'search_word' not in st.session_state:
+        st.session_state.search_word = ""
+    
+    # 검색 필터링 로직
+    if st.session_state.search_word:
+        sw = st.session_state.search_word.upper()
+        display_posts = [p for p in posts if sw in p.get('category', '').upper() or sw in p.get('title', '').upper()]
+    else:
+        display_posts = posts
+    
+    # --- 리스트 출력 시작 (최대 10개 노출) ---
+    if display_posts:
+        for idx, p in enumerate(display_posts[:10]):  # 👈 기존 20개에서 10개로 변경
+            
+            # [수정 1] 종목명 중복 제거 및 헤더 형식 변경
+            category = p.get('category', '').strip()
+            title = p.get('title', '').strip()
+            
+            # 제목 자체에 이미 [종목]이 포함되어 있는지 확인하여 중복 방지
+            if category and f"[{category}]" in title:
+                clean_title = title  # 이미 포함되어 있으면 그대로 사용
+            elif category:
+                clean_title = f"[{category}] {title}" # 없으면 붙여줌
+            else:
+                clean_title = title
+    
+            # 최종 헤더 문자열 (별표 제거)
+            combined_header = f"{clean_title} | 👤 {p.get('author')} | {p.get('date')}"
+            
+            with st.expander(combined_header, expanded=False):
+                st.write(p.get('content'))
+                st.divider()
+                
+                # 버튼 레이아웃
+                col_l, col_d, col_spacer, col_edit, col_del = st.columns([0.7, 0.7, 3.5, 0.6, 0.6])
+                
+                with col_l:
+                    if st.button(f"👍 {p.get('likes', 0)}", key=f"like_{p['id']}"):
+                        if user_id and user_id not in p.get('like_users', []):
+                            p['likes'] = p.get('likes', 0) + 1
+                            p.setdefault('like_users', []).append(user_id)
+                            st.rerun()
+                with col_d:
+                    if st.button(f"👎 {p.get('dislikes', 0)}", key=f"dis_{p['id']}"):
+                        if user_id and user_id not in p.get('dislike_users', []):
+                            p['dislikes'] = p.get('dislikes', 0) + 1
+                            p.setdefault('dislike_users', []).append(user_id)
+                            st.rerun()
+    
+                # 수정 및 삭제 권한 확인
+                if (current_user_phone == p.get('author')) or is_admin:
+                    with col_edit:
+                        if st.button("📝", key=f"edit_{p['id']}"):
+                            st.info("수정 기능 준비 중입니다.")
+                    with col_del:
+                        if st.button("🗑️", key=f"del_{p['id']}"):
+                            st.session_state.posts = [item for item in st.session_state.posts if item['id'] != p['id']]
+                            st.rerun()
+            st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
+    else:
+        st.caption("게시글이 없습니다.")
+    
+    st.markdown("---")
+    
+    # [2. 하단: 검색창 및 글쓰기 버튼 가로 배치]
+    col_search, col_write = st.columns([3, 1])
+    
+    with col_search:
+        st.session_state.search_word = st.text_input(
+            "🔍 검색", 
+            value=st.session_state.search_word,
+            placeholder="종목명 또는 제목으로 검색...",
+            label_visibility="collapsed",
+            key="board_search_input_final"
+        )
+    
+    with col_write:
+        show_write = st.expander("📝 글쓰기", expanded=False)
+    
+    # [3. 글쓰기 폼 로직]
+    if st.session_state.get('auth_status') == 'user':
+        with show_write:
+            with st.form(key="unique_write_form_v3", clear_on_submit=True):
+                w_col1, w_col2 = st.columns([1, 2])
+                with w_col1:
+                    new_cat = st.text_input("종목명", placeholder="예: TSLA")
+                with w_col2:
+                    new_title = st.text_input("제목", placeholder="제목을 입력하세요")
+                new_content = st.text_area("내용", placeholder="인사이트를 공유해 주세요")
+                
+                if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
+                    if new_title and new_content:
+                        new_post = {
+                            "id": str(uuid.uuid4()),
+                            "category": new_cat.upper() if new_cat else "공통",
+                            "title": new_title, 
+                            "content": new_content,
+                            "author": current_user_phone,
+                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "likes": 0, "dislikes": 0,
+                            "like_users": [], "dislike_users": [],
+                            "uid": user_id
+                        }
+                        if 'posts' not in st.session_state: st.session_state.posts = []
+                        st.session_state.posts.insert(0, new_post)
+                        st.rerun()
+    else:
+        with show_write:
+            st.warning("🔒 로그인 후 글을 남길 수 있습니다.")
+
+
+# --- 데이터 로직 (캐싱 최적화 적용) ---
+MY_API_KEY = "d5j2hd1r01qicq2lls1gd5j2hd1r01qicq2lls20"
+
+@st.cache_data(ttl=43200) # 12시간마다 갱신
+def get_daily_quote():
+    # 1. 예비용 명언 리스트 (한글 번역 추가됨)
+    backup_quotes = [
+        {"eng": "Opportunities don't happen. You create them.", "kor": "기회는 찾아오는 것이 아닙니다. 당신이 만드는 것입니다.", "author": "Chris Grosser"},
+        {"eng": "The best way to predict the future is to create it.", "kor": "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것입니다.", "author": "Peter Drucker"},
+        {"eng": "Do not be embarrassed by your failures, learn from them and start again.", "kor": "실패를 부끄러워하지 마세요. 배우고 다시 시작하세요.", "author": "Richard Branson"},
+        {"eng": "Innovation distinguishes between a leader and a follower.", "kor": "혁신이 리더와 추종자를 구분합니다.", "author": "Steve Jobs"},
+        {"eng": "It’s not about ideas. It’s about making ideas happen.", "kor": "아이디어 자체가 중요한 게 아닙니다. 실행하는 것이 중요합니다.", "author": "Scott Belsky"},
+        {"eng": "The only way to do great work is to love what you do.", "kor": "위대한 일을 하는 유일한 방법은 그 일을 사랑하는 것입니다.", "author": "Steve Jobs"},
+        {"eng": "Risk comes from not knowing what you're doing.", "kor": "위험은 자신이 무엇을 하는지 모르는 데서 옵니다.", "author": "Warren Buffett"},
+        {"eng": "Success is walking from failure to failure with no loss of enthusiasm.", "kor": "성공이란 열정을 잃지 않고 실패를 거듭해 나가는 능력입니다.", "author": "Winston Churchill"}
+    ]
+
+    try:
+        # 1. API로 영어 명언 가져오기
+        res = requests.get("https://api.quotable.io/random?tags=business", timeout=2).json()
+        eng_text = res['content']
+        author = res['author']
+        
+        # 2. 한글 번역 시도 (기존 뉴스 번역 API 활용)
+        kor_text = ""
+        try:
+            trans_url = "https://api.mymemory.translated.net/get"
+            trans_res = requests.get(trans_url, params={'q': eng_text, 'langpair': 'en|ko'}, timeout=2).json()
+            if trans_res['responseStatus'] == 200:
+                kor_text = trans_res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
+        except:
+            pass # 번역 실패 시 빈 칸
+
+        # 번역 실패 시 예비 멘트 혹은 영어만 리턴 방지
+        if not kor_text: 
+            kor_text = "Global Business Quote"
+
+        return {"eng": eng_text, "kor": kor_text, "author": author}
+
+    except:
+        # API 실패 시, 예비 리스트에서 랜덤 선택
+        return random.choice(backup_quotes)
+@st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
+def get_financial_metrics(symbol, api_key):
+    try:
+        url = f"https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={api_key}"
+        res = requests.get(url, timeout=5).json()
+        metrics = res.get('metric', {})
+        return {
+            "growth": metrics.get('salesGrowthYoy', None),
+            "op_margin": metrics.get('operatingMarginTTM', None),
+            "net_margin": metrics.get('netProfitMarginTTM', None),
+            "debt_equity": metrics.get('totalDebt/totalEquityQuarterly', None)
+        } if metrics else None
+    except: return None
+
+@st.cache_data(ttl=86400) # 24시간 (기업 프로필도 거의 안 바뀜)
+def get_company_profile(symbol, api_key):
+    try:
+        url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={api_key}"
+        res = requests.get(url, timeout=5).json()
+        return res if res and 'name' in res else None
+    except: return None
+
+@st.cache_data(ttl=14400)
+def get_extended_ipo_data(api_key):
+    now = datetime.now()
+    
+    # [핵심 수정] 구간을 나눌 때 서로 겹치게(Overlap) 설정합니다.
+    # 180일과 181일로 딱 나누지 않고, 200일/170일 식으로 겹치게 하여 경계 누락을 방지합니다.
+    ranges = [
+        (now - timedelta(days=200), now + timedelta(days=120)),  # 구간 1: 현재~과거 200일 (약 6.5개월)
+        (now - timedelta(days=380), now - timedelta(days=170)), # 구간 2: 과거 170일~380일
+        (now - timedelta(days=560), now - timedelta(days=350))  # 구간 3: 과거 350일~560일
+    ]
+    
+    all_data = []
+    for start_dt, end_dt in ranges:
+        start_str = start_dt.strftime('%Y-%m-%d')
+        end_str = end_dt.strftime('%Y-%m-%d')
+        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
+        
+        try:
+            # 호출 사이 간격을 아주 약간 주어 Rate Limit 안정성 확보
+            time.sleep(0.3) 
+            res = requests.get(url, timeout=7).json()
+            ipo_list = res.get('ipoCalendar', [])
+            if ipo_list:
+                all_data.extend(ipo_list)
+        except:
+            continue
+    
+    if not all_data: 
+        return pd.DataFrame()
+    
+    # 데이터프레임 생성
+    df = pd.DataFrame(all_data)
+    
+    # [중요] 구간을 겹치게 가져왔으므로 여기서 중복을 확실히 제거합니다.
+    df = df.drop_duplicates(subset=['symbol', 'date'])
+    
+    # 날짜 변환 및 보정
+    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
+    df = df.dropna(subset=['공모일_dt'])
+    
+    return df
+
+# 주가(Price)는 15분마다 업데이트되도록 캐싱 설정 (900초 = 15분)
+@st.cache_data(ttl=900)
+def get_current_stock_price(symbol, api_key):
+    try:
+        # Finnhub API를 통해 실시간 시세를 가져옴
+        # 15분 이내에 같은 symbol로 호출하면 API를 쏘지 않고 저장된 값을 반환합니다.
+        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
+        res = requests.get(url, timeout=2).json()
+        
+        # 'c'는 Current Price(현재가)를 의미합니다.
+        current_p = res.get('c', 0)
+        
+        # 데이터가 유효한지(0이 아닌지) 확인 후 반환
+        return current_p if current_p else 0
+    except Exception as e:
+        # 에러 발생 시 로그를 남기지 않고 0을 반환하여 앱 중단 방지
+        return 0
+
+# [뉴스 감성 분석 함수 - 내부 연산이므로 별도 캐싱 불필요]
+def analyze_sentiment(text):
+    text = text.lower()
+    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
+    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
+    score = 0
+    for w in pos_words:
+        if w in text: score += 1
+    for w in neg_words:
+        if w in text: score -= 1
+    
+    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
+    elif score < 0: return "부정", "#fce8e6", "#d93025"
+    else: return "일반", "#f1f3f4", "#5f6368"
+
+@st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
+@st.cache_data(ttl=3600)
+def get_real_news_rss(company_name, ticker=""):
+    import requests
+import xml.etree.ElementTree as ET
+import urllib.parse
+import re
+
+# [1] 뉴스 감성 분석 함수 (내부 연산용)
+def analyze_sentiment(text):
+    text = text.lower()
+    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
+    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
+    score = 0
+    for w in pos_words:
+        if w in text: score += 1
+    for w in neg_words:
+        if w in text: score -= 1
+    
+    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
+    elif score < 0: return "부정", "#fce8e6", "#d93025"
+    else: return "일반", "#f1f3f4", "#5f6368"
+
+
+# [핵심] 함수 이름 변경 (캐시 초기화 효과)
+@st.cache_data(show_spinner=False, ttl=86400)
+def get_ai_summary_final(query):
+    # [수정] 대문자든 소문자든 있는 쪽을 무조건 가져옵니다.
+    tavily_key = st.secrets.get("TAVILY_API_KEY") or st.secrets.get("tavily_api_key")
+    groq_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key")
+
+    # 두 키 중 하나라도 없으면 그때만 에러를 띄웁니다.
+    if not tavily_key or not groq_key:
+        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets 창에 TAVILY_API_KEY와 GROQ_API_KEY가 있는지 확인하세요.</p>"
+
+    try:
+        # 1. Tavily 검색
+        tavily = TavilyClient(api_key=tavily_key)
+        search_result = tavily.search(query=query, search_depth="basic", max_results=7)
+        if not search_result.get('results'): return None 
+        context = "\n".join([r['content'] for r in search_result['results']])
+
+        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
+        client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
+        
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile", 
+            messages=[
+                {
+                    "role": "system", 
+                    "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
+[필수 작성 원칙]
+1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
+2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
+   - 1문단: 비즈니스 모델 및 경쟁 우위
+   - 2문단: 재무 현황 및 공모 자금 활용
+   - 3문단: 향후 전망 및 투자 의견
+3. 문체: '~습니다' 체를 사용하고, 문장 시작에 불필요한 접속사나 사명을 반복하지 마세요.
+4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 오직 줄글로만 작성하세요."""
+                },
+                {
+                    "role": "user", 
+                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 데이터를 바탕으로 전문적인 3문단 리포트를 작성하세요."
+                }
+            ],
+            temperature=0.1
+        )
+        
+        raw_result = response.choices[0].message.content
+        
+        # --- [요청하신 정제 로직 + 문단 강제 분할] ---
+        
+        # 1. 텍스트 정제 (요청하신 코드 그대로 적용)
+        text = html.unescape(raw_result)
+        replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
+        for k, v in replacements.items(): text = text.replace(k, v)
+        
+        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호, 줄바꿈(\s)만 허용)
+        # 주의: \s가 없으면 줄바꿈도 다 사라지므로 \s는 꼭 있어야 합니다.
+        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
+        
+        # 2. 문단 강제 분리 로직 (Brute Force Split)
+        # (1) 우선 줄바꿈(엔터) 기준으로 잘라봅니다.
+        paragraphs = [p.strip() for p in re.split(r'\n+', text.strip()) if len(p) > 30]
+
+        # (2) [비상장치] 만약 AI가 줄바꿈을 안 줘서 덩어리가 1~2개뿐이라면?
+        # -> 마침표(.)를 기준으로 문장을 다 뜯어낸 뒤 강제로 3등분 합니다.
+        if len(paragraphs) < 3:
+            # 문장 단위로 분해 (마침표 뒤 공백 기준)
+            sentences = re.split(r'(?<=\.)\s+', text.strip())
+            total_sents = len(sentences)
+            
+            if total_sents >= 3:
+                # 3등분 계산 (올림 나눗셈)
+                chunk_size = (total_sents // 3) + 1
+                
+                p1 = " ".join(sentences[:chunk_size])
+                p2 = " ".join(sentences[chunk_size : chunk_size*2])
+                p3 = " ".join(sentences[chunk_size*2 :])
+                
+                # 다시 리스트로 합침 (빈 내용 제외)
+                paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
+            else:
+                # 문장이 너무 적으면 그냥 통으로 1개만 반환
+                paragraphs = [text]
+
+        # 3. HTML 태그 포장 (화면 렌더링용)
+        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
+        html_output = ""
+        for p in paragraphs:
+            html_output += f"""
+            <p style='
+                display: block;          /* 블록 요소 지정 */
+                text-indent: 14px;       /* 첫 줄 들여쓰기 */
+                margin-bottom: 20px;     /* 문단 아래 공백 */
+                line-height: 1.8;        /* 줄 간격 */
+                text-align: justify;     /* 양쪽 정렬 */
+                margin-top: 0;
+            '>
+                {p}
+            </p>
+            """
+            
+        return html_output
+
+    except Exception as e:
+        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
+        
 
         # -------------------------------------------------------------------------
         # [5] 탭 메뉴 구성
