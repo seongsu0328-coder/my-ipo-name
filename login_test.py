@@ -237,6 +237,35 @@ def send_rejection_email(to_email, user_id, reason):
         st.error(f"📧 보류 메일 전송 실패: {e}")
         return False
 
+# --- [신규 추가: 권한 관리 로직] ---
+def check_permission(action):
+    """
+    action: 'view' (조회), 'watchlist' (관심등록), 'write' (글쓰기/투표)
+    유저 상태에 따라 실행 가능 여부를 True/False로 반환합니다.
+    """
+    auth_status = st.session_state.get('auth_status') # 'user', 'guest', None
+    user_info = st.session_state.get('user_info', {})
+    user_role = user_info.get('role', 'restricted') # 'user', 'restricted', 'admin'
+    user_status = user_info.get('status', 'pending') # 'approved', 'pending'
+
+    # 1. 단순 조회: 누구나 가능
+    if action == 'view':
+        return True
+    
+    # 2. 관심 종목 등록: 로그인한 회원(미인증 포함)만 가능
+    if action == 'watchlist':
+        return auth_status == 'user'
+    
+    # 3. 글쓰기 및 투표: 인증 완료된 회원 또는 관리자만 가능
+    if action == 'write':
+        if auth_status == 'user':
+            # 관리자이거나, 일반유저 중 승인이 완료된 경우
+            if user_info.get('role') == 'admin' or (user_role == 'user' and user_status == 'approved'):
+                return True
+        return False
+        
+    return False
+
 # ==========================================
 # [화면] UI 제어 로직
 # ==========================================
