@@ -331,6 +331,15 @@ if 'auth_status' not in st.session_state:
 
 if 'user_info' not in st.session_state:
     st.session_state.user_info = {}
+# ---------------------------------------------------------
+# 🔍 여기에 디버깅 코드를 넣으세요!
+# ---------------------------------------------------------
+st.sidebar.write("### 🔍 시스템 디버그")
+st.sidebar.write(f"- 현재 페이지: `{st.session_state.page}`")
+st.sidebar.write(f"- 로그인 상태: `{st.session_state.auth_status}`")
+if 'user_info' in st.session_state:
+    st.sidebar.write(f"- 유저 정보 로드 여부: `{'Yes' if st.session_state.user_info else 'No'}`")
+# ---------------------------------------------------------
 
 if st.session_state.page == 'login':
     st.markdown("<h1 style='text-align: center;'>🦄 Unicorn Finder</h1>", unsafe_allow_html=True)
