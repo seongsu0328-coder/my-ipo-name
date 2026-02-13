@@ -1377,8 +1377,8 @@ if st.session_state.page == 'login':
                 st.session_state.page = 'calendar'
                 st.rerun()
 
-            # [2] 명언 섹션 (하단 배치)
-            st.write("<br><br>", unsafe_allow_html=True) # 버튼과의 간격 확보
+            # [2] 명언 섹션 (버튼 아래 배치)
+            st.write("<br><br>", unsafe_allow_html=True) 
             
             quote_data = get_daily_quote()
             st.markdown(f"""
@@ -1389,10 +1389,13 @@ if st.session_state.page == 'login':
                     border: 1px solid #f0f0f0;
                     text-align: center;
                 ">
-                    <div style="font-size: 0.9rem; color: #444; font-weight: 600; line-height: 1.5; margin-bottom: 5px;">
+                    <div style="font-size: 0.95rem; color: #333; font-weight: 600; line-height: 1.5; margin-bottom: 5px;">
                         "{quote_data['kor']}"
                     </div>
-                    <div style="font-size: 0.75rem; color: #999; font-style: italic;">
+                    <div style="font-size: 0.8rem; color: #888; font-style: italic; margin-bottom: 8px;">
+                        {quote_data['eng']}
+                    </div>
+                    <div style="font-size: 0.85rem; color: #666;">
                         - {quote_data['author']} -
                     </div>
                 </div>
