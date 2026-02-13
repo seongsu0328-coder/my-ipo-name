@@ -1411,7 +1411,22 @@ if st.session_state.page == 'login':
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("접속하기", use_container_width=True, type="primary"):
+                    # 1414줄: 이제 spinner 아래에 실제 로그인 확인 로직이 들어갑니다.
                     with st.spinner("회원 정보 확인 중..."):
+                        users = load_users()
+                        user = next((u for u in users if str(u.get("id")) == l_id), None)
+                        
+                        if user and str(user['pw']) == l_pw:
+                            st.session_state.auth_status = 'user'
+                            st.session_state.user_info = user
+                            st.session_state.page = 'setup' # 혹은 'calendar'
+                            st.rerun()
+                        else:
+                            st.error("아이디 또는 비밀번호가 틀립니다.")
+            with c2:
+                if st.button("뒤로 가기", use_container_width=True):
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
                     
         # -----------------------------------------------------
         # [3-1단계] 정보 입력 및 인증 번호 발송
