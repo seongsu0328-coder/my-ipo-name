@@ -1433,34 +1433,48 @@ if st.session_state.page == 'login':
             # [3-1단계] 정보 입력 및 인증 번호 발송
             # -----------------------------------------------------
             if st.session_state.signup_stage == 1:
-                st.subheader("1단계: 정보 입력")
+                # 스타일 정의: 굵기만 다르고 크기는 동일하게 세팅 (1.0rem)
+                title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 5px;"
+                label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: -15px;"
+
+                st.markdown(f"<p style='{title_style}'>1단계: 정보 입력</p>", unsafe_allow_html=True)
+                
                 with st.form("signup_1"):
-                    new_id = st.text_input("아이디")
-                    new_pw = st.text_input("비밀번호", type="password")
-                    new_phone = st.text_input("연락처 (예: 010-1234-5678)")
-                    new_email = st.text_input("이메일")
-                    auth_choice = st.radio("인증 수단", ["휴대폰(가상)", "이메일(실제)"], horizontal=True)
+                    st.markdown(f"<p style='{label_style}'>아이디</p>", unsafe_allow_html=True)
+                    new_id = st.text_input("id_label", label_visibility="collapsed")
+
+                    st.markdown(f"<p style='{label_style}'>비밀번호</p>", unsafe_allow_html=True)
+                    new_pw = st.text_input("pw_label", type="password", label_visibility="collapsed")
+
+                    st.markdown(f"<p style='{label_style}'>연락처 (예: 010-1234-5678)</p>", unsafe_allow_html=True)
+                    new_phone = st.text_input("phone_label", label_visibility="collapsed")
+
+                    st.markdown(f"<p style='{label_style}'>이메일</p>", unsafe_allow_html=True)
+                    new_email = st.text_input("email_label", label_visibility="collapsed")
+
+                    st.markdown(f"<p style='{label_style}'>인증 수단</p>", unsafe_allow_html=True)
+                    # 라디오 버튼은 구조상 내부 텍스트 크기 조절을 위해 CSS 추가 적용
+                    st.markdown("<style>div[role='radiogroup'] label p {font-size: 1.0rem !important;}</style>", unsafe_allow_html=True)
+                    auth_choice = st.radio("auth_label", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed")
                     
+                    st.write("<br>", unsafe_allow_html=True)
+
                     if st.form_submit_button("인증번호 받기"):
-                        # 필수 입력값 체크
                         if not (new_id and new_pw and new_email):
                             st.error("모든 정보를 입력해주세요.")
                         else:
                             code = str(random.randint(100000, 999999))
                             st.session_state.auth_code = code
-                            # 다음 단계를 위해 임시 저장
                             st.session_state.temp_user_data = {
                                 "id": new_id, "pw": new_pw, 
                                 "phone": new_phone, "email": new_email
                             }
                             
                             if "이메일" in auth_choice:
-                                # 함수 호출 (import 문제 해결됨)
                                 send_email_code(new_email, code)
                             else:
                                 st.toast(f"📱 [테스트용] 인증번호: {code}", icon="✅")
                             
-                            # 단계 이동 및 리런
                             st.session_state.signup_stage = 2
                             st.rerun()
     
