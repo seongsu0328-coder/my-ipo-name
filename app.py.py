@@ -1433,29 +1433,34 @@ if st.session_state.page == 'login':
             # [3-1단계] 정보 입력 및 인증 번호 발송
             # -----------------------------------------------------
             if st.session_state.signup_stage == 1:
-                # 스타일 정의: 굵기만 다르고 크기는 동일하게 세팅 (1.0rem)
-                title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 5px;"
-                label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: -15px;"
+                # 스타일 정의: 겹침 방지를 위해 마진값 조정
+                title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
+                label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: 5px; margin-top: 10px;"
 
                 st.markdown(f"<p style='{title_style}'>1단계: 정보 입력</p>", unsafe_allow_html=True)
                 
                 with st.form("signup_1"):
+                    # 아이디
                     st.markdown(f"<p style='{label_style}'>아이디</p>", unsafe_allow_html=True)
-                    new_id = st.text_input("id_label", label_visibility="collapsed")
+                    new_id = st.text_input("id_input", label_visibility="collapsed")
 
+                    # 비밀번호
                     st.markdown(f"<p style='{label_style}'>비밀번호</p>", unsafe_allow_html=True)
-                    new_pw = st.text_input("pw_label", type="password", label_visibility="collapsed")
+                    new_pw = st.text_input("pw_input", type="password", label_visibility="collapsed")
 
+                    # 연락처
                     st.markdown(f"<p style='{label_style}'>연락처 (예: 010-1234-5678)</p>", unsafe_allow_html=True)
-                    new_phone = st.text_input("phone_label", label_visibility="collapsed")
+                    new_phone = st.text_input("phone_input", label_visibility="collapsed")
 
+                    # 이메일
                     st.markdown(f"<p style='{label_style}'>이메일</p>", unsafe_allow_html=True)
-                    new_email = st.text_input("email_label", label_visibility="collapsed")
+                    new_email = st.text_input("email_input", label_visibility="collapsed")
 
+                    # 인증 수단
                     st.markdown(f"<p style='{label_style}'>인증 수단</p>", unsafe_allow_html=True)
-                    # 라디오 버튼은 구조상 내부 텍스트 크기 조절을 위해 CSS 추가 적용
+                    # 라디오 버튼 텍스트 크기 강제 고정
                     st.markdown("<style>div[role='radiogroup'] label p {font-size: 1.0rem !important;}</style>", unsafe_allow_html=True)
-                    auth_choice = st.radio("auth_label", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed")
+                    auth_choice = st.radio("auth_input", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed")
                     
                     st.write("<br>", unsafe_allow_html=True)
 
