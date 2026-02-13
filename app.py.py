@@ -2296,15 +2296,34 @@ elif st.session_state.page == 'detail':
 # ---------------------------------------------------------
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
+    
+    # [안전장치 1] 선택된 종목이 없으면 캘린더로 튕겨내기 (에러 방지)
     if not stock:
         st.session_state.page = 'calendar'
         st.rerun()
 
-    if st.button("⬅️ 목록으로 돌아가기"):
-        st.session_state.page = 'calendar'
-        st.rerun()
+    # [안전장치 2] 변수 미리 만들기 (이게 없으면 밑에서 에러남)
+    profile = None
+    fin_data = {}
+    current_p = 0
+    off_val = 0
+    
+    # [안전장치 3] 데이터 로딩하다 에러 나도 멈추지 않게 감싸기
+    with st.spinner(f"🤖 {stock['name']} 분석 중..."):
+        try: 
+            # 공모가 숫자 변환
+            off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
+        except: 
+            off_val = 0
         
-    st.title(f"{stock['name']} ({stock['symbol']})")
+        try:
+            # API 호출 시도
+            current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
+            profile = get_company_profile(stock['symbol'], MY_API_KEY) 
+            fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY) or {} 
+        except Exception as e:
+            # 에러가 나도 무시하고(pass) 진행 -> 화면 멈춤 방지
+            pass
     
     # 탭 구성
     t0, t1, t2, t3, t4, t5 = st.tabs(["공시", "뉴스", "거시", "미시", "기관", "토론"])
