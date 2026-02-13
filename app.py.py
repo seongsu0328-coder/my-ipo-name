@@ -98,7 +98,6 @@ def get_daily_quote():
     except:
         # API 실패 시, 예비 리스트에서 랜덤 선택
         return random.choice(backup_quotes)
-        
 @st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
 def get_financial_metrics(symbol, api_key):
     try:
