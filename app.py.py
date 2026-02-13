@@ -1403,6 +1403,7 @@ if st.session_state.page == 'login':
 
         # ---------------------------------------------------------
         # [Step 2] 로그인 입력창
+        # ---------------------------------------------------------
         elif st.session_state.login_step == 'login_input':
             st.subheader("로그인")
             l_id = st.text_input("아이디", key="login_id")
@@ -1411,15 +1412,13 @@ if st.session_state.page == 'login':
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("접속하기", use_container_width=True, type="primary"):
-                    # 1414줄: 이제 spinner 아래에 실제 로그인 확인 로직이 들어갑니다.
                     with st.spinner("회원 정보 확인 중..."):
                         users = load_users()
                         user = next((u for u in users if str(u.get("id")) == l_id), None)
-                        
                         if user and str(user['pw']) == l_pw:
                             st.session_state.auth_status = 'user'
                             st.session_state.user_info = user
-                            st.session_state.page = 'setup' # 혹은 'calendar'
+                            st.session_state.page = 'setup'
                             st.rerun()
                         else:
                             st.error("아이디 또는 비밀번호가 틀립니다.")
@@ -1427,98 +1426,11 @@ if st.session_state.page == 'login':
                 if st.button("뒤로 가기", use_container_width=True):
                     st.session_state.login_step = 'choice'
                     st.rerun()
-                    
-        # -----------------------------------------------------
-        # [3-1단계] 정보 입력 및 인증 번호 발송
-        # -----------------------------------------------------
-        if st.session_state.signup_stage == 1:
-            # 스타일 정의
-            title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
-            label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: 5px; margin-top: 10px;"
-            status_style = "font-size: 0.85rem; margin-top: -10px; margin-bottom: 10px;"
-
-            st.markdown(f"<p style='{title_style}'>1단계: 정보 입력</p>", unsafe_allow_html=True)
-            
-            # [중요] 실시간 검증을 위해 비밀번호 영역은 Form 밖에서 입력받거나 
-            # 또는 폼 없이 처리하는 것이 사용자 경험(UX)상 가장 좋습니다.
-            # 여기서는 전체적인 통일성을 위해 st.container를 활용한 실시간 방식을 제안합니다.
-
-            # 1. 아이디
-            st.markdown(f"<p style='{label_style}'>아이디</p>", unsafe_allow_html=True)
-            new_id = st.text_input("id_input", label_visibility="collapsed")
-
-            # 2. 비밀번호 & 확인 (실시간 피드백을 위해 폼 외부 배치)
-            st.markdown(f"<p style='{label_style}'>비밀번호</p>", unsafe_allow_html=True)
-            new_pw = st.text_input("pw_input", type="password", label_visibility="collapsed")
-
-            st.markdown(f"<p style='{label_style}'>비밀번호 확인</p>", unsafe_allow_html=True)
-            confirm_pw = st.text_input("confirm_pw_input", type="password", label_visibility="collapsed")
-
-            # --- 실시간 일치 여부 판별 ---
-            is_pw_match = False
-            if new_pw and confirm_pw:
-                if new_pw == confirm_pw:
-                    st.markdown(f"<p style='{status_style} color: #2e7d32;'>✅ 비밀번호가 일치합니다.</p>", unsafe_allow_html=True)
-                    is_pw_match = True
-                else:
-                    st.markdown(f"<p style='{status_style} color: #d32f2f;'>❌ 비밀번호가 일치하지 않습니다.</p>", unsafe_allow_html=True)
-            # --------------------------
-
-            # 3. 기타 정보
-            st.markdown(f"<p style='{label_style}'>연락처 (예: 010-1234-5678)</p>", unsafe_allow_html=True)
-            new_phone = st.text_input("phone_input", label_visibility="collapsed")
-
-            st.markdown(f"<p style='{label_style}'>이메일</p>", unsafe_allow_html=True)
-            new_email = st.text_input("email_input", label_visibility="collapsed")
-
-            st.markdown(f"<p style='{label_style}'>인증 수단</p>", unsafe_allow_html=True)
-            st.markdown("<style>div[role='radiogroup'] label p {font-size: 1.0rem !important;}</style>", unsafe_allow_html=True)
-            auth_choice = st.radio("auth_input", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed")
-            
-            st.write("<br>", unsafe_allow_html=True)
-
-            # [최종 승인 버튼]
-            if st.button("인증번호 받기", use_container_width=True, type="primary"):
-                # 가입 진행 차단 조건
-                if not (new_id and new_pw and confirm_pw and new_email):
-                    st.error("모든 정보를 입력해주세요.")
-                elif not is_pw_match:
-                    st.error("비밀번호가 일치하지 않아 인증번호를 보낼 수 없습니다.")
-                else:
-                    # 일치할 때만 실행
-                    code = str(random.randint(100000, 999999))
-                    st.session_state.auth_code = code
-                    st.session_state.temp_user_data = {
-                        "id": new_id, "pw": new_pw, 
-                        "phone": new_phone, "email": new_email
-                    }
-                    
-                    if "이메일" in auth_choice:
-                        if send_email_code(new_email, code):
-                            st.session_state.signup_stage = 2
-                            st.rerun()
-                    else:
-                        st.toast(f"📱 [테스트용] 인증번호: {code}", icon="✅")
-                        st.session_state.signup_stage = 2
-                        st.rerun()
-                    users = load_users()
-                    user = next((u for u in users if str(u.get("id")) == l_id), None)
-                    if user and str(user['pw']) == l_pw:
-                        st.session_state.auth_status = 'user'
-                        st.session_state.user_info = user
-                        st.session_state.page = 'setup'
-                        st.rerun()
-                    else:
-                        st.error("아이디 또는 비밀번호가 틀립니다.")
-        with c2:
-                if st.button("뒤로 가기", use_container_width=True):
-                    st.session_state.login_step = 'choice'
-                    st.rerun()
 
         # ---------------------------------------------------------
-        # [Step 3] 회원가입 로직 (중복 제거 및 통합본)
+        # [Step 3] 회원가입 로직 (중복 제거 및 기능 통합본)
         # ---------------------------------------------------------
-        elif st.session_state.login_stetp == 'signup_input':
+        elif st.session_state.login_step == 'signup_input':
             # 스타일 정의
             title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
             label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: 5px; margin-top: 10px;"
@@ -1526,13 +1438,11 @@ if st.session_state.page == 'login':
 
             st.markdown(f"<p style='{title_style}'>회원가입 정보 입력</p>", unsafe_allow_html=True)
             
-            # --- [기존 입력창 유지 구역] ---
-            # 1. 아이디
+            # --- [입력창 구역: Rerun 시에도 값 유지] ---
             st.markdown(f"<p style='{label_style}'>아이디</p>", unsafe_allow_html=True)
             new_id = st.text_input("id_input", value=st.session_state.get('temp_id', ''), label_visibility="collapsed")
             st.session_state.temp_id = new_id
 
-            # 2. 비밀번호
             st.markdown(f"<p style='{label_style}'>비밀번호</p>", unsafe_allow_html=True)
             new_pw = st.text_input("pw_input", type="password", value=st.session_state.get('temp_pw', ''), label_visibility="collapsed")
             st.session_state.temp_pw = new_pw
@@ -1541,7 +1451,7 @@ if st.session_state.page == 'login':
             confirm_pw = st.text_input("confirm_pw_input", type="password", value=st.session_state.get('temp_cpw', ''), label_visibility="collapsed")
             st.session_state.temp_cpw = confirm_pw
 
-            # 비밀번호 일치 체크
+            # 실시간 비밀번호 일치 체크
             is_pw_match = False
             if new_pw and confirm_pw:
                 if new_pw == confirm_pw:
@@ -1550,7 +1460,6 @@ if st.session_state.page == 'login':
                 else:
                     st.markdown(f"<p style='{status_style} color: #d32f2f;'>❌ 비밀번호가 일치하지 않습니다.</p>", unsafe_allow_html=True)
 
-            # 3. 기타 정보
             st.markdown(f"<p style='{label_style}'>연락처 (예: 01012345678)</p>", unsafe_allow_html=True)
             new_phone = st.text_input("phone_input", value=st.session_state.get('temp_phone', ''), label_visibility="collapsed")
             st.session_state.temp_phone = new_phone
@@ -1564,6 +1473,48 @@ if st.session_state.page == 'login':
             auth_choice = st.radio("auth_input", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed")
             
             st.write("<br>", unsafe_allow_html=True)
+
+            # --- [하단 교체 구역: 버튼 자리에 인증창 노출] ---
+            if st.session_state.signup_stage == 1:
+                if st.button("인증번호 받기", use_container_width=True, type="primary"):
+                    if not (new_id and new_pw and confirm_pw and new_email):
+                        st.error("모든 정보를 입력해주세요.")
+                    elif not is_pw_match:
+                        st.error("비밀번호 일치 확인이 필요합니다.")
+                    else:
+                        code = str(random.randint(100000, 999999))
+                        st.session_state.auth_code = code
+                        st.session_state.temp_user_data = {"id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email}
+                        
+                        if "이메일" in auth_choice:
+                            if send_email_code(new_email, code):
+                                st.session_state.signup_stage = 2; st.rerun()
+                        else:
+                            st.toast(f"📱 인증번호: {code}", icon="✅")
+                            st.session_state.signup_stage = 2; st.rerun()
+                
+                if st.button("처음으로 돌아가기", use_container_width=True):
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
+
+            elif st.session_state.signup_stage == 2:
+                # 인증번호 입력창 (기존 버튼 자리에 나타남)
+                st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
+                st.markdown(f"<p style='{label_style} font-weight: bold;'>인증번호 6자리 입력</p>", unsafe_allow_html=True)
+                in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder="숫자 6자리")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("인증 확인", use_container_width=True, type="primary"):
+                        if in_code == st.session_state.auth_code:
+                            st.success("인증 성공!")
+                            st.session_state.signup_stage = 3; st.rerun()
+                        else:
+                            st.error("인증번호가 틀렸습니다.")
+                with col2:
+                    if st.button("취소/재발송", use_container_width=True):
+                        st.session_state.signup_stage = 1; st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
 
             # --- [하단 버튼/인증창 교체 구역] ---
             # 1단계: 인증번호 받기 버튼 상태
