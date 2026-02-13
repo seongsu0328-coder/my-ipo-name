@@ -1518,7 +1518,7 @@ if st.session_state.page == 'login':
         # ---------------------------------------------------------
         # [Step 3] 회원가입 로직 (중복 제거 및 통합본)
         # ---------------------------------------------------------
-        elif st.session_state.login_step == 'signup_input':
+        elif st.session_state.login_stetp == 'signup_input':
             # 스타일 정의
             title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
             label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: 5px; margin-top: 10px;"
