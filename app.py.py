@@ -1405,7 +1405,7 @@ if st.session_state.page == 'login':
         # [Step 2] 로그인 입력창
         # ---------------------------------------------------------
         elif st.session_state.login_step == 'login_input':
-            st.subheader("로그인")
+            
             l_id = st.text_input("아이디", key="login_id")
             l_pw = st.text_input("비밀번호", type="password", key="login_pw")
             
