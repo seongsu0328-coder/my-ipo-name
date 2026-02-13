@@ -1521,16 +1521,16 @@ if st.session_state.page == 'login':
 
             # [B구역] 3단계일 때 (서류 제출 화면만 노출)
             elif st.session_state.signup_stage == 3:
-                st.subheader("3단계: 선택적 자격 증빙")
-                st.info("💡 서류를 하나라도 제출하면 '글쓰기/투표' 권한이 신청됩니다.")
+                
+                st.info("인증시 글쓰기, 투표 기능을 이용할 수 있습니다.")
                 
                 with st.form("signup_3"):
-                    u_name = st.text_input("출신 대학 (선택)")
-                    u_file = st.file_uploader("🎓 학생증/졸업증명서", type=['jpg','png','pdf'])
-                    j_name = st.text_input("직장/직업 (선택)")
-                    j_file = st.file_uploader("💼 명함/재직증명서", type=['jpg','png','pdf'])
+                    u_name = st.text_input("대학 혹은 학과")
+                    u_file = st.file_uploader("학생증/졸업증명서", type=['jpg','png','pdf'])
+                    j_name = st.text_input("직장 혹은 직업")
+                    j_file = st.file_uploader("사원증 혹은 직장이메일", type=['jpg','png','pdf'])
                     a_val = st.selectbox("자산 규모 (선택)", ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"])
-                    a_file = st.file_uploader("💰 잔고증명서", type=['jpg','png','pdf'])
+                    a_file = st.file_uploader("계좌인증", type=['jpg','png','pdf'])
                     
                     if st.form_submit_button("가입 신청 완료"):
                         with st.spinner("처리 중..."):
