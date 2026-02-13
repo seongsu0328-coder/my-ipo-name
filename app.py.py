@@ -1511,16 +1511,14 @@ if st.session_state.page == 'login':
                     else:
                         st.error("아이디 또는 비밀번호가 틀립니다.")
         with c2:
-            if st.button("뒤로 가기", use_container_width=True):
-                st.session_state.login_step = 'choice'
-                st.rerun()
+                if st.button("뒤로 가기", use_container_width=True):
+                    st.session_state.login_step = 'choice'
+                    st.rerun()
 
-        # [Step 3] 회원가입 로직 (1, 2, 3단계 통합 수정본)
+        # ---------------------------------------------------------
+        # [Step 3] 회원가입 로직 (중복 제거 및 통합본)
+        # ---------------------------------------------------------
         elif st.session_state.login_step == 'signup_input':
-            
-            # [Step 3] 회원가입 로직 (입력창 유지 + 하단 교체형)
-        elif st.session_state.login_step == 'signup_input':
-            
             # 스타일 정의
             title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
             label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: 5px; margin-top: 10px;"
