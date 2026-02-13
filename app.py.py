@@ -1433,7 +1433,7 @@ if st.session_state.page == 'login':
             # [3-1단계] 정보 입력 및 인증 번호 발송
             # -----------------------------------------------------
             if st.session_state.signup_stage == 1:
-                # 스타일 정의: 겹침 방지를 위해 마진값 조정
+                # 스타일 정의: 겹침 방지 및 크기 통일
                 title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
                 label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: 5px; margin-top: 10px;"
 
@@ -1448,6 +1448,10 @@ if st.session_state.page == 'login':
                     st.markdown(f"<p style='{label_style}'>비밀번호</p>", unsafe_allow_html=True)
                     new_pw = st.text_input("pw_input", type="password", label_visibility="collapsed")
 
+                    # 비밀번호 확인 (추가됨)
+                    st.markdown(f"<p style='{label_style}'>비밀번호 확인</p>", unsafe_allow_html=True)
+                    confirm_pw = st.text_input("confirm_pw_input", type="password", label_visibility="collapsed")
+
                     # 연락처
                     st.markdown(f"<p style='{label_style}'>연락처 (예: 010-1234-5678)</p>", unsafe_allow_html=True)
                     new_phone = st.text_input("phone_input", label_visibility="collapsed")
@@ -1458,15 +1462,18 @@ if st.session_state.page == 'login':
 
                     # 인증 수단
                     st.markdown(f"<p style='{label_style}'>인증 수단</p>", unsafe_allow_html=True)
-                    # 라디오 버튼 텍스트 크기 강제 고정
                     st.markdown("<style>div[role='radiogroup'] label p {font-size: 1.0rem !important;}</style>", unsafe_allow_html=True)
                     auth_choice = st.radio("auth_input", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed")
                     
                     st.write("<br>", unsafe_allow_html=True)
 
                     if st.form_submit_button("인증번호 받기"):
-                        if not (new_id and new_pw and new_email):
+                        # 1. 필수값 체크
+                        if not (new_id and new_pw and confirm_pw and new_email):
                             st.error("모든 정보를 입력해주세요.")
+                        # 2. 비밀번호 일치 체크 (추가됨)
+                        elif new_pw != confirm_pw:
+                            st.error("비밀번호가 일치하지 않습니다. 다시 확인해주세요.")
                         else:
                             code = str(random.randint(100000, 999999))
                             st.session_state.auth_code = code
