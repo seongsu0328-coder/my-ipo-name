@@ -2182,6 +2182,7 @@ elif st.session_state.page == 'detail':
             label="nav", 
             options=menu_options, 
             selection_mode="single", 
+            default=None,  # 👈 여기가 중요합니다!
             key="detail_nav_final_v7", 
             label_visibility="collapsed"
         )
