@@ -1580,7 +1580,7 @@ if st.session_state.page == 'login':
 # ---------------------------------------------------------
 elif st.session_state.page == 'setup':
     user = st.session_state.user_info
-    st.title("⚙️ 초기 설정 (Onboarding)")
+    st.title("설정 및 권한")
 
     
     if user:
@@ -1594,7 +1594,7 @@ elif st.session_state.page == 'setup':
         # 1. 내 정보 노출 설정 (체크박스)
         # -----------------------------------------------------------
         st.divider()
-        st.subheader("⚙️ 내 정보 노출 및 권한 설정")
+        st.subheader("권한설명")
         st.caption("하나 이상의 정보를 노출해야 '글쓰기/투표' 권한이 활성화됩니다.")
 
         # 저장된 설정값 불러오기
@@ -1604,9 +1604,9 @@ elif st.session_state.page == 'setup':
         def_asset = saved_vis[2] == 'True' if len(saved_vis) > 2 else True
 
         c1, c2, c3 = st.columns(3)
-        show_univ = c1.checkbox("🎓 대학 정보", value=def_univ)
-        show_job = c2.checkbox("💼 직업 정보", value=def_job)
-        show_asset = c3.checkbox("💰 자산 등급", value=def_asset)
+        show_univ = c1.checkbox("대학 및 학과", value=def_univ)
+        show_job = c2.checkbox("직장 혹은 직업", value=def_job)
+        show_asset = c3.checkbox("자산", value=def_asset)
 
         # -----------------------------------------------------------
         # 2. 닉네임 미리보기
