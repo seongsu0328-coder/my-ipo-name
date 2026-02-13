@@ -197,7 +197,6 @@ def analyze_sentiment(text):
     else: return "일반", "#f1f3f4", "#5f6368"
 
 @st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
-@st.cache_data(ttl=3600)
 def get_real_news_rss(company_name, ticker=""):
     import requests
 import xml.etree.ElementTree as ET
