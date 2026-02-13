@@ -1526,10 +1526,14 @@ if st.session_state.page == 'login':
     
             # -----------------------------------------------------
             # [3-3단계] 서류 제출 (대학, 직장, 자산)
-            # -----------------------------------------------------
-            elif st.session_state.login_step == 'signup_input':
+            # ---------------------------------------------------------
+        # [Step 3] 회원가입 로직 (통합본)
+        # ---------------------------------------------------------
+        # 1530라인: 여기가 부모 블록입니다.
+        elif st.session_state.login_step == 'signup_input':
             
-            # --- [수정 포인트: stage 1 또는 2일 때만 정보 입력창 노출] ---
+            # [A구역] 1단계 또는 2단계일 때 (정보 입력 및 인증)
+            # 1533라인: 여기가 들여쓰기 되어야 합니다 (Tab 1번)
             if st.session_state.signup_stage in [1, 2]:
                 # 스타일 정의
                 title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
@@ -1538,83 +1542,105 @@ if st.session_state.page == 'login':
 
                 st.markdown(f"<p style='{title_style}'>1단계: 정보 입력</p>", unsafe_allow_html=True)
                 
-                # 1~3. 아이디, 비밀번호, 연락처, 이메일 입력창 (기존 코드 유지)
-                # (이 부분에 기존에 작성하신 new_id, new_pw, new_email 등의 입력창 코드가 들어갑니다)
+                # --- [입력창 구역] ---
+                st.markdown(f"<p style='{label_style}'>아이디</p>", unsafe_allow_html=True)
                 new_id = st.text_input("id_input", value=st.session_state.get('temp_id', ''), label_visibility="collapsed")
                 st.session_state.temp_id = new_id
-                # ... (중략: 기존 입력 필드들) ...
 
+                st.markdown(f"<p style='{label_style}'>비밀번호</p>", unsafe_allow_html=True)
+                new_pw = st.text_input("pw_input", type="password", value=st.session_state.get('temp_pw', ''), label_visibility="collapsed")
+                st.session_state.temp_pw = new_pw
+
+                st.markdown(f"<p style='{label_style}'>비밀번호 확인</p>", unsafe_allow_html=True)
+                confirm_pw = st.text_input("confirm_pw_input", type="password", value=st.session_state.get('temp_cpw', ''), label_visibility="collapsed")
+                st.session_state.temp_cpw = confirm_pw
+
+                # 실시간 비번 일치 체크
+                is_pw_match = False
+                if new_pw and confirm_pw:
+                    if new_pw == confirm_pw:
+                        st.markdown(f"<p style='{status_style} color: #2e7d32;'>✅ 비밀번호가 일치합니다.</p>", unsafe_allow_html=True)
+                        is_pw_match = True
+                    else:
+                        st.markdown(f"<p style='{status_style} color: #d32f2f;'>❌ 비밀번호가 일치하지 않습니다.</p>", unsafe_allow_html=True)
+
+                st.markdown(f"<p style='{label_style}'>연락처 (예: 01012345678)</p>", unsafe_allow_html=True)
+                new_phone = st.text_input("phone_input", value=st.session_state.get('temp_phone', ''), label_visibility="collapsed")
+                st.session_state.temp_phone = new_phone
+
+                st.markdown(f"<p style='{label_style}'>이메일</p>", unsafe_allow_html=True)
+                new_email = st.text_input("email_input", value=st.session_state.get('temp_email', ''), label_visibility="collapsed")
+                st.session_state.temp_email = new_email
+
+                st.markdown(f"<p style='{label_style}'>인증 수단</p>", unsafe_allow_html=True)
+                auth_choice = st.radio("auth_input", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed", key="auth_radio")
+                
                 st.write("<br>", unsafe_allow_html=True)
 
-                # --- [하단 버튼/인증창 교체 구역] ---
+                # --- [버튼 교체 구역] ---
+                # 1단계: 인증번호 받기 버튼
                 if st.session_state.signup_stage == 1:
                     if st.button("인증번호 받기", use_container_width=True, type="primary", key="btn_send_auth"):
-                        # ... (인증번호 발송 로직) ...
-                        st.session_state.signup_stage = 2
-                        st.rerun()
+                        if not (new_id and new_pw and confirm_pw and new_email):
+                            st.error("모든 정보를 입력해주세요.")
+                        elif not is_pw_match:
+                            st.error("비밀번호 일치 확인이 필요합니다.")
+                        else:
+                            code = str(random.randint(100000, 999999))
+                            st.session_state.auth_code = code
+                            st.session_state.temp_user_data = {"id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email}
+                            
+                            if "이메일" in auth_choice:
+                                if send_email_code(new_email, code):
+                                    st.session_state.signup_stage = 2; st.rerun()
+                            else:
+                                st.toast(f"📱 인증번호: {code}", icon="✅")
+                                st.session_state.signup_stage = 2; st.rerun()
                     
                     if st.button("처음으로 돌아가기", use_container_width=True, key="btn_signup_back"):
-                        st.session_state.login_step = 'choice'
-                        st.rerun()
+                        st.session_state.login_step = 'choice'; st.rerun()
 
+                # 2단계: 인증번호 입력창
                 elif st.session_state.signup_stage == 2:
-                    # 인증번호 입력창 ( stage 2일 때만 나타남 )
                     st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='{label_style} font-weight: bold;'>인증번호 6자리 입력</p>", unsafe_allow_html=True)
                     in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder="숫자 6자리", key="input_verify_code")
                     
                     col1, col2 = st.columns(2)
                     with col1:
                         if st.button("인증 확인", use_container_width=True, type="primary", key="btn_confirm_auth"):
                             if in_code == st.session_state.auth_code:
-                                st.success("인증 성공!")
-                                st.session_state.signup_stage = 3 # 3단계로 변경
-                                st.rerun() # 화면을 완전히 새로고침하여 3단계 진입
+                                st.success("인증 성공!"); st.session_state.signup_stage = 3; st.rerun()
                             else:
                                 st.error("인증번호가 틀렸습니다.")
                     with col2:
                         if st.button("취소/재발송", use_container_width=True, key="btn_resend_auth"):
-                            st.session_state.signup_stage = 1
-                            st.rerun()
+                            st.session_state.signup_stage = 1; st.rerun()
                     st.markdown("</div>", unsafe_allow_html=True)
 
-            # --- [수정 포인트: stage가 3이 되면 위 입력창들은 사라지고 아래 내용만 노출] ---
+            # [B구역] 3단계일 때 (서류 제출) -> 1,2단계 입력창이 사라지고 나타남
             elif st.session_state.signup_stage == 3:
-                # -----------------------------------------------------
-                # [3-3단계] 서류 제출 (대학, 직장, 자산)
-                # -----------------------------------------------------
                 st.subheader("3단계: 선택적 자격 증빙")
                 st.info("💡 서류를 하나라도 제출하면 '글쓰기/투표' 권한이 신청됩니다.")
                 
                 with st.form("signup_3"):
                     u_name = st.text_input("출신 대학 (선택)")
                     u_file = st.file_uploader("🎓 학생증/졸업증명서", type=['jpg','png','pdf'])
-                    
                     j_name = st.text_input("직장/직업 (선택)")
                     j_file = st.file_uploader("💼 명함/재직증명서", type=['jpg','png','pdf'])
-                    
                     a_val = st.selectbox("자산 규모 (선택)", ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"])
                     a_file = st.file_uploader("💰 잔고증명서", type=['jpg','png','pdf'])
                     
                     if st.form_submit_button("가입 신청 완료"):
-                        with st.spinner("서류 업로드 및 회원가입 처리 중..."):
+                        with st.spinner("처리 중..."):
                             td = st.session_state.temp_user_data
-                            
-                            # 1. 파일 업로드 실행
                             l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
                             l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
                             l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
                             
-                            # 2. 권한 및 승인 상태 판별 (수정된 로직)
                             has_cert = any([u_file, j_file, a_file])
-                            
-                            if has_cert:
-                                # 서류를 하나라도 냈으면 -> 'Full 회원' 후보 -> 관리자 승인 필수 (pending)
-                                role = "user"
-                                status = "pending" 
-                            else:
-                                # 서류를 안 냈으면 -> 'Basic 회원' -> 즉시 활동 가능하지만 기능 제한
-                                role = "restricted"
-                                status = "approved" 
+                            role = "user" if has_cert else "restricted"
+                            status = "pending" if has_cert else "approved"
                             
                             final_data = {
                                 **td, "univ": u_name, "job": j_name, 
@@ -1624,23 +1650,17 @@ if st.session_state.page == 'login':
                                 "display_name": f"{role} | {td['id'][:3]}***"
                             }
                             
-                            
-                            # 3. 구글 시트 저장 및 이동
                             if save_user_to_sheets(final_data):
                                 st.session_state.auth_status = 'user'
                                 st.session_state.user_info = final_data
-                                st.session_state.page = 'setup' # ✅ 'setup' 페이지로 보내서 설정을 먼저 하게 합니다.
+                                st.session_state.page = 'setup'
                                 
-                                # 토스트 메시지
                                 if role == "user":
                                     st.success("✅ 신청 완료! 관리자 승인 대기 상태로 시작합니다.")
                                 else:
                                     st.success("✅ 가입 완료! 익명(Basic) 모드로 시작합니다.")
                                 
-                                # [핵심] sleep 없이 즉시 rerun을 시도하거나, 
-                                # 만약 rerun이 안 먹힐 경우를 대비해 버튼을 하나 둡니다.
-                                
-                                time.sleep(0.5) # 대기 시간을 줄입니다.
+                                time.sleep(0.5)
                                 st.rerun()
     
     if st.session_state.page == 'calendar':
