@@ -1545,6 +1545,9 @@ if st.session_state.page == 'login':
 elif st.session_state.page == 'setup':
     user = st.session_state.user_info
     st.title("⚙️ 초기 설정 (Onboarding)")
+
+    # 👇 [디버깅용 코드] 나중에 삭제하세요
+    st.write(f"🕵️ 현재 내 권한: {user.get('role')} / 내 ID: {user.get('id')}")
     
     if user:
         # [1] 기본 정보 계산
