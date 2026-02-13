@@ -2137,13 +2137,20 @@ if st.session_state.page == 'calendar':
 
 
 
-# 5. 상세 페이지 (이동 로직 보정 + 디자인 + NameError 방지 통합본)
+# ---------------------------------------------------------
+# 5. 상세 페이지 (Detail) - [디자인 원형 보존 + 통합 수정본]
+# ---------------------------------------------------------
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     
-    # [1] 변수 초기화
+    # [안전장치 1] 선택된 종목이 없으면 캘린더로 복귀
+    if not stock:
+        st.session_state.page = 'calendar'
+        st.rerun()
+
+    # [1] 변수 초기화 (에러 방지용 기본값)
     profile = None
-    fin_data = None
+    fin_data = {}
     current_p = 0
     off_val = 0
 
@@ -2177,13 +2184,13 @@ elif st.session_state.page == 'detail':
         
         menu_options = [login_text, main_text, watch_text, board_text]
         
-        # 상세 페이지에서는 선택된 메뉴가 없도록 index를 None에 가깝게 유지하거나 새로운 키 사용
+        # [핵심] default=None으로 설정하여 무한 리런 방지
         selected_menu = st.pills(
             label="nav", 
             options=menu_options, 
             selection_mode="single", 
-            default=None,  # 👈 여기가 중요합니다!
-            key="detail_nav_final_v7", 
+            default=None, 
+            key="detail_nav_final_fixed", 
             label_visibility="collapsed"
         )
 
@@ -2191,24 +2198,16 @@ elif st.session_state.page == 'detail':
             if selected_menu == login_text:
                 if is_logged_in: st.session_state.auth_status = None
                 st.session_state.page = 'login'
-            
             elif selected_menu == main_text:
-                st.session_state.view_mode = 'all'
-                # [중요] 하얀 화면 방지: 메인 목록 페이지 이름이 'calendar'라면 여기를 'calendar'로 유지
-                st.session_state.page = 'calendar' 
-            
+                st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'
             elif selected_menu == watch_text:
-                st.session_state.view_mode = 'watchlist'
-                st.session_state.page = 'calendar' # 위와 동일하게 설정
-            
+                st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
             elif selected_menu == board_text:
                 st.session_state.page = 'board'
-            
             st.rerun()
 
-
         # -------------------------------------------------------------------------
-        # [3] 사용자 판단 로직 (함수 정의)
+        # [3] 사용자 판단 로직 및 데이터 로딩 (원형 유지)
         # -------------------------------------------------------------------------
         if 'user_decisions' not in st.session_state:
             st.session_state.user_decisions = {}
@@ -2232,15 +2231,9 @@ elif st.session_state.page == 'detail':
             if choice:
                 st.session_state.user_decisions[sid][step_key] = choice
 
-        # -------------------------------------------------------------------------
-        # [4] 데이터 로딩 및 헤더 구성 (폰트 크기 최적화 버전)
-        # -------------------------------------------------------------------------
+        # 데이터 로딩
         today = datetime.now().date()
-        try: 
-            ipo_dt = stock['공모일_dt'].date() if hasattr(stock['공모일_dt'], 'date') else pd.to_datetime(stock['공모일_dt']).date()
-        except: 
-            ipo_dt = today
-        
+        ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
         status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
         date_str = ipo_dt.strftime('%Y-%m-%d')
 
@@ -2253,304 +2246,31 @@ elif st.session_state.page == 'detail':
                 fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
             except: pass
 
-        # 수익률 계산 및 HTML 구성 (오타 수정 버전)
+        # 헤더 출력 (수익률 계산 포함)
         if current_p > 0 and off_val > 0:
             pct = ((current_p - off_val) / off_val) * 100
             color = "#00ff41" if pct >= 0 else "#ff4b4b"
             icon = "▲" if pct >= 0 else "▼"
-            # 폰트 크기를 탭 메뉴와 맞추기 위해 스타일 조정
             p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 현재 ${current_p} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
         else:
-            # 여기 시작 부분에 f" 를 정확히 넣었습니다.
             p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 상장 대기)</span>"
 
-        # 기업명 출력 (h3 급 크기로 줄여서 탭 메뉴와 조화롭게 변경)
-        st.markdown(f"""
-            <div style='margin-bottom: -10px;'>
-                <span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> 
-                {p_info}
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.write("") # 미세 여백
+        st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
+        st.write("") 
 
         # -------------------------------------------------------------------------
-        # [CSS 추가] 탭 텍스트 색상 검정색으로 강제 고정 (모바일 가독성 해결)
+        # [CSS 추가] 탭 텍스트 색상 고정 (사용자 원형 유지)
         # -------------------------------------------------------------------------
         st.markdown("""
         <style>
-            /* 1. 탭 버튼 내부의 텍스트 색상 지정 */
             .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-                color: #333333 !important; /* 검은색 강제 적용 */
-                font-weight: bold !important; /* 굵게 표시 */
+                color: #333333 !important; font-weight: bold !important;
             }
-            
-            /* 2. 탭 마우스 오버 시 색상 (선택 사항) */
             .stTabs [data-baseweb="tab-list"] button:hover [data-testid="stMarkdownContainer"] p {
-                color: #004e92 !important; /* 마우스 올렸을 때 파란색 */
+                color: #004e92 !important;
             }
         </style>
         """, unsafe_allow_html=True)
-        
-# ---------------------------------------------------------
-# CASE 3: 상세 페이지 (Detail)
-# ---------------------------------------------------------
-elif st.session_state.page == 'detail':
-    stock = st.session_state.selected_stock
-    
-    # [안전장치 1] 선택된 종목이 없으면 캘린더로 튕겨내기 (에러 방지)
-    if not stock:
-        st.session_state.page = 'calendar'
-        st.rerun()
-
-    # [안전장치 2] 변수 미리 만들기 (이게 없으면 밑에서 에러남)
-    profile = None
-    fin_data = {}
-    current_p = 0
-    off_val = 0
-    
-    # [안전장치 3] 데이터 로딩하다 에러 나도 멈추지 않게 감싸기
-    with st.spinner(f"🤖 {stock['name']} 분석 중..."):
-        try: 
-            # 공모가 숫자 변환
-            off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
-        except: 
-            off_val = 0
-        
-        try:
-            # API 호출 시도
-            current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
-            profile = get_company_profile(stock['symbol'], MY_API_KEY) 
-            fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY) or {} 
-        except Exception as e:
-            # 에러가 나도 무시하고(pass) 진행 -> 화면 멈춤 방지
-            pass
-    
-    # 탭 구성
-    t0, t1, t2, t3, t4, t5 = st.tabs(["공시", "뉴스", "거시", "미시", "기관", "토론"])
-    
-    with t0:
-        st.info("공시 분석 탭입니다.")
-        # (여기에 공시 로직 추가)
-        
-    with t1:
-        st.info("뉴스 분석 탭입니다.")
-        # (여기에 뉴스 로직 추가)
-        
-    with t5:
-        st.subheader("토론방")
-        # (게시판 연결 로직)
-
-# ---------------------------------------------------------
-# CASE 4: 게시판 (Board)
-# ---------------------------------------------------------
-elif st.session_state.page == 'board':
-    st.title("💬 통합 게시판")
-    if st.button("🏠 메인으로"):
-        st.session_state.page = 'calendar'
-        st.rerun()
-        
-    # 게시글 목록 출력
-    if not st.session_state.posts:
-        st.info("작성된 게시글이 없습니다.")
-    
-    for p in st.session_state.posts:
-        with st.expander(f"{p.get('title')} ({p.get('author')})"):
-            st.write(p.get('content'))
-
-
-
-# --- [1. 최상단 페이지 컨트롤러] ---
-if st.session_state.get('page') == 'board':
-    
-    # ---------------------------------------------------------
-    # 1. [STYLE] 블랙 배경 + 화이트 글씨 (제공해주신 스타일 적용)
-    # ---------------------------------------------------------
-    st.markdown("""
-        <style>
-        div[data-testid="stPills"] div[role="radiogroup"] button {
-            border: none !important;
-            outline: none !important;
-            background-color: #000000 !important;
-            color: #ffffff !important;
-            border-radius: 20px !important;
-            padding: 6px 15px !important;
-            margin-right: 5px !important;
-            box-shadow: none !important;
-        }
-        div[data-testid="stPills"] button[aria-selected="true"] {
-            background-color: #444444 !important;
-            color: #ffffff !important;
-            font-weight: 800 !important;
-        }
-        div[data-testid="stPills"] div[data-baseweb="pill"] {
-            border: none !important;
-            background: transparent !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # ---------------------------------------------------------
-    # 2. 메뉴 텍스트 정의 및 페이지 이동 로직
-    # ---------------------------------------------------------
-    is_logged_in = st.session_state.get('auth_status') == 'user'
-    login_text = "로그아웃" if is_logged_in else "로그인"
-    main_text = "메인"
-    watch_text = f"관심 ({len(st.session_state.get('watchlist', []))})"
-    board_text = "게시판"
-    
-    menu_options = [login_text, main_text, watch_text, board_text]
-
-    # 현재 게시판 페이지이므로 기본 선택값은 board_text
-    selected_menu = st.pills(
-        label="내비게이션",
-        options=menu_options,
-        selection_mode="single",
-        default=board_text,
-        key="top_nav_board_page", 
-        label_visibility="collapsed"
-    )
-
-    # ✨ [핵심] 메뉴 클릭 시 페이지 이동 로직 ✨
-    if selected_menu == login_text:
-        if is_logged_in:
-            st.session_state.auth_status = None
-            st.session_state.page = 'login'
-        else:
-            st.session_state.page = 'login'
-        st.rerun()
-    elif selected_menu == main_text:
-        st.session_state.page = 'calendar' # 메인(캘린더) 페이지로 이동
-        st.session_state.view_mode = 'all'
-        st.rerun()
-    elif selected_menu == watch_text:
-        st.session_state.page = 'calendar' # 캘린더 페이지로 가되
-        st.session_state.view_mode = 'watchlist' # 관심 종목 모드로 변경
-        st.rerun()
-    # '게시판' 선택 시에는 현재 페이지이므로 아무 작업 안 함
-
-    # ---------------------------------------------------------
-    # 3. 통합 게시판 본문 (헤더 중복 제거 및 10개 노출 버전)
-    # ---------------------------------------------------------
-    
-    # [설정] 관리자 및 사용자 확인
-    ADMIN_PHONE = "010-0000-0000"  # 실제 관리자 번호로 수정하세요
-    current_user_phone = st.session_state.get('user_phone', 'guest')
-    is_admin = (current_user_phone == ADMIN_PHONE)
-    user_id = st.session_state.get('user_id')
-    
-    # [1. 상단: 게시글 리스트 섹션]
-    posts = st.session_state.get('posts', [])
-    
-    if 'search_word' not in st.session_state:
-        st.session_state.search_word = ""
-    
-    # 검색 필터링 로직
-    if st.session_state.search_word:
-        sw = st.session_state.search_word.upper()
-        display_posts = [p for p in posts if sw in p.get('category', '').upper() or sw in p.get('title', '').upper()]
-    else:
-        display_posts = posts
-    
-    # --- 리스트 출력 시작 (최대 10개 노출) ---
-    if display_posts:
-        for idx, p in enumerate(display_posts[:10]):  # 👈 기존 20개에서 10개로 변경
-            
-            # [수정 1] 종목명 중복 제거 및 헤더 형식 변경
-            category = p.get('category', '').strip()
-            title = p.get('title', '').strip()
-            
-            # 제목 자체에 이미 [종목]이 포함되어 있는지 확인하여 중복 방지
-            if category and f"[{category}]" in title:
-                clean_title = title  # 이미 포함되어 있으면 그대로 사용
-            elif category:
-                clean_title = f"[{category}] {title}" # 없으면 붙여줌
-            else:
-                clean_title = title
-    
-            # 최종 헤더 문자열 (별표 제거)
-            combined_header = f"{clean_title} | 👤 {p.get('author')} | {p.get('date')}"
-            
-            with st.expander(combined_header, expanded=False):
-                st.write(p.get('content'))
-                st.divider()
-                
-                # 버튼 레이아웃
-                col_l, col_d, col_spacer, col_edit, col_del = st.columns([0.7, 0.7, 3.5, 0.6, 0.6])
-                
-                with col_l:
-                    if st.button(f"👍 {p.get('likes', 0)}", key=f"like_{p['id']}"):
-                        if user_id and user_id not in p.get('like_users', []):
-                            p['likes'] = p.get('likes', 0) + 1
-                            p.setdefault('like_users', []).append(user_id)
-                            st.rerun()
-                with col_d:
-                    if st.button(f"👎 {p.get('dislikes', 0)}", key=f"dis_{p['id']}"):
-                        if user_id and user_id not in p.get('dislike_users', []):
-                            p['dislikes'] = p.get('dislikes', 0) + 1
-                            p.setdefault('dislike_users', []).append(user_id)
-                            st.rerun()
-    
-                # 수정 및 삭제 권한 확인
-                if (current_user_phone == p.get('author')) or is_admin:
-                    with col_edit:
-                        if st.button("📝", key=f"edit_{p['id']}"):
-                            st.info("수정 기능 준비 중입니다.")
-                    with col_del:
-                        if st.button("🗑️", key=f"del_{p['id']}"):
-                            st.session_state.posts = [item for item in st.session_state.posts if item['id'] != p['id']]
-                            st.rerun()
-            st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
-    else:
-        st.caption("게시글이 없습니다.")
-    
-    st.markdown("---")
-    
-    # [2. 하단: 검색창 및 글쓰기 버튼 가로 배치]
-    col_search, col_write = st.columns([3, 1])
-    
-    with col_search:
-        st.session_state.search_word = st.text_input(
-            "🔍 검색", 
-            value=st.session_state.search_word,
-            placeholder="종목명 또는 제목으로 검색...",
-            label_visibility="collapsed",
-            key="board_search_input_final"
-        )
-    
-    with col_write:
-        show_write = st.expander("📝 글쓰기", expanded=False)
-    
-    # [3. 글쓰기 폼 로직]
-    if st.session_state.get('auth_status') == 'user':
-        with show_write:
-            with st.form(key="unique_write_form_v3", clear_on_submit=True):
-                w_col1, w_col2 = st.columns([1, 2])
-                with w_col1:
-                    new_cat = st.text_input("종목명", placeholder="예: TSLA")
-                with w_col2:
-                    new_title = st.text_input("제목", placeholder="제목을 입력하세요")
-                new_content = st.text_area("내용", placeholder="인사이트를 공유해 주세요")
-                
-                if st.form_submit_button("게시하기", use_container_width=True, type="primary"):
-                    if new_title and new_content:
-                        new_post = {
-                            "id": str(uuid.uuid4()),
-                            "category": new_cat.upper() if new_cat else "공통",
-                            "title": new_title, 
-                            "content": new_content,
-                            "author": current_user_phone,
-                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "likes": 0, "dislikes": 0,
-                            "like_users": [], "dislike_users": [],
-                            "uid": user_id
-                        }
-                        if 'posts' not in st.session_state: st.session_state.posts = []
-                        st.session_state.posts.insert(0, new_post)
-                        st.rerun()
-    else:
-        with show_write:
-            st.warning("🔒 로그인 후 글을 남길 수 있습니다.")
 
 
 
