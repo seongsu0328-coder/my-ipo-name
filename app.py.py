@@ -3727,7 +3727,8 @@ if st.session_state.get('page') == 'board':
                                 p['views'] = p.get('views', 0) + 1  # 조회수 1 증가
                                 st.rerun()
                 
-                
+
+                #리아
                 
                 
                 
