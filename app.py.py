@@ -1527,9 +1527,63 @@ if st.session_state.page == 'login':
             # -----------------------------------------------------
             # [3-3단계] 서류 제출 (대학, 직장, 자산)
             # -----------------------------------------------------
+            elif st.session_state.login_step == 'signup_input':
+            
+            # --- [수정 포인트: stage 1 또는 2일 때만 정보 입력창 노출] ---
+            if st.session_state.signup_stage in [1, 2]:
+                # 스타일 정의
+                title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
+                label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: 5px; margin-top: 10px;"
+                status_style = "font-size: 0.85rem; margin-top: -10px; margin-bottom: 10px;"
+
+                st.markdown(f"<p style='{title_style}'>1단계: 정보 입력</p>", unsafe_allow_html=True)
+                
+                # 1~3. 아이디, 비밀번호, 연락처, 이메일 입력창 (기존 코드 유지)
+                # (이 부분에 기존에 작성하신 new_id, new_pw, new_email 등의 입력창 코드가 들어갑니다)
+                new_id = st.text_input("id_input", value=st.session_state.get('temp_id', ''), label_visibility="collapsed")
+                st.session_state.temp_id = new_id
+                # ... (중략: 기존 입력 필드들) ...
+
+                st.write("<br>", unsafe_allow_html=True)
+
+                # --- [하단 버튼/인증창 교체 구역] ---
+                if st.session_state.signup_stage == 1:
+                    if st.button("인증번호 받기", use_container_width=True, type="primary", key="btn_send_auth"):
+                        # ... (인증번호 발송 로직) ...
+                        st.session_state.signup_stage = 2
+                        st.rerun()
+                    
+                    if st.button("처음으로 돌아가기", use_container_width=True, key="btn_signup_back"):
+                        st.session_state.login_step = 'choice'
+                        st.rerun()
+
+                elif st.session_state.signup_stage == 2:
+                    # 인증번호 입력창 ( stage 2일 때만 나타남 )
+                    st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
+                    in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder="숫자 6자리", key="input_verify_code")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("인증 확인", use_container_width=True, type="primary", key="btn_confirm_auth"):
+                            if in_code == st.session_state.auth_code:
+                                st.success("인증 성공!")
+                                st.session_state.signup_stage = 3 # 3단계로 변경
+                                st.rerun() # 화면을 완전히 새로고침하여 3단계 진입
+                            else:
+                                st.error("인증번호가 틀렸습니다.")
+                    with col2:
+                        if st.button("취소/재발송", use_container_width=True, key="btn_resend_auth"):
+                            st.session_state.signup_stage = 1
+                            st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+            # --- [수정 포인트: stage가 3이 되면 위 입력창들은 사라지고 아래 내용만 노출] ---
             elif st.session_state.signup_stage == 3:
+                # -----------------------------------------------------
+                # [3-3단계] 서류 제출 (대학, 직장, 자산)
+                # -----------------------------------------------------
                 st.subheader("3단계: 선택적 자격 증빙")
-                st.info("💡 서류를 하나라도 제출하면 '글쓰기/투표' 권한이 신청됩니다. (미제출 시 '관심종목' 기능만 사용 가능)")
+                st.info("💡 서류를 하나라도 제출하면 '글쓰기/투표' 권한이 신청됩니다.")
                 
                 with st.form("signup_3"):
                     u_name = st.text_input("출신 대학 (선택)")
