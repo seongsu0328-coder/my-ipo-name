@@ -1693,7 +1693,7 @@ elif st.session_state.page == 'setup':
                         st.error(f"승인 오류: {e}")
                 return False
 
-            if st.button("🔄 승인 대기 목록 불러오기", key="btn_admin_setup"):
+            if st.button("승인 대기 목록 불러오기", key="btn_admin_setup"):
                 all_users_adm = load_users()
                 pending_users = [u for u in all_users_adm if u.get('status') == 'pending']
                 
