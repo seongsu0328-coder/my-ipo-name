@@ -1627,11 +1627,12 @@ elif st.session_state.page == 'setup':
         # [수정 3] 미리보기에서는 완전 마스킹된 ID 사용
         final_nickname = f"{prefix} {full_masked_id}" if prefix else full_masked_id
         
-        st.divider()
+        # ▼▼▼▼▼ [삭제함] 원래 여기에 있던 st.divider()를 지웠습니다. ▼▼▼▼▼
+        
         c_info, c_status = st.columns([2, 1])
         
         with c_info:
-            # [수정 1] 글자 크기를 체크박스와 유사하게 맞춤 (font-size 제거 또는 1rem 설정)
+            # [수정 1] 글자 크기를 체크박스와 유사하게 맞춤
             st.markdown(f"아이디: {full_masked_id}")
             st.markdown(f"활동 닉네임: <span style='font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
         
