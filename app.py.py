@@ -1632,8 +1632,8 @@ elif st.session_state.page == 'setup':
         
         with c_info:
             # [수정 1] 글자 크기를 체크박스와 유사하게 맞춤 (font-size 제거 또는 1rem 설정)
-            st.markdown(f"*아이디*: {full_masked_id}")
-            st.markdown(f"*활동 닉네임*: <span style='font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
+            st.markdown(f"아이디: {full_masked_id}")
+            st.markdown(f"활동 닉네임: <span style='font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
         
         with c_status:
             db_role = user.get('role', 'restricted')
