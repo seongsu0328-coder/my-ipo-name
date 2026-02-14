@@ -3519,7 +3519,7 @@ elif st.session_state.page == 'detail':
             # 3. 전망 투표 및 관심종목
             # ---------------------------------------------------------
             st.write("---")
-            st.subheader("📊 향후 전망 투표")
+            st.subheader("향후 전망 투표")
             
             if st.session_state.get('auth_status') == 'user':
                 if sid not in st.session_state.watchlist:
@@ -3554,7 +3554,7 @@ elif st.session_state.page == 'detail':
             # 4. 종목 토론방
             # ---------------------------------------------------------
             st.write("---")
-            st.subheader(f"💬 {sid} 토론방")
+            st.subheader(f"{sid} 토론방")
             
             # 내부 함수: 반응 처리
             def local_handle_reaction(post_id, reaction_type):
