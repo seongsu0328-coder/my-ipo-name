@@ -1684,118 +1684,126 @@ elif st.session_state.page == 'setup':
                 st.rerun()               # 로그인 화면으로 복귀
 
         # ===========================================================
-        # 👇 [디버깅 모드] 관리자 전용 기능 (Setup 화면)
+        # 👇 [수정 완료] 관리자 승인 기능 (버튼 씹힘 해결 - 콜백 방식)
         # ===========================================================
         if user.get('role') == 'admin':
             st.divider()
-            st.subheader("🛠️ 관리자 전용: 가입 승인 관리 (디버깅 모드)")
+            st.subheader("🛠️ 관리자 전용: 가입 승인 관리")
+
+            # -------------------------------------------------------
+            # [1] 기능 함수 정의 (화면 그리기 전에 실행될 함수들)
+            # -------------------------------------------------------
             
-            # [디버깅 함수] 어디서 멈추는지 메시지를 출력합니다.
-            def update_user_status_debug(target_user_id, new_status):
-                st.warning(f"🔍 [DEBUG 1] 시작: ID({target_user_id}) -> 상태({new_status}) 변경 시도")
-                
+            # 구글 시트 상태 변경 함수
+            def update_sheet_status(uid, status):
                 client, _ = get_gcp_clients()
-                if not client:
-                    st.error("❌ [DEBUG] 구글 클라이언트 연결 실패")
-                    return False
-
+                if not client: return False
                 try:
-                    # 1. 시트 열기 시도
                     sh = client.open("unicorn_users").sheet1
-                    st.info("✅ [DEBUG 2] 시트 열기 성공")
-                    
-                    # 2. 헤더 확인 (1행 출력)
-                    headers = sh.row_values(1)
-                    st.write(f"📜 [DEBUG 3] 현재 시트 헤더 목록: {headers}")
-
-                    # 3. ID 찾기
-                    # cell = sh.find(str(target_user_id), in_column=1) # 기존 방식
-                    # 안전한 방식: 1열 전체를 가져와서 비교
-                    col_ids = sh.col_values(1)
-                    
-                    try:
-                        # 리스트에서 ID 위치 찾기 (파이썬 리스트는 0부터 시작하므로 +1)
-                        row_idx = col_ids.index(str(target_user_id)) + 1
-                        st.info(f"✅ [DEBUG 4] ID 찾음! 행 번호: {row_idx}행")
-                    except ValueError:
-                        st.error(f"❌ [DEBUG 4] ID({target_user_id})가 1열에 없습니다. (공백 등 확인 필요)")
-                        st.write(f"참고: 1열 데이터 샘플: {col_ids[:5]}...")
-                        return False
-
-                    # 4. 'status' 열 번호 찾기
-                    try:
-                        # 대소문자 구분 없이 찾기 위해 루프 사용 혹은 정확한 명칭 확인
-                        if "status" in headers:
-                            col_idx = headers.index("status") + 1
-                            st.info(f"✅ [DEBUG 5] 'status' 컬럼 찾음! 열 번호: {col_idx}열")
-                        else:
-                            st.error(f"❌ [DEBUG 5] 헤더에 'status'가 없습니다. 헤더 목록을 확인하세요: {headers}")
-                            # 임시 조치: 만약 status가 없다면 강제로 12번째 열이라고 가정 (사용자 시트 구조에 따라 다름)
-                            st.warning("⚠️ [DEBUG] 'status'를 못 찾아 강제로 12번째 열에 기록합니다.")
-                            col_idx = 12 
-                    except Exception as e:
-                        st.error(f"❌ [DEBUG 5] 컬럼 찾기 중 에러: {e}")
-                        return False
-
-                    # 5. 업데이트 실행
-                    st.warning(f"⏳ [DEBUG 6] 업데이트 실행 중... ({row_idx}행, {col_idx}열) -> {new_status}")
-                    sh.update_cell(row_idx, col_idx, new_status)
-                    st.success("✅ [DEBUG 7] 업데이트 명령 완료!")
-                    return True
-
+                    # ID가 있는 행 찾기
+                    cell = sh.find(str(uid), in_column=1)
+                    if cell:
+                        # status 열 찾기 (헤더 검색)
+                        header_cell = sh.find("status", in_row=1)
+                        col_idx = header_cell.col if header_cell else 12
+                        
+                        # 업데이트
+                        sh.update_cell(cell.row, col_idx, status)
+                        return True
                 except Exception as e:
-                    st.error(f"❌ [DEBUG ERROR] 치명적 오류 발생: {e}")
-                    return False
+                    print(f"Error: {e}") # 터미널 로그용
+                return False
 
-            if st.button("🔄 승인 대기 목록 불러오기", key="btn_admin_setup"):
-                all_users_adm = load_users()
-                pending_users = [u for u in all_users_adm if u.get('status') == 'pending']
-                
-                if not pending_users:
-                    st.info("현재 승인 대기 중인 유저가 없습니다.")
+            # [핵심] 승인 버튼 누르면 실행될 콜백 함수
+            def callback_approve(target_id, target_email):
+                # 1. 시트 업데이트
+                if update_sheet_status(target_id, 'approved'):
+                    # 2. 이메일 발송
+                    if target_email:
+                        send_approval_email(target_email, target_id)
+                    # 3. 알림 메시지 (새로고침 되어도 뜸)
+                    st.toast(f"✅ {target_id}님 승인 처리 완료!", icon="🎉")
                 else:
-                    for pu in pending_users:
-                        with st.expander(f"📝 신청자: {pu.get('id')} ({pu.get('univ') or '대학미기재'})"):
-                            st.write(f"**이메일**: {pu.get('email')} | **연락처**: {pu.get('phone')}")
-                            
-                            c1, c2, c3 = st.columns(3)
-                            with c1:
-                                if pu.get('link_univ') != "미제출": st.link_button("🎓 대학 증빙", pu.get('link_univ'))
-                            with c2:
-                                if pu.get('link_job') != "미제출": st.link_button("💼 직업 증빙", pu.get('link_job'))
-                            with c3:
-                                if pu.get('link_asset') != "미제출": st.link_button("💰 자산 증빙", pu.get('link_asset'))
-                            
-                            st.divider()
+                    st.toast(f"❌ {target_id} 처리 실패. 시트 연결 확인 필요.", icon="⚠️")
 
-                            rej_reason = st.text_input("보류 사유", placeholder="예: 서류 식별 불가", key=f"rej_setup_{pu.get('id')}")
-                            
-                            col_btn1, col_btn2 = st.columns(2)
-                            
-                            # [1. 승인 버튼]
-                            with col_btn1:
-                                if st.button(f"✅ 승인", key=f"app_setup_{pu.get('id')}", use_container_width=True):
-                                    # 디버그 함수 호출
-                                    if update_user_status_debug(pu.get('id'), 'approved'):
-                                        if pu.get('email'):
-                                            send_approval_email(pu.get('email'), pu.get('id'))
-                                        st.success("최종 완료")
-                                        time.sleep(2) # 메시지 읽을 시간 줌
-                                        st.rerun()
-                            
-                            # [2. 보류 버튼]
-                            with col_btn2:
-                                if st.button(f"❌ 보류", key=f"rej_setup_btn_{pu.get('id')}", use_container_width=True):
-                                    if not rej_reason:
-                                        st.warning("보류 사유를 입력하세요.")
-                                    else:
-                                        # 디버그 함수 호출
-                                        if update_user_status_debug(pu.get('id'), 'rejected'):
-                                            if pu.get('email'):
-                                                send_rejection_email(pu.get('email'), pu.get('id'), rej_reason)
-                                            st.info("보류 완료")
-                                            time.sleep(2) # 메시지 읽을 시간 줌
-                                            st.rerun()
+            # [핵심] 보류 버튼 누르면 실행될 콜백 함수
+            def callback_reject(target_id, target_email):
+                # 입력된 사유 가져오기 (session_state에서 꺼냄)
+                reason_key = f"rej_setup_{target_id}"
+                reason = st.session_state.get(reason_key, "")
+
+                if not reason:
+                    st.toast("⚠️ 보류 사유를 입력해주세요!", icon="❗")
+                    return # 사유 없으면 중단
+
+                # 1. 시트 업데이트 (rejected로 변경하여 목록에서 제거)
+                if update_sheet_status(target_id, 'rejected'):
+                    # 2. 이메일 발송
+                    if target_email:
+                        send_rejection_email(target_email, target_id, reason)
+                    st.toast(f"🛑 {target_id}님 보류 처리 완료.", icon="blob-check")
+                else:
+                    st.toast("❌ 처리 실패.", icon="⚠️")
+
+            # -------------------------------------------------------
+            # [2] 화면 그리기 (UI)
+            # -------------------------------------------------------
+            
+            # 목록 불러오기 버튼
+            if st.button("🔄 승인 대기 목록 새로고침", key="btn_refresh_list"):
+                st.rerun()
+
+            all_users_adm = load_users()
+            # status가 pending인 유저만 필터링
+            pending_users = [u for u in all_users_adm if u.get('status') == 'pending']
+            
+            if not pending_users:
+                st.info("현재 승인 대기 중인 유저가 없습니다.")
+            else:
+                for pu in pending_users:
+                    # 유저별 고유 키 생성
+                    u_id = pu.get('id')
+                    u_email = pu.get('email')
+                    
+                    with st.expander(f"📝 신청자: {u_id} ({pu.get('univ') or '미기재'})"):
+                        st.write(f"**이메일**: {u_email} | **연락처**: {pu.get('phone')}")
+                        
+                        # 증빙 서류 링크
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
+                            if pu.get('link_univ') != "미제출": st.link_button("🎓 대학 증빙", pu.get('link_univ'))
+                        with c2:
+                            if pu.get('link_job') != "미제출": st.link_button("💼 직업 증빙", pu.get('link_job'))
+                        with c3:
+                            if pu.get('link_asset') != "미제출": st.link_button("💰 자산 증빙", pu.get('link_asset'))
+                        
+                        st.divider()
+
+                        # 보류 사유 입력창 (키를 명확히 지정)
+                        st.text_input("보류 사유", placeholder="예: 식별 불가", key=f"rej_setup_{u_id}")
+                        
+                        btn_col1, btn_col2 = st.columns(2)
+                        
+                        # [승인 버튼] -> on_click 사용
+                        with btn_col1:
+                            st.button(
+                                "✅ 승인", 
+                                key=f"btn_app_{u_id}", 
+                                use_container_width=True,
+                                on_click=callback_approve,  # 클릭 시 실행할 함수 지정
+                                args=(u_id, u_email)        # 함수에 넘길 데이터
+                            )
+
+                        # [보류 버튼] -> on_click 사용
+                        with btn_col2:
+                            st.button(
+                                "❌ 보류", 
+                                key=f"btn_rej_{u_id}", 
+                                use_container_width=True, 
+                                type="primary",
+                                on_click=callback_reject,   # 클릭 시 실행할 함수 지정
+                                args=(u_id, u_email)        # 함수에 넘길 데이터
+                            )
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 if st.session_state.page == 'calendar':
