@@ -1764,7 +1764,7 @@ elif st.session_state.page == 'setup':
                     u_id = pu.get('id')
                     u_email = pu.get('email')
                     
-                    with st.expander(f"📝 신청자: {u_id} ({pu.get('univ') or '미기재'})"):
+                    with st.expander(f"{u_id} ({pu.get('univ') or '미기재'})"):
                         st.write(f"**이메일**: {u_email} | **연락처**: {pu.get('phone')}")
                         
                         # 증빙 서류 링크
