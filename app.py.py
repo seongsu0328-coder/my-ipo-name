@@ -1580,15 +1580,19 @@ if st.session_state.page == 'login':
 # ---------------------------------------------------------
 elif st.session_state.page == 'setup':
     user = st.session_state.user_info
+    
+    # [스타일 조정] 제목 크기가 너무 부담스럽지 않게 subheader 사용 혹은 그대로 유지
     st.title("설정 및 권한")
 
-    
     if user:
         # [1] 기본 정보 계산
         user_id = str(user.get('id', ''))
-        masked_id = user_id[:3] + "*" * (len(user_id) - 3) if len(user_id) > 3 else user_id + "***"
         
-        st.info(f"환영합니다, {masked_id}님! 활동 닉네임과 노출 범위를 확인해주세요.")
+        # [수정 2] 환영 메시지에는 Full Name 노출
+        # [수정 3] 미리보기용 완전 마스킹 ID 생성 (예: *******)
+        full_masked_id = "*" * len(user_id) 
+        
+        st.info(f"환영합니다, {user_id}님! 활동 닉네임과 노출 범위를 확인해주세요.")
         
         # -----------------------------------------------------------
         # 1. 내 정보 노출 설정 (체크박스)
@@ -1604,6 +1608,7 @@ elif st.session_state.page == 'setup':
         def_asset = saved_vis[2] == 'True' if len(saved_vis) > 2 else True
 
         c1, c2, c3 = st.columns(3)
+        # 글자 크기는 Streamlit 기본 위젯 크기를 따릅니다.
         show_univ = c1.checkbox("대학 및 학과", value=def_univ)
         show_job = c2.checkbox("직장 혹은 직업", value=def_job)
         show_asset = c3.checkbox("자산", value=def_asset)
@@ -1619,14 +1624,17 @@ elif st.session_state.page == 'setup':
         if show_asset: info_parts.append(get_asset_grade(user.get('asset', '')))
         
         prefix = " ".join([p for p in info_parts if p])
-        final_nickname = f"{prefix} {masked_id}" if prefix else masked_id
+        
+        # [수정 3] 미리보기에서는 완전 마스킹된 ID 사용
+        final_nickname = f"{prefix} {full_masked_id}" if prefix else full_masked_id
         
         st.divider()
         c_info, c_status = st.columns([2, 1])
         
         with c_info:
-            st.write(f"👤 **아이디**: {masked_id}")
-            st.markdown(f"📛 **활동 닉네임**: <span style='font-size:1.1em; font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
+            # [수정 1] 글자 크기를 체크박스와 유사하게 맞춤 (font-size 제거 또는 1rem 설정)
+            st.markdown(f"👤 **아이디**: {full_masked_id}")
+            st.markdown(f"📛 **활동 닉네임**: <span style='font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
         
         with c_status:
             db_role = user.get('role', 'restricted')
@@ -1655,6 +1663,7 @@ elif st.session_state.page == 'setup':
             with st.spinner("설정 적용 중..."):
                 current_settings = [show_univ, show_job, show_asset]
                 
+                # 가시성 업데이트 시도
                 if update_user_visibility(user.get('id'), current_settings):
                     st.session_state.user_info['visibility'] = ",".join([str(v) for v in current_settings])
                     st.session_state.page = 'calendar' 
@@ -1680,7 +1689,7 @@ elif st.session_state.page == 'setup':
                         if str(u.get('id')) == str(user.get('id')):
                             continue
                         
-                        # 2. 아이디 마스킹
+                        # 2. 아이디 전체 마스킹 (다른 사람도 ******* 로 보임)
                         target_id = str(u.get('id', ''))
                         m_id = "*" * len(target_id)
                         
@@ -1696,7 +1705,7 @@ elif st.session_state.page == 'setup':
                         # 4. 닉네임 조합
                         u_info_parts = []
                         if v_univ: u_info_parts.append(u.get('univ', ''))
-                        if v_job: u_info_parts.append(u.get('job', '')) # job_title -> job (DB 컬럼명 주의)
+                        if v_job: u_info_parts.append(u.get('job', ''))
                         if v_asset: 
                             u_tier = get_asset_grade(u.get('asset', ''))
                             u_info_parts.append(u_tier)
@@ -1722,10 +1731,7 @@ elif st.session_state.page == 'setup':
             st.divider()
             st.subheader("🛠️ 관리자 전용: 가입 승인 관리")
             
-            # (승인 처리 함수는 파일 상단에 정의되어 있다고 가정)
-            # 여기서는 편의상 내부 함수 재정의보다는 외부 함수 호출이 좋으나, 
-            # Setup 페이지 안에서도 동작하도록 로직을 포함합니다.
-            
+            # Setup 페이지용 승인 함수
             def approve_user_status_setup(user_id_to_approve):
                 client, _ = get_gcp_clients()
                 if client:
