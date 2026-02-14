@@ -1687,8 +1687,7 @@ elif st.session_state.page == 'setup':
         # 👇 [수정됨] 관리자 전용 기능 (Setup 화면)
         # ===========================================================
         if user.get('role') == 'admin':
-            st.divider()
-            st.subheader("🛠️ 관리자 전용: 가입 승인 관리")
+            
             
             # [기능 개선] "status" 열을 자동으로 찾아서 업데이트하는 함수
             def update_user_status_smart(target_user_id, new_status):
@@ -1721,7 +1720,7 @@ elif st.session_state.page == 'setup':
                         st.error(f"구글 시트 통신 오류: {e}")
                 return False
 
-            if st.button("🔄 승인 대기 목록 불러오기", key="btn_admin_setup"):
+            if st.button("승인 대기목록", key="btn_admin_setup"):
                 all_users_adm = load_users()
                 pending_users = [u for u in all_users_adm if u.get('status') == 'pending']
                 
