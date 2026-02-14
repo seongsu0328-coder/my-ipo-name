@@ -3455,7 +3455,13 @@ elif st.session_state.page == 'detail':
             sid = stock['symbol']
             current_user_phone = st.session_state.get('user_phone', 'guest')
             user_id = st.session_state.get('user_id', 'guest_id')
-            is_admin = (st.session_state.get('user_info', {}).get('role') == 'admin')
+            
+            # [수정된 안전한 코드] 
+            # 1. user_info를 가져오되, 값이 None이면 빈 딕셔너리 {}로 변환합니다.
+            user_info = st.session_state.get('user_info') or {}
+            
+            # 2. 이제 user_info는 무조건 딕셔너리이므로 안전하게 .get()을 쓸 수 있습니다.
+            is_admin = (user_info.get('role') == 'admin')
             
             # 데이터 초기화
             if 'vote_data' not in st.session_state: st.session_state.vote_data = {}
