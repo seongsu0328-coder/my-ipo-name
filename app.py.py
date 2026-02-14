@@ -2271,7 +2271,7 @@ elif st.session_state.page == 'detail':
             st.session_state.user_decisions[sid] = {"news": None, "filing": None, "macro": None, "company": None}
 
         def draw_decision_box(step_key, title, options):
-            st.write("---")
+            
             st.markdown(f"##### {title}")
             current_val = st.session_state.user_decisions[sid].get(step_key)
             choice = st.radio(
