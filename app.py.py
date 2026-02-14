@@ -3418,144 +3418,219 @@ elif st.session_state.page == 'detail':
                     break
         
         # =========================================================
-        # --- Tab 5: 종목 토론 및 투자 결정 ---
+        # --- Tab 5: 최종 투자 결정 (종목 상세 페이지 내) ---
         # =========================================================
         with tab5:
-            # 스타일 설정 (기존 흰색 배경 유지 + 커뮤니티 스타일 추가)
+            # ---------------------------------------------------------------------------
+            # 1. [스타일 및 설정] 흰 배경 강제 적용 및 변수 초기화
+            # ---------------------------------------------------------------------------
             st.markdown("""
                 <style>
-                .post-container { border-bottom: 1px solid #eee; padding: 10px 0; cursor: pointer; }
-                .post-category { color: #ff4b4b; font-size: 12px; font-weight: bold; }
-                .post-title { font-size: 16px; font-weight: 500; margin: 3px 0; color: #000; }
-                .post-meta { color: #888; font-size: 12px; }
-                .detail-category { color: #ff4b4b; font-size: 14px; font-weight: bold; }
-                .detail-title { font-size: 22px; font-weight: bold; margin-top: 5px; }
-                .detail-author { font-size: 14px; font-weight: 500; color: #333; margin-top: 10px; }
-                .detail-info { color: #888; font-size: 12px; margin-bottom: 15px; }
-                .detail-content { font-size: 16px; line-height: 1.6; padding: 20px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
-                .reaction-bar { display: flex; gap: 15px; font-size: 14px; margin-top: 10px; font-weight: bold; }
+                /* 전체 앱 배경 흰색, 글자 검은색 강제 적용 */
+                .stApp { background-color: #ffffff !important; color: #000000 !important; }
+                p, h1, h2, h3, h4, h5, h6, span, li, div { color: #000000 !important; }
+                
+                /* Expander 스타일 */
+                .streamlit-expanderHeader {
+                    background-color: #f8f9fa !important;
+                    color: #000000 !important;
+                    border: 1px solid #ddd !important;
+                }
+                div[data-testid="stExpanderDetails"] {
+                    background-color: #ffffff !important;
+                    border: 1px solid #ddd !important;
+                    border-top: none !important;
+                }
+                
+                /* 입력창 스타일 */
+                .stTextInput input, .stTextArea textarea {
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                    border: 1px solid #ccc !important;
+                }
                 </style>
             """, unsafe_allow_html=True)
-        
-            # 1. 상세 페이지 이동용 세션 관리
-            if 'view_post_id' not in st.session_state:
-                st.session_state.view_post_id = None
-        
-            # --- [A] 게시글 상세 보기 화면 ---
-            if st.session_state.view_post_id:
-                post = next((p for p in st.session_state.posts if p['id'] == st.session_state.view_post_id), None)
-                
-                if post:
-                    if st.button("⬅️ 목록으로"):
-                        st.session_state.view_post_id = None
-                        st.rerun()
-        
-                    st.markdown(f"""
-                        <div class="detail-category">{post.get('category')}</div>
-                        <div class="detail-title">{post.get('title')}</div>
-                        <div class="detail-author">👤 {post.get('author')[:7]}***</div>
-                        <div class="detail-info">작성일 {post.get('date')} &nbsp;&nbsp; 조회수 {post.get('views', 0)} &nbsp;&nbsp; 댓글 {post.get('comment_count', 0)}</div>
-                        <div class="detail-content">{post.get('content').replace('\\n', '<br>')}</div>
-                    """, unsafe_allow_html=True)
-        
-                    # 하단 좋아요/댓글 섹션
-                    c1, c2, c3 = st.columns([1, 1, 4])
-                    with c1:
-                        if st.button(f"👍 좋아요 {post.get('likes', 0)}", key=f"det_l_{post['id']}", use_container_width=True):
-                            post['likes'] += 1 # 실제 운영시는 handle_post_reaction 사용
-                            st.rerun()
-                    with c2:
-                        st.button(f"💬 댓글 {post.get('comment_count', 0)}", key=f"det_c_{post['id']}", use_container_width=True)
-                    
-                    # (옵션) 댓글 목록 표시 로직 추가 가능
-                    st.divider()
-        
-            # --- [B] 게시글 목록 화면 ---
-            else:
-                # 상단 분석 결과 섹션 (기존 코드 유지)
-                # ... (기존 차트 및 점수 코드) ...
-        
-                st.subheader(f"💬 {sid} 토론방")
-                
-                # 글쓰기 버튼 (로그인 확인)
-                if st.session_state.get('auth_status') == 'user':
-                    if st.button(f" {sid} 인사이트 공유하기", use_container_width=True):
-                        st.session_state.writing_mode = True
-                
-                # 글쓰기 폼
-                if st.session_state.get('writing_mode'):
-                    with st.form("new_post_form"):
-                        new_t = st.text_input("제목")
-                        new_c = st.text_area("내용")
-                        if st.form_submit_button("등록"):
-                            st.session_state.posts.insert(0, {
-                                "id": str(uuid.uuid4()), "category": sid, "title": new_t, "content": new_c,
-                                "author": current_user_phone, "date": "방금 전", "likes": 0, "views": 0, "comment_count": 0
-                            })
-                            st.session_state.writing_mode = False
-                            st.rerun()
-        
-                st.divider()
-        
-                # 게시글 리스트 출력 섹션
-                sid_posts = [p for p in st.session_state.posts if p.get('category') == sid]
-                
-                if not sid_posts:
-                    st.caption("아직 게시글이 없습니다.")
-                else:
-                    for p in sid_posts:
-                        with st.container():
-                            # 1. 댓글이 있으면 댓글수, 없으면 조회수를 표시하는 로직
-                            c_count = p.get('comment_count', 0)
-                            if c_count > 0:
-                                stat_display = f"💬 {c_count}"
-                            else:
-                                stat_display = f"👁️ {p.get('views', 0)}"
+            
+            # 변수 설정
+            sid = stock['symbol']
+            current_user_phone = st.session_state.get('user_phone', 'guest')
+            user_id = st.session_state.get('user_id', 'guest_id')
+            is_admin = (st.session_state.get('user_info', {}).get('role') == 'admin')
+            
+            # 데이터 초기화
+            if 'vote_data' not in st.session_state: st.session_state.vote_data = {}
+            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
+            if 'watchlist' not in st.session_state: st.session_state.watchlist = []
+            if 'watchlist_predictions' not in st.session_state: st.session_state.watchlist_predictions = {}
+            if 'posts' not in st.session_state: st.session_state.posts = []
 
-                            # 2. 디자인: Flexbox를 사용해 한 줄에 배치 (좌측 정렬 / 우측 정렬)
-                            st.markdown(f"""
-                                <div style="
-                                    display: flex; 
-                                    justify-content: space-between; 
-                                    align-items: center; 
-                                    padding: 12px 4px; 
-                                    border-bottom: 1px solid #f0f0f0;
-                                ">
-                                    <div style="
-                                        flex: 1; 
-                                        white-space: nowrap; 
-                                        overflow: hidden; 
-                                        text-overflow: ellipsis; 
-                                        padding-right: 15px;
-                                    ">
-                                        <span style="color: #ff4b4b; font-size: 13px; font-weight: bold;">
-                                            [{p.get('category', '일반')}]
-                                        </span>
-                                        <span style="color: #333; font-size: 15px; font-weight: 600; margin-left: 6px;">
-                                            {p.get('title')}
-                                        </span>
-                                    </div>
-                                    
-                                    <div style="
-                                        display: flex; 
-                                        align-items: center; 
-                                        gap: 10px; 
-                                        font-size: 13px; 
-                                        color: #666; 
-                                        white-space: nowrap;
-                                    ">
-                                        <span>👍 {p.get('likes', 0)}</span>
-                                        <span style="min-width: 40px; text-align: right;">{stat_display}</span>
-                                    </div>
-                                </div>
-                            """, unsafe_allow_html=True)
+            # ---------------------------------------------------------
+            # 2. 투자 분석 결과 섹션 (차트 시각화)
+            # ---------------------------------------------------------
+            if 'user_decisions' not in st.session_state: st.session_state.user_decisions = {}
+            ud = st.session_state.user_decisions.get(sid, {})
+            
+            steps = [
+                ('filing', 'Step 1'), ('news', 'Step 2'), 
+                ('macro', 'Step 3'), ('company', 'Step 4'), 
+                ('ipo_report', 'Step 5')
+            ]
+            
+            missing_steps = [label for step, label in steps if not ud.get(step)]
+            
+            if missing_steps:
+                st.info(f"💡 모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 결과 차트가 표시됩니다.")
+            else:
+                # 점수 계산 로직
+                score_map = {
+                    "긍정적": 1, "수용적": 1, "침체": 1, "안정적": 1, "저평가": 1, "매수": 1,
+                    "중립적": 0, "중립": 0, "적정": 0,
+                    "부정적": -1, "회의적": -1, "버블": -1, "고평가": -1, "매도": -1
+                }
+                user_score = sum(score_map.get(ud.get(s[0], "중립적"), 0) for s in steps)
+                
+                # 커뮤니티 데이터 시뮬레이션
+                import numpy as np
+                import plotly.graph_objects as go
+                
+                np.random.seed(42)
+                community_scores = np.clip(np.random.normal(0, 1.5, 1000).round().astype(int), -5, 5)
+                user_percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
+                
+                m1, m2 = st.columns(2)
+                m1.metric("시장 참여자 낙관도", "52.4%", help="전체 유저의 평균 점수")
+                m2.metric("나의 분석 위치", f"상위 {100-user_percentile:.1f}%", f"{user_score}점")
+                
+                # 차트 그리기
+                score_counts = pd.Series(community_scores).value_counts().sort_index()
+                score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
+                
+                fig = go.Figure(go.Bar(
+                    x=score_counts.index, y=score_counts.values, 
+                    marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
+                    hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
+                ))
+                fig.update_layout(height=180, margin=dict(l=10, r=10, t=10, b=10), 
+                                  xaxis=dict(title="분석 점수 분포"), yaxis=dict(showticklabels=False),
+                                  paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig, use_container_width=True)
+
+            # ---------------------------------------------------------
+            # 3. 전망 투표 및 관심종목
+            # ---------------------------------------------------------
+            st.write("---")
+            st.subheader("📊 향후 전망 투표")
+            
+            if st.session_state.get('auth_status') == 'user':
+                if sid not in st.session_state.watchlist:
+                    st.caption("투표 시 관심종목에 자동 저장됩니다.")
+                    c_up, c_down = st.columns(2)
+                    if c_up.button("📈 상승 예측", key=f"up_{sid}", use_container_width=True, type="primary"):
+                        st.session_state.watchlist.append(sid)
+                        st.session_state.watchlist_predictions[sid] = "UP"
+                        st.session_state.vote_data[sid]['u'] += 1
+                        st.rerun()
+                    if c_down.button("📉 하락 예측", key=f"dn_{sid}", use_container_width=True):
+                        st.session_state.watchlist.append(sid)
+                        st.session_state.watchlist_predictions[sid] = "DOWN"
+                        st.session_state.vote_data[sid]['f'] += 1
+                        st.rerun()
+                else:
+                    pred = st.session_state.watchlist_predictions.get(sid, "N/A")
+                    color = "green" if pred == "UP" else "red"
+                    st.success(f"✅ 관심종목 보관 중 (나의 예측: :{color}[{pred}])")
+                    
+                    if st.button("보관 해제 (투표 취소)", key=f"rm_{sid}", use_container_width=True):
+                        st.session_state.watchlist.remove(sid)
+                        if pred in ["UP", "DOWN"]:
+                            key = 'u' if pred == "UP" else 'f'
+                            st.session_state.vote_data[sid][key] -= 1
+                        del st.session_state.watchlist_predictions[sid]
+                        st.rerun()
+            else:
+                st.warning("🔒 로그인 후 투표에 참여할 수 있습니다.")
+
+            # ---------------------------------------------------------
+            # 4. 종목 토론방
+            # ---------------------------------------------------------
+            st.write("---")
+            st.subheader(f"💬 {sid} 토론방")
+            
+            # 내부 함수: 반응 처리
+            def local_handle_reaction(post_id, reaction_type):
+                for post in st.session_state.posts:
+                    if post['id'] == post_id:
+                        post[reaction_type] = post.get(reaction_type, 0) + 1
+                        return True
+                return False
+
+            sid_posts = [p for p in st.session_state.posts if p.get('category') == sid]
+            
+            if sid_posts:
+                for p in sid_posts[:10]: # 최신 10개만 표시
+                    title = p.get('title', '').strip()
+                    # 제목에 [티커] 없으면 붙여주기
+                    clean_title = title if f"[{sid}]" in title else f"[{sid}] {title}"
+                    
+                    # 작성자 마스킹
+                    auth_display = str(p.get('author', 'unknown'))
+                    if len(auth_display) > 3:
+                        auth_display = auth_display[:3] + "***"
+                    
+                    header = f"{clean_title} | 👤 {auth_display} | {p.get('date')}"
+                    
+                    with st.expander(header):
+                        st.write(p.get('content'))
+                        st.caption(f"작성자 ID: {auth_display}")
+                        st.divider()
+                        
+                        # 버튼 액션
+                        c_l, c_d, c_void, c_ed, c_del = st.columns([1, 1, 3, 1, 1])
+                        
+                        # 좋아요
+                        if c_l.button(f"👍 {p.get('likes', 0)}", key=f"l_{p['id']}"):
+                            local_handle_reaction(p['id'], 'likes')
+                            st.rerun()
+                        
+                        # 싫어요
+                        if c_d.button(f"👎 {p.get('dislikes', 0)}", key=f"d_{p['id']}"):
+                            local_handle_reaction(p['id'], 'dislikes')
+                            st.rerun()
                             
-                            # 3. 투명 버튼 역할 (클릭 시 상세 이동)
-                            # 버튼을 누르면 view_post_id를 설정하고 새로고침하여 상세 화면으로 진입
-                            if st.button("👆 상세 내용 보기", key=f"go_{p['id']}", use_container_width=True):
-                                st.session_state.view_post_id = p['id']
-                                p['views'] = p.get('views', 0) + 1  # 조회수 1 증가
+                        # 삭제 (작성자 본인 또는 관리자)
+                        if (current_user_phone == p.get('author')) or is_admin:
+                            if c_del.button("🗑️", key=f"del_{p['id']}"):
+                                st.session_state.posts = [x for x in st.session_state.posts if x['id'] != p['id']]
                                 st.rerun()
+            else:
+                st.info("아직 등록된 의견이 없습니다. 첫 번째 의견을 남겨보세요!")
+
+            # 5. 글쓰기 섹션
+            st.write("")
+            with st.expander(f"📝 {sid} 의견 작성하기", expanded=False):
+                if st.session_state.get('auth_status') == 'user':
+                    with st.form(key=f"write_{sid}", clear_on_submit=True):
+                        new_title = st.text_input("제목")
+                        new_content = st.text_area("내용", height=100)
+                        
+                        if st.form_submit_button("등록", type="primary", use_container_width=True):
+                            if new_title and new_content:
+                                st.session_state.posts.insert(0, {
+                                    "id": str(uuid.uuid4()),
+                                    "category": sid,
+                                    "title": new_title,
+                                    "content": new_content,
+                                    "author": current_user_phone,
+                                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                    "likes": 0, "dislikes": 0, "uid": user_id
+                                })
+                                st.success("등록되었습니다!")
+                                time.sleep(0.5)
+                                st.rerun()
+                            else:
+                                st.error("제목과 내용을 모두 입력해주세요.")
+                else:
+                    st.warning("로그인 후 이용 가능합니다.")
                 
 
                 #리아
