@@ -1657,20 +1657,31 @@ elif st.session_state.page == 'setup':
         st.write("<br>", unsafe_allow_html=True)
 
         # -----------------------------------------------------------
-        # 3. [메인 기능] 설정 저장 및 캘린더 이동 버튼
+        # 3. [메인 기능] 설정 저장 및 로그아웃 (1:1 균등 분할)
         # -----------------------------------------------------------
-        if st.button("저장하고 시작하기", type="primary", use_container_width=True):
-            with st.spinner("설정 적용 중..."):
-                current_settings = [show_univ, show_job, show_asset]
-                
-                # 가시성 업데이트 시도
-                if update_user_visibility(user.get('id'), current_settings):
-                    st.session_state.user_info['visibility'] = ",".join([str(v) for v in current_settings])
-                    st.session_state.page = 'calendar' 
-                    st.rerun()
-                else:
-                    st.error("저장 실패. 네트워크를 확인하세요.")
+        
+        # 모바일 화면 균형을 위해 1:1 비율로 컬럼 생성
+        col_save, col_logout = st.columns(2)
 
+        # 1. 저장하고 시작하기 (왼쪽)
+        with col_save:
+            if st.button("저장하고 시작하기", type="primary", use_container_width=True):
+                with st.spinner("설정 적용 중..."):
+                    current_settings = [show_univ, show_job, show_asset]
+                    
+                    # 가시성 업데이트 시도
+                    if update_user_visibility(user.get('id'), current_settings):
+                        st.session_state.user_info['visibility'] = ",".join([str(v) for v in current_settings])
+                        st.session_state.page = 'calendar' 
+                        st.rerun()
+                    else:
+                        st.error("저장 실패. 네트워크를 확인하세요.")
+
+        # 2. 로그아웃 (오른쪽)
+        with col_logout:
+            if st.button("로그아웃", use_container_width=True):
+                st.session_state.clear() # 세션 초기화
+                st.rerun()               # 로그인 화면으로 복귀
 
         # ===========================================================
         # 👇 [추가 요청 2] 관리자 전용 기능 (Setup 화면에서도 관리 가능)
