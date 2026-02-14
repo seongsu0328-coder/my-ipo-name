@@ -1684,27 +1684,44 @@ elif st.session_state.page == 'setup':
                 st.rerun()               # 로그인 화면으로 복귀
 
         # ===========================================================
-        # 👇 [추가 요청 2] 관리자 전용 기능 (Setup 화면에서도 관리 가능)
+        # 👇 [수정됨] 관리자 전용 기능 (Setup 화면)
         # ===========================================================
         if user.get('role') == 'admin':
+            st.divider()
+            st.subheader("🛠️ 관리자 전용: 가입 승인 관리")
             
-            
-            
-            # Setup 페이지용 승인 함수
-            def approve_user_status_setup(user_id_to_approve):
+            # [기능 개선] "status" 열을 자동으로 찾아서 업데이트하는 함수
+            def update_user_status_smart(target_user_id, new_status):
                 client, _ = get_gcp_clients()
                 if client:
                     try:
                         sh = client.open("unicorn_users").sheet1
-                        cell = sh.find(str(user_id_to_approve), in_column=1)
-                        if cell:
-                            sh.update_cell(cell.row, 6, "approved") 
-                            return True
+                        
+                        # 1. 아이디가 있는 '행(Row)' 찾기
+                        cell = sh.find(str(target_user_id), in_column=1)
+                        if not cell:
+                            st.error(f"ID({target_user_id})를 시트에서 찾을 수 없습니다.")
+                            return False
+                        
+                        # 2. 'status'가 있는 '열(Column)' 번호 찾기 (헤더 검색)
+                        # (첫 번째 행에서 'status'라는 글자가 있는 칸을 찾습니다)
+                        header_cell = sh.find("status", in_row=1)
+                        if not header_cell:
+                            # 만약 못 찾으면 대략 12번째라고 가정하거나 에러 출력
+                            # 여기서는 사용자가 제공한 데이터 구조상 뒤쪽에 있으므로 12로 시도해볼 수 있음
+                            target_col = 12 
+                        else:
+                            target_col = header_cell.col
+                        
+                        # 3. 해당 위치 업데이트
+                        sh.update_cell(cell.row, target_col, new_status)
+                        return True
+                        
                     except Exception as e:
-                        st.error(f"승인 오류: {e}")
+                        st.error(f"구글 시트 통신 오류: {e}")
                 return False
 
-            if st.button("승인 대기 목록 불러오기", key="btn_admin_setup"):
+            if st.button("🔄 승인 대기 목록 불러오기", key="btn_admin_setup"):
                 all_users_adm = load_users()
                 pending_users = [u for u in all_users_adm if u.get('status') == 'pending']
                 
@@ -1730,29 +1747,34 @@ elif st.session_state.page == 'setup':
                             
                             col_btn1, col_btn2 = st.columns(2)
                             
+                            # [1. 승인 버튼]
                             with col_btn1:
                                 if st.button(f"✅ 승인", key=f"app_setup_{pu.get('id')}", use_container_width=True):
-                                    with st.spinner("처리 중..."):
-                                        if approve_user_status_setup(pu.get('id')):
+                                    with st.spinner("승인 처리 중..."):
+                                        # 개선된 함수 사용 ('approved'로 변경)
+                                        if update_user_status_smart(pu.get('id'), 'approved'):
                                             if pu.get('email'):
                                                 send_approval_email(pu.get('email'), pu.get('id'))
                                             st.success("승인 완료!")
                                             time.sleep(1)
                                             st.rerun()
                             
+                            # [2. 보류 버튼]
                             with col_btn2:
                                 if st.button(f"❌ 보류", key=f"rej_setup_btn_{pu.get('id')}", use_container_width=True):
                                     if not rej_reason:
                                         st.warning("보류 사유를 입력하세요.")
                                     else:
-                                        with st.spinner("메일 발송 중..."):
-                                            if pu.get('email'):
-                                                send_rejection_email(pu.get('email'), pu.get('id'), rej_reason)
-                                                st.info("보류 알림 전송 완료")
-                                            else:
-                                                st.error("이메일 없음")
-                                            time.sleep(1)
-                                            st.rerun()
+                                        with st.spinner("보류 처리 중..."):
+                                            # 개선된 함수 사용 ('rejected'로 변경 -> 목록에서 사라짐)
+                                            if update_user_status_smart(pu.get('id'), 'rejected'):
+                                                if pu.get('email'):
+                                                    send_rejection_email(pu.get('email'), pu.get('id'), rej_reason)
+                                                    st.info("보류 처리 완료")
+                                                else:
+                                                    st.warning("보류 완료 (이메일 없음)")
+                                                time.sleep(1)
+                                                st.rerun()
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 if st.session_state.page == 'calendar':
