@@ -1684,43 +1684,70 @@ elif st.session_state.page == 'setup':
                 st.rerun()               # 로그인 화면으로 복귀
 
         # ===========================================================
-        # 👇 [수정됨] 관리자 전용 기능 (Setup 화면)
+        # 👇 [디버깅 모드] 관리자 전용 기능 (Setup 화면)
         # ===========================================================
         if user.get('role') == 'admin':
+            st.divider()
+            st.subheader("🛠️ 관리자 전용: 가입 승인 관리 (디버깅 모드)")
             
-            
-            # [기능 개선] "status" 열을 자동으로 찾아서 업데이트하는 함수
-            def update_user_status_smart(target_user_id, new_status):
+            # [디버깅 함수] 어디서 멈추는지 메시지를 출력합니다.
+            def update_user_status_debug(target_user_id, new_status):
+                st.warning(f"🔍 [DEBUG 1] 시작: ID({target_user_id}) -> 상태({new_status}) 변경 시도")
+                
                 client, _ = get_gcp_clients()
-                if client:
-                    try:
-                        sh = client.open("unicorn_users").sheet1
-                        
-                        # 1. 아이디가 있는 '행(Row)' 찾기
-                        cell = sh.find(str(target_user_id), in_column=1)
-                        if not cell:
-                            st.error(f"ID({target_user_id})를 시트에서 찾을 수 없습니다.")
-                            return False
-                        
-                        # 2. 'status'가 있는 '열(Column)' 번호 찾기 (헤더 검색)
-                        # (첫 번째 행에서 'status'라는 글자가 있는 칸을 찾습니다)
-                        header_cell = sh.find("status", in_row=1)
-                        if not header_cell:
-                            # 만약 못 찾으면 대략 12번째라고 가정하거나 에러 출력
-                            # 여기서는 사용자가 제공한 데이터 구조상 뒤쪽에 있으므로 12로 시도해볼 수 있음
-                            target_col = 12 
-                        else:
-                            target_col = header_cell.col
-                        
-                        # 3. 해당 위치 업데이트
-                        sh.update_cell(cell.row, target_col, new_status)
-                        return True
-                        
-                    except Exception as e:
-                        st.error(f"구글 시트 통신 오류: {e}")
-                return False
+                if not client:
+                    st.error("❌ [DEBUG] 구글 클라이언트 연결 실패")
+                    return False
 
-            if st.button("승인 대기목록", key="btn_admin_setup"):
+                try:
+                    # 1. 시트 열기 시도
+                    sh = client.open("unicorn_users").sheet1
+                    st.info("✅ [DEBUG 2] 시트 열기 성공")
+                    
+                    # 2. 헤더 확인 (1행 출력)
+                    headers = sh.row_values(1)
+                    st.write(f"📜 [DEBUG 3] 현재 시트 헤더 목록: {headers}")
+
+                    # 3. ID 찾기
+                    # cell = sh.find(str(target_user_id), in_column=1) # 기존 방식
+                    # 안전한 방식: 1열 전체를 가져와서 비교
+                    col_ids = sh.col_values(1)
+                    
+                    try:
+                        # 리스트에서 ID 위치 찾기 (파이썬 리스트는 0부터 시작하므로 +1)
+                        row_idx = col_ids.index(str(target_user_id)) + 1
+                        st.info(f"✅ [DEBUG 4] ID 찾음! 행 번호: {row_idx}행")
+                    except ValueError:
+                        st.error(f"❌ [DEBUG 4] ID({target_user_id})가 1열에 없습니다. (공백 등 확인 필요)")
+                        st.write(f"참고: 1열 데이터 샘플: {col_ids[:5]}...")
+                        return False
+
+                    # 4. 'status' 열 번호 찾기
+                    try:
+                        # 대소문자 구분 없이 찾기 위해 루프 사용 혹은 정확한 명칭 확인
+                        if "status" in headers:
+                            col_idx = headers.index("status") + 1
+                            st.info(f"✅ [DEBUG 5] 'status' 컬럼 찾음! 열 번호: {col_idx}열")
+                        else:
+                            st.error(f"❌ [DEBUG 5] 헤더에 'status'가 없습니다. 헤더 목록을 확인하세요: {headers}")
+                            # 임시 조치: 만약 status가 없다면 강제로 12번째 열이라고 가정 (사용자 시트 구조에 따라 다름)
+                            st.warning("⚠️ [DEBUG] 'status'를 못 찾아 강제로 12번째 열에 기록합니다.")
+                            col_idx = 12 
+                    except Exception as e:
+                        st.error(f"❌ [DEBUG 5] 컬럼 찾기 중 에러: {e}")
+                        return False
+
+                    # 5. 업데이트 실행
+                    st.warning(f"⏳ [DEBUG 6] 업데이트 실행 중... ({row_idx}행, {col_idx}열) -> {new_status}")
+                    sh.update_cell(row_idx, col_idx, new_status)
+                    st.success("✅ [DEBUG 7] 업데이트 명령 완료!")
+                    return True
+
+                except Exception as e:
+                    st.error(f"❌ [DEBUG ERROR] 치명적 오류 발생: {e}")
+                    return False
+
+            if st.button("🔄 승인 대기 목록 불러오기", key="btn_admin_setup"):
                 all_users_adm = load_users()
                 pending_users = [u for u in all_users_adm if u.get('status') == 'pending']
                 
@@ -1741,7 +1768,6 @@ elif st.session_state.page == 'setup':
                             
                             st.divider()
 
-                            # 보류 사유 입력
                             rej_reason = st.text_input("보류 사유", placeholder="예: 서류 식별 불가", key=f"rej_setup_{pu.get('id')}")
                             
                             col_btn1, col_btn2 = st.columns(2)
@@ -1749,14 +1775,13 @@ elif st.session_state.page == 'setup':
                             # [1. 승인 버튼]
                             with col_btn1:
                                 if st.button(f"✅ 승인", key=f"app_setup_{pu.get('id')}", use_container_width=True):
-                                    with st.spinner("승인 처리 중..."):
-                                        # 개선된 함수 사용 ('approved'로 변경)
-                                        if update_user_status_smart(pu.get('id'), 'approved'):
-                                            if pu.get('email'):
-                                                send_approval_email(pu.get('email'), pu.get('id'))
-                                            st.success("승인 완료!")
-                                            time.sleep(1)
-                                            st.rerun()
+                                    # 디버그 함수 호출
+                                    if update_user_status_debug(pu.get('id'), 'approved'):
+                                        if pu.get('email'):
+                                            send_approval_email(pu.get('email'), pu.get('id'))
+                                        st.success("최종 완료")
+                                        time.sleep(2) # 메시지 읽을 시간 줌
+                                        st.rerun()
                             
                             # [2. 보류 버튼]
                             with col_btn2:
@@ -1764,16 +1789,13 @@ elif st.session_state.page == 'setup':
                                     if not rej_reason:
                                         st.warning("보류 사유를 입력하세요.")
                                     else:
-                                        with st.spinner("보류 처리 중..."):
-                                            # 개선된 함수 사용 ('rejected'로 변경 -> 목록에서 사라짐)
-                                            if update_user_status_smart(pu.get('id'), 'rejected'):
-                                                if pu.get('email'):
-                                                    send_rejection_email(pu.get('email'), pu.get('id'), rej_reason)
-                                                    st.info("보류 처리 완료")
-                                                else:
-                                                    st.warning("보류 완료 (이메일 없음)")
-                                                time.sleep(1)
-                                                st.rerun()
+                                        # 디버그 함수 호출
+                                        if update_user_status_debug(pu.get('id'), 'rejected'):
+                                            if pu.get('email'):
+                                                send_rejection_email(pu.get('email'), pu.get('id'), rej_reason)
+                                            st.info("보류 완료")
+                                            time.sleep(2) # 메시지 읽을 시간 줌
+                                            st.rerun()
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
 if st.session_state.page == 'calendar':
