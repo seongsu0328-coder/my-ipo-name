@@ -1676,7 +1676,8 @@ elif st.session_state.page == 'setup':
         # ===========================================================
         if user.get('role') == 'admin':
             st.divider()
-            st.subheader("🛠️ 관리자 전용: 가입 승인 관리")
+            
+            
             
             # Setup 페이지용 승인 함수
             def approve_user_status_setup(user_id_to_approve):
