@@ -1337,6 +1337,8 @@ if st.session_state.page == 'login':
             background-color: white; padding: 30px; border-radius: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #f0f0f0;
         }
+        /* 입력창 라벨과 박스 간격 조정 */
+        .stTextInput { margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -1347,7 +1349,6 @@ if st.session_state.page == 'login':
         st.write("<br>", unsafe_allow_html=True)
         st.markdown("<h1 class='login-title'>UnicornFinder</h1>", unsafe_allow_html=True)
         
-
         # 상태 초기화
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
         
@@ -1355,19 +1356,43 @@ if st.session_state.page == 'login':
         if 'db_users' not in st.session_state: st.session_state.db_users = ["admin"]
 
         # ---------------------------------------------------------
-        # [Step 1] 첫 선택 화면 (버튼 3개)
+        # [통합 화면] 로그인 입력 + 버튼 (기존 Step 1, 2 통합)
         # ---------------------------------------------------------
-        if st.session_state.login_step == 'choice':
+        # 'choice' 상태이거나 'login_input' 상태(혹시 남아있을 경우)일 때 메인 화면 표시
+        if st.session_state.login_step in ['choice', 'login_input']:
+            
             st.write("<br>", unsafe_allow_html=True)
             
-            # 버튼 1: 로그인
+            # [1] 아이디/비번 입력창 (바로 노출)
+            l_id = st.text_input("아이디", placeholder="아이디를 입력하세요", key="login_id")
+            l_pw = st.text_input("비밀번호", type="password", placeholder="비밀번호를 입력하세요", key="login_pw")
+            
+            st.write("<br>", unsafe_allow_html=True)
+            
+            # [2] 버튼 섹션
+            # 버튼 1: 로그인 (누르면 즉시 검증)
             if st.button("로그인", use_container_width=True, type="primary"):
-                st.session_state.login_step = 'login_input'
-                st.rerun()
-                
+                if not l_id or not l_pw:
+                     st.error("아이디와 비밀번호를 입력해주세요.")
+                else:
+                    with st.spinner("로그인 중..."):
+                        users = load_users()
+                        # ID와 PW 일치 여부 확인
+                        user = next((u for u in users if str(u.get("id")) == l_id), None)
+                        
+                        # 비밀번호 비교 (문자열로 변환하여 안전하게 비교)
+                        if user and str(user.get('pw')) == str(l_pw):
+                            st.session_state.auth_status = 'user'
+                            st.session_state.user_info = user
+                            # 로그인 성공 시 이동할 페이지 (setup 또는 calendar)
+                            st.session_state.page = 'setup'  
+                            st.rerun()
+                        else:
+                            st.error("아이디 또는 비밀번호가 틀립니다.")
+            
             # 버튼 2: 회원가입 (누르면 인증 화면으로 이동)
             if st.button("회원가입", use_container_width=True):
-                st.session_state.login_step = 'signup_input' # 이동!
+                st.session_state.login_step = 'signup_input' # 회원가입 단계로 전환
                 st.session_state.auth_code_sent = False      # 인증 상태 초기화
                 st.rerun()
                 
@@ -1377,7 +1402,7 @@ if st.session_state.page == 'login':
                 st.session_state.page = 'calendar'
                 st.rerun()
 
-            # [2] 명언 섹션 (버튼 아래 배치)
+            # [3] 명언 섹션 (하단 배치)
             st.write("<br><br>", unsafe_allow_html=True) 
             
             quote_data = get_daily_quote()
@@ -1400,35 +1425,7 @@ if st.session_state.page == 'login':
                     </div>
                 </div>
             """, unsafe_allow_html=True)
-
-        # ---------------------------------------------------------
-        # ---------------------------------------------------------
-        # [Step 2] 로그인 입력창
-        # ---------------------------------------------------------
-        elif st.session_state.login_step == 'login_input':
-            st.write("<br>", unsafe_allow_html=True) # 상단 여백
             
-            l_id = st.text_input("아이디", key="login_id")
-            l_pw = st.text_input("비밀번호", type="password", key="login_pw")
-            
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("접속하기", use_container_width=True, type="primary"):
-                    with st.spinner("회원 정보 확인 중..."):
-                        users = load_users()
-                        user = next((u for u in users if str(u.get("id")) == l_id), None)
-                        if user and str(user['pw']) == l_pw:
-                            st.session_state.auth_status = 'user'
-                            st.session_state.user_info = user
-                            st.session_state.page = 'setup'
-                            st.rerun()
-                        else:
-                            st.error("아이디 또는 비밀번호가 틀립니다.")
-            with c2:
-                if st.button("뒤로 가기", use_container_width=True):
-                    st.session_state.login_step = 'choice'
-                    st.rerun()
-
         # ---------------------------------------------------------
         # [Step 3] 회원가입 로직 (통합본)
         # ---------------------------------------------------------
