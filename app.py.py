@@ -946,14 +946,15 @@ else:
 
 # --- [공시 분석 함수] ---
 @st.cache_data(show_spinner=False, ttl=86400) # 24시간 캐싱
-def get_ai_analysis(company_name, topic, points):
+def get_ai_analysis(company_name, topic, points, structure_template):  # 인자 추가됨
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
     
-    # [재시도 로직 추가]
+    # [재시도 로직]
     max_retries = 3
     for i in range(max_retries):
         try:
+            # [다각화된 프롬프트]
             prompt = f"""
             분석 대상: {company_name}의 {topic} 서류
             체크포인트: {points}
@@ -964,20 +965,17 @@ def get_ai_analysis(company_name, topic, points):
             
             [내용 구성 및 형식 - 반드시 아래 형식을 따를 것]
             각 문단의 시작에 **[소제목]**을 붙여서 내용을 명확히 구분하세요.
+            {structure_template}  <-- 문서별 맞춤형 질문이 여기에 들어갑니다.
             
-            1. **[투자 포인트] ** (이곳에 해당 문서에서 발견된 가장 중요한 투자 포인트를 상세히 서술하세요.)
-            2. **[성장 가능성] ** (이곳에 MD&A를 통해 본 기업의 실질적 성장 가능성을 서술하세요.)
-            3. **[핵심 리스크] ** (이곳에 투자자가 반드시 경계해야 할 핵심 리스크 1가지와 대응책을 서술하세요.)
-            
-            위 내용을 바탕으로 전문적인 어조의 한국어로 풍성하게 작성하세요. (분량 제한 없음)
+            위 내용을 바탕으로 전문적인 어조의 한국어로 작성하세요. (5줄이내)
             """
+            
             response = model.generate_content(prompt)
             return response.text
             
         except Exception as e:
-            # 429 에러(속도제한)라면 대기 후 재시도
             if "429" in str(e) or "quota" in str(e).lower():
-                time.sleep(2 * (i + 1)) # 2초, 4초...
+                time.sleep(2 * (i + 1))
                 continue
             else:
                 return f"현재 분석 엔진을 조율 중입니다. (상세: {str(e)})"
@@ -2383,27 +2381,57 @@ elif st.session_state.page == 'detail':
             # 2. 메타데이터 및 체크포인트 설정
             topic = st.session_state.core_topic
             
-            # 각 문서별 설명 및 AI 분석 프롬프트용 데이터
+            # [핵심] 문서별 맞춤형 분석 구조 정의
             def_meta = {
                 "S-1": {
                     "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
-                    "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)"
+                    "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
+                    # S-1 전용 질문
+                    "structure": """
+                    1. **[투자 포인트] :** (해당 문서에서 발견된 가장 중요한 투자 매력도와 핵심 경쟁력을 상세히 서술하세요.)
+                    2. **[성장 가능성] :** (MD&A를 통해 본 기업의 실질적 성장 전략과 시장 확장성을 서술하세요.)
+                    3. **[핵심 리스크] :** (투자자가 반드시 경계해야 할 핵심 리스크 1가지와 이에 대한 대응책을 서술하세요.)
+                    """
                 },
                 "S-1/A": {
                     "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
-                    "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률)"
+                    "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
+                    # S-1/A 전용 질문 (수정 사항 및 가격 중심)
+                    "structure": """
+                    1. **[수정 사항] :** (이전 제출된 S-1 대비 변경된 핵심 사항(주식 수, 공모가 범위 등)을 중점적으로 서술하세요.)
+                    2. **[가격 적정성] :** (제시된 공모가 범위가 동종 업계 대비 합리적인지, 또는 수요예측 분위기를 반영했는지 분석하세요.)
+                    3. **[주주 희석] :** (신규 공모로 인한 기존 주주 가치 희석(Dilution) 정도와 이것이 투자 매력도에 미치는 영향을 서술하세요.)
+                    """
                 },
                 "F-1": {
                     "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
-                    "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이)"
+                    "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
+                    # F-1 전용 질문 (해외 리스크 중심)
+                    "structure": """
+                    1. **[글로벌 경쟁력] :** (해당 기업이 본국 및 글로벌 시장에서 가진 독보적인 경쟁 우위를 서술하세요.)
+                    2. **[해외 리스크] :** (환율, 정치적 이슈, 회계 기준 차이 등 해외 기업 특유의 리스크 요인을 상세히 분석하세요.)
+                    3. **[ADS 구조] :** (미국 예탁 증서(ADS) 구조가 주주 권리 행사에 미치는 영향이나 특이사항을 서술하세요.)
+                    """
                 },
                 "FWP": {
                     "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
-                    "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리)"
+                    "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
+                    # FWP 전용 질문 (비전 및 전략 중심)
+                    "structure": """
+                    1. **[핵심 비전] :** (경영진이 로드쇼에서 가장 강조하고 있는 미래 성장 비전과 목표를 서술하세요.)
+                    2. **[차별화 전략] :** (경쟁사 대비 부각시키고 있는 기술적/사업적 차별화 포인트를 시각 자료(Graphics) 기반으로 분석하세요.)
+                    3. **[로드쇼 반응] :** (자료 톤앤매너를 통해 유추할 수 있는 경영진의 자신감이나 시장 공략 의지를 서술하세요.)
+                    """
                 },
                 "424B4": {
                     "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
-                    "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량)"
+                    "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
+                    # 424B4 전용 질문 (확정 결과 중심)
+                    "structure": """
+                    1. **[최종 공모가] :** (확정된 공모가가 희망 밴드 상단인지 하단인지 분석하고, 그 의미(시장 수요)를 해석하세요.)
+                    2. **[자금 활용] :** (확정된 조달 자금이 구체적으로 어떤 우선순위 사업에 투입될 예정인지 최종 점검하세요.)
+                    3. **[상장 직후 전망] :** (주관사단 구성과 배정 물량을 바탕으로 상장 초기 유통 물량 부담이나 변동성을 예측하세요.)
+                    """
                 }
             }
             
@@ -2414,9 +2442,14 @@ elif st.session_state.page == 'detail':
             
             # 1. expander를 누르면 즉시 분석이 시작되도록 설정
             with st.expander(f" {topic} 요약보기", expanded=False):
-                # expander가 열려 있을 때만 내부 로직 실행
                 with st.spinner(f" AI가 {topic}의 핵심 내용을 분석 중입니다..."):
-                    analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'])
+                    # ▼▼▼ 질문하신 대로 교체 ▼▼▼
+                    analysis_result = get_ai_analysis(
+                        stock['name'], 
+                        topic, 
+                        curr_meta['points'], 
+                        curr_meta.get('structure', "") # 구조 템플릿 전달
+                    )
                     
                     if "ERROR_DETAILS" in analysis_result:
                         st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
