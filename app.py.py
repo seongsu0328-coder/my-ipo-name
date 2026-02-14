@@ -1581,8 +1581,7 @@ if st.session_state.page == 'login':
 elif st.session_state.page == 'setup':
     user = st.session_state.user_info
     
-    # [스타일 조정] 제목 크기가 너무 부담스럽지 않게 subheader 사용 혹은 그대로 유지
-    st.title("설정 및 권한")
+ 
 
     if user:
         # [1] 기본 정보 계산
@@ -1592,14 +1591,14 @@ elif st.session_state.page == 'setup':
         # [수정 3] 미리보기용 완전 마스킹 ID 생성 (예: *******)
         full_masked_id = "*" * len(user_id) 
         
-        st.info(f"환영합니다, {user_id}님! 활동 닉네임과 노출 범위를 확인해주세요.")
+        st.info(f"환영합니다, {user_id}님! 활동 닉네임과 노출 범위를 확인해주세요. 비인증회원은 관심기업 설정이 가능합니다.")
         
         # -----------------------------------------------------------
         # 1. 내 정보 노출 설정 (체크박스)
         # -----------------------------------------------------------
         st.divider()
         st.subheader("권한설명")
-        st.caption("하나 이상의 정보를 노출해야 '글쓰기/투표' 권한이 활성화됩니다.")
+        st.caption("인증회원은 글쓰기/투표참여가 가능합니다.")
 
         # 저장된 설정값 불러오기
         saved_vis = user.get('visibility', 'True,True,True').split(',')
@@ -1633,8 +1632,8 @@ elif st.session_state.page == 'setup':
         
         with c_info:
             # [수정 1] 글자 크기를 체크박스와 유사하게 맞춤 (font-size 제거 또는 1rem 설정)
-            st.markdown(f"👤 **아이디**: {full_masked_id}")
-            st.markdown(f"📛 **활동 닉네임**: <span style='font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
+            st.markdown(f"*아이디*: {full_masked_id}")
+            st.markdown(f"*활동 닉네임*: <span style='font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
         
         with c_status:
             db_role = user.get('role', 'restricted')
