@@ -1670,58 +1670,6 @@ elif st.session_state.page == 'setup':
                 else:
                     st.error("저장 실패. 네트워크를 확인하세요.")
 
-        # ===========================================================
-        # 👇 [추가 요청 1] 멤버 리스트 (Setup 화면에서도 확인 가능)
-        # ===========================================================
-        st.divider()
-        st.subheader("유니콘 멤버 리스트")
-       
-        if st.button("멤버 목록 불러오기", use_container_width=True):
-            with st.spinner("최신 멤버 정보를 동기화 중..."):
-                all_users = load_users()
-                
-                if not all_users:
-                    st.info("아직 가입된 멤버가 없습니다.")
-                else:
-                    for u in all_users:
-                        # 1. 자기 자신 제외
-                        if str(u.get('id')) == str(user.get('id')):
-                            continue
-                        
-                        # 2. 아이디 전체 마스킹 (다른 사람도 ******* 로 보임)
-                        target_id = str(u.get('id', ''))
-                        m_id = "*" * len(target_id)
-                        
-                        # 3. 노출 설정 해석
-                        raw_vis = u.get('visibility', 'True,True,True')
-                        if not raw_vis: raw_vis = 'True,True,True'
-                        
-                        vis_parts = str(raw_vis).split(',')
-                        v_univ = vis_parts[0] == 'True' if len(vis_parts) > 0 else True
-                        v_job = vis_parts[1] == 'True' if len(vis_parts) > 1 else True
-                        v_asset = vis_parts[2] == 'True' if len(vis_parts) > 2 else True
-                        
-                        # 4. 닉네임 조합
-                        u_info_parts = []
-                        if v_univ: u_info_parts.append(u.get('univ', ''))
-                        if v_job: u_info_parts.append(u.get('job', ''))
-                        if v_asset: 
-                            u_tier = get_asset_grade(u.get('asset', ''))
-                            u_info_parts.append(u_tier)
-                        
-                        u_prefix = " ".join([p for p in u_info_parts if p])
-                        u_display = f"{u_prefix}{m_id}" if u_prefix else m_id
-                        
-                        # 5. 카드 출력
-                        with st.expander(f"✨ {u_display}"):
-                            c1, c2 = st.columns(2)
-                            with c1:
-                                st.write(f"🎓 **대학**: {u.get('univ') if v_univ else '(비공개)'}")
-                                st.write(f"💼 **직업**: {u.get('job') if v_job else '(비공개)'}")
-                            with c2:
-                                current_tier = get_asset_grade(u.get('asset', ''))
-                                st.write(f"💰 **등급**: {current_tier if v_asset else '(비공개)'}")
-                                st.write(f"✅ **상태**: {u.get('status', 'pending')}")
 
         # ===========================================================
         # 👇 [추가 요청 2] 관리자 전용 기능 (Setup 화면에서도 관리 가능)
