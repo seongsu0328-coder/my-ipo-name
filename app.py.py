@@ -1658,7 +1658,7 @@ elif st.session_state.page == 'setup':
         # -----------------------------------------------------------
         # 3. [메인 기능] 설정 저장 및 캘린더 이동 버튼
         # -----------------------------------------------------------
-        if st.button("설정 저장하고 시작하기 🚀", type="primary", use_container_width=True):
+        if st.button("저장하고 시작하기", type="primary", use_container_width=True):
             with st.spinner("설정 적용 중..."):
                 current_settings = [show_univ, show_job, show_asset]
                 
@@ -1674,7 +1674,7 @@ elif st.session_state.page == 'setup':
         # 👇 [추가 요청 1] 멤버 리스트 (Setup 화면에서도 확인 가능)
         # ===========================================================
         st.divider()
-        st.subheader("👥 유니콘 멤버 리스트")
+        st.subheader("유니콘 멤버 리스트")
        
         if st.button("멤버 목록 불러오기", use_container_width=True):
             with st.spinner("최신 멤버 정보를 동기화 중..."):
