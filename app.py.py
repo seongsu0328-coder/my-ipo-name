@@ -1364,8 +1364,8 @@ if st.session_state.page == 'login':
             st.write("<br>", unsafe_allow_html=True)
             
             # [1] 아이디/비번 입력창 (바로 노출)
-            l_id = st.text_input("아이디", placeholder="아이디를 입력하세요", key="login_id")
-            l_pw = st.text_input("비밀번호", type="password", placeholder="비밀번호를 입력하세요", key="login_pw")
+            l_id = st.text_input("아이디", key="login_id")
+            l_pw = st.text_input("비밀번호", type="password", key="login_pw")
             
             st.write("<br>", unsafe_allow_html=True)
             
