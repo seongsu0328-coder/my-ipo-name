@@ -1384,19 +1384,26 @@ if st.session_state.page == 'login':
             # 버튼 1: 로그인 (누르면 즉시 검증)
             if st.button("로그인", use_container_width=True, type="primary"):
                 if not l_id or not l_pw:
-                     st.error("아이디와 비밀번호를 입력해주세요.")
+                      st.error("아이디와 비밀번호를 입력해주세요.")
                 else:
                     with st.spinner("로그인 중..."):
                         users = load_users()
-                        # ID와 PW 일치 여부 확인
                         user = next((u for u in users if str(u.get("id")) == l_id), None)
                         
-                        # 비밀번호 비교 (문자열로 변환하여 안전하게 비교)
                         if user and str(user.get('pw')) == str(l_pw):
                             st.session_state.auth_status = 'user'
                             st.session_state.user_info = user
-                            # 로그인 성공 시 이동할 페이지 (setup 또는 calendar)
-                            st.session_state.page = 'setup'  
+                            
+                            # [핵심 수정] 상태에 따른 페이지 이동 분기 처리
+                            user_status = user.get('status', 'pending')
+                            
+                            # 승인된 회원은 바로 캘린더(메인)로 이동
+                            if user_status == 'approved':
+                                st.session_state.page = 'calendar'
+                            else:
+                                # 승인 대기 중이거나 서류 미제출(restricted) 회원은 설정 페이지로 이동
+                                st.session_state.page = 'setup'
+                                
                             st.rerun()
                         else:
                             st.error("아이디 또는 비밀번호가 틀립니다.")
@@ -1968,21 +1975,28 @@ if st.session_state.page == 'calendar':
     """, unsafe_allow_html=True)
 
     # ---------------------------------------------------------
-    # 2. 메뉴 텍스트 및 현재 상태 정의 (명칭 및 순서 변경)
+    # 2. 메뉴 텍스트 및 현재 상태 정의 (권한설정 버튼 추가)
     # ---------------------------------------------------------
     is_logged_in = st.session_state.auth_status == 'user'
     login_text = "로그아웃" if is_logged_in else "로그인"
-    main_text = "메인"  # '홈'에서 '메인'으로 변경
+    settings_text = "권한설정"  # [NEW] 설정 버튼 텍스트
+    main_text = "메인"
     watch_text = f"관심 ({len(st.session_state.watchlist)})"
     board_text = "게시판"
     
-    # 순서 조정: 로그인 -> 메인 -> 관심 -> 게시판
-    menu_options = [login_text, main_text, watch_text, board_text]
+    # [수정] 로그인 상태면 '권한설정' 버튼 노출, 아니면 숨김
+    if is_logged_in:
+        # 순서: 로그아웃 -> 권한설정 -> 메인 -> 관심 -> 게시판
+        menu_options = [login_text, settings_text, main_text, watch_text, board_text]
+    else:
+        menu_options = [login_text, main_text, watch_text, board_text]
 
     # 현재 어떤 페이지에 있는지 계산하여 기본 선택값(Default) 설정
-    default_sel = main_text
+    default_sel = main_text # 기본값은 메인
     if st.session_state.get('page') == 'login': 
         default_sel = login_text
+    elif st.session_state.get('page') == 'setup': # setup 페이지일 때 (혹시나 해서 추가)
+        default_sel = settings_text
     elif st.session_state.get('view_mode') == 'watchlist': 
         default_sel = watch_text
     elif st.session_state.get('page') == 'board': 
@@ -1996,12 +2010,12 @@ if st.session_state.page == 'calendar':
         options=menu_options,
         selection_mode="single",
         default=default_sel,
-        key="top_nav_pills_v10", # 키값 갱신
+        key="nav_pills_updated_v2", # 키값 충돌 방지용 변경
         label_visibility="collapsed"
     )
 
     # ---------------------------------------------------------
-    # 4. 클릭 감지 및 페이지 이동 로직 (보정 완료)
+    # 4. 클릭 감지 및 페이지 이동 로직 (설정 버튼 연결)
     # ---------------------------------------------------------
     if selected_menu and selected_menu != default_sel:
         if selected_menu == login_text:
@@ -2009,9 +2023,11 @@ if st.session_state.page == 'calendar':
                 st.session_state.auth_status = None # 로그아웃 처리
             st.session_state.page = 'login'
             
+        elif selected_menu == settings_text: # [NEW] 설정 페이지 이동
+            st.session_state.page = 'setup'
+            
         elif selected_menu == main_text:
             st.session_state.view_mode = 'all'
-            # 메인 목록 페이지 이름이 'calendar'라면 'calendar'로, 'main'이라면 'main'으로 맞춰주세요.
             st.session_state.page = 'calendar' 
             
         elif selected_menu == watch_text:
@@ -2197,17 +2213,17 @@ if st.session_state.page == 'calendar':
 
 
 # ---------------------------------------------------------
-# 5. 상세 페이지 (Detail) - [디자인 원형 보존 + 통합 수정본]
+# 5. 상세 페이지 (Detail)
 # ---------------------------------------------------------
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     
-    # [안전장치 1] 선택된 종목이 없으면 캘린더로 복귀
+    # [안전장치] 선택된 종목이 없으면 캘린더로 복귀
     if not stock:
         st.session_state.page = 'calendar'
         st.rerun()
 
-    # [1] 변수 초기화 (에러 방지용 기본값)
+    # [1] 변수 초기화
     profile = None
     fin_data = {}
     current_p = 0
@@ -2215,8 +2231,9 @@ elif st.session_state.page == 'detail':
 
     if stock:
         # -------------------------------------------------------------------------
-        # [2] 상단 메뉴바 (블랙 스타일 & 이동 로직 보정)
+        # [2] 상단 메뉴바 (블랙 스타일 & 이동 로직 통합 보정)
         # -------------------------------------------------------------------------
+        # (1) 스타일은 그대로 유지
         st.markdown("""
             <style>
             div[data-testid="stPills"] div[role="radiogroup"] button {
@@ -2235,21 +2252,30 @@ elif st.session_state.page == 'detail':
             </style>
         """, unsafe_allow_html=True)
 
+        # (2) [교체 완료] 권한설정 버튼이 포함된 새로운 메뉴 로직
         is_logged_in = st.session_state.auth_status == 'user'
         login_text = "로그아웃" if is_logged_in else "로그인"
+        settings_text = "권한설정"  # [NEW]
         main_text = "메인"
         watch_text = f"관심 ({len(st.session_state.watchlist)})"
         board_text = "게시판"
         
-        menu_options = [login_text, main_text, watch_text, board_text]
+        # 로그인 상태에 따라 메뉴 구성 변경
+        if is_logged_in:
+            menu_options = [login_text, settings_text, main_text, watch_text, board_text]
+        else:
+            menu_options = [login_text, main_text, watch_text, board_text]
+
+        # 기본 선택값 로직 (Detail 페이지에서는 선택된 게 없는 상태(None)가 기본일 수 있음)
+        # 하지만 메뉴를 눌러 이동하는 것이 목적이므로, default=None으로 두어 
+        # 사용자가 버튼을 누를 때만 동작하게 하는 것이 기존 로직과 맞습니다.
         
-        # [핵심] default=None으로 설정하여 무한 리런 방지
         selected_menu = st.pills(
             label="nav", 
             options=menu_options, 
             selection_mode="single", 
-            default=None, 
-            key="detail_nav_final_fixed", 
+            default=None,  # Detail 페이지에서는 메뉴가 '선택'되어 있을 필요가 없음 (누르면 이동)
+            key="detail_nav_updated_final", # 키값 중복 방지
             label_visibility="collapsed"
         )
 
@@ -2257,12 +2283,19 @@ elif st.session_state.page == 'detail':
             if selected_menu == login_text:
                 if is_logged_in: st.session_state.auth_status = None
                 st.session_state.page = 'login'
+            
+            elif selected_menu == settings_text: # [NEW] 설정 이동
+                st.session_state.page = 'setup'
+
             elif selected_menu == main_text:
                 st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'
+            
             elif selected_menu == watch_text:
                 st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
+            
             elif selected_menu == board_text:
                 st.session_state.page = 'board'
+            
             st.rerun()
 
         # -------------------------------------------------------------------------
