@@ -1388,21 +1388,25 @@ if st.session_state.page == 'login':
                 else:
                     with st.spinner("로그인 중..."):
                         users = load_users()
-                        user = next((u for u in users if str(u.get("id")) == l_id), None)
+                        # ID 매칭 (문자열 변환 안전장치 추가)
+                        user = next((u for u in users if str(u.get("id")) == str(l_id)), None)
                         
+                        # 비밀번호 비교
                         if user and str(user.get('pw')) == str(l_pw):
                             st.session_state.auth_status = 'user'
                             st.session_state.user_info = user
                             
-                            # [핵심 수정] 상태에 따른 페이지 이동 분기 처리
-                            user_status = user.get('status', 'pending')
+                            # ▼▼▼ [핵심 수정] 상태에 따른 페이지 이동 로직 ▼▼▼
+                            # 구글 시트의 'status' 값을 가져옵니다. (없으면 pending)
+                            user_status = str(user.get('status', 'pending')).strip().lower()
                             
-                            # 승인된 회원은 바로 캘린더(메인)로 이동
+                            # 1. 승인된 회원은 바로 캘린더(메인)로 이동
                             if user_status == 'approved':
                                 st.session_state.page = 'calendar'
+                            # 2. 그 외(대기중, 미제출 등)는 설정 페이지로 이동
                             else:
-                                # 승인 대기 중이거나 서류 미제출(restricted) 회원은 설정 페이지로 이동
                                 st.session_state.page = 'setup'
+                            # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
                                 
                             st.rerun()
                         else:
