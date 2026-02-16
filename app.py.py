@@ -2110,7 +2110,7 @@ if st.session_state.page == 'calendar':
         
         # 2. 필터 로직 (관심종목 vs 일반)
         if view_mode == 'watchlist':
-            st.markdown("### ⭐ 내가 찜한 유니콘")
+            
             if st.button("🔄 전체 목록 보기", use_container_width=True):
                 st.session_state.view_mode = 'all'
                 st.rerun()
