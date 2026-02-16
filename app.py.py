@@ -326,13 +326,22 @@ def get_ai_summary_final(query):
     except Exception as e:
         return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
 
+# [수정된 함수] 캐시 제거 (로그인 시 실시간 상태 확인 필수)
 def load_users():
+    # 1. 구글 연결 객체 가져오기
     client, _ = get_gcp_clients()
+    
     if client:
         try:
+            # 2. 시트 열기
             sh = client.open("unicorn_users").sheet1
-            return sh.get_all_records()
-        except:
+            
+            # 3. 모든 레코드 가져오기 (실시간)
+            data = sh.get_all_records()
+            return data
+        except Exception as e:
+            # 에러 발생 시(네트워크 등) 빈 리스트 반환하여 앱 멈춤 방지
+            print(f"Google Sheet Load Error: {str(e)}") 
             return []
     return []
 
