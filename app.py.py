@@ -1410,8 +1410,8 @@ if st.session_state.page == 'login':
                             raw_status = user.get('status')
                             user_status = str(raw_status).strip().lower()
                             
-                            # 이 메시지가 'approved'로 나오는지 꼭 확인하세요!
-                            st.toast(f"🔎 시트 상태값: [{raw_status}]", icon="check")
+                            # [수정] icon="check"를 icon="✅"로 변경했습니다.
+                            st.toast(f"🔎 시트 상태값: [{raw_status}]", icon="✅")
                             
                             if user_status == 'approved':
                                 st.session_state.page = 'calendar'
