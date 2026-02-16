@@ -163,23 +163,51 @@ def get_extended_ipo_data(api_key):
     
     return df
 
-# 주가(Price)는 15분마다 업데이트되도록 캐싱 설정 (900초 = 15분)
-@st.cache_data(ttl=900)
-def get_current_stock_price(symbol, api_key):
+import yfinance as yf
+
+# [핵심] 30분(1800초) 동안은 누가 들어와도 API 호출 없이 저장된 값을 줍니다.
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_batch_prices(ticker_list):
+    """
+    여러 종목의 현재가를 한 번의 통신으로 가져옵니다. (Batching)
+    """
+    if not ticker_list:
+        return {}
+    
+    # yfinance는 "AAPL MSFT GOOG" 처럼 띄어쓰기로 구분하여 한 번에 요청 가능
+    tickers_str = " ".join(ticker_list)
+    
     try:
-        # Finnhub API를 통해 실시간 시세를 가져옴
-        # 15분 이내에 같은 symbol로 호출하면 API를 쏘지 않고 저장된 값을 반환합니다.
-        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
-        res = requests.get(url, timeout=2).json()
+        # threads=True로 병렬 다운로드 -> 속도 매우 빠름
+        # period="1d"만 가져와서 데이터 용량 최소화
+        data = yf.download(tickers_str, period="1d", group_by='ticker', threads=True, progress=False)
         
-        # 'c'는 Current Price(현재가)를 의미합니다.
-        current_p = res.get('c', 0)
+        price_dict = {}
         
-        # 데이터가 유효한지(0이 아닌지) 확인 후 반환
-        return current_p if current_p else 0
+        # 데이터프레임 구조에 따라 파싱
+        if len(ticker_list) == 1:
+            # 종목이 1개일 때
+            current = data['Close'].iloc[-1]
+            price_dict[ticker_list[0]] = float(current)
+        else:
+            # 종목이 여러 개일 때
+            for t in ticker_list:
+                try:
+                    # 해당 종목의 마지막 종가(Close) 가져오기
+                    # 데이터가 없으면 NaN이므로 에러 처리
+                    series = data[t]['Close'].dropna()
+                    if not series.empty:
+                        price_dict[t] = float(series.iloc[-1])
+                    else:
+                        price_dict[t] = 0.0
+                except:
+                    price_dict[t] = 0.0
+                    
+        return price_dict
+        
     except Exception as e:
-        # 에러 발생 시 로그를 남기지 않고 0을 반환하여 앱 중단 방지
-        return 0
+        print(f"Batch Error: {e}")
+        return {}
 
 # [뉴스 감성 분석 함수 - 내부 연산이므로 별도 캐싱 불필요]
 def analyze_sentiment(text):
@@ -2059,7 +2087,7 @@ if st.session_state.page == 'calendar':
 
     
     # ---------------------------------------------------------
-    # [기존 데이터 로직] - 과거 데이터 누락 방지 수정본
+    # [기존 데이터 로직] - Batching 및 30분 캐싱 적용 버전
     # ---------------------------------------------------------
     all_df_raw = get_extended_ipo_data(MY_API_KEY)
     
@@ -2072,100 +2100,86 @@ if st.session_state.page == 'calendar':
     view_mode = st.session_state.get('view_mode', 'all')
     
     if not all_df_raw.empty:
-        # 🔥 [수정] exchange가 없어도 삭제하지 않고 '-'로 채워서 유지합니다.
+        # 1. 데이터 전처리
         all_df = all_df_raw.copy()
         all_df['exchange'] = all_df['exchange'].fillna('-')
-        
-        # 유효한 심볼이 있는 데이터만 유지
         all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
-        
-        # 날짜 형식 통일 (normalize로 시간 제거)
         all_df['공모일_dt'] = pd.to_datetime(all_df['date'], errors='coerce').dt.normalize()
         all_df = all_df.dropna(subset=['공모일_dt'])
-        
         today_dt = pd.to_datetime(datetime.now().date())
         
-        # 2. 필터 로직
+        # 2. 필터 로직 (관심종목 vs 일반)
         if view_mode == 'watchlist':
             st.markdown("### ⭐ 내가 찜한 유니콘")
             if st.button("🔄 전체 목록 보기", use_container_width=True):
                 st.session_state.view_mode = 'all'
                 st.rerun()
-                
             display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
-            
             if display_df.empty:
                 st.info("아직 관심 종목에 담은 기업이 없습니다.")
         else:
-            # 일반 캘린더 모드
             col_f1, col_f2 = st.columns([1, 1]) 
             with col_f1:
-                period = st.selectbox(
-                    label="조회 기간", 
-                    options=["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"],
-                    key="filter_period",
-                    label_visibility="collapsed"
-                )
+                period = st.selectbox("조회 기간", ["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"], key="filter_period", label_visibility="collapsed")
             with col_f2:
-                sort_option = st.selectbox(
-                    label="정렬 순서", 
-                    options=["최신순", "수익률"],
-                    key="filter_sort",
-                    label_visibility="collapsed"
-                )
+                sort_option = st.selectbox("정렬 순서", ["최신순", "수익률"], key="filter_sort", label_visibility="collapsed")
             
-            # [수정본] 기간별 데이터 필터링 로직
             if period == "상장 예정 (30일)":
-                # 오늘 포함 미래 30일까지 (공모가 미확정 종목 포함 가능성 대비)
                 display_df = all_df[(all_df['공모일_dt'] >= today_dt) & (all_df['공모일_dt'] <= today_dt + timedelta(days=30))]
             else:
-                # '지난 X개월' 선택 시: 오늘 이전(과거) 데이터 중 해당 기간 내 것만 필터링
-                if period == "지난 6개월":
-                    start_date = today_dt - timedelta(days=180)
-                elif period == "지난 12개월":
-                    start_date = today_dt - timedelta(days=365)
-                elif period == "지난 18개월":
-                    start_date = today_dt - timedelta(days=540)
-                
-                # 🔥 핵심 수정: 오늘(today_dt)을 기준으로 '과거' 데이터 전체를 긁어오도록 범위 명확화
+                if period == "지난 6개월": start_date = today_dt - timedelta(days=180)
+                elif period == "지난 12개월": start_date = today_dt - timedelta(days=365)
+                elif period == "지난 18개월": start_date = today_dt - timedelta(days=540)
                 display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
 
-                # [추가 검증] 만약 6개월 데이터가 여전히 부족하다면?
-                # API가 반환하는 전체 데이터셋(all_df_raw)에 해당 날짜가 있는지 확인하는 디버깅용 메시지
-                if display_df.empty and not all_df_raw.empty:
-                    st.sidebar.warning(f"⚠️ {period} 범위에 해당하는 데이터가 API 응답에 없습니다.")
-
-        # [정렬 로직]
-        if 'live_price' not in display_df.columns:
-            display_df['live_price'] = 0.0
-
+        # ----------------------------------------------------------------
+        # 🚀 [핵심 추가] 모든 모드 공통 Batch 주가 조회 로직 (30분 캐시)
+        # ----------------------------------------------------------------
         if not display_df.empty:
-            if sort_option == "최신순": 
-                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+            with st.spinner("🔄 실시간 시세(30분 주기) 조회 중..."):
+                # (1) 현재 리스트의 모든 심볼 추출
+                symbols_list = display_df['symbol'].tolist()
                 
-            elif sort_option == "수익률":
-                with st.spinner("🔄 실시간 시세 조회 중..."):
-                    returns = []
-                    prices = []
-                    for idx, row in display_df.iterrows():
-                        try:
-                            p_raw = str(row.get('price','0')).replace('$','').split('-')[0]
-                            p_ipo = float(p_raw) if p_raw else 0
-                            p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
-                            
-                            if p_ipo > 0 and p_curr > 0:
-                                ret = ((p_curr - p_ipo) / p_ipo) * 100
-                            else:
-                                ret = -9999
-                        except: 
-                            ret = -9999
-                            p_curr = 0
-                        returns.append(ret)
-                        prices.append(p_curr)
+                # (2) Batching 함수 호출 (yfinance 기반, 1800초 캐시)
+                batch_prices = get_batch_prices(symbols_list)
+                
+                # (3) 결과 매핑 및 수익률 계산
+                final_prices = []
+                final_returns = []
+                
+                for _, row in display_df.iterrows():
+                    sid = row['symbol']
+                    # 공모가 숫자 변환
+                    try:
+                        p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
+                    except:
+                        p_ipo = 0
                     
-                    display_df['temp_return'] = returns
-                    display_df['live_price'] = prices
+                    # 배치 결과에서 현재가 가져오기
+                    p_curr = batch_prices.get(sid, 0.0)
+                    
+                    # 수익률 계산
+                    if p_ipo > 0 and p_curr > 0:
+                        ret = ((p_curr - p_ipo) / p_ipo) * 100
+                    else:
+                        ret = -9999 # 가격 정보가 없는 경우 최하단으로 보냄
+                        
+                    final_prices.append(p_curr)
+                    final_returns.append(ret)
+                
+                # 데이터프레임에 실시간 값 주입
+                display_df['live_price'] = final_prices
+                display_df['temp_return'] = final_returns
+
+            # 3. 정렬 최종 적용
+            if view_mode != 'watchlist': # 캘린더 모드일 때만 정렬 옵션 따름
+                if sort_option == "최신순":
+                    display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+                elif sort_option == "수익률":
                     display_df = display_df.sort_values(by='temp_return', ascending=False)
+            else:
+                # 관심종목 모드일 때는 기본 최신순
+                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
 
         # ----------------------------------------------------------------
         # [핵심] 리스트 레이아웃 (7 : 3 비율) - 기존 디자인 유지
