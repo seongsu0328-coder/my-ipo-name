@@ -1395,32 +1395,30 @@ if st.session_state.page == 'login':
                 if not l_id or not l_pw:
                       st.error("아이디와 비밀번호를 입력해주세요.")
                 else:
-                    with st.spinner("로그인 중..."):
-                        # [핵심] 캐시를 무시하고 최신 데이터를 강제로 가져오기 위해
-                        # load_users 함수 자체에 캐시가 걸려있지 않은지 확인하거나
-                        # 임시로 캐시를 끄는 것이 좋지만, 일단 데이터를 확인해봅니다.
+                    with st.spinner("실시간 데이터 확인 중..."):
+                        # 수정된 load_users() 호출 (캐시 없음)
                         users = load_users()
                         
+                        # ID 매칭
                         user = next((u for u in users if str(u.get("id")) == str(l_id)), None)
                         
                         if user and str(user.get('pw')) == str(l_pw):
                             st.session_state.auth_status = 'user'
                             st.session_state.user_info = user
                             
-                            # ▼▼▼ [상태값 확인용 디버깅 메시지] ▼▼▼
-                            raw_status = user.get('status', 'pending')
+                            # [디버깅] 실제 가져온 값 확인
+                            raw_status = user.get('status')
                             user_status = str(raw_status).strip().lower()
                             
-                            # 이 메시지가 화면에 뜰 것입니다. 확인 후 지우세요!
-                            st.toast(f"디버깅: 구글시트값=[{raw_status}] -> 변환값=[{user_status}]", icon="🐞")
-                            # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
+                            # 이 메시지가 'approved'로 나오는지 꼭 확인하세요!
+                            st.toast(f"🔎 시트 상태값: [{raw_status}]", icon="check")
+                            
                             if user_status == 'approved':
                                 st.session_state.page = 'calendar'
                             else:
                                 st.session_state.page = 'setup'
                                 
-                            time.sleep(1) # 토스트 메시지를 볼 시간을 줍니다
+                            time.sleep(1) 
                             st.rerun()
                         else:
                             st.error("아이디 또는 비밀번호가 틀립니다.")
