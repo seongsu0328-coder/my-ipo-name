@@ -165,41 +165,41 @@ def get_extended_ipo_data(api_key):
 
 import yfinance as yf
 
-# [핵심] 30분(1800초) 동안은 누가 들어와도 API 호출 없이 저장된 값을 줍니다.
 @st.cache_data(ttl=1800, show_spinner=False)
 def get_batch_prices(ticker_list):
     """
-    여러 종목의 현재가를 한 번의 통신으로 가져옵니다. (Batching)
+    여러 종목의 현재가를 한 번의 통신으로 가져옵니다.
     """
-    if not ticker_list:
+    # [방어 로직 1] 리스트 자체가 비어있거나 None인 경우 처리
+    if not ticker_list or not isinstance(ticker_list, list):
         return {}
     
-    # yfinance는 "AAPL MSFT GOOG" 처럼 띄어쓰기로 구분하여 한 번에 요청 가능
-    tickers_str = " ".join(ticker_list)
+    # [방어 로직 2] 리스트 내 요소 중 문자열인 것만 골라내고 공백 제거
+    clean_tickers = [str(t).strip() for t in ticker_list if t and str(t).strip() != 'nan']
+    
+    if not clean_tickers:
+        return {}
+
+    tickers_str = " ".join(clean_tickers)
     
     try:
-        # threads=True로 병렬 다운로드 -> 속도 매우 빠름
-        # period="1d"만 가져와서 데이터 용량 최소화
         data = yf.download(tickers_str, period="1d", group_by='ticker', threads=True, progress=False)
-        
         price_dict = {}
         
-        # 데이터프레임 구조에 따라 파싱
-        if len(ticker_list) == 1:
-            # 종목이 1개일 때
-            current = data['Close'].iloc[-1]
-            price_dict[ticker_list[0]] = float(current)
+        # 종목이 1개일 때와 여러 개일 때 처리
+        if len(clean_tickers) == 1:
+            if not data.empty and 'Close' in data.columns:
+                current = data['Close'].iloc[-1]
+                price_dict[clean_tickers[0]] = float(current)
         else:
-            # 종목이 여러 개일 때
-            for t in ticker_list:
+            for t in clean_tickers:
                 try:
-                    # 해당 종목의 마지막 종가(Close) 가져오기
-                    # 데이터가 없으면 NaN이므로 에러 처리
-                    series = data[t]['Close'].dropna()
-                    if not series.empty:
-                        price_dict[t] = float(series.iloc[-1])
-                    else:
-                        price_dict[t] = 0.0
+                    if t in data.columns.levels[0]: # 멀티인덱스 확인
+                        series = data[t]['Close'].dropna()
+                        if not series.empty:
+                            price_dict[t] = float(series.iloc[-1])
+                        else:
+                            price_dict[t] = 0.0
                 except:
                     price_dict[t] = 0.0
                     
@@ -2137,10 +2137,10 @@ if st.session_state.page == 'calendar':
         # ----------------------------------------------------------------
         if not display_df.empty:
             with st.spinner("🔄 실시간 시세(30분 주기) 조회 중..."):
-                # (1) 현재 리스트의 모든 심볼 추출
-                symbols_list = display_df['symbol'].tolist()
+                # [수정] 결측치(NaN)를 제거하고 고유한 심볼 리스트만 추출
+                symbols_list = display_df['symbol'].dropna().unique().tolist()
                 
-                # (2) Batching 함수 호출 (yfinance 기반, 1800초 캐시)
+                # 배치 함수 호출
                 batch_prices = get_batch_prices(symbols_list)
                 
                 # (3) 결과 매핑 및 수익률 계산
