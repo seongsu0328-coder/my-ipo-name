@@ -1395,8 +1395,8 @@ if st.session_state.page == 'login':
                 if not l_id or not l_pw:
                       st.error("아이디와 비밀번호를 입력해주세요.")
                 else:
-                    with st.spinner("실시간 데이터 확인 중..."):
-                        # 수정된 load_users() 호출 (캐시 없음)
+                    with st.spinner("로그인 중..."): # 멘트도 심플하게 변경
+                        # 실시간 데이터 로드
                         users = load_users()
                         
                         # ID 매칭
@@ -1406,19 +1406,21 @@ if st.session_state.page == 'login':
                             st.session_state.auth_status = 'user'
                             st.session_state.user_info = user
                             
-                            # [디버깅] 실제 가져온 값 확인
-                            raw_status = user.get('status')
+                            # 상태값 추출 및 정제
+                            raw_status = user.get('status', 'pending')
                             user_status = str(raw_status).strip().lower()
                             
-                            # [수정] icon="check"를 icon="✅"로 변경했습니다.
-                            st.toast(f"🔎 시트 상태값: [{raw_status}]", icon="✅")
+                            # [변경점] 화면(Toast) 대신 터미널(로그)에만 기록 남기기
+                            # 배포 후에는 'Manage app' -> 'Logs'에서 볼 수 있습니다.
+                            print(f"🔒 LOGIN SUCCESS: {l_id} | Status: {user_status}") 
                             
+                            # 페이지 이동 로직
                             if user_status == 'approved':
                                 st.session_state.page = 'calendar'
                             else:
                                 st.session_state.page = 'setup'
                                 
-                            time.sleep(1) 
+                            # time.sleep(1) 제거 -> 즉시 이동!
                             st.rerun()
                         else:
                             st.error("아이디 또는 비밀번호가 틀립니다.")
