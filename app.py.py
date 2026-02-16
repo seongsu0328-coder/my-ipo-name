@@ -165,7 +165,7 @@ def get_extended_ipo_data(api_key):
 
 import yfinance as yf
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)
 def get_batch_prices(ticker_list):
     """
     여러 종목의 현재가를 한 번의 통신으로 가져옵니다.
