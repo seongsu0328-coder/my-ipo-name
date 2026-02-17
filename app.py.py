@@ -130,7 +130,7 @@ def get_unified_tab1_analysis(company_name, ticker):
     except Exception as e:
         return f"<p style='color:red;'>시스템 오류: {str(e)}</p>", []
 
-# (B) Tab 4용: 기관 평가 분석 통합 (JSON 파싱 강화 버전)
+# (B) Tab 4용: 기관 평가 분석 통합 (강력 파싱 버전)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab4_analysis(company_name, ticker):
     if not model: return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
@@ -154,8 +154,8 @@ def get_unified_tab4_analysis(company_name, ticker):
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell 중 하나",
-        "summary": "전문적인 5줄 요약 내용 (한국어)",
-        "pro_con": "✅ 긍정:\\n- 첫 번째 긍정 요인\\n- 두 번째 긍정 요인\\n\\n⚠️ 부정:\\n- 첫 번째 리스크\\n- 두 번째 리스크",
+        "summary": "전문적인 3줄 요약 내용 (한국어)",
+        "pro_con": "**긍정**:\\n- 내용\\n\\n**부정**:\\n- 내용",
         "links": [
             {{"title": "검색된 리포트 제목", "link": "URL"}}
         ]
@@ -164,29 +164,36 @@ def get_unified_tab4_analysis(company_name, ticker):
     """
 
     try:
-        # [수정] tools 파라미터 필요 없음 (모델 초기화 시 설정됨)
         response = model.generate_content(prompt)
         full_text = response.text
         
-        if "<JSON_START>" in full_text:
-            try:
-                # 1차 파싱 시도
-                json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
-                return json.loads(json_str, strict=False) # strict=False로 제어문자 허용
-            except:
-                # 2차 시도: 제어문자 강제 제거 후 파싱 (안전장치)
-                try:
-                    import re
-                    clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
-                    return json.loads(clean_str, strict=False)
-                except:
-                    pass
+        # [강력 파싱 로직 시작]
+        import re
+        import json
 
-        # 파싱 실패 시, 에러 대신 원본 텍스트를 보여주도록 처리 (앱 중단 방지)
+        # 1. <JSON_START>와 <JSON_END> 사이의 내용 추출 시도
+        json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
+        
+        if json_match:
+            json_str = json_match.group(1).strip()
+        else:
+            # 2. 태그가 없으면 가장 바깥쪽 { }를 찾아 추출
+            json_match = re.search(r'\{.*\}', full_text, re.DOTALL)
+            json_str = json_match.group(0).strip() if json_match else ""
+
+        if json_str:
+            try:
+                # 불필요한 제어문자 제거 후 파싱
+                clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
+                return json.loads(clean_str, strict=False)
+            except Exception as parse_err:
+                print(f"JSON Parsing Error: {parse_err}")
+
+        # 3. 파싱에 완전히 실패했을 경우 (수동 복구)
         return {
-            "rating": "Neutral", 
-            "summary": "데이터 변환 중 오류가 발생했습니다. 아래 원문을 확인하세요.", 
-            "pro_con": full_text.replace("<JSON_START>", "").replace("<JSON_END>", ""), 
+            "rating": "N/A",
+            "summary": "분석 데이터를 정제하는 중 오류가 발생했습니다.",
+            "pro_con": full_text[:500] + "...", # 원본 텍스트 일부라도 노출
             "links": []
         }
 
