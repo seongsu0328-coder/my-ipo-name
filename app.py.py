@@ -163,6 +163,7 @@ def get_unified_tab1_analysis(company_name, ticker):
     except Exception as e:
         return f"<p style='color:red;'>시스템 오류: {str(e)}</p>", []
 
+
 # (B) Tab 4용: 기관 평가 분석 통합 (강력 파싱 버전)
 @st.cache_data(show_spinner=False, ttl=600)
 def get_unified_tab4_analysis(company_name, ticker):
@@ -983,6 +984,74 @@ def _calculate_market_metrics_internal(df_calendar, api_key):
         print(f"Macro Data Error: {e}")
     
     return data
+
+@st.cache_data(show_spinner=False, ttl=600)
+def get_financial_report_analysis(company_name, ticker, metrics):
+    """
+    Tab 3: 재무 데이터 기반 정성적 분석 (24시간 Supabase 캐시)
+    metrics: PER, ROE, 부채비율 등 핵심 지표가 담긴 딕셔너리
+    """
+    if not model: return "AI 모델 설정 오류"
+
+    # [Step 1] Supabase 캐시 확인 (24시간)
+    cache_key = f"{ticker}_Financial_Report_Tab3"
+    now = datetime.now()
+    one_day_ago = (now - timedelta(days=1)).isoformat()
+
+    try:
+        res = supabase.table("analysis_cache") \
+            .select("content") \
+            .eq("cache_key", cache_key) \
+            .gt("updated_at", one_day_ago) \
+            .execute()
+        
+        if res.data:
+            return res.data[0]['content']
+    except Exception as e:
+        print(f"Tab3 Cache Error: {e}")
+
+    # [Step 2] 캐시 없으면 AI 분석 실행
+    # 승수님의 기존 로직(목차 구조)을 프롬프트에 반영
+    prompt = f"""
+    당신은 CFA 자격을 보유한 수석 주식 애널리스트입니다.
+    아래 재무 데이터를 바탕으로 {company_name} ({ticker})에 대한 투자 분석 리포트를 작성하세요.
+
+    [재무 데이터]
+    - 매출 성장률(YoY): {metrics.get('growth', 'N/A')}
+    - 순이익률(Net Margin): {metrics.get('net_margin', 'N/A')}
+    - 영업이익률(OPM): {metrics.get('op_margin', 'N/A')}
+    - ROE: {metrics.get('roe', 'N/A')}
+    - 부채비율(D/E): {metrics.get('debt_equity', 'N/A')}
+    - 선행 PER: {metrics.get('pe', 'N/A')}
+    - 발생액 품질: {metrics.get('accruals', 'Unknown')}
+
+    [작성 가이드]
+    1. 언어: 전문적인 한국어
+    2. 형식: 아래 4가지 소제목을 **반드시** 사용하여 단락을 구분하세요.
+       **[Valuation & Market Position]**
+       **[Operating Performance]**
+       **[Risk & Solvency]**
+       **[Analyst Conclusion]**
+    3. 내용: 수치를 단순 나열하지 말고, 수치가 갖는 함의(프리미엄, 효율성, 리스크 등)를 해석하세요.
+    4. 분량: 전체 10~12줄 내외로 핵심만 요약하세요.
+    """
+
+    try:
+        response = model.generate_content(prompt)
+        result = response.text
+
+        # [Step 3] 결과 저장
+        supabase.table("analysis_cache").upsert({
+            "cache_key": cache_key,
+            "content": result,
+            "updated_at": now.isoformat()
+        }).execute()
+
+        return result
+
+    except Exception as e:
+        return f"분석 리포트 생성 중 오류: {str(e)}"
+
 
 # ---------------------------------------------------------
 # ✅ [메인] Supabase 연동 캐싱 함수 (이걸 호출하세요)
@@ -3217,26 +3286,29 @@ elif st.session_state.page == 'detail':
             
                     st.markdown(" ")     
                 
-                # ... (이후 opinion_text 및 리스크 요인 코드는 동일하게 유지)
+                # -------------------------------------------------------
+                    # [수정됨] 기존의 하드코딩된 opinion_text 대신 AI 함수 호출
+                    # -------------------------------------------------------
                     
-                    opinion_text = f"""
-                    **[Valuation & Market Position]** 현재 {stock['name']}은(는) 선행 PER {pe_val:.1f}x 수준에서 거래되고 있습니다. 
-                    최근 실적 분석 결과, **연간 매출 ${rev_display}M** 및 **영업이익률(OPM) {opm_display}%**를 기록하며 외형 성장과 수익성 사이의 균형을 유지하고 있습니다. 
-                    이는 산업 평균 및 역사적 밴드 대비 {"상단에 위치하여 프리미엄이 반영된" if pe_val > 30 else "합리적인 수준에서 형성된"} 것으로 판단되며, 
-                    United Rentals(URI) 및 Ashtead Group(AGGGY) 등 **동종 업계 경쟁사들과 비교했을 때 상대적으로 높은 매출 성장 탄력성**을 보유하고 있는 점이 고무적입니다.
-        
-                    **[Operating Performance]** 자기자본이익률(ROE) {roe_val:.1f}%는 자본 효율성 측면에서 {"경쟁사 대비 우수한 수익 창출력" if roe_val > 15 else "개선이 필요한 경영 효율성"}을 나타내고 있습니다. 
-                    특히 YoY 매출 성장률 {growth:.1f}%는 시장 점유율 확대 가능성을 시사하는 핵심 지표입니다.
-        
-                    **[Risk & Solvency]** 부채비율 {de_ratio:.1f}%를 고려할 때, {"금리 인상기에도 재무적 완충력이 충분한" if de_ratio < 100 else "추가 차입 부담이 존재하여 현금 흐름 관리가 요구되는"} 상태입니다. 
-        
-                    **[Analyst Conclusion]** 종합적으로 볼 때, 본 기업은 고성장 프리미엄과 수익성 사이의 균형점에 위치해 있습니다. 
-                    회계 품질({accruals_status}) 기반의 이익 투명성이 보장된다는 전제하에, 향후 분기별 이익 가시성(Earnings Visibility) 확보 여부가 
-                    추가적인 밸류에이션 리레이팅(Re-rating)의 트리거가 될 것으로 전망됩니다.
-                    """
+                    # 1. AI에게 보낼 데이터 패키징
+                    ai_metrics = {
+                        "growth": growth_display,
+                        "net_margin": net_m_display,
+                        "op_margin": opm_display,
+                        "roe": f"{roe_val:.1f}%",
+                        "debt_equity": f"{de_ratio:.1f}%",
+                        "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A",
+                        "accruals": accruals_status
+                    }
+
+                    # 2. Supabase 캐싱된 AI 리포트 호출
+                    with st.spinner("🤖 AI 애널리스트가 재무제표를 분석 중입니다..."):
+                        ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], ai_metrics)
                     
-                    st.info(opinion_text)
+                    # 3. 결과 출력
+                    st.info(ai_report)
                     st.caption("※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
+
                 else:
                     st.warning(f"재무 데이터 부재로 정성적 분석이 권장됩니다.")
 
