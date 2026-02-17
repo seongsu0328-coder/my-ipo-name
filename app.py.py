@@ -3116,9 +3116,10 @@ elif st.session_state.page == 'detail':
                 else:
                     st.info(summary)
                 
-                # 구글 검색 바로가기 버튼 1
+                # 직접 연결 버튼만 남김 (들여쓰기 주의: st.info와 세로 정렬 맞춤)
                 rc_direct_url = f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}"
-                    st.link_button(f"📊 Renaissance 데이터 직접 보기", rc_direct_url)
+                st.link_button(f"📊 {stock['name']} Renaissance 데이터 직접 보기", rc_direct_url, use_container_width=True)
+                
 
             # --- (2) Seeking Alpha & Morningstar 상세 평가 섹션 ---
             with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
