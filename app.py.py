@@ -3123,19 +3123,28 @@ elif st.session_state.page == 'detail':
 
             # --- (2) Seeking Alpha & Morningstar 상세 평가 섹션 ---
             with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
-                # 제어 문자 및 마크다운 정제
-                pro_con = pro_con_raw.replace("**", "").replace("###", "").strip()
+                # 1. 제어 문자 및 마크다운 기본 정제
+                pro_con = pro_con_raw.replace("###", "").strip()
+                
+                # 2. [추가] 이모지 제거 및 '긍정', '부정' 단어 굵게 강조
+                # AI가 '✅ 긍정:', '⚠️ 부정:' 형태로 줄 때 이를 '**긍정**:', '**부정**:'으로 바꿉니다.
+                pro_con = pro_con.replace("✅ 긍정", "**긍정**").replace("⚠️ 부정", "**부정**")
                 
                 if "의견 수집 중" in pro_con or not pro_con:
                     st.error("AI가 실시간 리포트 본문을 분석하는 데 실패했습니다.")
                 else:
-                    st.success(f"**주요 긍정/부정 의견**\n\n{pro_con}")
+                    # 정제된 pro_con 출력
+                    st.success(f"**Wall Street Analyst Opinions**\n\n{pro_con}")
                 
                 c1, c2 = st.columns(2)
                 with c1:
                     st.link_button("Seeking Alpha 분석글 보기", f"https://seekingalpha.com/symbol/{q}/analysis")
                 with c2:
                     st.link_button("Morningstar 검색 결과", f"https://www.morningstar.com/search?query={q}")
+                
+                # 구글 심층 분석 버튼
+                st.write("")
+                st.link_button(f"🔎 {stock['name']} 심층 분석 데이터 검색", f"https://www.google.com/search?q={q}+stock+pros+and+cons+analysis+2025+2026")
                 
                 
 
