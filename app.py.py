@@ -1584,62 +1584,68 @@ if st.session_state.page == 'login':
                 st.subheader("3단계: 선택적 자격 증빙")
                 st.info("💡 서류를 하나라도 제출하면 '글쓰기/투표' 권한이 신청됩니다.")
                 
-                # [수정 1] form 제거 -> 일반 입력창 사용 (입력값 유지를 위해 key 지정)
-                u_name = st.text_input("대학 혹은 학과", key="u_name_in")
-                u_file = st.file_uploader("학생증/졸업증명서", type=['jpg','png','pdf'], key="u_file_in")
+                # --- 디버깅용: 입력창 ---
+                u_name = st.text_input("대학 혹은 학과", key="u_name_dbg")
+                u_file = st.file_uploader("학생증/졸업증명서", type=['jpg','png','pdf'], key="u_file_dbg")
+                j_name = st.text_input("직장 혹은 직업", key="j_name_dbg")
+                j_file = st.file_uploader("사원증 혹은 직장이메일", type=['jpg','png','pdf'], key="j_file_dbg")
+                a_val = st.selectbox("자산 규모", ["선택 안 함", "10억 미만", "10억 이상"], key="a_val_dbg")
+                a_file = st.file_uploader("계좌인증", type=['jpg','png','pdf'], key="a_file_dbg")
                 
-                j_name = st.text_input("직장 혹은 직업", key="j_name_in")
-                j_file = st.file_uploader("사원증 혹은 직장이메일", type=['jpg','png','pdf'], key="j_file_in")
+                st.write("")
                 
-                a_val = st.selectbox("자산 규모 (선택)", ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"], key="asset_val_in")
-                a_file = st.file_uploader("계좌인증", type=['jpg','png','pdf'], key="a_file_in")
-                
-                st.write("") # 간격 띄우기
-                
-                # [수정 2] form_submit_button 대신 일반 버튼 사용 (데이터 전송 보장)
-                if st.button("가입 신청 완료", type="primary", use_container_width=True):
-                    with st.spinner("서류 업로드 및 저장 중..."):
-                        
-                        # 1. 1단계 데이터 가져오기
-                        td = st.session_state.get('temp_user_data')
-                        if not td:
-                            st.error("⚠️ 세션이 만료되었습니다. 처음부터 다시 시도해주세요.")
-                            st.stop()
+                # [디버깅] 버튼 클릭 시 상태 추적
+                if st.button("가입 신청 완료 (디버깅)", type="primary", use_container_width=True):
+                    
+                    st.warning("🛠️ DEBUG: 1. 버튼 클릭 감지됨!") # 1단계 확인
+                    
+                    # 1. 세션 데이터 확인
+                    td = st.session_state.get('temp_user_data')
+                    if not td:
+                        st.error("❌ DEBUG: 'temp_user_data'가 비어있습니다! (세션 소실)")
+                        st.stop()
+                    else:
+                        st.success(f"✅ DEBUG: 세션 데이터 확인됨 ({td['id']})") # 2단계 확인
 
-                        # 2. 파일 업로드
-                        l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
-                        l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
-                        l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
-                        
-                        # 3. 데이터 패키징
-                        has_cert = any([u_file, j_file, a_file])
-                        role = "user" if has_cert else "restricted"
-                        status = "pending" if has_cert else "approved"
-                        
-                        final_data = {
-                            **td, 
-                            "univ": u_name, "job": j_name, 
-                            "asset": a_val if a_val != "선택 안 함" else "",
-                            "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
-                            "role": role, "status": status,
-                            "display_name": f"{role} | {td['id'][:3]}***"
-                        }
-                        
-                        # 4. 저장 실행 (성공해야만 페이지 이동)
-                        if save_user_to_sheets(final_data):
-                            st.session_state.auth_status = 'user'
-                            st.session_state.user_info = final_data
+                    with st.spinner("데이터 처리 중..."):
+                        try:
+                            # 2. 파일 업로드 테스트
+                            l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
+                            l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
+                            l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
+                            st.write(f"✅ DEBUG: 파일 처리 완료 (링크: {l_u[:10]}...)") # 3단계 확인
                             
-                            # 페이지 이동 설정
-                            st.session_state.page = 'setup'
-                            st.session_state.login_step = 'choice'
-                            st.session_state.signup_stage = 1
+                            has_cert = any([u_file, j_file, a_file])
+                            role = "user" if has_cert else "restricted"
                             
-                            st.success("✅ 가입 완료! 설정 페이지로 이동합니다.")
-                            time.sleep(1) # 메시지 보여주고
-                            st.rerun()    # 이동
-                        else:
-                            st.error("❌ 저장 실패. 구글 시트 연결을 확인하세요.")
+                            final_data = {
+                                **td, 
+                                "univ": u_name, "job": j_name, "asset": a_val,
+                                "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
+                                "role": role, "status": "pending",
+                                "display_name": f"{role} | {td['id'][:3]}***"
+                            }
+                            
+                            st.write("🛠️ DEBUG: 구글 시트 저장 시도 중...") # 4단계 확인
+                            
+                            # 3. 구글 시트 저장 시도
+                            if save_user_to_sheets(final_data):
+                                st.success("🎉 DEBUG: 시트 저장 성공! (True 반환됨)") # 5단계 확인
+                                
+                                # 성공 처리
+                                st.session_state.auth_status = 'user'
+                                st.session_state.user_info = final_data
+                                st.session_state.page = 'setup'
+                                st.session_state.login_step = 'choice'
+                                st.session_state.signup_stage = 1
+                                
+                                time.sleep(2) # 메시지 볼 시간 2초 줌
+                                st.rerun()
+                            else:
+                                st.error("❌ DEBUG: save_user_to_sheets 함수가 'False'를 반환했습니다. (시트 연결 문제)")
+                        
+                        except Exception as e:
+                            st.error(f"🚨 DEBUG: 로직 실행 중 에러 발생: {str(e)}")
             
           
 
