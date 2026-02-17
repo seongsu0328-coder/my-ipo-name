@@ -2796,7 +2796,7 @@ elif st.session_state.page == 'detail':
                 st.markdown(f"<div class='metric-card'><div class='metric-header'>Fear & Greed</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>심리 지표입니다. 75점 이상은 '극단적 탐욕' 상태를 의미합니다.</div><div class='metric-footer'>Ref: CNN Business Logic</div></div>", unsafe_allow_html=True)
         
             # --- 3. AI 종합 진단 (Expander) ---
-            with st.expander("거시지표 분석", expanded=True): 
+            with st.expander("거시지표 분석", expanded=False): 
                 # 여기서 AI 함수 호출! (24시간에 한 번만 실행됨)
                 # 만약 아직 get_market_dashboard_analysis 함수를 정의하지 않으셨다면 
                 # 이전 답변의 함수 코드를 app.py 상단에 먼저 추가해주셔야 합니다.
