@@ -3106,7 +3106,6 @@ elif st.session_state.page == 'detail':
             # --- (1) Renaissance Capital & 기관 종합 요약 섹션 ---
             with st.expander("Renaissance Capital & 기관 종합 요약", expanded=False):
                 import re
-                # 강력 절단 방식 적용 (출처 중복 방지)
                 pattern = r'(?i)source|출처|https?://'
                 parts = re.split(pattern, summary_raw)
                 summary = parts[0].strip().rstrip(' ,.:;-\n\t')
@@ -3116,9 +3115,10 @@ elif st.session_state.page == 'detail':
                 else:
                     st.info(summary)
                 
-                # 직접 연결 버튼만 남김 (들여쓰기 주의: st.info와 세로 정렬 맞춤)
-                rc_direct_url = f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}"
-                st.link_button(f"📊 {stock['name']} Renaissance 데이터 직접 보기", rc_direct_url, use_container_width=True)
+                # [수정] 404 에러 방지를 위한 구글 필터링 검색 방식
+                # 사이트 내부 검색 엔진 오류를 우회하여 가장 정확한 종목 페이지를 찾아줍니다.
+                rc_bypass_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
+                st.link_button(f"📊 {stock['name']} Renaissance 리포트 찾기", rc_bypass_url, use_container_width=True)
                 
 
             # --- (2) Seeking Alpha & Morningstar 상세 평가 섹션 ---
