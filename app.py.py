@@ -53,134 +53,86 @@ def configure_genai():
 
 model = configure_genai()
 
-# ---------------------------------------------------------
-# [1] 통합 분석 함수 (Tab 1 & Tab 4 대체용)
-# ---------------------------------------------------------
+# [수정] 0.8.6 버전용 도구 설정 (가장 호환성 높은 방식)
+search_tool = {'google_search': {}} 
 
-# (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (최종 수정본)
+# (A) Tab 1용 함수
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab1_analysis(company_name, ticker):
-    if not model:
-        return "AI 모델 설정 오류", []
-
+    if not model: return "AI 모델 설정 오류", []
+    
     prompt = f"""
-    당신은 월가 출신의 수석 애널리스트입니다. 분석 대상: {company_name} ({ticker})
+    분석 대상: {company_name} ({ticker})
     
-    [작업 1: 비즈니스 모델 심층 분석]
-    반드시 한국어로, 다음 3개 문단으로 작성하세요. (소제목/불렛포인트 절대 금지, 오직 줄글로만)
-    1문단: 기업의 핵심 비즈니스 모델 및 독보적인 경쟁 우위
-    2문단: 최근 재무 성과 및 이번 IPO를 통한 자금 조달 목적과 활용 계획
-    3문단: 향후 시장 전망 및 거시적 관점에서의 투자 의견
-    * 주의: 모든 문장의 시작을 기업명으로 하지 말고 다양하게 구성하세요.
-
-    [작업 2: 최신 뉴스 및 감성 분석]
-    - Google 검색을 통해 이 기업의 가장 최근(1주일 이내) 주요 뉴스 5개를 선정하세요.
-    - 검색 시 {company_name}의 업종과 관련 없는 동명의 기업(예: 보석, 패션 등) 뉴스는 철저히 배제하세요.
-    - 각 뉴스에 대해 다음 정보를 포함한 JSON 리스트 형식으로 답변 마지막에 첨부하세요.
+    [지침]
+    1. 비즈니스 모델(3문단, 한국어): 투자포인트, 재무성과, 시장전망 위주로 작성.
+    2. 최신 뉴스 5개: JSON 포맷으로 추출. (title_en, title_ko, link, sentiment, date 포함)
     
-    형식 예시: 
-    <JSON_START>
-    {{
-      "news": [
-        {{
-          "title_en": "영어 원문 제목",
-          "title_ko": "자연스러운 한글 번역",
-          "link": "뉴스 URL",
-          "sentiment": "긍정/부정/일반",
-          "date": "발행일(예: Feb 17)"
-        }}
-      ]
-    }}
-    <JSON_END>
+    형식 예시: <JSON_START> ... <JSON_END>
     """
-
+    
     try:
-        # [최종 수정] 라이브러리 업데이트 후에는 이 표준 코드가 작동합니다.
-        response = model.generate_content(
-            prompt,
-            tools=[{'google_search': {}}] 
-        )
+        # tools에 변수 직접 전달
+        response = model.generate_content(prompt, tools=[search_tool])
         full_text = response.text
-
-        # 1. 비즈니스 분석 텍스트 추출
-        biz_analysis = full_text.split("<JSON_START>")[0].strip()
         
-        paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 10]
-        html_output = ""
-        for p in paragraphs:
-            html_output += f"""
-            <p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; margin-top:0;">
-                {p}
-            </p>
-            """
-
-        # 2. 뉴스 데이터 파싱
+        # ... (이하 파싱 로직은 기존과 동일) ...
+        # (중략: biz_analysis 추출 및 news_list 파싱 코드 유지)
+        
+        # [복붙용] 파싱 코드 요약
+        biz_analysis = full_text.split("<JSON_START>")[0].strip()
         news_list = []
         if "<JSON_START>" in full_text:
             try:
                 json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
-                news_data = json.loads(json_str)
-                news_list = news_data.get("news", [])
-                for n in news_list:
+                news_list = json.loads(json_str).get("news", [])
+                for n in news_list: # 색상 처리
                     if n['sentiment'] == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
                     elif n['sentiment'] == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
                     else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
             except: pass
-
+            
+        # HTML 포장
+        html_output = ""
+        for p in [x.strip() for x in biz_analysis.split('\n') if len(x.strip()) > 10]:
+            html_output += f"<p style='display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; margin-top:0;'>{p}</p>"
+            
         return html_output, news_list
 
     except Exception as e:
-        # 버전 문제일 경우 안내 메시지 출력
-        if "Unknown field" in str(e):
-            return f"<p style='color:red;'>⚠️ 라이브러리 버전 오류: requirements.txt에 'google-generativeai>=0.7.0'을 추가하고 앱을 재부팅해주세요.</p>", []
-        return f"<p style='color:red;'>분석 중 오류 발생: {str(e)}</p>", []
+        return f"<p style='color:red;'>오류 발생: {str(e)}</p>", []
 
+# (B) Tab 4용 함수
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab4_analysis(company_name, ticker):
-    if not model:
-        return {"rating": "Error", "summary": "API 키 오류", "pro_con": "", "links": []}
+    if not model: return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
 
     prompt = f"""
-    당신은 월가 IPO 전문 분석가입니다. 
-    구글 검색을 통해 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 분석하세요.
-
-    [지침]
-    1. 'Renaissance Capital'이나 'Seeking Alpha'의 최신 분석 내용을 최우선으로 반영하세요.
-    2. 긍정적 요소(Pros)와 부정적 리스크(Cons)를 각각 2가지씩 명확히 구분하여 한국어로 작성하세요.
-    3. 종합적인 투자의견(Rating)을 Buy/Hold/Sell 중 하나로 제시하세요.
-    4. 전체 내용을 3줄 이내로 요약(Summary)하세요. (출처 링크는 포함하지 마세요)
-
+    분석 대상: {company_name} ({ticker})
+    지침: 구글 검색을 통해 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 찾아 분석.
+    
     [응답 형식 - JSON]
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell",
-        "summary": "종합 요약 내용 (한국어)",
-        "pro_con": "긍정: ... \n부정: ... (한국어)",
-        "links": [
-            {{"title": "검색된 리포트 제목", "link": "URL"}}
-        ]
+        "summary": "3줄 요약 (한국어)",
+        "pro_con": "긍정/부정 요약 (한국어)",
+        "links": [{{"title": "제목", "link": "URL"}}]
     }}
     <JSON_END>
     """
 
     try:
-        # [최종 수정] 표준 도구 설정
-        response = model.generate_content(
-            prompt,
-            tools=[{'google_search': {}}]
-        )
-        full_text = response.text
+        # tools에 변수 직접 전달
+        response = model.generate_content(prompt, tools=[search_tool])
         
-        if "<JSON_START>" in full_text:
-            json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
+        if "<JSON_START>" in response.text:
+            json_str = response.text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
             return json.loads(json_str)
-        else:
-            return {"rating": "Neutral", "summary": "데이터 파싱 실패", "pro_con": full_text, "links": []}
+        return {"rating": "Neutral", "summary": "데이터 파싱 실패", "pro_con": response.text, "links": []}
 
     except Exception as e:
-        if "Unknown field" in str(e):
-            return {"rating": "Error", "summary": "라이브러리 업데이트 필요", "pro_con": "requirements.txt에 'google-generativeai>=0.7.0'을 추가하세요.", "links": []}
-        return {"rating": "Error", "summary": f"분석 오류: {str(e)}", "pro_con": "", "links": []}
+        return {"rating": "Error", "summary": f"오류: {str(e)}", "pro_con": "", "links": []}
 
 # ==========================================
 # [기능] 1. 구글 연결 핵심 함수 (최우선 순위)
