@@ -60,47 +60,58 @@ search_tool = {'google_search': {}}
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab1_analysis(company_name, ticker):
     if not model: return "AI 모델 설정 오류", []
-    
+
     prompt = f"""
-    분석 대상: {company_name} ({ticker})
+    당신은 월가 수석 애널리스트입니다. 분석 대상: {company_name} ({ticker})
     
-    [지침]
-    1. 비즈니스 모델(3문단, 한국어): 투자포인트, 재무성과, 시장전망 위주로 작성.
-    2. 최신 뉴스 5개: JSON 포맷으로 추출. (title_en, title_ko, link, sentiment, date 포함)
+    [작업 1: 비즈니스 모델 심층 분석]
+    반드시 한국어로 3문단 작성 (소제목/불렛포인트 금지, 줄글로만):
+    1문단: 핵심 비즈니스 모델 및 경쟁 우위
+    2문단: 재무 성과 및 자금 조달 목적
+    3문단: 시장 전망 및 투자 의견
+
+    [작업 2: 최신 뉴스 및 감성 분석]
+    - Google 검색으로 {company_name}의 1주일 이내 주요 뉴스 5개 선정.
+    - JSON 리스트 형식으로 답변 마지막에 첨부.
     
-    형식 예시: <JSON_START> ... <JSON_END>
+    형식: <JSON_START> {{ "news": [ {{ "title_en": "...", "title_ko": "...", "link": "...", "sentiment": "긍정/부정/일반", "date": "..." }} ] }} <JSON_END>
     """
-    
+
     try:
-        # tools에 변수 직접 전달
-        response = model.generate_content(prompt, tools=[search_tool])
+        # [핵심 수정] 딕셔너리 대신 'Tool 객체'를 직접 생성해서 전달합니다.
+        # 이렇게 하면 라이브러리가 '함수 선언'으로 오해하지 않습니다.
+        search_tool = genai.types.Tool(
+            google_search=genai.types.GoogleSearch()
+        )
+        
+        response = model.generate_content(
+            prompt,
+            tools=[search_tool] 
+        )
         full_text = response.text
-        
-        # ... (이하 파싱 로직은 기존과 동일) ...
-        # (중략: biz_analysis 추출 및 news_list 파싱 코드 유지)
-        
-        # [복붙용] 파싱 코드 요약
+
+        # 1. 텍스트 추출
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
+        html_output = ""
+        for p in [x.strip() for x in biz_analysis.split('\n') if len(x.strip()) > 10]:
+            html_output += f"<p style='display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; margin-top:0;'>{p}</p>"
+
+        # 2. 뉴스 파싱
         news_list = []
         if "<JSON_START>" in full_text:
             try:
                 json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
                 news_list = json.loads(json_str).get("news", [])
-                for n in news_list: # 색상 처리
+                for n in news_list:
                     if n['sentiment'] == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
                     elif n['sentiment'] == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
                     else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
             except: pass
-            
-        # HTML 포장
-        html_output = ""
-        for p in [x.strip() for x in biz_analysis.split('\n') if len(x.strip()) > 10]:
-            html_output += f"<p style='display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; margin-top:0;'>{p}</p>"
-            
+
         return html_output, news_list
 
     except Exception as e:
-        return f"<p style='color:red;'>오류 발생: {str(e)}</p>", []
+        return f"<p style='color:red;'>시스템 오류: {str(e)}</p>", []
 
 # (B) Tab 4용 함수
 @st.cache_data(show_spinner=False, ttl=86400)
@@ -109,22 +120,29 @@ def get_unified_tab4_analysis(company_name, ticker):
 
     prompt = f"""
     분석 대상: {company_name} ({ticker})
-    지침: 구글 검색을 통해 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 찾아 분석.
+    지침: 구글 검색을 통해 Seeking Alpha, Renaissance Capital 등 최신 기관 리포트를 찾아 분석.
     
     [응답 형식 - JSON]
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell",
         "summary": "3줄 요약 (한국어)",
-        "pro_con": "긍정/부정 요약 (한국어)",
+        "pro_con": "긍정: ... \n부정: ... (한국어)",
         "links": [{{"title": "제목", "link": "URL"}}]
     }}
     <JSON_END>
     """
 
     try:
-        # tools에 변수 직접 전달
-        response = model.generate_content(prompt, tools=[search_tool])
+        # [핵심 수정] Tool 객체 명시적 생성
+        search_tool = genai.types.Tool(
+            google_search=genai.types.GoogleSearch()
+        )
+
+        response = model.generate_content(
+            prompt,
+            tools=[search_tool]
+        )
         
         if "<JSON_START>" in response.text:
             json_str = response.text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
@@ -132,8 +150,8 @@ def get_unified_tab4_analysis(company_name, ticker):
         return {"rating": "Neutral", "summary": "데이터 파싱 실패", "pro_con": response.text, "links": []}
 
     except Exception as e:
-        return {"rating": "Error", "summary": f"오류: {str(e)}", "pro_con": "", "links": []}
-
+        return {"rating": "Error", "summary": f"오류 발생: {str(e)}", "pro_con": "", "links": []}
+        
 # ==========================================
 # [기능] 1. 구글 연결 핵심 함수 (최우선 순위)
 # ==========================================
