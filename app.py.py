@@ -3104,7 +3104,7 @@ elif st.session_state.page == 'detail':
             q = stock['symbol'] if stock['symbol'] else stock['name']
 
             # --- (1) Renaissance Capital & 기관 종합 요약 섹션 ---
-            with st.expander("Renaissance Capital & 기관 종합 요약", expanded=False):
+            with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 import re
                 pattern = r'(?i)source|출처|https?://'
                 parts = re.split(pattern, summary_raw)
@@ -3115,10 +3115,7 @@ elif st.session_state.page == 'detail':
                 else:
                     st.info(summary)
                 
-                # [수정] 404 에러 방지를 위한 구글 필터링 검색 방식
-                # 사이트 내부 검색 엔진 오류를 우회하여 가장 정확한 종목 페이지를 찾아줍니다.
-                rc_bypass_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
-                st.link_button(f"{stock['name']} Renaissance 리포트 찾기", rc_bypass_url, use_container_width=True)
+                
                 
 
             # --- (2) Seeking Alpha & Morningstar 상세 평가 섹션 ---
@@ -3134,13 +3131,9 @@ elif st.session_state.page == 'detail':
                     st.error("AI가 실시간 리포트 본문을 분석하는 데 실패했습니다.")
                 else:
                     # 정제된 pro_con 출력
-                    st.success(f"**Wall Street Analyst Opinions**\n\n{pro_con}")
+                    st.success(pro_con)
                 
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.link_button("Seeking Alpha 분석글 보기", f"https://seekingalpha.com/symbol/{q}/analysis")
-                with c2:
-                    st.link_button("Morningstar 검색 결과", f"https://www.morningstar.com/search?query={q}")
+                
                 
                 
                 
@@ -3214,11 +3207,27 @@ elif st.session_state.page == 'detail':
 
                     st.caption(f"ℹ️ {score_desc}")
 
-                # 참고 소스 링크
+            # --- (4) References (기존 링크들을 이곳으로 통합) ---
+            with st.expander("📖 References & External Links", expanded=True):
+                st.markdown('<p style="font-size: 1.0rem; font-weight: 600;">실시간 리서치 데이터 소스</p>', unsafe_allow_html=True)
+                
+                # AI가 동적으로 찾아낸 뉴스/리포트 링크들
                 if sources:
-                    st.markdown('<br><p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">참고 리포트 출처</p>', unsafe_allow_html=True)
-                    for src in sources[:4]:
+                    for src in sources:
                         st.markdown(f"- [{src['title']}]({src['link']})")
+                else:
+                    st.caption("실시간 참조 리포트 링크를 불러올 수 없습니다.")
+                
+                st.markdown('---')
+                st.markdown('<p style="font-size: 1.0rem; font-weight: 600;">주요 분석 기관 바로가기</p>', unsafe_allow_html=True)
+                
+                # 기존에 섹션마다 흩어져 있던 버튼들을 리스트 형태로 통합
+                st.markdown(f"- [Renaissance Capital: {stock['name']} 상세 데이터](https://www.google.com/search?q=site:renaissancecapital.com+{q})")
+                st.markdown(f"- [Seeking Alpha: {stock['name']} 심층 분석글](https://seekingalpha.com/symbol/{q}/analysis)")
+                st.markdown(f"- [Morningstar: {stock['name']} 리서치 결과](https://www.morningstar.com/search?query={q})")
+                st.markdown(f"- [Google Finance: {stock['name']} 시장 동향](https://www.google.com/finance/quote/{q}:NASDAQ)")
+
+                
 
             # [✅ 5단계 사용자 판단]
             draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
