@@ -144,7 +144,7 @@ def get_unified_tab4_analysis(company_name, ticker):
     2. **분석 깊이**: 단순 사실 나열이 아닌, 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
     3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
     4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
-    5. **Summary**: 전문적인 톤으로 3줄 이내로 핵심만 간결하게 작성하세요. (부채 상환, 합병, 청산 등의 주요 이슈가 있다면 반드시 포함)
+    5. **Summary**: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요. (부채 상환, 합병, 청산 등의 주요 이슈가 있다면 반드시 포함)
     6. **링크 금지**: 답변 텍스트(Summary, Pro_con) 내에는 'Source:', 'http...' 등의 출처 링크를 절대 포함하지 마세요.
 
     [주의사항 - JSON 포맷]
@@ -3110,20 +3110,22 @@ elif st.session_state.page == 'detail':
             sources = result.get('links', [])
             q = stock['symbol'] if stock['symbol'] else stock['name']
         
-            # --- (1) Renaissance Capital 섹션 (수정됨) ---
+            # --- (1) Renaissance Capital & 기관 종합 요약 섹션 ---
             with st.expander("Renaissance Capital & 기관 종합 요약", expanded=False):
                 import re
                 pattern = r'(?i)source|출처|https?://'
                 parts = re.split(pattern, summary_raw)
                 
-                # [핵심 수정] 문자열 \n을 실제 엔터로 바꾸고, 마크다운 대응을 위해 줄바꿈을 2번으로 확장
-                summary = parts[0].replace('\\n', '\n').strip().rstrip(' ,.:;-\n\t')
+                # [수정] 모든 줄바꿈(\n)을 제거하고 공백(' ')으로 치환하여 한 문단으로 만듭니다.
+                # 1. AI가 보낸 텍스트 형태의 \\n 정제
+                # 2. 실제 줄바꿈 문자(\n)를 공백으로 치환
+                summary = parts[0].replace('\\n', ' ').replace('\n', ' ').strip().rstrip(' ,.:;-\t')
                 
                 if not summary or "분석 불가" in summary:
                     st.warning("직접적인 분석 리포트를 찾지 못했습니다.")
                 else:
-                    # \n을 \n\n으로 바꿔야 문단이 구분되어 보입니다.
-                    st.info(summary.replace('\n', '\n\n'))
+                    # [수정] 더 이상 replace('\n', '\n\n')을 하지 않고 바로 출력합니다.
+                    st.info(summary)
         
             # --- (2) Seeking Alpha & Morningstar 섹션 (수정됨) ---
             with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
