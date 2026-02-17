@@ -3481,7 +3481,7 @@ elif st.session_state.page == 'detail':
                     st.warning("로그인 후 이용 가능합니다.")
                 
 
-                #리아지우사랑
+                #리아지우와제주도 다녀오다
                  
                 
                 
