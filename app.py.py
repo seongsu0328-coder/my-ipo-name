@@ -1502,18 +1502,18 @@ if st.session_state.page == 'login':
                 label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: 5px; margin-top: 10px;"
                 status_style = "font-size: 0.85rem; margin-top: -10px; margin-bottom: 10px;"
                 
-                st.markdown(f"<p style='{title_style}'>1단계: 정보 입력</p>", unsafe_allow_html=True)
+                st.markdown(f<p style='{title_style}'>1단계: 정보 입력</p>, unsafe_allow_html=True)
                 
                 # --- [상단 입력창 구역: 항상 유지됨] ---
-                st.markdown(f"<p style='{label_style}'>아이디</p>", unsafe_allow_html=True)
+                st.markdown(f<p style='{label_style}'>아이디</p>, unsafe_allow_html=True)
                 new_id = st.text_input("id_input", value=st.session_state.get('temp_id', ''), label_visibility="collapsed")
                 st.session_state.temp_id = new_id
                 
-                st.markdown(f"<p style='{label_style}'>비밀번호</p>", unsafe_allow_html=True)
+                st.markdown(f<p style='{label_style}'>비밀번호</p>, unsafe_allow_html=True)
                 new_pw = st.text_input("pw_input", type="password", value=st.session_state.get('temp_pw', ''), label_visibility="collapsed")
                 st.session_state.temp_pw = new_pw
                 
-                st.markdown(f"<p style='{label_style}'>비밀번호 확인</p>", unsafe_allow_html=True)
+                st.markdown(f<p style='{label_style}'>비밀번호 확인</p>, unsafe_allow_html=True)
                 confirm_pw = st.text_input("confirm_pw_input", type="password", value=st.session_state.get('temp_cpw', ''), label_visibility="collapsed")
                 st.session_state.temp_cpw = confirm_pw
                 
@@ -1521,80 +1521,75 @@ if st.session_state.page == 'login':
                 is_pw_match = False
                 if new_pw and confirm_pw:
                     if new_pw == confirm_pw:
-                        st.markdown(f"<p style='{status_style} color: #2e7d32;'>✅ 비밀번호가 일치합니다.</p>", unsafe_allow_html=True)
+                        st.markdown(f<p style='{status_style} color: #2e7d32;'>✅ 비밀번호가 일치합니다.</p>, unsafe_allow_html=True)
                         is_pw_match = True
                     else:
-                        st.markdown(f"<p style='{status_style} color: #d32f2f;'>❌ 비밀번호가 일치하지 않습니다.</p>", unsafe_allow_html=True)
+                        st.markdown(f<p style='{status_style} color: #d32f2f;'>❌ 비밀번호가 일치하지 않습니다.</p>, unsafe_allow_html=True)
                         
-                st.markdown(f"<p style='{label_style}'>연락처 (예: 01012345678)</p>", unsafe_allow_html=True)
+                st.markdown(f<p style='{label_style}'>연락처 (예: 01012345678)</p>, unsafe_allow_html=True)
                 new_phone = st.text_input("phone_input", value=st.session_state.get('temp_phone', ''), label_visibility="collapsed")
                 st.session_state.temp_phone = new_phone
                 
-                st.markdown(f"<p style='{label_style}'>이메일</p>", unsafe_allow_html=True)
+                st.markdown(f<p style='{label_style}'>이메일</p>, unsafe_allow_html=True)
                 new_email = st.text_input("email_input", value=st.session_state.get('temp_email', ''), label_visibility="collapsed")
                 st.session_state.temp_email = new_email
                 
-                st.markdown(f"<p style='{label_style}'>인증 수단</p>", unsafe_allow_html=True)
+                st.markdown(f<p style='{label_style}'>인증 수단</p>, unsafe_allow_html=True)
                 auth_choice = st.radio("auth_input", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed", key="auth_radio")
                 
-                # --- [하단 유동 구역: 디버깅 모드] ---
+                # --- [하단 유동 구역: 버튼 혹은 인증창으로 교체] ---
                 st.write("---") 
                 
-                # 현재 상태를 상단에 작게 표시
-                st.caption(f"DEBUG: 현재 signup_stage = {st.session_state.signup_stage}")
-
-                if st.session_state.signup_stage == 1:
-                    # 1단계 구역을 노란색 배경으로 감싸서 확인
-                    st.markdown("<div style='background-color: #fff9c4; padding: 10px; border: 1px dashed #fbc02d;'><b>DEBUG: Stage 1 구역</b>", unsafe_allow_html=True)
-                    
-                    if st.button("인증번호 받기", use_container_width=True, type="primary", key="btn_send_auth_dbg"):
-                        if not (new_id and new_pw and confirm_pw and new_email):
-                            st.error("모든 정보를 입력해주세요.")
-                        elif not is_pw_match:
-                            st.error("비밀번호 일치 확인이 필요합니다.")
-                        else:
-                            code = str(random.randint(100000, 999999))
-                            st.session_state.auth_code = code
-                            st.session_state.temp_user_data = {"id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email}
-                            
-                            if "이메일" in auth_choice:
-                                if send_email_code(new_email, code):
+                # st.empty()를 사용하여 이전 단계 위젯의 유령 박스를 물리적으로 제거합니다.
+                action_area = st.empty()
+            
+                with action_area.container():
+                    if st.session_state.signup_stage == 1:
+                        # 1단계 버튼 구역
+                        if st.button("인증번호 받기", use_container_width=True, type="primary", key="btn_send_auth_final"):
+                            if not (new_id and new_pw and confirm_pw and new_email):
+                                st.error("모든 정보를 입력해주세요.")
+                            elif not is_pw_match:
+                                st.error("비밀번호 일치 확인이 필요합니다.")
+                            else:
+                                code = str(random.randint(100000, 999999))
+                                st.session_state.auth_code = code
+                                st.session_state.temp_user_data = {"id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email}
+                                
+                                if "이메일" in auth_choice:
+                                    if send_email_code(new_email, code):
+                                        st.session_state.signup_stage = 2
+                                        st.rerun()
+                                else:
+                                    st.toast(f"📱 인증번호: {code}", icon="✅")
                                     st.session_state.signup_stage = 2
                                     st.rerun()
-                            else:
-                                st.toast(f"📱 인증번호: {code}", icon="✅")
-                                st.session_state.signup_stage = 2
-                                st.rerun()
-                    
-                    if st.button("처음으로 돌아가기", use_container_width=True, key="btn_signup_back_dbg"):
-                        st.session_state.login_step = 'choice'
-                        st.rerun()
-                    st.markdown("</div>", unsafe_allow_html=True)
-
-                elif st.session_state.signup_stage == 2:
-                    # 2단계 구역을 하늘색 배경으로 감싸서 확인
-                    st.markdown("<div style='background-color: #e1f5fe; padding: 10px; border: 1px dashed #03a9f4;'><b>DEBUG: Stage 2 구역</b>", unsafe_allow_html=True)
-                    
-                    st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
-                    st.markdown(f"<p style='{label_style} font-weight: bold;'>인증번호 6자리 입력</p>", unsafe_allow_html=True)
-                    
-                    # 중복 방지를 위해 key 변경
-                    in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder="숫자 6자리", key="input_verify_code_debug")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("인증 확인", use_container_width=True, type="primary", key="btn_confirm_auth_debug"):
-                            if in_code == st.session_state.auth_code:
-                                st.success("인증 성공!")
-                                st.session_state.signup_stage = 3
-                                st.rerun()
-                            else:
-                                st.error("인증번호가 틀렸습니다.")
-                    with col2:
-                        if st.button("취소/재발송", use_container_width=True, key="btn_resend_auth_debug"):
-                            st.session_state.signup_stage = 1
+                        
+                        if st.button("처음으로 돌아가기", use_container_width=True, key="btn_signup_back_final"):
+                            st.session_state.login_step = 'choice'
                             st.rerun()
-                    st.markdown("</div></div>", unsafe_allow_html=True)
+            
+                    elif st.session_state.signup_stage == 2:
+                        # 2단계 인증창 구역
+                        st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
+                        st.markdown(f"<p style='{label_style} font-weight: bold;'>인증번호 6자리 입력</p>", unsafe_allow_html=True)
+                        
+                        in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder="숫자 6자리", key="input_verify_code_final")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("인증 확인", use_container_width=True, type="primary", key="btn_confirm_auth_final"):
+                                if in_code == st.session_state.auth_code:
+                                    st.success("인증 성공!")
+                                    st.session_state.signup_stage = 3
+                                    st.rerun()
+                                else:
+                                    st.error("인증번호가 틀렸습니다.")
+                        with col2:
+                            if st.button("취소/재발송", use_container_width=True, key="btn_resend_auth_final"):
+                                st.session_state.signup_stage = 1
+                                st.rerun()
+                        st.markdown("</div>", unsafe_allow_html=True)
             
             # [B구역] 3단계일 때 (서류 제출 화면)
             elif st.session_state.signup_stage == 3:
