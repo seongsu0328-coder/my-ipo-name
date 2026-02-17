@@ -154,23 +154,32 @@ def db_load_posts(limit=50, category=None):
         # print(f"DB Error: {e}") 
         return []
 
-# [정보 공개 범위 업데이트 함수]
-def db_update_user_visibility(user_id, visibility_list):
+# [정보 공개 범위 업데이트 함수 - 수정 버전]
+def db_update_user_visibility(user_id, visibility_data):
     try:
-        # 리스트로 들어온 설정(['학력', '자산'])을 문자열("학력,자산")로 변환해서 저장
-        # (만약 이미 문자열이라면 그대로 사용)
-        if isinstance(visibility_list, list):
-            value_to_save = ",".join(visibility_list)
+        # 1. 데이터가 리스트 형태인 경우 (예: ['학력', '직업'])
+        if isinstance(visibility_data, list):
+            # 리스트 안의 모든 요소를 강제로 문자열로 바꾸고, 'True/False'는 걸러냄
+            clean_list = [str(item) for item in visibility_data if isinstance(item, str)]
+            value_to_save = ",".join(clean_list)
+        
+        # 2. 데이터가 딕셔너리 형태인 경우 (예: {'학력': True, '직업': False})
+        elif isinstance(visibility_data, dict):
+            # 값이 True인 키(Key)들만 뽑아서 합침
+            clean_list = [key for key, val in visibility_data.items() if val is True]
+            value_to_save = ",".join(clean_list)
+            
+        # 3. 그 외 (이미 문자열인 경우 등)
         else:
-            value_to_save = str(visibility_list)
+            value_to_save = str(visibility_data)
 
         # Supabase 업데이트 실행
         response = supabase.table("users").update({"visibility": value_to_save}).eq("id", user_id).execute()
         
-        # 성공적으로 업데이트되면 데이터가 반환됨
         return True if response.data else False
         
     except Exception as e:
+        # 에러 발생 시 상세 내용 출력
         st.error(f"공개 범위 설정 실패: {e}")
         return False
         
