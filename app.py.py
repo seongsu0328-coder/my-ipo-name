@@ -3676,86 +3676,74 @@ elif st.session_state.page == 'detail':
                 st.warning("🔒 로그인 후 투표에 참여할 수 있습니다.")
 
             # ---------------------------------------------------------
-            # 4. 종목 토론방
+            # 4. 종목 토론방 (DB 연동 버전)
             # ---------------------------------------------------------
             st.write("---")
             st.subheader(f"{sid} 토론방")
             
-            # 내부 함수: 반응 처리
-            def local_handle_reaction(post_id, reaction_type):
-                for post in st.session_state.posts:
-                    if post['id'] == post_id:
-                        post[reaction_type] = post.get(reaction_type, 0) + 1
-                        return True
-                return False
-
-            sid_posts = [p for p in st.session_state.posts if p.get('category') == sid]
+            # [DB] 현재 종목(sid)에 해당하는 글만 필터링해서 가져오기
+            # (만약 DB에 'category' 컬럼으로 인덱싱이 되어 있다면 더 빠르겠지만, 
+            #  일단 전체 최신글 50개를 가져와서 파이썬에서 거르는 방식으로 구현)
+            all_posts = db_load_posts(limit=100) 
+            sid_posts = [p for p in all_posts if p.get('category') == sid]
             
             if sid_posts:
                 for p in sid_posts[:10]: # 최신 10개만 표시
                     title = p.get('title', '').strip()
-                    # 제목에 [티커] 없으면 붙여주기
-                    clean_title = title if f"[{sid}]" in title else f"[{sid}] {title}"
+                    clean_title = title # 상세페이지에서는 [종목코드] 생략 가능
                     
                     # 작성자 마스킹
-                    auth_display = str(p.get('author', 'unknown'))
-                    if len(auth_display) > 3:
-                        auth_display = auth_display[:3] + "***"
+                    auth_name = p.get('author_name', 'Unknown')
                     
-                    header = f"{clean_title} | 👤 {auth_display} | {p.get('date')}"
+                    # 날짜 포맷팅
+                    try: date_str = p['created_at'].split('T')[0]
+                    except: date_str = ""
+                    
+                    header = f"{clean_title} | 👤 {auth_name} | {date_str}"
                     
                     with st.expander(header):
-                        st.write(p.get('content'))
-                        st.caption(f"작성자 ID: {auth_display}")
+                        st.markdown(f"<div style='font-size:0.95rem;'>{p.get('content')}</div>", unsafe_allow_html=True)
+                        st.caption(f"작성자: {auth_name}")
                         st.divider()
                         
-                        # 버튼 액션
-                        c_l, c_d, c_void, c_ed, c_del = st.columns([1, 1, 3, 1, 1])
-                        
-                        # 좋아요
-                        if c_l.button(f"👍 {p.get('likes', 0)}", key=f"l_{p['id']}"):
-                            local_handle_reaction(p['id'], 'likes')
-                            st.rerun()
-                        
-                        # 싫어요
-                        if c_d.button(f"👎 {p.get('dislikes', 0)}", key=f"d_{p['id']}"):
-                            local_handle_reaction(p['id'], 'dislikes')
-                            st.rerun()
-                            
-                        # 삭제 (작성자 본인 또는 관리자)
-                        if (current_user_phone == p.get('author')) or is_admin:
-                            if c_del.button("🗑️", key=f"del_{p['id']}"):
-                                st.session_state.posts = [x for x in st.session_state.posts if x['id'] != p['id']]
-                                st.rerun()
-            else:
-                st.info("아직 등록된 의견이 없습니다. 첫 번째 의견을 남겨보세요!")
+                        # 좋아요/싫어요 기능은 DB 업데이트가 필요하므로 
+                        # 여기서는 단순 조회용으로만 표시하거나, 추후 db_update_reaction 함수와 연결 필요
+                        # (간소화를 위해 상세 액션 버튼은 생략하거나 '준비중' 처리)
+                        st.caption("※ 추천/비추천 기능은 게시판 메인에서 가능합니다.")
 
-            # 5. 글쓰기 섹션
+            else:
+                st.info("아직 이 종목에 대한 의견이 없습니다. 첫 의견을 남겨보세요!")
+
+            # 5. 글쓰기 섹션 (DB 저장)
             st.write("")
             with st.expander(f"📝 {sid} 의견 작성하기", expanded=False):
                 if st.session_state.get('auth_status') == 'user':
-                    with st.form(key=f"write_{sid}", clear_on_submit=True):
-                        new_title = st.text_input("제목")
-                        new_content = st.text_area("내용", height=100)
-                        
-                        if st.form_submit_button("등록", type="primary", use_container_width=True):
-                            if new_title and new_content:
-                                st.session_state.posts.insert(0, {
-                                    "id": str(uuid.uuid4()),
-                                    "category": sid,
-                                    "title": new_title,
-                                    "content": new_content,
-                                    "author": current_user_phone,
-                                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                                    "likes": 0, "dislikes": 0, "uid": user_id
-                                })
-                                st.success("등록되었습니다!")
-                                time.sleep(0.5)
-                                st.rerun()
-                            else:
-                                st.error("제목과 내용을 모두 입력해주세요.")
+                    # 권한 체크 (check_permission 함수 활용)
+                    if check_permission('write'):
+                        with st.form(key=f"write_{sid}_db", clear_on_submit=True):
+                            new_title = st.text_input("제목")
+                            new_content = st.text_area("내용", height=100)
+                            
+                            if st.form_submit_button("등록", type="primary", use_container_width=True):
+                                if new_title and new_content:
+                                    user_id = st.session_state.user_info.get('id')
+                                    # 닉네임 생성 (user_info에 display_name이 없다면 ID 마스킹 사용)
+                                    u_info = st.session_state.user_info
+                                    display_name = u_info.get('display_name') or f"{user_id[:3]}***"
+                                    
+                                    # [핵심] DB에 저장
+                                    if db_save_post(sid, new_title, new_content, display_name, user_id):
+                                        st.success("등록되었습니다!")
+                                        time.sleep(0.5)
+                                        st.rerun()
+                                    else:
+                                        st.error("저장 중 오류가 발생했습니다.")
+                                else:
+                                    st.error("제목과 내용을 모두 입력해주세요.")
+                    else:
+                        st.warning("🔒 글쓰기 권한이 없습니다. (서류 승인 필요)")
                 else:
-                    st.warning("로그인 후 이용 가능합니다.")
+                    st.warning("🔒 로그인 후 이용 가능합니다.")
                 
 
                 #리아 지우와제주도 다녀오다 사랑하다
