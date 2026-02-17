@@ -5,10 +5,8 @@ plotly
 requests
 lxml
 duckduckgo-search
-tavily-python
-openai
 beautifulsoup4
-google-generativeai
 gspread
 oauth2client
 google-api-python-client
+google-generativeai>=0.7.0
