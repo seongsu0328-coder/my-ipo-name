@@ -268,7 +268,7 @@ def get_ai_summary_final(query):
         if not search_result.get('results'): return None 
         context = "\n".join([r['content'] for r in search_result['results']])
 
-        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
+        # 2. LLM 호출 (에러 수정 완료 버전)
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
@@ -276,8 +276,7 @@ def get_ai_summary_final(query):
             messages=[
                 {
                     "role": "system", 
-                    "content": """
-                                  당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
+                    "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
 [필수 작성 원칙]
 1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
 2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
