@@ -1914,8 +1914,9 @@ if st.session_state.page == 'calendar':
             font-weight: bold !important;
         }
 
-        /* 3. 버튼 스타일 (리스트용 타이트한 스타일) */
-        .stButton button {
+        /* 3. 리스트 전용 버튼 스타일 (범위를 리스트 컬럼으로 한정) */
+        /* [수정] 모든 버튼이 아니라, 데이터 리스트(7:3 컬럼) 내부에 있는 버튼만 투명하게 만듭니다. */
+        div[data-testid="column"] .stButton button {
             background-color: transparent !important;
             border: none !important;
             padding: 0 !important;
@@ -1931,6 +1932,16 @@ if st.session_state.page == 'calendar':
             height: auto !important;
             line-height: 1.1 !important;
         }
+
+        /* [추가] 로그인/인증 버튼 등 일반적인 Primary 버튼은 원래 스타일을 유지하도록 강제 */
+        div.stButton > button[kind="primary"] {
+            background-color: #FF4B4B !important; /* 스트림릿 기본 레드 혹은 원하는 색상 */
+            color: white !important;
+            border-radius: 8px !important;
+            padding: 0.25rem 0.75rem !important;
+            height: auto !important;
+        }
+        
         .stButton button p { font-weight: bold; font-size: 14px; margin-bottom: 0px; }
 
         /* 4. [모바일 레이아웃 핵심] */
