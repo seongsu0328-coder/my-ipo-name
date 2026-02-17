@@ -3142,9 +3142,6 @@ elif st.session_state.page == 'detail':
                 with c2:
                     st.link_button("Morningstar 검색 결과", f"https://www.morningstar.com/search?query={q}")
                 
-                # 구글 심층 분석 버튼
-                st.write("")
-                st.link_button(f"🔎 {stock['name']} 심층 분석 데이터 검색", f"https://www.google.com/search?q={q}+stock+pros+and+cons+analysis+2025+2026")
                 
                 
 
