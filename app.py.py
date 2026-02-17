@@ -53,6 +53,88 @@ DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 MY_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 # ==========================================
 
+# ==========================================
+# [Supabase DB] 데이터 관리 함수 모음 (NEW)
+# ==========================================
+
+# 1. 유저 로그인 정보 불러오기
+def db_load_user(user_id):
+    try:
+        res = supabase.table("users").select("*").eq("id", user_id).execute()
+        return res.data[0] if res.data else None
+    except: return None
+
+# 2. 회원가입 정보 저장 (구글 시트 대체)
+def db_signup_user(user_data):
+    try:
+        # DB 컬럼명과 user_data 키값이 일치해야 함
+        supabase.table("users").insert(user_data).execute()
+        return True
+    except Exception as e:
+        print(f"Signup DB Error: {e}")
+        return False
+
+# 3. 유저 정보 업데이트 (승인/반려/설정변경 등)
+def db_update_user_info(user_id, update_dict):
+    try:
+        supabase.table("users").update(update_dict).eq("id", user_id).execute()
+        return True
+    except: return False
+
+# 4. 관리자용: 전체 유저 조회
+def db_load_all_users():
+    try:
+        res = supabase.table("users").select("*").order("created_at", desc=True).execute()
+        return res.data if res.data else []
+    except: return []
+
+# 5. 관심종목 & 투표 불러오기 (로그인 직후 실행)
+def db_sync_watchlist(user_id):
+    try:
+        res = supabase.table("watchlist").select("*").eq("user_id", user_id).execute()
+        w_list = []
+        w_preds = {}
+        for item in res.data:
+            ticker = item['ticker']
+            w_list.append(ticker)
+            if item.get('prediction'):
+                w_preds[ticker] = item['prediction']
+        return w_list, w_preds
+    except: return [], {}
+
+# 6. 관심종목 추가/삭제 (버튼 클릭 시 실행)
+def db_toggle_watchlist(user_id, ticker, prediction=None, action='add'):
+    try:
+        if action == 'add':
+            # upsert: 있으면 업데이트, 없으면 추가
+            data = {"user_id": user_id, "ticker": ticker, "prediction": prediction}
+            supabase.table("watchlist").upsert(data, on_conflict="user_id, ticker").execute()
+        elif action == 'remove':
+            supabase.table("watchlist").delete().eq("user_id", user_id).eq("ticker", ticker).execute()
+    except Exception as e:
+        print(f"Watchlist DB Error: {e}")
+
+# 7. 게시판 글쓰기
+def db_save_post(category, title, content, author_name, author_id):
+    try:
+        data = {
+            "category": category,
+            "title": title,
+            "content": content,
+            "author_name": author_name,
+            "author_id": author_id
+        }
+        supabase.table("board").insert(data).execute()
+        return True
+    except: return False
+
+# 8. 게시판 글 목록 불러오기
+def db_load_posts(limit=50):
+    try:
+        res = supabase.table("board").select("*").order("created_at", desc=True).limit(limit).execute()
+        return res.data if res.data else []
+    except: return []
+
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
 # ---------------------------------------------------------
@@ -510,26 +592,6 @@ def get_batch_prices(ticker_list):
 
 
 
-
-# [수정된 함수] 캐시 제거 (로그인 시 실시간 상태 확인 필수)
-def load_users():
-    # 1. 구글 연결 객체 가져오기
-    client, _ = get_gcp_clients()
-    
-    if client:
-        try:
-            # 2. 시트 열기
-            sh = client.open("unicorn_users").sheet1
-            
-            # 3. 모든 레코드 가져오기 (실시간)
-            data = sh.get_all_records()
-            return data
-        except Exception as e:
-            # 에러 발생 시(네트워크 등) 빈 리스트 반환하여 앱 멈춤 방지
-            print(f"Google Sheet Load Error: {str(e)}") 
-            return []
-    return []
-
 def get_asset_grade(asset_text):
     if asset_text == "10억 미만": return "Bronze"
     elif asset_text == "10억~30억": return "Silver"
@@ -537,61 +599,7 @@ def get_asset_grade(asset_text):
     elif asset_text == "80억 이상": return "Diamond"
     return ""
 
-def add_user(data):
-    client, _ = get_gcp_clients()
-    if client:
-        sh = client.open("unicorn_users").sheet1
-        
-        # 1. 아이디 익명화 (닉네임 생성용)
-        user_id = data['id']
-        masked_id = user_id[:3] + "*" * (len(user_id) - 3) if len(user_id) > 3 else user_id + "***"
-        
-        # 2. 인증 항목 결합
-        display_parts = []
-        auth_count = 0
-        
-        if data['univ'] and data['link_univ'] != "미제출":
-            display_parts.append(data['univ'])
-            auth_count += 1
-        if data['job'] and data['link_job'] != "미제출":
-            display_parts.append(data['job'])
-            auth_count += 1
-        if data['asset'] and data['link_asset'] != "미제출":
-            grade = get_asset_grade(data['asset'])
-            display_parts.append(grade)
-            auth_count += 1
-            
-        display_name = " ".join(display_parts + [masked_id])
-        role = "user" if auth_count > 0 else "restricted"
-        
-        # 3. [수정됨] 15번째 열(visibility) 기본값 추가
-        row = [
-            data['id'], data['pw'], data['email'], data['phone'],
-            role, 'pending', 
-            data['univ'], data['job'], data['asset'], display_name,
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            data['link_univ'], data['link_job'], data['link_asset'],
-            "True,True,True"  # <--- 이 부분이 15번째 열에 들어갑니다.
-        ]
-        sh.append_row(row)
 
-def update_user_visibility(user_id, visibility_data):
-    client, _ = get_gcp_clients()
-    if client:
-        try:
-            sh = client.open("unicorn_users").sheet1
-            # 1열(A열)에서 유저 아이디와 정확히 일치는 셀 찾기
-            cell = sh.find(str(user_id), in_column=1) 
-            
-            if cell:
-                # 리스트를 "True,False,True" 형태의 문자열로 변환
-                visibility_str = ",".join([str(v) for v in visibility_data])
-                # 15번째 열(O열) 업데이트
-                sh.update_cell(cell.row, 15, visibility_str)
-                return True
-        except Exception as e:
-            st.error(f"시트 통신 오류: {e}")
-    return False
 
 def upload_photo_to_drive(file_obj, filename_prefix):
     if file_obj is None: return "미제출"
@@ -688,46 +696,7 @@ def send_approval_email(to_email, user_id):
         st.error(f"📧 승인 메일 전송 실패: {e}")
         return False
 
-def save_user_to_sheets(user_data):
-    """회원가입 정보를 구글 시트에 최종 기록하는 함수"""
-    client, _ = get_gcp_clients()
-    if client:
-        try:
-            if not user_data:
-                return False
 
-            # 시트 열기 (중복 파일 방지를 위해 open_by_key 권장, 현재는 이름 기준)
-            sh = client.open("unicorn_users").sheet1
-            
-            # 입력할 데이터 행 생성 (15개 컬럼)
-            row = [
-                user_data.get('id'), 
-                user_data.get('pw'), 
-                user_data.get('email'), 
-                user_data.get('phone'),
-                user_data.get('role', 'restricted'), 
-                user_data.get('status', 'pending'),
-                user_data.get('univ', ''), 
-                user_data.get('job', ''), 
-                user_data.get('asset', ''),
-                user_data.get('display_name', ''), 
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                user_data.get('link_univ', '미제출'), 
-                user_data.get('link_job', '미제출'),
-                user_data.get('link_asset', '미제출'), 
-                "True,True,True" # 기본 가시성 설정
-            ]
-            
-            # 데이터 추가
-            sh.append_row(row)
-            return True
-            
-        except Exception as e:
-            # 운영 환경에서는 로그만 남기거나 에러 발생 사실만 알림
-            print(f"Google Sheet Save Error: {e}") 
-            return False
-    
-    return False
 
 def send_rejection_email(to_email, user_id, reason):
     try:
@@ -1462,23 +1431,25 @@ if st.session_state.page == 'login':
                 if not l_id or not l_pw:
                       st.error("아이디와 비밀번호를 입력해주세요.")
                 else:
-                    with st.spinner("로그인 중..."): # 멘트도 심플하게 변경
-                        # 실시간 데이터 로드
-                        users = load_users()
-                        
-                        # ID 매칭
-                        user = next((u for u in users if str(u.get("id")) == str(l_id)), None)
+                    with st.spinner("로그인 중..."):
+                        # [📌 변경 코드] DB에서 ID로 단건 조회 (속도 향상 및 DB 전환)
+                        user = db_load_user(l_id)
                         
                         if user and str(user.get('pw')) == str(l_pw):
                             st.session_state.auth_status = 'user'
                             st.session_state.user_info = user
                             
+                            # [📌 추가됨] 영구 저장된 관심종목 & 예측 불러오기 (핵심 기능)
+                            # 로그인과 동시에 DB에 저장해뒀던 내 관심종목을 메모리로 가져옵니다.
+                            saved_watchlist, saved_preds = db_sync_watchlist(l_id)
+                            st.session_state.watchlist = saved_watchlist
+                            st.session_state.watchlist_predictions = saved_preds
+                            
                             # 상태값 추출 및 정제
                             raw_status = user.get('status', 'pending')
                             user_status = str(raw_status).strip().lower()
                             
-                            # [변경점] 화면(Toast) 대신 터미널(로그)에만 기록 남기기
-                            # 배포 후에는 'Manage app' -> 'Logs'에서 볼 수 있습니다.
+                            # 터미널 로그 기록
                             print(f"🔒 LOGIN SUCCESS: {l_id} | Status: {user_status}") 
                             
                             # 페이지 이동 로직
@@ -1487,7 +1458,6 @@ if st.session_state.page == 'login':
                             else:
                                 st.session_state.page = 'setup'
                                 
-                            # time.sleep(1) 제거 -> 즉시 이동!
                             st.rerun()
                         else:
                             st.error("아이디 또는 비밀번호가 틀립니다.")
