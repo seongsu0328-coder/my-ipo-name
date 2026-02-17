@@ -79,17 +79,35 @@ model = configure_genai()
 # ---------------------------------------------------------
 
 # (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (기존 고품질 프롬프트 복원)
-@st.cache_data(show_spinner=False, ttl=21600)
+@st.cache_data(show_spinner=False, ttl=600)
 def get_unified_tab1_analysis(company_name, ticker):
     if not model: return "AI 모델 설정 오류", []
+    
+    # [Step 1] Supabase DB 조회 (6시간 캐시)
+    cache_key = f"{ticker}_Tab1"
+    now = datetime.now()
+    six_hours_ago = (now - timedelta(hours=6)).isoformat()
 
+    try:
+        res = supabase.table("analysis_cache") \
+            .select("content") \
+            .eq("cache_key", cache_key) \
+            .gt("updated_at", six_hours_ago) \
+            .execute()
+        
+        if res.data:
+            saved_data = json.loads(res.data[0]['content'])
+            return saved_data['html'], saved_data['news']
+    except Exception as e:
+        print(f"Tab1 DB Error: {e}")
+
+    # [Step 2] 캐시 없으면 기존 고품질 프롬프트로 분석 실행
     prompt = f"""
     당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
     분석 대상: {company_name} ({ticker})
 
     [작업 1: 비즈니스 모델 심층 분석]
     아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
-    
     1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 
     2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
        - 1문단: 비즈니스 모델 및 경쟁 우위 (독점력, 시장 지배력 등)
@@ -97,8 +115,7 @@ def get_unified_tab1_analysis(company_name, ticker):
        - 3문단: 향후 전망 및 투자 의견 (시장 성장성, 리스크 요인 포함)
     3. 문체: '~습니다' 체를 사용하되, 문장의 시작을 다양하게 구성하세요.
        - [중요] 모든 문장이 기업명(예: '동사는', '{company_name}은')으로 시작하지 않도록 주의하세요.
-       - 예시: "최근 금융 시장의 트렌드를 선도하며...", "주목할 만한 점은...", "재무적인 측면에서 살펴보면..." 등으로 시작.
-    4. 금지: **제목, 소제목(예: ### 작업1), 특수기호, 불렛포인트(-)**를 절대 쓰지 마세요. 오직 줄글(Paragraph)로만 작성하세요.
+    4. 금지: **제목, 소제목, 특수기호, 불렛포인트(-)**를 절대 쓰지 마세요. 오직 줄글(Paragraph)로만 작성하세요.
 
     [작업 2: 최신 뉴스 수집]
     - Google 검색을 통해 이 기업의 가장 최근(1주일 이내) 주요 뉴스 5개를 선정하세요.
@@ -109,28 +126,19 @@ def get_unified_tab1_analysis(company_name, ticker):
     """
 
     try:
-        # tools 설정을 모델 초기화 시 이미 했으므로 여기선 생략
         response = model.generate_content(prompt)
         full_text = response.text
 
-        # 1. 텍스트 추출 (JSON 앞부분만 가져옴)
+        # 기존 로직: 텍스트 추출 및 HTML 포맷팅
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
-        
-        # 불필요한 마크다운 헤더 제거 (혹시 AI가 출력할 경우를 대비)
         biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
-
-        # 문단 포맷팅 (HTML)
-        # 문단이 명확히 나뉘도록 줄바꿈 기준으로 처리
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
+        
         html_output = ""
         for p in paragraphs:
-            html_output += f"""
-            <p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; margin-top:0; font-size: 15px; color: #333;">
-                {p}
-            </p>
-            """
+            html_output += f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>'
 
-        # 2. 뉴스 파싱
+        # 기존 로직: 뉴스 파싱
         news_list = []
         if "<JSON_START>" in full_text:
             try:
@@ -142,16 +150,40 @@ def get_unified_tab1_analysis(company_name, ticker):
                     else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
             except: pass
 
-        return html_output, news_list
+        # [Step 3] Supabase에 저장
+        supabase.table("analysis_cache").upsert({
+            "cache_key": cache_key,
+            "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
+            "updated_at": now.isoformat()
+        }).execute()
 
+        return html_output, news_list
     except Exception as e:
         return f"<p style='color:red;'>시스템 오류: {str(e)}</p>", []
 
 # (B) Tab 4용: 기관 평가 분석 통합 (강력 파싱 버전)
-@st.cache_data(show_spinner=False, ttl=86400)
+@st.cache_data(show_spinner=False, ttl=600)
 def get_unified_tab4_analysis(company_name, ticker):
     if not model: return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
 
+    # [Step 1] Supabase DB 조회 (24시간 캐시)
+    cache_key = f"{ticker}_Tab4"
+    now = datetime.now()
+    one_day_ago = (now - timedelta(days=1)).isoformat()
+
+    try:
+        res = supabase.table("analysis_cache") \
+            .select("content") \
+            .eq("cache_key", cache_key) \
+            .gt("updated_at", one_day_ago) \
+            .execute()
+        
+        if res.data:
+            return json.loads(res.data[0]['content'])
+    except Exception as e:
+        print(f"Tab4 DB Error: {e}")
+
+    # [Step 2] 캐시 없으면 기존 강력 프롬프트로 분석
     prompt = f"""
     당신은 월가 출신의 IPO 전문 분석가입니다. 
     구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
@@ -161,13 +193,9 @@ def get_unified_tab4_analysis(company_name, ticker):
     2. **분석 깊이**: 단순 사실 나열이 아닌, 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
     3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
     4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
-    5. **Summary**: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요. (부채 상환, 합병, 청산 등의 주요 이슈가 있다면 반드시 포함)
-    6. **링크 금지**: 답변 텍스트(Summary, Pro_con) 내에는 'Source:', 'http...' 등의 출처 링크를 절대 포함하지 마세요.
+    5. **Summary**: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
+    6. **링크 금지**: Summary, Pro_con 내에는 'Source:', 'http...' 등의 출처 링크를 절대 포함하지 마세요.
 
-    [주의사항 - JSON 포맷]
-    - 반드시 아래 JSON 형식으로만 응답하세요.
-    - **중요: JSON 값 안에 실제 줄바꿈(Enter)을 넣지 마세요. 줄바꿈이 필요하면 '\\n' 문자를 사용하세요.**
-    
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell 중 하나",
@@ -184,36 +212,30 @@ def get_unified_tab4_analysis(company_name, ticker):
         response = model.generate_content(prompt)
         full_text = response.text
         
-        # [강력 파싱 로직 시작]
-        import re
-        import json
-
-        # 1. <JSON_START>와 <JSON_END> 사이의 내용 추출 시도
+        # 기존의 강력 파싱 로직 적용
         json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
-        
         if json_match:
             json_str = json_match.group(1).strip()
         else:
-            # 2. 태그가 없으면 가장 바깥쪽 { }를 찾아 추출
             json_match = re.search(r'\{.*\}', full_text, re.DOTALL)
             json_str = json_match.group(0).strip() if json_match else ""
 
         if json_str:
             try:
-                # 불필요한 제어문자 제거 후 파싱
                 clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
-                return json.loads(clean_str, strict=False)
-            except Exception as parse_err:
-                print(f"JSON Parsing Error: {parse_err}")
+                result_data = json.loads(clean_str, strict=False)
+                
+                # [Step 3] 파싱 성공 시 DB에 저장
+                supabase.table("analysis_cache").upsert({
+                    "cache_key": cache_key,
+                    "content": json.dumps(result_data, ensure_ascii=False),
+                    "updated_at": now.isoformat()
+                }).execute()
+                
+                return result_data
+            except: pass
 
-        # 3. 파싱에 완전히 실패했을 경우 (수동 복구)
-        return {
-            "rating": "N/A",
-            "summary": "분석 데이터를 정제하는 중 오류가 발생했습니다.",
-            "pro_con": full_text[:500] + "...", # 원본 텍스트 일부라도 노출
-            "links": []
-        }
-
+        return {"rating": "N/A", "summary": "분석 데이터를 정제하는 중입니다.", "pro_con": full_text[:300], "links": []}
     except Exception as e:
         return {"rating": "Error", "summary": f"오류 발생: {str(e)}", "pro_con": "", "links": []}
         
