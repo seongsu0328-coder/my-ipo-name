@@ -1682,7 +1682,7 @@ elif st.session_state.page == 'setup':
                 font-size: 1rem;
                 margin-bottom: 10px;
             ">
-                환영합니다, <b>{user_id}</b>님! 활동닉네임과 노출범위를 확인해주세요. <인증회원은 글쓰기와 투표참여가 가능합니다.
+                환영합니다, <b>{user_id}</b>님! 활동닉네임과 노출범위를 확인해주세요. 인증회원은 글쓰기와 투표참여가 가능합니다.
             </div>
         """, unsafe_allow_html=True)
         
