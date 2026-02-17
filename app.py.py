@@ -3096,55 +3096,51 @@ elif st.session_state.page == 'detail':
             </style>
         """, unsafe_allow_html=True)            
 
-        # --- Tab 4: 기관평가 (Wall Street IPO Radar - Gemini 통합형) ---
+        # --- Tab 4: 기관평가 (UI 출력 부분) ---
         with tab4:
-            # 1. 통합 분석 데이터 호출 (Gemini Google Search Grounding 사용)
+            # 1. 함수 호출 (기존 코드 유지)
             with st.spinner(f"전문 기관 데이터를 정밀 수집 중..."):
                 result = get_unified_tab4_analysis(stock['name'], stock['symbol'])
             
-            # 2. 결과 데이터 매핑
+            # 2. 결과 데이터 매핑 (기존 코드 유지)
             summary_raw = result.get('summary', '')
             pro_con_raw = result.get('pro_con', '')
             rating_val = str(result.get('rating', 'Hold')).strip()
             score_val = str(result.get('score', '3')).strip() 
             sources = result.get('links', [])
             q = stock['symbol'] if stock['symbol'] else stock['name']
-
-            # --- (1) Renaissance Capital & 기관 종합 요약 섹션 ---
-            with st.expander("Renaissance Capital IPO 요약", expanded=False):
+        
+            # --- (1) Renaissance Capital 섹션 (수정됨) ---
+            with st.expander("Renaissance Capital & 기관 종합 요약", expanded=False):
                 import re
                 pattern = r'(?i)source|출처|https?://'
                 parts = re.split(pattern, summary_raw)
-                summary = parts[0].strip().rstrip(' ,.:;-\n\t')
-
+                
+                # [핵심 수정] 문자열 \n을 실제 엔터로 바꾸고, 마크다운 대응을 위해 줄바꿈을 2번으로 확장
+                summary = parts[0].replace('\\n', '\n').strip().rstrip(' ,.:;-\n\t')
+                
                 if not summary or "분석 불가" in summary:
-                    st.warning("직접적인 분석 리포트를 찾지 못했습니다. (비상장 또는 데이터 업데이트 지연)")
+                    st.warning("직접적인 분석 리포트를 찾지 못했습니다.")
                 else:
-                    st.info(summary)
-                
-                
-                
-
-            # --- (2) Seeking Alpha & Morningstar 상세 평가 섹션 ---
+                    # \n을 \n\n으로 바꿔야 문단이 구분되어 보입니다.
+                    st.info(summary.replace('\n', '\n\n'))
+        
+            # --- (2) Seeking Alpha & Morningstar 섹션 (수정됨) ---
             with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
-                # 1. 제어 문자 및 마크다운 기본 정제
-                pro_con = pro_con_raw.replace("###", "").strip()
+                # [핵심 수정] 문자열 \n을 실제 엔터로 변환
+                pro_con = pro_con_raw.replace('\\n', '\n').replace("###", "").strip()
                 
-                # 2. [추가] 이모지 제거 및 '긍정', '부정' 단어 굵게 강조
-                # AI가 '✅ 긍정:', '⚠️ 부정:' 형태로 줄 때 이를 '**긍정**:', '**부정**:'으로 바꿉니다.
-                pro_con = pro_con.replace("✅ 긍정", "**긍정**").replace("⚠️ 부정", "**부정**")
+                # [문단 공백 로직] '부정' 키워드 앞에 엔터를 추가하여 한 행 공백 생성
+                pro_con = pro_con.replace("긍정:", "**긍정**:").replace("부정:", "\n\n**부정**:")
+                pro_con = pro_con.replace("✅ 긍정", "**긍정**").replace("⚠️ 부정", "\n\n**부정**")
                 
                 if "의견 수집 중" in pro_con or not pro_con:
                     st.error("AI가 실시간 리포트 본문을 분석하는 데 실패했습니다.")
                 else:
-                    # 정제된 pro_con 출력
-                    st.success(pro_con)
-                
-                
-                
-                
-                
-
+                    # 최종 출력 시 줄바꿈 강제 적용
+                    st.success(pro_con.replace('\n', '\n\n'))
+        
+        
             # --- (3) Institutional Sentiment 섹션 ---
             with st.expander("Sentiment Score", expanded=False):
                 s_col1, s_col2 = st.columns(2)
