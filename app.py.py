@@ -92,22 +92,10 @@ def get_unified_tab1_analysis(company_name, ticker):
     """
 
     try:
-        # [핵심 수정] tools 설정을 가장 안전한 'Tool 객체' 방식으로 변경
-        tool_config = genai.types.Tool(
-            google_search_retrieval=genai.types.GoogleSearchRetrieval(
-                dynamic_retrieval_config=genai.types.DynamicRetrievalConfig(
-                    mode=genai.types.DynamicRetrievalConfig.Mode.DYNAMIC,
-                    dynamic_threshold=0.3,
-                )
-            )
-        )
-        
-        # 만약 위 설정도 안 먹히면 가장 단순한 이 방식을 씁니다: tools='google_search_retrieval'
-        # 하지만 지금 에러 메시지를 보면 'google_search'를 쓰라고 하므로 아래와 같이 설정합니다.
-        
+        # [최종 수정] 라이브러리 업데이트 후에는 이 표준 코드가 작동합니다.
         response = model.generate_content(
             prompt,
-            tools=[{'google_search': {}}] # 다시 원래대로 하되, 리스트 안에 딕셔너리 구조 확인
+            tools=[{'google_search': {}}] 
         )
         full_text = response.text
 
@@ -139,9 +127,11 @@ def get_unified_tab1_analysis(company_name, ticker):
         return html_output, news_list
 
     except Exception as e:
+        # 버전 문제일 경우 안내 메시지 출력
+        if "Unknown field" in str(e):
+            return f"<p style='color:red;'>⚠️ 라이브러리 버전 오류: requirements.txt에 'google-generativeai>=0.7.0'을 추가하고 앱을 재부팅해주세요.</p>", []
         return f"<p style='color:red;'>분석 중 오류 발생: {str(e)}</p>", []
 
-# (B) Tab 4용: 기관 평가 분석 통합 (최종 수정본)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab4_analysis(company_name, ticker):
     if not model:
@@ -171,7 +161,7 @@ def get_unified_tab4_analysis(company_name, ticker):
     """
 
     try:
-        # [핵심 수정] tools 설정 변경
+        # [최종 수정] 표준 도구 설정
         response = model.generate_content(
             prompt,
             tools=[{'google_search': {}}]
@@ -185,6 +175,8 @@ def get_unified_tab4_analysis(company_name, ticker):
             return {"rating": "Neutral", "summary": "데이터 파싱 실패", "pro_con": full_text, "links": []}
 
     except Exception as e:
+        if "Unknown field" in str(e):
+            return {"rating": "Error", "summary": "라이브러리 업데이트 필요", "pro_con": "requirements.txt에 'google-generativeai>=0.7.0'을 추가하세요.", "links": []}
         return {"rating": "Error", "summary": f"분석 오류: {str(e)}", "pro_con": "", "links": []}
 
 # ==========================================
