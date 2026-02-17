@@ -62,7 +62,7 @@ model = configure_genai()
 # ---------------------------------------------------------
 
 # (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (기존 고품질 프롬프트 복원)
-@st.cache_data(show_spinner=False, ttl=86400)
+@st.cache_data(show_spinner=False, ttl=21600)
 def get_unified_tab1_analysis(company_name, ticker):
     if not model: return "AI 모델 설정 오류", []
 
