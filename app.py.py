@@ -532,43 +532,38 @@ def send_approval_email(to_email, user_id):
         return False
 
 def save_user_to_sheets(user_data):
-    """회원가입 정보를 구글 시트에 최종 기록하는 함수"""
-    # 1. 구글 클라이언트 가져오기 (이 함수도 정의되어 있어야 합니다)
     client, _ = get_gcp_clients()
-    
     if client:
         try:
-            # 2. 시트 열기 (시트 이름: unicorn_users)
+            # 데이터가 비어있는지 체크
+            if not user_data:
+                st.error("🚨 전달된 유저 데이터가 아예 비어있습니다!")
+                return False
+
             sh = client.open("unicorn_users").sheet1
             
-            # 3. 15개 열 데이터 매핑 (A열 ~ O열)
-            # ID, PW, Email, Phone, Role, Status, Univ, Job, Asset, Display, Date, Link_U, Link_J, Link_A, Visibility
+            # 입력할 데이터 행 생성
             row = [
-                user_data.get('id'),
-                user_data.get('pw'),
-                user_data.get('email'),
-                user_data.get('phone'),
-                user_data.get('role', 'restricted'), # 기본값 restricted
-                user_data.get('status', 'pending'),  # 기본값 pending
-                user_data.get('univ', ''),
-                user_data.get('job', ''),   # job 또는 job_title
-                user_data.get('asset', ''),
-                user_data.get('display_name', ''),
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # 가입일
-                user_data.get('link_univ', '미제출'),
-                user_data.get('link_job', '미제출'),
-                user_data.get('link_asset', '미제출'),
-                "True,True,True" # 기본 노출 설정 (모두 공개)
+                user_data.get('id'), user_data.get('pw'), user_data.get('email'), user_data.get('phone'),
+                user_data.get('role', 'restricted'), user_data.get('status', 'pending'),
+                user_data.get('univ', ''), user_data.get('job', ''), user_data.get('asset', ''),
+                user_data.get('display_name', ''), datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                user_data.get('link_univ', '미제출'), user_data.get('link_job', '미제출'),
+                user_data.get('link_asset', '미제출'), "True,True,True"
             ]
             
-            # 4. 행 추가
+            # 데이터 전송 시도
             sh.append_row(row)
             return True
             
         except Exception as e:
-            st.error(f"구글 시트 저장 중 오류 발생: {str(e)}")
+            # [여기가 핵심] 단순 오류 발생 메시지가 아니라 e 자체를 출력
+            st.error(f"❗ 구글 서버 답변: {str(e)}") 
+            import traceback
+            st.code(traceback.format_exc()) # 상세 에러 경로 출력
             return False
     
+    st.error("❌ 구글 클라이언트 연결 자체가 안 된 상태입니다.")
     return False
 
 def send_rejection_email(to_email, user_id, reason):
