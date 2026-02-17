@@ -154,6 +154,26 @@ def db_load_posts(limit=50, category=None):
         # print(f"DB Error: {e}") 
         return []
 
+# [정보 공개 범위 업데이트 함수]
+def db_update_user_visibility(user_id, visibility_list):
+    try:
+        # 리스트로 들어온 설정(['학력', '자산'])을 문자열("학력,자산")로 변환해서 저장
+        # (만약 이미 문자열이라면 그대로 사용)
+        if isinstance(visibility_list, list):
+            value_to_save = ",".join(visibility_list)
+        else:
+            value_to_save = str(visibility_list)
+
+        # Supabase 업데이트 실행
+        response = supabase.table("users").update({"visibility": value_to_save}).eq("id", user_id).execute()
+        
+        # 성공적으로 업데이트되면 데이터가 반환됨
+        return True if response.data else False
+        
+    except Exception as e:
+        st.error(f"공개 범위 설정 실패: {e}")
+        return False
+        
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
 # ---------------------------------------------------------
@@ -1793,8 +1813,8 @@ elif st.session_state.page == 'setup':
                 with st.spinner("설정 적용 중..."):
                     current_settings = [show_univ, show_job, show_asset]
                     
-                    # 가시성 업데이트 시도
-                    if update_user_visibility(user.get('id'), current_settings):
+                    # 수정: 새로 만든 db_ 함수 호출
+                    if db_update_user_visibility(user.get('id'), current_settings):
                         st.session_state.user_info['visibility'] = ",".join([str(v) for v in current_settings])
                         st.session_state.page = 'calendar' 
                         st.rerun()
