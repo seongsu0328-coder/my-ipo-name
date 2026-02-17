@@ -532,38 +532,44 @@ def send_approval_email(to_email, user_id):
         return False
 
 def save_user_to_sheets(user_data):
+    """회원가입 정보를 구글 시트에 최종 기록하는 함수"""
     client, _ = get_gcp_clients()
     if client:
         try:
-            # 데이터가 비어있는지 체크
             if not user_data:
-                st.error("🚨 전달된 유저 데이터가 아예 비어있습니다!")
                 return False
 
+            # 시트 열기 (중복 파일 방지를 위해 open_by_key 권장, 현재는 이름 기준)
             sh = client.open("unicorn_users").sheet1
             
-            # 입력할 데이터 행 생성
+            # 입력할 데이터 행 생성 (15개 컬럼)
             row = [
-                user_data.get('id'), user_data.get('pw'), user_data.get('email'), user_data.get('phone'),
-                user_data.get('role', 'restricted'), user_data.get('status', 'pending'),
-                user_data.get('univ', ''), user_data.get('job', ''), user_data.get('asset', ''),
-                user_data.get('display_name', ''), datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                user_data.get('link_univ', '미제출'), user_data.get('link_job', '미제출'),
-                user_data.get('link_asset', '미제출'), "True,True,True"
+                user_data.get('id'), 
+                user_data.get('pw'), 
+                user_data.get('email'), 
+                user_data.get('phone'),
+                user_data.get('role', 'restricted'), 
+                user_data.get('status', 'pending'),
+                user_data.get('univ', ''), 
+                user_data.get('job', ''), 
+                user_data.get('asset', ''),
+                user_data.get('display_name', ''), 
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                user_data.get('link_univ', '미제출'), 
+                user_data.get('link_job', '미제출'),
+                user_data.get('link_asset', '미제출'), 
+                "True,True,True" # 기본 가시성 설정
             ]
             
-            # 데이터 전송 시도
+            # 데이터 추가
             sh.append_row(row)
             return True
             
         except Exception as e:
-            # [여기가 핵심] 단순 오류 발생 메시지가 아니라 e 자체를 출력
-            st.error(f"❗ 구글 서버 답변: {str(e)}") 
-            import traceback
-            st.code(traceback.format_exc()) # 상세 에러 경로 출력
+            # 운영 환경에서는 로그만 남기거나 에러 발생 사실만 알림
+            print(f"Google Sheet Save Error: {e}") 
             return False
     
-    st.error("❌ 구글 클라이언트 연결 자체가 안 된 상태입니다.")
     return False
 
 def send_rejection_email(to_email, user_id, reason):
