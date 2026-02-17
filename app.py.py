@@ -3117,8 +3117,8 @@ elif st.session_state.page == 'detail':
                     st.info(summary)
                 
                 # 구글 검색 바로가기 버튼 1
-                search_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
-                st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
+                rc_direct_url = f"https://www.renaissancecapital.com/IPO-Center/Search?q={q}"
+                    st.link_button(f"📊 Renaissance 데이터 직접 보기", rc_direct_url)
 
             # --- (2) Seeking Alpha & Morningstar 상세 평가 섹션 ---
             with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
@@ -3136,9 +3136,7 @@ elif st.session_state.page == 'detail':
                 with c2:
                     st.link_button("Morningstar 검색 결과", f"https://www.morningstar.com/search?query={q}")
                 
-                # 구글 검색 바로가기 버튼 2 (심층 분석용)
-                st.write("")
-                st.link_button(f"🔎 {stock['name']} 심층 분석 데이터 검색", f"https://www.google.com/search?q={q}+stock+pros+and+cons+analysis+2025+2026")
+                
 
             # --- (3) Institutional Sentiment 섹션 ---
             with st.expander("Sentiment Score", expanded=False):
