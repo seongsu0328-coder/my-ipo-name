@@ -28,6 +28,9 @@ from googleapiclient.http import MediaIoBaseUpload
 
 # --- [AI 라이브러리: Gemini만 남김] ---
 import google.generativeai as genai
+st.write(f"현재 설치된 버전: {genai.__version__}") 
+# 0.7.0 이상(예: 0.8.3)이 나와야 정상입니다. 
+# 만약 0.5.x 등이 나오면 재부팅이 안 된 것입니다.
 # (Tavily, OpenAI, DuckDuckGo 등은 삭제하거나 주석 처리)
 
 # ==========================================
