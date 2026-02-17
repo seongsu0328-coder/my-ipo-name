@@ -10,6 +10,7 @@ import random
 import math
 import html
 import re
+import json
 import urllib.parse
 import smtplib
 import gspread
@@ -20,22 +21,167 @@ from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 
 # ==========================================
-# [중요] 구글 라이브러리 - 이 위치가 반드시 함수보다 위여야 합니다!
+# [중요] 구글 라이브러리
 # ==========================================
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
-# --- [AI 및 검색 라이브러리] ---
-from openai import OpenAI
+# --- [AI 라이브러리: Gemini만 남김] ---
 import google.generativeai as genai
-from tavily import TavilyClient
-from duckduckgo_search import DDGS
+# (Tavily, OpenAI, DuckDuckGo 등은 삭제하거나 주석 처리)
 
 # ==========================================
 # [설정] 전역 변수
 # ==========================================
 DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 MY_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
+
+# ---------------------------------------------------------
+# [0] AI 설정: Gemini 모델 초기화 (Tier 1 활용)
+# ---------------------------------------------------------
+@st.cache_resource
+def configure_genai():
+    genai_key = st.secrets.get("GENAI_API_KEY")
+    if genai_key:
+        genai.configure(api_key=genai_key)
+        # 검색 기능이 탑재된 최신 모델 사용
+        return genai.GenerativeModel('gemini-1.5-flash')
+    return None
+
+model = configure_genai()
+
+# ---------------------------------------------------------
+# [1] 통합 분석 함수 (Tab 1 & Tab 4 대체용)
+# ---------------------------------------------------------
+
+# (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (Tavily/Groq 대체)
+@st.cache_data(show_spinner=False, ttl=86400)
+def get_unified_tab1_analysis(company_name, ticker):
+    """
+    비즈니스 모델 요약과 최신 뉴스 5개를 Google Search Grounding으로 한 번에 가져옵니다.
+    """
+    if not model:
+        return "AI 모델 설정 오류", []
+
+    prompt = f"""
+    당신은 월가 출신의 수석 애널리스트입니다. 분석 대상: {company_name} ({ticker})
+    
+    [작업 1: 비즈니스 모델 심층 분석]
+    반드시 한국어로, 다음 3개 문단으로 작성하세요. (소제목/불렛포인트 절대 금지, 오직 줄글로만)
+    1문단: 기업의 핵심 비즈니스 모델 및 독보적인 경쟁 우위
+    2문단: 최근 재무 성과 및 이번 IPO를 통한 자금 조달 목적과 활용 계획
+    3문단: 향후 시장 전망 및 거시적 관점에서의 투자 의견
+    * 주의: 모든 문장의 시작을 기업명으로 하지 말고 다양하게 구성하세요.
+
+    [작업 2: 최신 뉴스 및 감성 분석]
+    - Google 검색을 통해 이 기업의 가장 최근(1주일 이내) 주요 뉴스 5개를 선정하세요.
+    - 검색 시 {company_name}의 업종과 관련 없는 동명의 기업(예: 보석, 패션 등) 뉴스는 철저히 배제하세요.
+    - 각 뉴스에 대해 다음 정보를 포함한 JSON 리스트 형식으로 답변 마지막에 첨부하세요.
+    
+    형식 예시: 
+    <JSON_START>
+    {{
+      "news": [
+        {{
+          "title_en": "영어 원문 제목",
+          "title_ko": "자연스러운 한글 번역",
+          "link": "뉴스 URL",
+          "sentiment": "긍정/부정/일반",
+          "date": "발행일(예: Feb 17)"
+        }}
+      ]
+    }}
+    <JSON_END>
+    """
+
+    try:
+        # 단 한 번의 호출로 모든 데이터 획득 (구글 검색 도구 사용)
+        response = model.generate_content(
+            prompt,
+            tools=[{"google_search": {}}]
+        )
+        full_text = response.text
+
+        # 1. 비즈니스 분석 텍스트 추출
+        biz_analysis = full_text.split("<JSON_START>")[0].strip()
+        
+        # 문단 포맷팅 (HTML)
+        paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 10]
+        html_output = ""
+        for p in paragraphs:
+            html_output += f"""
+            <p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; margin-top:0;">
+                {p}
+            </p>
+            """
+
+        # 2. 뉴스 데이터 파싱
+        news_list = []
+        if "<JSON_START>" in full_text:
+            try:
+                json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
+                news_data = json.loads(json_str)
+                news_list = news_data.get("news", [])
+                # 감성 분석 색상 매핑
+                for n in news_list:
+                    if n['sentiment'] == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                    elif n['sentiment'] == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
+                    else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
+            except: pass
+
+        return html_output, news_list
+
+    except Exception as e:
+        return f"<p style='color:red;'>분석 중 오류 발생: {str(e)}</p>", []
+
+# (B) Tab 4용: 기관 평가 분석 통합 (Tavily 대체)
+@st.cache_data(show_spinner=False, ttl=86400)
+def get_unified_tab4_analysis(company_name, ticker):
+    """
+    Renaissance Capital, Seeking Alpha 등의 기관 평가를 구글 검색으로 분석합니다.
+    """
+    if not model:
+        return {"rating": "Error", "summary": "API 키 오류", "pro_con": "", "links": []}
+
+    prompt = f"""
+    당신은 월가 IPO 전문 분석가입니다. 
+    구글 검색을 통해 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 분석하세요.
+
+    [지침]
+    1. 'Renaissance Capital'이나 'Seeking Alpha'의 최신 분석 내용을 최우선으로 반영하세요.
+    2. 긍정적 요소(Pros)와 부정적 리스크(Cons)를 각각 2가지씩 명확히 구분하여 한국어로 작성하세요.
+    3. 종합적인 투자의견(Rating)을 Buy/Hold/Sell 중 하나로 제시하세요.
+    4. 전체 내용을 3줄 이내로 요약(Summary)하세요. (출처 링크는 포함하지 마세요)
+
+    [응답 형식 - JSON]
+    <JSON_START>
+    {{
+        "rating": "Buy/Hold/Sell",
+        "summary": "종합 요약 내용 (한국어)",
+        "pro_con": "긍정: ... \n부정: ... (한국어)",
+        "links": [
+            {{"title": "검색된 리포트 제목", "link": "URL"}}
+        ]
+    }}
+    <JSON_END>
+    """
+
+    try:
+        response = model.generate_content(
+            prompt,
+            tools=[{"google_search": {}}]
+        )
+        full_text = response.text
+        
+        if "<JSON_START>" in full_text:
+            json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
+            return json.loads(json_str)
+        else:
+            # 파싱 실패 시 텍스트라도 반환 시도
+            return {"rating": "Neutral", "summary": "데이터 파싱 실패", "pro_con": full_text, "links": []}
+
+    except Exception as e:
+        return {"rating": "Error", "summary": f"분석 오류: {str(e)}", "pro_con": "", "links": []}
 
 # ==========================================
 # [기능] 1. 구글 연결 핵심 함수 (최우선 순위)
@@ -209,150 +355,8 @@ def get_batch_prices(ticker_list):
         print(f"Batch Error: {e}")
         return {}
 
-# [뉴스 감성 분석 함수 - 내부 연산이므로 별도 캐싱 불필요]
-def analyze_sentiment(text):
-    text = text.lower()
-    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
-    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
-    score = 0
-    for w in pos_words:
-        if w in text: score += 1
-    for w in neg_words:
-        if w in text: score -= 1
-    
-    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
-    elif score < 0: return "부정", "#fce8e6", "#d93025"
-    else: return "일반", "#f1f3f4", "#5f6368"
-
-@st.cache_data(ttl=3600) # [수정] 1시간 (3600초) 동안 뉴스 다시 안 부름!
-@st.cache_data(ttl=3600)
-def get_real_news_rss(company_name, ticker=""):
-    import requests
-import xml.etree.ElementTree as ET
-import urllib.parse
-import re
-
-# [1] 뉴스 감성 분석 함수 (내부 연산용)
-def analyze_sentiment(text):
-    text = text.lower()
-    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
-    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
-    score = 0
-    for w in pos_words:
-        if w in text: score += 1
-    for w in neg_words:
-        if w in text: score -= 1
-    
-    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
-    elif score < 0: return "부정", "#fce8e6", "#d93025"
-    else: return "일반", "#f1f3f4", "#5f6368"
 
 
-# [핵심] 함수 이름 변경 (캐시 초기화 효과)
-@st.cache_data(show_spinner=False, ttl=86400)
-def get_ai_summary_final(query):
-    # [수정] 대문자든 소문자든 있는 쪽을 무조건 가져옵니다.
-    tavily_key = st.secrets.get("TAVILY_API_KEY") or st.secrets.get("tavily_api_key")
-    groq_key = st.secrets.get("GROQ_API_KEY") or st.secrets.get("groq_api_key")
-
-    # 두 키 중 하나라도 없으면 그때만 에러를 띄웁니다.
-    if not tavily_key or not groq_key:
-        return "<p style='color:red;'>⚠️ API 키 설정 오류: Secrets 창에 TAVILY_API_KEY와 GROQ_API_KEY가 있는지 확인하세요.</p>"
-
-    try:
-        # 1. Tavily 검색
-        tavily = TavilyClient(api_key=tavily_key)
-        search_result = tavily.search(query=query, search_depth="basic", max_results=7)
-        if not search_result.get('results'): return None 
-        context = "\n".join([r['content'] for r in search_result['results']])
-
-        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
-        client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
-        
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", 
-            messages=[
-                {
-                    "role": "system", 
-                    "content": """당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
-[필수 작성 원칙]
-1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 베트남어, 중국어 절대 사용 금지.
-2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
-   - 1문단: 비즈니스 모델 및 경쟁 우위
-   - 2문단: 재무 현황 및 공모 자금 활용
-   - 3문단: 향후 전망 및 투자 의견
-3. 문체: '~습니다' 체를 사용하되, 문장의 시작을 다양하게 구성하세요.
-   - [중요] 모든 문장이 기업명(예: '동사는', 'Clear Street Group은')으로 시작하지 않도록 주의하세요.
-   - 예시: "최근 금융 시장의 트렌드를 선도하며...", "주목할 만한 점은...", "재무적인 측면에서 살펴보면..." 등으로 문장을 시작하세요.
-4. 금지: 제목, 소제목(**), 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 오직 줄글로만 작성하세요."""
-                },
-                {
-                    "role": "user", 
-                    "content": f"Context:\n{context}\n\nQuery: {query}\n\n위 데이터를 바탕으로 전문적인 3문단 리포트를 작성하세요."
-                }
-            ],
-            temperature=0.1
-        )
-        
-        raw_result = response.choices[0].message.content
-        
-        # --- [요청하신 정제 로직 + 문단 강제 분할] ---
-        
-        # 1. 텍스트 정제 (요청하신 코드 그대로 적용)
-        text = html.unescape(raw_result)
-        replacements = {"quyết": "결", "trọng": "중", "里程碑": "이정표", "决策": "의사결정"}
-        for k, v in replacements.items(): text = text.replace(k, v)
-        
-        # 특수문자 제거 (한글, 영어, 숫자, 기본 문장부호, 줄바꿈(\s)만 허용)
-        # 주의: \s가 없으면 줄바꿈도 다 사라지므로 \s는 꼭 있어야 합니다.
-        text = re.sub(r'[^가-힣a-zA-Z0-9\s\.\,%\-\'\"]', '', text)
-        
-        # 2. 문단 강제 분리 로직 (Brute Force Split)
-        # (1) 우선 줄바꿈(엔터) 기준으로 잘라봅니다.
-        paragraphs = [p.strip() for p in re.split(r'\n+', text.strip()) if len(p) > 30]
-
-        # (2) [비상장치] 만약 AI가 줄바꿈을 안 줘서 덩어리가 1~2개뿐이라면?
-        # -> 마침표(.)를 기준으로 문장을 다 뜯어낸 뒤 강제로 3등분 합니다.
-        if len(paragraphs) < 3:
-            # 문장 단위로 분해 (마침표 뒤 공백 기준)
-            sentences = re.split(r'(?<=\.)\s+', text.strip())
-            total_sents = len(sentences)
-            
-            if total_sents >= 3:
-                # 3등분 계산 (올림 나눗셈)
-                chunk_size = (total_sents // 3) + 1
-                
-                p1 = " ".join(sentences[:chunk_size])
-                p2 = " ".join(sentences[chunk_size : chunk_size*2])
-                p3 = " ".join(sentences[chunk_size*2 :])
-                
-                # 다시 리스트로 합침 (빈 내용 제외)
-                paragraphs = [p for p in [p1, p2, p3] if len(p) > 10]
-            else:
-                # 문장이 너무 적으면 그냥 통으로 1개만 반환
-                paragraphs = [text]
-
-        # 3. HTML 태그 포장 (화면 렌더링용)
-        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
-        html_output = ""
-        for p in paragraphs:
-            html_output += f"""
-            <p style='
-                display: block;          /* 블록 요소 지정 */
-                text-indent: 14px;       /* 첫 줄 들여쓰기 */
-                margin-bottom: 20px;     /* 문단 아래 공백 */
-                line-height: 1.8;        /* 줄 간격 */
-                text-align: justify;     /* 양쪽 정렬 */
-                margin-top: 0;
-            '>
-                {p}
-            </p>
-            """
-            
-        return html_output
-
-    except Exception as e:
-        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
 
 # [수정된 함수] 캐시 제거 (로그인 시 실시간 상태 확인 필수)
 def load_users():
@@ -651,96 +655,6 @@ def clean_text_final(text):
     text = text.replace("**", "").replace("##", "").replace("###", "")
     return text.strip()
 
-# [1] 뉴스 감성 분석 함수 (분리됨)
-def analyze_sentiment(text):
-    text = text.lower()
-    pos_words = ['jump', 'soar', 'surge', 'rise', 'gain', 'buy', 'outperform', 'beat', 'success', 'growth', 'up', 'high', 'profit', 'approval']
-    neg_words = ['drop', 'fall', 'plunge', 'sink', 'loss', 'miss', 'fail', 'risk', 'down', 'low', 'crash', 'suit', 'ban', 'warning']
-    score = 0
-    for w in pos_words:
-        if w in text: score += 1
-    for w in neg_words:
-        if w in text: score -= 1
-    
-    if score > 0: return "긍정", "#e6f4ea", "#1e8e3e"
-    elif score < 0: return "부정", "#fce8e6", "#d93025"
-    else: return "일반", "#f1f3f4", "#5f6368"
-
-# [2] 통합 뉴스 검색 함수 (RSS 검색 + AI 번역 결합)
-@st.cache_data(ttl=3600)
-def get_real_news_rss(company_name):
-    """구글 뉴스 RSS 검색 + 정밀 필터링 + AI 번역"""
-    try:
-        import time
-        
-        # [수정 1] 회사 이름 정제 로직 강화 (특수문자 제거 및 콤마 처리)
-        # 1차: 법인명 제거 (Inc, Corp 등)
-        clean_name = re.sub(r'\s+(Corp|Inc|Ltd|PLC|LLC|Acquisition|Holdings|Group)\b.*$', '', company_name, flags=re.IGNORECASE)
-        # 2차: 콤마(,) 등 특수문자 제거하고 앞뒤 공백 정리
-        clean_name = re.sub(r'[^\w\s]', '', clean_name).strip()
-        
-        # 검색어 생성
-        query = f'"{clean_name}" AND (stock OR IPO OR listing OR "SEC filing")'
-        enc_query = urllib.parse.quote(query)
-        url = f"https://news.google.com/rss/search?q={enc_query}&hl=en-US&gl=US&ceid=US:en"
-
-        response = requests.get(url, timeout=5)
-        root = ET.fromstring(response.content)
-        
-        news_items = []
-        items = root.findall('./channel/item')
-        
-        # [수정 2] 검색어의 핵심 단어 리스트 추출 (예: "SOLV Energy" -> ["solv", "energy"])
-        # 단, "Energy", "Bio" 같은 일반 명사도 회사명의 일부라면 필수 조건으로 봅니다.
-        name_parts = [part.lower() for part in clean_name.split() if len(part) > 1]
-
-        for item in items[:5]: 
-            title_en = item.find('title').text
-            link = item.find('link').text
-            pubDate = item.find('pubDate').text
-            
-            title_lower = title_en.lower()
-
-            # [핵심 수정] 단순 포함 여부가 아니라, 회사 이름의 '모든 단어'가 제목에 있는지 검사
-            # 예: "SOLV Energy" -> 제목에 "solv"와 "energy"가 둘 다 없으면 탈락시킴
-            # 이렇게 하면 "Solventum (SOLV)" 뉴스는 "energy"가 없어서 걸러집니다.
-            is_match = True
-            for part in name_parts:
-                if part not in title_lower:
-                    is_match = False
-                    break
-            
-            if not is_match:
-                continue
-
-            # 1. 감성 분석
-            sent_label, bg, color = analyze_sentiment(title_en)
-            
-            # 2. 날짜 포맷
-            try: date_str = " ".join(pubDate.split(' ')[1:3])
-            except: date_str = "Recent"
-
-            # 3. AI 번역
-            title_ko = translate_news_title(title_en)
-
-            news_items.append({
-                "title": title_en,      
-                "title_ko": title_ko,   
-                "link": link, 
-                "date": date_str,
-                "sent_label": sent_label, 
-                "bg": bg, 
-                "color": color,
-                "display_tag": "일반" 
-            })
-            
-            if len(news_items) >= 5:
-                break
-                
-        return news_items
-
-    except Exception as e:
-        return []
 
 
 # ---------------------------------------------------------
@@ -1025,97 +939,7 @@ def get_ai_analysis(company_name, topic, points, structure_template):  # 인자 
     
     return "⚠️ 사용량이 많아 분석이 지연되고 있습니다. 잠시 후 다시 시도해주세요."
 
-# --- [기관 평가 분석 함수] ---
-@st.cache_data(show_spinner=False, ttl=86400) 
-def get_cached_ipo_analysis(ticker, company_name):
-    tavily_key = st.secrets.get("TAVILY_API_KEY")
-    
-    # model 객체는 외부(app.py 전역)에서 정의된 것을 사용한다고 가정합니다.
-    # 만약 함수 내에서 정의가 필요하다면 model = genai.GenerativeModel('gemini-1.5-flash') 등을 추가해야 합니다.
-    if not tavily_key:
-        return {"rating": "N/A", "pro_con": "API Key 설정 필요", "summary": "설정을 확인하세요.", "links": []}
 
-    try:
-        tavily = TavilyClient(api_key=tavily_key)
-        
-        # 쿼리 최적화
-        site_query = f"(site:renaissancecapital.com OR site:seekingalpha.com OR site:morningstar.com) {company_name} {ticker} stock IPO analysis 2025 2026"
-        
-        search_result = tavily.search(query=site_query, search_depth="advanced", max_results=10)
-        results = search_result.get('results', [])
-        
-        if not results:
-            return {"rating": "Neutral", "pro_con": "최근 기관 리포트를 찾을 수 없습니다.", "summary": "현재 공개된 전문 기관의 분석 데이터가 부족합니다.", "links": []}
-
-        search_context = ""
-        links = []
-        for r in results:
-            search_context += f"Source: {r['url']}\nContent: {r['content']}\n\n"
-            links.append({"title": r['title'], "link": r['url']})
-
-        # --- [프롬프트 수정: 링크 포함 금지 지침 추가] ---
-        prompt = f"""
-        당신은 월가 출신의 IPO 전문 분석가입니다. 아래 제공된 {company_name} ({ticker})에 대한 기관 데이터를 바탕으로 심층 분석을 수행하세요.
-        
-        [데이터 요약]:
-        {search_context}
-        
-        [작성 지침]:
-        1. 반드시 한국어로 답변하세요.
-        2. 긍정의견(Pros) 2가지와 부정의견(Cons) 2가지를 구체적인 수치나 근거를 들어 요약하세요.
-        3. Rating은 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
-        4. Summary는 전문적인 톤으로 3줄 이내로 작성하세요.
-        5. **중요: 답변 내용(Summary 포함)에 'Source:', 'http...', '출처' 등 링크 정보를 절대 포함하지 마세요. 오직 분석 텍스트만 작성하세요.**
-
-        [응답 형식]:
-        Rating: (이곳에 작성)
-        Pro_Con: 
-        - 긍정: 내용
-        - 부정: 내용
-        Summary: (이곳에 작성)
-        """
-
-        # [재시도 로직]
-        max_retries = 3
-        for i in range(max_retries):
-            try:
-                # model이 정의되어 있다고 가정 (없으면 에러 발생하므로 주의)
-                response_obj = model.generate_content(prompt)
-                response_text = response_obj.text
-
-                rating = re.search(r"Rating:\s*(.*)", response_text, re.I)
-                pro_con = re.search(r"Pro_Con:\s*([\s\S]*?)(?=Summary:|$)", response_text, re.I)
-                summary = re.search(r"Summary:\s*([\s\S]*)", response_text, re.I)
-                
-                # --- [후처리: 혹시 모를 링크 제거 로직] ---
-                raw_summary = summary.group(1).strip() if summary else response_text
-                
-                # 'Source:' 또는 'http'가 나오면 그 뒷부분은 잘라냄
-                if "Source:" in raw_summary:
-                    clean_summary = raw_summary.split("Source:")[0].strip()
-                elif "http" in raw_summary:
-                    clean_summary = raw_summary.split("http")[0].strip()
-                else:
-                    clean_summary = raw_summary
-
-                return {
-                    "rating": rating.group(1).strip() if rating else "Neutral",
-                    "pro_con": pro_con.group(1).strip() if pro_con else "분석 데이터 추출 실패",
-                    "summary": clean_summary, # 깨끗해진 요약본 적용
-                    "links": links[:5]
-                }
-            except Exception as e:
-                # 429 에러 처리 (API 한도 초과 시 대기)
-                if "429" in str(e) or "quota" in str(e).lower():
-                    time.sleep(2 * (i + 1))
-                    continue
-                return {"rating": "Error", "pro_con": f"오류 발생: {e}", "summary": "분석 중 문제가 발생했습니다.", "links": []}
-        
-        return {"rating": "N/A", "pro_con": "API 사용량 초과", "summary": "잠시 후 다시 시도해주세요.", "links": []}
-        
-    except Exception as e:
-        return {"rating": "Error", "pro_con": f"오류 발생: {e}", "summary": "데이터를 불러오는 중 문제가 발생했습니다.", "links": []}
-        
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
 # ==========================================
@@ -1157,87 +981,7 @@ IPO_REFERENCES = [
     }
 ]
 
-@st.cache_data(ttl=3600)
-def get_cached_ipo_analysis(ticker, company_name):
-    tavily_key = st.secrets.get("TAVILY_API_KEY")
-    if not tavily_key:
-        return {"rating": "N/A", "pro_con": "API Key 누락", "summary": "설정을 확인하세요.", "links": []}
 
-    try:
-        tavily = TavilyClient(api_key=tavily_key)
-        
-        # [개선 1] 검색 쿼리 다각화: 특정 사이트 한정과 일반 검색을 조합하여 정보 획득률 극대화
-        # 특히 Seeking Alpha의 최신 분석글 제목(Repay Debt 등)이 검색 결과에 잘 잡히도록 유도합니다.
-        search_queries = [
-            f"Seeking Alpha {ticker} {company_name} analysis IPO",
-            f"Renaissance Capital {ticker} {company_name} IPO profile",
-            f"Morningstar {company_name} {ticker} stock analysis",
-            f"'{company_name}' Begins IPO Rollout To Repay Debt" # 특정 뉴스 헤드라인 타겟팅
-        ]
-        
-        combined_context = ""
-        links = []
-        
-        # 여러 쿼리로 검색하여 더 넓은 범위를 수집 (중복은 AI가 제거)
-        for q in search_queries[:2]: # API 소모 조절을 위해 상위 2개 쿼리 우선 실행
-            search_result = tavily.search(query=q, search_depth="advanced", max_results=5)
-            results = search_result.get('results', [])
-            for r in results:
-                combined_context += f"Source: {r['url']}\nTitle: {r['title']}\nContent: {r['content']}\n\n"
-                if r['url'] not in [l['link'] for l in links]:
-                    links.append({"title": r['title'], "link": r['url']})
-
-        # [개선 2] AI 분석 프롬프트 보강 (요청하신 지침 반영)
-        prompt = f"""
-        당신은 월스트리트의 IPO 전문 분석가입니다. 
-        제공된 검색 결과(snippets)를 정밀하게 읽고 {company_name} ({ticker})에 대한 기관 평가를 요약하세요.
-
-        [지침]
-        1. 'Seeking Alpha', 'Renaissance Capital', 'Morningstar'의 분석 내용을 최우선으로 반영하세요.
-        2. 만약 내용 중 'Begins IPO Rollout to Repay Debt' (부채 상환을 위한 IPO 전개)와 관련된 언급이 있다면 반드시 분석에 포함시키세요.
-        3. 긍정적 요소(Pros)와 부정적/리스크 요소(Cons)를 각각 2가지씩 명확히 구분하세요.
-        4. 데이터가 파편화되어 있다면 검색된 텍스트 중 가장 신뢰도 높은 경제 지표나 문구를 사용하세요.
-
-        반드시 아래 형식을 지키세요:
-        Rating: (Buy/Hold/Sell/Neutral 중 선택)
-        Pro_Con: 
-        - 긍정1: 내용
-        - 긍정2: 내용
-        - 부정1: 내용
-        - 부정2: 내용
-        Summary: (전체 요약 3줄 내외, 부채 상환 이슈가 있다면 반드시 언급)
-        """
-
-        # Gemini 모델 호출 (전역 변수로 model이 정의되어 있어야 함)
-        full_response = model.generate_content([prompt, combined_context]).text
-        
-        # 결과 파싱 (간단한 파싱 로직)
-        rating = "Neutral"
-        if "Rating:" in full_response:
-            rating = full_response.split("Rating:")[1].split("\n")[0].strip()
-        
-        pro_con = "의견 수집 중"
-        if "Pro_Con:" in full_response:
-            pro_con = full_response.split("Pro_Con:")[1].split("Summary:")[0].strip()
-            
-        summary = "데이터를 분석할 수 없습니다."
-        if "Summary:" in full_response:
-            summary = full_response.split("Summary:")[1].strip()
-
-        return {
-            "rating": rating,
-            "pro_con": pro_con,
-            "summary": summary,
-            "links": links
-        }
-
-    except Exception as e:
-        return {
-            "rating": "Error",
-            "pro_con": f"분석 중 오류 발생: {str(e)}",
-            "summary": "AI 서비스 응답 지연",
-            "links": []
-        }
 
 # ==========================================
 # [3] 핵심 재무 분석 함수 (yfinance 실시간 연동)
