@@ -3207,21 +3207,16 @@ elif st.session_state.page == 'detail':
 
                     st.caption(f"ℹ️ {score_desc}")
 
-            # --- (4) References (기존 링크들을 이곳으로 통합) ---
-            with st.expander("📖 References & External Links", expanded=True):
-                st.markdown('<p style="font-size: 1.0rem; font-weight: 600;">실시간 리서치 데이터 소스</p>', unsafe_allow_html=True)
-                
-                # AI가 동적으로 찾아낸 뉴스/리포트 링크들
+            # --- (4) References (제목 제거 및 링크 통합) ---
+            with st.expander("References", expanded=False):
+                # 1. AI가 동적으로 찾아낸 뉴스/리포트 링크들 (제목 없이 바로 노출)
                 if sources:
                     for src in sources:
                         st.markdown(f"- [{src['title']}]({src['link']})")
                 else:
                     st.caption("실시간 참조 리포트 링크를 불러올 수 없습니다.")
                 
-                st.markdown('---')
-                st.markdown('<p style="font-size: 1.0rem; font-weight: 600;">주요 분석 기관 바로가기</p>', unsafe_allow_html=True)
-                
-                # 기존에 섹션마다 흩어져 있던 버튼들을 리스트 형태로 통합
+                # 2. 주요 분석 기관 바로가기 (구분선과 제목 제거 후 리스트 통합)
                 st.markdown(f"- [Renaissance Capital: {stock['name']} 상세 데이터](https://www.google.com/search?q=site:renaissancecapital.com+{q})")
                 st.markdown(f"- [Seeking Alpha: {stock['name']} 심층 분석글](https://seekingalpha.com/symbol/{q}/analysis)")
                 st.markdown(f"- [Morningstar: {stock['name']} 리서치 결과](https://www.morningstar.com/search?query={q})")
