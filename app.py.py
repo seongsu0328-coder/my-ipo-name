@@ -37,21 +37,29 @@ DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 MY_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
 
 # ---------------------------------------------------------
-# [0] AI 설정: Gemini 모델 초기화 (Tier 1 활용)
+# [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
 # ---------------------------------------------------------
 @st.cache_resource
 def configure_genai():
     genai_key = st.secrets.get("GENAI_API_KEY")
     if genai_key:
         genai.configure(api_key=genai_key)
-        # 검색 기능이 탑재된 최신 모델 사용
-        return genai.GenerativeModel('gemini-1.5-flash')
+        
+        try:
+            # [핵심] 여기서 'google_search'를 문자열로 선언! 
+            # 라이브러리가 알아서 최적의 도구 객체를 연결합니다.
+            return genai.GenerativeModel('gemini-1.5-flash', tools='google_search')
+        except Exception as e:
+            print(f"Tool Config Error: {e}")
+            return genai.GenerativeModel('gemini-1.5-flash')
+            
     return None
 
 model = configure_genai()
 
-# [수정] 0.8.6 버전용 도구 설정 (가장 호환성 높은 방식)
-search_tool = {'google_search': {}} 
+# ---------------------------------------------------------
+# [1] 통합 분석 함수 (Tab 1 & Tab 4) - tools 파라미터 삭제됨
+# ---------------------------------------------------------
 
 # (A) Tab 1용 함수
 @st.cache_data(show_spinner=False, ttl=86400)
@@ -75,14 +83,8 @@ def get_unified_tab1_analysis(company_name, ticker):
     """
 
     try:
-        # [핵심 수정] protos 모듈을 사용해 직접 도구 객체를 생성합니다.
-        # 이 방식은 딕셔너리 해석 단계를 건너뛰므로 'Unknown field' 에러가 절대 나지 않습니다.
-        search_tool = protos.Tool(google_search=protos.GoogleSearch())
-        
-        response = model.generate_content(
-            prompt,
-            tools=[search_tool] 
-        )
+        # [수정] 위에서 이미 도구를 장착했으므로, 여기선 tools 파라미터가 필요 없습니다!
+        response = model.generate_content(prompt)
         full_text = response.text
 
         # 1. 텍스트 추출
@@ -129,13 +131,8 @@ def get_unified_tab4_analysis(company_name, ticker):
     """
 
     try:
-        # [핵심 수정] protos 직접 사용
-        search_tool = protos.Tool(google_search=protos.GoogleSearch())
-
-        response = model.generate_content(
-            prompt,
-            tools=[search_tool]
-        )
+        # [수정] tools 파라미터 필요 없음
+        response = model.generate_content(prompt)
         
         if "<JSON_START>" in response.text:
             json_str = response.text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
