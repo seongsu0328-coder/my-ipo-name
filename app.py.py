@@ -26,12 +26,9 @@ from datetime import datetime, timedelta
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
-# --- [AI 라이브러리: Gemini만 남김] ---
+# --- [AI 라이브러리] ---
 import google.generativeai as genai
-st.write(f"현재 설치된 버전: {genai.__version__}") 
-# 0.7.0 이상(예: 0.8.3)이 나와야 정상입니다. 
-# 만약 0.5.x 등이 나오면 재부팅이 안 된 것입니다.
-# (Tavily, OpenAI, DuckDuckGo 등은 삭제하거나 주석 처리)
+from google.generativeai import protos  
 
 # ==========================================
 # [설정] 전역 변수
@@ -78,11 +75,9 @@ def get_unified_tab1_analysis(company_name, ticker):
     """
 
     try:
-        # [핵심 수정] 딕셔너리 대신 'Tool 객체'를 직접 생성해서 전달합니다.
-        # 이렇게 하면 라이브러리가 '함수 선언'으로 오해하지 않습니다.
-        search_tool = genai.types.Tool(
-            google_search=genai.types.GoogleSearch()
-        )
+        # [핵심 수정] protos 모듈을 사용해 직접 도구 객체를 생성합니다.
+        # 이 방식은 딕셔너리 해석 단계를 건너뛰므로 'Unknown field' 에러가 절대 나지 않습니다.
+        search_tool = protos.Tool(google_search=protos.GoogleSearch())
         
         response = model.generate_content(
             prompt,
@@ -134,10 +129,8 @@ def get_unified_tab4_analysis(company_name, ticker):
     """
 
     try:
-        # [핵심 수정] Tool 객체 명시적 생성
-        search_tool = genai.types.Tool(
-            google_search=genai.types.GoogleSearch()
-        )
+        # [핵심 수정] protos 직접 사용
+        search_tool = protos.Tool(google_search=protos.GoogleSearch())
 
         response = model.generate_content(
             prompt,
