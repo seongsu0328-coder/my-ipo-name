@@ -3117,7 +3117,8 @@ elif st.session_state.page == 'detail':
                 
                 # [수정] 404 에러 방지를 위한 구글 필터링 검색 방식
                 # 사이트 내부 검색 엔진 오류를 우회하여 가장 정확한 종목 페이지를 찾아줍니다.
-                rc_bypass_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
+                # 가장 안정적인 메인 경로
+                rc_direct_url = "https://www.renaissancecapital.com/IPO-Center/Recently-Priced-IPOs"
                 st.link_button(f"📊 {stock['name']} Renaissance 리포트 찾기", rc_bypass_url, use_container_width=True)
                 
 
