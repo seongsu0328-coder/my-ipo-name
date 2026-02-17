@@ -1,0 +1,40 @@
+name: UnicornFinder Daily Worker
+
+on:
+  schedule:
+    # -----------------------------------------------------------
+    # [시간 설정 핵심]
+    # KST(한국)는 UTC(세계표준시)보다 9시간 빠릅니다.
+    # 한국 오전 06:00 = UTC 전날 오후 21:00
+    # 따라서 cron 식은 '0 21 * * *' 입니다.
+    # -----------------------------------------------------------
+    - cron: '0 21 * * *'
+  
+  # 수동으로도 버튼 눌러서 실행할 수 있게 함 (테스트용)
+  workflow_dispatch:
+
+jobs:
+  run-worker:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 저장소 코드 체크아웃
+        uses: actions/checkout@v3
+
+      - name: 파이썬 3.9 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 필수 라이브러리 설치
+        run: |
+          pip install requests pandas numpy yfinance supabase google-generativeai
+
+      - name: 데이터 수집기(Worker) 실행
+        env:
+          # GitHub Settings -> Secrets에 등록된 키들을 불러옵니다.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GENAI_API_KEY: ${{ secrets.GENAI_API_KEY }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: python worker.py
