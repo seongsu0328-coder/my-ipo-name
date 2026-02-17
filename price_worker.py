@@ -62,8 +62,8 @@ def get_target_tickers():
 # 4. 메인 실행 로직
 def fetch_and_update_prices():
     # [Step 1] 시장 시간 체크
-    #if not is_market_open():
-    #    return # 장 닫혔으면 여기서 즉시 종료 (자원 절약)
+    if not is_market_open():
+        return # 장 닫혔으면 여기서 즉시 종료 (자원 절약)
 
     print("🚀 실시간 주가 수집 시작 (15분 주기)...")
     
