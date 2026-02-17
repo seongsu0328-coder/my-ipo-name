@@ -1369,12 +1369,10 @@ if 'user_info' not in st.session_state:
 # 바로 아래에 기존의 if st.session_state.page == 'login': 로직이 이어지면 됩니다.
 
 
-# --- [1. 로그인 & 회원가입 페이지] ---
-if st.session_state.page == 'login':
-  
-    # 1. 스타일링
+# 1. 스타일링 (투명 유령 박스 제거 버전)
     st.markdown("""
     <style>
+        /* [기존 디자인 유지] */
         .login-title {
             font-size: 2.5rem !important; font-weight: 800 !important;
             background: linear-gradient(to right, #6a11cb 0%, #2575fc 100%);
@@ -1386,8 +1384,37 @@ if st.session_state.page == 'login':
             background-color: white; padding: 30px; border-radius: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #f0f0f0;
         }
-        /* 입력창 라벨과 박스 간격 조정 */
         .stTextInput { margin-bottom: 10px; }
+
+        /* [핵심: 유령 박스 원천 차단] */
+        /* 1. 내용(텍스트)이 없는 모든 버튼 껍데기를 물리적으로 숨깁니다. */
+        .stButton button:empty,
+        .stButton button:has(div:empty),
+        .stButton button:contains("") {
+            display: none !important;
+            height: 0px !important;
+            width: 0px !important;
+            margin: 0px !important;
+            padding: 0px !important;
+            border: none !important;
+            pointer-events: none !important;
+        }
+
+        /* 2. 로그인 페이지 버튼이 캘린더의 '투명' 스타일을 따라가지 않게 강제 복구 */
+        /* 버튼 내부에 텍스트가 있는 경우에만 다시 배경색을 입힙니다. */
+        .stApp div.stButton > button {
+            background-color: #FF4B4B !important; /* 기본 레드 혹은 원하는 색상 */
+            color: white !important;
+            border-radius: 8px !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+
+        /* 3. 버튼 안의 텍스트 색상 강제 (흰색) */
+        .stButton button p {
+            color: white !important;
+            font-weight: bold !important;
+        }
     </style>
     """, unsafe_allow_html=True)
 
