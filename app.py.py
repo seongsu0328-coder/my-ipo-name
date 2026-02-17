@@ -506,15 +506,15 @@ def get_batch_prices(ticker_list):
         except Exception as e:
             print(f"Yahoo API Error: {e}")
 
-    # [디버깅용 메시지 출력]
-    # cached_data의 개수와 API 호출 여부를 확인
+    # [디버깅용 메시지 출력 - 수정됨]
     count_total = len(ticker_list)
     count_cached = len(cached_data)
     
-    # 힌트: API를 호출했다면 missing_tickers가 비어있지 않았을 것임
     if missing_tickers:
-        st.toast(f"⚠️ API 호출 발생! (새로고침: {len(missing_tickers)}건)", icon="cloud")
+        # icon="cloud" (X) -> icon="☁️" (O) 또는 "⚠️"
+        st.toast(f"⚠️ API 호출 발생! (새로고침: {len(missing_tickers)}건)", icon="⚠️")
     else:
+        # icon="rocket" (X) -> icon="🚀" (O)
         st.toast(f"⚡ 속도 쾌적! DB 캐시 사용 중 ({count_cached}/{count_total}건)", icon="🚀")
 
     return cached_data
