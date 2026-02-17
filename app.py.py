@@ -58,40 +58,60 @@ def configure_genai():
 model = configure_genai()
 
 # ---------------------------------------------------------
-# [1] 통합 분석 함수 (Tab 1 & Tab 4) - tools 파라미터 삭제됨
+# [1] 통합 분석 함수 (Tab 1 & Tab 4 대체용) - 프롬프트 강화판
 # ---------------------------------------------------------
 
-# (A) Tab 1용 함수
+# (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (기존 고품질 프롬프트 복원)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab1_analysis(company_name, ticker):
     if not model: return "AI 모델 설정 오류", []
 
     prompt = f"""
-    당신은 월가 수석 애널리스트입니다. 분석 대상: {company_name} ({ticker})
-    
-    [작업 1: 비즈니스 모델 심층 분석]
-    반드시 한국어로 3문단 작성 (소제목/불렛포인트 금지, 줄글로만):
-    1문단: 핵심 비즈니스 모델 및 경쟁 우위
-    2문단: 재무 성과 및 자금 조달 목적
-    3문단: 시장 전망 및 투자 의견
+    당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
+    분석 대상: {company_name} ({ticker})
 
-    [작업 2: 최신 뉴스 및 감성 분석]
-    - Google 검색으로 {company_name}의 1주일 이내 주요 뉴스 5개 선정.
-    - JSON 리스트 형식으로 답변 마지막에 첨부.
+    [작업 1: 비즈니스 모델 심층 분석]
+    아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
+    
+    1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 
+    2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
+       - 1문단: 비즈니스 모델 및 경쟁 우위 (독점력, 시장 지배력 등)
+       - 2문단: 재무 현황 및 공모 자금 활용 (매출 추이, 흑자 전환 여부, 자금 사용처)
+       - 3문단: 향후 전망 및 투자 의견 (시장 성장성, 리스크 요인 포함)
+    3. 문체: '~습니다' 체를 사용하되, 문장의 시작을 다양하게 구성하세요.
+       - [중요] 모든 문장이 기업명(예: '동사는', '{company_name}은')으로 시작하지 않도록 주의하세요.
+       - 예시: "최근 금융 시장의 트렌드를 선도하며...", "주목할 만한 점은...", "재무적인 측면에서 살펴보면..." 등으로 시작.
+    4. 금지: **제목, 소제목(예: ### 작업1), 특수기호, 불렛포인트(-)**를 절대 쓰지 마세요. 오직 줄글(Paragraph)로만 작성하세요.
+
+    [작업 2: 최신 뉴스 수집]
+    - Google 검색을 통해 이 기업의 가장 최근(1주일 이내) 주요 뉴스 5개를 선정하세요.
+    - 검색 시 {company_name}의 업종과 관련 없는 동명의 기업 뉴스는 철저히 배제하세요.
+    - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. (절대 본문에 섞지 마세요)
     
     형식: <JSON_START> {{ "news": [ {{ "title_en": "...", "title_ko": "...", "link": "...", "sentiment": "긍정/부정/일반", "date": "..." }} ] }} <JSON_END>
     """
 
     try:
-        # [수정] 위에서 이미 도구를 장착했으므로, 여기선 tools 파라미터가 필요 없습니다!
+        # tools 설정을 모델 초기화 시 이미 했으므로 여기선 생략
         response = model.generate_content(prompt)
         full_text = response.text
 
-        # 1. 텍스트 추출
+        # 1. 텍스트 추출 (JSON 앞부분만 가져옴)
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
+        
+        # 불필요한 마크다운 헤더 제거 (혹시 AI가 출력할 경우를 대비)
+        biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
+
+        # 문단 포맷팅 (HTML)
+        # 문단이 명확히 나뉘도록 줄바꿈 기준으로 처리
+        paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
         html_output = ""
-        for p in [x.strip() for x in biz_analysis.split('\n') if len(x.strip()) > 10]:
-            html_output += f"<p style='display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; margin-top:0;'>{p}</p>"
+        for p in paragraphs:
+            html_output += f"""
+            <p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; margin-top:0; font-size: 15px; color: #333;">
+                {p}
+            </p>
+            """
 
         # 2. 뉴스 파싱
         news_list = []
@@ -110,28 +130,39 @@ def get_unified_tab1_analysis(company_name, ticker):
     except Exception as e:
         return f"<p style='color:red;'>시스템 오류: {str(e)}</p>", []
 
-# (B) Tab 4용 함수
+# (B) Tab 4용: 기관 평가 분석 통합 (프롬프트 고도화)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab4_analysis(company_name, ticker):
     if not model: return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
 
     prompt = f"""
-    분석 대상: {company_name} ({ticker})
-    지침: 구글 검색을 통해 Seeking Alpha, Renaissance Capital 등 최신 기관 리포트를 찾아 분석.
-    
-    [응답 형식 - JSON]
+    당신은 월가 출신의 IPO 전문 분석가입니다. 
+    구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
+
+    [작성 지침]
+    1. **언어**: 반드시 한국어로 답변하세요.
+    2. **분석 깊이**: 단순 사실 나열이 아닌, 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
+    3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
+    4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
+    5. **Summary**: 전문적인 톤으로 3줄 이내로 핵심만 간결하게 작성하세요. (부채 상환, 합병, 청산 등의 주요 이슈가 있다면 반드시 포함)
+    6. **링크 금지**: 답변 텍스트(Summary, Pro_con) 내에는 'Source:', 'http...' 등의 출처 링크를 절대 포함하지 마세요.
+
+    [응답 형식 - JSON Only]
+    반드시 아래 JSON 형식으로만 응답하세요. 다른 말은 하지 마세요.
     <JSON_START>
     {{
-        "rating": "Buy/Hold/Sell",
-        "summary": "3줄 요약 (한국어)",
-        "pro_con": "긍정: ... \n부정: ... (한국어)",
-        "links": [{{"title": "제목", "link": "URL"}}]
+        "rating": "Buy/Hold/Sell 중 하나",
+        "summary": "전문적인 3줄 요약 내용 (한국어)",
+        "pro_con": "✅ 긍정:\n- 첫 번째 긍정 요인 상세 서술\n- 두 번째 긍정 요인 상세 서술\n\n⚠️ 부정:\n- 첫 번째 리스크 요인 상세 서술\n- 두 번째 리스크 요인 상세 서술",
+        "links": [
+            {{"title": "검색된 리포트 제목", "link": "URL"}}
+        ]
     }}
     <JSON_END>
     """
 
     try:
-        # [수정] tools 파라미터 필요 없음
+        # [수정] tools 파라미터 필요 없음 (모델 초기화 시 설정됨)
         response = model.generate_content(prompt)
         
         if "<JSON_START>" in response.text:
