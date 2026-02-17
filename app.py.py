@@ -334,29 +334,22 @@ def get_ai_summary_final(query):
                 # 문장이 너무 적으면 그냥 통으로 1개만 반환
                 paragraphs = [text]
 
-        # 3. HTML 태그 포장 (화면 렌더링용)
-        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
+        # 3. 비즈니스 텍스트 문단 포장 (여기서 에러가 났던 부분을 수정한 로직입니다)
+        paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 5]
         html_output = ""
         for p in paragraphs:
+            # f-string 내부의 따옴표 충돌 방지를 위해 스타일 속성에 쌍따옴표(") 사용
             html_output += f"""
-            <p style='
-                display: block;          /* 블록 요소 지정 */
-                text-indent: 14px;       /* 첫 줄 들여쓰기 */
-                margin-bottom: 20px;     /* 문단 아래 공백 */
-                line-height: 1.8;        /* 줄 간격 */
-                text-align: justify;     /* 양쪽 정렬 */
-                margin-top: 0;
-            '>
+            <p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; margin-top:0;">
                 {p}
             </p>
             """
-            
-        return html_output
+        
+        return html_output, news_list
 
     except Exception as e:
-        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
-"""
-
+        # 에러 메시지도 안전하게 반환
+        return f"<p style='color:red;'>🚫 분석 중 오류 발생: {str(e)}</p>", []
 
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab1_analysis(company_name, ticker):
