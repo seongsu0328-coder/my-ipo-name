@@ -435,7 +435,7 @@ def get_extended_ipo_data(api_key):
 
 import yfinance as yf
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def get_batch_prices(ticker_list):
     """
     Supabase DB를 활용하여 15분 단위로 주가를 캐싱하고 Batch로 가져오는 함수
