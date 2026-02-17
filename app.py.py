@@ -1876,7 +1876,8 @@ elif st.session_state.page == 'setup':
             if st.button("가입신청회원보기", key="btn_refresh_list"):
                 st.rerun()
 
-            all_users_adm = load_users()
+            # 만들어둔 Supabase용 새 함수를 호출하도록 변경
+            all_users_adm = db_load_all_users()
             # status가 pending인 유저만 필터링
             pending_users = [u for u in all_users_adm if u.get('status') == 'pending']
             
