@@ -1537,14 +1537,13 @@ if st.session_state.page == 'login':
                 st.markdown(f"<p style='{label_style}'>인증 수단</p>", unsafe_allow_html=True)
                 auth_choice = st.radio("auth_input", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed", key="auth_radio")
                 
-                st.write("---") # 구분선
+                # --- [수정된 하단 유동 구역] ---
+                st.write("---") 
                 
-                # --- [하단 유동 구역: 빈 박스 현상 원천 차단] ---
-                action_area = st.empty() # Stage 전환 시 내용을 완전히 비울 공간 확보
-            
-                with action_area.container():
-                    if st.session_state.signup_stage == 1:
-                        # 1단계 버튼들
+                # Stage 1일 때만 버튼들을 렌더링 (Stage 2가 되면 이 코드 자체가 실행 안 됨)
+                if st.session_state.signup_stage == 1:
+                    # 버튼 뭉치를 컨테이너로 묶어 Stage 2 전환 시 물리적 삭제 유도
+                    with st.container():
                         if st.button("인증번호 받기", use_container_width=True, type="primary", key="btn_send_auth"):
                             if not (new_id and new_pw and confirm_pw and new_email):
                                 st.error("모든 정보를 입력해주세요.")
@@ -1567,16 +1566,19 @@ if st.session_state.page == 'login':
                         if st.button("처음으로 돌아가기", use_container_width=True, key="btn_signup_back"):
                             st.session_state.login_step = 'choice'
                             st.rerun()
-                            
-                    elif st.session_state.signup_stage == 2:
-                        # 2단계 인증창 (st.empty 덕분에 Stage 1의 버튼 유령 박스가 사라집니다)
+                
+                # Stage 2일 때만 인증창 렌더링
+                elif st.session_state.signup_stage == 2:
+                    with st.container():
                         st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
                         st.markdown(f"<p style='{label_style} font-weight: bold;'>인증번호 6자리 입력</p>", unsafe_allow_html=True)
-                        in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder="숫자 6자리", key="input_verify_code_final")
+                        
+                        # 중복 방지를 위해 key값을 완전히 다르게 설정 (final 접미사)
+                        in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder="숫자 6자리", key="input_verify_code_stage2")
                         
                         col1, col2 = st.columns(2)
                         with col1:
-                            if st.button("인증 확인", use_container_width=True, type="primary", key="btn_confirm_auth_final"):
+                            if st.button("인증 확인", use_container_width=True, type="primary", key="btn_confirm_auth_stage2"):
                                 if in_code == st.session_state.auth_code:
                                     st.success("인증 성공!")
                                     st.session_state.signup_stage = 3
@@ -1584,7 +1586,7 @@ if st.session_state.page == 'login':
                                 else:
                                     st.error("인증번호가 틀렸습니다.")
                         with col2:
-                            if st.button("취소/재발송", use_container_width=True, key="btn_resend_auth_final"):
+                            if st.button("취소/재발송", use_container_width=True, key="btn_resend_auth_stage2"):
                                 st.session_state.signup_stage = 1
                                 st.rerun()
                         st.markdown("</div>", unsafe_allow_html=True)
