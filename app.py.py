@@ -3134,7 +3134,7 @@ elif st.session_state.page == 'detail':
                     st.error("AI가 실시간 리포트 본문을 분석하는 데 실패했습니다.")
                 else:
                     # 정제된 pro_con 출력
-                  
+                    st.success(f"**Wall Street Analyst Opinions**\n\n{pro_con}")
                 
                 c1, c2 = st.columns(2)
                 with c1:
