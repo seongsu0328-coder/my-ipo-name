@@ -2388,92 +2388,64 @@ elif st.session_state.page == 'detail':
             draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
             display_disclaimer()
             
-        # --- Tab 1: 뉴스 & 심층 분석 ---
+        # --- Tab 1: 뉴스 & 심층 분석 (Gemini 통합형) ---
         with tab1:
-            st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
+            st.caption("Google Search 기반 실시간 분석 및 뉴스를 제공합니다.")
             
-            # [1] 기업 심층 분석 섹션 (Expander 적용)
-            with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
-                # 쿼리 정의 (이 줄이 꼭 있어야 합니다!)
-                q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
-                
-                with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
-                    # 👇 함수 이름 final로 변경 (캐시 문제 해결됨)
-                    biz_info = get_ai_summary_final(q_biz) 
-                    
-                    if biz_info:
-                        # 스타일에서 white-space 제거하고, 공백 없이 딱 붙여 넣기
-                        st.markdown(f"""
-                        <div style="
-                            background-color: #f8f9fa; 
-                            padding: 22px; 
-                            border-radius: 12px; 
-                            border-left: 5px solid #6e8efb; 
-                            color: #333; 
-                            font-family: 'Pretendard', sans-serif;
-                            font-size: 15px;
-                        ">{biz_info}</div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.error("⚠️ 정보를 찾을 수 없습니다.")
-        
-            # [2] 뉴스 리스트 섹션
-            # (주의: get_real_news_rss 내부의 자체 번역 로직은 비활성화되어 있어야 속도가 빠릅니다)
-            rss_news = get_real_news_rss(stock['name'])
-            
-            if rss_news:
-                exclude_keywords = ['jewel', 'fashion', 'necklace', 'diamond', 'ring', 'crown royal', 'jewelry', 'pendant'] 
-                target_tags = ["분석", "시장", "전망", "전략", "수급"]
-                final_display_news = []
-                used_indices = set()
-        
-                # 1. 노이즈 필터링
-                filtered_news = [n for n in rss_news if not any(ek in n.get('title', '').lower() for ek in exclude_keywords)]
-        
-                # 2. 태그 분류 로직 (중복 방지 유지)
-                for target in target_tags + ["일반"]:
-                    for idx, n in enumerate(filtered_news):
-                        if len(final_display_news) >= 5: break
-                        if idx in used_indices: continue
-                        
-                        title_lower = n.get('title', '').lower()
-                        tag = "일반"
-                        if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
-                        elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', '시장', '상장']): tag = "시장"
-                        elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'expects', '전망']): tag = "전망"
-                        elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', '전략']): tag = "전략"
-                        elif any(k in title_lower for k in ['price', 'raise', 'funding', 'share', '수급', '공모']): tag = "수급"
-        
-                        if tag == target or (target == "일반" and tag == "일반"):
-                            n['display_tag'] = tag
-                            final_display_news.append(n)
-                            used_indices.add(idx)
-        
-                # 3. 뉴스 카드 출력 (AI 번역 적용)
+            # [1] 통합 분석 데이터 호출 (비즈니스 요약 + 뉴스 5개 통합)
+            # 기존의 여러 함수 호출을 이 한 줄로 대체하여 속도와 비용을 최적화합니다.
+            with st.spinner(f"🤖 AI가 {stock['name']}의 최신 데이터를 정밀 분석 중입니다..."):
+                biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'])
+
+            # [2] 기업 심층 분석 섹션 (Expander)
+            with st.expander(f"비즈니스 모델 요약 보기", expanded=True):
+                if biz_info:
+                    st.markdown(f"""
+                    <div style="
+                        background-color: #f8f9fa; 
+                        padding: 22px; 
+                        border-radius: 12px; 
+                        border-left: 5px solid #6e8efb; 
+                        color: #333; 
+                        font-family: 'Pretendard', sans-serif;
+                        font-size: 15px;
+                        line-height: 1.6;
+                    ">{biz_info}</div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.error("⚠️ 비즈니스 분석 정보를 가져오지 못했습니다.")
+
+            st.write("<br>", unsafe_allow_html=True)
+
+            # [3] 뉴스 리스트 섹션
+            if final_display_news:
                 for i, n in enumerate(final_display_news):
-                    tag = n['display_tag']
-                    en_title = n.get('title', 'No Title')
-                    
-                    # 🔥 고성능 AI 번역 호출 (캐시 적용됨)
-                    with st.spinner(f"TOP {i+1} 번역 중..."):
-                        ko_title = translate_news_title(en_title)
-                    
-                    s_badge = f'<span style="background:{n.get("bg","#eee")}; color:{n.get("color","#333")}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n.get("sent_label","")}</span>' if n.get("sent_label") else ""
-                    
-                    # 특수 기호 처리
+                    # 통합 함수에서 이미 번역 및 감성 분석된 데이터를 사용합니다.
+                    ko_title = n.get('title_ko', '번역 오류')
+                    en_title = n.get('title_en', 'No Title')
+                    sentiment_label = n.get('sentiment', '일반')
+                    bg_color = n.get('bg', '#f1f3f4')
+                    text_color = n.get('color', '#5f6368')
+                    news_link = n.get('link', '#')
+                    news_date = n.get('date', 'Recent')
+
+                    # 특수 기호 처리 ($ 기호가 수식으로 오인되지 않도록 처리)
                     safe_en = en_title.replace("$", "\$")
                     safe_ko = ko_title.replace("$", "\$")
                     
+                    # 배지 생성
+                    s_badge = f'<span style="background:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{sentiment_label}</span>'
+                    
                     st.markdown(f"""
-                        <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
+                        <a href="{news_link}" target="_blank" style="text-decoration:none; color:inherit;">
                             <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <div>
                                         <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
-                                        <span style="color:#888; font-size:12px;">| {tag}</span>
+                                        <span style="color:#888; font-size:12px;">| 일반</span>
                                         {s_badge}
                                     </div>
-                                    <small style="color:#bbb;">{n.get('date','')}</small>
+                                    <small style="color:#bbb;">{news_date}</small>
                                 </div>
                                 <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">
                                     {safe_en}
@@ -2484,13 +2456,13 @@ elif st.session_state.page == 'detail':
                     """, unsafe_allow_html=True)
             else:
                 st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
-        
+
             st.write("<br>", unsafe_allow_html=True)
-        
-            # 결정 박스
+
+            # 결정 박스 (기존 함수 유지)
             draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
-            # 맨 마지막에 호출
+            # 면책 조항 (기존 함수 유지)
             display_disclaimer()
             
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
@@ -3107,154 +3079,83 @@ elif st.session_state.page == 'detail':
             </style>
         """, unsafe_allow_html=True)            
 
-        # --- Tab 4: 기관평가 (Wall Street IPO Radar) ---
+        # --- Tab 4: 기관평가 (Wall Street IPO Radar - Gemini 통합형) ---
         with tab4:
+            # 통합 분석 함수 호출 (Gemini Google Search Grounding 사용)
             with st.spinner(f"전문 기관 데이터를 정밀 수집 중..."):
-                result = get_cached_ipo_analysis(stock['symbol'], stock['name'])
-        
-            # --- (1) Renaissance Capital 섹션 ---
-            with st.expander("Renaissance Capital IPO 요약", expanded=False):
-                
-                # 1. 데이터 가져오기 (결과가 리스트일 경우를 대비해 처리)
-                raw_val = result.get('summary', '')
-                summary_raw = raw_val[0] if isinstance(raw_val, list) else str(raw_val)
+                result = get_unified_tab4_analysis(stock['name'], stock['symbol'])
             
-                # 2. [초강력 절단 방식] 'Source' 또는 'http' 기준 분할
-                if summary_raw and len(summary_raw.strip()) > 0:
-                    import re
-                    
-                    # 가. 다양한 출처 표기법 대응 (Source:, 출처:, http, https 등)
-                    # 패턴 설명: (대소문자무시)Source 문구 또는 http로 시작하는 모든 지점
-                    pattern = r'(?i)source|출처|https?://'
-                    
-                    # 나. 해당 패턴이 발견되는 가장 첫 번째 지점을 기준으로 앞부분만 취함
-                    parts = re.split(pattern, summary_raw)
-                    summary = parts[0].strip()
-                    
-                    # 다. 문장 끝에 남은 지저분한 기호들 정리
-                    summary = summary.rstrip(' ,.:;-\n\t')
-                else:
-                    summary = ""
-            
-                # 3. 결과 출력
-                if not summary or "분석 불가" in summary:
-                    st.warning("Renaissance Capital에서 직접적인 분석 리포트를 찾지 못했습니다. (비상장 또는 데이터 업데이트 지연)")
-                else:
-                    # 최종 정제된 요약본 출력
+            # 결과 데이터 매핑 (통합 함수 반환값에 맞춤)
+            summary = result.get('summary', '')
+            pro_con = result.get('pro_con', '')
+            rating_val = str(result.get('rating', 'Hold')).strip()
+            links = result.get('links', [])
+
+            # --- (1) 종합 요약 섹션 (Renaissance Capital 스타일) ---
+            with st.expander("기관 종합 분석 요약", expanded=True):
+                if summary:
                     st.info(summary)
-                
-                # 4. 하단 버튼 (기존 유지)
-                q = stock['symbol'] if stock['symbol'] else stock['name']
-                search_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
-                st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
-        
-            # --- (2) Seeking Alpha & Morningstar 섹션 ---
-            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
-                # 여기도 혹시 모르니 세척 로직 적용
-                raw_pro_con = result.get('pro_con', '')
-                pro_con = clean_text_final(raw_pro_con)
-                
-                if "의견 수집 중" in pro_con or not pro_con:
-                    st.error("AI가 실시간 리포트 본문을 읽어오는데 실패했습니다.")
                 else:
-                    # 정제된 pro_con 출력
-                    st.success(f"**주요 긍정/부정 의견**\n\n{pro_con}")
+                    st.warning("분석 리포트를 찾을 수 없습니다.")
                 
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.link_button("Seeking Alpha 분석글 보기", f"https://seekingalpha.com/symbol/{q}/analysis")
-                with c2:
-                    st.link_button("Morningstar 검색 결과", f"https://www.morningstar.com/search?query={q}")
+                # 구글 검색 바로가기 버튼
+                q = stock['symbol'] if stock['symbol'] else stock['name']
+                st.link_button(f"🔎 {stock['name']} 기관 리포트 직접 검색", f"https://www.google.com/search?q={q}+IPO+analysis+site:seekingalpha.com+OR+site:renaissancecapital.com")
 
+            # --- (2) 주요 평가 (Pros & Cons) ---
+            with st.expander("핵심 긍정/부정 요소 (Pros & Cons)", expanded=True):
+                if pro_con:
+                    st.success(f"**Wall Street Analyst Opinions**\n\n{pro_con}")
+                else:
+                    st.error("상세 분석 내용을 불러오지 못했습니다.")
 
-            # --- (3) Institutional Sentiment 섹션 ---
-            with st.expander("Sentiment Score", expanded=False):
+            # --- (3) 투자의견 (Analyst Ratings) ---
+            with st.expander("Analyst Ratings & Score", expanded=True):
                 s_col1, s_col2 = st.columns(2)
                 
-                # 데이터 가져오기 및 세척
-                rating_val = str(result.get('rating', 'Hold')).strip()
-                score_val = str(result.get('score', '3')).strip()
-            
                 with s_col1:
-                    # Analyst Ratings 동적 툴팁 생성
-                    # 현재 값에 따라 (현재) 표시를 붙여줍니다.
+                    # 투자의견 매핑 및 설명
                     r_list = {
-                        "Strong Buy": "적극 매수 추천",
-                        "Buy": "매수 추천",
-                        "Hold": "보유 및 중립 관망",
-                        "Neutral": "보유 및 중립 관망",
-                        "Sell": "매도 및 비중 축소"
+                        "Strong Buy": "강력 매수", "Buy": "매수",
+                        "Hold": "보유/중립", "Neutral": "중립", "Sell": "매도"
                     }
+                    rating_kor = r_list.get(rating_val, rating_val)
                     
-                    rating_help = "**[Analyst Ratings 설명]**\n애널리스트 투자의견 컨센서스입니다.\n\n"
-                    for k, v in r_list.items():
-                        is_current = " **(현재)**" if k.lower() in rating_val.lower() else ""
-                        rating_help += f"- **{k}**: {v}{is_current}\n"
-            
-                    st.write("**[Analyst Ratings]**")
+                    st.write("**[Consensus Rating]**")
+                    st.metric(label="투자의견", value=rating_val, delta=rating_kor, delta_color="off")
                     
-                    # 실제 출력 및 help 적용
-                    # st.metric을 사용하면 help 옵션이 정상 작동하고 에러가 사라집니다.
-                    st.metric(label="Consensus Rating", value=rating_val, help=rating_help)
-                    
-                    # 상태에 따른 색상 피드백은 아래와 같이 별도로 간단히 추가할 수 있습니다.
-                    if any(x in rating_val for x in ["Buy", "Positive", "Outperform"]):
-                        st.caption("✅ 시장의 긍정적인 평가를 받고 있습니다.")
-                    elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
-                        st.error(f"Consensus: {rating_val}", help=rating_help)
+                    # 의견에 따른 상태 메시지
+                    if any(x in rating_val for x in ["Buy", "Strong"]):
+                        st.caption("✅ 긍정적 평가 우세")
+                    elif "Sell" in rating_val:
+                        st.caption("🚨 보수적 접근 필요")
                     else:
-                        st.info(f"등급: {rating_val}")
-                        # 설명(help)은 그 아래에 작게 표시
-                        if rating_help:
-                            st.caption(f"ℹ️ {rating_help}")
-                                    
+                        st.caption("⚖️ 중립적 관망세")
+
                 with s_col2:
-                    # IPO Scoop Score 동적 설명 생성
-                    s_list = {
-                        "5": "대박 (Moonshot)",
-                        "4": "강력한 수익",
-                        "3": "양호 (Good)",
-                        "2": "미미한 수익 예상",
-                        "1": "공모가 하회 위험"
-                    }
+                    # IPO 점수 (가상 계산 로직 또는 Gemini 분석 기반)
+                    # 여기서는 Rating에 따라 점수를 부여하는 로직 예시
+                    score = 3
+                    if "Strong Buy" in rating_val: score = 5
+                    elif "Buy" in rating_val: score = 4
+                    elif "Sell" in rating_val: score = 1
+                    elif "Hold" in rating_val: score = 3
                     
-                    # 툴팁용(help)과 화면 출력용을 동일한 형식으로 구성
-                    score_help = "**[IPO Scoop Score 설명]**\n상장 첫날 수익률 기대치입니다.\n\n"
-                    for k, v in s_list.items():
-                        is_current = f" **(현재 {score_val}점)**" if k == score_val else ""
-                        score_help += f"- ⭐ {k}개: {v}{is_current}\n"
-            
-                    st.write("**[IPO Scoop Score]**")
-                    
-                    # 1. 메인 메트릭 출력 (마우스 올리면 툴팁 나옴)
-                    st.metric(label="Expected IPO Score", value=f"⭐ {score_val}", help=score_help)
-                    
-                    # 2. [추가] Analyst Ratings와 동일하게 화면에 직접 설명 표시
-                    # 점수에 따라 상태 색상(success, info, warning)을 변경하면 더 보기 좋습니다.
-                    if score_val in ["4", "5"]:
-                        st.success(f"평가: {s_list.get(score_val, '정보 없음')}")
-                    elif score_val == "3":
-                        st.info(f"평가: {s_list.get(score_val, '정보 없음')}")
-                    else:
-                        st.warning(f"평가: {s_list.get(score_val, '정보 없음')}")
+                    st.write("**[IPO Score]**")
+                    st.metric(label="투자 매력도", value=f"⭐ {score}/5")
+                    st.caption("기관 평가 기반 종합 점수")
 
-                    # 3. 상세 리스트 화면 출력 (Analyst Ratings와 형식 맞춤)
-                    if score_help:
-                        st.caption(f"ℹ️ {score_help}")
-            
-                # 참고 소스 링크
-                sources = result.get('links', [])
-                if sources:
-                    st.markdown('<br><p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">참고 리포트 출처</p>', unsafe_allow_html=True)
-                    for src in sources[:4]:
-                        st.markdown(f"- [{src['title']}]({src['link']})")
+                # 참고 출처 링크
+                if links:
+                    st.markdown("---")
+                    st.markdown("**참고 리포트 출처**")
+                    for link in links[:3]: # 최대 3개만 표시
+                        st.markdown(f"- [{link['title']}]({link['link']})")
 
-
-
-            # [✅ 5단계 사용자 판단]
+            # [5단계 사용자 판단]
             draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
 
-            # 맨 마지막에 호출
+            # 면책 조항
             display_disclaimer()
     
         
