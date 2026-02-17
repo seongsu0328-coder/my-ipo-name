@@ -1767,7 +1767,7 @@ elif st.session_state.page == 'setup':
                 client, _ = get_gcp_clients()
                 if not client: return False
                 try:
-                    sh = client.open("unicorn_users").sheet1
+                    sh = client.open("1w-eMZgyjDiSqCOJVhiZHCqglMbuS0vnccpPocv4OM6c").sheet1
                     # ID가 있는 행 찾기
                     cell = sh.find(str(uid), in_column=1)
                     if cell:
