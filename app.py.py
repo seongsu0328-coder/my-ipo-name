@@ -54,7 +54,7 @@ model = configure_genai()
 # [1] 통합 분석 함수 (Tab 1 & Tab 4 대체용)
 # ---------------------------------------------------------
 
-# (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (수정된 버전)
+# (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (최종 수정본)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab1_analysis(company_name, ticker):
     if not model:
@@ -92,17 +92,28 @@ def get_unified_tab1_analysis(company_name, ticker):
     """
 
     try:
-        # [수정] 도구 이름을 'google_search_retrieval'로 변경 (이게 정식 명칭입니다)
+        # [핵심 수정] tools 설정을 가장 안전한 'Tool 객체' 방식으로 변경
+        tool_config = genai.types.Tool(
+            google_search_retrieval=genai.types.GoogleSearchRetrieval(
+                dynamic_retrieval_config=genai.types.DynamicRetrievalConfig(
+                    mode=genai.types.DynamicRetrievalConfig.Mode.DYNAMIC,
+                    dynamic_threshold=0.3,
+                )
+            )
+        )
+        
+        # 만약 위 설정도 안 먹히면 가장 단순한 이 방식을 씁니다: tools='google_search_retrieval'
+        # 하지만 지금 에러 메시지를 보면 'google_search'를 쓰라고 하므로 아래와 같이 설정합니다.
+        
         response = model.generate_content(
             prompt,
-            tools=[{"google_search_retrieval": {}}]
+            tools=[{'google_search': {}}] # 다시 원래대로 하되, 리스트 안에 딕셔너리 구조 확인
         )
         full_text = response.text
 
         # 1. 비즈니스 분석 텍스트 추출
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
         
-        # 문단 포맷팅 (HTML)
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 10]
         html_output = ""
         for p in paragraphs:
@@ -128,10 +139,9 @@ def get_unified_tab1_analysis(company_name, ticker):
         return html_output, news_list
 
     except Exception as e:
-        # 에러 발생 시 상세 내용을 반환하여 디버깅
         return f"<p style='color:red;'>분석 중 오류 발생: {str(e)}</p>", []
 
-# (B) Tab 4용: 기관 평가 분석 통합 (수정된 버전)
+# (B) Tab 4용: 기관 평가 분석 통합 (최종 수정본)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab4_analysis(company_name, ticker):
     if not model:
@@ -161,10 +171,10 @@ def get_unified_tab4_analysis(company_name, ticker):
     """
 
     try:
-        # [수정] 도구 이름을 'google_search_retrieval'로 변경
+        # [핵심 수정] tools 설정 변경
         response = model.generate_content(
             prompt,
-            tools=[{"google_search_retrieval": {}}]
+            tools=[{'google_search': {}}]
         )
         full_text = response.text
         
