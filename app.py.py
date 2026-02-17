@@ -1579,59 +1579,70 @@ if st.session_state.page == 'login':
                             st.session_state.signup_stage = 1; st.rerun()
                     st.markdown("</div>", unsafe_allow_html=True)
 
-            # [B구역] 3단계일 때 (서류 제출 화면만 노출)
+            # [B구역] 3단계일 때 (서류 제출 화면)
             elif st.session_state.signup_stage == 3:
+                st.subheader("3단계: 선택적 자격 증빙")
+                st.info("💡 서류를 하나라도 제출하면 '글쓰기/투표' 권한이 신청됩니다.")
                 
-                st.info("인증시 글쓰기, 투표 기능을 이용할 수 있습니다.")
+                # [중요] with st.form("signup_3"): <-- 이 줄을 지우고 아래처럼 바꿈
                 
-                with st.form("signup_3"):
-                    u_name = st.text_input("대학 혹은 학과")
-                    u_file = st.file_uploader("학생증/졸업증명서", type=['jpg','png','pdf'])
-                    j_name = st.text_input("직장 혹은 직업")
-                    j_file = st.file_uploader("사원증 혹은 직장이메일", type=['jpg','png','pdf'])
-                    a_val = st.selectbox("자산 규모 (선택)", ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"])
-                    a_file = st.file_uploader("계좌인증", type=['jpg','png','pdf'])
-                    
-                    if st.form_submit_button("가입 신청 완료"):
-                        with st.spinner("처리 중..."):
-                            td = st.session_state.temp_user_data
-                            l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
-                            l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
-                            l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
+                # 입력창들을 폼 밖으로 꺼냅니다. (그래야 즉시 반응함)
+                # key값을 주어 입력값이 유지되도록 합니다.
+                u_name = st.text_input("대학 혹은 학과", key="input_u_name")
+                u_file = st.file_uploader("학생증/졸업증명서", type=['jpg','png','pdf'], key="file_u")
+                
+                j_name = st.text_input("직장 혹은 직업", key="input_j_name")
+                j_file = st.file_uploader("사원증 혹은 직장이메일", type=['jpg','png','pdf'], key="file_j")
+                
+                a_val = st.selectbox("자산 규모 (선택)", ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"], key="sel_asset")
+                a_file = st.file_uploader("계좌인증", type=['jpg','png','pdf'], key="file_a")
+                
+                st.write("") # 여백
+                
+                # [최종 제출 버튼] -> form_submit_button이 아닌 일반 button 사용!
+                if st.button("가입 신청 완료", type="primary", use_container_width=True):
+                    with st.spinner("서류 업로드 및 저장 중..."):
+                        
+                        # 1. 1단계 데이터 가져오기
+                        td = st.session_state.get('temp_user_data', {})
+                        if not td:
+                            st.error("⚠️ 세션이 만료되었습니다. 새로고침 후 다시 시도해주세요.")
+                            st.stop()
+
+                        # 2. 파일 업로드 실행
+                        l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
+                        l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
+                        l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
+                        
+                        # 3. 권한 및 상태 결정
+                        has_cert = any([u_file, j_file, a_file])
+                        role = "user" if has_cert else "restricted"
+                        status = "pending" if has_cert else "approved"
+                        
+                        final_data = {
+                            **td, 
+                            "univ": u_name, "job": j_name, 
+                            "asset": a_val if a_val != "선택 안 함" else "",
+                            "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
+                            "role": role, "status": status,
+                            "display_name": f"{role} | {td['id'][:3]}***"
+                        }
+                        
+                        # 4. 구글 시트 저장 및 이동
+                        if save_user_to_sheets(final_data):
+                            st.session_state.auth_status = 'user'
+                            st.session_state.user_info = final_data
                             
-                            has_cert = any([u_file, j_file, a_file])
-                            role = "user" if has_cert else "restricted"
-                            status = "pending" if has_cert else "approved"
+                            # [핵심] 저장 성공 확인 후 페이지 이동 설정
+                            st.session_state.page = 'setup'
+                            st.session_state.login_step = 'choice'
+                            st.session_state.signup_stage = 1
                             
-                            final_data = {
-                                **td, "univ": u_name, "job": j_name, 
-                                "asset": a_val if a_val != "선택 안 함" else "",
-                                "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
-                                "role": role, "status": status,
-                                "display_name": f"{role} | {td['id'][:3]}***"
-                            }
-                            
-                            if save_user_to_sheets(final_data):
-                                st.session_state.auth_status = 'user'
-                                st.session_state.user_info = final_data
-                                st.session_state.page = 'setup'
-                                
-                                if role == "user":
-                                    st.success("✅ 신청 완료! 관리자 승인 대기 상태로 시작합니다.")
-                                else:
-                                    st.success("✅ 가입 완료! 익명(Basic) 모드로 시작합니다.")
-                                
-                                time.sleep(0.5)
-                                st.rerun()
-    
-    if st.session_state.page == 'calendar':
-        user = st.session_state.user_info
-        st.title("🦄 Unicorn Finder")
-    
-        if user:
-            # [기본 정보]
-            user_id = str(user.get('id', ''))
-            masked_id = "*" * len(user_id)
+                            st.success("✅ 가입 신청이 완료되었습니다!")
+                            time.sleep(1) # 메시지를 보여주기 위해 1초 대기
+                            st.rerun()    # 그 다음 리로드
+                        else:
+                            st.error("❌ 데이터 저장에 실패했습니다. 관리자에게 문의하세요.")
             
           
 
