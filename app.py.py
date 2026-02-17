@@ -10,7 +10,6 @@ import random
 import math
 import html
 import re
-import json
 import urllib.parse
 import smtplib
 import gspread
@@ -210,7 +209,6 @@ def get_batch_prices(ticker_list):
         print(f"Batch Error: {e}")
         return {}
 
-"""
 # [뉴스 감성 분석 함수 - 내부 연산이므로 별도 캐싱 불필요]
 def analyze_sentiment(text):
     text = text.lower()
@@ -268,8 +266,8 @@ def get_ai_summary_final(query):
         if not search_result.get('results'): return None 
         context = "\n".join([r['content'] for r in search_result['results']])
 
-        # 2. LLM 호출 (에러 수정 버전)
-        client = OpenAI(base_url="https://api.gro v1", api_key=groq_key)
+        # 2. LLM 호출 (요청하신 필수 작성 원칙 100% 반영)
+        client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
         
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile", 
@@ -334,99 +332,27 @@ def get_ai_summary_final(query):
                 # 문장이 너무 적으면 그냥 통으로 1개만 반환
                 paragraphs = [text]
 
-        # 3. 비즈니스 텍스트 문단 포장 (여기서 에러가 났던 부분을 수정한 로직입니다)
-        paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 5]
+        # 3. HTML 태그 포장 (화면 렌더링용)
+        # 파이썬 리스트에 담긴 3개의 글덩어리를 각각 <p> 태그로 감쌉니다.
         html_output = ""
         for p in paragraphs:
-            # f-string 내부의 따옴표 충돌 방지를 위해 스타일 속성에 쌍따옴표(") 사용
             html_output += f"""
-            <p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; margin-top:0;">
+            <p style='
+                display: block;          /* 블록 요소 지정 */
+                text-indent: 14px;       /* 첫 줄 들여쓰기 */
+                margin-bottom: 20px;     /* 문단 아래 공백 */
+                line-height: 1.8;        /* 줄 간격 */
+                text-align: justify;     /* 양쪽 정렬 */
+                margin-top: 0;
+            '>
                 {p}
             </p>
             """
-        
-        return html_output, news_list
+            
+        return html_output
 
     except Exception as e:
-        # 에러 메시지도 안전하게 반환
-        return f"<p style='color:red;'>🚫 분석 중 오류 발생: {str(e)}</p>", []
-
-@st.cache_data(show_spinner=False, ttl=86400)
-def get_unified_tab1_analysis(company_name, ticker):
-    """
-    기존 get_ai_summary_final, analyze_sentiment, get_real_news_rss를 하나로 통합.
-    Google Search Grounding을 사용하여 검색, 필터링, 요약, 번역, 감성분석을 한 번에 수행합니다.
-    """
-    if not model:
-        return "AI 모델 설정 오류", []
-
-    # [수정 반영] 업종 무관 뉴스 배제 및 주식/재무 중심 지침 추가
-    prompt = f"""
-    당신은 월가 출신의 수석 애널리스트입니다. 분석 대상: {company_name} ({ticker})
-    
-    [작업 1: 비즈니스 모델 심층 분석]
-    반드시 한국어로, 다음 3개 문단으로 작성하세요. (소제목/불렛포인트 절대 금지, 오직 줄글로만)
-    1문단: 기업의 핵심 비즈니스 모델 및 독보적인 경쟁 우위
-    2문단: 최근 재무 성과 및 이번 IPO를 통한 자금 조달 목적과 활용 계획
-    3문단: 향후 시장 전망 및 거시적 관점에서의 투자 의견
-    * 주의: 모든 문장의 시작을 기업명으로 하지 말고 다양하게 구성하세요.
-
-    [작업 2: 최신 뉴스 및 감성 분석]
-    - 검색 시 {company_name}의 업종과 관련 없는 동명의 기업(예: 보석, 패션, 주얼리 등) 뉴스는 철저히 배제하세요.
-    - 반드시 {ticker}와 관련된 주식 시장, 상장, 재무 관련 뉴스만 선정하세요.
-    - 최근(1주일 이내) 주요 뉴스 5개를 선정하여 아래 JSON 형식으로만 응답 마지막에 포함하세요.
-    
-    형식 예시: 
-    <JSON_START>
-    {{
-      "news": [
-        {{
-          "title_en": "영어 원문 제목",
-          "title_ko": "자연스러운 한글 번역",
-          "link": "뉴스 URL",
-          "sentiment": "긍정/부정/일반",
-          "date": "발행일(예: Feb 17)"
-        }}
-      ]
-    }}
-    <JSON_END>
-    """
-
-    try:
-        # 단 한 번의 호출로 모든 데이터 획득 (Tavily/Groq 대체)
-        response = model.generate_content(
-            prompt,
-            tools=[{"google_search": {}}]
-        )
-        full_text = response.text
-
-        # 1. 비즈니스 분석 텍스트 추출
-        biz_analysis = full_text.split("<JSON_START>")[0].strip()
-
-        # 2. 뉴스 데이터 파싱 및 스타일링
-        news_list = []
-        if "<JSON_START>" in full_text:
-            try:
-                json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
-                news_data = json.loads(json_str)
-                news_list = news_data.get("news", [])
-                
-                # 감성 분석 결과에 따른 색상 매칭 (analyze_sentiment 로직 통합)
-                for n in news_list:
-                    if n['sentiment'] == "긍정":
-                        n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                    elif n['sentiment'] == "부정":
-                        n['bg'], n['color'] = "#fce8e6", "#d93025"
-                    else:
-                        n['bg'], n['color'] = "#f1f3f4", "#5f6368"
-            except:
-                pass 
-
-        return biz_analysis, news_list
-
-    except Exception as e:
-        return f"분석 중 오류가 발생했습니다: {str(e)}", []
-
+        return f"<p style='color:red;'>🚫 오류: {str(e)}</p>"
 
 # [수정된 함수] 캐시 제거 (로그인 시 실시간 상태 확인 필수)
 def load_users():
@@ -717,7 +643,6 @@ def check_permission(action):
         
     return False
 
-"""
 # --- [여기(최상단)에 함수를 두어야 아래에서 인식합니다] ---
 def clean_text_final(text):
     if not text:
@@ -816,7 +741,6 @@ def get_real_news_rss(company_name):
 
     except Exception as e:
         return []
-"""
 
 
 # ---------------------------------------------------------
@@ -2722,61 +2646,90 @@ elif st.session_state.page == 'detail':
             
         # --- Tab 1: 뉴스 & 심층 분석 ---
         with tab1:
-            st.caption("Google Search 기반 실시간 분석 및 뉴스를 제공합니다.")
+            st.caption("자체 알고리즘으로 검색한 뉴스를 순위에 따라 제공합니다.")
             
-            # [1] 통합 분석 데이터 호출 (비즈니스 요약 + 뉴스 5개 통합)
-            with st.spinner(f"🤖 AI가 {stock['name']}의 최신 데이터를 정밀 분석 중입니다..."):
-                # 단 한 번의 호출로 모든 데이터를 가져옵니다.
-                biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['ticker'])
+            # [1] 기업 심층 분석 섹션 (Expander 적용)
+            with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
+                # 쿼리 정의 (이 줄이 꼭 있어야 합니다!)
+                q_biz = f"{stock['name']} IPO stock founder business model revenue stream competitive advantage financial summary"
+                
+                with st.spinner(f"🤖 AI가 데이터를 정밀 분석 중입니다..."):
+                    # 👇 함수 이름 final로 변경 (캐시 문제 해결됨)
+                    biz_info = get_ai_summary_final(q_biz) 
+                    
+                    if biz_info:
+                        # 스타일에서 white-space 제거하고, 공백 없이 딱 붙여 넣기
+                        st.markdown(f"""
+                        <div style="
+                            background-color: #f8f9fa; 
+                            padding: 22px; 
+                            border-radius: 12px; 
+                            border-left: 5px solid #6e8efb; 
+                            color: #333; 
+                            font-family: 'Pretendard', sans-serif;
+                            font-size: 15px;
+                        ">{biz_info}</div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.error("⚠️ 정보를 찾을 수 없습니다.")
         
-            # [2] 기업 심층 분석 섹션 (Expander)
-            with st.expander(f"비즈니스 모델 요약 보기", expanded=True):
-                if biz_info:
-                    st.markdown(f"""
-                    <div style="
-                        background-color: #f8f9fa; 
-                        padding: 22px; 
-                        border-radius: 12px; 
-                        border-left: 5px solid #6e8efb; 
-                        color: #333; 
-                        font-family: 'Pretendard', sans-serif;
-                        font-size: 15px;
-                        line-height: 1.6;
-                    ">{biz_info}</div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.error("⚠️ 비즈니스 분석 정보를 가져오지 못했습니다.")
+            # [2] 뉴스 리스트 섹션
+            # (주의: get_real_news_rss 내부의 자체 번역 로직은 비활성화되어 있어야 속도가 빠릅니다)
+            rss_news = get_real_news_rss(stock['name'])
+            
+            if rss_news:
+                exclude_keywords = ['jewel', 'fashion', 'necklace', 'diamond', 'ring', 'crown royal', 'jewelry', 'pendant'] 
+                target_tags = ["분석", "시장", "전망", "전략", "수급"]
+                final_display_news = []
+                used_indices = set()
         
-            st.write("<br>", unsafe_allow_html=True)
+                # 1. 노이즈 필터링
+                filtered_news = [n for n in rss_news if not any(ek in n.get('title', '').lower() for ek in exclude_keywords)]
         
-            # [3] 뉴스 리스트 섹션
-            if final_display_news:
+                # 2. 태그 분류 로직 (중복 방지 유지)
+                for target in target_tags + ["일반"]:
+                    for idx, n in enumerate(filtered_news):
+                        if len(final_display_news) >= 5: break
+                        if idx in used_indices: continue
+                        
+                        title_lower = n.get('title', '').lower()
+                        tag = "일반"
+                        if any(k in title_lower for k in ['analysis', 'valuation', 'report', 'rating', '분석']): tag = "분석"
+                        elif any(k in title_lower for k in ['ipo', 'listing', 'nyse', 'nasdaq', 'market', '시장', '상장']): tag = "시장"
+                        elif any(k in title_lower for k in ['forecast', 'outlook', 'target', 'expects', '전망']): tag = "전망"
+                        elif any(k in title_lower for k in ['strategy', 'plan', 'pipeline', 'drug', '전략']): tag = "전략"
+                        elif any(k in title_lower for k in ['price', 'raise', 'funding', 'share', '수급', '공모']): tag = "수급"
+        
+                        if tag == target or (target == "일반" and tag == "일반"):
+                            n['display_tag'] = tag
+                            final_display_news.append(n)
+                            used_indices.add(idx)
+        
+                # 3. 뉴스 카드 출력 (AI 번역 적용)
                 for i, n in enumerate(final_display_news):
-                    # 통합 함수에서 이미 받아온 데이터 사용
-                    ko_title = n.get('title_ko', '번역 오류')
-                    en_title = n.get('title_en', 'No Title')
-                    sentiment_label = n.get('sentiment', '일반')
-                    bg_color = n.get('bg', '#f1f3f4')
-                    text_color = n.get('color', '#5f6368')
-                    news_link = n.get('link', '#')
-                    news_date = n.get('date', 'Recent')
-        
-                    # 특수 기호 처리 ($ 기호가 수식으로 오인되지 않도록 처리)
+                    tag = n['display_tag']
+                    en_title = n.get('title', 'No Title')
+                    
+                    # 🔥 고성능 AI 번역 호출 (캐시 적용됨)
+                    with st.spinner(f"TOP {i+1} 번역 중..."):
+                        ko_title = translate_news_title(en_title)
+                    
+                    s_badge = f'<span style="background:{n.get("bg","#eee")}; color:{n.get("color","#333")}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{n.get("sent_label","")}</span>' if n.get("sent_label") else ""
+                    
+                    # 특수 기호 처리
                     safe_en = en_title.replace("$", "\$")
                     safe_ko = ko_title.replace("$", "\$")
                     
-                    # 배지 생성
-                    s_badge = f'<span style="background:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{sentiment_label}</span>'
-                    
                     st.markdown(f"""
-                        <a href="{news_link}" target="_blank" style="text-decoration:none; color:inherit;">
+                        <a href="{n['link']}" target="_blank" style="text-decoration:none; color:inherit;">
                             <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <div>
                                         <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
+                                        <span style="color:#888; font-size:12px;">| {tag}</span>
                                         {s_badge}
                                     </div>
-                                    <small style="color:#bbb;">{news_date}</small>
+                                    <small style="color:#bbb;">{n.get('date','')}</small>
                                 </div>
                                 <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">
                                     {safe_en}
@@ -2790,10 +2743,10 @@ elif st.session_state.page == 'detail':
         
             st.write("<br>", unsafe_allow_html=True)
         
-            # 결정 박스 (기존 함수 유지)
+            # 결정 박스
             draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
-        
-            # 면책 조항 (기존 함수 유지)
+
+            # 맨 마지막에 호출
             display_disclaimer()
             
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
