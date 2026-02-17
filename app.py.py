@@ -1502,18 +1502,18 @@ if st.session_state.page == 'login':
                 label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: 5px; margin-top: 10px;"
                 status_style = "font-size: 0.85rem; margin-top: -10px; margin-bottom: 10px;"
                 
-                st.markdown(f<p style='{title_style}'>1단계: 정보 입력</p>, unsafe_allow_html=True)
+                st.markdown(f"<p style='{title_style}'>1단계: 정보 입력</p>", unsafe_allow_html=True)
                 
                 # --- [상단 입력창 구역: 항상 유지됨] ---
-                st.markdown(f<p style='{label_style}'>아이디</p>, unsafe_allow_html=True)
+                st.markdown(f"<p style='{label_style}'>아이디</p>", unsafe_allow_html=True)
                 new_id = st.text_input("id_input", value=st.session_state.get('temp_id', ''), label_visibility="collapsed")
                 st.session_state.temp_id = new_id
                 
-                st.markdown(f<p style='{label_style}'>비밀번호</p>, unsafe_allow_html=True)
+                st.markdown(f"<p style='{label_style}'>비밀번호</p>", unsafe_allow_html=True)
                 new_pw = st.text_input("pw_input", type="password", value=st.session_state.get('temp_pw', ''), label_visibility="collapsed")
                 st.session_state.temp_pw = new_pw
                 
-                st.markdown(f<p style='{label_style}'>비밀번호 확인</p>, unsafe_allow_html=True)
+                st.markdown(f"<p style='{label_style}'>비밀번호 확인</p>", unsafe_allow_html=True)
                 confirm_pw = st.text_input("confirm_pw_input", type="password", value=st.session_state.get('temp_cpw', ''), label_visibility="collapsed")
                 st.session_state.temp_cpw = confirm_pw
                 
@@ -1521,20 +1521,22 @@ if st.session_state.page == 'login':
                 is_pw_match = False
                 if new_pw and confirm_pw:
                     if new_pw == confirm_pw:
-                        st.markdown(f<p style='{status_style} color: #2e7d32;'>✅ 비밀번호가 일치합니다.</p>, unsafe_allow_html=True)
+                        # f" " 따옴표 추가됨
+                        st.markdown(f"<p style='{status_style} color: #2e7d32;'>✅ 비밀번호가 일치합니다.</p>", unsafe_allow_html=True)
                         is_pw_match = True
                     else:
-                        st.markdown(f<p style='{status_style} color: #d32f2f;'>❌ 비밀번호가 일치하지 않습니다.</p>, unsafe_allow_html=True)
+                        # f" " 따옴표 추가됨
+                        st.markdown(f"<p style='{status_style} color: #d32f2f;'>❌ 비밀번호가 일치하지 않습니다.</p>", unsafe_allow_html=True)
                         
-                st.markdown(f<p style='{label_style}'>연락처 (예: 01012345678)</p>, unsafe_allow_html=True)
+                st.markdown(f"<p style='{label_style}'>연락처 (예: 01012345678)</p>", unsafe_allow_html=True)
                 new_phone = st.text_input("phone_input", value=st.session_state.get('temp_phone', ''), label_visibility="collapsed")
                 st.session_state.temp_phone = new_phone
                 
-                st.markdown(f<p style='{label_style}'>이메일</p>, unsafe_allow_html=True)
+                st.markdown(f"<p style='{label_style}'>이메일</p>", unsafe_allow_html=True)
                 new_email = st.text_input("email_input", value=st.session_state.get('temp_email', ''), label_visibility="collapsed")
                 st.session_state.temp_email = new_email
                 
-                st.markdown(f<p style='{label_style}'>인증 수단</p>, unsafe_allow_html=True)
+                st.markdown(f"<p style='{label_style}'>인증 수단</p>", unsafe_allow_html=True)
                 auth_choice = st.radio("auth_input", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed", key="auth_radio")
                 
                 # --- [하단 유동 구역: 버튼 혹은 인증창으로 교체] ---
@@ -1574,11 +1576,12 @@ if st.session_state.page == 'login':
                         st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
                         st.markdown(f"<p style='{label_style} font-weight: bold;'>인증번호 6자리 입력</p>", unsafe_allow_html=True)
                         
-                        in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder="숫자 6자리", key="input_verify_code_final")
+                        # key값을 유니크하게 설정
+                        in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder="숫자 6자리", key="input_verify_code_stage2")
                         
                         col1, col2 = st.columns(2)
                         with col1:
-                            if st.button("인증 확인", use_container_width=True, type="primary", key="btn_confirm_auth_final"):
+                            if st.button("인증 확인", use_container_width=True, type="primary", key="btn_confirm_auth_stage2"):
                                 if in_code == st.session_state.auth_code:
                                     st.success("인증 성공!")
                                     st.session_state.signup_stage = 3
@@ -1586,7 +1589,7 @@ if st.session_state.page == 'login':
                                 else:
                                     st.error("인증번호가 틀렸습니다.")
                         with col2:
-                            if st.button("취소/재발송", use_container_width=True, key="btn_resend_auth_final"):
+                            if st.button("취소/재발송", use_container_width=True, key="btn_resend_auth_stage2"):
                                 st.session_state.signup_stage = 1
                                 st.rerun()
                         st.markdown("</div>", unsafe_allow_html=True)
