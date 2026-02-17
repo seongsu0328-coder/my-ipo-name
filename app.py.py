@@ -2384,7 +2384,7 @@ elif st.session_state.page == 'detail':
             
             # [1] 통합 분석 데이터 호출 (비즈니스 요약 + 뉴스 5개 통합)
             # 기존의 여러 함수 호출을 이 한 줄로 대체하여 속도와 비용을 최적화합니다.
-            with st.spinner(f"🤖 AI가 {stock['name']}의 최신 데이터를 정밀 분석 중입니다..."):
+            with st.spinner(f"{stock['name']}의 최신 데이터를 정밀 분석 중입니다..."):
                 biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'])
 
             # [2] 기업 심층 분석 섹션 (Expander)
