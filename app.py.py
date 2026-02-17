@@ -130,7 +130,7 @@ def get_unified_tab1_analysis(company_name, ticker):
     except Exception as e:
         return f"<p style='color:red;'>시스템 오류: {str(e)}</p>", []
 
-# (B) Tab 4용: 기관 평가 분석 통합 (프롬프트 고도화)
+# (B) Tab 4용: 기관 평가 분석 통합 (JSON 파싱 강화 버전)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab4_analysis(company_name, ticker):
     if not model: return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
@@ -147,13 +147,15 @@ def get_unified_tab4_analysis(company_name, ticker):
     5. **Summary**: 전문적인 톤으로 3줄 이내로 핵심만 간결하게 작성하세요. (부채 상환, 합병, 청산 등의 주요 이슈가 있다면 반드시 포함)
     6. **링크 금지**: 답변 텍스트(Summary, Pro_con) 내에는 'Source:', 'http...' 등의 출처 링크를 절대 포함하지 마세요.
 
-    [응답 형식 - JSON Only]
-    반드시 아래 JSON 형식으로만 응답하세요. 다른 말은 하지 마세요.
+    [주의사항 - JSON 포맷]
+    - 반드시 아래 JSON 형식으로만 응답하세요.
+    - **중요: JSON 값 안에 실제 줄바꿈(Enter)을 넣지 마세요. 줄바꿈이 필요하면 '\\n' 문자를 사용하세요.**
+    
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell 중 하나",
         "summary": "전문적인 3줄 요약 내용 (한국어)",
-        "pro_con": "✅ 긍정:\n- 첫 번째 긍정 요인 상세 서술\n- 두 번째 긍정 요인 상세 서술\n\n⚠️ 부정:\n- 첫 번째 리스크 요인 상세 서술\n- 두 번째 리스크 요인 상세 서술",
+        "pro_con": "✅ 긍정:\\n- 첫 번째 긍정 요인\\n- 두 번째 긍정 요인\\n\\n⚠️ 부정:\\n- 첫 번째 리스크\\n- 두 번째 리스크",
         "links": [
             {{"title": "검색된 리포트 제목", "link": "URL"}}
         ]
@@ -164,11 +166,29 @@ def get_unified_tab4_analysis(company_name, ticker):
     try:
         # [수정] tools 파라미터 필요 없음 (모델 초기화 시 설정됨)
         response = model.generate_content(prompt)
+        full_text = response.text
         
-        if "<JSON_START>" in response.text:
-            json_str = response.text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
-            return json.loads(json_str)
-        return {"rating": "Neutral", "summary": "데이터 파싱 실패", "pro_con": response.text, "links": []}
+        if "<JSON_START>" in full_text:
+            try:
+                # 1차 파싱 시도
+                json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
+                return json.loads(json_str, strict=False) # strict=False로 제어문자 허용
+            except:
+                # 2차 시도: 제어문자 강제 제거 후 파싱 (안전장치)
+                try:
+                    import re
+                    clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
+                    return json.loads(clean_str, strict=False)
+                except:
+                    pass
+
+        # 파싱 실패 시, 에러 대신 원본 텍스트를 보여주도록 처리 (앱 중단 방지)
+        return {
+            "rating": "Neutral", 
+            "summary": "데이터 변환 중 오류가 발생했습니다. 아래 원문을 확인하세요.", 
+            "pro_con": full_text.replace("<JSON_START>", "").replace("<JSON_END>", ""), 
+            "links": []
+        }
 
     except Exception as e:
         return {"rating": "Error", "summary": f"오류 발생: {str(e)}", "pro_con": "", "links": []}
