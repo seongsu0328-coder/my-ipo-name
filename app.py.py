@@ -1664,18 +1664,31 @@ if st.session_state.page == 'login':
 # ---------------------------------------------------------
 elif st.session_state.page == 'setup':
     user = st.session_state.user_info
-    
- 
 
     if user:
         # [1] 기본 정보 계산
         user_id = str(user.get('id', ''))
-        
-        # [수정 2] 환영 메시지에는 Full Name 노출
-        # [수정 3] 미리보기용 완전 마스킹 ID 생성 (예: *******)
         full_masked_id = "*" * len(user_id) 
         
-        st.info(f"환영합니다, {user_id}님! 활동 닉네임과 노출 범위를 확인해주세요. 인증회원은 글쓰기/투표참여가 가능합니다.")
+        # [수정 2 & 3 반영] 
+        # 하얀색 바탕(#ffffff), 검은색 글씨(#000000), 얇은 테두리(선택사항) 적용
+        st.markdown(f"""
+            <div style="
+                background-color: #ffffff; 
+                padding: 15px; 
+                border-radius: 5px; 
+                border: 1px solid #f0f0f0; 
+                color: #000000; 
+                font-size: 1rem;
+                margin-bottom: 10px;
+            ">
+                환영합니다, <b>{user_id}</b>님! 활동 닉네임과 노출 범위를 확인해주세요. <br>
+                인증회원은 글쓰기/투표참여가 가능합니다.
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # 1번 요청 사항: 문장 밑에 한 줄 공백 추가
+        st.write("<br>", unsafe_allow_html=True)
         
         # -----------------------------------------------------------
         # 1. 내 정보 노출 설정 (체크박스)
