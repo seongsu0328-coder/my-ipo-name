@@ -3745,7 +3745,127 @@ elif st.session_state.page == 'detail':
                 else:
                     st.warning("🔒 로그인 후 이용 가능합니다.")
                 
+# ---------------------------------------------------------
+# [NEW] 6. 게시판 페이지 (Board)
+# ---------------------------------------------------------
+elif st.session_state.page == 'board':
+    
+    # 1. 상단 메뉴바 (캘린더 페이지와 동일한 스타일 유지)
+    # ---------------------------------------------------------
+    st.markdown("""
+        <style>
+        div[data-testid="stPills"] div[role="radiogroup"] button {
+            border: none !important;
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border-radius: 20px !important;
+            padding: 6px 15px !important;
+            margin-right: 5px !important;
+            box-shadow: none !important;
+        }
+        div[data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #444444 !important;
+            font-weight: 800 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
+    is_logged_in = st.session_state.auth_status == 'user'
+    login_text = "로그아웃" if is_logged_in else "로그인"
+    settings_text = "권한설정"
+    main_text = "메인"
+    watch_text = f"관심 ({len(st.session_state.watchlist)})"
+    board_text = "게시판"
+    
+    if is_logged_in:
+        menu_options = [login_text, settings_text, main_text, watch_text, board_text]
+    else:
+        menu_options = [login_text, main_text, watch_text, board_text]
+
+    selected_menu = st.pills(
+        label="nav_board", 
+        options=menu_options, 
+        selection_mode="single", 
+        default=board_text,  # 게시판 페이지이므로 기본값은 '게시판'
+        key="nav_pills_board_page", 
+        label_visibility="collapsed"
+    )
+
+    if selected_menu and selected_menu != board_text:
+        if selected_menu == login_text:
+            if is_logged_in: st.session_state.auth_status = None
+            st.session_state.page = 'login'
+        elif selected_menu == settings_text:
+            st.session_state.page = 'setup'
+        elif selected_menu == main_text:
+            st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'
+        elif selected_menu == watch_text:
+            st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
+        st.rerun()
+
+    # 2. 게시판 메인 로직
+    # ---------------------------------------------------------
+    st.title("🗣️ 투자자 토론방")
+    st.caption("자유롭게 의견을 나누고 정보를 공유하세요.")
+    st.write("---")
+
+    # [DB 연동] 최신 글 불러오기 (페이지 진입 시 자동 실행)
+    posts = db_load_posts(limit=50)
+    
+    # 3. 글쓰기 버튼 (상단 배치)
+    with st.expander("✏️ 새 글 작성하기", expanded=False):
+        if is_logged_in:
+            # 권한 체크 (check_permission 함수 활용)
+            if check_permission('write'):
+                with st.form(key="board_write_form", clear_on_submit=True):
+                    # 카테고리 (종목 코드 또는 자유)
+                    category = st.text_input("종목 코드 (예: AAPL) 또는 말머리", placeholder="자유")
+                    title = st.text_input("제목")
+                    content = st.text_area("내용", height=150)
+                    
+                    if st.form_submit_button("등록", type="primary", use_container_width=True):
+                        if title and content:
+                            user_id = st.session_state.user_info.get('id')
+                            # 닉네임 가져오기 (없으면 ID 마스킹)
+                            display_name = st.session_state.user_info.get('display_name') or f"{user_id[:3]}***"
+                            
+                            # [DB 저장]
+                            if db_save_post(category, title, content, display_name, user_id):
+                                st.success("게시글이 등록되었습니다!")
+                                st.rerun()
+                            else:
+                                st.error("저장 중 오류가 발생했습니다.")
+                        else:
+                            st.warning("제목과 내용을 입력해주세요.")
+            else:
+                st.warning("🔒 글쓰기 권한이 없습니다. (서류 제출 및 승인 필요)")
+        else:
+            st.warning("🔒 로그인 후 작성할 수 있습니다.")
+
+    st.write("") # 여백
+
+    # 4. 게시글 목록 출력
+    if posts:
+        for p in posts:
+            # 날짜 포맷팅 (ISO 포맷 -> 읽기 편하게)
+            try:
+                date_str = p['created_at'].split('T')[0]
+            except:
+                date_str = "Unknown"
+                
+            with st.container(border=True):
+                # 헤더: [카테고리] 제목
+                cat_badge = f"[{p.get('category', '자유')}]" if p.get('category') else ""
+                st.markdown(f"**{cat_badge} {p.get('title')}**")
+                
+                # 내용 (일부만 보여주기 or 전체)
+                st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
+                
+                # 푸터: 작성자 | 날짜
+                st.caption(f"👤 {p.get('author_name')} | 📅 {date_str}")
+    else:
+        st.info("아직 등록된 게시글이 없습니다. 첫 글의 주인공이 되어보세요!")
+        
                 #리아 지우와제주도 다녀오다 사랑하다
                  
                 
