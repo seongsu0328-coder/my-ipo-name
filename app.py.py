@@ -2297,7 +2297,7 @@ elif st.session_state.page == 'detail':
             
             # 1. expander를 누르면 즉시 분석이 시작되도록 설정
             with st.expander(f" {topic} 요약보기", expanded=False):
-                with st.spinner(f" AI가 {topic}의 핵심 내용을 분석 중입니다..."):
+                with st.spinner(f"{topic}의 핵심 내용을 분석 중입니다..."):
                     # ▼▼▼ 질문하신 대로 교체 ▼▼▼
                     analysis_result = get_ai_analysis(
                         stock['name'], 
