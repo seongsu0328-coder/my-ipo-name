@@ -1,0 +1,31 @@
+name: 15-Min Price Updater
+
+on:
+  schedule:
+    # 매 15분마다 실행 (0, 15, 30, 45분)
+    - cron: '*/15 * * * *'
+  
+  workflow_dispatch: # 수동 실행 가능
+
+jobs:
+  update-price:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v3
+
+      - name: 파이썬 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 라이브러리 설치
+        run: |
+          pip install yfinance pandas supabase pytz
+
+      - name: 주가 업데이트 실행
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python price_worker.py
