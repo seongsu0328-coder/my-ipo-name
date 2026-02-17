@@ -154,7 +154,7 @@ def get_unified_tab4_analysis(company_name, ticker):
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell 중 하나",
-        "summary": "전문적인 3줄 요약 내용 (한국어)",
+        "summary": "전문적인 5줄 요약 내용 (한국어)",
         "pro_con": "✅ 긍정:\\n- 첫 번째 긍정 요인\\n- 두 번째 긍정 요인\\n\\n⚠️ 부정:\\n- 첫 번째 리스크\\n- 두 번째 리스크",
         "links": [
             {{"title": "검색된 리포트 제목", "link": "URL"}}
