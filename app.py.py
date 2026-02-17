@@ -3760,7 +3760,7 @@ elif st.session_state.page == 'detail':
                 
 
                 #리아
-                
+                 지우
                 
                 
                 
