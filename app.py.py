@@ -1636,22 +1636,28 @@ if st.session_state.page == 'login':
                 
                 st.write("")
                 
-                # 최종 가입 신청 버튼
+                # [최종 가입 신청 버튼] 로직 교체
                 if st.button("가입 신청 완료", type="primary", use_container_width=True):
-                    # 1. 세션 데이터 확인 (안전장치)
+                    # 1. 세션 데이터 확인
                     td = st.session_state.get('temp_user_data')
                     if not td:
                         st.error("⚠️ 세션이 만료되었습니다. 처음부터 다시 가입해주세요.")
                         st.stop()
-
+                
                     with st.spinner("정보를 안전하게 저장 중입니다..."):
                         try:
-                            # 2. 파일 업로드 실행
+                            # === [디버깅 1] 파일 업로드 시작 ===
+                            # (기존 함수명이 upload_photo_to_drive라면 Supabase용으로 바뀌었는지 확인 필요)
+                            st.toast("파일 업로드 시도 중...")
+                            
+                            # 파일이 있으면 업로드, 없으면 "미제출"
+                            # 만약 upload_photo_to_drive 함수가 구글 드라이브용이라면 에러가 날 수 있습니다.
+                            # Supabase Storage용 함수여야 합니다.
                             l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
                             l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
                             l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
                             
-                            # 3. 데이터 패키징
+                            # === [디버깅 2] 데이터 패키징 확인 ===
                             has_cert = any([u_file, j_file, a_file])
                             role = "user" if has_cert else "restricted"
                             
@@ -1663,26 +1669,31 @@ if st.session_state.page == 'login':
                                 "display_name": f"{role} | {td['id'][:3]}***"
                             }
                             
-                            # 4. 구글 시트 저장
-                            if db_signup_user(final_data):
+                            # 화면에 데이터가 제대로 만들어졌는지 찍어봅니다 (디버깅용, 해결 후 삭제)
+                            st.write("🔎 [Debug] DB 전송 데이터 확인:", final_data)
+                
+                            # === [디버깅 3] DB 저장 시도 ===
+                            result = db_signup_user(final_data)
+                            
+                            if result:
                                 st.success("가입 신청 완료!")
-                                
-                                # 성공 상태 업데이트
                                 st.session_state.auth_status = 'user'
                                 st.session_state.user_info = final_data
                                 st.session_state.page = 'setup'
-                                
-                                # 로그인/가입 단계 초기화
                                 st.session_state.login_step = 'choice'
                                 st.session_state.signup_stage = 1
-                                
                                 time.sleep(1.5)
                                 st.rerun()
                             else:
-                                st.error("❌ 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+                                # DB 함수가 False를 리턴했을 때
+                                st.error("❌ DB 저장 실패 (db_signup_user 함수가 False를 반환함)")
+                                st.warning("Supabase 테이블 컬럼 이름과 final_data의 키 값이 일치하는지 확인하세요.")
                         
                         except Exception as e:
-                            st.error(f"🚨 시스템 오류가 발생했습니다: {str(e)}")
+                            # === [디버깅 4] 실제 파이썬 에러 출력 ===
+                            st.error(f"🚨 시스템 에러 발생 (상세 내용): {e}")
+                            # 터미널에도 출력
+                            print(f"Error details: {e}")
             
           
 
