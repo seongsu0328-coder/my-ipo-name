@@ -3111,7 +3111,7 @@ elif st.session_state.page == 'detail':
             q = stock['symbol'] if stock['symbol'] else stock['name']
         
             # --- (1) Renaissance Capital & 기관 종합 요약 섹션 ---
-            with st.expander("Renaissance Capital & 기관 종합 요약", expanded=False):
+            with st.expander("Renaissance Capital IPO 요약", expanded=False):
                 import re
                 pattern = r'(?i)source|출처|https?://'
                 parts = re.split(pattern, summary_raw)
