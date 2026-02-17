@@ -16,9 +16,25 @@ import smtplib
 import gspread
 import io
 import xml.etree.ElementTree as ET
+import yfinance as yf 
 from oauth2client.service_account import ServiceAccountCredentials
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
+
+# ==========================================
+# [신규] Supabase 라이브러리 및 초기화
+# ==========================================
+from supabase import create_client, Client
+
+@st.cache_resource
+def init_supabase():
+    """Supabase 클라이언트를 초기화하고 캐싱합니다."""
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+    return create_client(url, key)
+
+# 전역에서 사용할 supabase 객체 생성
+supabase = init_supabase()
 
 # ==========================================
 # [중요] 구글 라이브러리
@@ -35,6 +51,7 @@ from google.generativeai import protos
 # ==========================================
 DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 MY_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
+# ==========================================
 
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
