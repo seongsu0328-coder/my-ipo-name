@@ -916,13 +916,12 @@ def translate_news_title(en_title):
     return en_title
 
 # ---------------------------------------------------------
-# ✅ 시장 지표 계산 및 24시간 캐싱 함수
+# [내부용] 실제 시장 지표를 계산하는 함수 (API 호출 포함)
 # ---------------------------------------------------------
-@st.cache_data(show_spinner=False, ttl=86400)
-def get_cached_market_status(df_calendar, api_key):
+def _calculate_market_metrics_internal(df_calendar, api_key):
     """
-    IPO 수익률, 적자 비율, VIX, 버핏 지수 등 
-    모든 시장 지표를 계산하여 반환 (하루 한 번 실행)
+    실제 야후 파이낸스 API와 승수님의 내부 함수를 호출하여 
+    데이터를 계산하는 '작업자(Worker)' 함수입니다.
     """
     data = {
         "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0,
@@ -938,7 +937,7 @@ def get_cached_market_status(df_calendar, api_key):
         ret_sum = 0; ret_cnt = 0; unp_cnt = 0
         for _, row in traded_ipos.iterrows():
             try:
-                # 내부 보조 함수는 메인 로직 어딘가에 정의되어 있어야 합니다.
+                # [주의] get_current_stock_price, get_financial_metrics 함수가 정의되어 있어야 합니다.
                 p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
                 p_curr = get_current_stock_price(row['symbol'], api_key) 
                 if p_ipo > 0 and p_curr > 0:
@@ -964,7 +963,9 @@ def get_cached_market_status(df_calendar, api_key):
     try:
         vix_obj = yf.Ticker("^VIX")
         data["vix"] = vix_obj.history(period="1d")['Close'].iloc[-1]
+        
         w5000 = yf.Ticker("^W5000").history(period="1d")['Close'].iloc[-1]
+        # 미국 GDP 추정치 (약 28조 달러)
         data["buffett_val"] = ( (w5000 / 1000 * 0.93) / 28.0 ) * 100
         
         spy = yf.Ticker("SPY")
@@ -974,13 +975,57 @@ def get_cached_market_status(df_calendar, api_key):
         curr_spx = spx['Close'].iloc[-1]
         ma200 = spx['Close'].rolling(200).mean().iloc[-1]
         mom_score = ((curr_spx - ma200) / ma200) * 100
+        
         s_vix = max(0, min(100, (35 - data["vix"]) * (100/23)))
         s_mom = max(0, min(100, (mom_score + 10) * 5))
         data["fear_greed"] = (s_vix + s_mom) / 2
-    except: pass
+    except Exception as e:
+        print(f"Macro Data Error: {e}")
     
     return data
 
+# ---------------------------------------------------------
+# ✅ [메인] Supabase 연동 캐싱 함수 (이걸 호출하세요)
+# ---------------------------------------------------------
+@st.cache_data(show_spinner=False, ttl=600)
+def get_cached_market_status(df_calendar, api_key):
+    """
+    Supabase DB를 확인하여 시장 지표를 0.1초 만에 반환합니다.
+    없을 경우에만 계산 로직(5~10초)을 수행하고 저장합니다.
+    """
+    # [Step 1] Supabase에서 오늘자 데이터 확인 (24시간 캐시)
+    cache_key = "Market_Dashboard_Metrics_Tab2"
+    now = datetime.now()
+    one_day_ago = (now - timedelta(hours=24)).isoformat()
+
+    try:
+        res = supabase.table("analysis_cache") \
+            .select("content") \
+            .eq("cache_key", cache_key) \
+            .gt("updated_at", one_day_ago) \
+            .execute()
+        
+        if res.data:
+            # DB에 있으면 즉시 JSON 파싱 후 반환
+            return json.loads(res.data[0]['content'])
+    except Exception as e:
+        print(f"Market Metrics Cache Miss: {e}")
+
+    # [Step 2] 캐시가 없거나 만료됨 -> 내부 계산 함수 실행 (시간 소요됨)
+    fresh_data = _calculate_market_metrics_internal(df_calendar, api_key)
+
+    # [Step 3] 계산된 결과를 Supabase에 저장 (다음 사람을 위해)
+    try:
+        supabase.table("analysis_cache").upsert({
+            "cache_key": cache_key,
+            "content": json.dumps(fresh_data), # 딕셔너리를 JSON 문자열로 변환
+            "updated_at": now.isoformat()
+        }).execute()
+    except Exception as e:
+        print(f"Metrics Save Error: {e}")
+
+    return fresh_data
+    
 # --- [주식 및 차트 기능] ---
 import yfinance as yf
 import plotly.graph_objects as go
