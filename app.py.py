@@ -1740,11 +1740,11 @@ elif st.session_state.page == 'setup':
                 st.error("🔒 **Basic 회원** (서류 미제출)")
                 st.caption("권한: 관심종목 O / 글쓰기 X")
             elif db_status == 'pending':
-                st.warning("⏳ **승인 대기 중**")
+                st.warning("**승인 대기 중**")
                 st.caption("관리자 승인 후 글쓰기 가능")
             elif db_status == 'approved':
                 if is_public_mode:
-                    st.success("✅ **인증 회원 (활동 중)**")
+                    st.success("**인증 회원 (활동 중)**")
                     st.caption("권한: 모든 기능 사용 가능")
                 else:
                     st.info("🔒 **익명 모드 (비공개)**")
