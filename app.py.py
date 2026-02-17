@@ -54,12 +54,9 @@ model = configure_genai()
 # [1] 통합 분석 함수 (Tab 1 & Tab 4 대체용)
 # ---------------------------------------------------------
 
-# (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (Tavily/Groq 대체)
+# (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (수정된 버전)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab1_analysis(company_name, ticker):
-    """
-    비즈니스 모델 요약과 최신 뉴스 5개를 Google Search Grounding으로 한 번에 가져옵니다.
-    """
     if not model:
         return "AI 모델 설정 오류", []
 
@@ -95,10 +92,10 @@ def get_unified_tab1_analysis(company_name, ticker):
     """
 
     try:
-        # 단 한 번의 호출로 모든 데이터 획득 (구글 검색 도구 사용)
+        # [수정] 도구 이름을 'google_search_retrieval'로 변경 (이게 정식 명칭입니다)
         response = model.generate_content(
             prompt,
-            tools=[{"google_search": {}}]
+            tools=[{"google_search_retrieval": {}}]
         )
         full_text = response.text
 
@@ -122,7 +119,6 @@ def get_unified_tab1_analysis(company_name, ticker):
                 json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
                 news_data = json.loads(json_str)
                 news_list = news_data.get("news", [])
-                # 감성 분석 색상 매핑
                 for n in news_list:
                     if n['sentiment'] == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
                     elif n['sentiment'] == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
@@ -132,14 +128,12 @@ def get_unified_tab1_analysis(company_name, ticker):
         return html_output, news_list
 
     except Exception as e:
+        # 에러 발생 시 상세 내용을 반환하여 디버깅
         return f"<p style='color:red;'>분석 중 오류 발생: {str(e)}</p>", []
 
-# (B) Tab 4용: 기관 평가 분석 통합 (Tavily 대체)
+# (B) Tab 4용: 기관 평가 분석 통합 (수정된 버전)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab4_analysis(company_name, ticker):
-    """
-    Renaissance Capital, Seeking Alpha 등의 기관 평가를 구글 검색으로 분석합니다.
-    """
     if not model:
         return {"rating": "Error", "summary": "API 키 오류", "pro_con": "", "links": []}
 
@@ -167,9 +161,10 @@ def get_unified_tab4_analysis(company_name, ticker):
     """
 
     try:
+        # [수정] 도구 이름을 'google_search_retrieval'로 변경
         response = model.generate_content(
             prompt,
-            tools=[{"google_search": {}}]
+            tools=[{"google_search_retrieval": {}}]
         )
         full_text = response.text
         
@@ -177,7 +172,6 @@ def get_unified_tab4_analysis(company_name, ticker):
             json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
             return json.loads(json_str)
         else:
-            # 파싱 실패 시 텍스트라도 반환 시도
             return {"rating": "Neutral", "summary": "데이터 파싱 실패", "pro_con": full_text, "links": []}
 
     except Exception as e:
