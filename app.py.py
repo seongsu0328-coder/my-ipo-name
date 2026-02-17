@@ -3700,11 +3700,9 @@ elif st.session_state.page == 'detail':
             st.write("---")
             st.subheader(f"{sid} 토론방")
             
-            # [DB] 현재 종목(sid)에 해당하는 글만 필터링해서 가져오기
-            # (만약 DB에 'category' 컬럼으로 인덱싱이 되어 있다면 더 빠르겠지만, 
-            #  일단 전체 최신글 50개를 가져와서 파이썬에서 거르는 방식으로 구현)
-            all_posts = db_load_posts(limit=100) 
-            sid_posts = [p for p in all_posts if p.get('category') == sid]
+            # 교체할 코드 (한 줄로 끝!)
+            # DB에게 "이 종목(sid) 글만 줘"라고 직접 요청
+            sid_posts = db_load_posts(limit=20, category=sid)
             
             if sid_posts:
                 for p in sid_posts[:10]: # 최신 10개만 표시
