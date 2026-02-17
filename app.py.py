@@ -439,6 +439,7 @@ import yfinance as yf
 def get_batch_prices(ticker_list):
     """
     Supabase DB를 활용하여 15분 단위로 주가를 캐싱하고 Batch로 가져오는 함수
+    (디버깅 메시지 제거 버전)
     """
     # [방어 로직] 리스트 체크 및 클렌징
     if not ticker_list or not isinstance(ticker_list, list):
@@ -462,8 +463,8 @@ def get_batch_prices(ticker_list):
             .execute()
         # DB에 있는 데이터는 API 호출 없이 즉시 활용
         cached_data = {item['ticker']: float(item['price']) for item in res.data}
-    except Exception as e:
-        print(f"DB 조회 중 오류 (무시하고 API 진행): {e}")
+    except Exception:
+        # DB 오류 시 빈 딕셔너리로 시작 (API에서 다 가져오도록 유도)
         cached_data = {}
 
     # ---------------------------------------------------------
@@ -491,7 +492,6 @@ def get_batch_prices(ticker_list):
                         current_p = float(target_data.iloc[-1])
                         
                         # [Step 3] 새로운 가격 정보를 DB에 영구 저장 (Upsert)
-                        # 이제부터 15분 동안 다른 유저들도 이 데이터를 공유합니다.
                         supabase.table("price_cache").upsert({
                             "ticker": t,
                             "price": current_p,
@@ -503,15 +503,8 @@ def get_batch_prices(ticker_list):
                         cached_data[t] = 0.0 # 데이터를 못 찾은 경우
                 except:
                     cached_data[t] = 0.0
-        except Exception as e:
-            print(f"Yahoo API Error: {e}")
-
-    # [수정] st.toast(화면출력) -> print(로그출력)으로 변경
-    # 이유: 캐시 함수 안에서 st.toast를 쓰면 Streamlit 버그로 앱이 멈춥니다.
-    if missing_tickers:
-        print(f"⚠️ [System] {len(missing_tickers)}개 종목 API 새로고침 완료 (Supabase 저장됨)")
-    else:
-        print(f"🚀 [System] {count_cached}개 종목 Supabase 캐시 로딩 완료 (속도 쾌적)")
+        except Exception:
+            pass # API 에러 무시
 
     return cached_data
 
