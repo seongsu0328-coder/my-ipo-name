@@ -3118,7 +3118,7 @@ elif st.session_state.page == 'detail':
                 # [수정] 404 에러 방지를 위한 구글 필터링 검색 방식
                 # 사이트 내부 검색 엔진 오류를 우회하여 가장 정확한 종목 페이지를 찾아줍니다.
                 rc_bypass_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
-                st.link_button(f"📊 {stock['name']} Renaissance 리포트 찾기", rc_bypass_url, use_container_width=True)
+                st.link_button(f"{stock['name']} Renaissance 리포트 찾기", rc_bypass_url, use_container_width=True)
                 
 
             # --- (2) Seeking Alpha & Morningstar 상세 평가 섹션 ---
@@ -3143,7 +3143,12 @@ elif st.session_state.page == 'detail':
             with st.expander("Sentiment Score", expanded=False):
                 s_col1, s_col2 = st.columns(2)
                 
+                # 데이터 가져오기 및 세척
+                rating_val = str(result.get('rating', 'Hold')).strip()
+                score_val = str(result.get('score', '3')).strip()
+            
                 with s_col1:
+                    # Analyst Ratings 동적 툴팁 생성
                     r_list = {
                         "Strong Buy": "적극 매수 추천",
                         "Buy": "매수 추천",
@@ -3151,34 +3156,50 @@ elif st.session_state.page == 'detail':
                         "Neutral": "보유 및 중립 관망",
                         "Sell": "매도 및 비중 축소"
                     }
+                    
                     rating_help = "**[Analyst Ratings 설명]**\n애널리스트 투자의견 컨센서스입니다.\n\n"
                     for k, v in r_list.items():
                         is_current = " **(현재)**" if k.lower() in rating_val.lower() else ""
                         rating_help += f"- **{k}**: {v}{is_current}\n"
             
                     st.write("**[Analyst Ratings]**")
+                    
+                    # 1. 메인 메트릭 (툴팁 포함)
                     st.metric(label="Consensus Rating", value=rating_val, help=rating_help)
                     
+                    # 2. 상태별 색상 피드백 및 캡션
                     if any(x in rating_val for x in ["Buy", "Positive", "Outperform", "Strong"]):
+                        st.success(f"의견: {r_list.get(rating_val, '긍정적')}")
                         st.caption("✅ 시장의 긍정적인 평가를 받고 있습니다.")
                     elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
-                        st.error(f"Consensus: {rating_val}")
+                        st.error(f"의견: {r_list.get(rating_val, '주의')}")
+                        st.caption("🚨 보수적인 접근이 필요한 시점입니다.")
                     else:
-                        st.info(f"등급: {rating_val}")
+                        st.info(f"의견: {r_list.get(rating_val, '중립')}")
+                        if rating_help:
+                            st.caption(f"ℹ️ {rating_help}")
 
                 with s_col2:
+                    # IPO Scoop Score 동적 설명 생성
                     s_list = {
-                        "5": "대박 (Moonshot)", "4": "강력한 수익", "3": "양호 (Good)",
-                        "2": "미미한 수익 예상", "1": "공모가 하회 위험"
+                        "5": "대박 (Moonshot)",
+                        "4": "강력한 수익",
+                        "3": "양호 (Good)",
+                        "2": "미미한 수익 예상",
+                        "1": "공모가 하회 위험"
                     }
+                    
                     score_help = "**[IPO Scoop Score 설명]**\n상장 첫날 수익률 기대치입니다.\n\n"
                     for k, v in s_list.items():
                         is_current = f" **(현재 {score_val}점)**" if k == score_val else ""
                         score_help += f"- ⭐ {k}개: {v}{is_current}\n"
             
                     st.write("**[IPO Scoop Score]**")
+                    
+                    # 1. 메인 메트릭 (툴팁 포함)
                     st.metric(label="Expected IPO Score", value=f"⭐ {score_val}", help=score_help)
                     
+                    # 2. 점수별 색상 피드백
                     if score_val in ["4", "5"]:
                         st.success(f"평가: {s_list.get(score_val, '정보 없음')}")
                     elif score_val == "3":
@@ -3186,7 +3207,11 @@ elif st.session_state.page == 'detail':
                     else:
                         st.warning(f"평가: {s_list.get(score_val, '정보 없음')}")
 
-                # 참고 소스 링크
+                    # 3. 상세 리스트 화면 직접 출력
+                    if score_help:
+                        st.caption(f"ℹ️ {score_help}")
+
+                # 참고 소스 링크 (결과 데이터에 링크가 있을 경우)
                 if sources:
                     st.markdown('<br><p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">참고 리포트 출처</p>', unsafe_allow_html=True)
                     for src in sources[:4]:
