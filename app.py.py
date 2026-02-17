@@ -268,8 +268,8 @@ def get_ai_summary_final(query):
         if not search_result.get('results'): return None 
         context = "\n".join([r['content'] for r in search_result['results']])
 
-        # 2. LLM 호출 (에러 수정 완료 버전)
-        client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
+        # 2. LLM 호출 (에러 수정 버전)
+        client = OpenAI(base_url="https://api.gro v1", api_key=groq_key)
         
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile", 
