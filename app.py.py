@@ -959,17 +959,34 @@ else:
     st.error("⚠️ GENAI_API_KEY가 유출되었거나 설정되지 않았습니다. Streamlit Secrets를 확인하세요.")
     model = None
 
-# --- [공시 분석 함수] ---
-@st.cache_data(show_spinner=False, ttl=86400) # 24시간 캐싱
-def get_ai_analysis(company_name, topic, points, structure_template):  # 인자 추가됨
+@st.cache_data(show_spinner=False, ttl=600) # 메모리 캐시는 짧게, DB가 메인 저장소 역할
+def get_ai_analysis(company_name, topic, points, structure_template):
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
     
-    # [재시도 로직]
+    # [Step 1] DB 조회용 고유 키 생성 (예: AAPL_S-1_Tab0)
+    cache_key = f"{company_name}_{topic}_Tab0"
+    now = datetime.now()
+    one_day_ago = (now - timedelta(days=1)).isoformat()
+
+    try:
+        # DB에서 24시간 이내의 데이터가 있는지 확인
+        res = supabase.table("analysis_cache") \
+            .select("content") \
+            .eq("cache_key", cache_key) \
+            .gt("updated_at", one_day_ago) \
+            .execute()
+        
+        if res.data:
+            # 존재하면 즉시 반환 (AI 비용 0원, 즉시 로딩)
+            return res.data[0]['content']
+    except Exception as e:
+        print(f"Tab0 DB Cache Error: {e}")
+
+    # [Step 2] 캐시가 없으면 원래의 고품질 분석 수행 (재시도 로직 포함)
     max_retries = 3
     for i in range(max_retries):
         try:
-            # [다각화된 프롬프트]
             prompt = f"""
             분석 대상: {company_name}의 {topic} 서류
             체크포인트: {points}
@@ -980,7 +997,7 @@ def get_ai_analysis(company_name, topic, points, structure_template):  # 인자 
             
             [내용 구성 및 형식 - 반드시 아래 형식을 따를 것]
             각 문단의 시작에 **[소제목]**을 붙여서 내용을 명확히 구분하고 굵은 글씨를 생략하지 마세요.
-            {structure_template}  <-- 문서별 맞춤형 질문이 여기에 들어갑니다.
+            {structure_template}
 
             [문체 가이드]
             - '~이다' 대신 '~입니다', '~하고 있습니다', '~할 것으로 보입니다'를 사용하세요.
@@ -991,7 +1008,18 @@ def get_ai_analysis(company_name, topic, points, structure_template):  # 인자 
             """
             
             response = model.generate_content(prompt)
-            return response.text
+            analysis_result = response.text
+
+            # [Step 3] 분석 성공 시 결과를 DB에 영구 저장 (24시간 보존)
+            try:
+                supabase.table("analysis_cache").upsert({
+                    "cache_key": cache_key,
+                    "content": analysis_result,
+                    "updated_at": now.isoformat()
+                }).execute()
+            except: pass # 저장 실패 시에도 결과는 반환
+
+            return analysis_result
             
         except Exception as e:
             if "429" in str(e) or "quota" in str(e).lower():
