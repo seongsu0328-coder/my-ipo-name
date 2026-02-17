@@ -345,49 +345,78 @@ def get_extended_ipo_data(api_key):
 
 import yfinance as yf
 
-@st.cache_data(ttl=900, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def get_batch_prices(ticker_list):
     """
-    여러 종목의 현재가를 한 번의 통신으로 가져옵니다.
+    Supabase DB를 활용하여 15분 단위로 주가를 캐싱하고 Batch로 가져오는 함수
     """
-    # [방어 로직 1] 리스트 자체가 비어있거나 None인 경우 처리
+    # [방어 로직] 리스트 체크 및 클렌징
     if not ticker_list or not isinstance(ticker_list, list):
         return {}
     
-    # [방어 로직 2] 리스트 내 요소 중 문자열인 것만 골라내고 공백 제거
-    clean_tickers = [str(t).strip() for t in ticker_list if t and str(t).strip() != 'nan']
-    
+    clean_tickers = [str(t).strip() for t in ticker_list if t and str(t).strip().lower() != 'nan']
     if not clean_tickers:
         return {}
-
-    tickers_str = " ".join(clean_tickers)
     
+    now = datetime.now()
+    fifteen_mins_ago = (now - timedelta(minutes=15)).isoformat()
+    
+    # ---------------------------------------------------------
+    # [Step 1] Supabase DB에서 신선한(15분 이내) 데이터 먼저 조회
+    # ---------------------------------------------------------
     try:
-        data = yf.download(tickers_str, period="1d", group_by='ticker', threads=True, progress=False)
-        price_dict = {}
-        
-        # 종목이 1개일 때와 여러 개일 때 처리
-        if len(clean_tickers) == 1:
-            if not data.empty and 'Close' in data.columns:
-                current = data['Close'].iloc[-1]
-                price_dict[clean_tickers[0]] = float(current)
-        else:
-            for t in clean_tickers:
-                try:
-                    if t in data.columns.levels[0]: # 멀티인덱스 확인
-                        series = data[t]['Close'].dropna()
-                        if not series.empty:
-                            price_dict[t] = float(series.iloc[-1])
-                        else:
-                            price_dict[t] = 0.0
-                except:
-                    price_dict[t] = 0.0
-                    
-        return price_dict
-        
+        res = supabase.table("price_cache") \
+            .select("ticker, price") \
+            .in_("ticker", clean_tickers) \
+            .gt("updated_at", fifteen_mins_ago) \
+            .execute()
+        # DB에 있는 데이터는 API 호출 없이 즉시 활용
+        cached_data = {item['ticker']: float(item['price']) for item in res.data}
     except Exception as e:
-        print(f"Batch Error: {e}")
-        return {}
+        print(f"DB 조회 중 오류 (무시하고 API 진행): {e}")
+        cached_data = {}
+
+    # ---------------------------------------------------------
+    # [Step 2] DB에 없거나 오래된 티커만 골라내서 API 호출
+    # ---------------------------------------------------------
+    missing_tickers = [t for t in clean_tickers if t not in cached_data]
+    
+    if missing_tickers:
+        tickers_str = " ".join(missing_tickers)
+        try:
+            # 야후 파이낸스 실시간 데이터 다운로드
+            data = yf.download(tickers_str, period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
+            
+            for t in missing_tickers:
+                try:
+                    # 데이터 구조 처리 (단일 종목 vs 다중 종목 대응)
+                    if len(missing_tickers) > 1:
+                        if t in data.columns.levels[0]:
+                            target_data = data[t]['Close'].dropna()
+                        else: continue
+                    else:
+                        target_data = data['Close'].dropna()
+
+                    if not target_data.empty:
+                        current_p = float(target_data.iloc[-1])
+                        
+                        # [Step 3] 새로운 가격 정보를 DB에 영구 저장 (Upsert)
+                        # 이제부터 15분 동안 다른 유저들도 이 데이터를 공유합니다.
+                        supabase.table("price_cache").upsert({
+                            "ticker": t,
+                            "price": current_p,
+                            "updated_at": now.isoformat()
+                        }).execute()
+                        
+                        cached_data[t] = current_p
+                    else:
+                        cached_data[t] = 0.0 # 데이터를 못 찾은 경우
+                except:
+                    cached_data[t] = 0.0
+        except Exception as e:
+            print(f"Yahoo API Error: {e}")
+
+    return cached_data
 
 
 
