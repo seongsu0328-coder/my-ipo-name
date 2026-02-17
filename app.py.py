@@ -182,6 +182,32 @@ def db_update_user_visibility(user_id, visibility_data):
         # 에러 발생 시 상세 내용 출력
         st.error(f"공개 범위 설정 실패: {e}")
         return False
+
+# [관리자용] 회원 승인 처리 함수
+def db_approve_user(user_id):
+    try:
+        # 1. 해당 유저의 status를 'approved'로 업데이트
+        # 2. role도 'user'로 확실히 격상 (필요시)
+        response = supabase.table("users")\
+            .update({"status": "approved", "role": "user"})\
+            .eq("id", user_id)\
+            .execute()
+        
+        if response.data:
+            return True
+        return False
+    except Exception as e:
+        st.error(f"승인 처리 중 오류 발생: {e}")
+        return False        
+
+# [관리자용] 회원 삭제/거절 함수
+def db_delete_user(user_id):
+    try:
+        response = supabase.table("users").delete().eq("id", user_id).execute()
+        return True if response.data else False
+    except Exception as e:
+        st.error(f"삭제 실패: {e}")
+        return False
         
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
@@ -1837,75 +1863,64 @@ elif st.session_state.page == 'setup':
                 st.rerun()               # 로그인 화면으로 복귀
 
         # ===========================================================
-        # 👇 [수정 완료] 관리자 승인 기능 (버튼 씹힘 해결 - 콜백 방식)
+        # 👇 [수정 완료] 관리자 승인 기능 (Supabase 연동 버전)
         # ===========================================================
         if user.get('role') == 'admin':
-      
 
             # -------------------------------------------------------
-            # [1] 기능 함수 정의 (화면 그리기 전에 실행될 함수들)
+            # [1] 기능 함수 정의 (Supabase 전용)
             # -------------------------------------------------------
-            
-            # 구글 시트 상태 변경 함수
-            def update_sheet_status(uid, status):
-                client, _ = get_gcp_clients()
-                if not client: return False
-                try:
-                    sh = client.open("1w-eMZgyjDiSqCOJVhiZHCqglMbuS0vnccpPocv4OM6c").sheet1
-                    # ID가 있는 행 찾기
-                    cell = sh.find(str(uid), in_column=1)
-                    if cell:
-                        # status 열 찾기 (헤더 검색)
-                        header_cell = sh.find("status", in_row=1)
-                        col_idx = header_cell.col if header_cell else 12
-                        
-                        # 업데이트
-                        sh.update_cell(cell.row, col_idx, status)
-                        return True
-                except Exception as e:
-                    print(f"Error: {e}") # 터미널 로그용
-                return False
 
             # [핵심] 승인 버튼 누르면 실행될 콜백 함수
             def callback_approve(target_id, target_email):
-                # 1. 시트 업데이트
-                if update_sheet_status(target_id, 'approved'):
-                    # 2. 이메일 발송
+                # 1. Supabase 상태 업데이트 (기존 만들어둔 db_approve_user 활용)
+                if db_approve_user(target_id):
+                    # 2. 이메일 발송 (이메일 기능이 살아있다면)
                     if target_email:
-                        send_approval_email(target_email, target_id)
-                    # 3. 알림 메시지 (새로고침 되어도 뜸)
+                        try:
+                            send_approval_email(target_email, target_id)
+                        except: pass
+                    # 3. 알림 메시지
                     st.toast(f"✅ {target_id}님 승인 처리 완료!", icon="🎉")
                 else:
-                    st.toast(f"❌ {target_id} 처리 실패. 시트 연결 확인 필요.", icon="⚠️")
+                    st.toast(f"❌ {target_id} 처리 실패. DB 연결 확인 필요.", icon="⚠️")
 
             # [핵심] 보류 버튼 누르면 실행될 콜백 함수
             def callback_reject(target_id, target_email):
-                # 입력된 사유 가져오기 (session_state에서 꺼냄)
+                # 입력된 사유 가져오기
                 reason_key = f"rej_setup_{target_id}"
                 reason = st.session_state.get(reason_key, "")
 
                 if not reason:
                     st.toast("⚠️ 보류 사유를 입력해주세요!", icon="❗")
-                    return # 사유 없으면 중단
+                    return 
 
-                # 1. 시트 업데이트 (rejected로 변경하여 목록에서 제거)
-                if update_sheet_status(target_id, 'rejected'):
-                    # 2. 이메일 발송
-                    if target_email:
-                        send_rejection_email(target_email, target_id, reason)
-                    st.toast(f"🛑 {target_id}님 보류 처리 완료.", icon="blob-check")
-                else:
-                    st.toast("❌ 처리 실패.", icon="⚠️")
+                # 1. Supabase 상태 업데이트 (rejected로 변경)
+                try:
+                    res = supabase.table("users").update({"status": "rejected"}).eq("id", target_id).execute()
+                    if res.data:
+                        # 2. 이메일 발송
+                        if target_email:
+                            try:
+                                send_rejection_email(target_email, target_id, reason)
+                            except: pass
+                        st.toast(f"🛑 {target_id}님 보류 처리 완료.", icon="✅")
+                    else:
+                        st.toast("❌ 처리 실패 (데이터 없음).", icon="⚠️")
+                except Exception as e:
+                    st.toast(f"❌ 오류: {e}", icon="⚠️")
 
             # -------------------------------------------------------
             # [2] 화면 그리기 (UI)
             # -------------------------------------------------------
             
+            st.subheader("🛡️ 관리자 승인 시스템")
+            
             # 목록 불러오기 버튼
-            if st.button("가입신청회원보기", key="btn_refresh_list"):
+            if st.button("가입신청회원 새로고침", key="btn_refresh_list"):
                 st.rerun()
 
-            # 만들어둔 Supabase용 새 함수를 호출하도록 변경
+            # Supabase에서 전체 유저 로드
             all_users_adm = db_load_all_users()
             # status가 pending인 유저만 필터링
             pending_users = [u for u in all_users_adm if u.get('status') == 'pending']
@@ -1914,48 +1929,48 @@ elif st.session_state.page == 'setup':
                 st.info("현재 승인 대기 중인 유저가 없습니다.")
             else:
                 for pu in pending_users:
-                    # 유저별 고유 키 생성
                     u_id = pu.get('id')
                     u_email = pu.get('email')
                     
-                    with st.expander(f"{u_id} ({pu.get('univ') or '미기재'})"):
+                    with st.expander(f"👤 {u_id} ({pu.get('univ') or '미기재'})"):
                         st.write(f"**이메일**: {u_email} | **연락처**: {pu.get('phone')}")
+                        st.write(f"**직업**: {pu.get('job')} | **자산**: {pu.get('asset')}")
                         
-                        # 증빙 서류 링크
+                        # 증빙 서류 링크 (Supabase Storage URL 또는 Drive URL)
                         c1, c2, c3 = st.columns(3)
                         with c1:
-                            if pu.get('link_univ') != "미제출": st.link_button("🎓 대학 증빙", pu.get('link_univ'))
+                            if pu.get('link_univ') not in ["미제출", None]: st.link_button("🎓 대학 증빙", pu.get('link_univ'))
                         with c2:
-                            if pu.get('link_job') != "미제출": st.link_button("💼 직업 증빙", pu.get('link_job'))
+                            if pu.get('link_job') not in ["미제출", None]: st.link_button("💼 직업 증빙", pu.get('link_job'))
                         with c3:
-                            if pu.get('link_asset') != "미제출": st.link_button("💰 자산 증빙", pu.get('link_asset'))
+                            if pu.get('link_asset') not in ["미제출", None]: st.link_button("💰 자산 증빙", pu.get('link_asset'))
                         
                         st.divider()
 
-                        # 보류 사유 입력창 (키를 명확히 지정)
-                        st.text_input("보류 사유", placeholder="예: 식별 불가", key=f"rej_setup_{u_id}")
+                        # 보류 사유 입력창
+                        st.text_input("보류 사유", placeholder="예: 서류 식별 불가", key=f"rej_setup_{u_id}")
                         
                         btn_col1, btn_col2 = st.columns(2)
                         
-                        # [승인 버튼] -> on_click 사용
+                        # [승인 버튼]
                         with btn_col1:
                             st.button(
                                 "✅ 승인", 
                                 key=f"btn_app_{u_id}", 
                                 use_container_width=True,
-                                on_click=callback_approve,  # 클릭 시 실행할 함수 지정
-                                args=(u_id, u_email)        # 함수에 넘길 데이터
+                                on_click=callback_approve, 
+                                args=(u_id, u_email)
                             )
 
-                        # [보류 버튼] -> on_click 사용
+                        # [보류 버튼]
                         with btn_col2:
                             st.button(
                                 "❌ 보류", 
                                 key=f"btn_rej_{u_id}", 
                                 use_container_width=True, 
                                 type="primary",
-                                on_click=callback_reject,   # 클릭 시 실행할 함수 지정
-                                args=(u_id, u_email)        # 함수에 넘길 데이터
+                                on_click=callback_reject,
+                                args=(u_id, u_email)
                             )
 
 # 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
