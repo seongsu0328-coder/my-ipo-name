@@ -1417,7 +1417,6 @@ if 'user_info' not in st.session_state:
         }
     </style>
     """, unsafe_allow_html=True)
-
     # 2. 화면 레이아웃 (중앙 정렬)
     col_spacer1, col_center, col_spacer2 = st.columns([1, 4, 1])
 
