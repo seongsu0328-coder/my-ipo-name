@@ -240,6 +240,71 @@ def get_unified_tab4_analysis(company_name, ticker):
         return {"rating": "N/A", "summary": "분석 데이터를 정제하는 중입니다.", "pro_con": full_text[:300], "links": []}
     except Exception as e:
         return {"rating": "Error", "summary": f"오류 발생: {str(e)}", "pro_con": "", "links": []}
+
+@st.cache_data(show_spinner=False, ttl=600)
+def get_market_dashboard_analysis(metrics_data):
+    """
+    메인 대시보드(Tab 2)용 시장 진단 리포트 (24시간 Supabase 캐시)
+    metrics_data: get_market_status_internal 함수가 리턴한 딕셔너리
+    """
+    if not model: return "AI 모델 연결 실패"
+
+    # [Step 1] 24시간 캐시 확인 (전역 키 사용)
+    cache_key = "Global_Market_Dashboard_Tab2"
+    now = datetime.now()
+    one_day_ago = (now - timedelta(days=1)).isoformat()
+
+    try:
+        res = supabase.table("analysis_cache") \
+            .select("content") \
+            .eq("cache_key", cache_key) \
+            .gt("updated_at", one_day_ago) \
+            .execute()
+        
+        if res.data:
+            return res.data[0]['content']
+    except Exception as e:
+        print(f"Dashboard AI Cache Error: {e}")
+
+    # [Step 2] 캐시 없으면 AI 분석 실행
+    # 수치 데이터를 텍스트로 변환하여 프롬프트에 주입
+    prompt = f"""
+    당신은 월가의 수석 시장 전략가(Chief Market Strategist)입니다.
+    아래 제공된 실시간 시장 지표를 바탕으로 현재 미국 주식 시장과 IPO 시장의 상태를 진단하는 일일 브리핑을 작성하세요.
+
+    [실시간 시장 지표]
+    1. IPO 초기 수익률: {metrics_data.get('ipo_return', 0):.1f}% (20% 이상이면 과열)
+    2. IPO 예정 물량: {metrics_data.get('ipo_volume', 0)}건 (30일 내)
+    3. 적자 기업 비율: {metrics_data.get('unprofitable_pct', 0):.1f}% (80% 이상이면 버블 위험)
+    4. 상장 철회율: {metrics_data.get('withdrawal_rate', 0):.1f}%
+    5. VIX 지수: {metrics_data.get('vix', 0):.2f} (공포 지수)
+    6. 버핏 지수(GDP 대비 시총): {metrics_data.get('buffett_val', 0):.0f}%
+    7. S&P 500 PE: {metrics_data.get('pe_ratio', 0):.1f}배
+    8. Fear & Greed Index: {metrics_data.get('fear_greed', 50):.0f}점
+
+    [작성 가이드]
+    - 독자: IPO 투자자
+    - 어조: 냉철하고 전문적인 어조 (인사말 생략)
+    - 형식: 줄글로 된 3~5줄의 요약 리포트
+    - 내용: 위 지표들을 종합하여 현재가 '기회'인지 '위험'인지, 그리고 투자자가 어떤 태도(공격적/보수적)를 취해야 하는지 명확한 인사이트를 제공하세요.
+    """
+
+    try:
+        response = model.generate_content(prompt)
+        result = response.text
+
+        # [Step 3] 결과 저장
+        supabase.table("analysis_cache").upsert({
+            "cache_key": cache_key,
+            "content": result,
+            "updated_at": now.isoformat()
+        }).execute()
+
+        return result
+    except Exception as e:
+        return f"시장 분석 생성 중 오류: {str(e)}"
+
+
         
 # ==========================================
 # [기능] 1. 구글 연결 핵심 함수 (최우선 순위)
@@ -2731,28 +2796,24 @@ elif st.session_state.page == 'detail':
                 st.markdown(f"<div class='metric-card'><div class='metric-header'>Fear & Greed</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>심리 지표입니다. 75점 이상은 '극단적 탐욕' 상태를 의미합니다.</div><div class='metric-footer'>Ref: CNN Business Logic</div></div>", unsafe_allow_html=True)
         
             # --- 3. AI 종합 진단 (Expander) ---
-            with st.expander("논문기반 AI분석보기", expanded=False): 
-                is_hot_market = md['ipo_return'] >= 20 or md['ipo_volume'] >= 10
-                is_bubble_risk = md['unprofitable_pct'] >= 80
-        
-                if is_hot_market:
-                    ipo_market_analysis = "현재 IPO 시장은 **'Hot Market(과열기)'**의 징후를 보이고 있습니다. 초기 수익률은 높으나 상장 후 장기 성과는 낮을 수 있습니다."
-                else:
-                    ipo_market_analysis = "현재 IPO 시장은 **'Cold Market(안정기)'** 상태입니다. 보수적인 공모가 산정이 이루어지고 있습니다."
-        
-                if md['vix'] >= 25 or md['fear_greed'] <= 30:
-                    macro_analysis = "공포 심리가 확산되어 있습니다. IPO 철회 리스크가 커지며 보수적 접근이 필요합니다."
-                elif md['buffett_val'] > 150:
-                    macro_analysis = "버핏 지수가 극단적 고평가 영역에 있습니다. 고밸류에이션 종목 투자에 주의하십시오."
-                else:
-                    macro_analysis = "거시 지표는 비교적 안정적입니다. 신규 상장주에 대한 수급이 양호할 것으로 보입니다."
-        
-                st.success("시장 환경 데이터 통합 검증 완료")
-                st.write(f"**IPO 수급 환경:** {ipo_market_analysis}")
-                st.write(f"**거시 경제 리스크:** {macro_analysis}")
-                if is_bubble_risk:
-                    st.warning("🚨 **경고:** 적자 기업 비율이 매우 높습니다. 개별 종목의 현금흐름 확인이 필수적입니다.")
-                st.info("**Tip:** 시장 과열기에는 발생액 품질(Accruals Quality)을 따져봐야 합니다.")
+            with st.expander("Daily 시장진단", expanded=True): 
+                # 여기서 AI 함수 호출! (24시간에 한 번만 실행됨)
+                ai_market_comment = get_market_dashboard_analysis(md)
+                
+                st.markdown(f"""
+                <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #004e92;'>
+                    <div style='font-weight:bold; font-size:16px; margin-bottom:8px; color:#004e92;'>
+                        ⚡ 오늘의 시장 브리핑
+                    </div>
+                    <div style='font-size:14px; line-height:1.6; color:#333; text-align:justify;'>
+                        {ai_market_comment}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 기존의 팁 메시지는 하단에 보조적으로 표시
+                if md['unprofitable_pct'] >= 80:
+                    st.warning("**경고:** 적자 기업 비율이 매우 높습니다. 개별 종목의 펀더멘털 확인이 필수적입니다.")
         
            # [4] 참고논문 (expander)
             with st.expander("참고(References)", expanded=False):
