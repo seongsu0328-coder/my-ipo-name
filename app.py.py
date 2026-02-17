@@ -3091,81 +3091,112 @@ elif st.session_state.page == 'detail':
 
         # --- Tab 4: 기관평가 (Wall Street IPO Radar - Gemini 통합형) ---
         with tab4:
-            # 통합 분석 함수 호출 (Gemini Google Search Grounding 사용)
+            # 1. 통합 분석 데이터 호출 (Gemini Google Search Grounding 사용)
             with st.spinner(f"전문 기관 데이터를 정밀 수집 중..."):
                 result = get_unified_tab4_analysis(stock['name'], stock['symbol'])
             
-            # 결과 데이터 매핑 (통합 함수 반환값에 맞춤)
-            summary = result.get('summary', '')
-            pro_con = result.get('pro_con', '')
+            # 2. 결과 데이터 매핑
+            summary_raw = result.get('summary', '')
+            pro_con_raw = result.get('pro_con', '')
             rating_val = str(result.get('rating', 'Hold')).strip()
-            links = result.get('links', [])
+            score_val = str(result.get('score', '3')).strip() 
+            sources = result.get('links', [])
+            q = stock['symbol'] if stock['symbol'] else stock['name']
 
-            # --- (1) 종합 요약 섹션 (Renaissance Capital 스타일) ---
-            with st.expander("기관 종합 분석 요약", expanded=True):
-                if summary:
+            # --- (1) Renaissance Capital & 기관 종합 요약 섹션 ---
+            with st.expander("Renaissance Capital & 기관 종합 요약", expanded=False):
+                import re
+                # 강력 절단 방식 적용 (출처 중복 방지)
+                pattern = r'(?i)source|출처|https?://'
+                parts = re.split(pattern, summary_raw)
+                summary = parts[0].strip().rstrip(' ,.:;-\n\t')
+
+                if not summary or "분석 불가" in summary:
+                    st.warning("직접적인 분석 리포트를 찾지 못했습니다. (비상장 또는 데이터 업데이트 지연)")
+                else:
                     st.info(summary)
-                else:
-                    st.warning("분석 리포트를 찾을 수 없습니다.")
                 
-                # 구글 검색 바로가기 버튼
-                q = stock['symbol'] if stock['symbol'] else stock['name']
-                st.link_button(f"🔎 {stock['name']} 기관 리포트 직접 검색", f"https://www.google.com/search?q={q}+IPO+analysis+site:seekingalpha.com+OR+site:renaissancecapital.com")
+                # 구글 검색 바로가기 버튼 1
+                search_url = f"https://www.google.com/search?q=site:renaissancecapital.com+{q}"
+                st.link_button(f" {stock['name']} Renaissance 데이터 직접 찾기", search_url)
 
-            # --- (2) 주요 평가 (Pros & Cons) ---
-            with st.expander("핵심 긍정/부정 요소 (Pros & Cons)", expanded=True):
-                if pro_con:
-                    st.success(f"**Wall Street Analyst Opinions**\n\n{pro_con}")
+            # --- (2) Seeking Alpha & Morningstar 상세 평가 섹션 ---
+            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
+                # 제어 문자 및 마크다운 정제
+                pro_con = pro_con_raw.replace("**", "").replace("###", "").strip()
+                
+                if "의견 수집 중" in pro_con or not pro_con:
+                    st.error("AI가 실시간 리포트 본문을 분석하는 데 실패했습니다.")
                 else:
-                    st.error("상세 분석 내용을 불러오지 못했습니다.")
+                    st.success(f"**주요 긍정/부정 의견**\n\n{pro_con}")
+                
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.link_button("Seeking Alpha 분석글 보기", f"https://seekingalpha.com/symbol/{q}/analysis")
+                with c2:
+                    st.link_button("Morningstar 검색 결과", f"https://www.morningstar.com/search?query={q}")
+                
+                # 구글 검색 바로가기 버튼 2 (심층 분석용)
+                st.write("")
+                st.link_button(f"🔎 {stock['name']} 심층 분석 데이터 검색", f"https://www.google.com/search?q={q}+stock+pros+and+cons+analysis+2025+2026")
 
-            # --- (3) 투자의견 (Analyst Ratings) ---
-            with st.expander("Analyst Ratings & Score", expanded=True):
+            # --- (3) Institutional Sentiment 섹션 ---
+            with st.expander("Sentiment Score", expanded=False):
                 s_col1, s_col2 = st.columns(2)
                 
                 with s_col1:
-                    # 투자의견 매핑 및 설명
                     r_list = {
-                        "Strong Buy": "강력 매수", "Buy": "매수",
-                        "Hold": "보유/중립", "Neutral": "중립", "Sell": "매도"
+                        "Strong Buy": "적극 매수 추천",
+                        "Buy": "매수 추천",
+                        "Hold": "보유 및 중립 관망",
+                        "Neutral": "보유 및 중립 관망",
+                        "Sell": "매도 및 비중 축소"
                     }
-                    rating_kor = r_list.get(rating_val, rating_val)
+                    rating_help = "**[Analyst Ratings 설명]**\n애널리스트 투자의견 컨센서스입니다.\n\n"
+                    for k, v in r_list.items():
+                        is_current = " **(현재)**" if k.lower() in rating_val.lower() else ""
+                        rating_help += f"- **{k}**: {v}{is_current}\n"
+            
+                    st.write("**[Analyst Ratings]**")
+                    st.metric(label="Consensus Rating", value=rating_val, help=rating_help)
                     
-                    st.write("**[Consensus Rating]**")
-                    st.metric(label="투자의견", value=rating_val, delta=rating_kor, delta_color="off")
-                    
-                    # 의견에 따른 상태 메시지
-                    if any(x in rating_val for x in ["Buy", "Strong"]):
-                        st.caption("✅ 긍정적 평가 우세")
-                    elif "Sell" in rating_val:
-                        st.caption("🚨 보수적 접근 필요")
+                    if any(x in rating_val for x in ["Buy", "Positive", "Outperform", "Strong"]):
+                        st.caption("✅ 시장의 긍정적인 평가를 받고 있습니다.")
+                    elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
+                        st.error(f"Consensus: {rating_val}")
                     else:
-                        st.caption("⚖️ 중립적 관망세")
+                        st.info(f"등급: {rating_val}")
 
                 with s_col2:
-                    # IPO 점수 (가상 계산 로직 또는 Gemini 분석 기반)
-                    # 여기서는 Rating에 따라 점수를 부여하는 로직 예시
-                    score = 3
-                    if "Strong Buy" in rating_val: score = 5
-                    elif "Buy" in rating_val: score = 4
-                    elif "Sell" in rating_val: score = 1
-                    elif "Hold" in rating_val: score = 3
+                    s_list = {
+                        "5": "대박 (Moonshot)", "4": "강력한 수익", "3": "양호 (Good)",
+                        "2": "미미한 수익 예상", "1": "공모가 하회 위험"
+                    }
+                    score_help = "**[IPO Scoop Score 설명]**\n상장 첫날 수익률 기대치입니다.\n\n"
+                    for k, v in s_list.items():
+                        is_current = f" **(현재 {score_val}점)**" if k == score_val else ""
+                        score_help += f"- ⭐ {k}개: {v}{is_current}\n"
+            
+                    st.write("**[IPO Scoop Score]**")
+                    st.metric(label="Expected IPO Score", value=f"⭐ {score_val}", help=score_help)
                     
-                    st.write("**[IPO Score]**")
-                    st.metric(label="투자 매력도", value=f"⭐ {score}/5")
-                    st.caption("기관 평가 기반 종합 점수")
+                    if score_val in ["4", "5"]:
+                        st.success(f"평가: {s_list.get(score_val, '정보 없음')}")
+                    elif score_val == "3":
+                        st.info(f"평가: {s_list.get(score_val, '정보 없음')}")
+                    else:
+                        st.warning(f"평가: {s_list.get(score_val, '정보 없음')}")
 
-                # 참고 출처 링크
-                if links:
-                    st.markdown("---")
-                    st.markdown("**참고 리포트 출처**")
-                    for link in links[:3]: # 최대 3개만 표시
-                        st.markdown(f"- [{link['title']}]({link['link']})")
+                # 참고 소스 링크
+                if sources:
+                    st.markdown('<br><p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0px;">참고 리포트 출처</p>', unsafe_allow_html=True)
+                    for src in sources[:4]:
+                        st.markdown(f"- [{src['title']}]({src['link']})")
 
-            # [5단계 사용자 판단]
+            # [✅ 5단계 사용자 판단]
             draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
 
-            # 면책 조항
+            # 맨 마지막에 호출
             display_disclaimer()
     
         
