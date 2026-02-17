@@ -3760,7 +3760,7 @@ elif st.session_state.page == 'detail':
                     st.warning("로그인 후 이용 가능합니다.")
                 
 
-                #리아지우와제주도 다녀오다
+                #리아 지우와제주도 다녀오다 사랑하다
                  
                 
                 
