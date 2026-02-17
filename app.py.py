@@ -3759,8 +3759,8 @@ elif st.session_state.page == 'detail':
                     st.warning("로그인 후 이용 가능합니다.")
                 
 
-                #리아
-                 지우
+                #리아지우
+                 
                 
                 
                 
