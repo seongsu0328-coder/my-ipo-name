@@ -1645,8 +1645,8 @@ if st.session_state.page == 'login':
                             }
                             
                             # 4. 구글 시트 저장
-                            if save_user_to_sheets(final_data):
-                                st.success("🎉 가입 신청이 완료되었습니다! 잠시 후 설정 페이지로 이동합니다.")
+                            if db_signup_user(final_data):
+                                st.success("가입 신청 완료!")
                                 
                                 # 성공 상태 업데이트
                                 st.session_state.auth_status = 'user'
@@ -3613,36 +3613,64 @@ elif st.session_state.page == 'detail':
                 st.plotly_chart(fig, use_container_width=True)
 
             # ---------------------------------------------------------
-            # 3. 전망 투표 및 관심종목
+            # 3. 전망 투표 및 관심종목 (DB 연동 버전)
             # ---------------------------------------------------------
             st.write("---")
             st.subheader("향후 전망 투표")
             
             if st.session_state.get('auth_status') == 'user':
+                # 아직 관심종목에 없을 때 (투표 버튼 노출)
                 if sid not in st.session_state.watchlist:
-                    st.caption("투표 시 관심종목에 자동 저장됩니다.")
+                    st.caption("투표 시 관심종목에 자동 저장됩니다. (DB 영구 저장)")
                     c_up, c_down = st.columns(2)
+                    
+                    # [상승 예측 버튼]
                     if c_up.button("📈 상승 예측", key=f"up_{sid}", use_container_width=True, type="primary"):
-                        st.session_state.watchlist.append(sid)
+                        # 1. DB에 영구 저장 (핵심)
+                        db_toggle_watchlist(user_id, sid, "UP", action='add')
+                        
+                        # 2. 세션 상태 업데이트 (화면 즉시 갱신용)
+                        if sid not in st.session_state.watchlist:
+                            st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "UP"
                         st.session_state.vote_data[sid]['u'] += 1
                         st.rerun()
+
+                    # [하락 예측 버튼]
                     if c_down.button("📉 하락 예측", key=f"dn_{sid}", use_container_width=True):
-                        st.session_state.watchlist.append(sid)
+                        # 1. DB에 영구 저장 (핵심)
+                        db_toggle_watchlist(user_id, sid, "DOWN", action='add')
+                        
+                        # 2. 세션 상태 업데이트 (화면 즉시 갱신용)
+                        if sid not in st.session_state.watchlist:
+                            st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "DOWN"
                         st.session_state.vote_data[sid]['f'] += 1
                         st.rerun()
+
+                # 이미 관심종목에 있을 때 (상태 표시 및 해제 버튼)
                 else:
                     pred = st.session_state.watchlist_predictions.get(sid, "N/A")
                     color = "green" if pred == "UP" else "red"
                     st.success(f"✅ 관심종목 보관 중 (나의 예측: :{color}[{pred}])")
                     
+                    # [보관 해제 버튼]
                     if st.button("보관 해제 (투표 취소)", key=f"rm_{sid}", use_container_width=True):
-                        st.session_state.watchlist.remove(sid)
+                        # 1. DB에서 삭제 (핵심)
+                        db_toggle_watchlist(user_id, sid, action='remove')
+                        
+                        # 2. 세션 상태 업데이트 (화면 즉시 갱신용)
+                        if sid in st.session_state.watchlist:
+                            st.session_state.watchlist.remove(sid)
+                        
+                        # (선택사항) 투표 카운트 되돌리기 시늉 (실제로는 DB 카운트가 정확함)
                         if pred in ["UP", "DOWN"]:
                             key = 'u' if pred == "UP" else 'f'
                             st.session_state.vote_data[sid][key] -= 1
-                        del st.session_state.watchlist_predictions[sid]
+                        
+                        if sid in st.session_state.watchlist_predictions:
+                            del st.session_state.watchlist_predictions[sid]
+                            
                         st.rerun()
             else:
                 st.warning("🔒 로그인 후 투표에 참여할 수 있습니다.")
