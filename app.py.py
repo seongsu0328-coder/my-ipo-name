@@ -2796,15 +2796,18 @@ elif st.session_state.page == 'detail':
                 st.markdown(f"<div class='metric-card'><div class='metric-header'>Fear & Greed</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>심리 지표입니다. 75점 이상은 '극단적 탐욕' 상태를 의미합니다.</div><div class='metric-footer'>Ref: CNN Business Logic</div></div>", unsafe_allow_html=True)
         
             # --- 3. AI 종합 진단 (Expander) ---
-            with st.expander("Daily 시장진단", expanded=True): 
+            with st.expander("거시지표 분석", expanded=True): 
                 # 여기서 AI 함수 호출! (24시간에 한 번만 실행됨)
-                ai_market_comment = get_market_dashboard_analysis(md)
-                
+                # 만약 아직 get_market_dashboard_analysis 함수를 정의하지 않으셨다면 
+                # 이전 답변의 함수 코드를 app.py 상단에 먼저 추가해주셔야 합니다.
+                try:
+                    ai_market_comment = get_market_dashboard_analysis(md)
+                except NameError:
+                    ai_market_comment = "AI 분석 함수가 아직 로드되지 않았습니다."
+
+                # [수정됨] 제목 div를 제거하고 본문만 남긴 버전
                 st.markdown(f"""
                 <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #004e92;'>
-                    <div style='font-weight:bold; font-size:16px; margin-bottom:8px; color:#004e92;'>
-                        ⚡ 오늘의 시장 브리핑
-                    </div>
                     <div style='font-size:14px; line-height:1.6; color:#333; text-align:justify;'>
                         {ai_market_comment}
                     </div>
@@ -2812,8 +2815,8 @@ elif st.session_state.page == 'detail':
                 """, unsafe_allow_html=True)
                 
                 # 기존의 팁 메시지는 하단에 보조적으로 표시
-                if md['unprofitable_pct'] >= 80:
-                    st.warning("**경고:** 적자 기업 비율이 매우 높습니다. 개별 종목의 펀더멘털 확인이 필수적입니다.")
+                if md.get('unprofitable_pct', 0) >= 80:
+                    st.warning("🚨 **경고:** 적자 기업 비율이 매우 높습니다. 개별 종목의 펀더멘털 확인이 필수적입니다.")
         
            # [4] 참고논문 (expander)
             with st.expander("참고(References)", expanded=False):
