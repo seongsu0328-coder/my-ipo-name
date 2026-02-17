@@ -435,7 +435,7 @@ def get_extended_ipo_data(api_key):
 
 import yfinance as yf
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def get_batch_prices(ticker_list):
     """
     Supabase DB를 활용하여 15분 단위로 주가를 캐싱하고 Batch로 가져오는 함수
@@ -506,16 +506,12 @@ def get_batch_prices(ticker_list):
         except Exception as e:
             print(f"Yahoo API Error: {e}")
 
-    # [디버깅용 메시지 출력 - 수정됨]
-    count_total = len(ticker_list)
-    count_cached = len(cached_data)
-    
+    # [수정] st.toast(화면출력) -> print(로그출력)으로 변경
+    # 이유: 캐시 함수 안에서 st.toast를 쓰면 Streamlit 버그로 앱이 멈춥니다.
     if missing_tickers:
-        # icon="cloud" (X) -> icon="☁️" (O) 또는 "⚠️"
-        st.toast(f"⚠️ API 호출 발생! (새로고침: {len(missing_tickers)}건)", icon="⚠️")
+        print(f"⚠️ [System] {len(missing_tickers)}개 종목 API 새로고침 완료 (Supabase 저장됨)")
     else:
-        # icon="rocket" (X) -> icon="🚀" (O)
-        st.toast(f"⚡ 속도 쾌적! DB 캐시 사용 중 ({count_cached}/{count_total}건)", icon="🚀")
+        print(f"🚀 [System] {count_cached}개 종목 Supabase 캐시 로딩 완료 (속도 쾌적)")
 
     return cached_data
 
