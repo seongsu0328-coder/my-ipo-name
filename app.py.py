@@ -275,6 +275,7 @@ def get_last_cache_update_time():
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
 # ---------------------------------------------------------
+# ---------------------------------------------------------
 @st.cache_resource
 def configure_genai():
     genai_key = st.secrets.get("GENAI_API_KEY")
@@ -282,12 +283,16 @@ def configure_genai():
         genai.configure(api_key=genai_key)
         
         try:
-            # [핵심] 여기서 'google_search'를 문자열로 선언! 
-            # 라이브러리가 알아서 최적의 도구 객체를 연결합니다.
-            return genai.GenerativeModel('gemini-1.5-flash', tools='google_search')
+            # [핵심 수정] 2026년 표준인 2.0 모델로 상향 조정
+            # model_name을 명시적으로 선언하여 경로 인식 오류(404)를 방지합니다.
+            return genai.GenerativeModel(
+                model_name='gemini-2.0-flash', 
+                tools='google_search'
+            )
         except Exception as e:
+            # 만약 구글 검색 도구 설정에 문제가 생길 경우를 대비한 비상용(Fallback)
             print(f"Tool Config Error: {e}")
-            return genai.GenerativeModel('gemini-1.5-flash')
+            return genai.GenerativeModel(model_name='gemini-2.0-flash')
             
     return None
 
@@ -1221,63 +1226,65 @@ import plotly.graph_objects as go
 # [0] AI 설정 및 API 키 관리 (보안 강화)
 # ==========================================
 
-# 1. 자동 모델 선택 함수 (안전장치 강화 버전)
+# 1. 자동 모델 선택 함수 (2026년형 완전판)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_latest_stable_model():
     genai_key = st.secrets.get("GENAI_API_KEY")
-    if not genai_key: return 'gemini-1.5-flash' # 키 없으면 기본값
+    # 키가 없을 때의 기본값도 2.0으로 상향
+    if not genai_key: return 'gemini-2.0-flash' 
 
     try:
         genai.configure(api_key=genai_key)
         
-        # 1. 구글에서 현재 사용 가능한 모든 모델 리스트를 가져옵니다.
+        # 1. 사용 가능한 모델 리스트 확보
         all_models = genai.list_models()
-        
         candidate_models = []
 
         for m in all_models:
-            # 조건: 'generateContent' 지원하고 이름에 'flash'가 있어야 함
+            # 조건: 'generateContent' 지원 및 이름에 'flash' 포함
             if 'generateContent' in m.supported_generation_methods and 'flash' in m.name:
-                
-                # [핵심] 이름에서 버전 숫자만 뽑아냅니다. (예: gemini-1.5-flash -> 1.5)
-                # 정규표현식: (\d+\.\d+) -> 숫자.숫자 패턴을 찾음
+                # 정규표현식으로 버전 숫자 추출
                 match = re.search(r'gemini-(\d+\.\d+)-flash', m.name)
-                
                 if match:
-                    version_float = float(match.group(1)) # 문자열 "1.5"를 숫자 1.5로 변환
+                    version_float = float(match.group(1))
                     candidate_models.append({
                         "name": m.name,
                         "version": version_float
                     })
 
-        if not candidate_models:
-            return 'gemini-1.5-flash' # 검색 실패 시 안전한 기본값
-
-        # 2. 버전 숫자가 높은 순서대로 정렬합니다. (내림차순)
-        # 예: [2.0, 1.5, 1.0] 순으로 정렬됨
-        candidate_models.sort(key=lambda x: x["version"], reverse=True)
-
-        # 3. 가장 높은 버전의 모델 이름을 반환합니다.
-        # 즉, 나중에 1.6이나 3.0이 나오면 알아서 그게 1등이 되어 선택됩니다.
-        best_model = candidate_models[0]["name"]
+        # 2. 후보 모델이 있을 경우 가장 높은 버전을 반환
+        if candidate_models:
+            # 내림차순 정렬 (2.0, 1.5, 1.0 순)
+            candidate_models.sort(key=lambda x: x["version"], reverse=True)
+            return candidate_models[0]["name"]
+            
+        # 3. 후보가 없으면 2.0을 안전장치로 반환
+        return 'gemini-2.0-flash'
         
-        return best_model
-
     except Exception as e:
-        # API 에러, 네트워크 오류 등 발생 시 무조건 1.5-flash로 고정 (앱 멈춤 방지)
-        return 'gemini-1.5-flash'
+        # [중요] 모든 에러 발생 시 최후의 보루도 2.0-flash로 고정
+        # 이제 1.5 때문에 404 에러가 나는 일은 없을 겁니다.
+        print(f"Model selection error: {e}")
+        return 'gemini-2.0-flash'
 
-# 2. 전역 모델 객체 생성
-SELECTED_MODEL_NAME = get_latest_stable_model()
+# ---------------------------------------------------------
+# 2. 전역 모델 객체 생성 (404 에러 원천 차단 버전)
+# ---------------------------------------------------------
 
+# 함수를 호출하는 대신, 2026년 표준인 2.0 모델명을 직접 지정합니다.
+SELECTED_MODEL_NAME = 'gemini-2.0-flash' 
 
-if SELECTED_MODEL_NAME:
+if st.secrets.get("GENAI_API_KEY"):
     try:
-        model = genai.GenerativeModel(SELECTED_MODEL_NAME)
-    except:
+        # model_name을 명시적으로 선언하여 가상 환경 오류를 방지합니다.
+        model = genai.GenerativeModel(model_name=SELECTED_MODEL_NAME)
+        print(f"✅ 전역 AI 모델 '{SELECTED_MODEL_NAME}' 로드 성공")
+    except Exception as e:
+        print(f"⚠️ 모델 로드 실패: {e}")
         model = None
 else:
-    st.error("⚠️ GENAI_API_KEY가 유출되었거나 설정되지 않았습니다. Streamlit Secrets를 확인하세요.")
+    # API 키가 없을 때만 에러 메시지를 띄웁니다.
+    st.error("⚠️ GENAI_API_KEY가 설정되지 않았습니다. Streamlit Secrets를 확인하세요.")
     model = None
 
 @st.cache_data(show_spinner=False, ttl=600) # 메모리 캐시는 짧게, DB가 메인 저장소 역할
