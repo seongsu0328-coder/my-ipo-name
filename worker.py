@@ -48,39 +48,47 @@ def sanitize_value(v):
     return str(v).strip().replace('\x00', '')
 
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
-    """405 에러를 원천 차단하는 범용 REST API Upsert"""
     if not data_list: return
     
-    # URL 경로 자동 교정 로직
-    base_url = SUPABASE_URL
-    if "/rest/v1" not in base_url:
-        endpoint = f"{base_url}/rest/v1/{table_name}?on_conflict={on_conflict}"
+    url = os.environ.get("SUPABASE_URL", "").rstrip('/')
+    key = os.environ.get("SUPABASE_KEY", "")
+    
+    # [핵심] 주소 중복 방지 로직
+    # URL에 이미 /rest/v1이 있으면 그대로 쓰고, 없으면 붙여줍니다.
+    if "/rest/v1" in url:
+        endpoint = f"{url}/{table_name}?on_conflict={on_conflict}"
     else:
-        endpoint = f"{base_url}/{table_name}?on_conflict={on_conflict}"
+        endpoint = f"{url}/rest/v1/{table_name}?on_conflict={on_conflict}"
     
     headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
     }
 
-    print(f"🚀 [{table_name}] {len(data_list)}개 시도 (기준: {on_conflict})")
-    success_save = 0
+    print(f"🚀 [{table_name}] {len(data_list)}개 저장 시도 (기준: {on_conflict})")
     
+    # [성능 최적화] 518개를 하나씩 보내면 너무 느리고 에러가 잦습니다. 
+    # 데이터를 리스트 전체로 보내면 Supabase가 한 번에 처리합니다! (Bulk Upsert)
+    clean_data_list = []
     for item in data_list:
         clean_payload = {k: sanitize_value(v) for k, v in item.items()}
-        if not clean_payload.get(on_conflict): continue
+        if clean_payload.get(on_conflict):
+            clean_data_list.append(clean_payload)
 
-        try:
-            # 개별 전송으로 안정성 확보
-            resp = requests.post(endpoint, json=clean_payload, headers=headers)
-            if resp.status_code in [200, 201, 204]:
-                success_save += 1
-            else:
-                print(f"   ⚠️ {clean_payload.get(on_conflict)} 실패 ({resp.status_code}): {resp.text[:100]}")
-        except: continue
-    print(f"🏁 [{table_name}] 성공: {success_save}")
+    if not clean_data_list: return
+
+    try:
+        # 하나씩 post 하는 대신 리스트를 통째로 보냅니다.
+        resp = requests.post(endpoint, json=clean_data_list, headers=headers)
+        if resp.status_code in [200, 201, 204]:
+            print(f"✅ [{table_name}] {len(clean_data_list)}개 저장 성공!")
+        else:
+            # 405 에러 발생 시 구체적인 이유를 출력합니다.
+            print(f"❌ [{table_name}] 실패 ({resp.status_code}): {resp.text}")
+    except Exception as e:
+        print(f"❌ 시스템 에러: {e}")
 
 # ==========================================
 # [3] 데이터 수집 (기존 유지)
