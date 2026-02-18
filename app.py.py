@@ -26,15 +26,54 @@ from datetime import datetime, timedelta
 # ==========================================
 from supabase import create_client, Client
 
+# 1. Supabase 연결 초기화 (리소스 캐싱)
 @st.cache_resource
 def init_supabase():
-    """Supabase 클라이언트를 초기화하고 캐싱합니다."""
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"]
-    return create_client(url, key)
+    """Supabase 클라이언트를 초기화하고 연결을 유지합니다."""
+    try:
+        url = st.secrets["supabase"]["url"]
+        key = st.secrets["supabase"]["key"]
+        return create_client(url, key)
+    except Exception as e:
+        st.error(f"Supabase 연결 오류: {e}")
+        return None
 
-# 전역에서 사용할 supabase 객체 생성
+# 전역 Supabase 객체 생성
 supabase = init_supabase()
+
+# 2. 데이터 캐싱 함수 (데이터 캐싱: 3초 -> 0.1초 마법)
+@st.cache_data(ttl=600)  # 600초(10분) 동안 메모리에 저장
+def load_price_data():
+    """
+    Supabase의 price_cache 테이블에서 데이터를 한 번에 가져와서 DataFrame으로 변환합니다.
+    이 함수는 10분에 한 번만 실행되고, 그 사이에는 0.1초 만에 결과를 반환합니다.
+    """
+    if not supabase:
+        return pd.DataFrame()
+
+    try:
+        # 1. Supabase에서 모든 데이터 조회 (행 제한 없이)
+        response = supabase.table("price_cache").select("*").execute()
+        
+        # 2. 데이터가 없으면 빈 DataFrame 반환
+        if not response.data:
+            return pd.DataFrame()
+            
+        # 3. DataFrame으로 변환
+        df = pd.DataFrame(response.data)
+        
+        # 4. 숫자형 변환 및 날짜 정리 (오류 방지)
+        if 'price' in df.columns:
+            df['price'] = pd.to_numeric(df['price'], errors='coerce')
+        if 'updated_at' in df.columns:
+            df['updated_at'] = pd.to_datetime(df['updated_at'])
+            
+        return df
+        
+    except Exception as e:
+        st.error(f"데이터 불러오기 실패: {e}")
+        return pd.DataFrame()
+
 
 # ==========================================
 # [중요] 구글 라이브러리
