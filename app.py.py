@@ -647,42 +647,48 @@ def get_extended_ipo_data(api_key):
     
     return df
 
-@st.cache_data(ttl=600, show_spinner=False) # 10분간 메모리 캐시 유지
+# [수정된 디버깅용 함수]
+@st.cache_data(ttl=600, show_spinner=False)
 def get_batch_prices(ticker_list):
     if not ticker_list: return {}
     clean_tickers = [str(t).strip() for t in ticker_list if t and str(t).strip().lower() != 'nan']
     
     cached_data = {}
     
-    # [Step 1] Supabase DB에서 일단 "있는 데이터"는 다 긁어옵니다. (15분 필터 제거)
-    # 앱은 '속도'가 우선이므로, 조금 오래된 데이터라도 먼저 보여주는 게 사용자 경험에 좋습니다.
+    # [Step 1] Supabase DB 조회
     try:
         res = supabase.table("price_cache") \
             .select("ticker, price") \
             .in_("ticker", clean_tickers) \
             .execute()
+        
         if res.data:
             cached_data = {item['ticker']: float(item['price']) for item in res.data}
     except Exception as e:
         print(f"DB Read Error: {e}")
 
-    # [Step 2] DB에 아예 없거나 데이터가 부족한 티커 확인
+    # [Step 2] 부족한 데이터 확인
     missing_tickers = [t for t in clean_tickers if t not in cached_data]
     
-    # [Step 3] 없는 데이터만 딱 한 번의 API 호출로 가져오기
+    # 🕵️‍♂️ [CCTV 작동] 화면에 출처 표시 (디버깅용)
     if missing_tickers:
+        st.toast(f"🐢 속도 저하: DB({len(cached_data)}개) / ☁️ API 호출({len(missing_tickers)}개)", icon="⚠️")
+    else:
+        st.toast(f"⚡ 고속 로딩: {len(cached_data)}개 전량 DB 호출 성공!", icon="✅")
+
+    # [Step 3] API 호출 (부족한 것만)
+    if missing_tickers:
+        # (API 호출 로직은 기존과 동일)
         tickers_str = " ".join(missing_tickers)
         try:
             data = yf.download(tickers_str, period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
-            
-            upsert_payload = [] # 한꺼번에 DB에 넣을 바구니
+            upsert_payload = []
             now_iso = datetime.now().isoformat()
             
             for t in missing_tickers:
                 try:
                     if len(missing_tickers) > 1:
-                        if t in data.columns.levels[0]:
-                            target_data = data[t]['Close'].dropna()
+                        if t in data.columns.levels[0]: target_data = data[t]['Close'].dropna()
                         else: continue
                     else:
                         target_data = data['Close'].dropna()
@@ -690,17 +696,9 @@ def get_batch_prices(ticker_list):
                     if not target_data.empty:
                         current_p = float(target_data.iloc[-1])
                         cached_data[t] = current_p
-                        
-                        # [핵심] 바로 DB에 넣지 않고 리스트에 담습니다.
-                        upsert_payload.append({
-                            "ticker": t,
-                            "price": current_p,
-                            "updated_at": now_iso
-                        })
-                except:
-                    continue
+                        upsert_payload.append({"ticker": t, "price": current_p, "updated_at": now_iso})
+                except: continue
             
-            # [핵심] 수백 개의 데이터를 단 한 번의 통신으로 저장합니다 (Batch Upsert)
             if upsert_payload:
                 supabase.table("price_cache").upsert(upsert_payload).execute()
                 
