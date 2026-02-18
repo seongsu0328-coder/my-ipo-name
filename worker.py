@@ -8,7 +8,6 @@ import numpy as np
 import yfinance as yf
 from datetime import datetime, timedelta, date
 import pytz 
-import streamlit as st  # <--- 이 줄이 반드시 있어야 st.secrets를 쓸 수 있습니다!
 from supabase import create_client
 import google.generativeai as genai
 
@@ -64,24 +63,31 @@ def sanitize_value(v):
     return str(v).strip()
 
 def batch_upsert(table_name, data_list, batch_size=1):
+    """
+    st.secrets 의존성을 완전히 제거하고 
+    환경 변수(os.environ)를 직접 사용하는 안전한 버전입니다.
+    """
     if not data_list: return
     
-    # Supabase 접속 정보 직접 추출
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"]
+    # [수정] st.secrets 대신 os.environ에서 직접 가져옵니다.
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
     
+    if not url or not key:
+        print("❌ 에러: SUPABASE_URL 또는 KEY 환경변수를 찾을 수 없습니다.")
+        return
+
     # REST API 엔드포인트 설정
-    # 예: https://xyz.supabase.co/rest/v1/price_cache
     endpoint = f"{url}/rest/v1/{table_name}"
     
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates"  # ★ 핵심: 중복 시 업데이트(Upsert) 하라는 설정
+        "Prefer": "resolution=merge-duplicates"
     }
 
-    print(f"🚀 [REST API 직송 모드] {len(data_list)}개 데이터 전송 시작...")
+    print(f"🚀 [환경변수 직송 모드] {len(data_list)}개 데이터 전송 시작...")
     success_save = 0
     fail_save = 0
 
@@ -89,8 +95,7 @@ def batch_upsert(table_name, data_list, batch_size=1):
         ticker = str(item.get('ticker', '')).strip()
         if not ticker or ticker.lower() == 'none': continue
 
-        # [데이터 초정밀 세척]
-        # 모든 값을 파이썬 기본 타입(str, float)으로 강제 변환
+        # 데이터 초정밀 세척
         p_val = item.get('price', 0.0)
         clean_price = float(p_val) if (p_val is not None and not pd.isna(p_val)) else 0.0
         
@@ -102,14 +107,13 @@ def batch_upsert(table_name, data_list, batch_size=1):
         }
 
         try:
-            # supabase 라이브러리 대신 표준 requests를 사용합니다.
+            # 표준 requests 라이브러리로 전송 (JSON 에러 원천 차단)
             response = requests.post(endpoint, json=payload, headers=headers)
             
-            # 200(성공), 201(생성됨) 코드 확인
             if response.status_code in [200, 201]:
                 success_save += 1
                 if success_save % 50 == 0:
-                    print(f"   ... {success_save}개 직송 성공")
+                    print(f"   ... {success_save}개 저장 성공")
             else:
                 fail_save += 1
                 print(f"   ⚠️ {ticker} 실패 (Code {response.status_code}): {response.text}")
