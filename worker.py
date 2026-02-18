@@ -62,7 +62,7 @@ def sanitize_value(v):
     # 4. 문자열 처리 (객체 형태가 남지 않도록 str() 강제 적용)
     return str(v).strip()
 
-def batch_upsert(table_name, data_list, batch_size=40):
+def batch_upsert(table_name, data_list, batch_size=10): # 배치 사이즈를 10으로 축소
     if not data_list: return
     
     for i in range(0, len(data_list), batch_size):
@@ -71,29 +71,41 @@ def batch_upsert(table_name, data_list, batch_size=40):
         
         for item in batch:
             try:
-                # [핵심 수정] float()와 round()를 사용하여 
-                # Numpy 데이터 타입을 순수 파이썬 float로 강제 변환합니다.
-                raw_price = item.get('price', 0.0)
-                clean_price = float(raw_price) if raw_price is not None else 0.0
+                # 1. 숫자는 확실하게 float/int로
+                p_val = item.get('price', 0.0)
+                if pd.isna(p_val): p_val = 0.0
+                
+                # 2. 모든 문자열 데이터에서 특수 제어 문자 제거 (JSON 에러 주범)
+                ticker = str(item.get('ticker', '')).strip().replace('\x00', '')
+                status = str(item.get('status', 'Active')).strip().replace('\x00', '')
+                updated_at = str(item.get('updated_at', '')).strip().replace('\x00', '')
                 
                 clean_batch.append({
-                    "ticker": str(item.get('ticker', '')),
-                    "price": round(clean_price, 4),
-                    "status": str(item.get('status', 'Active')),
-                    "updated_at": str(item.get('updated_at', ''))
+                    "ticker": ticker,
+                    "price": float(p_val),
+                    "status": status,
+                    "updated_at": updated_at
                 })
-            except:
+            except Exception as e:
+                print(f"⚠️ 개별 데이터 정제 에러: {e}")
                 continue
             
-        try:
-            # 최종 전송
-            supabase.table(table_name).upsert(clean_batch).execute()
-            print(f"   ✅ {table_name} 저장 성공: {i+len(clean_batch)}개 완료")
-        except Exception as e:
-            print(f"   ❌ {table_name} 저장 실패 (최종 단계): {e}")
-            if clean_batch:
-                print(f"   🔍 샘플 데이터 타입 확인: price={type(clean_batch[0]['price'])}")
+        if not clean_batch: continue
 
+        try:
+            # [최종 방어] 한 번 더 json.dumps로 검증
+            json.dumps(clean_batch)
+            
+            # 전송 시도
+            supabase.table(table_name).upsert(clean_batch).execute()
+            print(f"   ✅ {table_name} 저장 성공: {i+len(clean_batch)}개째 진행 중...")
+            
+            # API 과부하 방지를 위한 미세한 휴식
+            time.sleep(0.1)
+            
+        except Exception as e:
+            print(f"   ❌ {table_name} 저장 실패 (ID: {clean_batch[0]['ticker']}): {e}")
+            
 # ==========================================
 # [3] 핵심 로직 (나머지 프롬프트 및 수집 기능 유지)
 # ==========================================
