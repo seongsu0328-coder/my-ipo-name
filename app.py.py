@@ -41,6 +41,63 @@ def init_supabase():
 # 전역 Supabase 객체 생성
 supabase = init_supabase()
 
+# ==========================================
+# [신규] 데이터 정제 및 DB 직송 함수 (Direct Upsert)
+# ==========================================
+
+def sanitize_value(v):
+    """Numpy/Pandas 타입을 Python 표준 타입으로 변환하여 JSON 에러를 방지합니다."""
+    if v is None or pd.isna(v): return None
+    if isinstance(v, (np.floating, float)):
+        return float(v) if not (np.isinf(v) or np.isnan(v)) else 0.0
+    if isinstance(v, (np.integer, int)):
+        return int(v)
+    if isinstance(v, (np.bool_, bool)):
+        return bool(v)
+    return str(v).strip().replace('\x00', '')
+
+def batch_upsert(table_name, data_list, on_conflict="ticker"):
+    """
+    Supabase REST API를 통해 데이터를 1개씩 안전하게 '직송'합니다.
+    - table_name: 저장할 테이블 이름
+    - data_list: 저장할 데이터 리스트
+    - on_conflict: 중복 체크 기준 컬럼 (price_cache는 'ticker')
+    """
+    if not data_list: return
+    
+    # [중요] app.py 환경이므로 st.secrets에서 접속 정보를 가져옵니다.
+    try:
+        url = st.secrets["supabase"]["url"]
+        key = st.secrets["supabase"]["key"]
+    except Exception as e:
+        print(f"Secrets Error: {e}")
+        return
+
+    # URL 뒤에 ?on_conflict={컬럼}을 붙여야 중복 시 업데이트(Upsert)가 작동합니다.
+    endpoint = f"{url.rstrip('/')}/rest/v1/{table_name}?on_conflict={on_conflict}"
+    
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates" # 중복 시 덮어쓰기 설정
+    }
+
+    for item in data_list:
+        # 1. 데이터를 하나씩 꺼내서 깨끗하게 세척
+        clean_payload = {k: sanitize_value(v) for k, v in item.items()}
+        
+        # 2. 기준키(예: ticker)가 비어있으면 저장하지 않고 건너뜀
+        if not clean_payload.get(on_conflict):
+            continue
+
+        try:
+            # 3. 라이브러리 대신 requests를 사용하여 JSON 405 에러를 우회
+            requests.post(endpoint, json=clean_payload, headers=headers)
+        except Exception as e:
+            print(f"Upsert Error ({clean_payload.get(on_conflict)}): {e}")
+            continue
+            
 # 2. 데이터 캐싱 함수 (데이터 캐싱: 3초 -> 0.1초 마법)
 @st.cache_data(ttl=600)  # 600초(10분) 동안 메모리에 저장
 def load_price_data():
