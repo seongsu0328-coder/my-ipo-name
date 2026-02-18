@@ -308,6 +308,8 @@ def update_macro_data(df_calendar):
 # ==========================================
 # [4] 메인 실행 루프
 # ==========================================
+# [worker.py 의 main 함수 전체 교체]
+
 def main():
     print(f"🚀 Worker Start: {datetime.now()}")
     
@@ -317,30 +319,52 @@ def main():
         print("종목이 없어 종료합니다.")
         return
 
+    # 1.5 추적 명단 저장
+    print(f"📝 추적 명단({len(df)}개) DB에 등록 중...", end=" ")
+    try:
+        stock_list = []
+        for _, row in df.iterrows():
+            stock_list.append({
+                "symbol": row['symbol'], 
+                "name": row['name'],
+                "updated_at": datetime.now().isoformat()
+            })
+        supabase.table("stock_cache").upsert(stock_list).execute()
+        print("✅ 완료")
+    except Exception as e:
+        print(f"❌ 명단 저장 실패: {e}")
+
     # 2. 거시 지표 업데이트 (1회)
     update_macro_data(df)
     
-    # 3. 개별 종목 루프
+    # 3. 개별 종목 루프 (속도 조절 적용)
     total = len(df)
     for idx, row in df.iterrows():
         symbol = row['symbol']
         name = row['name']
-        print(f"[{idx+1}/{total}] {symbol} 처리 중...", end=" ")
+        print(f"[{idx+1}/{total}] {symbol} 분석 중...", end=" ")
         
         try:
-            # (A) Tab 0: 공시 분석 (S-1 & 424B4) [NEW]
-            run_tab0_analysis(symbol, name)
+            # --- 속도 조절: 각 탭 실행 사이에도 텀을 줍니다 ---
+            
+            # (A) Tab 0: 공시 분석 (가장 중요)
+            if run_tab0_analysis(symbol, name):
+                print("T0.", end="")
+                time.sleep(4) # 4초 휴식
 
             # (B) Tab 1: 비즈니스/뉴스
-            run_tab1_analysis(symbol, name)
+            if run_tab1_analysis(symbol, name):
+                print("T1.", end="")
+                time.sleep(4) # 4초 휴식
             
             # (C) Tab 4: 기관 평가
-            run_tab4_analysis(symbol, name)
+            if run_tab4_analysis(symbol, name):
+                print("T4.", end="")
+                time.sleep(4) # 4초 휴식
             
-            # (D) Tab 3: 재무 분석 (yfinance 데이터 선행 필요)
+            # (D) Tab 3: 재무 분석
             tk = yf.Ticker(symbol)
             info = tk.info
-            # 간단한 데이터 추출
             growth = info.get('revenueGrowth', 0) * 100
             net_margin = info.get('profitMargins', 0) * 100
             roe = info.get('returnOnEquity', 0) * 100
@@ -351,13 +375,18 @@ def main():
                 "roe": f"{roe:.1f}%",
                 "pe": f"{info.get('forwardPE', 0):.1f}x"
             }
-            run_tab3_analysis(symbol, name, metrics_dict)
+            if run_tab3_analysis(symbol, name, metrics_dict):
+                print("T3.", end="")
+                time.sleep(4) # 4초 휴식
             
-            print("✅ 완료")
-            time.sleep(2) # API Rate Limit 보호
+            print("✅")
+            
+            # 종목 간 대기 시간 (Rate Limit 회복용)
+            time.sleep(5) 
             
         except Exception as e:
             print(f"❌ 실패: {e}")
+            time.sleep(10) # 에러나면 좀 더 길게 쉼
             
     print("🏁 모든 작업 종료.")
 
