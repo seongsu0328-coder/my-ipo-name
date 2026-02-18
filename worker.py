@@ -145,16 +145,19 @@ def run_tab0_analysis(ticker, company_name):
         except Exception:
             pass
 
-# (Tab 1) 비즈니스 & 뉴스 분석 [최종 수정본]
+# (Tab 1) 비즈니스 & 뉴스 분석 [최종 수정본: 동적 날짜 필터링 적용]
 def run_tab1_analysis(ticker, company_name):
     if not model: return False
     if not ticker or str(ticker).lower() == 'none': return False
     
-    # [수정] 현재 날짜 인식
-    current_date = datetime.now().strftime("%Y-%m-%d")
+    # [수정] 현재 날짜 및 1년 전 날짜 계산
+    now = datetime.now()
+    current_date = now.strftime("%Y-%m-%d")
+    one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+    
     cache_key = f"{ticker}_Tab1"
     
-    # [프롬프트 강화] 구글 검색 강제, 날짜 제한, JSON 포맷 준수
+    # [프롬프트 강화] app.py와 동일한 로직 적용 (동적 날짜)
     prompt = f"""
     당신은 글로벌 IPO 전문 수석 애널리스트입니다.
     분석 대상: {company_name} ({ticker})
@@ -167,7 +170,7 @@ def run_tab1_analysis(ticker, company_name):
     [작업 2: 실시간 뉴스 검색 및 수집]
     - **반드시 구글 검색(Google Search)을 실행**하여 최신 정보를 확인하세요.
     - {current_date} 기준, 최근 3개월 이내의 뉴스만 수집하세요. 
-    - **경고: 2024년 및 그 이전의 오래된 뉴스는 절대 포함하지 마세요.**
+    - **경고: {one_year_ago} 이전의 오래된 뉴스는 절대 포함하지 마세요.**
     - 검색 키워드 예시: "{company_name} latest news", "{ticker} stock news 2025"
     - 상장(IPO) 관련 소식이나 최근 분기 실적 발표가 있다면 최우선으로 반영하세요.
 
