@@ -2431,12 +2431,12 @@ if st.session_state.page == 'calendar':
                 # [수정] 가격 표시 로직: 상태에 따라 텍스트 변경
                 if live_s == "상장연기":
                     price_html = f"""
-                        <div class='price-main' style='color:#1919e6 !important;'>📅 상장연기</div>
+                        <div class='price-main' style='color:#1919e6 !important;'>상장연기</div>
                         <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
                     """
                 elif live_s == "상장폐지":
                     price_html = f"""
-                        <div class='price-main' style='color:#888888 !important;'>🚫 상장폐지</div>
+                        <div class='price-main' style='color:#888888 !important;'>상장폐지</div>
                         <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
                     """
                 elif live_p > 0:
