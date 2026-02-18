@@ -276,50 +276,79 @@ def update_macro_data(df):
 # ==========================================
 def main():
     print(f"🚀 Worker Start: {datetime.now()}")
+    
+    # [1] 대상 종목 수집
     df = get_target_stocks()
     if df.empty: 
         print("⚠️ 수집된 IPO 종목이 없습니다.")
         return
 
-    # 1. 추적 명단 저장
-    stock_list = [{"symbol": str(row['symbol']), "name": str(row['name']) if pd.notna(row['name']) else "Unknown", "updated_at": datetime.now().isoformat()} for _, row in df.iterrows()]
+    # [2] 추적 명단 저장 (DB 테이블 구조: symbol, name, last_updated 에 맞춤)
+    print("\n📋 [stock_cache] 명단 업데이트 시작...")
+    now_iso = datetime.now().isoformat()
+    stock_list = []
+    
+    for _, row in df.iterrows():
+        stock_list.append({
+            "symbol": str(row['symbol']),
+            "name": str(row['name']) if pd.notna(row['name']) else "Unknown",
+            "last_updated": now_iso  # 'updated_at'을 'last_updated'로 매칭
+        })
+    
+    # 헤더에 return=minimal이 포함된 batch_upsert를 호출합니다.
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
 
-    # 2. 주가 및 상태 업데이트 (수정된 로직 적용됨)
+    # [3] 주가 및 상태 업데이트 (Active/상장폐지 등 분류)
     update_all_prices_batch(df)
 
-    # 3. 거시 지표
+    # [4] 거시 지표 업데이트 (Tab 2)
     update_macro_data(df)
     
-    # 4. AI 분석 (기존 유지)
+    # [5] 개별 종목 AI 분석 루프
     total = len(df)
+    print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 종목)...")
+    
     for idx, row in df.iterrows():
-        symbol, name, listing_date = row.get('symbol'), row.get('name'), row.get('date')
+        symbol = row.get('symbol')
+        name = row.get('name')
+        listing_date = row.get('date')
         
+        # 상장한 지 1년이 넘었는지 확인
         is_old = False
         try:
-            if (datetime.now() - datetime.strptime(str(listing_date), "%Y-%m-%d")).days > 365: is_old = True
-        except: pass
+            if (datetime.now() - datetime.strptime(str(listing_date), "%Y-%m-%d")).days > 365: 
+                is_old = True
+        except: 
+            pass
         
+        # 월요일이거나 신규 종목인 경우에만 전체 업데이트 (서버 부하 방지)
         is_full_update = (datetime.now().weekday() == 0 or not is_old)
         
         print(f"[{idx+1}/{total}] {symbol} 분석 중...", flush=True)
         
         try:
+            # 기본 분석 (뉴스 및 비즈니스 모델)
             run_tab1_analysis(symbol, name)
+            
             if is_full_update:
+                # 심층 분석 (공시, 기관 리포트, 재무)
                 run_tab0_analysis(symbol, name)
                 run_tab4_analysis(symbol, name)
                 try:
                     tk = yf.Ticker(symbol)
+                    # 재무 지표 샘플 (PE 등) 전달
                     run_tab3_analysis(symbol, name, {"pe": tk.info.get('forwardPE', 0)})
-                except: pass
-            time.sleep(1.5)
+                except: 
+                    pass
+            
+            # API 할당량 준수를 위한 짧은 휴식
+            time.sleep(1.2) 
+            
         except Exception as e:
             print(f"⚠️ {symbol} 분석 건너뜀: {e}")
             continue
             
-    print("🏁 모든 작업 종료.")
+    print(f"\n🏁 모든 작업 종료: {datetime.now()}")
 
 if __name__ == "__main__":
     main()
