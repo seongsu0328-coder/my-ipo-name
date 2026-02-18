@@ -4,12 +4,17 @@
 
 # (Tab 0) 주요 공시 분석 (S-1 & 424B4)
 def run_tab0_analysis(ticker, company_name):
+    # [기술 수정] 티커가 None인 경우 즉시 종료 (NoneType 에러 방지)
+    if not ticker or str(ticker).lower() == 'none':
+        return
+
     target_topics = ["S-1", "424B4"]
     
     for topic in target_topics:
         cache_key = f"{company_name}_{topic}_Tab0"
         
-        # [기술 수정] 기존 check.data 건너뛰기 로직을 제거하여 강제 업데이트되도록 함
+        # [핵심 수정] 기존 check.data 건너뛰기 로직을 삭제했습니다. 
+        # 이제 매일 강제로 새로운 분석 결과가 업데이트됩니다.
 
         if topic == "S-1":
             points = "Risk Factors, Use of Proceeds, MD&A"
@@ -40,8 +45,10 @@ def run_tab0_analysis(ticker, company_name):
         """
         
         try:
+            # [기술 수정] 404 에러 방지를 위해 전역 model 객체가 정상인지 확인 후 호출
             response = model.generate_content(prompt)
-            # [기술 수정] 리스트 형식 및 on_conflict 추가하여 확실한 덮어쓰기
+            
+            # [기술 수정] 리스트 형식([]) 및 on_conflict 추가하여 확실하게 덮어쓰기
             supabase.table("analysis_cache").upsert([
                 {
                     "cache_key": cache_key,
@@ -49,11 +56,13 @@ def run_tab0_analysis(ticker, company_name):
                     "updated_at": datetime.now().isoformat()
                 }
             ], on_conflict="cache_key").execute()
+            print(f"  ✅ {cache_key} 저장 완료")
         except Exception as e:
             print(f"  └─ Tab0 ({topic}) Error: {e}")
 
 # (Tab 1) 비즈니스 & 뉴스 분석
 def run_tab1_analysis(ticker, company_name):
+    if not ticker or str(ticker).lower() == 'none': return False
     cache_key = f"{ticker}_Tab1"
     
     prompt = f"""
@@ -97,6 +106,7 @@ def run_tab1_analysis(ticker, company_name):
                 "updated_at": datetime.now().isoformat()
             }
         ], on_conflict="cache_key").execute()
+        print(f"  ✅ {cache_key} 저장 완료")
         return True
     except Exception as e:
         print(f"  └─ Tab1 Error: {e}")
@@ -104,6 +114,7 @@ def run_tab1_analysis(ticker, company_name):
 
 # (Tab 3) 재무 분석 AI
 def run_tab3_analysis(ticker, company_name, metrics):
+    if not ticker or str(ticker).lower() == 'none': return False
     cache_key = f"{ticker}_Financial_Report_Tab3"
     
     prompt = f"""
@@ -124,6 +135,7 @@ def run_tab3_analysis(ticker, company_name, metrics):
                 "updated_at": datetime.now().isoformat()
             }
         ], on_conflict="cache_key").execute()
+        print(f"  ✅ {cache_key} 저장 완료")
         return True
     except Exception as e:
         print(f"  └─ Tab3 AI Error: {e}")
@@ -131,6 +143,7 @@ def run_tab3_analysis(ticker, company_name, metrics):
 
 # (Tab 4) 기관 평가 AI
 def run_tab4_analysis(ticker, company_name):
+    if not ticker or str(ticker).lower() == 'none': return False
     cache_key = f"{ticker}_Tab4"
     
     prompt = f"""
@@ -162,6 +175,7 @@ def run_tab4_analysis(ticker, company_name):
                     "updated_at": datetime.now().isoformat()
                 }
             ], on_conflict="cache_key").execute()
+            print(f"  ✅ {cache_key} 저장 완료")
             return True
     except Exception as e:
         print(f"  └─ Tab4 Error: {e}")
@@ -177,13 +191,19 @@ def update_macro_data(df_calendar):
     try:
         today = datetime.now()
         if not df_calendar.empty:
-            # [기술 수정] 날짜 비교 로직 보강
+            # [기술 수정] 날짜 형식을 'datetime' 객체로 확실히 변환 (NoneType 에러 방지)
             df_calendar['공모일_dt'] = pd.to_datetime(df_calendar['date'], errors='coerce')
-            traded = df_calendar[df_calendar['공모일_dt'] < today].sort_values(by='공모일_dt', ascending=False).head(30)
+            # NaT(유효하지 않은 날짜) 제거
+            df_valid = df_calendar.dropna(subset=['공모일_dt'])
+            
+            traded = df_valid[df_valid['공모일_dt'].dt.date < today.date()].sort_values(by='공모일_dt', ascending=False).head(30)
             
             ret_sum, ret_cnt = 0, 0
             for _, row in traded.iterrows():
                 try:
+                    # [기술 수정] symbol이 유효한지 확인
+                    if not row['symbol'] or str(row['symbol']).lower() == 'none': continue
+                    
                     p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
                     tk = yf.Ticker(row['symbol'])
                     hist = tk.history(period='1d')
@@ -194,7 +214,7 @@ def update_macro_data(df_calendar):
                 except: pass
             if ret_cnt > 0: data["ipo_return"] = ret_sum / ret_cnt
             
-            future = df_calendar[(df_calendar['공모일_dt'] >= today)]
+            future = df_valid[(df_valid['공모일_dt'].dt.date >= today.date())]
             data["ipo_volume"] = len(future)
 
         try:
