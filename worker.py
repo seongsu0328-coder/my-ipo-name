@@ -26,14 +26,19 @@ else:
     print("❌ Supabase 환경변수가 설정되지 않았습니다.")
     supabase = None
 
-# [기술 수정] 모델 404 에러 및 검색 도구 설정 최적화
+# [worker.py 상단 수정본]
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
-        # 가장 안정적인 v1beta용 호출 방식입니다.
-        model = genai.GenerativeModel('gemini-1.5-flash', tools='google_search')
+        # 404 에러 방지 핵심: 모델 이름을 인자명(model_name)으로 직접 전달
+        model = genai.GenerativeModel(
+            model_name='gemini-1.5-flash', 
+            tools='google_search'
+        )
+        # 성공 시 로그 출력 (GitHub Actions 로그에서 확인용)
+        print("✅ AI 모델 로드 성공 (Google Search 도구 장착)")
     except Exception as e:
-        print(f"⚠️ 검색 도구 장착 실패, 기본 모델로 전환: {e}")
+        print(f"⚠️ v1beta 도구 장착 실패, 일반 모델로 전환: {e}")
         model = genai.GenerativeModel('gemini-1.5-flash')
 else:
     print("❌ GENAI_API_KEY가 설정되지 않았습니다.")
