@@ -381,10 +381,7 @@ def main():
 
     for idx, row in df.iterrows():
         
-        # 👇 [테스트 모드] 3개만 하고 종료
-        if idx >= 3: 
-            print("🧪 [TEST MODE] 3개 종목만 테스트하고 종료합니다. (정상 작동 확인 완료)")
-            break
+        
         # ------------------------------------
 
         symbol, name, listing_date = row.get('symbol'), row.get('name'), row.get('date')
