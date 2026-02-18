@@ -63,13 +63,9 @@ def sanitize_value(v):
     return str(v).strip()
 
 def batch_upsert(table_name, data_list, batch_size=1):
-    """
-    st.secrets 의존성을 완전히 제거하고 
-    환경 변수(os.environ)를 직접 사용하는 안전한 버전입니다.
-    """
     if not data_list: return
     
-    # [수정] st.secrets 대신 os.environ에서 직접 가져옵니다.
+    # 1. 환경 변수에서 URL과 Key 가져오기
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     
@@ -77,50 +73,55 @@ def batch_upsert(table_name, data_list, batch_size=1):
         print("❌ 에러: SUPABASE_URL 또는 KEY 환경변수를 찾을 수 없습니다.")
         return
 
-    # REST API 엔드포인트 설정
-    endpoint = f"{url}/rest/v1/{table_name}"
+    # [수정] URL 끝에 ?on_conflict=ticker 를 붙여야 405 에러가 안 납니다.
+    # url에 이미 rest/v1이 포함되어 있는지 확인하는 안전장치 포함
+    base_url = url.rstrip('/')
+    if "/rest/v1" not in base_url:
+        endpoint = f"{base_url}/rest/v1/{table_name}?on_conflict=ticker"
+    else:
+        endpoint = f"{base_url}/{table_name}?on_conflict=ticker"
     
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates"
+        "Prefer": "resolution=merge-duplicates" # 중복 시 덮어쓰기 설정
     }
 
-    print(f"🚀 [환경변수 직송 모드] {len(data_list)}개 데이터 전송 시작...")
+    print(f"🚀 [환경변수 직송 모드] {len(data_list)}개 데이터 전송 시작 (on_conflict 적용)...")
     success_save = 0
     fail_save = 0
 
     for item in data_list:
-        ticker = str(item.get('ticker', '')).strip()
-        if not ticker or ticker.lower() == 'none': continue
+        ticker_val = item.get('ticker')
+        if not ticker_val or str(ticker_val).lower() == 'none': continue
 
-        # 데이터 초정밀 세척
         p_val = item.get('price', 0.0)
         clean_price = float(p_val) if (p_val is not None and not pd.isna(p_val)) else 0.0
         
         payload = {
-            "ticker": ticker,
+            "ticker": str(ticker_val).strip(),
             "price": round(clean_price, 4),
             "status": str(item.get('status', 'Active')).strip(),
             "updated_at": str(item.get('updated_at', ''))
         }
 
         try:
-            # 표준 requests 라이브러리로 전송 (JSON 에러 원천 차단)
+            # 직접 POST 요청
             response = requests.post(endpoint, json=payload, headers=headers)
             
-            if response.status_code in [200, 201]:
+            if response.status_code in [200, 201, 204]: # 204도 성공으로 간주
                 success_save += 1
                 if success_save % 50 == 0:
                     print(f"   ... {success_save}개 저장 성공")
             else:
+                # 실패 시 에러 메시지 상세 출력
+                print(f"   ⚠️ {ticker_val} 실패 (Code {response.status_code}): {response.text}")
                 fail_save += 1
-                print(f"   ⚠️ {ticker} 실패 (Code {response.status_code}): {response.text}")
                 
         except Exception as e:
             fail_save += 1
-            print(f"   ❌ {ticker} 에러: {e}")
+            print(f"   ❌ {ticker_val} 시스템 에러: {e}")
             continue
 
     print(f"🏁 최종 결과: 성공 {success_save}개 / 실패 {fail_save}개")
