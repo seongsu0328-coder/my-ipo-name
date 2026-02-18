@@ -84,7 +84,11 @@ def fetch_and_update_prices():
         
         # [Step 4] DB 업데이트
         upsert_list = []
-        now_iso = datetime.now().isoformat()
+        
+        # --- 여기를 수정하세요 ---
+        kst = pytz.timezone('Asia/Seoul')
+        now_iso = datetime.now(kst).isoformat() 
+        # -----------------------
         
         for symbol in tickers:
             try:
