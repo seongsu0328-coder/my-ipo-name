@@ -66,11 +66,12 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not data_list: return
     endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
     headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates"
-    }
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    # 덮어쓰기를 명확하게 지시하는 헤더
+    "Prefer": "return=minimal,resolution=merge-duplicates" 
+}
 
     clean_batch = []
     for item in data_list:
