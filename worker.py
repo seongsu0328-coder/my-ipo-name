@@ -112,27 +112,26 @@ def update_all_prices_batch(df_target):
     success_cnt = 0
     upsert_list = []
 
+    # 517개를 하나씩 정성스럽게 물어봅니다.
     for t in tickers:
         try:
-            # 개별 종목 객체 생성
             stock = yf.Ticker(t)
             
-            # [수정] interval="1m" 제거: 주말/새벽에도 마지막 종가를 가져오기 위함
-            # [수정] period="1d": 최신 데이터 1일치 요청
+            # [수정] interval="1m" 제거 -> 주말/새벽에도 마지막 거래일 가격을 가져옴
             hist = stock.history(period="1d")
             
             if not hist.empty:
                 # 마지막 종가 추출
                 raw_price = hist['Close'].iloc[-1]
                 
-                # [핵심 수정] 405 JSON 에러 방지 로직
-                # 1. round(v, 4): 소수점 4자리까지 반올림하여 지저분한 뒷부분 제거
+                # [핵심 수정] 405 JSON 에러 원천 차단
+                # 1. round(v, 4): 소수점 4자리까지 반올림 (지저분한 소수점 정리)
                 # 2. float(): Numpy 타입을 순수 파이썬 float로 강제 변환
                 clean_price = float(round(raw_price, 4))
                 
                 if not pd.isna(clean_price) and clean_price > 0:
                     upsert_list.append({
-                        "ticker": str(t), # 확실하게 문자열로 변환
+                        "ticker": str(t),
                         "price": clean_price,
                         "updated_at": now_iso
                     })
@@ -141,17 +140,16 @@ def update_all_prices_batch(df_target):
                     if success_cnt % 20 == 0:
                         print(f"   ... {success_cnt}개 주가 수집 중 (현재: {t} -> ${clean_price})")
             
-            # 서버 부하 방지
+            # 야후 서버 부하 방지
             time.sleep(0.05)
 
         except Exception:
-            # 에러 발생 시(상장폐지 등) 건너뜀
+            # 상장 폐지 등으로 데이터가 없는 종목은 조용히 건너뜁니다.
             continue
 
     # 모아진 데이터를 DB에 저장
     if upsert_list:
-        print(f"📦 수집된 {len(upsert_list)}개의 가격 데이터를 DB에 저장합니다...")
-        # 이 함수 내부의 sanitize_value가 한 번 더 안전하게 처리해줄 것입니다.
+        print(f"📦 수집 완료! {len(upsert_list)}개의 가격 데이터를 DB에 저장합니다...")
         batch_upsert("price_cache", upsert_list)
     
     print(f"✅ 주가 업데이트 최종 완료: {success_cnt}개 성공\n")
