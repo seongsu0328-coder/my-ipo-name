@@ -656,17 +656,19 @@ def get_extended_ipo_data(api_key):
     return df
 
 @st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def get_batch_prices(ticker_list):
     """
-    Supabase DB의 'status' 컬럼을 확인하여 불필요한 API 호출을 완벽히 차단합니다.
+    DB에서 가격과 상태를 가져오고, 부족한 정보만 API로 채운 뒤 
+    다시 DB에 '직송 모드'로 저장합니다.
     """
-    if not ticker_list: return {}
+    if not ticker_list: return {}, {}
     clean_tickers = [str(t).strip() for t in ticker_list if t and str(t).strip().lower() != 'nan']
     
     cached_prices = {}
-    db_status_map = {} # 종목별 상태 저장용
+    db_status_map = {} 
     
-    # [Step 1] Supabase DB 조회 (price와 status를 함께 가져옵니다)
+    # [Step 1] Supabase DB 조회
     try:
         res = supabase.table("price_cache") \
             .select("ticker, price, status") \
@@ -676,45 +678,41 @@ def get_batch_prices(ticker_list):
         if res.data:
             for item in res.data:
                 t = item['ticker']
-                p = float(item['price']) if item['price'] else 0.0
-                s = item.get('status', 'Active')
-                
-                cached_prices[t] = p
-                db_status_map[t] = s
+                cached_prices[t] = float(item['price']) if item['price'] else 0.0
+                db_status_map[t] = item.get('status', 'Active')
     except Exception as e:
         print(f"DB Read Error: {e}")
 
-    # [Step 2] API 호출이 진짜 필요한 종목 선별
-    # 1. DB에 아예 기록이 없거나
-    # 2. 상태가 'Active'인데 가격이 0원인 경우만 API를 씁니다.
-    # 즉, 상태가 '상장연기'나 '상장폐지'라면 0원이라도 API를 호출하지 않습니다.
+    # [Step 2] API 호출 대상 선별 (상태가 Active이면서 가격이 없는 경우만)
     missing_tickers = []
     for t in clean_tickers:
         status = db_status_map.get(t)
         price = cached_prices.get(t, 0)
-        
-        if status is None: # DB에 아예 없음
+        if status is None or (status == "Active" and price <= 0):
             missing_tickers.append(t)
-        elif status == "Active" and price <= 0: # 활성 상태인데 가격 누락
-            missing_tickers.append(t)
-        # 그 외 '상장연기', '상장폐지'는 여기서 제외됨 (API 호출 안 함)
 
-    # [Step 3] API 호출 (꼭 필요한 것만)
+    # [Step 3] API 호출 및 "직송 모드" 저장
     if missing_tickers:
-        tickers_str = " ".join(missing_tickers)
         try:
-            # 안전하게 개별/배치 다운로드 (여기서는 기존 방식 유지하되 데이터만 업데이트)
+            tickers_str = " ".join(missing_tickers)
             data = yf.download(tickers_str, period="1d", group_by='ticker', threads=True, progress=False)
+            
             upsert_payload = []
             now_iso = datetime.now().isoformat()
             
             for t in missing_tickers:
                 try:
-                    target_data = data[t]['Close'].dropna() if len(missing_tickers) > 1 else data['Close'].dropna()
+                    # 데이터 추출
+                    if len(missing_tickers) > 1:
+                        target_data = data[t]['Close'].dropna()
+                    else:
+                        target_data = data['Close'].dropna()
+
                     if not target_data.empty:
                         current_p = float(round(target_data.iloc[-1], 4))
                         cached_prices[t] = current_p
                         db_status_map[t] = "Active"
+                        
                         upsert_payload.append({
                             "ticker": t, 
                             "price": current_p, 
@@ -723,12 +721,14 @@ def get_batch_prices(ticker_list):
                         })
                 except: continue
             
+            # [수정 핵심] 라이브러리 upsert 대신 우리가 만든 batch_upsert를 사용합니다.
             if upsert_payload:
-                supabase.table("price_cache").upsert(upsert_payload).execute()
-        except: pass
+                batch_upsert("price_cache", upsert_payload, on_conflict="ticker")
 
-    # 최종 결과 반환 (가격과 상태를 함께 활용할 수 있도록 구성)
-    # 여기서는 기존 UI 호환성을 위해 가격만 리턴하거나, 필요시 구조를 바꿉니다.
+        except Exception as e:
+            print(f"API Fetch Error: {e}")
+
+    # [핵심] 호출부(app.py)에서 두 개를 받기로 했으므로 반드시 두 개를 리턴합니다.
     return cached_prices, db_status_map
 
 def get_current_stock_price(ticker, api_key=None):
