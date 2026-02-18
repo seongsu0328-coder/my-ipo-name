@@ -117,64 +117,6 @@ def get_target_stocks():
     df['symbol'] = df['symbol'].astype(str).str.strip()
     return df.drop_duplicates(subset=['symbol'])
 
-def update_all_prices_batch(df_target):
-    print("\n💰 [정밀 상태 분석] 주가 수집 및 상장 상태(취소/폐지) 분류 시작...")
-    
-    now_iso = datetime.now().isoformat()
-    today = datetime.now().date()
-    upsert_list = []
-
-    # 데이터프레임을 순회하며 IPO 날짜 정보도 함께 사용
-    for idx, row in df_target.iterrows():
-        t = str(row['symbol'])
-        ipo_date_str = str(row.get('date', ''))
-        
-        status = "Active"
-        clean_price = 0.0
-        
-        try:
-            stock = yf.Ticker(t)
-            
-            # 최근 1달 데이터 조회 (거래가 끊겼는지 확인하기 위함)
-            hist = stock.history(period="1mo")
-            
-            if not hist.empty:
-                # [CASE 1] 데이터가 존재하는 경우 -> Active or 상장폐지
-                last_trade_date = hist.index[-1].date()
-                clean_price = float(round(hist['Close'].iloc[-1], 4))
-                
-                # 마지막 거래일이 10일 이상 지났으면 '상장폐지'로 간주
-                days_diff = (today - last_trade_date).days
-                if days_diff > 14:
-                    status = "상장폐지"  # (Delisted) 데이터는 있는데 멈춤
-                else:
-                    status = "Active"    # (Active) 정상 거래 중
-            else:
-                # [CASE 2] 데이터가 아예 없는 경우 -> 상장취소 or 상장예정
-                try:
-                    ipo_date = datetime.strptime(ipo_date_str, "%Y-%m-%d").date()
-                    if ipo_date > today:
-                        status = "상장예정" # (Upcoming) 아직 날짜 안 됨
-                    else:
-                        status = "상장취소" # (Withdrawn) 날짜 지났는데 데이터 없음
-                except:
-                    # 날짜 파싱 실패 시, 데이터 없으면 그냥 상장취소로 처리
-                    status = "상장취소" 
-
-        except Exception:
-            status = "상장폐지" # 그 외 알 수 없는 에러
-
-        upsert_list.append({
-            "ticker": t, 
-            "price": clean_price, 
-            "status": status, 
-            "updated_at": now_iso
-        })
-        
-        if idx > 0 and idx % 50 == 0:
-            print(f"   ... {idx}개 종목 처리 완료")
-
-    batch_upsert("price_cache", upsert_list, on_conflict="ticker")
 
 # ==========================================
 # [4] AI 분석 함수들 (동일 유지)
