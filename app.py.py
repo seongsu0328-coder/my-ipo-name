@@ -2614,17 +2614,28 @@ elif st.session_state.page == 'detail':
                 fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
             except: pass
 
-        # 헤더 출력 (수익률 계산 포함)
-        if current_p > 0 and off_val > 0:
+        # 1. 여기서부터 (가격과 상태를 동시에 받아옴)
+        current_p, current_s = get_current_stock_price(symbol, MY_API_KEY)
+
+        # 2. 헤더 출력 로직 (상태값에 따른 분기 처리)
+        if current_s == "상장연기":
+            p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / 공모 ${off_val} / 📅 상장연기/기타)</span>"
+        elif current_s == "상장폐지":
+            p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 🚫 상장폐지)</span>"
+        elif current_p > 0 and off_val > 0:
+            # 정상적인 Active 상태일 때 수익률 계산
             pct = ((current_p - off_val) / off_val) * 100
             color = "#00ff41" if pct >= 0 else "#ff4b4b"
             icon = "▲" if pct >= 0 else "▼"
-            p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 현재 ${current_p} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
+            # 소수점 2자리까지만 예쁘게 출력
+            p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 현재 ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
         else:
+            # 상장 전이거나 가격 데이터가 아직 없는 경우
             p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 상장 대기)</span>"
 
+        # 3. 여기까지 (최종 출력)
         st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
-        st.write("") 
+        st.write("")
 
         # -------------------------------------------------------------------------
         # [CSS 추가] 탭 텍스트 색상 고정 (사용자 원형 유지)
