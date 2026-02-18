@@ -658,71 +658,115 @@ def get_extended_ipo_data(api_key):
 @st.cache_data(ttl=600, show_spinner=False)
 def get_batch_prices(ticker_list):
     """
-    캐시 함수 내부에서는 오직 데이터 처리와 DB/API 통신만 수행합니다.
-    st.toast 같은 UI 관련 코드는 에러의 원인이 되므로 모두 제거했습니다.
+    Supabase DB의 'status' 컬럼을 확인하여 불필요한 API 호출을 완벽히 차단합니다.
     """
     if not ticker_list: return {}
     clean_tickers = [str(t).strip() for t in ticker_list if t and str(t).strip().lower() != 'nan']
     
-    cached_data = {}
+    cached_prices = {}
+    db_status_map = {} # 종목별 상태 저장용
     
-    # [Step 1] Supabase DB 조회
+    # [Step 1] Supabase DB 조회 (price와 status를 함께 가져옵니다)
     try:
         res = supabase.table("price_cache") \
-            .select("ticker, price") \
+            .select("ticker, price, status") \
             .in_("ticker", clean_tickers) \
             .execute()
         
         if res.data:
-            cached_data = {item['ticker']: float(item['price']) for item in res.data}
+            for item in res.data:
+                t = item['ticker']
+                p = float(item['price']) if item['price'] else 0.0
+                s = item.get('status', 'Active')
+                
+                cached_prices[t] = p
+                db_status_map[t] = s
     except Exception as e:
         print(f"DB Read Error: {e}")
 
-    # [Step 2] 부족한 데이터 확인
-    missing_tickers = [t for t in clean_tickers if t not in cached_data]
+    # [Step 2] API 호출이 진짜 필요한 종목 선별
+    # 1. DB에 아예 기록이 없거나
+    # 2. 상태가 'Active'인데 가격이 0원인 경우만 API를 씁니다.
+    # 즉, 상태가 '상장연기'나 '상장폐지'라면 0원이라도 API를 호출하지 않습니다.
+    missing_tickers = []
+    for t in clean_tickers:
+        status = db_status_map.get(t)
+        price = cached_prices.get(t, 0)
+        
+        if status is None: # DB에 아예 없음
+            missing_tickers.append(t)
+        elif status == "Active" and price <= 0: # 활성 상태인데 가격 누락
+            missing_tickers.append(t)
+        # 그 외 '상장연기', '상장폐지'는 여기서 제외됨 (API 호출 안 함)
 
-    # [Step 3] API 호출 (부족한 것만)
+    # [Step 3] API 호출 (꼭 필요한 것만)
     if missing_tickers:
         tickers_str = " ".join(missing_tickers)
         try:
-            data = yf.download(tickers_str, period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
+            # 안전하게 개별/배치 다운로드 (여기서는 기존 방식 유지하되 데이터만 업데이트)
+            data = yf.download(tickers_str, period="1d", group_by='ticker', threads=True, progress=False)
             upsert_payload = []
             now_iso = datetime.now().isoformat()
             
             for t in missing_tickers:
                 try:
-                    if len(missing_tickers) > 1:
-                        if t in data.columns.levels[0]: target_data = data[t]['Close'].dropna()
-                        else: continue
-                    else:
-                        target_data = data['Close'].dropna()
-
+                    target_data = data[t]['Close'].dropna() if len(missing_tickers) > 1 else data['Close'].dropna()
                     if not target_data.empty:
-                        current_p = float(target_data.iloc[-1])
-                        cached_data[t] = current_p
-                        upsert_payload.append({"ticker": t, "price": current_p, "updated_at": now_iso})
+                        current_p = float(round(target_data.iloc[-1], 4))
+                        cached_prices[t] = current_p
+                        db_status_map[t] = "Active"
+                        upsert_payload.append({
+                            "ticker": t, 
+                            "price": current_p, 
+                            "status": "Active",
+                            "updated_at": now_iso
+                        })
                 except: continue
             
             if upsert_payload:
                 supabase.table("price_cache").upsert(upsert_payload).execute()
-                
-        except Exception as e:
-            print(f"API Fetch Error: {e}")
+        except: pass
 
-    return cached_data
+    # 최종 결과 반환 (가격과 상태를 함께 활용할 수 있도록 구성)
+    # 여기서는 기존 UI 호환성을 위해 가격만 리턴하거나, 필요시 구조를 바꿉니다.
+    return cached_prices, db_status_map
 
 def get_current_stock_price(ticker, api_key=None):
     """
-    단일 종목의 현재가를 yfinance로 즉시 조회하는 함수 (안전장치)
+    단일 종목의 현재가를 조회하되, DB에 '상장연기/폐지' 기록이 있다면 
+    야후 API 호출을 건너뛰는 똑똑한 안전장치입니다.
     """
     try:
-        # 1일치 분봉/일봉 데이터를 가져와서 가장 최신 종가 리턴
-        df = yf.Ticker(ticker).history(period='1d')
+        # [Step 1] DB에서 먼저 상태와 가격 확인
+        res = supabase.table("price_cache").select("price, status").eq("ticker", ticker).execute()
+        
+        if res.data:
+            db_data = res.data[0]
+            db_status = db_data.get('status', 'Active')
+            db_price = float(db_data.get('price', 0.0))
+            
+            # 상장연기나 폐지 상태라면 API 호출 없이 바로 결과 반환
+            if db_status in ["상장연기", "상장폐지"]:
+                return db_price, db_status
+            
+            # Active이고 가격이 이미 있다면 그것도 바로 반환 (API 절약)
+            if db_price > 0:
+                return db_price, "Active"
+
+        # [Step 2] DB에 없거나 업데이트가 필요할 때만 야후 호출
+        stock = yf.Ticker(ticker)
+        # 주말 대응을 위해 interval="1m"은 제거한 상태로 조회
+        df = stock.history(period='1d')
+        
         if not df.empty:
-            return float(df['Close'].iloc[-1])
-        return 0.0
-    except:
-        return 0.0
+            current_p = float(round(df['Close'].iloc[-1], 4))
+            return current_p, "Active"
+        else:
+            # 야후에서도 데이터가 없다면? (이 종목은 문제가 있는 것)
+            return 0.0, "데이터없음"
+            
+    except Exception:
+        return 0.0, "에러"
 
 
 def get_asset_grade(asset_text):
