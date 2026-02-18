@@ -63,26 +63,33 @@ def sanitize_value(v):
     return str(v).strip()
 
 def batch_upsert(table_name, data_list, batch_size=40):
-    """세척 후 DB 저장 (실패 시 상세 로그 출력)"""
+    """
+    기존의 불확실한 세척 방식을 버리고, 
+    status 컬럼을 포함한 4개 필드를 강제로 고정하여 저장합니다.
+    """
     if not data_list: return
     
-    # [핵심] 저장 직전 마지막 세척
-    clean_data = [sanitize_value(item) for item in data_list]
-    
-    for i in range(0, len(clean_data), batch_size):
-        batch = clean_data[i:i+batch_size]
-        try:
-            # JSON 직렬화 테스트 (사전 검증)
-            json.dumps(batch) 
+    for i in range(0, len(data_list), batch_size):
+        batch = data_list[i:i+batch_size]
+        clean_batch = []
+        
+        for item in batch:
+            # item.get()을 사용해서 혹시라도 키가 없을 때 터지는 것을 방지합니다.
+            clean_batch.append({
+                "ticker": str(item.get('ticker', '')),
+                "price": float(round(item.get('price', 0.0), 4)),
+                "status": str(item.get('status', 'Active')), # ★ 핵심: status 유실 방지
+                "updated_at": str(item.get('updated_at', ''))
+            })
             
-            res = supabase.table(table_name).upsert(batch).execute()
-            print(f"   ✅ {table_name} 저장 성공: {i+len(batch)}개 완료")
+        try:
+            # Supabase에 전송
+            supabase.table(table_name).upsert(clean_batch).execute()
+            print(f"   ✅ {table_name} 저장 성공: {i+len(clean_batch)}개 완료")
         except Exception as e:
             print(f"   ❌ {table_name} 저장 실패: {e}")
-            # 에러 샘플 출력 (디버깅용)
-            if len(batch) > 0:
-                print(f"   🔍 샘플 데이터: {batch[0]}")
-            time.sleep(1)
+            if clean_batch:
+                print(f"   🔍 에러 샘플: {clean_batch[0]}")
 
 # ==========================================
 # [3] 핵심 로직 (나머지 프롬프트 및 수집 기능 유지)
