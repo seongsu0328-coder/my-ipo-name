@@ -333,6 +333,62 @@ def update_macro_data(df_calendar):
     except Exception as e:
         print(f"❌ Macro Update Fail: {e}")
 
+# [NEW] 전 종목 주가 일괄 수집 및 저장 (캘린더 속도 향상용)
+def update_all_prices_batch(df_target):
+    if df_target.empty: return
+    
+    print("💰 전 종목 주가 일괄 업데이트 중...", end=" ", flush=True)
+    
+    # 1. 티커 리스트 추출
+    tickers = df_target['symbol'].tolist()
+    # 50개씩 끊어서 처리 (Yfinance 안정성 확보)
+    chunk_size = 50
+    total_chunks = (len(tickers) // chunk_size) + 1
+    
+    now_iso = datetime.now().isoformat()
+    success_count = 0
+    
+    try:
+        for i in range(0, len(tickers), chunk_size):
+            chunk = tickers[i:i+chunk_size]
+            tickers_str = " ".join(chunk)
+            
+            # Yfinance로 일괄 다운로드
+            data = yf.download(tickers_str, period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
+            
+            upsert_list = []
+            for t in chunk:
+                try:
+                    # 단일 종목일 경우와 다수 종목일 경우 구조가 다름
+                    if len(chunk) == 1:
+                        price_series = data['Close']
+                    else:
+                        if t not in data.columns.levels[0]: continue
+                        price_series = data[t]['Close']
+                    
+                    # 데이터가 있고 비어있지 않은 경우
+                    if not price_series.dropna().empty:
+                        current_price = float(price_series.dropna().iloc[-1])
+                        upsert_list.append({
+                            "ticker": t,
+                            "price": current_price,
+                            "updated_at": now_iso
+                        })
+                except: continue
+            
+            # DB 저장 (Batch Upsert)
+            if upsert_list:
+                supabase.table("price_cache").upsert(upsert_list).execute()
+                success_count += len(upsert_list)
+            
+            time.sleep(1) # API 부하 방지
+            
+        print(f"✅ 완료 ({success_count}/{len(tickers)}개 저장됨)")
+        
+    except Exception as e:
+        print(f"❌ 주가 업데이트 실패: {e}")
+        
+
 # ==========================================
 # [4] 메인 실행 루프 [핵심 로직 수정]
 # ==========================================
