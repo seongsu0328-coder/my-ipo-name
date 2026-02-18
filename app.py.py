@@ -248,7 +248,30 @@ def db_delete_user(user_id):
     except Exception as e:
         st.error(f"삭제 실패: {e}")
         return False
+
+
+# --- [여기에 추가] 데이터 신선도 조회 함수 ---
+def get_last_cache_update_time():
+    """Supabase analysis_cache 테이블에서 가장 최근 업데이트 시간을 가져옵니다."""
+    if not supabase:
+        return datetime.now() - timedelta(days=2)
+    try:
+        res = supabase.table("analysis_cache")\
+            .select("updated_at")\
+            .order("updated_at", ascending=False)\
+            .limit(1)\
+            .execute()
         
+        if res.data and len(res.data) > 0:
+            last_time_str = res.data[0]['updated_at']
+            # ISO 시간을 파이썬 datetime 객체로 변환
+            return datetime.fromisoformat(last_time_str.replace('Z', '+00:00'))
+    except Exception as e:
+        print(f"시간 조회 오류: {e}")
+    
+    return datetime.now() - timedelta(days=2)
+
+
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
 # ---------------------------------------------------------
@@ -1965,8 +1988,31 @@ elif st.session_state.page == 'setup':
             # -------------------------------------------------------
             # [2] 화면 그리기 (UI)
             # -------------------------------------------------------
+
+
+            # --- [추가] 📡 데이터 워커 상태 점검 배지 ---
+            # 이 섹션은 워커(GitHub Actions)가 정상인지 관리자가 즉시 확인하는 용도입니다.
+            with st.container():
+                last_update = get_last_cache_update_time() # 아까 만든 함수 호출
+                
+                # 한국 시간 표시를 위해 9시간 더하기
+                display_time = last_update + timedelta(hours=9)
+                now = datetime.now(last_update.tzinfo)
+    
+                col_status1, col_status2 = st.columns([2, 1])
+                with col_status1:
+                    if last_update < now - timedelta(hours=24):
+                        st.error(f"❌ 워커 중단됨: {display_time.strftime('%Y-%m-%d %H:%M')}")
+                    else:
+                        st.success(f"✅ 데이터 정상: {display_time.strftime('%m-%d %H:%M')}")
+                
+                with col_status2:
+                    # 목록 새로고침 버튼 옆에 배치하거나 단독으로 둠
+                    if st.button("🔄 시스템 전체 새로고침", key="admin_refresh"):
+                        st.rerun()
             
-            
+            st.divider()
+                
             
             # 목록 불러오기 버튼
             if st.button("가입신청회원 새로고침", key="btn_refresh_list"):
