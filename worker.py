@@ -62,40 +62,46 @@ def sanitize_value(v):
     # 4. 문자열 처리 (객체 형태가 남지 않도록 str() 강제 적용)
     return str(v).strip()
 
-def batch_upsert(table_name, data_list, batch_size=1): # 1개씩 전송 모드
+def batch_upsert(table_name, data_list, batch_size=1):
     if not data_list: return
     
-    print(f"🚀 총 {len(data_list)}개 데이터를 1개씩 개별 전송 시작합니다. (정밀 모드)")
+    print(f"🚀 총 {len(data_list)}개 데이터 정밀 검수 후 전송 시작...")
     success_save = 0
     fail_save = 0
 
     for item in data_list:
         try:
-            # 순수 데이터 정제
-            p_val = item.get('price', 0.0)
-            if pd.isna(p_val): p_val = 0.0
+            # [필수 체크] 티커가 없거나 None이면 아예 시도도 안 하고 건너뜁니다.
+            ticker_val = item.get('ticker')
+            if not ticker_val or pd.isna(ticker_val) or str(ticker_val).lower() == 'none':
+                continue
+
+            # 숫자 세척
+            raw_p = item.get('price', 0.0)
+            clean_price = float(raw_p) if (raw_p is not None and not pd.isna(raw_p)) else 0.0
             
             clean_item = {
-                "ticker": str(item.get('ticker', '')).strip(),
-                "price": float(p_val),
+                "ticker": str(ticker_val).strip(),
+                "price": round(clean_price, 4),
                 "status": str(item.get('status', 'Active')).strip(),
                 "updated_at": str(item.get('updated_at', ''))
             }
             
-            # 하나씩 단건 저장
+            # 단건 저장 시도
             supabase.table(table_name).upsert(clean_item).execute()
             success_save += 1
             
-            # 50개마다 진행 상황 출력
             if success_save % 50 == 0:
-                print(f"   ... {success_save}개 저장 완료")
+                print(f"   ... {success_save}개 데이터 안전하게 저장 완료")
                 
         except Exception as e:
             fail_save += 1
-            print(f"   ❌ 저장 실패 ({item.get('ticker')}): {e}")
+            # 에러가 나더라도 ticker가 있으면 출력, 없으면 무시
+            t_name = item.get('ticker', 'Unknown')
+            print(f"   ⚠️ {t_name} 저장 건너뜀: {e}")
             continue
 
-    print(f"🏁 저장 프로세스 종료: 성공 {success_save}개 / 실패 {fail_save}개")
+    print(f"🏁 최종 결과: 성공 {success_save}개 / 실패(건너뜀) {fail_save}개")
             
 # ==========================================
 # [3] 핵심 로직 (나머지 프롬프트 및 수집 기능 유지)
