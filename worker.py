@@ -1,104 +1,16 @@
-import os
-import time
-import json
-import re
-import random
-import requests
-import pandas as pd
-import numpy as np
-import yfinance as yf
-from datetime import datetime, timedelta
-from supabase import create_client
-import google.generativeai as genai
-
-# ==========================================
-# [1] 환경 설정 (GitHub Secrets 연동)
-# ==========================================
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-GENAI_API_KEY = os.environ.get("GENAI_API_KEY")
-FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
-
-# 클라이언트 초기화
-if SUPABASE_URL and SUPABASE_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-else:
-    print("❌ Supabase 환경변수가 설정되지 않았습니다.")
-    supabase = None
-
-if GENAI_API_KEY:
-    genai.configure(api_key=GENAI_API_KEY)
-    # 검색 도구 자동 장착
-    try:
-        model = genai.GenerativeModel('gemini-1.5-flash', tools='google_search')
-    except:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-else:
-    print("❌ GENAI_API_KEY가 설정되지 않았습니다.")
-    model = None
-
-# ==========================================
-# [2] 헬퍼 함수: 데이터 정제 및 타겟 선정
-# ==========================================
-def clean_value(val):
-    """None, NaN, Inf 값을 0으로 정제"""
-    try:
-        if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))):
-            return 0.0
-        return float(val)
-    except:
-        return 0.0
-
-def get_target_stocks():
-    """상장 예정(35일) + 지난 18개월 종목 리스트 추출"""
-    if not FINNHUB_API_KEY: return pd.DataFrame()
-    
-    now = datetime.now()
-    ranges = [
-        (now - timedelta(days=200), now + timedelta(days=35)),  
-        (now - timedelta(days=380), now - timedelta(days=170)), 
-        (now - timedelta(days=560), now - timedelta(days=350))  
-    ]
-    
-    all_data = []
-    print("📅 Target List 수집 중...", end=" ")
-    for start_dt, end_dt in ranges:
-        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_dt.strftime('%Y-%m-%d')}&to={end_dt.strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
-        try:
-            time.sleep(0.5) 
-            res = requests.get(url, timeout=10).json()
-            ipo_list = res.get('ipoCalendar', [])
-            if ipo_list: all_data.extend(ipo_list)
-        except: continue
-    
-    if not all_data: return pd.DataFrame()
-    
-    df = pd.DataFrame(all_data)
-    df = df.drop_duplicates(subset=['symbol', 'date'])
-    df = df[df['symbol'].astype(str).str.strip() != ""]
-    print(f"✅ 총 {len(df)}개 종목 발견")
-    return df
-
 # ==========================================
 # [3] 핵심 AI 분석 함수 (Tab 0, 1, 2, 3, 4)
 # ==========================================
 
 # (Tab 0) 주요 공시 분석 (S-1 & 424B4)
 def run_tab0_analysis(ticker, company_name):
-    # 분석할 토픽 리스트 (S-1: 최초, 424B4: 확정)
     target_topics = ["S-1", "424B4"]
     
     for topic in target_topics:
         cache_key = f"{company_name}_{topic}_Tab0"
         
-        # 1. 이미 DB에 있는지 확인 (비용 절감)
-        try:
-            check = supabase.table("analysis_cache").select("cache_key").eq("cache_key", cache_key).execute()
-            if check.data:
-                continue # 이미 있으면 건너뜀
-        except: pass
+        # [기술 수정] 기존 check.data 건너뛰기 로직을 제거하여 강제 업데이트되도록 함
 
-        # 2. 토픽별 프롬프트 구조 정의
         if topic == "S-1":
             points = "Risk Factors, Use of Proceeds, MD&A"
             structure = """
@@ -129,12 +41,14 @@ def run_tab0_analysis(ticker, company_name):
         
         try:
             response = model.generate_content(prompt)
-            # 저장
-            supabase.table("analysis_cache").upsert({
-                "cache_key": cache_key,
-                "content": response.text,
-                "updated_at": datetime.now().isoformat()
-            }).execute()
+            # [기술 수정] 리스트 형식 및 on_conflict 추가하여 확실한 덮어쓰기
+            supabase.table("analysis_cache").upsert([
+                {
+                    "cache_key": cache_key,
+                    "content": response.text,
+                    "updated_at": datetime.now().isoformat()
+                }
+            ], on_conflict="cache_key").execute()
         except Exception as e:
             print(f"  └─ Tab0 ({topic}) Error: {e}")
 
@@ -160,7 +74,6 @@ def run_tab1_analysis(ticker, company_name):
         response = model.generate_content(prompt)
         full_text = response.text
         
-        # HTML 변환 및 뉴스 파싱 로직
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
         html_output = "".join([f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
@@ -176,11 +89,14 @@ def run_tab1_analysis(ticker, company_name):
                     else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
             except: pass
 
-        supabase.table("analysis_cache").upsert({
-            "cache_key": cache_key,
-            "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
-            "updated_at": datetime.now().isoformat()
-        }).execute()
+        # [기술 수정] 리스트 형식 및 on_conflict 추가
+        supabase.table("analysis_cache").upsert([
+            {
+                "cache_key": cache_key,
+                "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
+                "updated_at": datetime.now().isoformat()
+            }
+        ], on_conflict="cache_key").execute()
         return True
     except Exception as e:
         print(f"  └─ Tab1 Error: {e}")
@@ -200,11 +116,14 @@ def run_tab3_analysis(ticker, company_name, metrics):
     """
     try:
         response = model.generate_content(prompt)
-        supabase.table("analysis_cache").upsert({
-            "cache_key": cache_key,
-            "content": response.text,
-            "updated_at": datetime.now().isoformat()
-        }).execute()
+        # [기술 수정] 리스트 형식 및 on_conflict 추가
+        supabase.table("analysis_cache").upsert([
+            {
+                "cache_key": cache_key,
+                "content": response.text,
+                "updated_at": datetime.now().isoformat()
+            }
+        ], on_conflict="cache_key").execute()
         return True
     except Exception as e:
         print(f"  └─ Tab3 AI Error: {e}")
@@ -230,17 +149,19 @@ def run_tab4_analysis(ticker, company_name):
         response = model.generate_content(prompt)
         text = response.text
         
-        # JSON 파싱
         json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', text, re.DOTALL)
         if json_match:
             json_str = json_match.group(1).strip()
             result_data = json.loads(re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str), strict=False)
             
-            supabase.table("analysis_cache").upsert({
-                "cache_key": cache_key,
-                "content": json.dumps(result_data, ensure_ascii=False),
-                "updated_at": datetime.now().isoformat()
-            }).execute()
+            # [기술 수정] 리스트 형식 및 on_conflict 추가
+            supabase.table("analysis_cache").upsert([
+                {
+                    "cache_key": cache_key,
+                    "content": json.dumps(result_data, ensure_ascii=False),
+                    "updated_at": datetime.now().isoformat()
+                }
+            ], on_conflict="cache_key").execute()
             return True
     except Exception as e:
         print(f"  └─ Tab4 Error: {e}")
@@ -254,11 +175,12 @@ def update_macro_data(df_calendar):
     data = {"ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0, "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50}
     
     try:
-        # App.py와 동일한 로직으로 데이터 수집 (생략 없이 주요 로직 구현)
         today = datetime.now()
         if not df_calendar.empty:
-            # 1. IPO Return & Unprofitable
-            traded = df_calendar[df_calendar['date'] < today.strftime('%Y-%m-%d')].sort_values(by='date', ascending=False).head(30)
+            # [기술 수정] 날짜 비교 로직 보강
+            df_calendar['공모일_dt'] = pd.to_datetime(df_calendar['date'], errors='coerce')
+            traded = df_calendar[df_calendar['공모일_dt'] < today].sort_values(by='공모일_dt', ascending=False).head(30)
+            
             ret_sum, ret_cnt = 0, 0
             for _, row in traded.iterrows():
                 try:
@@ -272,11 +194,9 @@ def update_macro_data(df_calendar):
                 except: pass
             if ret_cnt > 0: data["ipo_return"] = ret_sum / ret_cnt
             
-            # 2. Volume
-            future = df_calendar[(df_calendar['date'] >= today.strftime('%Y-%m-%d'))]
+            future = df_calendar[(df_calendar['공모일_dt'] >= today)]
             data["ipo_volume"] = len(future)
 
-        # Yahoo Finance Macro
         try:
             vix = yf.Ticker("^VIX").history(period="1d")['Close'].iloc[-1]
             data['vix'] = vix
@@ -284,114 +204,26 @@ def update_macro_data(df_calendar):
             data['pe_ratio'] = spy.info.get('trailingPE', 24.5)
         except: pass
         
-        # AI 코멘트 생성
         prompt = f"현재 시장 데이터(VIX: {data['vix']:.2f}, IPO수익률: {data['ipo_return']:.1f}%)를 바탕으로 IPO 투자자에게 주는 3줄 조언 (한국어)."
         ai_resp = model.generate_content(prompt).text
         
-        # 각각 저장
-        supabase.table("analysis_cache").upsert({
-            "cache_key": "Global_Market_Dashboard_Tab2",
-            "content": ai_resp,
-            "updated_at": datetime.now().isoformat()
-        }).execute()
+        # [기술 수정] 리스트 형식 및 on_conflict 추가
+        supabase.table("analysis_cache").upsert([
+            {
+                "cache_key": "Global_Market_Dashboard_Tab2",
+                "content": ai_resp,
+                "updated_at": datetime.now().isoformat()
+            }
+        ], on_conflict="cache_key").execute()
         
-        supabase.table("analysis_cache").upsert({
-            "cache_key": cache_key,
-            "content": json.dumps(data),
-            "updated_at": datetime.now().isoformat()
-        }).execute()
+        supabase.table("analysis_cache").upsert([
+            {
+                "cache_key": cache_key,
+                "content": json.dumps(data),
+                "updated_at": datetime.now().isoformat()
+            }
+        ], on_conflict="cache_key").execute()
         print("✅ 거시 지표 업데이트 완료")
         
     except Exception as e:
         print(f"❌ Macro Update Fail: {e}")
-
-# ==========================================
-# [4] 메인 실행 루프
-# ==========================================
-# [worker.py 의 main 함수 전체 교체]
-
-def main():
-    print(f"🚀 Worker Start: {datetime.now()}")
-    
-    # 1. 대상 종목 리스트업
-    df = get_target_stocks()
-    if df.empty:
-        print("종목이 없어 종료합니다.")
-        return
-
-    # 1.5 추적 명단 저장
-    print(f"📝 추적 명단({len(df)}개) DB에 등록 중...", end=" ")
-    try:
-        stock_list = []
-        for _, row in df.iterrows():
-            stock_list.append({
-                "symbol": row['symbol'], 
-                "name": row['name'],
-                "updated_at": datetime.now().isoformat()
-            })
-        supabase.table("stock_cache").upsert(stock_list).execute()
-        print("✅ 완료")
-    except Exception as e:
-        print(f"❌ 명단 저장 실패: {e}")
-
-    # 2. 거시 지표 업데이트 (1회)
-    update_macro_data(df)
-    
-    # 3. 개별 종목 루프 (속도 조절 적용)
-    total = len(df)
-    for idx, row in df.iterrows():
-        symbol = row['symbol']
-        name = row['name']
-        print(f"[{idx+1}/{total}] {symbol} 분석 중...", end=" ")
-        
-        try:
-            # --- 속도 조절: 각 탭 실행 사이에도 텀을 줍니다 ---
-            
-            # (A) Tab 0: 공시 분석 (가장 중요)
-            if run_tab0_analysis(symbol, name):
-                print("T0.", end="")
-                time.sleep(4) # 4초 휴식
-
-            # (B) Tab 1: 비즈니스/뉴스
-            if run_tab1_analysis(symbol, name):
-                print("T1.", end="")
-                time.sleep(4) # 4초 휴식
-            
-            # (C) Tab 4: 기관 평가
-            if run_tab4_analysis(symbol, name):
-                print("T4.", end="")
-                time.sleep(4) # 4초 휴식
-            
-            # (D) Tab 3: 재무 분석
-            tk = yf.Ticker(symbol)
-            info = tk.info
-            growth = info.get('revenueGrowth', 0) * 100
-            net_margin = info.get('profitMargins', 0) * 100
-            roe = info.get('returnOnEquity', 0) * 100
-            
-            metrics_dict = {
-                "growth": f"{growth:.1f}%",
-                "net_margin": f"{net_margin:.1f}%",
-                "roe": f"{roe:.1f}%",
-                "pe": f"{info.get('forwardPE', 0):.1f}x"
-            }
-            if run_tab3_analysis(symbol, name, metrics_dict):
-                print("T3.", end="")
-                time.sleep(4) # 4초 휴식
-            
-            print("✅")
-            
-            # 종목 간 대기 시간 (Rate Limit 회복용)
-            time.sleep(5) 
-            
-        except Exception as e:
-            print(f"❌ 실패: {e}")
-            time.sleep(10) # 에러나면 좀 더 길게 쉼
-            
-    print("🏁 모든 작업 종료.")
-
-if __name__ == "__main__":
-    if not supabase or not model:
-        print("❌ 필수 설정 누락으로 중단됨.")
-    else:
-        main()
