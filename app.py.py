@@ -3955,12 +3955,11 @@ elif st.session_state.page == 'board':
     # ---------------------------------------------------------
     # 2. 게시판 메인 로직 (상단: 목록 / 하단: 검색 & 글쓰기 병렬)
     # ---------------------------------------------------------
-    st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>게시판</h3>", unsafe_allow_html=True)
+    
     
     # [핵심 1] 출력 영역을 먼저 선언 (여기에 글 목록이 들어감)
     post_list_area = st.container()
     
-    st.write("---") # 구분선
     
     # [핵심 2] 데이터 먼저 불러오기 (순서를 위로 올렸습니다)
     all_posts = db_load_posts(limit=100)
