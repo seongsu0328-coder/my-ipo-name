@@ -39,30 +39,27 @@ if GENAI_API_KEY:
 # [2] 헬퍼 함수: 초강력 데이터 세척 (Deep & Strict Clean)
 # ==========================================
 def sanitize_value(v):
-    """모든 값을 Python 기본형으로 강제 변환 (JSON 405 에러 원천 차단)"""
-    if pd.isna(v) or v is None:
+    """
+    모든 데이터를 파이썬 기본형(Native Python Types)으로 강제 변환합니다.
+    Numpy나 Pandas 객체가 섞여 있으면 405 에러가 발생하므로 이를 완전히 제거합니다.
+    """
+    # 1. 빈 값 처리
+    if v is None or pd.isna(v):
         return None
     
-    # 1. 숫자형 (Numpy 타입 제거)
-    if isinstance(v, (np.integer, np.int64, np.int32, int)):
-        return int(v)
-    if isinstance(v, (np.floating, np.float64, np.float32, float)):
+    # 2. 숫자형 처리 (가장 중요: Numpy float32/64 등을 Python float로 강제 변환)
+    if isinstance(v, (np.floating, float)):
         if np.isinf(v) or np.isnan(v): return 0.0
-        return float(v)
+        return float(v) # 여기서 Native Python float로 강제 형변환
+        
+    if isinstance(v, (np.integer, int)):
+        return int(v) # Native Python int로 강제 형변환
+
+    # 3. 불리언 처리
     if isinstance(v, (np.bool_, bool)):
         return bool(v)
-        
-    # 2. 날짜형
-    if isinstance(v, (pd.Timestamp, datetime, date)):
-        return v.isoformat()
-        
-    # 3. 리스트/딕셔너리 (재귀 처리)
-    if isinstance(v, list):
-        return [sanitize_value(i) for i in v]
-    if isinstance(v, dict):
-        return {str(k): sanitize_value(val) for k, val in v.items()}
-        
-    # 4. 문자열
+
+    # 4. 문자열 처리 (객체 형태가 남지 않도록 str() 강제 적용)
     return str(v).strip()
 
 def batch_upsert(table_name, data_list, batch_size=40):
@@ -344,10 +341,11 @@ def main():
     for _, row in df.iterrows():
         # 이름이 없으면 Unknown 처리
         safe_name = str(row['name']) if pd.notna(row['name']) else "Unknown"
+        # main() 함수 내 stock_list 생성 부분 수정 제안
         stock_list.append({
-            "symbol": row['symbol'], 
-            "name": safe_name, 
-            "updated_at": datetime.now().isoformat()
+            "symbol": str(row['symbol']), 
+            "name": str(safe_name), 
+            "updated_at": str(datetime.now().isoformat())
         })
     batch_upsert("stock_cache", stock_list)
     print("✅ 완료")
