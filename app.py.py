@@ -2305,52 +2305,43 @@ if st.session_state.page == 'calendar':
                 display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
 
         # ----------------------------------------------------------------
-        # 🚀 [핵심 추가] 모든 모드 공통 Batch 주가 조회 로직 (30분 캐시)
+        # 🚀 [최적화] 모든 모드 공통 Batch 주가 조회 및 벡터 연산 매핑
         # ----------------------------------------------------------------
         if not display_df.empty:
-            with st.spinner("🔄 실시간 시세(15분 주기) 조회 중..."):
-                # [수정] 결측치(NaN)를 제거하고 고유한 심볼 리스트만 추출
-                symbols_list = display_df['symbol'].dropna().unique().tolist()
+            with st.spinner("🚀 데이터 최적화 로드 중..."):
+                # 1. 고유한 심볼 리스트 추출 (NaN 제거)
+                symbols_to_fetch = display_df['symbol'].dropna().unique().tolist()
                 
-                # 배치 함수 호출
-                batch_prices = get_batch_prices(symbols_list)
+                # 2. 배치 함수 호출 (한 번의 쿼리로 모든 주가 획득)
+                all_prices_map = get_batch_prices(symbols_to_fetch)
                 
-                # (3) 결과 매핑 및 수익률 계산
-                final_prices = []
-                final_returns = []
+                # 3. [핵심] 루프 없이 한 번에 매핑 (0.1초)
+                display_df['live_price'] = display_df['symbol'].map(all_prices_map).fillna(0.0)
                 
-                for _, row in display_df.iterrows():
-                    sid = row['symbol']
-                    # 공모가 숫자 변환
+                # 4. [핵심] 수익률 계산도 루프 없이 '벡터 연산'으로 처리 (속도 향상)
+                # 공모가(price)를 숫자로 미리 변환
+                def parse_price(x):
                     try:
-                        p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
+                        return float(str(x).replace('$','').split('-')[0])
                     except:
-                        p_ipo = 0
-                    
-                    # 배치 결과에서 현재가 가져오기
-                    p_curr = batch_prices.get(sid, 0.0)
-                    
-                    # 수익률 계산
-                    if p_ipo > 0 and p_curr > 0:
-                        ret = ((p_curr - p_ipo) / p_ipo) * 100
-                    else:
-                        ret = -9999 # 가격 정보가 없는 경우 최하단으로 보냄
-                        
-                    final_prices.append(p_curr)
-                    final_returns.append(ret)
+                        return 0.0
+        
+                p_ipo_series = display_df['price'].apply(parse_price)
                 
-                # 데이터프레임에 실시간 값 주입
-                display_df['live_price'] = final_prices
-                display_df['temp_return'] = final_returns
-
-            # 3. 정렬 최종 적용
-            if view_mode != 'watchlist': # 캘린더 모드일 때만 정렬 옵션 따름
+                # 벡터 연산으로 수익률 계산 (만약 공모가나 현재가가 0이면 -9999 처리)
+                display_df['temp_return'] = np.where(
+                    (p_ipo_series > 0) & (display_df['live_price'] > 0),
+                    ((display_df['live_price'] - p_ipo_series) / p_ipo_series) * 100,
+                    -9999
+                )
+        
+            # 3. 정렬 최종 적용 (기존 로직 유지)
+            if view_mode != 'watchlist': 
                 if sort_option == "최신순":
                     display_df = display_df.sort_values(by='공모일_dt', ascending=False)
                 elif sort_option == "수익률":
                     display_df = display_df.sort_values(by='temp_return', ascending=False)
             else:
-                # 관심종목 모드일 때는 기본 최신순
                 display_df = display_df.sort_values(by='공모일_dt', ascending=False)
 
         # ----------------------------------------------------------------
