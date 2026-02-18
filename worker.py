@@ -36,95 +36,60 @@ if GENAI_API_KEY:
         model = genai.GenerativeModel('gemini-2.0-flash')
 
 # ==========================================
-# [2] 헬퍼 함수: 초강력 데이터 세척 (Deep & Strict Clean)
+# [2] 헬퍼 함수: 범용 배치 저장 (Universal Upsert)
 # ==========================================
-def sanitize_value(v):
+
+def batch_upsert(table_name, data_list, on_conflict="ticker"):
     """
-    모든 데이터를 파이썬 기본형(Native Python Types)으로 강제 변환합니다.
-    Numpy나 Pandas 객체가 섞여 있으면 405 에러가 발생하므로 이를 완전히 제거합니다.
+    어떤 테이블이든 대응 가능한 범용 Upsert 함수입니다.
+    - on_conflict: 중복 체크를 할 기본키(PK) 컬럼명을 적어주세요.
     """
-    # 1. 빈 값 처리
-    if v is None or pd.isna(v):
-        return None
-    
-    # 2. 숫자형 처리 (가장 중요: Numpy float32/64 등을 Python float로 강제 변환)
-    if isinstance(v, (np.floating, float)):
-        if np.isinf(v) or np.isnan(v): return 0.0
-        return float(v) # 여기서 Native Python float로 강제 형변환
-        
-    if isinstance(v, (np.integer, int)):
-        return int(v) # Native Python int로 강제 형변환
-
-    # 3. 불리언 처리
-    if isinstance(v, (np.bool_, bool)):
-        return bool(v)
-
-    # 4. 문자열 처리 (객체 형태가 남지 않도록 str() 강제 적용)
-    return str(v).strip()
-
-def batch_upsert(table_name, data_list, batch_size=1):
     if not data_list: return
     
-    # 1. 환경 변수에서 URL과 Key 가져오기
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     
     if not url or not key:
-        print("❌ 에러: SUPABASE_URL 또는 KEY 환경변수를 찾을 수 없습니다.")
+        print(f"❌ [{table_name}] 환경변수 누락으로 저장 불가")
         return
 
-    # [수정] URL 끝에 ?on_conflict=ticker 를 붙여야 405 에러가 안 납니다.
-    # url에 이미 rest/v1이 포함되어 있는지 확인하는 안전장치 포함
+    # endpoint에 on_conflict 컬럼 동적 지정
     base_url = url.rstrip('/')
-    if "/rest/v1" not in base_url:
-        endpoint = f"{base_url}/rest/v1/{table_name}?on_conflict=ticker"
-    else:
-        endpoint = f"{base_url}/{table_name}?on_conflict=ticker"
+    endpoint = f"{base_url}/rest/v1/{table_name}?on_conflict={on_conflict}"
     
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates" # 중복 시 덮어쓰기 설정
+        "Prefer": "resolution=merge-duplicates"
     }
 
-    print(f"🚀 [환경변수 직송 모드] {len(data_list)}개 데이터 전송 시작 (on_conflict 적용)...")
+    print(f"🚀 [{table_name}] {len(data_list)}개 데이터 전송 시작 (PK: {on_conflict})...")
     success_save = 0
     fail_save = 0
 
     for item in data_list:
-        ticker_val = item.get('ticker')
-        if not ticker_val or str(ticker_val).lower() == 'none': continue
-
-        p_val = item.get('price', 0.0)
-        clean_price = float(p_val) if (p_val is not None and not pd.isna(p_val)) else 0.0
+        # [핵심] 딕셔너리의 모든 키와 값을 루프 돌며 자동으로 세척
+        clean_payload = {}
+        for k, v in item.items():
+            clean_payload[k] = sanitize_value(v)
         
-        payload = {
-            "ticker": str(ticker_val).strip(),
-            "price": round(clean_price, 4),
-            "status": str(item.get('status', 'Active')).strip(),
-            "updated_at": str(item.get('updated_at', ''))
-        }
-
-        try:
-            # 직접 POST 요청
-            response = requests.post(endpoint, json=payload, headers=headers)
-            
-            if response.status_code in [200, 201, 204]: # 204도 성공으로 간주
-                success_save += 1
-                if success_save % 50 == 0:
-                    print(f"   ... {success_save}개 저장 성공")
-            else:
-                # 실패 시 에러 메시지 상세 출력
-                print(f"   ⚠️ {ticker_val} 실패 (Code {response.status_code}): {response.text}")
-                fail_save += 1
-                
-        except Exception as e:
-            fail_save += 1
-            print(f"   ❌ {ticker_val} 시스템 에러: {e}")
+        # 기본키(on_conflict) 값이 없으면 저장 안 함
+        if not clean_payload.get(on_conflict):
             continue
 
-    print(f"🏁 최종 결과: 성공 {success_save}개 / 실패 {fail_save}개")
+        try:
+            response = requests.post(endpoint, json=clean_payload, headers=headers)
+            if response.status_code in [200, 201, 204]:
+                success_save += 1
+            else:
+                print(f"   ⚠️ {clean_payload.get(on_conflict)} 실패 ({response.status_code}): {response.text}")
+                fail_save += 1
+        except Exception as e:
+            fail_save += 1
+            continue
+
+    print(f"🏁 [{table_name}] 최종 결과: 성공 {success_save} / 실패 {fail_save}")
             
 # ==========================================
 # [3] 핵심 로직 (나머지 프롬프트 및 수집 기능 유지)
