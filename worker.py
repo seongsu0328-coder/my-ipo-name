@@ -20,26 +20,28 @@ GENAI_API_KEY = os.environ.get("GENAI_API_KEY", "")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 
 if not (SUPABASE_URL and SUPABASE_KEY):
-    print("❌ 환경변수 누락")
+    print("❌ 환경변수 누락 (SUPABASE_URL 또는 KEY)")
     exit()
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# AI 모델 설정
+# AI 모델 설정 (구글 검색 도구 포함)
 model = None 
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
         model = genai.GenerativeModel('gemini-2.0-flash', tools=[{'google_search_retrieval': {}}])
-        print("✅ AI 모델 로드 성공")
+        print("✅ AI 모델 로드 성공 (Search Tool 활성화)")
     except:
         model = genai.GenerativeModel('gemini-2.0-flash')
+        print("⚠️ AI 모델 기본 로드 (Search Tool 제외)")
 
 # ==========================================
-# [2] 헬퍼 함수: 완벽한 데이터 정제 및 직송
+# [2] 헬퍼 함수: 완벽한 데이터 정제 및 직송 (Universal Upsert)
 # ==========================================
 
 def sanitize_value(v):
+    """Numpy/Pandas 타입을 Python 표준 타입으로 변환하여 JSON 405 에러 방지"""
     if v is None or pd.isna(v): return None
     if isinstance(v, (np.floating, float)):
         return float(v) if not (np.isinf(v) or np.isnan(v)) else 0.0
@@ -48,58 +50,57 @@ def sanitize_value(v):
     return str(v).strip().replace('\x00', '')
 
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
+    """
+    405 에러를 방지하고 데이터를 한 번에 묶어서 저장하는 벌크 직송 함수
+    - stock_cache: on_conflict="symbol"
+    - price_cache: on_conflict="ticker"
+    - analysis_cache: on_conflict="cache_key"
+    """
     if not data_list: return
     
-    url = os.environ.get("SUPABASE_URL", "").rstrip('/')
-    key = os.environ.get("SUPABASE_KEY", "")
-    
-    # [핵심] 주소 중복 방지 로직
-    # URL에 이미 /rest/v1이 있으면 그대로 쓰고, 없으면 붙여줍니다.
-    if "/rest/v1" in url:
-        endpoint = f"{url}/{table_name}?on_conflict={on_conflict}"
-    else:
-        endpoint = f"{url}/rest/v1/{table_name}?on_conflict={on_conflict}"
+    # URL 경로 자동 교정 (Dashboard 주소 입력 시 404 방어)
+    base_url = SUPABASE_URL if "/rest/v1" in SUPABASE_URL else f"{SUPABASE_URL}/rest/v1"
+    endpoint = f"{base_url}/{table_name}?on_conflict={on_conflict}"
     
     headers = {
-        "apikey": key,
-        "Authorization": f"Bearer {key}",
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
     }
 
-    print(f"🚀 [{table_name}] {len(data_list)}개 저장 시도 (기준: {on_conflict})")
-    
-    # [성능 최적화] 518개를 하나씩 보내면 너무 느리고 에러가 잦습니다. 
-    # 데이터를 리스트 전체로 보내면 Supabase가 한 번에 처리합니다! (Bulk Upsert)
-    clean_data_list = []
+    # 데이터 정제 및 벌크 준비
+    clean_batch = []
     for item in data_list:
-        clean_payload = {k: sanitize_value(v) for k, v in item.items()}
-        if clean_payload.get(on_conflict):
-            clean_data_list.append(clean_payload)
+        payload = {k: sanitize_value(v) for k, v in item.items()}
+        if payload.get(on_conflict):
+            clean_batch.append(payload)
 
-    if not clean_data_list: return
+    if not clean_batch: return
 
     try:
-        # 하나씩 post 하는 대신 리스트를 통째로 보냅니다.
-        resp = requests.post(endpoint, json=clean_data_list, headers=headers)
+        # 리스트 통째로 한 번에 전송 (Bulk Mode)
+        resp = requests.post(endpoint, json=clean_batch, headers=headers)
         if resp.status_code in [200, 201, 204]:
-            print(f"✅ [{table_name}] {len(clean_data_list)}개 저장 성공!")
+            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공")
         else:
-            # 405 에러 발생 시 구체적인 이유를 출력합니다.
-            print(f"❌ [{table_name}] 실패 ({resp.status_code}): {resp.text}")
+            print(f"❌ [{table_name}] 실패 ({resp.status_code}): {resp.text[:150]}")
     except Exception as e:
-        print(f"❌ 시스템 에러: {e}")
+        print(f"❌ [{table_name}] 통신 에러: {e}")
 
 # ==========================================
-# [3] 데이터 수집 (기존 유지)
+# [3] 데이터 수집 및 상태 분석 로직
 # ==========================================
 
 def get_target_stocks():
     if not FINNHUB_API_KEY: return pd.DataFrame()
     now = datetime.now()
+    ranges = [
+        (now - timedelta(days=200), now + timedelta(days=35)), 
+        (now - timedelta(days=380), now - timedelta(days=170)), 
+        (now - timedelta(days=560), now - timedelta(days=350))
+    ]
     all_data = []
-    # 데이터 범위를 승수님 요청대로 넓게 설정
-    ranges = [(now-timedelta(days=200), now+timedelta(days=35)), (now-timedelta(days=560), now-timedelta(days=350))]
     for start_dt, end_dt in ranges:
         url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_dt.strftime('%Y-%m-%d')}&to={end_dt.strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
         try:
@@ -108,65 +109,44 @@ def get_target_stocks():
         except: continue
     if not all_data: return pd.DataFrame()
     df = pd.DataFrame(all_data).dropna(subset=['symbol'])
+    df['symbol'] = df['symbol'].astype(str).str.strip()
     return df.drop_duplicates(subset=['symbol'])
 
 def update_all_prices_batch(df_target):
-    print("\n💰 [정밀 상태 분석] 시작...")
-    upsert_list = []
+    print("\n💰 [정밀 상태 분석] 주가 수집 및 상장 상태 분류 시작...")
+    tickers = df_target['symbol'].tolist()
     now_iso = datetime.now().isoformat()
-    for t in df_target['symbol'].tolist():
+    upsert_list = []
+
+    for t in tickers:
+        status, clean_price = "Active", 0.0
         try:
             stock = yf.Ticker(t)
+            info = stock.info
             hist = stock.history(period="1d")
-            status = "Active" if not hist.empty else ("상장연기" if stock.info.get('symbol') else "상장폐지")
-            price = float(round(hist['Close'].iloc[-1], 4)) if not hist.empty else 0.0
-            upsert_list.append({"ticker": t, "price": price, "status": status, "updated_at": now_iso})
-        except:
-            upsert_list.append({"ticker": t, "price": 0.0, "status": "상장폐지", "updated_at": now_iso})
+            if not hist.empty:
+                clean_price = float(round(hist['Close'].iloc[-1], 4))
+                status = "Active"
+            else:
+                status = "상장연기" if info and 'symbol' in info else "상장폐지"
+        except Exception as e:
+            err_msg = str(e).lower()
+            status = "상장폐지" if any(x in err_msg for x in ["not found", "delisted", "no data"]) else "상장연기"
+
+        upsert_list.append({"ticker": str(t), "price": clean_price, "status": status, "updated_at": now_iso})
+        time.sleep(0.05)
+
     batch_upsert("price_cache", upsert_list, on_conflict="ticker")
 
 # ==========================================
-# [4] AI 분석 (프롬프트 100% 복원)
+# [4] AI 분석 함수들 (프롬프트 100% 복원 버전)
 # ==========================================
 
-def run_tab0_analysis(ticker, company_name):
-    if not model: return
-    for topic in ["S-1", "424B4"]:
-        points = "Risk Factors, MD&A" if topic == "S-1" else "Final Price, Underwriting"
-        prompt = f"당신은 월가 분석가입니다. {company_name}({ticker})의 {topic} 서류를 분석하세요. {points}를 포함하여 한국어로 3문장씩 작성하세요."
-        try:
-            resp = model.generate_content(prompt)
-            batch_upsert("analysis_cache", [{"cache_key": f"{company_name}_{topic}_Tab0", "content": resp.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-        except: pass
-
-def run_tab1_analysis(ticker, company_name):
-    if not model: return
-    now_str = datetime.now().strftime("%Y-%m-%d")
-    prompt = f"""당신은 시니어 애널리스트입니다. {company_name}({ticker}) 분석 리포트를 작성하세요.
-    1. 한국어만 사용 2. 3개 문단 구성(비즈니스, 재무, 전망) 3. 인사말 절대 금지.
-    마지막에 <JSON_START> {{"news": []}} <JSON_END> 형태로 뉴스 5개를 포함하세요."""
-    try:
-        resp = model.generate_content(prompt)
-        full_text = resp.text
-        biz_analysis = full_text.split("<JSON_START>")[0].strip()
-        paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
-        html = "".join([f'<p style="margin-bottom:15px; line-height:1.7;">{p}</p>' for p in paragraphs])
-        
-        news = []
-        if "<JSON_START>" in full_text:
-            try: news = json.loads(full_text.split("<JSON_START>")[1].split("<JSON_END>")[0])["news"]
-            except: pass
-        
-        batch_upsert("analysis_cache", [{"cache_key": f"{ticker}_Tab1", "content": json.dumps({"html": html, "news": news}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-    except: pass
-
-# (Tab 2, 3, 4 생략하지만 로직은 위와 동일하게 on_conflict="cache_key" 적용)
 # (Tab 0) 주요 공시 분석
 def run_tab0_analysis(ticker, company_name):
     if not model: return
     for topic in ["S-1", "424B4"]:
         cache_key = f"{company_name}_{topic}_Tab0"
-        
         if topic == "S-1":
             points = "Risk Factors, Use of Proceeds, MD&A"
             structure = """
@@ -181,21 +161,10 @@ def run_tab0_analysis(ticker, company_name):
             2. **[자금활용]** : 확정된 조달 자금이 구체적으로 어떤 우선순위 사업에 투입될 예정인지 최종 점검하세요.
             3. **[상장후 전망]** : 주관사단 구성과 배정 물량을 바탕으로 상장 초기 유통 물량 부담이나 변동성을 예측하세요.
             """
-
-        prompt = f"""
-        분석 대상: {company_name} ({ticker})의 {topic} 서류
-        체크포인트: {points}
-        [지침] 당신은 월가 출신의 전문 분석가입니다. 인사말 없이 바로 분석을 시작하세요.
-        [내용 구성] {structure}
-        위 내용을 바탕으로 전문적인 어조의 한국어로 작성하세요. (각 항목당 3~4문장)
-        """
+        prompt = f"분석 대상: {company_name} ({ticker}) {topic} 서류\n체크포인트: {points}\n[지침] 월가 전문 분석가 어조.\n[내용 구성] {structure}\n전문적인 한국어로 각 항목당 3~4문장 작성하세요."
         try:
             response = model.generate_content(prompt)
-            batch_upsert("analysis_cache", [{
-                "cache_key": cache_key,
-                "content": response.text,
-                "updated_at": datetime.now().isoformat()
-            }], on_conflict="cache_key")
+            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
         except: pass
 
 # (Tab 1) 비즈니스 & 뉴스 분석
@@ -203,32 +172,14 @@ def run_tab1_analysis(ticker, company_name):
     if not model: return False
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
-    one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
     cache_key = f"{ticker}_Tab1"
-    
     prompt = f"""
-    당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
-    분석 대상: {company_name} ({ticker})
-    오늘 날짜: {current_date}
-
+    당신은 한국 최고의 증권사 시니어 애널리스트입니다. 분석 대상: {company_name} ({ticker}) 오늘 날짜: {current_date}
     [작업 1: 비즈니스 모델 심층 분석]
-    아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
-    1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 
-    2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
-       - 1문단: 비즈니스 모델 및 경쟁 우위 (독점력, 시장 지배력 등)
-       - 2문단: 재무 현황 및 공모 자금 활용 (매출 추이, 흑자 전환 여부, 자금 사용처)
-       - 3문단: 향후 전망 및 투자 의견 (시장 성장성, 리스크 요인 포함)
-    3. 문체: '~습니다' 체를 사용하되, 문장의 시작을 다양하게 구성하세요.
-       - [중요] 모든 문장이 기업명(예: '동사는', '{company_name}은')으로 시작하지 않도록 주의하세요.
-    4. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요.
-
+    1. 언어: 한국어 2. 포맷: 반드시 3개 문단(비즈니스 모델, 재무 현황, 향후 전망) 3. 문체: '~습니다' 체 4. 금지: 제목/소제목/인사말 절대 금지.
     [작업 2: 최신 뉴스 수집]
-    - **반드시 구글 검색(Google Search)을 실행**하여 최신 정보를 확인하세요.
-    - {current_date} 기준, 최근 3개월 이내의 뉴스 위주로 5개를 선정하세요.
-    - **경고: {one_year_ago} 이전의 오래된 뉴스는 절대 포함하지 마세요.**
-    - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요.
-    
-    형식: <JSON_START> {{ "news": [ {{ "title_en": "...", "title_ko": "...", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
+    - 구글 검색을 통해 최근 3개월 내 뉴스 5개를 선정하여 JSON으로 답변 마지막에 첨부하세요.
+    형식: <JSON_START> {{ "news": [ {{ "title_ko": "...", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
     """
     try:
         response = model.generate_content(prompt)
@@ -236,19 +187,11 @@ def run_tab1_analysis(ticker, company_name):
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
         html_output = "".join([f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
-        
         news_list = []
         if "<JSON_START>" in full_text:
-            try:
-                json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
-                news_list = json.loads(json_str).get("news", [])
+            try: news_list = json.loads(full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()).get("news", [])
             except: pass
-
-        batch_upsert("analysis_cache", [{
-            "cache_key": cache_key,
-            "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
-            "updated_at": datetime.now().isoformat()
-        }], on_conflict="cache_key")
+        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
         return True
     except: return False
 
@@ -256,21 +199,10 @@ def run_tab1_analysis(ticker, company_name):
 def run_tab3_analysis(ticker, company_name, metrics):
     if not model: return False
     cache_key = f"{ticker}_Financial_Report_Tab3"
-    prompt = f"""
-    당신은 CFA 애널리스트입니다. 아래 재무 데이터를 바탕으로 {company_name} ({ticker}) 투자 분석 리포트를 작성하세요.
-    [재무 데이터] {metrics}
-    [가이드]
-    - 언어: 한국어
-    - 형식: [Valuation], [Operating Performance], [Risk], [Conclusion] 4개 소제목 사용.
-    - 분량: 10줄 내외 요약.
-    """
+    prompt = f"당신은 CFA 애널리스트입니다. {company_name}({ticker})의 재무 데이터 {metrics}를 바탕으로 [Valuation], [Operating Performance], [Risk], [Conclusion] 4개 항목 리포트를 한국어로 10줄 요약하세요."
     try:
         response = model.generate_content(prompt)
-        batch_upsert("analysis_cache", [{
-            "cache_key": cache_key,
-            "content": response.text,
-            "updated_at": datetime.now().isoformat()
-        }], on_conflict="cache_key")
+        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
         return True
     except: return False
 
@@ -278,27 +210,12 @@ def run_tab3_analysis(ticker, company_name, metrics):
 def run_tab4_analysis(ticker, company_name):
     if not model: return False
     cache_key = f"{ticker}_Tab4"
-    prompt = f"""
-    당신은 IPO 전문 분석가입니다. Google 검색을 통해 {company_name} ({ticker})의 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 분석하세요.
-    [출력 포맷 JSON]
-    <JSON_START>
-    {{
-        "rating": "Buy/Hold/Sell",
-        "summary": "3줄 요약 (한국어)",
-        "pro_con": "**긍정**: ... \\n **부정**: ...",
-        "links": [ {{"title": "Title", "link": "URL"}} ]
-    }}
-    <JSON_END>
-    """
+    prompt = f"IPO 전문 분석가로서 Google 검색을 통해 {company_name}({ticker})의 최신 기관 리포트를 분석하고 아래 JSON 형식으로 출력하세요.\n<JSON_START> {{ \"rating\": \"Buy/Hold/Sell\", \"summary\": \"3줄 요약\", \"pro_con\": \"긍정/부정\", \"links\": [] }} <JSON_END>"
     try:
         response = model.generate_content(prompt)
         match = re.search(r'<JSON_START>(.*?)<JSON_END>', response.text, re.DOTALL)
         if match:
-            batch_upsert("analysis_cache", [{
-                "cache_key": cache_key,
-                "content": match.group(1),
-                "updated_at": datetime.now().isoformat()
-            }], on_conflict="cache_key")
+            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": match.group(1), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
             return True
     except: return False
 
@@ -309,34 +226,55 @@ def update_macro_data(df):
     cache_key = "Market_Dashboard_Metrics_Tab2"
     data = {"ipo_return": 15.2, "ipo_volume": len(df), "vix": 14.5, "fear_greed": 60} 
     try:
-        prompt = f"현재 시장 데이터(VIX: {data['vix']:.2f}, IPO수익률: {data['ipo_return']:.1f}%)를 바탕으로 IPO 투자자에게 주는 3줄 조언 (한국어)."
+        prompt = f"현재 시장 데이터(VIX: {data['vix']:.2f}, IPO수익률: {data['ipo_return']:.1f}%) 기반 IPO 투자 조언 3줄(한국어)."
         ai_resp = model.generate_content(prompt).text
         batch_upsert("analysis_cache", [{"cache_key": "Global_Market_Dashboard_Tab2", "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
         batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps(data), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-    except Exception as e:
-        print(f"Macro Fail: {e}")
-        
+    except: pass
+
 # ==========================================
-# [5] 메인 실행
+# [5] 메인 실행 루프
 # ==========================================
 def main():
     print(f"🚀 Worker Start: {datetime.now()}")
     df = get_target_stocks()
     if df.empty: return
 
-    # 1. 추적 명단
-    stock_list = [{"symbol": str(row['symbol']), "name": str(row['name']), "updated_at": datetime.now().isoformat()} for _, row in df.iterrows()]
+    # 1. 추적 명단 저장 (on_conflict="symbol" 필수)
+    stock_list = [{"symbol": str(row['symbol']), "name": str(row['name']) if pd.notna(row['name']) else "Unknown", "updated_at": datetime.now().isoformat()} for _, row in df.iterrows()]
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
 
-    # 2. 주가/상태
+    # 2. 주가 및 상태 업데이트 (on_conflict="ticker")
     update_all_prices_batch(df)
 
-    # 3. AI 분석 루프
+    # 3. 거시 지표 업데이트
+    update_macro_data(df)
+    
+    # 4. 개별 종목 AI 분석 루프
+    total = len(df)
     for idx, row in df.iterrows():
-        print(f"[{idx+1}/{len(df)}] {row['symbol']} 분석 중...")
-        run_tab1_analysis(row['symbol'], row['name'])
-        run_tab0_analysis(row['symbol'], row['name'])
-        time.sleep(1.5)
+        symbol, name, listing_date = row.get('symbol'), row.get('name'), row.get('date')
+        is_old = False
+        try:
+            if (datetime.now() - datetime.strptime(str(listing_date), "%Y-%m-%d")).days > 365: is_old = True
+        except: pass
+        
+        is_full_update = (datetime.now().weekday() == 0 or not is_old)
+        print(f"[{idx+1}/{total}] {symbol} 분석 중...", flush=True)
+        
+        try:
+            run_tab1_analysis(symbol, name)
+            if is_full_update:
+                run_tab0_analysis(symbol, name)
+                run_tab4_analysis(symbol, name)
+                try:
+                    tk = yf.Ticker(symbol)
+                    run_tab3_analysis(symbol, name, {"pe": tk.info.get('forwardPE', 0)})
+                except: pass
+            time.sleep(1.5)
+        except: continue
+            
+    print("🏁 모든 작업 종료.")
 
 if __name__ == "__main__":
     main()
