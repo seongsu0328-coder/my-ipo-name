@@ -703,6 +703,18 @@ def get_batch_prices(ticker_list):
 
     return cached_data
 
+def get_current_stock_price(ticker, api_key=None):
+    """
+    단일 종목의 현재가를 yfinance로 즉시 조회하는 함수 (안전장치)
+    """
+    try:
+        # 1일치 분봉/일봉 데이터를 가져와서 가장 최신 종가 리턴
+        df = yf.Ticker(ticker).history(period='1d')
+        if not df.empty:
+            return float(df['Close'].iloc[-1])
+        return 0.0
+    except:
+        return 0.0
 
 
 def get_asset_grade(asset_text):
