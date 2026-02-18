@@ -40,11 +40,16 @@ def is_market_open():
     market_end = time(17, 0)
     current_time = est_now.time()
 
-    if market_start <= current_time <= market_end:
-        return True
-    else:
-        print(f"😴 장 운영 시간이 아닙니다. (현재 ET: {current_time.strftime('%H:%M')})")
-        return False
+    # ▼▼▼▼▼ [수정] 시간 체크 무력화 (주석 처리) ▼▼▼▼▼
+    # if market_start <= current_time <= market_end:
+    #     return True
+    # else:
+    #     print(f"😴 장 운영 시간이 아닙니다. (현재 ET: {current_time.strftime('%H:%M')})")
+    #     return False
+    
+    # ▼▼▼▼▼ [추가] 무조건 실행! ▼▼▼▼▼
+    print(f"🚀 [강제 실행] 장 운영 시간 무관하게 주가 수집을 시작합니다. (현재 ET: {current_time.strftime('%H:%M')})")
+    return True
 
 # 3. 타겟 종목 리스트 가져오기 (DB 또는 Finnhub)
 def get_target_tickers():
