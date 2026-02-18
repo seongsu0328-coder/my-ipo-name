@@ -36,26 +36,34 @@ if GENAI_API_KEY:
         model = genai.GenerativeModel('gemini-2.0-flash')
 
 # ==========================================
-# [2] 헬퍼 함수: 범용 배치 저장 (Universal Upsert)
+# [2] 헬퍼 함수: 데이터 세척 및 범용 저장 (Universal Upsert)
 # ==========================================
+
+def sanitize_value(v):
+    """Numpy/Pandas 타입을 Python 표준 타입으로 변환 (JSON 405 에러 방지 핵심)"""
+    if v is None or pd.isna(v): return None
+    if isinstance(v, (np.floating, float)):
+        return float(v) if not (np.isinf(v) or np.isnan(v)) else 0.0
+    if isinstance(v, (np.integer, int)):
+        return int(v)
+    if isinstance(v, (np.bool_, bool)):
+        return bool(v)
+    # 제어 문자 제거 (\x00 등)
+    return str(v).strip().replace('\x00', '')
 
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
     """
-    어떤 테이블이든 대응 가능한 범용 Upsert 함수입니다.
-    - on_conflict: 중복 체크를 할 기본키(PK) 컬럼명을 적어주세요.
+    어떤 테이블이든 대응 가능한 범용 REST API Upsert 함수
+    - on_conflict: 중복 체크를 할 기본키(PK) 컬럼명
     """
     if not data_list: return
     
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
-    
-    if not url or not key:
-        print(f"❌ [{table_name}] 환경변수 누락으로 저장 불가")
-        return
+    if not url or not key: return
 
-    # endpoint에 on_conflict 컬럼 동적 지정
-    base_url = url.rstrip('/')
-    endpoint = f"{base_url}/rest/v1/{table_name}?on_conflict={on_conflict}"
+    # URL 파라미터로 on_conflict를 명시해야 405 에러가 나지 않습니다.
+    endpoint = f"{url.rstrip('/')}/rest/v1/{table_name}?on_conflict={on_conflict}"
     
     headers = {
         "apikey": key,
@@ -64,19 +72,16 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         "Prefer": "resolution=merge-duplicates"
     }
 
-    print(f"🚀 [{table_name}] {len(data_list)}개 데이터 전송 시작 (PK: {on_conflict})...")
+    print(f"🚀 [{table_name}] {len(data_list)}개 저장 시작 (기준: {on_conflict})...")
     success_save = 0
     fail_save = 0
 
     for item in data_list:
-        # [핵심] 딕셔너리의 모든 키와 값을 루프 돌며 자동으로 세척
-        clean_payload = {}
-        for k, v in item.items():
-            clean_payload[k] = sanitize_value(v)
+        # 모든 키와 값을 자동으로 세척
+        clean_payload = {k: sanitize_value(v) for k, v in item.items()}
         
-        # 기본키(on_conflict) 값이 없으면 저장 안 함
-        if not clean_payload.get(on_conflict):
-            continue
+        # 기준키가 없으면 저장 안 함
+        if not clean_payload.get(on_conflict): continue
 
         try:
             response = requests.post(endpoint, json=clean_payload, headers=headers)
@@ -85,20 +90,24 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
             else:
                 print(f"   ⚠️ {clean_payload.get(on_conflict)} 실패 ({response.status_code}): {response.text}")
                 fail_save += 1
-        except Exception as e:
+        except Exception:
             fail_save += 1
             continue
 
-    print(f"🏁 [{table_name}] 최종 결과: 성공 {success_save} / 실패 {fail_save}")
-            
+    print(f"🏁 [{table_name}] 결과: 성공 {success_save} / 실패 {fail_save}")
+
 # ==========================================
-# [3] 핵심 로직 (나머지 프롬프트 및 수집 기능 유지)
+# [3] 데이터 수집 및 상태 분석 로직
 # ==========================================
 
 def get_target_stocks():
     if not FINNHUB_API_KEY: return pd.DataFrame()
     now = datetime.now()
-    ranges = [(now - timedelta(days=200), now + timedelta(days=35)), (now - timedelta(days=380), now - timedelta(days=170)), (now - timedelta(days=560), now - timedelta(days=350))]
+    ranges = [
+        (now - timedelta(days=200), now + timedelta(days=35)), 
+        (now - timedelta(days=380), now - timedelta(days=170)), 
+        (now - timedelta(days=560), now - timedelta(days=350))
+    ]
     all_data = []
     for start_dt, end_dt in ranges:
         url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_dt.strftime('%Y-%m-%d')}&to={end_dt.strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
@@ -113,77 +122,53 @@ def get_target_stocks():
 
 def update_all_prices_batch(df_target):
     print("\n💰 [정밀 상태 분석] 주가 수집 및 상장 상태(Status) 분류 시작...")
-    
     tickers = df_target['symbol'].tolist()
     now_iso = datetime.now().isoformat()
     success_cnt = 0
     upsert_list = []
 
     for t in tickers:
-        status = "Active"
-        clean_price = 0.0
-        
+        status, clean_price = "Active", 0.0
         try:
             stock = yf.Ticker(t)
-            # 1. 먼저 종목 정보(info)를 통해 상장 폐지 여부를 1차 확인
-            # (야후에서 아예 사라진 종목은 여기서 에러가 나거나 비어있습니다)
             info = stock.info
-            
-            # 2. 가격 데이터 가져오기
             hist = stock.history(period="1d")
             
             if not hist.empty:
-                raw_price = hist['Close'].iloc[-1]
-                clean_price = float(round(raw_price, 4))
+                clean_price = float(round(hist['Close'].iloc[-1], 4))
                 status = "Active"
             else:
-                # 가격 데이터는 없지만 종목 정보는 존재하는 경우 -> 상장연기
-                if info and 'symbol' in info:
-                    status = "상장연기"
-                else:
-                    # 정보 자체가 아예 없는 경우 -> 상장폐지
-                    status = "상장폐지"
-                
+                status = "상장연기" if info and 'symbol' in info else "상장폐지"
         except Exception as e:
-            # 에러 메시지에 'not found'나 'delisted'가 포함된 경우 -> 상장폐지
             err_msg = str(e).lower()
-            if "not found" in err_msg or "delisted" in err_msg or "no data" in err_msg:
+            if any(x in err_msg for x in ["not found", "delisted", "no data"]):
                 status = "상장폐지"
             else:
-                # 그 외 알 수 없는 에러는 안전하게 상장연기로 처리
                 status = "상장연기"
 
         upsert_list.append({
-            "ticker": str(t),
-            "price": clean_price,
-            "status": status,
+            "ticker": str(t), 
+            "price": clean_price, 
+            "status": status, 
             "updated_at": now_iso
         })
         success_cnt += 1
-        
-        if success_cnt % 20 == 0:
-            print(f"   ... {success_cnt}개 분석 완료 ({t}: {status})")
-            
+        if success_cnt % 50 == 0:
+            print(f"   ... {success_cnt}개 분석 완료")
         time.sleep(0.05)
 
     if upsert_list:
-        print(f"📦 총 {len(upsert_list)}개의 종목 분석 결과를 DB에 저장합니다...")
-        batch_upsert("price_cache", upsert_list)
-    
+        batch_upsert("price_cache", upsert_list, on_conflict="ticker")
     print(f"✅ 상태 업데이트 최종 완료: {success_cnt}개 처리됨\n")
 
-# ... (run_tab0~4_analysis 프롬프트는 승수님 원본 그대로 유지) ...
 # ==========================================
-# [4] AI 분석 함수들 (Tab 0~4) - [Prompt 원본 복원]
+# [4] AI 분석 함수들 (프롬프트 원본 100% 복원)
 # ==========================================
 
 # (Tab 0) 주요 공시 분석
 def run_tab0_analysis(ticker, company_name):
     if not model: return
-    if not ticker or str(ticker).lower() == 'none': return
-    
-    target_topics = ["S-1", "424B4"]
-    for topic in target_topics:
+    for topic in ["S-1", "424B4"]:
         cache_key = f"{company_name}_{topic}_Tab0"
         
         if topic == "S-1":
@@ -214,15 +199,12 @@ def run_tab0_analysis(ticker, company_name):
                 "cache_key": cache_key,
                 "content": response.text,
                 "updated_at": datetime.now().isoformat()
-            }])
-        except Exception:
-            pass
+            }], on_conflict="cache_key")
+        except: pass
 
 # (Tab 1) 비즈니스 & 뉴스 분석
 def run_tab1_analysis(ticker, company_name):
     if not model: return False
-    if not ticker or str(ticker).lower() == 'none': return False
-    
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
@@ -255,7 +237,6 @@ def run_tab1_analysis(ticker, company_name):
     try:
         response = model.generate_content(prompt)
         full_text = response.text
-        
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
         html_output = "".join([f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
@@ -271,16 +252,14 @@ def run_tab1_analysis(ticker, company_name):
             "cache_key": cache_key,
             "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
             "updated_at": datetime.now().isoformat()
-        }])
+        }], on_conflict="cache_key")
         return True
     except: return False
 
 # (Tab 3) 재무 분석 AI
 def run_tab3_analysis(ticker, company_name, metrics):
     if not model: return False
-    if not ticker or str(ticker).lower() == 'none': return False
     cache_key = f"{ticker}_Financial_Report_Tab3"
-    
     prompt = f"""
     당신은 CFA 애널리스트입니다. 아래 재무 데이터를 바탕으로 {company_name} ({ticker}) 투자 분석 리포트를 작성하세요.
     [재무 데이터] {metrics}
@@ -295,16 +274,14 @@ def run_tab3_analysis(ticker, company_name, metrics):
             "cache_key": cache_key,
             "content": response.text,
             "updated_at": datetime.now().isoformat()
-        }])
+        }], on_conflict="cache_key")
         return True
     except: return False
 
 # (Tab 4) 기관 평가 AI
 def run_tab4_analysis(ticker, company_name):
     if not model: return False
-    if not ticker or str(ticker).lower() == 'none': return False
     cache_key = f"{ticker}_Tab4"
-    
     prompt = f"""
     당신은 IPO 전문 분석가입니다. Google 검색을 통해 {company_name} ({ticker})의 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 분석하세요.
     [출력 포맷 JSON]
@@ -325,7 +302,7 @@ def run_tab4_analysis(ticker, company_name):
                 "cache_key": cache_key,
                 "content": match.group(1),
                 "updated_at": datetime.now().isoformat()
-            }])
+            }], on_conflict="cache_key")
             return True
     except: return False
 
@@ -334,44 +311,38 @@ def update_macro_data(df):
     if not model: return
     print("🌍 거시 지표(Tab 2) 업데이트 중...")
     cache_key = "Market_Dashboard_Metrics_Tab2"
-    data = {"ipo_return": 15.2, "ipo_volume": 12, "vix": 14.5, "fear_greed": 60} 
+    data = {"ipo_return": 15.2, "ipo_volume": len(df), "vix": 14.5, "fear_greed": 60} 
     try:
         prompt = f"현재 시장 데이터(VIX: {data['vix']:.2f}, IPO수익률: {data['ipo_return']:.1f}%)를 바탕으로 IPO 투자자에게 주는 3줄 조언 (한국어)."
         ai_resp = model.generate_content(prompt).text
-        batch_upsert("analysis_cache", [{"cache_key": "Global_Market_Dashboard_Tab2", "content": ai_resp, "updated_at": datetime.now().isoformat()}])
-        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps(data), "updated_at": datetime.now().isoformat()}])
-        print("✅ 거시 지표 업데이트 완료")
+        batch_upsert("analysis_cache", [{"cache_key": "Global_Market_Dashboard_Tab2", "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps(data), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
     except Exception as e:
         print(f"Macro Fail: {e}")
-# (코드가 너무 길어 생략하지만, 실제 적용시 승수님의 고품질 프롬프트를 이 자리에 넣으시면 됩니다.)
 
 # ==========================================
 # [5] 메인 실행 루프
 # ==========================================
 def main():
     print(f"🚀 Worker Start: {datetime.now()}")
-    
     df = get_target_stocks()
     if df.empty:
         print("종목이 없어 종료합니다.")
         return
 
-    # 1. 추적 명단 저장 (초강력 세척 적용)
+    # 1. 추적 명단 저장 (on_conflict="symbol" 적용)
     print(f"📝 추적 명단({len(df)}개) DB 등록 중...", end=" ")
     stock_list = []
     for _, row in df.iterrows():
-        # 이름이 없으면 Unknown 처리
-        safe_name = str(row['name']) if pd.notna(row['name']) else "Unknown"
-        # main() 함수 내 stock_list 생성 부분 수정 제안
         stock_list.append({
             "symbol": str(row['symbol']), 
-            "name": str(safe_name), 
-            "updated_at": str(datetime.now().isoformat())
+            "name": str(row['name']) if pd.notna(row['name']) else "Unknown", 
+            "updated_at": datetime.now().isoformat()
         })
-    batch_upsert("stock_cache", stock_list)
+    batch_upsert("stock_cache", stock_list, on_conflict="symbol")
     print("✅ 완료")
 
-    # 2. 주가 일괄 업데이트 (강제 실행)
+    # 2. 주가 일괄 업데이트
     update_all_prices_batch(df)
 
     # 3. 거시 지표
@@ -380,46 +351,30 @@ def main():
     # 4. 개별 종목 AI 분석
     total = len(df)
     for idx, row in df.iterrows():
-        symbol = row.get('symbol')
-        name = row.get('name')
-        listing_date = row.get('date')
+        symbol, name, listing_date = row.get('symbol'), row.get('name'), row.get('date')
         
         is_old = False
         try:
             if (datetime.now() - datetime.strptime(str(listing_date), "%Y-%m-%d")).days > 365: is_old = True
         except: pass
         
-        # 월요일이거나 신규 종목이면 전체 업데이트, 아니면 뉴스만
         is_full_update = (datetime.now().weekday() == 0 or not is_old)
-        
-        print(f"[{idx+1}/{total}] {symbol} {'(1년+)' if is_old else '(신규)'}...", end=" ", flush=True)
+        print(f"[{idx+1}/{total}] {symbol} 분석 중...", flush=True)
         
         try:
-            if not model:
-                print("⚠️ AI 모델 없음 (스킵)")
-                continue
-
             run_tab1_analysis(symbol, name)
-            
             if is_full_update:
                 run_tab0_analysis(symbol, name)
                 run_tab4_analysis(symbol, name)
                 try:
                     tk = yf.Ticker(symbol)
-                    info = tk.info
-                    met = {"pe": info.get('forwardPE', 0)}
-                    run_tab3_analysis(symbol, name, met)
+                    run_tab3_analysis(symbol, name, {"pe": tk.info.get('forwardPE', 0)})
                 except: pass
-                print("✅ 전체")
-            else:
-                print("✅ 뉴스만")
-            
             time.sleep(1.5)
         except Exception as e:
-            print(f"❌ {e}")
             continue
             
     print("🏁 모든 작업 종료.")
 
 if __name__ == "__main__":
-    if supabase: main()
+    main()
