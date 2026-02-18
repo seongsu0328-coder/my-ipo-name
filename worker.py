@@ -108,23 +108,51 @@ def get_target_stocks():
     return df.drop_duplicates(subset=['symbol'])
 
 def update_all_prices_batch(df_target):
-    print("\n💰 [강제 실행] 전 종목 주가 일괄 수집 시작...")
+    print("\n💰 [안전 모드] 종목별 순차 주가 수집 시작...")
+    
     tickers = df_target['symbol'].tolist()
     now_iso = datetime.now().isoformat()
-    
-    for i in range(0, len(tickers), 50):
-        chunk = tickers[i:i+50]
+    success_cnt = 0
+    upsert_list = []
+
+    # 517개를 하나씩 정성스럽게 물어봅니다. (app.py와 동일 방식)
+    for t in tickers:
         try:
-            data = yf.download(" ".join(chunk), period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
-            upsert_list = []
-            for t in chunk:
-                try:
-                    price_series = data[t]['Close'] if len(chunk) > 1 else data['Close']
-                    if not price_series.dropna().empty:
-                        upsert_list.append({"ticker": t, "price": float(price_series.dropna().iloc[-1]), "updated_at": now_iso})
-                except: continue
-            batch_upsert("price_cache", upsert_list)
-        except: continue
+            # 개별 종목 객체 생성
+            stock = yf.Ticker(t)
+            # 최신 1일치 분봉 데이터 가져오기
+            hist = stock.history(period="1d", interval="1m")
+            
+            if not hist.empty:
+                # 마지막 종가 추출
+                last_price = float(hist['Close'].iloc[-1])
+                
+                # 정상적인 가격인 경우에만 리스트에 추가
+                if not pd.isna(last_price) and last_price > 0:
+                    upsert_list.append({
+                        "ticker": t,
+                        "price": last_price,
+                        "updated_at": now_iso
+                    })
+                    success_cnt += 1
+                    
+                    # 진행 상황을 20개마다 로그에 찍어줍니다.
+                    if success_cnt % 20 == 0:
+                        print(f"   ... {success_cnt}개 주가 수집 완료")
+            
+            # 야후 서버 부하 방지를 위해 아주 짧게(0.05초) 쉽니다.
+            time.sleep(0.05)
+
+        except Exception:
+            # 상장 폐지 등으로 에러가 나면 그냥 다음 종목으로 넘어갑니다.
+            continue
+
+    # 모아진 데이터를 한꺼번에 DB에 저장 (세척 로직 포함된 batch_upsert 호출)
+    if upsert_list:
+        print(f"📦 수집된 {len(upsert_list)}개의 가격 데이터를 DB에 저장 중...")
+        batch_upsert("price_cache", upsert_list)
+    
+    print(f"✅ 주가 업데이트 최종 완료: {success_cnt}개 성공\n")
 
 # ... (run_tab0~4_analysis 프롬프트는 승수님 원본 그대로 유지) ...
 # ==========================================
