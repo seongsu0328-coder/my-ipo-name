@@ -105,48 +105,53 @@ def get_target_stocks():
     return df.drop_duplicates(subset=['symbol'])
 
 def update_all_prices_batch(df_target):
-    print("\n💰 [안전 모드] 종목별 순차 주가 수집 시작...")
+    print("\n💰 [최종 안정화 모드] 종목별 주가 수집 및 정밀 세척 시작...")
     
     tickers = df_target['symbol'].tolist()
     now_iso = datetime.now().isoformat()
     success_cnt = 0
     upsert_list = []
 
-    # 517개를 하나씩 정성스럽게 물어봅니다. (app.py와 동일 방식)
     for t in tickers:
         try:
             # 개별 종목 객체 생성
             stock = yf.Ticker(t)
-            # 최신 1일치 분봉 데이터 가져오기
-            hist = stock.history(period="1d", interval="1m")
+            
+            # [수정] interval="1m" 제거: 주말/새벽에도 마지막 종가를 가져오기 위함
+            # [수정] period="1d": 최신 데이터 1일치 요청
+            hist = stock.history(period="1d")
             
             if not hist.empty:
                 # 마지막 종가 추출
-                last_price = float(hist['Close'].iloc[-1])
+                raw_price = hist['Close'].iloc[-1]
                 
-                # 정상적인 가격인 경우에만 리스트에 추가
-                if not pd.isna(last_price) and last_price > 0:
+                # [핵심 수정] 405 JSON 에러 방지 로직
+                # 1. round(v, 4): 소수점 4자리까지 반올림하여 지저분한 뒷부분 제거
+                # 2. float(): Numpy 타입을 순수 파이썬 float로 강제 변환
+                clean_price = float(round(raw_price, 4))
+                
+                if not pd.isna(clean_price) and clean_price > 0:
                     upsert_list.append({
-                        "ticker": t,
-                        "price": last_price,
+                        "ticker": str(t), # 확실하게 문자열로 변환
+                        "price": clean_price,
                         "updated_at": now_iso
                     })
                     success_cnt += 1
                     
-                    # 진행 상황을 20개마다 로그에 찍어줍니다.
                     if success_cnt % 20 == 0:
-                        print(f"   ... {success_cnt}개 주가 수집 완료")
+                        print(f"   ... {success_cnt}개 주가 수집 중 (현재: {t} -> ${clean_price})")
             
-            # 야후 서버 부하 방지를 위해 아주 짧게(0.05초) 쉽니다.
+            # 서버 부하 방지
             time.sleep(0.05)
 
         except Exception:
-            # 상장 폐지 등으로 에러가 나면 그냥 다음 종목으로 넘어갑니다.
+            # 에러 발생 시(상장폐지 등) 건너뜀
             continue
 
-    # 모아진 데이터를 한꺼번에 DB에 저장 (세척 로직 포함된 batch_upsert 호출)
+    # 모아진 데이터를 DB에 저장
     if upsert_list:
-        print(f"📦 수집된 {len(upsert_list)}개의 가격 데이터를 DB에 저장 중...")
+        print(f"📦 수집된 {len(upsert_list)}개의 가격 데이터를 DB에 저장합니다...")
+        # 이 함수 내부의 sanitize_value가 한 번 더 안전하게 처리해줄 것입니다.
         batch_upsert("price_cache", upsert_list)
     
     print(f"✅ 주가 업데이트 최종 완료: {success_cnt}개 성공\n")
