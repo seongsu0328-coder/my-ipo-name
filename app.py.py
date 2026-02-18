@@ -50,14 +50,18 @@ def sanitize_value(v):
     if isinstance(v, (np.bool_, bool)): return bool(v)
     return str(v).strip().replace('\x00', '')
 
+# [app.py 최적화 버전]
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
+    """
+    기존: 1개씩 여러 번 호출 (느림, 에러 위험)
+    변경: 리스트 전체를 1번에 호출 (빠름, 안정적)
+    """
     if not data_list: return
     
-    # st.secrets에서 정보 가져오기
     url = st.secrets["supabase"]["url"].rstrip('/')
     key = st.secrets["supabase"]["key"]
     
-    # URL 경로 자동 교정
+    # URL 및 엔드포인트 설정
     base_url = url if "/rest/v1" in url else f"{url}/rest/v1"
     endpoint = f"{base_url}/{table_name}?on_conflict={on_conflict}"
     
@@ -65,16 +69,25 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         "apikey": key,
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates"
+        "Prefer": "resolution=merge-duplicates" # 중복 시 덮어쓰기 허용
     }
 
+    # 데이터 정제 및 벌크 전송용 리스트 생성
+    clean_batch = []
     for item in data_list:
-        clean_payload = {k: sanitize_value(v) for k, v in item.items()}
-        if not clean_payload.get(on_conflict): continue
-        try:
-            # 405 에러 방지를 위한 REST API 직접 호출
-            requests.post(endpoint, json=clean_payload, headers=headers)
-        except: continue
+        payload = {k: sanitize_value(v) for k, v in item.items()}
+        if payload.get(on_conflict):
+            clean_batch.append(payload)
+
+    if not clean_batch: return
+
+    try:
+        # [핵심] 리스트 전체를 한 번의 POST로 전송!
+        resp = requests.post(endpoint, json=clean_batch, headers=headers)
+        if resp.status_code not in [200, 201, 204]:
+            st.error(f"DB 업데이트 실패: {resp.text}")
+    except Exception as e:
+        st.error(f"통신 오류: {e}")
             
 # 2. 데이터 캐싱 함수 (데이터 캐싱: 3초 -> 0.1초 마법)
 @st.cache_data(ttl=600)  # 600초(10분) 동안 메모리에 저장
