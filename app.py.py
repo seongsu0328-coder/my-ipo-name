@@ -3683,10 +3683,18 @@ elif st.session_state.page == 'detail':
                 </style>
             """, unsafe_allow_html=True)
             
-            # 변수 설정
+            # [수정본] 세션 정보에서 실제 유저 데이터 추출
             sid = stock['symbol']
-            current_user_phone = st.session_state.get('user_phone', 'guest')
-            user_id = st.session_state.get('user_id', 'guest_id')
+            
+            # 로그인 상태('user')이고 유저 정보가 있을 때만 실제 값을 가져옴
+            if st.session_state.get('auth_status') == 'user' and st.session_state.get('user_info'):
+                user_info = st.session_state.user_info
+                user_id = user_info.get('id', 'guest_id')
+                current_user_phone = user_info.get('phone', 'guest')
+            else:
+                # 로그인이 안 되어 있거나 guest 상태일 때
+                user_id = 'guest_id'
+                current_user_phone = 'guest'
             
             # [수정된 안전한 코드] 
             # 1. user_info를 가져오되, 값이 None이면 빈 딕셔너리 {}로 변환합니다.
