@@ -647,9 +647,12 @@ def get_extended_ipo_data(api_key):
     
     return df
 
-# [수정된 디버깅용 함수]
 @st.cache_data(ttl=600, show_spinner=False)
 def get_batch_prices(ticker_list):
+    """
+    캐시 함수 내부에서는 오직 데이터 처리와 DB/API 통신만 수행합니다.
+    st.toast 같은 UI 관련 코드는 에러의 원인이 되므로 모두 제거했습니다.
+    """
     if not ticker_list: return {}
     clean_tickers = [str(t).strip() for t in ticker_list if t and str(t).strip().lower() != 'nan']
     
@@ -669,16 +672,9 @@ def get_batch_prices(ticker_list):
 
     # [Step 2] 부족한 데이터 확인
     missing_tickers = [t for t in clean_tickers if t not in cached_data]
-    
-    # 🕵️‍♂️ [CCTV 작동] 화면에 출처 표시 (디버깅용)
-    if missing_tickers:
-        st.toast(f"🐢 속도 저하: DB({len(cached_data)}개) / ☁️ API 호출({len(missing_tickers)}개)", icon="⚠️")
-    else:
-        st.toast(f"⚡ 고속 로딩: {len(cached_data)}개 전량 DB 호출 성공!", icon="✅")
 
     # [Step 3] API 호출 (부족한 것만)
     if missing_tickers:
-        # (API 호출 로직은 기존과 동일)
         tickers_str = " ".join(missing_tickers)
         try:
             data = yf.download(tickers_str, period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
@@ -2333,44 +2329,53 @@ if st.session_state.page == 'calendar':
                 display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
 
         # ----------------------------------------------------------------
-        # 🚀 [최적화] 모든 모드 공통 Batch 주가 조회 및 벡터 연산 매핑
+        # 🚀 [최적화 수정본] Batch 주가 조회 및 안전한 상태 표시
         # ----------------------------------------------------------------
         if not display_df.empty:
-            with st.spinner("실시간 주가확인중(15분간격)"):
-                # 1. 고유한 심볼 리스트 추출 (NaN 제거)
-                symbols_to_fetch = display_df['symbol'].dropna().unique().tolist()
-                
-                # 2. 배치 함수 호출 (한 번의 쿼리로 모든 주가 획득)
+            # 1. 고유한 심볼 리스트 추출
+            symbols_to_fetch = display_df['symbol'].dropna().unique().tolist()
+            
+            with st.spinner("실시간 주가 확인 중..."):
+                # 2. 배치 함수 호출 (이제 내부엔 UI 코드가 없어 에러가 나지 않습니다)
                 all_prices_map = get_batch_prices(symbols_to_fetch)
                 
-                # 3. [핵심] 루프 없이 한 번에 매핑 (0.1초)
-                display_df['live_price'] = display_df['symbol'].map(all_prices_map).fillna(0.0)
-                
-                # 4. [핵심] 수익률 계산도 루프 없이 '벡터 연산'으로 처리 (속도 향상)
-                # 공모가(price)를 숫자로 미리 변환
-                def parse_price(x):
-                    try:
-                        return float(str(x).replace('$','').split('-')[0])
-                    except:
-                        return 0.0
-        
-                p_ipo_series = display_df['price'].apply(parse_price)
-                
-                # 벡터 연산으로 수익률 계산 (만약 공모가나 현재가가 0이면 -9999 처리)
-                display_df['temp_return'] = np.where(
-                    (p_ipo_series > 0) & (display_df['live_price'] > 0),
-                    ((display_df['live_price'] - p_ipo_series) / p_ipo_series) * 100,
-                    -9999
-                )
-        
-            # 3. 정렬 최종 적용 (기존 로직 유지)
-            if view_mode != 'watchlist': 
-                if sort_option == "최신순":
-                    display_df = display_df.sort_values(by='공모일_dt', ascending=False)
-                elif sort_option == "수익률":
-                    display_df = display_df.sort_values(by='temp_return', ascending=False)
+            # 🕵️‍♂️ [CCTV 이동] 호출이 끝난 '밖'에서 상태 표시
+            db_count = len(all_prices_map)
+            total_req = len(symbols_to_fetch)
+            missing_count = total_req - db_count
+
+            if missing_count > 0:
+                st.toast(f"🐢 속도 저하: DB({db_count}개) / ☁️ API 호출({missing_count}개)", icon="⚠️")
             else:
+                st.toast(f"⚡ 고속 로딩: {db_count}개 전량 DB 호출 성공!", icon="✅")
+
+            # 3. [핵심] 루프 없이 한 번에 매핑
+            display_df['live_price'] = display_df['symbol'].map(all_prices_map).fillna(0.0)
+            
+            # 4. [핵심] 수익률 계산 (벡터 연산)
+            def parse_price(x):
+                try:
+                    return float(str(x).replace('$','').split('-')[0])
+                except:
+                    return 0.0
+
+            p_ipo_series = display_df['price'].apply(parse_price)
+            
+            # 벡터 연산으로 수익률 계산
+            display_df['temp_return'] = np.where(
+                (p_ipo_series > 0) & (display_df['live_price'] > 0),
+                ((display_df['live_price'] - p_ipo_series) / p_ipo_series) * 100,
+                -9999
+            )
+    
+        # 5. 정렬 최종 적용 (기존 로직 유지)
+        if view_mode != 'watchlist': 
+            if sort_option == "최신순":
                 display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+            elif sort_option == "수익률":
+                display_df = display_df.sort_values(by='temp_return', ascending=False)
+        else:
+            display_df = display_df.sort_values(by='공모일_dt', ascending=False)
 
         # ----------------------------------------------------------------
         # [핵심] 리스트 레이아웃 (7 : 3 비율) - 기존 디자인 유지
