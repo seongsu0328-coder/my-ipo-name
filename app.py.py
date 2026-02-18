@@ -3950,67 +3950,96 @@ elif st.session_state.page == 'board':
             st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
         st.rerun()
 
-    # 2. 게시판 메인 로직
     # ---------------------------------------------------------
-    st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>게시판</h3>", unsafe_allow_html=True)
-    
+# 2. 게시판 메인 로직 (상단: 검색 / 중단: 목록 / 하단: 글쓰기)
+# ---------------------------------------------------------
+st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>게시판</h3>", unsafe_allow_html=True)
 
-    # [DB 연동] 최신 글 불러오기 (페이지 진입 시 자동 실행)
-    posts = db_load_posts(limit=50)
-    
-    # 3. 글쓰기 버튼 (상단 배치)
-    with st.expander("✏️ 새 글 작성하기", expanded=False):
-        if is_logged_in:
-            # 권한 체크 (check_permission 함수 활용)
-            if check_permission('write'):
-                with st.form(key="board_write_form", clear_on_submit=True):
-                    # 카테고리 (종목 코드 또는 자유)
-                    category = st.text_input("종목 코드 (예: AAPL) 또는 말머리", placeholder="자유")
-                    title = st.text_input("제목")
-                    content = st.text_area("내용", height=150)
-                    
-                    if st.form_submit_button("등록", type="primary", use_container_width=True):
-                        if title and content:
-                            user_id = st.session_state.user_info.get('id')
-                            # 닉네임 가져오기 (없으면 ID 마스킹)
-                            display_name = st.session_state.user_info.get('display_name') or f"{user_id[:3]}***"
-                            
-                            # [DB 저장]
-                            if db_save_post(category, title, content, display_name, user_id):
-                                st.success("게시글이 등록되었습니다!")
-                                st.rerun()
-                            else:
-                                st.error("저장 중 오류가 발생했습니다.")
-                        else:
-                            st.warning("제목과 내용을 입력해주세요.")
-            else:
-                st.warning("🔒 글쓰기 권한이 없습니다. (서류 제출 및 승인 필요)")
-        else:
-            st.warning("🔒 로그인 후 작성할 수 있습니다.")
+# [DB 연동] 전체 글 일단 불러오기
+all_posts = db_load_posts(limit=100) # 검색을 위해 넉넉히 가져옵니다.
 
-    st.write("") # 여백
+# ---------------------------------------------------------
+# 🔍 1. 검색 기능 (상단 배치)
+# ---------------------------------------------------------
+with st.container(border=True):
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        search_type = st.selectbox("검색 범위", ["제목", "제목+내용", "카테고리", "작성자"])
+    with col2:
+        search_keyword = st.text_input("검색어 입력", placeholder="검색어를 입력하고 엔터를 누르세요.")
 
-    # 4. 게시글 목록 출력
-    if posts:
-        for p in posts:
-            # 날짜 포맷팅 (ISO 포맷 -> 읽기 편하게)
-            try:
-                date_str = p['created_at'].split('T')[0]
-            except:
-                date_str = "Unknown"
-                
-            with st.container(border=True):
-                # 헤더: [카테고리] 제목
-                cat_badge = f"[{p.get('category', '자유')}]" if p.get('category') else ""
-                st.markdown(f"**{cat_badge} {p.get('title')}**")
-                
-                # 내용 (일부만 보여주기 or 전체)
-                st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
-                
-                # 푸터: 작성자 | 날짜
-                st.caption(f"👤 {p.get('author_name')} | 📅 {date_str}")
+# [필터링 로직] 검색어가 있을 경우 리스트를 걸러냅니다.
+posts = all_posts
+if search_keyword:
+    k = search_keyword.lower()
+    if search_type == "제목":
+        posts = [p for p in posts if k in p.get('title', '').lower()]
+    elif search_type == "제목+내용":
+        posts = [p for p in posts if k in p.get('title', '').lower() or k in p.get('content', '').lower()]
+    elif search_type == "카테고리":
+        posts = [p for p in posts if k in p.get('category', '').lower()]
+    elif search_type == "작성자":
+        posts = [p for p in posts if k in p.get('author_name', '').lower()]
+
+st.write("") # 여백
+
+# ---------------------------------------------------------
+# 📋 2. 게시글 목록 출력 (중단)
+# ---------------------------------------------------------
+if posts:
+    for p in posts:
+        try:
+            date_str = p['created_at'].split('T')[0]
+        except:
+            date_str = "Unknown"
+            
+        with st.container(border=True):
+            # 헤더: [카테고리] 제목
+            cat_badge = f"[{p.get('category', '자유')}]" if p.get('category') else "[자유]"
+            st.markdown(f"**{cat_badge} {p.get('title')}**")
+            
+            # 내용 (일부만 보여주기)
+            st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
+            
+            # 푸터: 작성자 | 날짜
+            st.caption(f"👤 {p.get('author_name')} | 📅 {date_str}")
+else:
+    if search_keyword:
+        st.info(f"'{search_keyword}'에 대한 검색 결과가 없습니다.")
     else:
-        st.info("아직 등록된 게시글이 없습니다. 첫 글의 주인공이 되어보세요!")
+        st.info("아직 등록된 게시글이 없습니다.")
+
+st.write("---") # 목록과 글쓰기 사이 구분선
+
+# ---------------------------------------------------------
+# ✏️ 3. 새 글 작성하기 (제일 하단으로 이동)
+# ---------------------------------------------------------
+with st.expander("✏️ 새 글 작성하기", expanded=False):
+    if st.session_state.get('auth_status') == 'user':
+        # 권한 체크
+        if check_permission('write'):
+            with st.form(key="board_write_form", clear_on_submit=True):
+                category = st.text_input("종목 코드 (예: AAPL) 또는 말머리", placeholder="자유")
+                title = st.text_input("제목")
+                content = st.text_area("내용", height=150)
+                
+                if st.form_submit_button("등록", type="primary", use_container_width=True):
+                    if title and content:
+                        user_info = st.session_state.user_info
+                        user_id = user_info.get('id')
+                        display_name = user_info.get('display_name') or user_info.get('name') or f"{user_id[:3]}***"
+                        
+                        if db_save_post(category, title, content, display_name, user_id):
+                            st.success("게시글이 등록되었습니다!")
+                            st.rerun()
+                        else:
+                            st.error("저장 중 오류가 발생했습니다.")
+                    else:
+                        st.warning("제목과 내용을 입력해주세요.")
+        else:
+            st.warning("🔒 글쓰기 권한이 없습니다. (서류 제출 및 승인 필요)")
+    else:
+        st.warning("🔒 로그인 후 작성할 수 있습니다.")
         
                 #리아 지우와 제주도 다녀오다 사랑하다.아빠,엄마, 형. 삼월이. 마리. 가족. 친구. 일본. 노래. 영화. 맥주. 이런것들을 사랑한다. 
                  
