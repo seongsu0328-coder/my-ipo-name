@@ -1,20 +1,103 @@
+import os
+import time
+import json
+import re
+import random
+import requests
+import pandas as pd
+import numpy as np
+import yfinance as yf
+from datetime import datetime, timedelta
+from supabase import create_client
+import google.generativeai as genai
+
 # ==========================================
-# [3] 핵심 AI 분석 함수 (Tab 0, 1, 2, 3, 4)
+# [1] 환경 설정 (GitHub Secrets 연동)
+# ==========================================
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+GENAI_API_KEY = os.environ.get("GENAI_API_KEY")
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
+
+# 클라이언트 초기화
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    print("❌ Supabase 환경변수가 설정되지 않았습니다.")
+    supabase = None
+
+# [기술 수정] 모델 404 에러 및 검색 도구 설정 최적화
+if GENAI_API_KEY:
+    genai.configure(api_key=GENAI_API_KEY)
+    try:
+        # 가장 안정적인 v1beta용 호출 방식입니다.
+        model = genai.GenerativeModel('gemini-1.5-flash', tools='google_search')
+    except Exception as e:
+        print(f"⚠️ 검색 도구 장착 실패, 기본 모델로 전환: {e}")
+        model = genai.GenerativeModel('gemini-1.5-flash')
+else:
+    print("❌ GENAI_API_KEY가 설정되지 않았습니다.")
+    model = None
+
+# ==========================================
+# [2] 헬퍼 함수: 데이터 정제 및 타겟 선정
+# ==========================================
+def clean_value(val):
+    """None, NaN, Inf 값을 0으로 정제"""
+    try:
+        if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))):
+            return 0.0
+        return float(val)
+    except:
+        return 0.0
+
+def get_target_stocks():
+    """상장 예정(35일) + 지난 18개월 종목 리스트 추출"""
+    if not FINNHUB_API_KEY: return pd.DataFrame()
+    
+    now = datetime.now()
+    ranges = [
+        (now - timedelta(days=200), now + timedelta(days=35)),  
+        (now - timedelta(days=380), now - timedelta(days=170)), 
+        (now - timedelta(days=560), now - timedelta(days=350))  
+    ]
+    
+    all_data = []
+    print("📅 Target List 수집 중...", end=" ")
+    for start_dt, end_dt in ranges:
+        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_dt.strftime('%Y-%m-%d')}&to={end_dt.strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
+        try:
+            time.sleep(0.5) 
+            res = requests.get(url, timeout=10).json()
+            ipo_list = res.get('ipoCalendar', [])
+            if ipo_list: all_data.extend(ipo_list)
+        except: continue
+    
+    if not all_data: return pd.DataFrame()
+    
+    df = pd.DataFrame(all_data)
+    # [기술 수정] 중복 및 유령 데이터(NoneType) 제거 로직 강화
+    df = df.drop_duplicates(subset=['symbol', 'date'])
+    df = df.dropna(subset=['symbol'])
+    df = df[df['symbol'].astype(str).str.strip() != ""]
+    df = df.reset_index(drop=True)
+    
+    print(f"✅ 총 {len(df)}개 종목 발견")
+    return df
+
+# ==========================================
+# [3] 핵심 AI 분석 함수 (원본 내용 보존 + 기술 결함 수정)
 # ==========================================
 
 # (Tab 0) 주요 공시 분석 (S-1 & 424B4)
 def run_tab0_analysis(ticker, company_name):
-    # [기술 수정] 티커가 None인 경우 즉시 종료 (NoneType 에러 방지)
-    if not ticker or str(ticker).lower() == 'none':
-        return
-
-    target_topics = ["S-1", "424B4"]
+    if not ticker or str(ticker).lower() == 'none': return
     
+    target_topics = ["S-1", "424B4"]
     for topic in target_topics:
         cache_key = f"{company_name}_{topic}_Tab0"
         
-        # [핵심 수정] 기존 check.data 건너뛰기 로직을 삭제했습니다. 
-        # 이제 매일 강제로 새로운 분석 결과가 업데이트됩니다.
+        # [기술 수정] 기존 check.data 건너뛰기 로직 삭제 (매일 강제 업데이트)
 
         if topic == "S-1":
             points = "Risk Factors, Use of Proceeds, MD&A"
@@ -45,10 +128,8 @@ def run_tab0_analysis(ticker, company_name):
         """
         
         try:
-            # [기술 수정] 404 에러 방지를 위해 전역 model 객체가 정상인지 확인 후 호출
             response = model.generate_content(prompt)
-            
-            # [기술 수정] 리스트 형식([]) 및 on_conflict 추가하여 확실하게 덮어쓰기
+            # [기술 수정] 리스트 형식 및 on_conflict 추가
             supabase.table("analysis_cache").upsert([
                 {
                     "cache_key": cache_key,
@@ -56,7 +137,6 @@ def run_tab0_analysis(ticker, company_name):
                     "updated_at": datetime.now().isoformat()
                 }
             ], on_conflict="cache_key").execute()
-            print(f"  ✅ {cache_key} 저장 완료")
         except Exception as e:
             print(f"  └─ Tab0 ({topic}) Error: {e}")
 
@@ -98,7 +178,6 @@ def run_tab1_analysis(ticker, company_name):
                     else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
             except: pass
 
-        # [기술 수정] 리스트 형식 및 on_conflict 추가
         supabase.table("analysis_cache").upsert([
             {
                 "cache_key": cache_key,
@@ -106,7 +185,6 @@ def run_tab1_analysis(ticker, company_name):
                 "updated_at": datetime.now().isoformat()
             }
         ], on_conflict="cache_key").execute()
-        print(f"  ✅ {cache_key} 저장 완료")
         return True
     except Exception as e:
         print(f"  └─ Tab1 Error: {e}")
@@ -127,7 +205,6 @@ def run_tab3_analysis(ticker, company_name, metrics):
     """
     try:
         response = model.generate_content(prompt)
-        # [기술 수정] 리스트 형식 및 on_conflict 추가
         supabase.table("analysis_cache").upsert([
             {
                 "cache_key": cache_key,
@@ -135,7 +212,6 @@ def run_tab3_analysis(ticker, company_name, metrics):
                 "updated_at": datetime.now().isoformat()
             }
         ], on_conflict="cache_key").execute()
-        print(f"  ✅ {cache_key} 저장 완료")
         return True
     except Exception as e:
         print(f"  └─ Tab3 AI Error: {e}")
@@ -167,7 +243,6 @@ def run_tab4_analysis(ticker, company_name):
             json_str = json_match.group(1).strip()
             result_data = json.loads(re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str), strict=False)
             
-            # [기술 수정] 리스트 형식 및 on_conflict 추가
             supabase.table("analysis_cache").upsert([
                 {
                     "cache_key": cache_key,
@@ -175,7 +250,6 @@ def run_tab4_analysis(ticker, company_name):
                     "updated_at": datetime.now().isoformat()
                 }
             ], on_conflict="cache_key").execute()
-            print(f"  ✅ {cache_key} 저장 완료")
             return True
     except Exception as e:
         print(f"  └─ Tab4 Error: {e}")
@@ -191,9 +265,8 @@ def update_macro_data(df_calendar):
     try:
         today = datetime.now()
         if not df_calendar.empty:
-            # [기술 수정] 날짜 형식을 'datetime' 객체로 확실히 변환 (NoneType 에러 방지)
+            # [기술 수정] 날짜 형식을 'datetime' 객체로 확실히 변환
             df_calendar['공모일_dt'] = pd.to_datetime(df_calendar['date'], errors='coerce')
-            # NaT(유효하지 않은 날짜) 제거
             df_valid = df_calendar.dropna(subset=['공모일_dt'])
             
             traded = df_valid[df_valid['공모일_dt'].dt.date < today.date()].sort_values(by='공모일_dt', ascending=False).head(30)
@@ -201,9 +274,7 @@ def update_macro_data(df_calendar):
             ret_sum, ret_cnt = 0, 0
             for _, row in traded.iterrows():
                 try:
-                    # [기술 수정] symbol이 유효한지 확인
                     if not row['symbol'] or str(row['symbol']).lower() == 'none': continue
-                    
                     p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
                     tk = yf.Ticker(row['symbol'])
                     hist = tk.history(period='1d')
@@ -227,23 +298,90 @@ def update_macro_data(df_calendar):
         prompt = f"현재 시장 데이터(VIX: {data['vix']:.2f}, IPO수익률: {data['ipo_return']:.1f}%)를 바탕으로 IPO 투자자에게 주는 3줄 조언 (한국어)."
         ai_resp = model.generate_content(prompt).text
         
-        # [기술 수정] 리스트 형식 및 on_conflict 추가
         supabase.table("analysis_cache").upsert([
-            {
-                "cache_key": "Global_Market_Dashboard_Tab2",
-                "content": ai_resp,
-                "updated_at": datetime.now().isoformat()
-            }
+            {"cache_key": "Global_Market_Dashboard_Tab2", "content": ai_resp, "updated_at": datetime.now().isoformat()}
         ], on_conflict="cache_key").execute()
         
         supabase.table("analysis_cache").upsert([
-            {
-                "cache_key": cache_key,
-                "content": json.dumps(data),
-                "updated_at": datetime.now().isoformat()
-            }
+            {"cache_key": cache_key, "content": json.dumps(data), "updated_at": datetime.now().isoformat()}
         ], on_conflict="cache_key").execute()
         print("✅ 거시 지표 업데이트 완료")
         
     except Exception as e:
         print(f"❌ Macro Update Fail: {e}")
+
+# ==========================================
+# [4] 메인 실행 루프
+# ==========================================
+def main():
+    print(f"🚀 Worker Start: {datetime.now()}")
+    
+    df = get_target_stocks()
+    if df.empty:
+        print("종목이 없어 종료합니다.")
+        return
+
+    # 1. 추적 명단 저장
+    print(f"📝 추적 명단({len(df)}개) DB 등록 중...", end=" ")
+    try:
+        stock_list = []
+        for _, row in df.iterrows():
+            if row['symbol']:
+                stock_list.append({
+                    "symbol": row['symbol'], 
+                    "name": row['name'],
+                    "updated_at": datetime.now().isoformat()
+                })
+        supabase.table("stock_cache").upsert(stock_list, on_conflict="symbol").execute()
+        print("✅")
+    except Exception as e:
+        print(f"❌ 실패: {e}")
+
+    # 2. 거시 지표 업데이트
+    update_macro_data(df)
+    
+    # 3. 개별 종목 루프
+    total = len(df)
+    for idx, row in df.iterrows():
+        symbol = row.get('symbol')
+        name = row.get('name')
+        
+        if not symbol or str(symbol).lower() == 'none': continue
+            
+        print(f"[{idx+1}/{total}] {symbol} 분석 중...", end=" ", flush=True)
+        
+        try:
+            # 각 탭 실행
+            run_tab0_analysis(symbol, name)
+            run_tab1_analysis(symbol, name)
+            run_tab4_analysis(symbol, name)
+            
+            # Tab 3 전용 데이터 수집
+            tk = yf.Ticker(symbol)
+            info = tk.info
+            growth = info.get('revenueGrowth', 0) * 100
+            net_margin = info.get('profitMargins', 0) * 100
+            roe = info.get('returnOnEquity', 0) * 100
+            
+            metrics_dict = {
+                "growth": f"{growth:.1f}%",
+                "net_margin": f"{net_margin:.1f}%",
+                "roe": f"{roe:.1f}%",
+                "pe": f"{info.get('forwardPE', 0):.1f}x"
+            }
+            run_tab3_analysis(symbol, name, metrics_dict)
+            
+            print("✅")
+            time.sleep(3) # Rate Limit 방지용
+            
+        except Exception as e:
+            print(f"❌ 실패: {e}")
+            time.sleep(5)
+            
+    print("🏁 모든 작업 종료.")
+
+if __name__ == "__main__":
+    if not supabase or not model:
+        print("❌ 필수 설정 누락으로 중단됨.")
+    else:
+        main()
