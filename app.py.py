@@ -3952,7 +3952,7 @@ elif st.session_state.page == 'board':
 
     # 2. 게시판 메인 로직
     # ---------------------------------------------------------
-    st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>🗣️ 투자자 토론방</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>게시판</h3>", unsafe_allow_html=True)
     
 
     # [DB 연동] 최신 글 불러오기 (페이지 진입 시 자동 실행)
