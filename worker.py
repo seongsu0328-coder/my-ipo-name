@@ -8,6 +8,7 @@ import numpy as np
 import yfinance as yf
 from datetime import datetime, timedelta, date
 import pytz 
+import streamlit as st  # <--- 이 줄이 반드시 있어야 st.secrets를 쓸 수 있습니다!
 from supabase import create_client
 import google.generativeai as genai
 
