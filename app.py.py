@@ -2308,7 +2308,7 @@ if st.session_state.page == 'calendar':
         # 🚀 [최적화] 모든 모드 공통 Batch 주가 조회 및 벡터 연산 매핑
         # ----------------------------------------------------------------
         if not display_df.empty:
-            with st.spinner("🚀 데이터 최적화 로드 중..."):
+            with st.spinner("실시간 주가확인중(15분간격)"):
                 # 1. 고유한 심볼 리스트 추출 (NaN 제거)
                 symbols_to_fetch = display_df['symbol'].dropna().unique().tolist()
                 
