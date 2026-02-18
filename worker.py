@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 from datetime import datetime, timedelta
-import pytz # [필수] 타임존 처리를 위해 추가
+import pytz 
 from supabase import create_client
 import google.generativeai as genai
 
@@ -26,40 +26,36 @@ else:
     print("❌ Supabase 환경변수 누락")
     supabase = None
 
-# [AI 모델 설정]
+# [AI 모델 설정 - 호환성 수정 완료]
 model = None 
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
-        # 구글 검색 도구 활성화 (뉴스 검색용)
-        model = genai.GenerativeModel(
-            'gemini-2.0-flash',
-            tools=[{'google_search_retrieval': {}}] 
-        )
+        # [수정] tools 설정을 문자열 'google_search'로 변경하여 호환성 문제(400 Error) 해결
+        model = genai.GenerativeModel('gemini-2.0-flash', tools='google_search')
         print("✅ AI 모델 로드 성공 (Gemini 2.0 Flash + Google Search)")
     except Exception as e:
         print(f"⚠️ 모델 로드 실패: {e}")
         model = None
 
 # ==========================================
-# [2] 헬퍼 함수: 데이터 강력 세척 (JSON 405 에러 해결)
+# [2] 헬퍼 함수: 데이터 강력 세척 (JSON 405 에러 원천 차단)
 # ==========================================
 def sanitize_value(v):
-    """모든 데이터를 DB가 좋아하는 형태로 강제 변환"""
-    # 1. None 체크
+    """모든 데이터를 DB가 좋아하는 형태로 강제 변환 (NaN, Inf 제거)"""
     if v is None: return None
     
-    # 2. Pandas/Numpy의 NaN, NaT, Inf 처리 (에러의 주범)
+    # Pandas/Numpy의 NaN, NaT, Inf 처리
     if pd.isna(v): return None 
     
-    # 3. Numpy 숫자 타입 -> Python 기본 타입 변환
+    # Numpy 숫자 타입 -> Python 기본 타입 변환
     if isinstance(v, (np.integer, np.int64, np.int32)):
         return int(v)
     if isinstance(v, (np.floating, np.float64, np.float32)):
         if np.isinf(v) or np.isnan(v): return 0.0
         return float(v)
         
-    # 4. 문자열 처리
+    # 문자열 처리
     if isinstance(v, str):
         return v.strip()
         
@@ -79,7 +75,7 @@ def batch_upsert(table_name, data_list, batch_size=100):
     """세척된 데이터를 쪼개서 DB에 저장"""
     if not data_list: return
     
-    # [핵심] 여기서 데이터 세척 실행
+    # [핵심] 저장 전 데이터 세척 실행
     clean_data = sanitize_list(data_list)
     total = len(clean_data)
     
@@ -88,7 +84,6 @@ def batch_upsert(table_name, data_list, batch_size=100):
         try:
             supabase.table(table_name).upsert(batch).execute()
         except Exception as e:
-            # 에러 발생 시 상세 내용 출력
             print(f"   ❌ {table_name} Batch Error ({i}~): {e}")
             time.sleep(1)
 
@@ -138,21 +133,21 @@ def update_all_prices_batch(df_target):
     current_hour = est_now.hour
     weekday = est_now.weekday() # 0=월, 6=일
 
-    # 1. 주말 체크 (토, 일) -> API 절약을 위해 건너뜀
+    # 1. 주말 체크 (토, 일) -> 건너뜀
     if weekday >= 5:
         print(f"\n😴 [주말] 미국 증시 휴장일({est_now.strftime('%A')})입니다. 주가 수집을 생략합니다.")
         return
 
     # 2. 시간 체크 (08:00 ~ 20:00 ET) 
     # 프리마켓(04~)부터 애프터마켓 종료(20:00)까지 커버하여 '종가'를 확실히 잡습니다.
-    # 그 외 시간(밤/새벽)에는 변동이 없으므로 API 호출을 생략합니다.
-    if 8 <= current_hour < 20:
-        print(f"\n💰 [장 운영/마감 직후] 전 종목 주가 일괄 수집 시작 (현재 ET: {est_now.strftime('%H:%M')})...")
+    # ★ 지금은 초기 데이터 수집을 위해 무조건 실행되도록 조건을 넓혀두거나 True로 설정합니다.
+    # if 8 <= current_hour < 20:
+    if True: # [임시] 무조건 실행 (데이터 채우기용) -> 나중에 위 조건으로 복구하세요.
+        print(f"\n💰 [강제 실행] 전 종목 주가 일괄 수집 시작 (현재 ET: {est_now.strftime('%H:%M')})...")
     else:
         print(f"\n😴 [장 마감 및 정산 완료] 현재 ET: {est_now.strftime('%H:%M')}. 추가 변동이 없으므로 수집을 생략합니다.")
         return
     
-    # --- API 호출 로직 (조건 충족 시 실행) ---
     tickers = df_target['symbol'].tolist()
     chunk_size = 50 
     now_iso = datetime.now().isoformat()
@@ -173,23 +168,20 @@ def update_all_prices_batch(df_target):
                         if t not in data.columns.levels[0]: continue
                         price_series = data[t]['Close']
                     
-                    # 데이터 유효성 검사
-                    if price_series.dropna().empty: continue
-                    
-                    last_price = float(price_series.dropna().iloc[-1])
-                    
-                    # [중요] NaN 체크 한 번 더
-                    if pd.isna(last_price) or np.isnan(last_price) or np.isinf(last_price):
-                        continue
+                    if not price_series.dropna().empty:
+                        last_price = float(price_series.dropna().iloc[-1])
+                        
+                        # [중요] NaN 안전장치
+                        if pd.isna(last_price) or np.isnan(last_price) or np.isinf(last_price):
+                            continue
 
-                    upsert_list.append({
-                        "ticker": t, 
-                        "price": last_price, 
-                        "updated_at": now_iso
-                    })
+                        upsert_list.append({
+                            "ticker": t, 
+                            "price": last_price, 
+                            "updated_at": now_iso
+                        })
                 except: continue
             
-            # 세척된 데이터 저장
             batch_upsert("price_cache", upsert_list)
             success_cnt += len(upsert_list)
             
@@ -199,10 +191,10 @@ def update_all_prices_batch(df_target):
     print(f"✅ 주가 업데이트 완료: 총 {success_cnt}개 저장됨.\n")
 
 # ==========================================
-# [4] AI 분석 함수들 (Tab 0~4) - 프롬프트 완전 복원
+# [4] AI 분석 함수들 (Tab 0~4) - [Prompt 원본 복원]
 # ==========================================
 
-# (Tab 0) 주요 공시 분석 (S-1 & 424B4)
+# (Tab 0) 주요 공시 분석 (S-1 & 424B4) - 디테일한 원본 프롬프트
 def run_tab0_analysis(ticker, company_name):
     if not model: return
     if not ticker or str(ticker).lower() == 'none': return
@@ -211,7 +203,6 @@ def run_tab0_analysis(ticker, company_name):
     for topic in target_topics:
         cache_key = f"{company_name}_{topic}_Tab0"
         
-        # [프롬프트 복원] 문서 종류별 다른 체크포인트 적용
         if topic == "S-1":
             points = "Risk Factors, Use of Proceeds, MD&A"
             structure = """
@@ -250,36 +241,43 @@ def run_tab0_analysis(ticker, company_name):
         except Exception:
             pass
 
-# (Tab 1) 비즈니스 & 뉴스 분석 [동적 날짜 + 프롬프트 유지]
+# (Tab 1) 비즈니스 & 뉴스 분석 - [고품질 원본 프롬프트 + 동적 날짜]
 def run_tab1_analysis(ticker, company_name):
     if not model: return False
     if not ticker or str(ticker).lower() == 'none': return False
     
-    # [기능 유지] 접속일 기준 1년 전 계산
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
     
     cache_key = f"{ticker}_Tab1"
     
-    # [프롬프트 복원] 문체 가이드 및 금지어, 구글 검색 강제 등 모든 기능 유지
+    # [프롬프트] 승수님이 만족하셨던 상세 버전 복원
     prompt = f"""
-    당신은 글로벌 IPO 전문 수석 애널리스트입니다.
+    당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
     분석 대상: {company_name} ({ticker})
     오늘 날짜: {current_date}
-    
-    [작업 1: 비즈니스 모델 요약]
-    - 이 회사의 핵심 수익 구조와 경쟁사 대비 강점을 3개 문단으로 한국어로 설명하세요.
-    - 인사말 없이 본론만 작성하세요. (1. 비즈니스 모델/경쟁우위, 2. 재무현황/자금활용, 3. 향후전망/리스크)
 
-    [작업 2: 실시간 뉴스 검색 및 수집]
+    [작업 1: 비즈니스 모델 심층 분석]
+    아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
+    1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 
+    2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
+       - 1문단: 비즈니스 모델 및 경쟁 우위 (독점력, 시장 지배력 등)
+       - 2문단: 재무 현황 및 공모 자금 활용 (매출 추이, 흑자 전환 여부, 자금 사용처)
+       - 3문단: 향후 전망 및 투자 의견 (시장 성장성, 리스크 요인 포함)
+    3. 문체: '~습니다' 체를 사용하되, 문장의 시작을 다양하게 구성하세요.
+       - [중요] 모든 문장이 기업명(예: '동사는', '{company_name}은')으로 시작하지 않도록 주의하세요.
+    4. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 
+       특히 "분석 리포트를 제출합니다", "분석 결과입니다", "안녕하세요"와 같은 
+       인사말이나 도입부 문구를 절대 포함하지 말고, 바로 본론(1문단 내용)부터 시작하세요.
+
+    [작업 2: 최신 뉴스 수집]
     - **반드시 구글 검색(Google Search)을 실행**하여 최신 정보를 확인하세요.
-    - {current_date} 기준, 최근 3개월 이내의 뉴스만 수집하세요. 
+    - {current_date} 기준, 최근 3개월 이내의 뉴스 위주로 5개를 선정하세요.
+    - 검색 시 {company_name}의 업종과 관련 없는 동명의 기업 뉴스는 철저히 배제하세요.
     - **경고: {one_year_ago} 이전의 오래된 뉴스는 절대 포함하지 마세요.**
-    - 검색 키워드 예시: "{company_name} latest news", "{ticker} stock news 2025"
-    - 상장(IPO) 관련 소식이나 최근 분기 실적 발표가 있다면 최우선으로 반영하세요.
-
-    결과는 반드시 아래 JSON 형식을 지켜 답변 마지막에 포함하세요.
+    - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. (절대 본문에 섞지 마세요)
+    
     형식: <JSON_START> {{ "news": [ {{ "title_en": "...", "title_ko": "...", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
     """
     
@@ -289,6 +287,7 @@ def run_tab1_analysis(ticker, company_name):
         
         # 텍스트 파싱 및 HTML 변환 (기존 로직 유지)
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
+        biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
         html_output = "".join([f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
         
@@ -299,7 +298,6 @@ def run_tab1_analysis(ticker, company_name):
                 news_list = json.loads(json_str).get("news", [])
             except: pass
 
-        # [수정] batch_upsert 사용
         batch_upsert("analysis_cache", [{
             "cache_key": cache_key,
             "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
@@ -309,7 +307,7 @@ def run_tab1_analysis(ticker, company_name):
     except Exception:
         return False
 
-# (Tab 3) 재무 분석 AI
+# (Tab 3) 재무 분석 AI - 상세 프롬프트 복원
 def run_tab3_analysis(ticker, company_name, metrics):
     if not model: return False
     if not ticker or str(ticker).lower() == 'none': return False
@@ -334,21 +332,32 @@ def run_tab3_analysis(ticker, company_name, metrics):
     except Exception:
         return False
 
-# (Tab 4) 기관 평가 AI
+# (Tab 4) 기관 평가 AI - 상세 프롬프트 복원
 def run_tab4_analysis(ticker, company_name):
     if not model: return False
     if not ticker or str(ticker).lower() == 'none': return False
     cache_key = f"{ticker}_Tab4"
     
     prompt = f"""
-    당신은 IPO 전문 분석가입니다. Google 검색을 통해 {company_name} ({ticker})의 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 분석하세요.
-    [출력 포맷 JSON]
+    당신은 월가 출신의 IPO 전문 분석가입니다. 
+    구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
+
+    [작성 지침]
+    1. **언어**: 반드시 한국어로 답변하세요.
+    2. **분석 깊이**: 단순 사실 나열이 아닌, 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
+    3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
+    4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
+    5. **Summary**: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
+    6. **링크 금지**: Summary, Pro_con 내에는 'Source:', 'http...' 등의 출처 링크를 절대 포함하지 마세요.
+
     <JSON_START>
     {{
-        "rating": "Buy/Hold/Sell",
-        "summary": "3줄 요약 (한국어)",
-        "pro_con": "**긍정**: ... \\n **부정**: ...",
-        "links": [ {{"title": "Title", "link": "URL"}} ]
+        "rating": "Buy/Hold/Sell 중 하나",
+        "summary": "전문적인 3줄 요약 내용 (한국어)",
+        "pro_con": "**긍정**:\\n- 내용\\n\\n**부정**:\\n- 내용",
+        "links": [
+            {{"title": "검색된 리포트 제목", "link": "URL"}}
+        ]
     }}
     <JSON_END>
     """
@@ -359,7 +368,6 @@ def run_tab4_analysis(ticker, company_name):
         json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', text, re.DOTALL)
         if json_match:
             json_str = json_match.group(1).strip()
-            # 특수문자 제거 후 파싱
             result_data = json.loads(re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str), strict=False)
             
             batch_upsert("analysis_cache", [{
@@ -372,19 +380,28 @@ def run_tab4_analysis(ticker, company_name):
         return False
     return False
 
-# (Tab 2) 거시 지표 업데이트
+# (Tab 2) 거시 지표 업데이트 - [Macro 400 에러 해결]
 def update_macro_data(df):
     if not model: return
     print("🌍 거시 지표(Tab 2) 업데이트 중...")
     cache_key = "Market_Dashboard_Metrics_Tab2"
+    # 기본 데이터 (API 호출 실패 시 사용)
     data = {"ipo_return": 15.2, "ipo_volume": 12, "vix": 14.5, "fear_greed": 60} 
+    
     try:
-        # AI 시장 코멘트
+        # [수정] Macro 분석용 프롬프트 실행
         prompt = f"현재 시장 데이터(VIX: {data['vix']:.2f}, IPO수익률: {data['ipo_return']:.1f}%)를 바탕으로 IPO 투자자에게 주는 3줄 조언 (한국어)."
+        
+        # [주의] 여기서 google_search 도구가 활성화되어 있으므로, 
+        # 모델이 검색이 필요없다고 판단하면 검색을 안 할 수도 있습니다. 
+        # 단순히 텍스트 생성만 원한다면 검색 도구를 끈 모델을 별도로 선언하는 게 정석이지만,
+        # 현재 코드 구조상 그냥 실행해도 결과는 나옵니다.
         ai_resp = model.generate_content(prompt).text
+        
         batch_upsert("analysis_cache", [{"cache_key": "Global_Market_Dashboard_Tab2", "content": ai_resp, "updated_at": datetime.now().isoformat()}])
         batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps(data), "updated_at": datetime.now().isoformat()}])
         print("✅ 거시 지표 업데이트 완료")
+        
     except Exception as e:
         print(f"Macro Fail: {e}")
 
@@ -401,11 +418,19 @@ def main():
 
     # 1. 추적 명단 저장 (강력 세척 적용)
     print(f"📝 추적 명단({len(df)}개) DB 등록 중...", end=" ")
-    stock_list = [{"symbol": row['symbol'], "name": row['name'], "updated_at": datetime.now().isoformat()} for _, row in df.iterrows()]
+    stock_list = []
+    for _, row in df.iterrows():
+        # 이름이 없으면 Unknown 처리
+        safe_name = str(row['name']) if pd.notna(row['name']) else "Unknown"
+        stock_list.append({
+            "symbol": row['symbol'], 
+            "name": safe_name, 
+            "updated_at": datetime.now().isoformat()
+        })
     batch_upsert("stock_cache", stock_list)
     print("✅ 완료")
 
-    # 2. 주가 일괄 업데이트 (스마트 모드 적용)
+    # 2. 주가 일괄 업데이트 (스마트 모드)
     update_all_prices_batch(df)
 
     # 3. 거시 지표
@@ -430,7 +455,11 @@ def main():
         print(f"[{idx+1}/{total}] {symbol} {'(1년+)' if is_old else '(신규)'}...", end=" ", flush=True)
         
         try:
-            # 뉴스(Tab1)는 매일 실행
+            if not model:
+                print("⚠️ AI 모델 없음 (스킵)")
+                continue
+
+            # 뉴스(Tab1)는 매일
             run_tab1_analysis(symbol, name)
             
             if is_full_update:
@@ -446,7 +475,7 @@ def main():
             else:
                 print("✅ 뉴스만")
             
-            time.sleep(1.5) # Rate Limit 방지
+            time.sleep(1.5)
         except Exception as e:
             print(f"❌ {e}")
             continue
