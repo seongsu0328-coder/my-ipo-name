@@ -1,5 +1,4 @@
 import os
-import time
 import json
 import requests
 import pandas as pd
@@ -11,6 +10,10 @@ from supabase import create_client
 
 # [1] 환경 설정
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip('/')
+# URL 보정
+if "/rest/v1" in SUPABASE_URL:
+    SUPABASE_URL = SUPABASE_URL.split("/rest/v1")[0]
+
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
 if SUPABASE_URL and SUPABASE_KEY:
@@ -18,19 +21,17 @@ if SUPABASE_URL and SUPABASE_KEY:
 else:
     print("❌ Supabase 환경변수 누락"); exit()
 
-# [2] 표준 엔진: 데이터 세척 및 벌크 직송
+# [2] 표준 엔진
 def sanitize_value(v):
     if v is None or pd.isna(v): return None
     if isinstance(v, (np.floating, float)):
         return float(v) if not (np.isinf(v) or np.isnan(v)) else 0.0
     if isinstance(v, (np.integer, int)): return int(v)
-    if isinstance(v, (np.bool_, bool)): return bool(v)
     return str(v).strip().replace('\x00', '')
 
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not data_list: return
-    base_url = SUPABASE_URL if "/rest/v1" in SUPABASE_URL else f"{SUPABASE_URL}/rest/v1"
-    endpoint = f"{base_url}/{table_name}?on_conflict={on_conflict}"
+    endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -45,18 +46,19 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not clean_batch: return
     try:
         resp = requests.post(endpoint, json=clean_batch, headers=headers)
-        if resp.status_code in [200, 201, 204]:
-            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공")
-        else:
-            print(f"❌ [{table_name}] 실패 ({resp.status_code}): {resp.text[:100]}")
+        if resp.status_code not in [200, 201, 204]:
+            print(f"❌ [{table_name}] 실패 ({resp.status_code}): {resp.text[:200]}") # 에러 내용 확인
     except Exception as e: print(f"❌ 통신 에러: {e}")
 
 # [3] 로직 함수
 def get_target_tickers():
     try:
+        # stock_cache가 없으면 빈 리스트 반환
         res = supabase.table("stock_cache").select("symbol").execute()
         return [item['symbol'] for item in res.data] if res.data else []
-    except: return []
+    except Exception as e:
+        print(f"⚠️ 티커 목록 로드 실패: {e}")
+        return []
 
 def fetch_and_update_prices():
     print(f"🚀 주가 수집 시작 (ET: {datetime.now().strftime('%H:%M')})")
@@ -64,22 +66,44 @@ def fetch_and_update_prices():
     if not tickers: print("대상 종목 없음"); return
 
     print(f"대상 종목: {len(tickers)}개 -> 다운로드 시작")
+    
+    # yfinance 에러 메시지가 너무 많으면 threads=False로 하거나 quiet=True 시도
+    # ignore_tz=True로 타임존 경고 무시
     try:
-        data = yf.download(" ".join(tickers), period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
-        upsert_list = []
-        now_iso = datetime.now(pytz.timezone('Asia/Seoul')).isoformat() 
-        
-        for symbol in tickers:
-            try:
-                closes = data[symbol]['Close'] if len(tickers) > 1 else data['Close']
-                last_price = closes.dropna().iloc[-1] if not closes.dropna().empty else 0
-                if last_price > 0:
-                    upsert_list.append({"ticker": symbol, "price": float(last_price), "updated_at": now_iso})
-            except: continue
-        
-        if upsert_list:
-            batch_upsert("price_cache", upsert_list, on_conflict="ticker")
-    except Exception as e: print(f"❌ Batch Update Failed: {e}")
+        data = yf.download(tickers, period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
+    except Exception as e:
+        print(f"⚠️ 다운로드 중 에러 발생: {e}")
+        return
+
+    upsert_list = []
+    now_iso = datetime.now(pytz.timezone('Asia/Seoul')).isoformat() 
+    
+    # 데이터 구조가 1개일 때와 여러 개일 때 다름
+    is_multi = len(tickers) > 1
+    
+    for symbol in tickers:
+        try:
+            if is_multi:
+                if symbol not in data: continue
+                closes = data[symbol]['Close']
+            else:
+                closes = data['Close']
+            
+            # 유효한 데이터만 추출
+            valid_closes = closes.dropna()
+            if valid_closes.empty: continue
+            
+            last_price = valid_closes.iloc[-1]
+            
+            if last_price > 0:
+                upsert_list.append({"ticker": symbol, "price": float(last_price), "updated_at": now_iso})
+        except: continue # 개별 에러 무시
+    
+    if upsert_list:
+        print(f"📊 {len(upsert_list)}개 종목 데이터 확보. DB 저장 시도...")
+        batch_upsert("price_cache", upsert_list, on_conflict="ticker")
+    else:
+        print("⚠️ 저장할 데이터가 없습니다.")
 
 if __name__ == "__main__":
     fetch_and_update_prices()
