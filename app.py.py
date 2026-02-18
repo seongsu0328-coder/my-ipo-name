@@ -3950,13 +3950,7 @@ elif st.session_state.page == 'board':
             st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
         st.rerun()
 
-    # ---------------------------------------------------------
-    # 2. 게시판 메인 로직 (상단: 검색 / 중단: 목록 / 하단: 글쓰기)
-    # ---------------------------------------------------------
-    st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>게시판</h3>", unsafe_allow_html=True)
     
-    # [DB 연동] 전체 글 일단 불러오기
-    all_posts = db_load_posts(limit=100) # 검색을 위해 넉넉히 가져옵니다.
     
     # ---------------------------------------------------------
     # 🔍 1. 검색 기능 (상단 배치)
@@ -3991,20 +3985,18 @@ elif st.session_state.page == 'board':
     # [A] 데이터 출력 영역 미리 확보 (이곳에 목록이 나타납니다)
     post_list_area = st.container()
     
-    st.write("---") # 구분선
-    
     # [B] 하단 액션 바 (검색과 글쓰기를 한 행에 배치)
     footer_col1, footer_col2 = st.columns(2)
     
     # --- 하단 1: 검색 기능 ---
     with footer_col1:
-        with st.expander("🔍 검색하기", expanded=False):
-            s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="bottom_s_type")
+        with st.expander("검색하기", expanded=False):
+            s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자", "댓글"], key="bottom_s_type")
             s_keyword = st.text_input("키워드", placeholder="입력 후 엔터", key="bottom_s_keyword")
     
     # --- 하단 2: 새 글 작성 ---
     with footer_col2:
-        with st.expander("✏️ 새 글 작성", expanded=False):
+        with st.expander("글쓰기", expanded=False):
             if st.session_state.get('auth_status') == 'user':
                 if check_permission('write'):
                     with st.form(key="bottom_write_form", clear_on_submit=True):
