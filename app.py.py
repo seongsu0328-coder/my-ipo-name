@@ -168,30 +168,30 @@ def db_save_post(category, title, content, author_name, author_id):
         return True
     except: return False
 
-# 8. 게시판 글 목록 불러오기
-# [수정된 DB 함수] - 순서 최적화 적용
+# # 8. 게시판 글 목록 불러오기
+# [수정된 DB 함수] - 테이블 명칭 "board"로 정정
 def db_load_posts(limit=50, category=None):
     """
     category가 있으면? -> 해당 종목 글만 DB에서 검색 후 최신순 정렬 (상황 1)
     category가 없으면? -> 전체 글을 DB에서 검색 후 최신순 정렬 (상황 2, 3)
     """
     try:
-        # 1. 테이블 선택 및 전체 컬럼 선택
-        query = supabase.table("posts").select("*")
+        # 🚨 [핵심 수정] "posts"를 "board"로 변경했습니다.
+        query = supabase.table("board").select("*")
             
         # 2. [필터링 우선] category가 있다면 조건 추가
         if category:
             query = query.eq("category", category)  # SQL: WHERE category = 'AAPL'
             
-        # 3. [정렬 및 제한] 필터링 된 결과 내에서 정렬하고 개수 자르기
-        # 이 부분이 맨 뒤에 와야 정확한 데이터를 가져옵니다.
+        # 3. [정렬 및 제한] 최신순 정렬 후 개수 제한
         response = query.order("created_at", desc=True).limit(limit).execute()
         
-        return response.data
+        # 데이터가 있으면 리턴, 없으면 빈 리스트 리턴
+        return response.data if response.data else []
         
     except Exception as e:
-        # 에러 발생 시 로그 출력 (선택 사항)
-        # print(f"DB Error: {e}") 
+        # 에러 발생 시 로그 출력
+        print(f"❌ DB 로딩 에러: {e}")
         return []
 
 # [정보 공개 범위 업데이트 함수 - 수정 버전]
