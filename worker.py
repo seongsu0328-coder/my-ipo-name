@@ -30,56 +30,58 @@ else:
 model = None 
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
-    
-    # 1. 최신 방식 시도
+    # 1. 문자열 방식 우선 시도 (호환성 좋음)
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash', tools=[{'google_search': {}}])
-        print("✅ AI 모델 로드 성공 (방법 1: Object)")
+        model = genai.GenerativeModel('gemini-2.0-flash', tools='google_search')
+        print("✅ AI 모델 로드 성공")
     except:
-        # 2. 문자열 방식 시도
+        # 2. 도구 없이 로드 (비상용)
         try:
-            model = genai.GenerativeModel('gemini-2.0-flash', tools='google_search')
-            print("✅ AI 모델 로드 성공 (방법 2: String)")
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            print("⚠️ AI 모델 로드 (검색 도구 비활성화)")
         except:
-            # 3. 도구 없이 로드 (비상용)
-            try:
-                model = genai.GenerativeModel('gemini-2.0-flash')
-                print("⚠️ AI 모델 로드 성공 (방법 3: No Tools - 검색 기능 제한됨)")
-            except Exception as e:
-                print(f"❌ 모델 로드 완전 실패: {e}")
-                model = None
+            model = None
 
 # ==========================================
-# [2] 헬퍼 함수: 데이터 강력 세척 (JSON 405 에러 방지)
+# [2] 헬퍼 함수: 데이터 초강력 세척 (Deep Clean)
 # ==========================================
-def sanitize_value(v):
-    """모든 데이터를 DB가 좋아하는 형태로 강제 변환"""
-    if v is None: return None
-    if pd.isna(v): return None 
+def sanitize_data(data):
+    """
+    재귀적으로 모든 데이터를 순회하며 NaN, Inf, NaT 등을 제거합니다.
+    """
+    if data is None:
+        return None
     
-    if isinstance(v, (np.integer, np.int64, np.int32)):
-        return int(v)
-    if isinstance(v, (np.floating, np.float64, np.float32)):
-        if np.isinf(v) or np.isnan(v): return 0.0
-        return float(v)
-    if isinstance(v, str):
-        return v.strip()
-    return v
-
-def sanitize_list(data_list):
-    cleaned = []
-    for item in data_list:
-        new_item = {}
-        for k, v in item.items():
-            new_item[k] = sanitize_value(v)
-        cleaned.append(new_item)
-    return cleaned
+    # 1. 리스트인 경우: 내부 요소 재귀 호출
+    if isinstance(data, list):
+        return [sanitize_data(item) for item in data]
+    
+    # 2. 딕셔너리인 경우: 값 재귀 호출
+    if isinstance(data, dict):
+        return {k: sanitize_data(v) for k, v in data.items()}
+    
+    # 3. Pandas/Numpy 특수값 처리
+    if pd.isna(data): return None
+    
+    # 4. 숫자형 변환
+    if isinstance(data, (np.integer, np.int64, np.int32)):
+        return int(data)
+    if isinstance(data, (np.floating, np.float64, np.float32)):
+        if np.isinf(data) or np.isnan(data): return 0.0
+        return float(data)
+        
+    # 5. 문자열 처리
+    if isinstance(data, str):
+        return data.strip()
+        
+    return data
 
 def batch_upsert(table_name, data_list, batch_size=50):
-    """세척된 데이터를 50개씩 쪼개서 DB에 저장 (안전성 강화)"""
+    """세척된 데이터를 50개씩 쪼개서 DB에 저장"""
     if not data_list: return
     
-    clean_data = sanitize_list(data_list)
+    # [핵심] Deep Clean 실행
+    clean_data = sanitize_data(data_list)
     total = len(clean_data)
     
     for i in range(0, total, batch_size):
@@ -122,28 +124,17 @@ def get_target_stocks():
     return df
 
 # ==========================================
-# [3] 핵심 기능: 주가 일괄 수집 (스마트 모드 적용)
+# [3] 핵심 기능: 주가 일괄 수집 (강제 실행 모드)
 # ==========================================
 def update_all_prices_batch(df_target):
     if df_target.empty: return
 
-    # [스마트 로직] 미국 동부 시간(ET) 기준
+    # [수정] 무조건 실행하도록 변경 (데이터 채우기 위해)
     utc_now = datetime.now(pytz.utc)
     est_tz = pytz.timezone('US/Eastern')
     est_now = utc_now.astimezone(est_tz)
     
-    if est_now.weekday() >= 5:
-        print(f"\n😴 [주말] 주가 수집 생략 ({est_now.strftime('%A')})")
-        return
-
-    # 08:00 ~ 20:00 ET (프리~애프터마켓)
-    if 8 <= est_now.hour < 20:
-        print(f"\n💰 [장 운영/마감 직후] 전 종목 주가 일괄 수집 시작 (현재 ET: {est_now.strftime('%H:%M')})...")
-    else:
-        # [임시 수정] 초기 데이터 구축을 위해 오늘은 무조건 실행하시려면 아래 주석을 푸세요.
-        # pass 
-        print(f"\n😴 [장 마감] 주가 수집 생략 (현재 ET: {est_now.strftime('%H:%M')})")
-        return
+    print(f"\n💰 [강제 실행] 전 종목 주가 일괄 수집 시작 (현재 ET: {est_now.strftime('%H:%M')})...")
     
     tickers = df_target['symbol'].tolist()
     chunk_size = 50 
@@ -167,7 +158,7 @@ def update_all_prices_batch(df_target):
                     
                     if not price_series.dropna().empty:
                         last_price = float(price_series.dropna().iloc[-1])
-                        
+                        # NaN 안전장치
                         if pd.isna(last_price) or np.isnan(last_price) or np.isinf(last_price): continue
 
                         upsert_list.append({
@@ -221,9 +212,14 @@ def run_tab0_analysis(ticker, company_name):
         위 내용을 바탕으로 전문적인 어조의 한국어로 작성하세요. (각 항목당 3~4문장)
         """
         try:
-            res = model.generate_content(prompt)
-            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": res.text, "updated_at": datetime.now().isoformat()}])
-        except: pass
+            response = model.generate_content(prompt)
+            batch_upsert("analysis_cache", [{
+                "cache_key": cache_key,
+                "content": response.text,
+                "updated_at": datetime.now().isoformat()
+            }])
+        except Exception:
+            pass
 
 # (Tab 1) 비즈니스 & 뉴스 분석
 def run_tab1_analysis(ticker, company_name):
@@ -362,7 +358,7 @@ def main():
         print("종목이 없어 종료합니다.")
         return
 
-    # 1. 추적 명단 저장
+    # 1. 추적 명단 저장 (초강력 세척 적용)
     print(f"📝 추적 명단({len(df)}개) DB 등록 중...", end=" ")
     stock_list = []
     for _, row in df.iterrows():
@@ -373,11 +369,10 @@ def main():
             "name": safe_name, 
             "updated_at": datetime.now().isoformat()
         })
-    # 배치 사이즈를 50으로 줄여서 안정성 확보
-    batch_upsert("stock_cache", stock_list, batch_size=50)
+    batch_upsert("stock_cache", stock_list)
     print("✅ 완료")
 
-    # 2. 주가 일괄 업데이트
+    # 2. 주가 일괄 업데이트 (강제 실행)
     update_all_prices_batch(df)
 
     # 3. 거시 지표
