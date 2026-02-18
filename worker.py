@@ -105,54 +105,65 @@ def get_target_stocks():
     return df.drop_duplicates(subset=['symbol'])
 
 def update_all_prices_batch(df_target):
-    print("\n💰 [최종 안정화 모드] 종목별 주가 수집 및 정밀 세척 시작...")
+    print("\n💰 [정밀 상태 분석] 주가 수집 및 상장 상태(Status) 분류 시작...")
     
     tickers = df_target['symbol'].tolist()
     now_iso = datetime.now().isoformat()
     success_cnt = 0
     upsert_list = []
 
-    # 517개를 하나씩 정성스럽게 물어봅니다.
     for t in tickers:
+        status = "Active"
+        clean_price = 0.0
+        
         try:
             stock = yf.Ticker(t)
+            # 1. 먼저 종목 정보(info)를 통해 상장 폐지 여부를 1차 확인
+            # (야후에서 아예 사라진 종목은 여기서 에러가 나거나 비어있습니다)
+            info = stock.info
             
-            # [수정] interval="1m" 제거 -> 주말/새벽에도 마지막 거래일 가격을 가져옴
+            # 2. 가격 데이터 가져오기
             hist = stock.history(period="1d")
             
             if not hist.empty:
-                # 마지막 종가 추출
                 raw_price = hist['Close'].iloc[-1]
-                
-                # [핵심 수정] 405 JSON 에러 원천 차단
-                # 1. round(v, 4): 소수점 4자리까지 반올림 (지저분한 소수점 정리)
-                # 2. float(): Numpy 타입을 순수 파이썬 float로 강제 변환
                 clean_price = float(round(raw_price, 4))
+                status = "Active"
+            else:
+                # 가격 데이터는 없지만 종목 정보는 존재하는 경우 -> 상장연기
+                if info and 'symbol' in info:
+                    status = "상장연기"
+                else:
+                    # 정보 자체가 아예 없는 경우 -> 상장폐지
+                    status = "상장폐지"
                 
-                if not pd.isna(clean_price) and clean_price > 0:
-                    upsert_list.append({
-                        "ticker": str(t),
-                        "price": clean_price,
-                        "updated_at": now_iso
-                    })
-                    success_cnt += 1
-                    
-                    if success_cnt % 20 == 0:
-                        print(f"   ... {success_cnt}개 주가 수집 중 (현재: {t} -> ${clean_price})")
+        except Exception as e:
+            # 에러 메시지에 'not found'나 'delisted'가 포함된 경우 -> 상장폐지
+            err_msg = str(e).lower()
+            if "not found" in err_msg or "delisted" in err_msg or "no data" in err_msg:
+                status = "상장폐지"
+            else:
+                # 그 외 알 수 없는 에러는 안전하게 상장연기로 처리
+                status = "상장연기"
+
+        upsert_list.append({
+            "ticker": str(t),
+            "price": clean_price,
+            "status": status,
+            "updated_at": now_iso
+        })
+        success_cnt += 1
+        
+        if success_cnt % 20 == 0:
+            print(f"   ... {success_cnt}개 분석 완료 ({t}: {status})")
             
-            # 야후 서버 부하 방지
-            time.sleep(0.05)
+        time.sleep(0.05)
 
-        except Exception:
-            # 상장 폐지 등으로 데이터가 없는 종목은 조용히 건너뜁니다.
-            continue
-
-    # 모아진 데이터를 DB에 저장
     if upsert_list:
-        print(f"📦 수집 완료! {len(upsert_list)}개의 가격 데이터를 DB에 저장합니다...")
+        print(f"📦 총 {len(upsert_list)}개의 종목 분석 결과를 DB에 저장합니다...")
         batch_upsert("price_cache", upsert_list)
     
-    print(f"✅ 주가 업데이트 최종 완료: {success_cnt}개 성공\n")
+    print(f"✅ 상태 업데이트 최종 완료: {success_cnt}개 처리됨\n")
 
 # ... (run_tab0~4_analysis 프롬프트는 승수님 원본 그대로 유지) ...
 # ==========================================
