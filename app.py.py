@@ -3951,116 +3951,116 @@ elif st.session_state.page == 'board':
         st.rerun()
 
     # ---------------------------------------------------------
-# 2. 게시판 메인 로직 (상단: 검색 / 중단: 목록 / 하단: 글쓰기)
-# ---------------------------------------------------------
-st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>게시판</h3>", unsafe_allow_html=True)
-
-# [DB 연동] 전체 글 일단 불러오기
-all_posts = db_load_posts(limit=100) # 검색을 위해 넉넉히 가져옵니다.
-
-# ---------------------------------------------------------
-# 🔍 1. 검색 기능 (상단 배치)
-# ---------------------------------------------------------
-with st.container(border=True):
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        search_type = st.selectbox("검색 범위", ["제목", "제목+내용", "카테고리", "작성자"])
-    with col2:
-        search_keyword = st.text_input("검색어 입력", placeholder="검색어를 입력하고 엔터를 누르세요.")
-
-# [필터링 로직] 검색어가 있을 경우 리스트를 걸러냅니다.
-posts = all_posts
-if search_keyword:
-    k = search_keyword.lower()
-    if search_type == "제목":
-        posts = [p for p in posts if k in p.get('title', '').lower()]
-    elif search_type == "제목+내용":
-        posts = [p for p in posts if k in p.get('title', '').lower() or k in p.get('content', '').lower()]
-    elif search_type == "카테고리":
-        posts = [p for p in posts if k in p.get('category', '').lower()]
-    elif search_type == "작성자":
-        posts = [p for p in posts if k in p.get('author_name', '').lower()]
-
-st.write("") # 여백
-
-# ---------------------------------------------------------
-# 2. 게시판 메인 로직 (상단: 목록 / 하단: 검색 & 글쓰기 병렬)
-# ---------------------------------------------------------
-st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>게시판</h3>", unsafe_allow_html=True)
-
-# [A] 데이터 출력 영역 미리 확보 (이곳에 목록이 나타납니다)
-post_list_area = st.container()
-
-st.write("---") # 구분선
-
-# [B] 하단 액션 바 (검색과 글쓰기를 한 행에 배치)
-footer_col1, footer_col2 = st.columns(2)
-
-# --- 하단 1: 검색 기능 ---
-with footer_col1:
-    with st.expander("🔍 검색하기", expanded=False):
-        s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="bottom_s_type")
-        s_keyword = st.text_input("키워드", placeholder="입력 후 엔터", key="bottom_s_keyword")
-
-# --- 하단 2: 새 글 작성 ---
-with footer_col2:
-    with st.expander("✏️ 새 글 작성", expanded=False):
-        if st.session_state.get('auth_status') == 'user':
-            if check_permission('write'):
-                with st.form(key="bottom_write_form", clear_on_submit=True):
-                    category = st.text_input("종목/말머리", placeholder="자유")
-                    title = st.text_input("제목")
-                    content = st.text_area("내용", height=150)
-                    if st.form_submit_button("등록", type="primary", use_container_width=True):
-                        if title and content:
-                            u_info = st.session_state.user_info
-                            u_id = u_info.get('id')
-                            d_name = u_info.get('display_name') or u_info.get('name') or f"{u_id[:3]}***"
-                            if db_save_post(category, title, content, d_name, u_id):
-                                st.success("등록 완료!")
-                                st.rerun()
+    # 2. 게시판 메인 로직 (상단: 검색 / 중단: 목록 / 하단: 글쓰기)
+    # ---------------------------------------------------------
+    st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>게시판</h3>", unsafe_allow_html=True)
+    
+    # [DB 연동] 전체 글 일단 불러오기
+    all_posts = db_load_posts(limit=100) # 검색을 위해 넉넉히 가져옵니다.
+    
+    # ---------------------------------------------------------
+    # 🔍 1. 검색 기능 (상단 배치)
+    # ---------------------------------------------------------
+    with st.container(border=True):
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            search_type = st.selectbox("검색 범위", ["제목", "제목+내용", "카테고리", "작성자"])
+        with col2:
+            search_keyword = st.text_input("검색어 입력", placeholder="검색어를 입력하고 엔터를 누르세요.")
+    
+    # [필터링 로직] 검색어가 있을 경우 리스트를 걸러냅니다.
+    posts = all_posts
+    if search_keyword:
+        k = search_keyword.lower()
+        if search_type == "제목":
+            posts = [p for p in posts if k in p.get('title', '').lower()]
+        elif search_type == "제목+내용":
+            posts = [p for p in posts if k in p.get('title', '').lower() or k in p.get('content', '').lower()]
+        elif search_type == "카테고리":
+            posts = [p for p in posts if k in p.get('category', '').lower()]
+        elif search_type == "작성자":
+            posts = [p for p in posts if k in p.get('author_name', '').lower()]
+    
+    st.write("") # 여백
+    
+    # ---------------------------------------------------------
+    # 2. 게시판 메인 로직 (상단: 목록 / 하단: 검색 & 글쓰기 병렬)
+    # ---------------------------------------------------------
+    st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>게시판</h3>", unsafe_allow_html=True)
+    
+    # [A] 데이터 출력 영역 미리 확보 (이곳에 목록이 나타납니다)
+    post_list_area = st.container()
+    
+    st.write("---") # 구분선
+    
+    # [B] 하단 액션 바 (검색과 글쓰기를 한 행에 배치)
+    footer_col1, footer_col2 = st.columns(2)
+    
+    # --- 하단 1: 검색 기능 ---
+    with footer_col1:
+        with st.expander("🔍 검색하기", expanded=False):
+            s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="bottom_s_type")
+            s_keyword = st.text_input("키워드", placeholder="입력 후 엔터", key="bottom_s_keyword")
+    
+    # --- 하단 2: 새 글 작성 ---
+    with footer_col2:
+        with st.expander("✏️ 새 글 작성", expanded=False):
+            if st.session_state.get('auth_status') == 'user':
+                if check_permission('write'):
+                    with st.form(key="bottom_write_form", clear_on_submit=True):
+                        category = st.text_input("종목/말머리", placeholder="자유")
+                        title = st.text_input("제목")
+                        content = st.text_area("내용", height=150)
+                        if st.form_submit_button("등록", type="primary", use_container_width=True):
+                            if title and content:
+                                u_info = st.session_state.user_info
+                                u_id = u_info.get('id')
+                                d_name = u_info.get('display_name') or u_info.get('name') or f"{u_id[:3]}***"
+                                if db_save_post(category, title, content, d_name, u_id):
+                                    st.success("등록 완료!")
+                                    st.rerun()
+                else:
+                    st.warning("🔒 권한 없음")
             else:
-                st.warning("🔒 권한 없음")
+                st.warning("🔒 로그인 필요")
+    
+    # ---------------------------------------------------------
+    # 📋 데이터 처리 및 상단 영역 출력
+    # ---------------------------------------------------------
+    all_posts = db_load_posts(limit=100)
+    posts = all_posts
+    
+    # 필터링 로직 (하단 검색창 입력값 기준)
+    if s_keyword:
+        k = s_keyword.lower()
+        if s_type == "제목":
+            posts = [p for p in posts if k in p.get('title', '').lower()]
+        elif s_type == "제목+내용":
+            posts = [p for p in posts if k in p.get('title', '').lower() or k in p.get('content', '').lower()]
+        elif s_type == "카테고리":
+            posts = [p for p in posts if k in p.get('category', '').lower()]
+        elif s_type == "작성자":
+            posts = [p for p in posts if k in p.get('author_name', '').lower()]
+    
+    # [핵심] 미리 확보해둔 상단 영역(post_list_area)에 목록 뿌리기
+    with post_list_area:
+        if posts:
+            for p in posts:
+                try:
+                    date_str = p['created_at'].split('T')[0]
+                except:
+                    date_str = "Unknown"
+                    
+                with st.container(border=True):
+                    cat_badge = f"[{p.get('category', '자유')}]" if p.get('category') else "[자유]"
+                    st.markdown(f"**{cat_badge} {p.get('title')}**")
+                    st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
+                    st.caption(f"👤 {p.get('author_name')} | 📅 {date_str}")
         else:
-            st.warning("🔒 로그인 필요")
-
-# ---------------------------------------------------------
-# 📋 데이터 처리 및 상단 영역 출력
-# ---------------------------------------------------------
-all_posts = db_load_posts(limit=100)
-posts = all_posts
-
-# 필터링 로직 (하단 검색창 입력값 기준)
-if s_keyword:
-    k = s_keyword.lower()
-    if s_type == "제목":
-        posts = [p for p in posts if k in p.get('title', '').lower()]
-    elif s_type == "제목+내용":
-        posts = [p for p in posts if k in p.get('title', '').lower() or k in p.get('content', '').lower()]
-    elif s_type == "카테고리":
-        posts = [p for p in posts if k in p.get('category', '').lower()]
-    elif s_type == "작성자":
-        posts = [p for p in posts if k in p.get('author_name', '').lower()]
-
-# [핵심] 미리 확보해둔 상단 영역(post_list_area)에 목록 뿌리기
-with post_list_area:
-    if posts:
-        for p in posts:
-            try:
-                date_str = p['created_at'].split('T')[0]
-            except:
-                date_str = "Unknown"
-                
-            with st.container(border=True):
-                cat_badge = f"[{p.get('category', '자유')}]" if p.get('category') else "[자유]"
-                st.markdown(f"**{cat_badge} {p.get('title')}**")
-                st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
-                st.caption(f"👤 {p.get('author_name')} | 📅 {date_str}")
-    else:
-        if s_keyword:
-            st.info(f"'{s_keyword}' 검색 결과가 없습니다.")
-        else:
-            st.info("게시글이 없습니다.")
+            if s_keyword:
+                st.info(f"'{s_keyword}' 검색 결과가 없습니다.")
+            else:
+                st.info("게시글이 없습니다.")
         
                 #리아 지우와 제주도 다녀오다 사랑하다.아빠,엄마, 형. 삼월이. 마리. 가족. 친구. 일본. 노래. 영화. 맥주. 이런것들을 사랑한다. 
                  
