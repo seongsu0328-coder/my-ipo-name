@@ -3984,62 +3984,83 @@ if search_keyword:
 st.write("") # 여백
 
 # ---------------------------------------------------------
-# 📋 2. 게시글 목록 출력 (중단)
+# 2. 게시판 메인 로직 (상단: 목록 / 하단: 검색 & 글쓰기 병렬)
 # ---------------------------------------------------------
-if posts:
-    for p in posts:
-        try:
-            date_str = p['created_at'].split('T')[0]
-        except:
-            date_str = "Unknown"
-            
-        with st.container(border=True):
-            # 헤더: [카테고리] 제목
-            cat_badge = f"[{p.get('category', '자유')}]" if p.get('category') else "[자유]"
-            st.markdown(f"**{cat_badge} {p.get('title')}**")
-            
-            # 내용 (일부만 보여주기)
-            st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
-            
-            # 푸터: 작성자 | 날짜
-            st.caption(f"👤 {p.get('author_name')} | 📅 {date_str}")
-else:
-    if search_keyword:
-        st.info(f"'{search_keyword}'에 대한 검색 결과가 없습니다.")
-    else:
-        st.info("아직 등록된 게시글이 없습니다.")
+st.markdown("<h3 style='margin-bottom:0px; font-size: 24px;'>게시판</h3>", unsafe_allow_html=True)
 
-st.write("---") # 목록과 글쓰기 사이 구분선
+# [A] 데이터 출력 영역 미리 확보 (이곳에 목록이 나타납니다)
+post_list_area = st.container()
 
-# ---------------------------------------------------------
-# ✏️ 3. 새 글 작성하기 (제일 하단으로 이동)
-# ---------------------------------------------------------
-with st.expander("✏️ 새 글 작성하기", expanded=False):
-    if st.session_state.get('auth_status') == 'user':
-        # 권한 체크
-        if check_permission('write'):
-            with st.form(key="board_write_form", clear_on_submit=True):
-                category = st.text_input("종목 코드 (예: AAPL) 또는 말머리", placeholder="자유")
-                title = st.text_input("제목")
-                content = st.text_area("내용", height=150)
-                
-                if st.form_submit_button("등록", type="primary", use_container_width=True):
-                    if title and content:
-                        user_info = st.session_state.user_info
-                        user_id = user_info.get('id')
-                        display_name = user_info.get('display_name') or user_info.get('name') or f"{user_id[:3]}***"
-                        
-                        if db_save_post(category, title, content, display_name, user_id):
-                            st.success("게시글이 등록되었습니다!")
-                            st.rerun()
-                        else:
-                            st.error("저장 중 오류가 발생했습니다.")
-                    else:
-                        st.warning("제목과 내용을 입력해주세요.")
+st.write("---") # 구분선
+
+# [B] 하단 액션 바 (검색과 글쓰기를 한 행에 배치)
+footer_col1, footer_col2 = st.columns(2)
+
+# --- 하단 1: 검색 기능 ---
+with footer_col1:
+    with st.expander("🔍 검색하기", expanded=False):
+        s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="bottom_s_type")
+        s_keyword = st.text_input("키워드", placeholder="입력 후 엔터", key="bottom_s_keyword")
+
+# --- 하단 2: 새 글 작성 ---
+with footer_col2:
+    with st.expander("✏️ 새 글 작성", expanded=False):
+        if st.session_state.get('auth_status') == 'user':
+            if check_permission('write'):
+                with st.form(key="bottom_write_form", clear_on_submit=True):
+                    category = st.text_input("종목/말머리", placeholder="자유")
+                    title = st.text_input("제목")
+                    content = st.text_area("내용", height=150)
+                    if st.form_submit_button("등록", type="primary", use_container_width=True):
+                        if title and content:
+                            u_info = st.session_state.user_info
+                            u_id = u_info.get('id')
+                            d_name = u_info.get('display_name') or u_info.get('name') or f"{u_id[:3]}***"
+                            if db_save_post(category, title, content, d_name, u_id):
+                                st.success("등록 완료!")
+                                st.rerun()
+            else:
+                st.warning("🔒 권한 없음")
         else:
-            st.warning("🔒 글쓰기 권한이 없습니다. (서류 제출 및 승인 필요)")
+            st.warning("🔒 로그인 필요")
+
+# ---------------------------------------------------------
+# 📋 데이터 처리 및 상단 영역 출력
+# ---------------------------------------------------------
+all_posts = db_load_posts(limit=100)
+posts = all_posts
+
+# 필터링 로직 (하단 검색창 입력값 기준)
+if s_keyword:
+    k = s_keyword.lower()
+    if s_type == "제목":
+        posts = [p for p in posts if k in p.get('title', '').lower()]
+    elif s_type == "제목+내용":
+        posts = [p for p in posts if k in p.get('title', '').lower() or k in p.get('content', '').lower()]
+    elif s_type == "카테고리":
+        posts = [p for p in posts if k in p.get('category', '').lower()]
+    elif s_type == "작성자":
+        posts = [p for p in posts if k in p.get('author_name', '').lower()]
+
+# [핵심] 미리 확보해둔 상단 영역(post_list_area)에 목록 뿌리기
+with post_list_area:
+    if posts:
+        for p in posts:
+            try:
+                date_str = p['created_at'].split('T')[0]
+            except:
+                date_str = "Unknown"
+                
+            with st.container(border=True):
+                cat_badge = f"[{p.get('category', '자유')}]" if p.get('category') else "[자유]"
+                st.markdown(f"**{cat_badge} {p.get('title')}**")
+                st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
+                st.caption(f"👤 {p.get('author_name')} | 📅 {date_str}")
     else:
-        st.warning("🔒 로그인 후 작성할 수 있습니다.")
+        if s_keyword:
+            st.info(f"'{s_keyword}' 검색 결과가 없습니다.")
+        else:
+            st.info("게시글이 없습니다.")
         
                 #리아 지우와 제주도 다녀오다 사랑하다.아빠,엄마, 형. 삼월이. 마리. 가족. 친구. 일본. 노래. 영화. 맥주. 이런것들을 사랑한다. 
                  
