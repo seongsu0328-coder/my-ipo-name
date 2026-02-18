@@ -614,16 +614,13 @@ def get_company_profile(symbol, api_key):
         return res if res and 'name' in res else None
     except: return None
 
-@st.cache_data(ttl=14400)
+@st.cache_data(ttl=3600) # 1시간 동안 Finnhub API 재호출 방지
 def get_extended_ipo_data(api_key):
     now = datetime.now()
-    
-    # [핵심 수정] 구간을 나눌 때 서로 겹치게(Overlap) 설정합니다.
-    # 180일과 181일로 딱 나누지 않고, 200일/170일 식으로 겹치게 하여 경계 누락을 방지합니다.
     ranges = [
-        (now - timedelta(days=200), now + timedelta(days=120)),  # 구간 1: 현재~과거 200일 (약 6.5개월)
-        (now - timedelta(days=380), now - timedelta(days=170)), # 구간 2: 과거 170일~380일
-        (now - timedelta(days=560), now - timedelta(days=350))  # 구간 3: 과거 350일~560일
+        (now - timedelta(days=200), now + timedelta(days=120)),
+        (now - timedelta(days=380), now - timedelta(days=170)),
+        (now - timedelta(days=560), now - timedelta(days=350))
     ]
     
     all_data = []
@@ -633,78 +630,56 @@ def get_extended_ipo_data(api_key):
         url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
         
         try:
-            # 호출 사이 간격을 아주 약간 주어 Rate Limit 안정성 확보
-            time.sleep(0.3) 
-            res = requests.get(url, timeout=7).json()
+            time.sleep(0.2) # 속도를 조금 더 올렸습니다.
+            res = requests.get(url, timeout=5).json()
             ipo_list = res.get('ipoCalendar', [])
             if ipo_list:
                 all_data.extend(ipo_list)
         except:
             continue
     
-    if not all_data: 
-        return pd.DataFrame()
+    if not all_data: return pd.DataFrame()
     
-    # 데이터프레임 생성
     df = pd.DataFrame(all_data)
-    
-    # [중요] 구간을 겹치게 가져왔으므로 여기서 중복을 확실히 제거합니다.
     df = df.drop_duplicates(subset=['symbol', 'date'])
-    
-    # 날짜 변환 및 보정
     df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
     df = df.dropna(subset=['공모일_dt'])
     
     return df
 
-import yfinance as yf
-
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False) # 10분간 메모리 캐시 유지
 def get_batch_prices(ticker_list):
-    """
-    Supabase DB를 활용하여 15분 단위로 주가를 캐싱하고 Batch로 가져오는 함수
-    (디버깅 메시지 제거 버전)
-    """
-    # [방어 로직] 리스트 체크 및 클렌징
-    if not ticker_list or not isinstance(ticker_list, list):
-        return {}
-    
+    if not ticker_list: return {}
     clean_tickers = [str(t).strip() for t in ticker_list if t and str(t).strip().lower() != 'nan']
-    if not clean_tickers:
-        return {}
     
-    now = datetime.now()
-    fifteen_mins_ago = (now - timedelta(minutes=15)).isoformat()
+    cached_data = {}
     
-    # ---------------------------------------------------------
-    # [Step 1] Supabase DB에서 신선한(15분 이내) 데이터 먼저 조회
-    # ---------------------------------------------------------
+    # [Step 1] Supabase DB에서 일단 "있는 데이터"는 다 긁어옵니다. (15분 필터 제거)
+    # 앱은 '속도'가 우선이므로, 조금 오래된 데이터라도 먼저 보여주는 게 사용자 경험에 좋습니다.
     try:
         res = supabase.table("price_cache") \
             .select("ticker, price") \
             .in_("ticker", clean_tickers) \
-            .gt("updated_at", fifteen_mins_ago) \
             .execute()
-        # DB에 있는 데이터는 API 호출 없이 즉시 활용
-        cached_data = {item['ticker']: float(item['price']) for item in res.data}
-    except Exception:
-        # DB 오류 시 빈 딕셔너리로 시작 (API에서 다 가져오도록 유도)
-        cached_data = {}
+        if res.data:
+            cached_data = {item['ticker']: float(item['price']) for item in res.data}
+    except Exception as e:
+        print(f"DB Read Error: {e}")
 
-    # ---------------------------------------------------------
-    # [Step 2] DB에 없거나 오래된 티커만 골라내서 API 호출
-    # ---------------------------------------------------------
+    # [Step 2] DB에 아예 없거나 데이터가 부족한 티커 확인
     missing_tickers = [t for t in clean_tickers if t not in cached_data]
     
+    # [Step 3] 없는 데이터만 딱 한 번의 API 호출로 가져오기
     if missing_tickers:
         tickers_str = " ".join(missing_tickers)
         try:
-            # 야후 파이낸스 실시간 데이터 다운로드
             data = yf.download(tickers_str, period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
+            
+            upsert_payload = [] # 한꺼번에 DB에 넣을 바구니
+            now_iso = datetime.now().isoformat()
             
             for t in missing_tickers:
                 try:
-                    # 데이터 구조 처리 (단일 종목 vs 다중 종목 대응)
                     if len(missing_tickers) > 1:
                         if t in data.columns.levels[0]:
                             target_data = data[t]['Close'].dropna()
@@ -714,21 +689,23 @@ def get_batch_prices(ticker_list):
 
                     if not target_data.empty:
                         current_p = float(target_data.iloc[-1])
+                        cached_data[t] = current_p
                         
-                        # [Step 3] 새로운 가격 정보를 DB에 영구 저장 (Upsert)
-                        supabase.table("price_cache").upsert({
+                        # [핵심] 바로 DB에 넣지 않고 리스트에 담습니다.
+                        upsert_payload.append({
                             "ticker": t,
                             "price": current_p,
-                            "updated_at": now.isoformat()
-                        }).execute()
-                        
-                        cached_data[t] = current_p
-                    else:
-                        cached_data[t] = 0.0 # 데이터를 못 찾은 경우
+                            "updated_at": now_iso
+                        })
                 except:
-                    cached_data[t] = 0.0
-        except Exception:
-            pass # API 에러 무시
+                    continue
+            
+            # [핵심] 수백 개의 데이터를 단 한 번의 통신으로 저장합니다 (Batch Upsert)
+            if upsert_payload:
+                supabase.table("price_cache").upsert(upsert_payload).execute()
+                
+        except Exception as e:
+            print(f"API Fetch Error: {e}")
 
     return cached_data
 
