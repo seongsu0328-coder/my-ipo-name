@@ -65,43 +65,60 @@ def sanitize_value(v):
 def batch_upsert(table_name, data_list, batch_size=1):
     if not data_list: return
     
-    print(f"🚀 총 {len(data_list)}개 데이터 정밀 검수 후 전송 시작...")
+    # Supabase 접속 정보 직접 추출
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+    
+    # REST API 엔드포인트 설정
+    # 예: https://xyz.supabase.co/rest/v1/price_cache
+    endpoint = f"{url}/rest/v1/{table_name}"
+    
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"  # ★ 핵심: 중복 시 업데이트(Upsert) 하라는 설정
+    }
+
+    print(f"🚀 [REST API 직송 모드] {len(data_list)}개 데이터 전송 시작...")
     success_save = 0
     fail_save = 0
 
     for item in data_list:
-        try:
-            # [필수 체크] 티커가 없거나 None이면 아예 시도도 안 하고 건너뜁니다.
-            ticker_val = item.get('ticker')
-            if not ticker_val or pd.isna(ticker_val) or str(ticker_val).lower() == 'none':
-                continue
+        ticker = str(item.get('ticker', '')).strip()
+        if not ticker or ticker.lower() == 'none': continue
 
-            # 숫자 세척
-            raw_p = item.get('price', 0.0)
-            clean_price = float(raw_p) if (raw_p is not None and not pd.isna(raw_p)) else 0.0
+        # [데이터 초정밀 세척]
+        # 모든 값을 파이썬 기본 타입(str, float)으로 강제 변환
+        p_val = item.get('price', 0.0)
+        clean_price = float(p_val) if (p_val is not None and not pd.isna(p_val)) else 0.0
+        
+        payload = {
+            "ticker": ticker,
+            "price": round(clean_price, 4),
+            "status": str(item.get('status', 'Active')).strip(),
+            "updated_at": str(item.get('updated_at', ''))
+        }
+
+        try:
+            # supabase 라이브러리 대신 표준 requests를 사용합니다.
+            response = requests.post(endpoint, json=payload, headers=headers)
             
-            clean_item = {
-                "ticker": str(ticker_val).strip(),
-                "price": round(clean_price, 4),
-                "status": str(item.get('status', 'Active')).strip(),
-                "updated_at": str(item.get('updated_at', ''))
-            }
-            
-            # 단건 저장 시도
-            supabase.table(table_name).upsert(clean_item).execute()
-            success_save += 1
-            
-            if success_save % 50 == 0:
-                print(f"   ... {success_save}개 데이터 안전하게 저장 완료")
+            # 200(성공), 201(생성됨) 코드 확인
+            if response.status_code in [200, 201]:
+                success_save += 1
+                if success_save % 50 == 0:
+                    print(f"   ... {success_save}개 직송 성공")
+            else:
+                fail_save += 1
+                print(f"   ⚠️ {ticker} 실패 (Code {response.status_code}): {response.text}")
                 
         except Exception as e:
             fail_save += 1
-            # 에러가 나더라도 ticker가 있으면 출력, 없으면 무시
-            t_name = item.get('ticker', 'Unknown')
-            print(f"   ⚠️ {t_name} 저장 건너뜀: {e}")
+            print(f"   ❌ {ticker} 에러: {e}")
             continue
 
-    print(f"🏁 최종 결과: 성공 {success_save}개 / 실패(건너뜀) {fail_save}개")
+    print(f"🏁 최종 결과: 성공 {success_save}개 / 실패 {fail_save}개")
             
 # ==========================================
 # [3] 핵심 로직 (나머지 프롬프트 및 수집 기능 유지)
