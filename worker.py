@@ -240,8 +240,7 @@ def main():
     # 헤더에 return=minimal이 포함된 batch_upsert를 호출합니다.
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
 
-    # [3] 주가 및 상태 업데이트 (Active/상장폐지 등 분류)
-    update_all_prices_batch(df)
+    
 
     # [4] 거시 지표 업데이트 (Tab 2)
     update_macro_data(df)
