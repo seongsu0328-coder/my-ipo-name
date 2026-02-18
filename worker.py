@@ -6,26 +6,40 @@ import requests
 import pandas as pd
 import numpy as np
 import yfinance as yf
+import logging
 from datetime import datetime, timedelta, date
-import pytz 
 from supabase import create_client
 import google.generativeai as genai
 
 # ==========================================
 # [1] 환경 설정
 # ==========================================
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip('/')
+
+# 1. Supabase URL 보정
+raw_url = os.environ.get("SUPABASE_URL", "")
+if "/rest/v1" in raw_url:
+    SUPABASE_URL = raw_url.split("/rest/v1")[0].rstrip('/')
+else:
+    SUPABASE_URL = raw_url.rstrip('/')
+
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 GENAI_API_KEY = os.environ.get("GENAI_API_KEY", "")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
+
+# 2. yfinance 불필요한 에러 로그 차단
+logging.getLogger('yfinance').setLevel(logging.CRITICAL)
 
 if not (SUPABASE_URL and SUPABASE_KEY):
     print("❌ 환경변수 누락 (SUPABASE_URL 또는 KEY)")
     exit()
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+try:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    print(f"❌ Supabase 클라이언트 초기화 실패: {e}")
+    exit()
 
-# AI 모델 설정 (구글 검색 도구 포함)
+# AI 모델 설정
 model = None 
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
@@ -37,11 +51,10 @@ if GENAI_API_KEY:
         print("⚠️ AI 모델 기본 로드 (Search Tool 제외)")
 
 # ==========================================
-# [2] 헬퍼 함수: 완벽한 데이터 정제 및 직송 (Universal Upsert)
+# [2] 헬퍼 함수: 데이터 정제 및 직송 (Universal Upsert)
 # ==========================================
 
 def sanitize_value(v):
-    """Numpy/Pandas 타입을 Python 표준 타입으로 변환하여 JSON 405 에러 방지"""
     if v is None or pd.isna(v): return None
     if isinstance(v, (np.floating, float)):
         return float(v) if not (np.isinf(v) or np.isnan(v)) else 0.0
@@ -50,18 +63,8 @@ def sanitize_value(v):
     return str(v).strip().replace('\x00', '')
 
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
-    """
-    405 에러를 방지하고 데이터를 한 번에 묶어서 저장하는 벌크 직송 함수
-    - stock_cache: on_conflict="symbol"
-    - price_cache: on_conflict="ticker"
-    - analysis_cache: on_conflict="cache_key"
-    """
     if not data_list: return
-    
-    # URL 경로 자동 교정 (Dashboard 주소 입력 시 404 방어)
-    base_url = SUPABASE_URL if "/rest/v1" in SUPABASE_URL else f"{SUPABASE_URL}/rest/v1"
-    endpoint = f"{base_url}/{table_name}?on_conflict={on_conflict}"
-    
+    endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -69,7 +72,6 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         "Prefer": "resolution=merge-duplicates"
     }
 
-    # 데이터 정제 및 벌크 준비
     clean_batch = []
     for item in data_list:
         payload = {k: sanitize_value(v) for k, v in item.items()}
@@ -79,17 +81,18 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not clean_batch: return
 
     try:
-        # 리스트 통째로 한 번에 전송 (Bulk Mode)
         resp = requests.post(endpoint, json=clean_batch, headers=headers)
         if resp.status_code in [200, 201, 204]:
             print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공")
         else:
-            print(f"❌ [{table_name}] 실패 ({resp.status_code}): {resp.text[:150]}")
+            print(f"❌ [{table_name}] 저장 실패 ({resp.status_code})")
+            if resp.status_code == 405:
+                 print("   💡 [힌트] Supabase RLS 정책 또는 Key 권한을 확인하세요.")
     except Exception as e:
         print(f"❌ [{table_name}] 통신 에러: {e}")
 
 # ==========================================
-# [3] 데이터 수집 및 상태 분석 로직
+# [3] 데이터 수집 및 상태 분석 로직 (핵심 수정됨)
 # ==========================================
 
 def get_target_stocks():
@@ -107,42 +110,75 @@ def get_target_stocks():
             res = requests.get(url, timeout=10).json()
             if res.get('ipoCalendar'): all_data.extend(res['ipoCalendar'])
         except: continue
+        
     if not all_data: return pd.DataFrame()
     df = pd.DataFrame(all_data).dropna(subset=['symbol'])
     df['symbol'] = df['symbol'].astype(str).str.strip()
     return df.drop_duplicates(subset=['symbol'])
 
 def update_all_prices_batch(df_target):
-    print("\n💰 [정밀 상태 분석] 주가 수집 및 상장 상태 분류 시작...")
-    tickers = df_target['symbol'].tolist()
+    print("\n💰 [정밀 상태 분석] 주가 수집 및 상장 상태(취소/폐지) 분류 시작...")
+    
     now_iso = datetime.now().isoformat()
+    today = datetime.now().date()
     upsert_list = []
 
-    for t in tickers:
-        status, clean_price = "Active", 0.0
+    # 데이터프레임을 순회하며 IPO 날짜 정보도 함께 사용
+    for idx, row in df_target.iterrows():
+        t = str(row['symbol'])
+        ipo_date_str = str(row.get('date', ''))
+        
+        status = "Active"
+        clean_price = 0.0
+        
         try:
             stock = yf.Ticker(t)
-            info = stock.info
-            hist = stock.history(period="1d")
+            
+            # 최근 1달 데이터 조회 (거래가 끊겼는지 확인하기 위함)
+            hist = stock.history(period="1mo")
+            
             if not hist.empty:
+                # [CASE 1] 데이터가 존재하는 경우 -> Active or 상장폐지
+                last_trade_date = hist.index[-1].date()
                 clean_price = float(round(hist['Close'].iloc[-1], 4))
-                status = "Active"
+                
+                # 마지막 거래일이 10일 이상 지났으면 '상장폐지'로 간주
+                days_diff = (today - last_trade_date).days
+                if days_diff > 14:
+                    status = "상장폐지"  # (Delisted) 데이터는 있는데 멈춤
+                else:
+                    status = "Active"    # (Active) 정상 거래 중
             else:
-                status = "상장연기" if info and 'symbol' in info else "상장폐지"
-        except Exception as e:
-            err_msg = str(e).lower()
-            status = "상장폐지" if any(x in err_msg for x in ["not found", "delisted", "no data"]) else "상장연기"
+                # [CASE 2] 데이터가 아예 없는 경우 -> 상장취소 or 상장예정
+                try:
+                    ipo_date = datetime.strptime(ipo_date_str, "%Y-%m-%d").date()
+                    if ipo_date > today:
+                        status = "상장예정" # (Upcoming) 아직 날짜 안 됨
+                    else:
+                        status = "상장취소" # (Withdrawn) 날짜 지났는데 데이터 없음
+                except:
+                    # 날짜 파싱 실패 시, 데이터 없으면 그냥 상장취소로 처리
+                    status = "상장취소" 
 
-        upsert_list.append({"ticker": str(t), "price": clean_price, "status": status, "updated_at": now_iso})
-        time.sleep(0.05)
+        except Exception:
+            status = "상장폐지" # 그 외 알 수 없는 에러
+
+        upsert_list.append({
+            "ticker": t, 
+            "price": clean_price, 
+            "status": status, 
+            "updated_at": now_iso
+        })
+        
+        if idx > 0 and idx % 50 == 0:
+            print(f"   ... {idx}개 종목 처리 완료")
 
     batch_upsert("price_cache", upsert_list, on_conflict="ticker")
 
 # ==========================================
-# [4] AI 분석 함수들 (프롬프트 100% 복원 버전)
+# [4] AI 분석 함수들 (동일 유지)
 # ==========================================
 
-# (Tab 0) 주요 공시 분석
 def run_tab0_analysis(ticker, company_name):
     if not model: return
     for topic in ["S-1", "424B4"]:
@@ -167,12 +203,12 @@ def run_tab0_analysis(ticker, company_name):
             batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
         except: pass
 
-# (Tab 1) 비즈니스 & 뉴스 분석
 def run_tab1_analysis(ticker, company_name):
     if not model: return False
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     cache_key = f"{ticker}_Tab1"
+    
     prompt = f"""
     당신은 한국 최고의 증권사 시니어 애널리스트입니다. 분석 대상: {company_name} ({ticker}) 오늘 날짜: {current_date}
     [작업 1: 비즈니스 모델 심층 분석]
@@ -184,18 +220,22 @@ def run_tab1_analysis(ticker, company_name):
     try:
         response = model.generate_content(prompt)
         full_text = response.text
+        
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
         html_output = "".join([f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+        
         news_list = []
         if "<JSON_START>" in full_text:
-            try: news_list = json.loads(full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()).get("news", [])
+            try: 
+                json_part = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
+                news_list = json.loads(json_part).get("news", [])
             except: pass
+            
         batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
         return True
     except: return False
 
-# (Tab 3) 재무 분석 AI
 def run_tab3_analysis(ticker, company_name, metrics):
     if not model: return False
     cache_key = f"{ticker}_Financial_Report_Tab3"
@@ -206,7 +246,6 @@ def run_tab3_analysis(ticker, company_name, metrics):
         return True
     except: return False
 
-# (Tab 4) 기관 평가 AI
 def run_tab4_analysis(ticker, company_name):
     if not model: return False
     cache_key = f"{ticker}_Tab4"
@@ -219,7 +258,6 @@ def run_tab4_analysis(ticker, company_name):
             return True
     except: return False
 
-# (Tab 2) 거시 지표 업데이트
 def update_macro_data(df):
     if not model: return
     print("🌍 거시 지표(Tab 2) 업데이트 중...")
@@ -238,28 +276,32 @@ def update_macro_data(df):
 def main():
     print(f"🚀 Worker Start: {datetime.now()}")
     df = get_target_stocks()
-    if df.empty: return
+    if df.empty: 
+        print("⚠️ 수집된 IPO 종목이 없습니다.")
+        return
 
-    # 1. 추적 명단 저장 (on_conflict="symbol" 필수)
+    # 1. 추적 명단 저장
     stock_list = [{"symbol": str(row['symbol']), "name": str(row['name']) if pd.notna(row['name']) else "Unknown", "updated_at": datetime.now().isoformat()} for _, row in df.iterrows()]
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
 
-    # 2. 주가 및 상태 업데이트 (on_conflict="ticker")
+    # 2. 주가 및 상태 업데이트 (수정된 로직 적용됨)
     update_all_prices_batch(df)
 
-    # 3. 거시 지표 업데이트
+    # 3. 거시 지표
     update_macro_data(df)
     
-    # 4. 개별 종목 AI 분석 루프
+    # 4. AI 분석 (기존 유지)
     total = len(df)
     for idx, row in df.iterrows():
         symbol, name, listing_date = row.get('symbol'), row.get('name'), row.get('date')
+        
         is_old = False
         try:
             if (datetime.now() - datetime.strptime(str(listing_date), "%Y-%m-%d")).days > 365: is_old = True
         except: pass
         
         is_full_update = (datetime.now().weekday() == 0 or not is_old)
+        
         print(f"[{idx+1}/{total}] {symbol} 분석 중...", flush=True)
         
         try:
@@ -272,7 +314,9 @@ def main():
                     run_tab3_analysis(symbol, name, {"pe": tk.info.get('forwardPE', 0)})
                 except: pass
             time.sleep(1.5)
-        except: continue
+        except Exception as e:
+            print(f"⚠️ {symbol} 분석 건너뜀: {e}")
+            continue
             
     print("🏁 모든 작업 종료.")
 
