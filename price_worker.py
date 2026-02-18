@@ -16,39 +16,34 @@ else:
     print("❌ Supabase 환경변수 누락")
     exit()
 
-# 2. 미국 시장 운영 시간 체크 함수 (핵심 로직)
+# 2. 미국 시장 운영 시간 체크 함수 (수정됨: 무조건 실행)
 def is_market_open():
     """
-    현재 시간이 미국 주식 시장 운영 시간(Pre/Regular/After 포함 넉넉하게)인지 확인
-    범위: 미국 동부시간(ET) 기준 04:00 ~ 20:00 (Pre-market ~ After-market 전체 커버)
-    또는 정규장만 원한다면 09:30 ~ 16:00 으로 설정 가능
-    여기서는 데이터 변화가 있는 '09:00 ~ 17:00' 정도로 넉넉히 설정하여 안전하게 수집
+    현재 시간이 미국 주식 시장 운영 시간인지 확인하는 함수였으나,
+    초기 데이터 구축을 위해 '무조건 True'를 반환하도록 수정됨.
     """
     utc_now = datetime.now(pytz.utc)
     # 미국 동부 시간으로 변환
     est_tz = pytz.timezone('US/Eastern')
     est_now = utc_now.astimezone(est_tz)
-    
-    # 1) 주말 체크 (토=5, 일=6)
-    if est_now.weekday() >= 5:
-        print(f"😴 오늘은 주말({est_now.strftime('%A')})입니다. 수집을 건너뜁니다.")
-        return False
-
-    # 2) 시간 체크 (09:00 ~ 17:00 ET)
-    # 장 시작 전후의 변동성도 일부 캐싱하기 위해 앞뒤로 조금 여유를 둡니다.
-    market_start = time(9, 0) 
-    market_end = time(17, 0)
     current_time = est_now.time()
+    
+    # 1) 주말 체크 로직 (주석 처리됨 - 강제 실행을 위해)
+    # if est_now.weekday() >= 5:
+    #     print(f"😴 오늘은 주말({est_now.strftime('%A')})입니다. 수집을 건너뜁니다.")
+    #     return False
 
-    # ▼▼▼▼▼ [수정] 시간 체크 무력화 (주석 처리) ▼▼▼▼▼
+    # 2) 시간 체크 로직 (주석 처리됨 - 강제 실행을 위해)
+    # market_start = time(9, 0) 
+    # market_end = time(17, 0)
     # if market_start <= current_time <= market_end:
     #     return True
     # else:
     #     print(f"😴 장 운영 시간이 아닙니다. (현재 ET: {current_time.strftime('%H:%M')})")
     #     return False
     
-    # ▼▼▼▼▼ [추가] 무조건 실행! ▼▼▼▼▼
-    print(f"🚀 [강제 실행] 장 운영 시간 무관하게 주가 수집을 시작합니다. (현재 ET: {current_time.strftime('%H:%M')})")
+    # ▼▼▼▼▼ [강제 실행 모드] ▼▼▼▼▼
+    print(f"🚀 [강제 실행] 장 운영 시간/요일 무관하게 주가 수집을 시작합니다. (현재 ET: {current_time.strftime('%H:%M')})")
     return True
 
 # 3. 타겟 종목 리스트 가져오기 (DB 또는 Finnhub)
@@ -66,11 +61,11 @@ def get_target_tickers():
 
 # 4. 메인 실행 로직
 def fetch_and_update_prices():
-    # [Step 1] 시장 시간 체크
+    # [Step 1] 시장 시간 체크 (무조건 통과됨)
     if not is_market_open():
-        return # 장 닫혔으면 여기서 즉시 종료 (자원 절약)
+        return 
 
-    print("🚀 실시간 주가 수집 시작 (15분 주기)...")
+    print("🚀 실시간 주가 수집 시작 (Batch Mode)...")
     
     # [Step 2] 대상 종목 가져오기
     tickers = get_target_tickers()
@@ -79,21 +74,19 @@ def fetch_and_update_prices():
         return
 
     # [Step 3] yfinance Batch Download (한방에 가져오기)
-    # 100개 종목도 1초면 가져옵니다.
     tickers_str = " ".join(tickers)
-    print(f"대상 종목: {len(tickers)}개")
+    print(f"대상 종목: {len(tickers)}개 -> 다운로드 시작")
     
     try:
-        # period='1d'만 해도 최신가는 나옵니다.
+        # period='1d'로 최신 종가 수집
         data = yf.download(tickers_str, period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
         
-        # [Step 4] DB 업데이트
+        # [Step 4] DB 업데이트 데이터 준비
         upsert_list = []
         
-        # --- 여기를 수정하세요 ---
+        # 한국 시간 기준 타임스탬프 생성
         kst = pytz.timezone('Asia/Seoul')
         now_iso = datetime.now(kst).isoformat() 
-        # -----------------------
         
         for symbol in tickers:
             try:
@@ -118,8 +111,12 @@ def fetch_and_update_prices():
         
         # [Step 5] Supabase에 한 번에 저장 (Batch Insert)
         if upsert_list:
-            supabase.table("price_cache").upsert(upsert_list).execute()
-            print(f"✅ {len(upsert_list)}개 종목 가격 업데이트 완료!")
+            # 1000개씩 끊어서 업로드 (안전장치)
+            chunk_size = 1000
+            for i in range(0, len(upsert_list), chunk_size):
+                chunk = upsert_list[i:i+chunk_size]
+                supabase.table("price_cache").upsert(chunk).execute()
+                print(f"✅ {len(chunk)}개 종목 가격 업데이트 완료! (Chunk {i//chunk_size + 1})")
             
     except Exception as e:
         print(f"❌ Batch Update Failed: {e}")
