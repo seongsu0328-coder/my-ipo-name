@@ -84,6 +84,7 @@ from googleapiclient.http import MediaIoBaseUpload
 # --- [AI 라이브러리] ---
 import google.generativeai as genai
 from google.generativeai import protos  
+from openai import OpenAI
 
 # ==========================================
 # [설정] 전역 변수
