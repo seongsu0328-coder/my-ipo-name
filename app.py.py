@@ -275,7 +275,6 @@ def get_last_cache_update_time():
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
 # ---------------------------------------------------------
-# ---------------------------------------------------------
 @st.cache_resource
 def configure_genai():
     genai_key = st.secrets.get("GENAI_API_KEY")
@@ -283,14 +282,13 @@ def configure_genai():
         genai.configure(api_key=genai_key)
         
         try:
-            # [핵심 수정] 2026년 표준인 2.0 모델로 상향 조정
-            # model_name을 명시적으로 선언하여 경로 인식 오류(404)를 방지합니다.
+            # [수정] worker.py와 동일한 구글 검색 도구 설정 적용
             return genai.GenerativeModel(
                 model_name='gemini-2.0-flash', 
-                tools='google_search'
+                tools=[{'google_search_retrieval': {}}] 
             )
         except Exception as e:
-            # 만약 구글 검색 도구 설정에 문제가 생길 경우를 대비한 비상용(Fallback)
+            # 설정 오류 시 검색 없이 기본 모델 반환
             print(f"Tool Config Error: {e}")
             return genai.GenerativeModel(model_name='gemini-2.0-flash')
             
@@ -302,7 +300,7 @@ model = configure_genai()
 # [1] 통합 분석 함수 (Tab 1 & Tab 4 대체용) - 프롬프트 강화판
 # ---------------------------------------------------------
 
-# (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (기존 고품질 프롬프트 복원)
+# (A) Tab 1용: 비즈니스 요약(고품질 유지) + 뉴스 통합(날짜 필터링 적용)
 @st.cache_data(show_spinner=False, ttl=600)
 def get_unified_tab1_analysis(company_name, ticker):
     if not model: return "AI 모델 설정 오류", []
@@ -325,10 +323,17 @@ def get_unified_tab1_analysis(company_name, ticker):
     except Exception as e:
         print(f"Tab1 DB Error: {e}")
 
-    # [Step 2] 캐시 없으면 기존 고품질 프롬프트로 분석 실행
+    # [Step 2] 캐시 없으면 AI 분석 실행
+    
+    # [날짜 계산 로직 추가]
+    current_date = now.strftime("%Y-%m-%d")
+    one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+
+    # [프롬프트 합체] 기존 고품질 비즈니스 프롬프트 + 신규 뉴스 필터링 프롬프트
     prompt = f"""
     당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
     분석 대상: {company_name} ({ticker})
+    오늘 날짜: {current_date}
 
     [작업 1: 비즈니스 모델 심층 분석]
     아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
@@ -344,18 +349,20 @@ def get_unified_tab1_analysis(company_name, ticker):
        인사말이나 도입부 문구를 절대 포함하지 말고, 바로 본론(1문단 내용)부터 시작하세요.
 
     [작업 2: 최신 뉴스 수집]
-    - Google 검색을 통해 이 기업의 가장 최근 주요 뉴스 5개를 선정하세요.
+    - **반드시 구글 검색(Google Search)을 실행**하여 최신 정보를 확인하세요.
+    - {current_date} 기준, 최근 3개월 이내의 뉴스 위주로 5개를 선정하세요.
     - 검색 시 {company_name}의 업종과 관련 없는 동명의 기업 뉴스는 철저히 배제하세요.
+    - **경고: {one_year_ago} 이전의 오래된 뉴스는 절대 포함하지 마세요.**
     - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. (절대 본문에 섞지 마세요)
     
-    형식: <JSON_START> {{ "news": [ {{ "title_en": "...", "title_ko": "...", "link": "...", "sentiment": "긍정/부정/일반", "date": "..." }} ] }} <JSON_END>
+    형식: <JSON_START> {{ "news": [ {{ "title_en": "...", "title_ko": "...", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
     """
 
     try:
         response = model.generate_content(prompt)
         full_text = response.text
 
-        # 기존 로직: 텍스트 추출 및 HTML 포맷팅
+        # [기존 로직 유지] 텍스트 추출 및 HTML 포맷팅 (스타일 유지)
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
         biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
@@ -364,7 +371,7 @@ def get_unified_tab1_analysis(company_name, ticker):
         for p in paragraphs:
             html_output += f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>'
 
-        # 기존 로직: 뉴스 파싱
+        # [기존 로직 유지] 뉴스 JSON 파싱
         news_list = []
         if "<JSON_START>" in full_text:
             try:
@@ -384,6 +391,7 @@ def get_unified_tab1_analysis(company_name, ticker):
         }).execute()
 
         return html_output, news_list
+        
     except Exception as e:
         return f"<p style='color:red;'>시스템 오류: {str(e)}</p>", []
 
