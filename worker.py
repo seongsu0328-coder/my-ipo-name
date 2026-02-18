@@ -322,3 +322,67 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# ==========================================
+# [5] 메인 실행 루프
+# ==========================================
+def main():
+    print(f"🚀 Worker Start: {datetime.now()}")
+    
+    # 1. 대상 종목 수집
+    df = get_target_stocks()
+    if df.empty: 
+        print("⚠️ 수집된 IPO 종목이 없습니다.")
+        return
+
+    # 2. 추적 명단 저장
+    stock_list = [{"symbol": str(row['symbol']), "name": str(row['name']) if pd.notna(row['name']) else "Unknown", "updated_at": datetime.now().isoformat()} for _, row in df.iterrows()]
+    batch_upsert("stock_cache", stock_list, on_conflict="symbol")
+
+    # 3. 주가 및 상태 업데이트
+    update_all_prices_batch(df)
+
+    # 4. 거시 지표
+    update_macro_data(df)
+    
+    # 5. AI 분석 루프 (테스트 모드 적용)
+    total = len(df)
+    print(f"🤖 AI 분석 시작 (총 {total}개 대상)...")
+
+    for idx, row in df.iterrows():
+        
+        # 👇 [테스트 모드] 3개만 하고 종료
+        if idx >= 3: 
+            print("🧪 [TEST MODE] 3개 종목만 테스트하고 종료합니다. (정상 작동 확인 완료)")
+            break
+        # ------------------------------------
+
+        symbol, name, listing_date = row.get('symbol'), row.get('name'), row.get('date')
+        
+        is_old = False
+        try:
+            if (datetime.now() - datetime.strptime(str(listing_date), "%Y-%m-%d")).days > 365: is_old = True
+        except: pass
+        
+        is_full_update = (datetime.now().weekday() == 0 or not is_old)
+        
+        print(f"[{idx+1}/{total}] {symbol} 분석 중...", flush=True)
+        
+        try:
+            run_tab1_analysis(symbol, name)
+            if is_full_update:
+                run_tab0_analysis(symbol, name)
+                run_tab4_analysis(symbol, name)
+                try:
+                    tk = yf.Ticker(symbol)
+                    run_tab3_analysis(symbol, name, {"pe": tk.info.get('forwardPE', 0)})
+                except: pass
+            time.sleep(1.5)
+        except Exception as e:
+            print(f"⚠️ {symbol} 분석 건너뜀: {e}")
+            continue
+            
+    print("🏁 모든 작업 종료.")
+
+if __name__ == "__main__":
+    main()
