@@ -2614,8 +2614,8 @@ elif st.session_state.page == 'detail':
                 fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
             except: pass
 
-        # 1. 여기서부터 (가격과 상태를 동시에 받아옴)
-        current_p, current_s = get_current_stock_price(symbol, MY_API_KEY)
+        # 'symbol' 대신 'stock['symbol']'을 직접 넣어서 호출합니다.
+        current_p, current_s = get_current_stock_price(stock['symbol'], MY_API_KEY)
 
         # 2. 헤더 출력 로직 (상태값에 따른 분기 처리)
         if current_s == "상장연기":
