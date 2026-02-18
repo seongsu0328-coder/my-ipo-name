@@ -1,23 +1,15 @@
 name: UnicornFinder Daily Worker
 
 on:
-  # -----------------------------------------------------------
-  # [추가됨] 코드가 저장(Push)될 때마다 즉시 실행!
-  # -----------------------------------------------------------
+  # 코드가 저장(Push)될 때마다 즉시 실행
   push:
     branches: [ "main" ] 
-    # 주의: 만약 좌측 상단 브랜치 이름이 'master'라면 위를 'master'로 고치세요.
 
+  # 매일 한국 시간 오전 6시 실행 (UTC 21:00)
   schedule:
-    # -----------------------------------------------------------
-    # [시간 설정 핵심]
-    # KST(한국)는 UTC(세계표준시)보다 9시간 빠릅니다.
-    # 한국 오전 06:00 = UTC 전날 오후 21:00
-    # 따라서 cron 식은 '0 21 * * *' 입니다.
-    # -----------------------------------------------------------
     - cron: '0 21 * * *'
   
-  # 수동으로도 버튼 눌러서 실행할 수 있게 함 (테스트용)
+  # 수동 실행 버튼 활성화
   workflow_dispatch:
 
 jobs:
@@ -35,11 +27,13 @@ jobs:
 
       - name: 필수 라이브러리 설치
         run: |
-          pip install requests pandas numpy yfinance supabase google-generativeai
+          # streamlit을 추가하여 worker.py의 st.secrets를 사용할 수 있게 합니다.
+          pip install streamlit requests pandas numpy yfinance supabase google-generativeai
 
       - name: 데이터 수집기(Worker) 실행
         env:
-          # GitHub Settings -> Secrets에 등록된 키들을 불러옵니다.
+          # 스트림릿은 환경 변수가 SECTION_KEY 형식이면 st.secrets["section"]["key"]로 자동 매핑합니다.
+          # 예: SUPABASE_URL -> st.secrets["supabase"]["url"]
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GENAI_API_KEY: ${{ secrets.GENAI_API_KEY }}
