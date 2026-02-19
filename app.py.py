@@ -4015,10 +4015,11 @@ elif st.session_state.page == 'detail':
             # 4. 종목 토론방 (글쓰기 상단 + HOT/최신 정렬 + 페이징 적용)
             # ---------------------------------------------------------
             st.write("---")
-            st.subheader(f"{sid} 토론방")
+            # [수정] st.subheader 대신 커스텀 폰트 적용 (1.1rem, 굵게)
+            st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{sid} 토론방</div>", unsafe_allow_html=True)
             
             # [1] 글쓰기 섹션을 리스트 최상단으로 배치
-            with st.expander("글쓰기"):
+            with st.expander("✏️ 글쓰기"):
                 if st.session_state.get('auth_status') == 'user':
                     if check_permission('write'):
                         with st.form(key=f"write_{sid}_form", clear_on_submit=True):
@@ -4041,7 +4042,7 @@ elif st.session_state.page == 'detail':
                 else:
                     st.warning("🔒 로그인 후 이용 가능합니다.")
             
-            
+            st.write("<br>", unsafe_allow_html=True)
             
             # [2] DB에서 해당 종목(sid) 관련 글 넉넉히 로드
             sid_posts = db_load_posts(limit=100, category=sid)
@@ -4088,8 +4089,9 @@ elif st.session_state.page == 'detail':
                     likes = p.get('likes') or 0
                     dislikes = p.get('dislikes') or 0
                     
-                    prefix = "[HOT]" if is_hot else ""
-                    title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"
+                    prefix = "🔥 [HOT]" if is_hot else ""
+                    # [수정] 괄호 안의 텍스트도 영어 스타일로 변경
+                    title_disp = f"{prefix} {p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes}  👎 {dislikes})"
                     
                     with st.expander(title_disp.strip()):
                         st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
@@ -4098,14 +4100,16 @@ elif st.session_state.page == 'detail':
                         action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
                         
                         with action_c1:
-                            if st.button(f"👍 추천 {likes}", key=f"like_sid_{p_id}", use_container_width=True):
+                            # [수정] Like 텍스트 적용
+                            if st.button(f"👍 Like {likes}", key=f"like_sid_{p_id}", use_container_width=True):
                                 if st.session_state.get('auth_status') == 'user':
                                     db_toggle_post_reaction(p_id, user_id, 'like')
                                     st.rerun()
                                 else: st.toast("🔒 로그인 후 이용 가능합니다.")
                                     
                         with action_c2:
-                            if st.button(f"👎 비추천 {dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
+                            # [수정] Dislike 텍스트 적용
+                            if st.button(f"👎 Dislike {dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
                                 if st.session_state.get('auth_status') == 'user':
                                     db_toggle_post_reaction(p_id, user_id, 'dislike')
                                     st.rerun()
@@ -4126,13 +4130,15 @@ elif st.session_state.page == 'detail':
 
                 # (A) 상단: HOT 게시물 출력
                 if top_5_hot:
-                    st.markdown("## 인기글")
+                    # [수정] 커스텀 폰트 적용 (1.1rem, 굵게)
+                    st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>🔥 인기글</div>", unsafe_allow_html=True)
                     for p in top_5_hot:
                         render_detail_post(p, is_hot=True)
-                    
+                    st.write("<br><br>", unsafe_allow_html=True)
 
                 # (B) 하단: 최신 게시물 출력
-                st.markdown("## 최신글")
+                # [수정] 커스텀 폰트 적용 (1.1rem, 굵게)
+                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>🕒 최신글</div>", unsafe_allow_html=True)
                 if current_display:
                     for p in current_display:
                         render_detail_post(p, is_hot=False)
@@ -4142,12 +4148,11 @@ elif st.session_state.page == 'detail':
                 # (C) 더 보기 버튼
                 if len(normal_posts) > st.session_state[page_key]:
                     st.write("<br>", unsafe_allow_html=True)
-                    if st.button("더 보기", key=f"more_{sid}", use_container_width=True):
+                    if st.button("🔽 더 보기", key=f"more_{sid}", use_container_width=True):
                         st.session_state[page_key] += 10
                         st.rerun()
             else:
                 st.info("첫 의견을 남겨보세요!")
-
 # ---------------------------------------------------------
 # [NEW] 6. 게시판 페이지 (Board)
 # ---------------------------------------------------------
@@ -4200,12 +4205,12 @@ elif st.session_state.page == 'board':
     # 2-1. 최상단에 검색과 글쓰기를 좌우로 배치
     f_col1, f_col2 = st.columns(2)
     with f_col1:
-        with st.expander("검색하기"):
+        with st.expander("🔍 검색하기"):
             s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="b_s_type")
             s_keyword = st.text_input("키워드", key="b_s_keyword")
     
     with f_col2:
-        with st.expander("글쓰기"):
+        with st.expander("✏️ 글쓰기"):
             if is_logged_in and check_permission('write'):
                 with st.form(key="board_main_form", clear_on_submit=True):
                     b_cat = st.text_input("종목/말머리", placeholder="자유")
@@ -4226,6 +4231,7 @@ elif st.session_state.page == 'board':
             else:
                 st.warning("🔒 로그인 및 권한 인증이 필요합니다.")
 
+    st.write("<br>", unsafe_allow_html=True) # 상단 컨트롤과 리스트 사이 여백
 
     # [3] 검색 필터링 적용
     posts = all_posts
@@ -4278,21 +4284,25 @@ elif st.session_state.page == 'board':
             likes = p.get('likes') or 0
             dislikes = p.get('dislikes') or 0
             
-            prefix = "[HOT]" if is_hot else f"[{p_cat}]"
+            prefix = "🔥 [HOT]" if is_hot else f"[{p_cat}]"
+            # [수정] 괄호 안의 텍스트도 영어 스타일로 변경
+            title_disp = f"{prefix} {p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes}  👎 {dislikes})"
             
-            with st.expander(f"{prefix} {p.get('title')} | {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"):
+            with st.expander(title_disp.strip()):
                 st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                 st.write("<br>", unsafe_allow_html=True)
                 
                 action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
                 with action_c1:
-                    if st.button(f"👍 추천 {likes}", key=f"l_{p_id}", use_container_width=True):
+                    # [수정] Like 텍스트 적용
+                    if st.button(f"👍 Like {likes}", key=f"l_{p_id}", use_container_width=True):
                         if is_logged_in:
                             db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'like')
                             st.rerun()
                         else: st.toast("🔒 로그인이 필요합니다.")
                 with action_c2:
-                    if st.button(f"👎 비추천 {dislikes}", key=f"d_{p_id}", use_container_width=True):
+                    # [수정] Dislike 텍스트 적용
+                    if st.button(f"👎 Dislike {dislikes}", key=f"d_{p_id}", use_container_width=True):
                         if is_logged_in:
                             db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'dislike')
                             st.rerun()
@@ -4312,12 +4322,14 @@ elif st.session_state.page == 'board':
         # [5] 리스트 UI 렌더링
         with st.container():
             if top_5_hot:
-                st.markdown("## 인기글")
+                # [수정] 커스텀 폰트 적용 (1.1rem, 굵게)
+                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>🔥 인기글</div>", unsafe_allow_html=True)
                 for p in top_5_hot:
                     render_post(p, is_hot=True)
-                
+                st.write("<br><br>", unsafe_allow_html=True)
 
-            st.markdown("## 최신글")
+            # [수정] 커스텀 폰트 적용 (1.1rem, 굵게)
+            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>🕒 최신글</div>", unsafe_allow_html=True)
             if current_display:
                 for p in current_display:
                     render_post(p, is_hot=False)
@@ -4326,7 +4338,7 @@ elif st.session_state.page == 'board':
                 
             if len(normal_posts) > st.session_state.board_display_count:
                 st.write("<br>", unsafe_allow_html=True)
-                if st.button("보기", use_container_width=True):
+                if st.button("🔽 더 보기", use_container_width=True):
                     st.session_state.board_display_count += 10
                     st.rerun()
                     
