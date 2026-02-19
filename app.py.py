@@ -4137,8 +4137,15 @@ elif st.session_state.page == 'board':
                         st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                     
                     with c2:
-                        # [수정] 로그아웃 상태에서도 에러가 나지 않도록 방어 코드 적용
-                        u_info = st.session_state.get('user_info') or {}
+                        # 🚨 [초강력 방어 코드 적용 - Board 게시판]
+                        raw_u_info = st.session_state.get('user_info')
+                        
+                        # 딕셔너리일 때만 값을 빼오고, 아니면 빈 주머니로 만들기
+                        if isinstance(raw_u_info, dict):
+                            u_info = raw_u_info
+                        else:
+                            u_info = {}
+                            
                         is_admin = u_info.get('role') == 'admin'
                         
                         # 로그인 중이면서 (본인 글이거나 관리자일 때) 삭제 버튼 노출
@@ -4146,6 +4153,7 @@ elif st.session_state.page == 'board':
                             if st.button("삭제", key=f"del_brd_{p_id}", type="secondary", use_container_width=True):
                                 if db_delete_post(p_id): # 실제 DB 삭제 함수 실행
                                     st.success("삭제됨")
+                                    import time
                                     time.sleep(0.5)
                                     st.rerun()
                     
