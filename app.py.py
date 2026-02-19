@@ -2475,7 +2475,14 @@ if st.session_state.page == 'calendar':
                 -9999
             )
 
-        # ... (정렬 로직은 기존과 동일하므로 생략) ...
+        # 5. 정렬 최종 적용 (기존 로직 유지)
+        if view_mode != 'watchlist': 
+            if sort_option == "최신순":
+                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+            elif sort_option == "수익률":
+                display_df = display_df.sort_values(by='temp_return', ascending=False)
+        else:
+            display_df = display_df.sort_values(by='공모일_dt', ascending=False)
 
         # ----------------------------------------------------------------
         # [핵심] 리스트 레이아웃 (7 : 3 비율) - 상태값(Status) 반영 버전
