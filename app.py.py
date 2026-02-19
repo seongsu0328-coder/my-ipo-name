@@ -2480,20 +2480,39 @@ with main_container.container():
                     -9999
                 )
     
-                # [수정] 5. 정렬 최종 적용 (구조 통합)
-                # 먼저 컬럼의 타입을 확실히 float으로 강제 변환합니다.
+                # ----------------------------------------------------------------
+                # 🚀 [수익률 정렬 완벽 해결본] 
+                # ----------------------------------------------------------------
+                # 1. 공모가 변환 강화 (콤마 및 공백 완벽 제거)
+                def parse_price(x):
+                    try: 
+                        return float(str(x).replace('$', '').replace(',', '').strip().split('-')[0])
+                    except: 
+                        return 0.0
+    
+                p_ipo_series = display_df['price'].apply(parse_price)
+                
+                # 2. 상태값(Active) 검증 강화 (대소문자 무시, 공백 제거)
+                live_status_clean = display_df['live_status'].astype(str).str.strip().str.lower()
+                
+                # 3. 수익률 계산
+                display_df['temp_return'] = np.where(
+                    (p_ipo_series > 0) & (display_df['live_price'] > 0) & (live_status_clean == "active"),
+                    ((display_df['live_price'] - p_ipo_series) / p_ipo_series) * 100.0,
+                    -9999.0
+                )
+    
+                # 4. 타입을 확실한 숫자(Float)로 고정
                 display_df['temp_return'] = pd.to_numeric(display_df['temp_return'], errors='coerce').fillna(-9999.0)
-        
-                if sort_option == "수익률":
-                    # 수익률 정렬 (내림차순)
-                    # -9999인 데이터(Active가 아니거나 가격 없는 종목)를 마지막으로 보냅니다.
+    
+                # 5. 모드(전체/관심종목) 상관없이 안전하게 선택값 가져오기
+                current_sort = st.session_state.get('filter_sort', '최신순')
+    
+                if current_sort == "수익률":
+                    # -9999인 데이터(Active가 아니거나 가격 없는 종목)는 맨 아래로 밀림
                     display_df = display_df.sort_values(by='temp_return', ascending=False)
                 else:
-                    # 기본값: 최신순 정렬
                     display_df = display_df.sort_values(by='공모일_dt', ascending=False)
-        
-                # 만약 watchlist 모드에서만 추가적인 정렬 규칙이 필요하다면 여기에 별도로 작성 가능하지만, 
-                # 위 로직만으로도 '관심종목' 페이지 내에서의 수익률 정렬이 가능해집니다.
     
             # ----------------------------------------------------------------
             # [핵심] 리스트 레이아웃 (7 : 3 비율) - 상태값(Status) 반영 버전
