@@ -1995,7 +1995,7 @@ elif st.session_state.page == 'setup':
         # 모바일 화면 균형을 위해 1:1 비율로 컬럼 생성
         col_save, col_logout = st.columns(2)
 
-        # 1. 저장하고 시작하기 (왼쪽) - [수정됨] 닉네임 동기화 로직 추가
+        # 1. 저장하고 시작하기 (왼쪽)
         with col_save:
             if st.button("저장하고 시작하기", type="primary", use_container_width=True):
                 with st.spinner("설정 적용 중..."):
@@ -2003,18 +2003,15 @@ elif st.session_state.page == 'setup':
                     current_settings = [show_univ, show_job, show_asset]
                     vis_str = ",".join([str(v) for v in current_settings])
                     
-                    # [2] 활동 닉네임 생성 (미리보기와 동일한 로직 적용)
-                    # 위에서 계산된 final_nickname 변수를 그대로 사용하여 DB에 저장합니다.
-                    # (final_nickname은 '신경외과 *******' 처럼 생성되어 있습니다)
-                    
+                    # [2] 활동 데이터 패키징 (nickname 열을 안 만들기로 했으니 display_name에 올인)
                     update_data = {
                         "visibility": vis_str,
-                        "display_name": final_nickname  # <--- 핵심: 화면에 보이는 닉네임을 DB에 저장
+                        "display_name": final_nickname  # 예: "신경외과 *******"
                     }
                     
-                    # [3] DB 업데이트 실행 (기존 db_update_user_visibility 대신 통합 함수 사용)
+                    # [3] DB 업데이트 실행
                     if db_update_user_info(user.get('id'), update_data):
-                        # 세션 상태 즉시 갱신 (새로고침 없이 반영되도록)
+                        # 중요: 게시판 글쓰기 시 바로 반영되도록 세션 정보도 즉시 갱신
                         st.session_state.user_info['visibility'] = vis_str
                         st.session_state.user_info['display_name'] = final_nickname
                         
@@ -3952,42 +3949,29 @@ elif st.session_state.page == 'detail':
             st.write("---")
             st.subheader(f"{sid} 토론방")
             
-            # 교체할 코드 (한 줄로 끝!)
-            # DB에게 "이 종목(sid) 글만 줘"라고 직접 요청
+            # DB에서 이 종목(sid) 관련 글만 필터링해서 로드
             sid_posts = db_load_posts(limit=20, category=sid)
             
             if sid_posts:
-                for p in sid_posts[:10]: # 최신 10개만 표시
+                for p in sid_posts[:10]:
                     title = p.get('title', '').strip()
-                    clean_title = title # 상세페이지에서는 [종목코드] 생략 가능
-                    
-                    # 작성자 마스킹
                     auth_name = p.get('author_name', 'Unknown')
-                    
-                    # 날짜 포맷팅
                     try: date_str = p['created_at'].split('T')[0]
                     except: date_str = ""
                     
-                    header = f"{clean_title} | 👤 {auth_name} | {date_str}"
-                    
+                    header = f"{title} | 👤 {auth_name} | {date_str}"
                     with st.expander(header):
                         st.markdown(f"<div style='font-size:0.95rem;'>{p.get('content')}</div>", unsafe_allow_html=True)
                         st.caption(f"작성자: {auth_name}")
                         st.divider()
-                        
-                        # 좋아요/싫어요 기능은 DB 업데이트가 필요하므로 
-                        # 여기서는 단순 조회용으로만 표시하거나, 추후 db_update_reaction 함수와 연결 필요
-                        # (간소화를 위해 상세 액션 버튼은 생략하거나 '준비중' 처리)
                         st.caption("※ 추천/비추천 기능은 게시판 메인에서 가능합니다.")
-
             else:
                 st.info("아직 이 종목에 대한 의견이 없습니다. 첫 의견을 남겨보세요!")
 
-            # 5. 글쓰기 섹션 (DB 저장) - [수정됨: 닉네임 로직 통일]
+            # 5. 글쓰기 섹션 (종목 토론방 - 실시간 닉네임 동기화 적용)
             st.write("")
             with st.expander(f"📝 {sid} 의견 작성하기", expanded=False):
                 if st.session_state.get('auth_status') == 'user':
-                    # 권한 체크 (check_permission 함수 활용)
                     if check_permission('write'):
                         with st.form(key=f"write_{sid}_db", clear_on_submit=True):
                             new_title = st.text_input("제목")
@@ -3995,27 +3979,15 @@ elif st.session_state.page == 'detail':
                             
                             if st.form_submit_button("등록", type="primary", use_container_width=True):
                                 if new_title and new_content:
-                                    u_info = st.session_state.user_info
-                                    u_id = u_info.get('id')
-                                    
-                                    # [수정] 닉네임 설정 로직 강화 (메인 게시판과 동일하게 적용)
-                                    d_name = u_info.get('display_name')
-                                    
-                                    # 만약 세션에 닉네임이 없으면 DB에서 한 번 더 확인 (안전장치)
-                                    if not d_name:
-                                        try:
-                                            fresh_user = db_load_user(u_id)
-                                            d_name = fresh_user.get('display_name')
-                                            # 세션도 최신 정보로 업데이트
-                                            st.session_state.user_info = fresh_user
-                                        except:
-                                            pass
-                                    
-                                    # 그래도 없으면 기본값 사용
-                                    if not d_name:
+                                    u_id = st.session_state.user_info.get('id')
+                                    # 🚀 [핵심 수정] 저장 직전 DB에서 최신 닉네임 강제 조회
+                                    try:
+                                        fresh_user = db_load_user(u_id)
+                                        d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
+                                        st.session_state.user_info = fresh_user # 세션 동기화
+                                    except:
                                         d_name = f"{u_id[:3]}***"
                                     
-                                    # [핵심] DB에 저장 (카테고리는 종목코드(sid)로 고정)
                                     if db_save_post(sid, new_title, new_content, d_name, u_id):
                                         st.success("등록되었습니다!")
                                         time.sleep(0.5)
@@ -4028,198 +4000,6 @@ elif st.session_state.page == 'detail':
                         st.warning("🔒 글쓰기 권한이 없습니다. (서류 승인 필요)")
                 else:
                     st.warning("🔒 로그인 후 이용 가능합니다.")
-                
-# ---------------------------------------------------------
-# [NEW] 6. 게시판 페이지 (Board)
-# ---------------------------------------------------------
-elif st.session_state.page == 'board':
-    
-    # 1. 상단 메뉴바 (뒤로가기 버튼 로직 추가됨)
-    # ---------------------------------------------------------
-    st.markdown("""
-        <style>
-        div[data-testid="stPills"] div[role="radiogroup"] button {
-            border: none !important;
-            background-color: #000000 !important;
-            color: #ffffff !important;
-            border-radius: 20px !important;
-            padding: 6px 15px !important;
-            margin-right: 5px !important;
-            box-shadow: none !important;
-        }
-        div[data-testid="stPills"] button[aria-selected="true"] {
-            background-color: #444444 !important;
-            font-weight: 800 !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    is_logged_in = st.session_state.auth_status == 'user'
-    
-    # [기본 메뉴 정의]
-    login_text = "로그아웃" if is_logged_in else "로그인"
-    settings_text = "권한설정"
-    main_text = "메인"
-    watch_text = f"관심 ({len(st.session_state.watchlist)})"
-    board_text = "게시판"
-    
-    # -------------------------------------------------------
-    # [수정] 직전에 보던 종목이 있는지 확인 (버튼 표시 여부 결정용)
-    # -------------------------------------------------------
-    last_stock = st.session_state.get('selected_stock') 
-    back_text = "뒤로가기" # 버튼 명칭 고정
-    show_back_btn = last_stock is not None # 종목 정보가 있을 때만 버튼 활성화
-
-    # [수정] 메뉴 리스트 구성 (순서: 로그인 -> 권한 -> 메인 -> 관심 -> 게시판 -> 뒤로가기)
-    menu_options = [login_text]
-    
-    if is_logged_in:
-        menu_options.append(settings_text)
-        
-    menu_options.extend([main_text, watch_text, board_text])
-    
-    if show_back_btn: # 뒤로가기 버튼을 맨 마지막에 추가
-        menu_options.append(back_text)
-    # -------------------------------------------------------
-
-    selected_menu = st.pills(
-        label="nav_board", 
-        options=menu_options, 
-        selection_mode="single", 
-        default=board_text,  # 기본값 '게시판'
-        key="nav_pills_board_page", 
-        label_visibility="collapsed"
-    )
-
-    # 메뉴 이동 로직 처리
-    if selected_menu and selected_menu != board_text:
-        
-        # [핵심] 뒤로가기 버튼 클릭 시 Detail 페이지로 이동
-        if selected_menu == back_text:
-            st.session_state.page = 'detail'
-            st.session_state.core_topic = "S-1" # (선택사항) 탭 초기화
-            st.rerun()
-            
-        elif selected_menu == login_text:
-            if is_logged_in: st.session_state.auth_status = None
-            st.session_state.page = 'login'
-            st.rerun()
-            
-        elif selected_menu == settings_text:
-            st.session_state.page = 'setup'
-            st.rerun()
-            
-        elif selected_menu == main_text:
-            st.session_state.view_mode = 'all'
-            st.session_state.page = 'calendar'
-            st.rerun()
-            
-        elif selected_menu == watch_text:
-            st.session_state.view_mode = 'watchlist'
-            st.session_state.page = 'calendar'
-            st.rerun()
-
-    
-    # ---------------------------------------------------------
-    # 2. 게시판 메인 로직 (이하 기존 코드와 동일)
-    # ---------------------------------------------------------
-    
-    # [핵심 1] 출력 영역을 먼저 선언 (여기에 글 목록이 들어감)
-    post_list_area = st.container()
-    
-    # [핵심 2] 데이터 먼저 불러오기
-    all_posts = db_load_posts(limit=100)
-    
-    # [핵심 3] 하단 액션 바 (검색과 글쓰기 나란히 배치)
-    footer_col1, footer_col2 = st.columns(2)
-    
-    # --- 하단 1: 검색 기능 ---
-    with footer_col1:
-        with st.expander("🔍 검색하기", expanded=False):
-            # 변수명 충돌 방지를 위해 s_type, s_keyword 사용
-            s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="bottom_s_type")
-            s_keyword = st.text_input("키워드", placeholder="입력 후 엔터", key="bottom_s_keyword")
-    
-    # --- 하단 2: 새 글 작성 ---
-    with footer_col2:
-        with st.expander("✏️ 글쓰기", expanded=False):
-            if st.session_state.get('auth_status') == 'user':
-                if check_permission('write'):
-                    with st.form(key="bottom_write_form", clear_on_submit=True):
-                        category = st.text_input("종목/말머리", placeholder="자유")
-                        title = st.text_input("제목")
-                        content = st.text_area("내용", height=150)
-                        
-                        if st.form_submit_button("등록", type="primary", use_container_width=True):
-                            if title and content:
-                                u_info = st.session_state.user_info
-                                u_id = u_info.get('id')
-                                
-                                # [수정] 닉네임 설정 로직 강화 (DB 최신값 확인)
-                                d_name = u_info.get('display_name')
-                                
-                                # 만약 세션에 닉네임이 없으면 DB에서 한 번 더 확인 (안전장치)
-                                if not d_name:
-                                    try:
-                                        fresh_user = db_load_user(u_id)
-                                        d_name = fresh_user.get('display_name')
-                                        # 세션도 최신 정보로 업데이트
-                                        st.session_state.user_info = fresh_user
-                                    except:
-                                        pass
-                                
-                                # 그래도 없으면 기본값 사용 (하지만 이제 설정한 값이 있다면 위에서 잡힘)
-                                if not d_name:
-                                    d_name = f"{u_id[:3]}***"
-                                
-                                # DB에 저장
-                                if db_save_post(category, title, content, d_name, u_id):
-                                    st.success("등록 완료!")
-                                    st.rerun()
-                                else:
-                                    st.error("저장 중 오류가 발생했습니다.")
-                            else:
-                                st.error("제목과 내용을 모두 입력해주세요.")
-                else:
-                    st.warning("🔒 권한 없음")
-            else:
-                st.warning("🔒 로그인 필요")
-    
-    # ---------------------------------------------------------
-    # 📋 필터링 및 상단 영역 출력
-    # ---------------------------------------------------------
-    posts = all_posts 
-    
-    if s_keyword:
-        k = s_keyword.lower()
-        if s_type == "제목":
-            posts = [p for p in posts if k in p.get('title', '').lower()]
-        elif s_type == "제목+내용":
-            posts = [p for p in posts if k in p.get('title', '').lower() or k in p.get('content', '').lower()]
-        elif s_type == "카테고리":
-            posts = [p for p in posts if k in p.get('category', '').lower()]
-        elif s_type == "작성자":
-            posts = [p for p in posts if k in p.get('author_name', '').lower()]
-    
-    # [핵심 4] 확보해둔 상단 영역(post_list_area)에 필터링된 결과 뿌리기
-    with post_list_area:
-        if posts:
-            for p in posts:
-                try:
-                    date_str = p['created_at'].split('T')[0]
-                except:
-                    date_str = "Unknown"
-                    
-                with st.container(border=True):
-                    cat_badge = f"[{p.get('category', '자유')}]" if p.get('category') else "[자유]"
-                    st.markdown(f"**{cat_badge} {p.get('title')}**")
-                    st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
-                    st.caption(f"👤 {p.get('author_name')} | 📅 {date_str}")
-        else:
-            if s_keyword:
-                st.info(f"'{s_keyword}' 검색 결과가 없습니다.")
-            else:
-                st.info("게시글이 없습니다.")
         
                 #리아 지우와 제주도 다녀오다 사랑하다.아빠,엄마, 형. 삼월이. 마리. 가족. 친구. 일본. 노래. 영화. 맥주. 이런것들을 사랑한다. 
                  
