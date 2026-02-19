@@ -2662,6 +2662,7 @@ elif st.session_state.page == 'detail':
         # 데이터 로딩
         today = datetime.now().date()
         ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
+        status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
         date_str = ipo_dt.strftime('%Y-%m-%d')
 
         with st.spinner(f"🤖 {stock['name']} 분석 중..."):
@@ -2678,7 +2679,7 @@ elif st.session_state.page == 'detail':
 
         # 2. 헤더 출력 로직 (상태값에 따른 분기 처리)
         if current_s == "상장연기":
-            p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / 공모 ${off_val} / 상장연기/기타)</span>"
+            p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / 공모 ${off_val} / 📅 상장연기/기타)</span>"
         elif current_s == "상장폐지":
             p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 🚫 상장폐지)</span>"
         elif current_p > 0 and off_val > 0:
