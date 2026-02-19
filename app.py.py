@@ -1995,15 +1995,29 @@ elif st.session_state.page == 'setup':
         # 모바일 화면 균형을 위해 1:1 비율로 컬럼 생성
         col_save, col_logout = st.columns(2)
 
-        # 1. 저장하고 시작하기 (왼쪽)
+        # 1. 저장하고 시작하기 (왼쪽) - [수정됨] 닉네임 동기화 로직 추가
         with col_save:
             if st.button("저장하고 시작하기", type="primary", use_container_width=True):
                 with st.spinner("설정 적용 중..."):
+                    # [1] 공개 설정 문자열 생성
                     current_settings = [show_univ, show_job, show_asset]
+                    vis_str = ",".join([str(v) for v in current_settings])
                     
-                    # 수정: 새로 만든 db_ 함수 호출
-                    if db_update_user_visibility(user.get('id'), current_settings):
-                        st.session_state.user_info['visibility'] = ",".join([str(v) for v in current_settings])
+                    # [2] 활동 닉네임 생성 (미리보기와 동일한 로직 적용)
+                    # 위에서 계산된 final_nickname 변수를 그대로 사용하여 DB에 저장합니다.
+                    # (final_nickname은 '신경외과 *******' 처럼 생성되어 있습니다)
+                    
+                    update_data = {
+                        "visibility": vis_str,
+                        "display_name": final_nickname  # <--- 핵심: 화면에 보이는 닉네임을 DB에 저장
+                    }
+                    
+                    # [3] DB 업데이트 실행 (기존 db_update_user_visibility 대신 통합 함수 사용)
+                    if db_update_user_info(user.get('id'), update_data):
+                        # 세션 상태 즉시 갱신 (새로고침 없이 반영되도록)
+                        st.session_state.user_info['visibility'] = vis_str
+                        st.session_state.user_info['display_name'] = final_nickname
+                        
                         st.session_state.page = 'calendar' 
                         st.rerun()
                     else:
