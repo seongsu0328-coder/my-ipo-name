@@ -4001,15 +4001,24 @@ elif st.session_state.page == 'detail':
                             st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                         
                         with col_btn:
-                            # 삭제 권한 체크 (방어 코드 추가)
-                            # [수정] user_info가 None이라도 빈 딕셔너리가 되도록 'or {}' 사용
-                            u_info = st.session_state.get('user_info') or {}
+                            # [초강력 방어 코드] 
+                            # 1. 세션에서 먼저 값을 가져옵니다.
+                            raw_u_info = st.session_state.get('user_info')
+                            
+                            # 2. 값이 확실히 딕셔너리(dict) 형태일 때만 데이터를 빼오고, 아니면 빈 딕셔너리로 만듭니다.
+                            if isinstance(raw_u_info, dict):
+                                u_info = raw_u_info
+                            else:
+                                u_info = {}
+                                
+                            # 이제 안전하게 get()을 쓸 수 있습니다.
                             is_admin = u_info.get('role') == 'admin'
                             
+                            # 권한 체크 후 버튼 그리기
                             if st.session_state.get('auth_status') == 'user':
                                 if u_info.get('id') == p_uid or is_admin:
                                     if st.button("삭제", key=f"del_sid_{p_id}", type="secondary", use_container_width=True):
-                                        if db_delete_post(p_id):
+                                        if db_delete_post(p_id): # 실제 DB 삭제 함수
                                             st.success("삭제되었습니다.")
                                             time.sleep(0.5)
                                             st.rerun()
