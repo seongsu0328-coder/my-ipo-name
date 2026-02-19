@@ -4005,7 +4005,7 @@ elif st.session_state.page == 'detail':
 # ---------------------------------------------------------
 elif st.session_state.page == 'board':
     
-    # 1. 상단 메뉴바 (캘린더 페이지와 동일한 스타일 유지)
+    # 1. 상단 메뉴바 (뒤로가기 버튼 로직 추가됨)
     # ---------------------------------------------------------
     st.markdown("""
         <style>
@@ -4026,50 +4026,84 @@ elif st.session_state.page == 'board':
     """, unsafe_allow_html=True)
 
     is_logged_in = st.session_state.auth_status == 'user'
+    
+    # [기본 메뉴 정의]
     login_text = "로그아웃" if is_logged_in else "로그인"
     settings_text = "권한설정"
     main_text = "메인"
     watch_text = f"관심 ({len(st.session_state.watchlist)})"
     board_text = "게시판"
     
+    # -------------------------------------------------------
+    # [핵심 변경] 직전에 보던 종목이 있는지 확인하여 '뒤로가기' 버튼 생성
+    # -------------------------------------------------------
+    last_stock = st.session_state.get('selected_stock') # 직전에 본 종목 정보 가져오기
+    back_text = None
+    
+    # 직전에 본 종목이 있다면 버튼 텍스트 생성 (예: 🔙 삼성전자)
+    if last_stock:
+        stock_name = last_stock.get('name', '종목')
+        back_text = f"🔙 {stock_name}"
+
+    # 메뉴 리스트 구성 (순서: 로그인 -> [뒤로가기] -> 권한 -> 메인 -> 관심 -> 게시판)
+    menu_options = [login_text]
+    
+    if back_text: # 뒤로가기 버튼이 있으면 두 번째에 삽입
+        menu_options.append(back_text)
+        
     if is_logged_in:
-        menu_options = [login_text, settings_text, main_text, watch_text, board_text]
-    else:
-        menu_options = [login_text, main_text, watch_text, board_text]
+        menu_options.append(settings_text)
+        
+    menu_options.extend([main_text, watch_text, board_text])
+    # -------------------------------------------------------
 
     selected_menu = st.pills(
         label="nav_board", 
         options=menu_options, 
         selection_mode="single", 
-        default=board_text,  # 게시판 페이지이므로 기본값은 '게시판'
+        default=board_text,  # 기본값은 '게시판'
         key="nav_pills_board_page", 
         label_visibility="collapsed"
     )
 
+    # 메뉴 이동 로직 처리
     if selected_menu and selected_menu != board_text:
-        if selected_menu == login_text:
+        
+        # [핵심 변경] 뒤로가기 버튼 클릭 시 Detail 페이지로 이동
+        if back_text and selected_menu == back_text:
+            st.session_state.page = 'detail'
+            # Tab 0(첫 페이지)으로 가기 위해 내부 탭 상태를 초기화하고 싶다면 여기서 설정
+            st.session_state.core_topic = "S-1" # (선택사항) Detail 페이지의 Tab0 내부 상태 초기화
+            st.rerun()
+            
+        elif selected_menu == login_text:
             if is_logged_in: st.session_state.auth_status = None
             st.session_state.page = 'login'
+            st.rerun()
+            
         elif selected_menu == settings_text:
             st.session_state.page = 'setup'
+            st.rerun()
+            
         elif selected_menu == main_text:
-            st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'
+            st.session_state.view_mode = 'all'
+            st.session_state.page = 'calendar'
+            st.rerun()
+            
         elif selected_menu == watch_text:
-            st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
-        st.rerun()
+            st.session_state.view_mode = 'watchlist'
+            st.session_state.page = 'calendar'
+            st.rerun()
 
     
-    
     # ---------------------------------------------------------
-    # 2. 게시판 메인 로직 (상단: 목록 / 하단: 검색 & 글쓰기 병렬)
+    # 2. 게시판 메인 로직 (이하 기존 코드와 동일)
     # ---------------------------------------------------------
-    
     
     # [핵심 1] 출력 영역을 먼저 선언 (여기에 글 목록이 들어감)
     post_list_area = st.container()
     
-    
-    # [핵심 2] 데이터 먼저 불러오기 (순서를 위로 올렸습니다)
+    # [핵심 2] 데이터 먼저 불러오기
     all_posts = db_load_posts(limit=100)
     
     # [핵심 3] 하단 액션 바 (검색과 글쓰기 나란히 배치)
@@ -4105,9 +4139,9 @@ elif st.session_state.page == 'board':
                 st.warning("🔒 로그인 필요")
     
     # ---------------------------------------------------------
-    # 📋 필터링 및 상단 영역 출력 (에러 방지를 위해 변수 생성 후 실행)
+    # 📋 필터링 및 상단 영역 출력
     # ---------------------------------------------------------
-    posts = all_posts # 이제 all_posts가 위에서 선언되었으므로 에러가 나지 않습니다.
+    posts = all_posts 
     
     if s_keyword:
         k = s_keyword.lower()
