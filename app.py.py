@@ -4040,7 +4040,7 @@ elif st.session_state.page == 'detail':
                         action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
                         
                         with action_c1:
-                            if st.button(f"👍 추천 {likes}", key=f"like_sid_{p_id}", use_container_width=True):
+                            if st.button(f"추천 {likes}", key=f"like_sid_{p_id}", use_container_width=True):
                                 if st.session_state.get('auth_status') == 'user':
                                     db_toggle_post_reaction(p_id, user_id, 'like')
                                     st.rerun()
@@ -4048,7 +4048,7 @@ elif st.session_state.page == 'detail':
                                     st.toast("🔒 로그인 후 이용 가능합니다.")
                                     
                         with action_c2:
-                            if st.button(f"👎 비추천 {dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
+                            if st.button(f"비추천 {dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
                                 if st.session_state.get('auth_status') == 'user':
                                     db_toggle_post_reaction(p_id, user_id, 'dislike')
                                     st.rerun()
@@ -4204,7 +4204,7 @@ elif st.session_state.page == 'board':
                     action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
                     
                     with action_c1:
-                        if st.button(f"👍 추천 {likes}", key=f"like_brd_{p_id}", use_container_width=True):
+                        if st.button(f"추천 {likes}", key=f"like_brd_{p_id}", use_container_width=True):
                             if is_logged_in:
                                 db_toggle_post_reaction(p_id, u_info.get('id', ''), 'like')
                                 st.rerun()
@@ -4212,7 +4212,7 @@ elif st.session_state.page == 'board':
                                 st.toast("🔒 로그인이 필요합니다.")
                                 
                     with action_c2:
-                        if st.button(f"👎 비추천 {dislikes}", key=f"dislike_brd_{p_id}", use_container_width=True):
+                        if st.button(f"비추천 {dislikes}", key=f"dislike_brd_{p_id}", use_container_width=True):
                             if is_logged_in:
                                 db_toggle_post_reaction(p_id, u_info.get('id', ''), 'dislike')
                                 st.rerun()
