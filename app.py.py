@@ -13,7 +13,14 @@ import re
 import json
 import urllib.parse
 import smtplib
-import gspread
+import gspread# 5. 정렬 최종 적용 (기존 로직 유지)
+        if view_mode != 'watchlist': 
+            if sort_option == "최신순":
+                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+            elif sort_option == "수익률":
+                display_df = display_df.sort_values(by='temp_return', ascending=False)
+        else:
+            display_df = display_df.sort_values(by='공모일_dt', ascending=False)
 import io
 import xml.etree.ElementTree as ET
 import yfinance as yf 
@@ -2475,14 +2482,20 @@ if st.session_state.page == 'calendar':
                 -9999
             )
 
-        # 5. 정렬 최종 적용 (기존 로직 유지)
-        if view_mode != 'watchlist': 
-            if sort_option == "최신순":
-                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
-            elif sort_option == "수익률":
+            # [수정] 5. 정렬 최종 적용 (구조 통합)
+            # 먼저 컬럼의 타입을 확실히 float으로 강제 변환합니다.
+            display_df['temp_return'] = pd.to_numeric(display_df['temp_return'], errors='coerce').fillna(-9999.0)
+    
+            if sort_option == "수익률":
+                # 수익률 정렬 (내림차순)
+                # -9999인 데이터(Active가 아니거나 가격 없는 종목)를 마지막으로 보냅니다.
                 display_df = display_df.sort_values(by='temp_return', ascending=False)
-        else:
-            display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+            else:
+                # 기본값: 최신순 정렬
+                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+    
+            # 만약 watchlist 모드에서만 추가적인 정렬 규칙이 필요하다면 여기에 별도로 작성 가능하지만, 
+            # 위 로직만으로도 '관심종목' 페이지 내에서의 수익률 정렬이 가능해집니다.
 
         # ----------------------------------------------------------------
         # [핵심] 리스트 레이아웃 (7 : 3 비율) - 상태값(Status) 반영 버전
