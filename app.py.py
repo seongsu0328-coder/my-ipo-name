@@ -3968,7 +3968,7 @@ elif st.session_state.page == 'detail':
 
             # 5. 글쓰기 섹션 (종목 토론방 - 상세 페이지의 끝)
             st.write("")
-            with st.expander(f"📝 {sid} 의견 작성하기"):
+            with st.expander(f"글쓰기"):
                 if st.session_state.get('auth_status') == 'user':
                     if check_permission('write'):
                         with st.form(key=f"write_{sid}_form", clear_on_submit=True):
