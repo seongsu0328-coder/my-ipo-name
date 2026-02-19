@@ -3983,7 +3983,7 @@ elif st.session_state.page == 'detail':
             else:
                 st.info("아직 이 종목에 대한 의견이 없습니다. 첫 의견을 남겨보세요!")
 
-            # 5. 글쓰기 섹션 (DB 저장)
+            # 5. 글쓰기 섹션 (DB 저장) - [수정됨: 닉네임 로직 통일]
             st.write("")
             with st.expander(f"📝 {sid} 의견 작성하기", expanded=False):
                 if st.session_state.get('auth_status') == 'user':
@@ -3995,13 +3995,28 @@ elif st.session_state.page == 'detail':
                             
                             if st.form_submit_button("등록", type="primary", use_container_width=True):
                                 if new_title and new_content:
-                                    user_id = st.session_state.user_info.get('id')
-                                    # 닉네임 생성 (user_info에 display_name이 없다면 ID 마스킹 사용)
                                     u_info = st.session_state.user_info
-                                    display_name = u_info.get('display_name') or f"{user_id[:3]}***"
+                                    u_id = u_info.get('id')
                                     
-                                    # [핵심] DB에 저장
-                                    if db_save_post(sid, new_title, new_content, display_name, user_id):
+                                    # [수정] 닉네임 설정 로직 강화 (메인 게시판과 동일하게 적용)
+                                    d_name = u_info.get('display_name')
+                                    
+                                    # 만약 세션에 닉네임이 없으면 DB에서 한 번 더 확인 (안전장치)
+                                    if not d_name:
+                                        try:
+                                            fresh_user = db_load_user(u_id)
+                                            d_name = fresh_user.get('display_name')
+                                            # 세션도 최신 정보로 업데이트
+                                            st.session_state.user_info = fresh_user
+                                        except:
+                                            pass
+                                    
+                                    # 그래도 없으면 기본값 사용
+                                    if not d_name:
+                                        d_name = f"{u_id[:3]}***"
+                                    
+                                    # [핵심] DB에 저장 (카테고리는 종목코드(sid)로 고정)
+                                    if db_save_post(sid, new_title, new_content, d_name, u_id):
                                         st.success("등록되었습니다!")
                                         time.sleep(0.5)
                                         st.rerun()
@@ -4134,14 +4149,37 @@ elif st.session_state.page == 'board':
                         category = st.text_input("종목/말머리", placeholder="자유")
                         title = st.text_input("제목")
                         content = st.text_area("내용", height=150)
+                        
                         if st.form_submit_button("등록", type="primary", use_container_width=True):
                             if title and content:
                                 u_info = st.session_state.user_info
                                 u_id = u_info.get('id')
-                                d_name = u_info.get('display_name') or u_info.get('name') or f"{u_id[:3]}***"
+                                
+                                # [수정] 닉네임 설정 로직 강화 (DB 최신값 확인)
+                                d_name = u_info.get('display_name')
+                                
+                                # 만약 세션에 닉네임이 없으면 DB에서 한 번 더 확인 (안전장치)
+                                if not d_name:
+                                    try:
+                                        fresh_user = db_load_user(u_id)
+                                        d_name = fresh_user.get('display_name')
+                                        # 세션도 최신 정보로 업데이트
+                                        st.session_state.user_info = fresh_user
+                                    except:
+                                        pass
+                                
+                                # 그래도 없으면 기본값 사용 (하지만 이제 설정한 값이 있다면 위에서 잡힘)
+                                if not d_name:
+                                    d_name = f"{u_id[:3]}***"
+                                
+                                # DB에 저장
                                 if db_save_post(category, title, content, d_name, u_id):
                                     st.success("등록 완료!")
                                     st.rerun()
+                                else:
+                                    st.error("저장 중 오류가 발생했습니다.")
+                            else:
+                                st.error("제목과 내용을 모두 입력해주세요.")
                 else:
                     st.warning("🔒 권한 없음")
             else:
