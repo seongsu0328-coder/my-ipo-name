@@ -2174,7 +2174,7 @@ elif st.session_state.page == 'setup':
                     u_id = pu.get('id')
                     u_email = pu.get('email')
                     
-                    with st.expander(f"👤 {u_id} ({pu.get('univ') or '미기재'})"):
+                    with st.expander(f"{u_id} ({pu.get('univ') or '미기재'})"):
                         st.write(f"**이메일**: {u_email} | **연락처**: {pu.get('phone')}")
                         st.write(f"**직업**: {pu.get('job')} | **자산**: {pu.get('asset')}")
                         
@@ -4088,8 +4088,8 @@ elif st.session_state.page == 'detail':
                     likes = p.get('likes') or 0
                     dislikes = p.get('dislikes') or 0
                     
-                    prefix = "🔥 [HOT]" if is_hot else ""
-                    title_disp = f"{prefix} {p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"
+                    prefix = "[HOT]" if is_hot else ""
+                    title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"
                     
                     with st.expander(title_disp.strip()):
                         st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
@@ -4278,7 +4278,7 @@ elif st.session_state.page == 'board':
             likes = p.get('likes') or 0
             dislikes = p.get('dislikes') or 0
             
-            prefix = "🔥 [HOT]" if is_hot else f"[{p_cat}]"
+            prefix = "[HOT]" if is_hot else f"[{p_cat}]"
             
             with st.expander(f"{prefix} {p.get('title')} | {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"):
                 st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
