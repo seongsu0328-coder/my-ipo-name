@@ -4029,7 +4029,7 @@ elif st.session_state.page == 'detail':
                     likes = p.get('likes') or 0
                     dislikes = p.get('dislikes') or 0
                     
-                    with st.expander(f"{p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"):
+                    with st.expander(f"{p.get('title')} | {p_auth} | {p_date} (추천{likes} 비추천{dislikes})"):
                         # [UI 변경 1] 글 내용이 가로 전체(100%)를 사용하도록 변경
                         st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                         
@@ -4194,7 +4194,7 @@ elif st.session_state.page == 'board':
                 dislikes = p.get('dislikes') or 0
                 
                 # 메인 게시판은 제목 앞에 [카테고리]가 붙어있으므로 하단 카테고리 표시가 없어도 충분합니다.
-                with st.expander(f"[{p_cat}] {p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"):
+                with st.expander(f"[{p_cat}] {p.get('title')} | {p_auth} | {p_date} (추천{likes} 비추천{dislikes})"):
                     # [UI 변경 1] 글 내용 가로 100% 사용
                     st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                     
