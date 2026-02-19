@@ -4126,13 +4126,13 @@ elif st.session_state.page == 'detail':
 
                 # (A) 상단: HOT 게시물 출력
                 if top_5_hot:
-                    st.markdown("#### 인기글")
+                    st.markdown("## 인기글")
                     for p in top_5_hot:
                         render_detail_post(p, is_hot=True)
-                    st.write("<br><br>", unsafe_allow_html=True)
+                    
 
                 # (B) 하단: 최신 게시물 출력
-                st.markdown("#### 최신글")
+                st.markdown("## 최신글")
                 if current_display:
                     for p in current_display:
                         render_detail_post(p, is_hot=False)
@@ -4312,12 +4312,12 @@ elif st.session_state.page == 'board':
         # [5] 리스트 UI 렌더링
         with st.container():
             if top_5_hot:
-                st.markdown("#### 인기글")
+                st.markdown("## 인기글")
                 for p in top_5_hot:
                     render_post(p, is_hot=True)
-                st.write("<br><br>", unsafe_allow_html=True)
+                
 
-            st.markdown("#### 최신글")
+            st.markdown("## 최신글")
             if current_display:
                 for p in current_display:
                     render_post(p, is_hot=False)
