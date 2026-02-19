@@ -4001,14 +4001,15 @@ elif st.session_state.page == 'detail':
                             st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                         
                         with col_btn:
-                            # 삭제 권한 체크 (로그인 중 & (본인 글 OR 관리자))
-                            u_info = st.session_state.get('user_info', {})
+                            # 삭제 권한 체크 (방어 코드 추가)
+                            # [수정] user_info가 None이라도 빈 딕셔너리가 되도록 'or {}' 사용
+                            u_info = st.session_state.get('user_info') or {}
                             is_admin = u_info.get('role') == 'admin'
                             
                             if st.session_state.get('auth_status') == 'user':
                                 if u_info.get('id') == p_uid or is_admin:
                                     if st.button("삭제", key=f"del_sid_{p_id}", type="secondary", use_container_width=True):
-                                        if db_delete_post(p_id): # 실제 DB 삭제 함수 호출
+                                        if db_delete_post(p_id):
                                             st.success("삭제되었습니다.")
                                             time.sleep(0.5)
                                             st.rerun()
