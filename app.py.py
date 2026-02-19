@@ -4012,13 +4012,13 @@ elif st.session_state.page == 'detail':
                 st.warning("🔒 로그인 후 투표에 참여할 수 있습니다.")
 
             # ---------------------------------------------------------
-            # 4. 종목 토론방 (글쓰기 상단 배치 + 목록 출력)
+            # 4. 종목 토론방 (글쓰기 상단 + HOT/최신 정렬 + 페이징 적용)
             # ---------------------------------------------------------
             st.write("---")
             st.subheader(f"{sid} 토론방")
             
-            # [UI 변경] 글쓰기 섹션을 리스트 최상단으로 이동
-            with st.expander("✏️ 글쓰기"):
+            # [1] 글쓰기 섹션을 리스트 최상단으로 배치
+            with st.expander("글쓰기"):
                 if st.session_state.get('auth_status') == 'user':
                     if check_permission('write'):
                         with st.form(key=f"write_{sid}_form", clear_on_submit=True):
@@ -4041,27 +4041,60 @@ elif st.session_state.page == 'detail':
                 else:
                     st.warning("🔒 로그인 후 이용 가능합니다.")
             
-            st.write("<br>", unsafe_allow_html=True) # 글쓰기 박스와 목록 사이 여백
             
-            # DB에서 해당 종목(sid) 관련 글 로드 및 출력
-            sid_posts = db_load_posts(limit=20, category=sid)
+            
+            # [2] DB에서 해당 종목(sid) 관련 글 넉넉히 로드
+            sid_posts = db_load_posts(limit=100, category=sid)
             
             if sid_posts:
+                from datetime import datetime, timedelta
+                three_days_ago = datetime.now() - timedelta(days=3)
+                
+                hot_candidates = []
+                normal_posts = []
+
+                # 날짜 및 추천수 기반 분류
                 for p in sid_posts:
+                    try:
+                        created_dt_str = str(p.get('created_at', '')).split('.')[0]
+                        created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
+                        if created_dt >= three_days_ago and p.get('likes', 0) > 0:
+                            hot_candidates.append(p)
+                        else:
+                            normal_posts.append(p)
+                    except:
+                        normal_posts.append(p)
+                        
+                # HOT 정렬 및 5개 추출
+                hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
+                top_5_hot = hot_candidates[:5]
+                
+                # 나머지 병합 및 최신순 정렬
+                normal_posts.extend(hot_candidates[5:])
+                normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+
+                # 종목 토론방 전용 페이징 상태 관리 (종목별로 따로 관리)
+                page_key = f'detail_display_count_{sid}'
+                if page_key not in st.session_state:
+                    st.session_state[page_key] = 5
+                current_display = normal_posts[:st.session_state[page_key]]
+
+                # 종목 토론방용 UI 출력 함수
+                def render_detail_post(p, is_hot=False):
                     p_auth = p.get('author_name', 'Unknown')
                     p_date = str(p.get('created_at', '')).split('T')[0]
                     p_id = p.get('id')
                     p_uid = p.get('author_id')
-                    
                     likes = p.get('likes') or 0
                     dislikes = p.get('dislikes') or 0
                     
-                    with st.expander(f"{p.get('title')} | {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"):
-                        # 글 내용
+                    prefix = "🔥 [HOT]" if is_hot else ""
+                    title_disp = f"{prefix} {p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"
+                    
+                    with st.expander(title_disp.strip()):
                         st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                         st.write("<br>", unsafe_allow_html=True)
                         
-                        # 액션 버튼 (추천/비추천/삭제)
                         action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
                         
                         with action_c1:
@@ -4090,6 +4123,28 @@ elif st.session_state.page == 'detail':
                                             st.success("삭제되었습니다.")
                                             import time; time.sleep(0.5)
                                             st.rerun()
+
+                # (A) 상단: HOT 게시물 출력
+                if top_5_hot:
+                    st.markdown("#### 인기글")
+                    for p in top_5_hot:
+                        render_detail_post(p, is_hot=True)
+                    st.write("<br><br>", unsafe_allow_html=True)
+
+                # (B) 하단: 최신 게시물 출력
+                st.markdown("#### 최신글")
+                if current_display:
+                    for p in current_display:
+                        render_detail_post(p, is_hot=False)
+                else:
+                    st.info("조건에 맞는 최신 글이 없습니다.")
+                    
+                # (C) 더 보기 버튼
+                if len(normal_posts) > st.session_state[page_key]:
+                    st.write("<br>", unsafe_allow_html=True)
+                    if st.button("더 보기", key=f"more_{sid}", use_container_width=True):
+                        st.session_state[page_key] += 10
+                        st.rerun()
             else:
                 st.info("첫 의견을 남겨보세요!")
 
@@ -4257,12 +4312,12 @@ elif st.session_state.page == 'board':
         # [5] 리스트 UI 렌더링
         with st.container():
             if top_5_hot:
-                st.markdown("#### 🔥 주간 인기글 (최근 3일)")
+                st.markdown("#### 인기글")
                 for p in top_5_hot:
                     render_post(p, is_hot=True)
                 st.write("<br><br>", unsafe_allow_html=True)
 
-            st.markdown("#### 🕒 최신 글")
+            st.markdown("#### 최신글")
             if current_display:
                 for p in current_display:
                     render_post(p, is_hot=False)
@@ -4271,7 +4326,7 @@ elif st.session_state.page == 'board':
                 
             if len(normal_posts) > st.session_state.board_display_count:
                 st.write("<br>", unsafe_allow_html=True)
-                if st.button("🔽 글 10개 더 보기", use_container_width=True):
+                if st.button("보기", use_container_width=True):
                     st.session_state.board_display_count += 10
                     st.rerun()
                     
