@@ -4145,12 +4145,12 @@ elif st.session_state.page == 'board':
     # 2-1. 최상단에 검색과 글쓰기를 좌우로 배치
     f_col1, f_col2 = st.columns(2)
     with f_col1:
-        with st.expander("🔍 검색하기"):
+        with st.expander("검색하기"):
             s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="b_s_type")
             s_keyword = st.text_input("키워드", key="b_s_keyword")
     
     with f_col2:
-        with st.expander("✏️ 글쓰기"):
+        with st.expander("글쓰기"):
             if is_logged_in and check_permission('write'):
                 with st.form(key="board_main_form", clear_on_submit=True):
                     b_cat = st.text_input("종목/말머리", placeholder="자유")
@@ -4171,7 +4171,6 @@ elif st.session_state.page == 'board':
             else:
                 st.warning("🔒 로그인 및 권한 인증이 필요합니다.")
 
-    st.write("<br>", unsafe_allow_html=True) # 상단 컨트롤과 리스트 사이 여백
 
     # [3] 검색 필터링 적용
     posts = all_posts
