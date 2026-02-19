@@ -1991,40 +1991,41 @@ elif st.session_state.page == 'setup':
         # -----------------------------------------------------------
         # 3. [메인 기능] 설정 저장 및 로그아웃 (1:1 균등 분할)
         # -----------------------------------------------------------
-        
-        # 모바일 화면 균형을 위해 1:1 비율로 컬럼 생성
         col_save, col_logout = st.columns(2)
 
-        # 1. 저장하고 시작하기 (왼쪽)
+        # [저장 버튼]
         with col_save:
             if st.button("저장하고 시작하기", type="primary", use_container_width=True):
                 with st.spinner("설정 적용 중..."):
-                    # [1] 공개 설정 문자열 생성
+                    # 1. 공개 설정 문자열 생성 (예: 'True,False,True')
                     current_settings = [show_univ, show_job, show_asset]
                     vis_str = ",".join([str(v) for v in current_settings])
                     
-                    # [2] 활동 데이터 패키징 (nickname 열을 안 만들기로 했으니 display_name에 올인)
+                    # 2. DB 저장용 데이터 패키징
+                    # 'display_name'에 '신경외과 *******' 형태의 nickname을 직접 저장합니다.
                     update_data = {
                         "visibility": vis_str,
-                        "display_name": final_nickname  # 예: "신경외과 *******"
+                        "display_name": final_nickname
                     }
                     
-                    # [3] DB 업데이트 실행
+                    # 3. DB 업데이트 실행
                     if db_update_user_info(user.get('id'), update_data):
-                        # 중요: 게시판 글쓰기 시 바로 반영되도록 세션 정보도 즉시 갱신
+                        # [핵심] 세션 즉시 갱신: 게시판 글쓰기 시 DB 조회 없이도 즉시 반영되도록 함
                         st.session_state.user_info['visibility'] = vis_str
                         st.session_state.user_info['display_name'] = final_nickname
                         
+                        # 4. 메인 캘린더 페이지로 이동
                         st.session_state.page = 'calendar' 
                         st.rerun()
                     else:
                         st.error("저장 실패. 네트워크를 확인하세요.")
 
-        # 2. 로그아웃 (오른쪽)
+        # [로그아웃 버튼]
         with col_logout:
             if st.button("로그아웃", use_container_width=True):
-                st.session_state.clear() # 세션 초기화
-                st.rerun()               # 로그인 화면으로 복귀
+                # 모든 세션 정보를 삭제하고 로그인 화면으로 초기화
+                st.session_state.clear()
+                st.rerun()
 
         # ===========================================================
         # 👇 [수정 완료] 관리자 승인 기능 (Supabase 연동 버전)
@@ -3944,7 +3945,7 @@ elif st.session_state.page == 'detail':
                 st.warning("🔒 로그인 후 투표에 참여할 수 있습니다.")
 
             # ---------------------------------------------------------
-            # 4. 종목 토론방 (DB 연동 버전)
+            # 4. 종목 토론방 (목록 출력)
             # ---------------------------------------------------------
             st.write("---")
             st.subheader(f"{sid} 토론방")
@@ -3953,41 +3954,41 @@ elif st.session_state.page == 'detail':
             sid_posts = db_load_posts(limit=20, category=sid)
             
             if sid_posts:
-                for p in sid_posts[:10]:
-                    title = p.get('title', '').strip()
-                    auth_name = p.get('author_name', 'Unknown')
-                    try: date_str = p['created_at'].split('T')[0]
-                    except: date_str = ""
+                for p in sid_posts:
+                    # author_name이 DB에 저장된 시점의 닉네임을 그대로 출력
+                    p_auth = p.get('author_name', 'Unknown')
+                    p_date = str(p.get('created_at', '')).split('T')[0]
                     
-                    header = f"{title} | 👤 {auth_name} | {date_str}"
-                    with st.expander(header):
-                        st.markdown(f"<div style='font-size:0.95rem;'>{p.get('content')}</div>", unsafe_allow_html=True)
-                        st.caption(f"작성자: {auth_name}")
+                    with st.expander(f"{p.get('title')} | 👤 {p_auth} | {p_date}"):
+                        st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                         st.divider()
                         st.caption("※ 추천/비추천 기능은 게시판 메인에서 가능합니다.")
             else:
-                st.info("아직 이 종목에 대한 의견이 없습니다. 첫 의견을 남겨보세요!")
+                st.info("첫 의견을 남겨보세요!")
 
-            # 5. 글쓰기 섹션 (종목 토론방 - 실시간 닉네임 동기화 적용)
+            # 5. 글쓰기 섹션 (실시간 닉네임 조회 로직 통합)
             st.write("")
-            with st.expander(f"📝 {sid} 의견 작성하기", expanded=False):
+            with st.expander(f"📝 {sid} 의견 작성하기"):
                 if st.session_state.get('auth_status') == 'user':
                     if check_permission('write'):
-                        with st.form(key=f"write_{sid}_db", clear_on_submit=True):
+                        with st.form(key=f"write_{sid}_form", clear_on_submit=True):
                             new_title = st.text_input("제목")
-                            new_content = st.text_area("내용", height=100)
+                            new_content = st.text_area("내용")
                             
                             if st.form_submit_button("등록", type="primary", use_container_width=True):
                                 if new_title and new_content:
                                     u_id = st.session_state.user_info.get('id')
-                                    # 🚀 [핵심 수정] 저장 직전 DB에서 최신 닉네임 강제 조회
+                                    
+                                    # 🚀 [실시간 DB 조회] 저장 직전 최신 닉네임 확보
                                     try:
                                         fresh_user = db_load_user(u_id)
                                         d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
-                                        st.session_state.user_info = fresh_user # 세션 동기화
+                                        # 현재 세션 정보도 최신으로 갱신 (다음 동작을 위해)
+                                        st.session_state.user_info = fresh_user 
                                     except:
                                         d_name = f"{u_id[:3]}***"
                                     
+                                    # DB에 저장
                                     if db_save_post(sid, new_title, new_content, d_name, u_id):
                                         st.success("등록되었습니다!")
                                         time.sleep(0.5)
@@ -3997,9 +3998,125 @@ elif st.session_state.page == 'detail':
                                 else:
                                     st.error("제목과 내용을 모두 입력해주세요.")
                     else:
-                        st.warning("🔒 글쓰기 권한이 없습니다. (서류 승인 필요)")
+                        st.warning("🔒 글쓰기 권한이 없습니다. (서류 승인 및 정보 공개 필요)")
                 else:
                     st.warning("🔒 로그인 후 이용 가능합니다.")
+
+            # ---------------------------------------------------------
+            # [NEW] 6. 게시판 페이지 (Board)
+            # ---------------------------------------------------------
+            elif st.session_state.page == 'board':
+                
+                st.markdown("""
+                    <style>
+                    div[data-testid="stPills"] div[role="radiogroup"] button {
+                        border: none !important;
+                        background-color: #000000 !important;
+                        color: #ffffff !important;
+                        border-radius: 20px !important;
+                        padding: 6px 15px !important;
+                        margin-right: 5px !important;
+                        box-shadow: none !important;
+                    }
+                    div[data-testid="stPills"] button[aria-selected="true"] {
+                        background-color: #444444 !important;
+                        font-weight: 800 !important;
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+            
+                # [1] 메뉴 구성 (순서: 로그인 -> 권한설정 -> 메인 -> 관심 -> 게시판 -> 뒤로가기)
+                is_logged_in = st.session_state.auth_status == 'user'
+                login_text = "로그아웃" if is_logged_in else "로그인"
+                settings_text = "권한설정"
+                main_text = "메인"
+                watch_text = f"관심 ({len(st.session_state.watchlist)})"
+                board_text = "게시판"
+                back_text = "뒤로가기"
+            
+                menu_options = [login_text]
+                if is_logged_in: menu_options.append(settings_text)
+                menu_options.extend([main_text, watch_text, board_text])
+                
+                # 직전에 보던 종목이 있으면 '뒤로가기' 노출
+                last_stock = st.session_state.get('selected_stock')
+                if last_stock: menu_options.append(back_text)
+            
+                selected_menu = st.pills(
+                    label="nav_board", options=menu_options, selection_mode="single", 
+                    default=board_text, key="nav_pills_board_page", label_visibility="collapsed"
+                )
+            
+                # [2] 메뉴 이동 로직
+                if selected_menu and selected_menu != board_text:
+                    if selected_menu == back_text:
+                        st.session_state.page = 'detail'; st.session_state.core_topic = "S-1"; st.rerun()
+                    elif selected_menu == login_text:
+                        if is_logged_in: st.session_state.auth_status = None
+                        st.session_state.page = 'login'; st.rerun()
+                    elif selected_menu == settings_text:
+                        st.session_state.page = 'setup'; st.rerun()
+                    elif selected_menu == main_text:
+                        st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
+                    elif selected_menu == watch_text:
+                        st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'; st.rerun()
+            
+                # [3] 게시판 리스트 및 검색/글쓰기
+                post_list_area = st.container()
+                all_posts = db_load_posts(limit=100)
+                
+                footer_col1, footer_col2 = st.columns(2)
+                
+                with footer_col1:
+                    with st.expander("🔍 검색하기"):
+                        s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="bottom_s_type")
+                        s_keyword = st.text_input("키워드", placeholder="입력 후 엔터", key="bottom_s_keyword")
+                
+                with footer_col2:
+                    with st.expander("✏️ 글쓰기"):
+                        if is_logged_in:
+                            if check_permission('write'):
+                                with st.form(key="bottom_write_form", clear_on_submit=True):
+                                    category = st.text_input("종목/말머리", placeholder="자유")
+                                    title = st.text_input("제목")
+                                    content = st.text_area("내용", height=150)
+                                    if st.form_submit_button("등록", type="primary", use_container_width=True):
+                                        if title and content:
+                                            u_id = st.session_state.user_info.get('id')
+                                            # 🚀 [핵심 수정] 저장 직전 DB 실시간 조회
+                                            try:
+                                                fresh_user = db_load_user(u_id)
+                                                d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
+                                                st.session_state.user_info = fresh_user
+                                            except:
+                                                d_name = f"{u_id[:3]}***"
+                                            
+                                            if db_save_post(category, title, content, d_name, u_id):
+                                                st.success("등록 완료!"); st.rerun()
+                            else: st.warning("🔒 권한 없음")
+                        else: st.warning("🔒 로그인 필요")
+                
+                # [4] 리스트 출력
+                posts = all_posts
+                if s_keyword:
+                    k = s_keyword.lower()
+                    if s_type == "제목": posts = [p for p in posts if k in p.get('title','').lower()]
+                    elif s_type == "제목+내용": posts = [p for p in posts if k in p.get('title','').lower() or k in p.get('content','').lower()]
+                    elif s_type == "카테고리": posts = [p for p in posts if k in p.get('category','').lower()]
+                    elif s_type == "작성자": posts = [p for p in posts if k in p.get('author_name','').lower()]
+                
+                with post_list_area:
+                    if posts:
+                        for p in posts:
+                            with st.container(border=True):
+                                cat = p.get('category', '자유')
+                                st.markdown(f"**[{cat}] {p.get('title')}**")
+                                st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
+                                st.caption(f"👤 {p.get('author_name')} | 📅 {p['created_at'].split('T')[0]}")
+                    else:
+                        st.info("게시글이 없습니다.")        
+
+                    
         
                 #리아 지우와 제주도 다녀오다 사랑하다.아빠,엄마, 형. 삼월이. 마리. 가족. 친구. 일본. 노래. 영화. 맥주. 이런것들을 사랑한다. 
                  
