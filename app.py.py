@@ -3966,29 +3966,26 @@ elif st.session_state.page == 'detail':
             else:
                 st.info("첫 의견을 남겨보세요!")
 
-            # 5. 글쓰기 섹션 (실시간 닉네임 조회 로직 통합)
+            # 5. 글쓰기 섹션 (종목 토론방)
             st.write("")
-            with st.expander(f"📝 {sid} 의견 작성하기"):
+            with st.expander(f"📝 {sid} 의견 작성하기", expanded=False):
                 if st.session_state.get('auth_status') == 'user':
                     if check_permission('write'):
-                        with st.form(key=f"write_{sid}_form", clear_on_submit=True):
+                        with st.form(key=f"write_{sid}_db", clear_on_submit=True):
                             new_title = st.text_input("제목")
-                            new_content = st.text_area("내용")
+                            new_content = st.text_area("내용", height=100)
                             
                             if st.form_submit_button("등록", type="primary", use_container_width=True):
                                 if new_title and new_content:
                                     u_id = st.session_state.user_info.get('id')
-                                    
-                                    # 🚀 [실시간 DB 조회] 저장 직전 최신 닉네임 확보
+                                    # 🚀 실시간 DB 조회로 최신 닉네임 확보
                                     try:
                                         fresh_user = db_load_user(u_id)
                                         d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
-                                        # 현재 세션 정보도 최신으로 갱신 (다음 동작을 위해)
-                                        st.session_state.user_info = fresh_user 
+                                        st.session_state.user_info = fresh_user
                                     except:
                                         d_name = f"{u_id[:3]}***"
                                     
-                                    # DB에 저장
                                     if db_save_post(sid, new_title, new_content, d_name, u_id):
                                         st.success("등록되었습니다!")
                                         time.sleep(0.5)
@@ -4000,121 +3997,105 @@ elif st.session_state.page == 'detail':
                     else:
                         st.warning("🔒 글쓰기 권한이 없습니다. (서류 승인 및 정보 공개 필요)")
                 else:
-                    st.warning("🔒 로그인 후 이용 가능합니다.")
+                    st.warning("🔒 로그인 후 이용 가능합니다.") # <--- 쉼표 제거됨
 
-            # ---------------------------------------------------------
-            # [NEW] 6. 게시판 페이지 (Board)
-            # ---------------------------------------------------------
-            elif st.session_state.page == 'board':
+                # ---------------------------------------------------------
+                # [NEW] 6. 게시판 페이지 (Board) - [중요] elif 위치는 페이지 최상단 if와 맞춰야 함
+                # ---------------------------------------------------------
+                elif st.session_state.page == 'board':
+                    
+                    st.markdown("""
+                        <style>
+                        div[data-testid="stPills"] div[role="radiogroup"] button {
+                            border: none !important;
+                            background-color: #000000 !important;
+                            color: #ffffff !important;
+                            border-radius: 20px !important;
+                            padding: 6px 15px !important;
+                            margin-right: 5px !important;
+                        }
+                        div[data-testid="stPills"] button[aria-selected="true"] {
+                            background-color: #444444 !important;
+                            font-weight: 800 !important;
+                        }
+                        </style>
+                    """, unsafe_allow_html=True)
                 
-                st.markdown("""
-                    <style>
-                    div[data-testid="stPills"] div[role="radiogroup"] button {
-                        border: none !important;
-                        background-color: #000000 !important;
-                        color: #ffffff !important;
-                        border-radius: 20px !important;
-                        padding: 6px 15px !important;
-                        margin-right: 5px !important;
-                        box-shadow: none !important;
-                    }
-                    div[data-testid="stPills"] button[aria-selected="true"] {
-                        background-color: #444444 !important;
-                        font-weight: 800 !important;
-                    }
-                    </style>
-                """, unsafe_allow_html=True)
-            
-                # [1] 메뉴 구성 (순서: 로그인 -> 권한설정 -> 메인 -> 관심 -> 게시판 -> 뒤로가기)
-                is_logged_in = st.session_state.auth_status == 'user'
-                login_text = "로그아웃" if is_logged_in else "로그인"
-                settings_text = "권한설정"
-                main_text = "메인"
-                watch_text = f"관심 ({len(st.session_state.watchlist)})"
-                board_text = "게시판"
-                back_text = "뒤로가기"
-            
-                menu_options = [login_text]
-                if is_logged_in: menu_options.append(settings_text)
-                menu_options.extend([main_text, watch_text, board_text])
+                    # [1] 메뉴 구성
+                    is_logged_in = st.session_state.auth_status == 'user'
+                    login_text, settings_text, main_text, watch_text, board_text, back_text = "로그아웃" if is_logged_in else "로그인", "권한설정", "메인", f"관심 ({len(st.session_state.watchlist)})", "게시판", "뒤로가기"
                 
-                # 직전에 보던 종목이 있으면 '뒤로가기' 노출
-                last_stock = st.session_state.get('selected_stock')
-                if last_stock: menu_options.append(back_text)
-            
-                selected_menu = st.pills(
-                    label="nav_board", options=menu_options, selection_mode="single", 
-                    default=board_text, key="nav_pills_board_page", label_visibility="collapsed"
-                )
-            
-                # [2] 메뉴 이동 로직
-                if selected_menu and selected_menu != board_text:
-                    if selected_menu == back_text:
-                        st.session_state.page = 'detail'; st.session_state.core_topic = "S-1"; st.rerun()
-                    elif selected_menu == login_text:
-                        if is_logged_in: st.session_state.auth_status = None
-                        st.session_state.page = 'login'; st.rerun()
-                    elif selected_menu == settings_text:
-                        st.session_state.page = 'setup'; st.rerun()
-                    elif selected_menu == main_text:
-                        st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
-                    elif selected_menu == watch_text:
-                        st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'; st.rerun()
-            
-                # [3] 게시판 리스트 및 검색/글쓰기
-                post_list_area = st.container()
-                all_posts = db_load_posts(limit=100)
+                    menu_options = [login_text]
+                    if is_logged_in: menu_options.append(settings_text)
+                    menu_options.extend([main_text, watch_text, board_text])
+                    
+                    last_stock = st.session_state.get('selected_stock')
+                    if last_stock: menu_options.append(back_text)
                 
-                footer_col1, footer_col2 = st.columns(2)
+                    selected_menu = st.pills(label="nav_board", options=menu_options, selection_mode="single", default=board_text, key="nav_board_final", label_visibility="collapsed")
                 
-                with footer_col1:
-                    with st.expander("🔍 검색하기"):
-                        s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="bottom_s_type")
-                        s_keyword = st.text_input("키워드", placeholder="입력 후 엔터", key="bottom_s_keyword")
+                    # [2] 메뉴 이동
+                    if selected_menu and selected_menu != board_text:
+                        if selected_menu == back_text: st.session_state.page = 'detail'; st.rerun()
+                        elif selected_menu == login_text: 
+                            if is_logged_in: st.session_state.auth_status = None
+                            st.session_state.page = 'login'; st.rerun()
+                        elif selected_menu == settings_text: st.session_state.page = 'setup'; st.rerun()
+                        elif selected_menu == main_text: st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'; st.rerun()
+                        elif selected_menu == watch_text: st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'; st.rerun()
                 
-                with footer_col2:
-                    with st.expander("✏️ 글쓰기"):
-                        if is_logged_in:
-                            if check_permission('write'):
-                                with st.form(key="bottom_write_form", clear_on_submit=True):
-                                    category = st.text_input("종목/말머리", placeholder="자유")
-                                    title = st.text_input("제목")
-                                    content = st.text_area("내용", height=150)
+                    # [3] 게시판 본문 (변수 초기화로 에러 방지)
+                    s_keyword = ""
+                    s_type = "제목"
+                    all_posts = db_load_posts(limit=100)
+                    
+                    post_list_area = st.container()
+                    f_col1, f_col2 = st.columns(2)
+                    
+                    with f_col1:
+                        with st.expander("🔍 검색하기"):
+                            s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="b_s_type")
+                            s_keyword = st.text_input("키워드", key="b_s_keyword")
+                    
+                    with footer_col2: # 변수명이 footer_col2라면 맞춰주시고 아니면 f_col2로 수정
+                        with st.expander("✏️ 글쓰기"):
+                            if is_logged_in and check_permission('write'):
+                                with st.form(key="board_main_form", clear_on_submit=True):
+                                    b_cat = st.text_input("종목/말머리", placeholder="자유")
+                                    b_tit = st.text_input("제목")
+                                    b_cont = st.text_area("내용")
                                     if st.form_submit_button("등록", type="primary", use_container_width=True):
-                                        if title and content:
-                                            u_id = st.session_state.user_info.get('id')
-                                            # 🚀 [핵심 수정] 저장 직전 DB 실시간 조회
+                                        if b_tit and b_cont:
+                                            u_id = st.session_state.user_info['id']
                                             try:
                                                 fresh_user = db_load_user(u_id)
                                                 d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
-                                                st.session_state.user_info = fresh_user
-                                            except:
-                                                d_name = f"{u_id[:3]}***"
+                                            except: d_name = f"{u_id[:3]}***"
                                             
-                                            if db_save_post(category, title, content, d_name, u_id):
-                                                st.success("등록 완료!"); st.rerun()
-                            else: st.warning("🔒 권한 없음")
-                        else: st.warning("🔒 로그인 필요")
+                                            if db_save_post(b_cat, b_tit, b_cont, d_name, u_id):
+                                                st.success("등록 완료!"); time.sleep(0.5); st.rerun()
+                            else:
+                                st.warning("🔒 글쓰기 권한이 없습니다.")
                 
-                # [4] 리스트 출력
-                posts = all_posts
-                if s_keyword:
-                    k = s_keyword.lower()
-                    if s_type == "제목": posts = [p for p in posts if k in p.get('title','').lower()]
-                    elif s_type == "제목+내용": posts = [p for p in posts if k in p.get('title','').lower() or k in p.get('content','').lower()]
-                    elif s_type == "카테고리": posts = [p for p in posts if k in p.get('category','').lower()]
-                    elif s_type == "작성자": posts = [p for p in posts if k in p.get('author_name','').lower()]
+                    # [4] 리스트 필터링 및 출력
+                    posts = all_posts
+                    if s_keyword:
+                        k = s_keyword.lower()
+                        if s_type == "제목": posts = [p for p in posts if k in p.get('title','').lower()]
+                        elif s_type == "제목+내용": posts = [p for p in posts if k in p.get('title','').lower() or k in p.get('content','').lower()]
+                        elif s_type == "카테고리": posts = [p for p in posts if k in p.get('category','').lower()]
+                        elif s_type == "작성자": posts = [p for p in posts if k in p.get('author_name','').lower()]
                 
-                with post_list_area:
-                    if posts:
-                        for p in posts:
-                            with st.container(border=True):
-                                cat = p.get('category', '자유')
-                                st.markdown(f"**[{cat}] {p.get('title')}**")
-                                st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
-                                st.caption(f"👤 {p.get('author_name')} | 📅 {p['created_at'].split('T')[0]}")
-                    else:
-                        st.info("게시글이 없습니다.")        
+                    with post_list_area:
+                        if posts:
+                            for p in posts:
+                                with st.container(border=True):
+                                    cat_name = p.get('category') if p.get('category') else "자유"
+                                    st.markdown(f"**[{cat_name}] {p.get('title')}**")
+                                    st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-top:5px;'>{p.get('content')}</div>", unsafe_allow_html=True)
+                                    st.caption(f"👤 {p.get('author_name')} | 📅 {p['created_at'].split('T')[0]}")
+                        else:
+                            st.info("게시글이 없습니다.")
 
                     
         
