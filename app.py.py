@@ -3952,7 +3952,7 @@ elif st.session_state.page == 'detail':
             # 3. 전망 투표 및 관심종목 (DB 연동 버전)
             # ---------------------------------------------------------
             st.write("---")
-            st.subheader("향후 전망 투표")
+            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>향후 전망 투표</div>", unsafe_allow_html=True)
             
             if st.session_state.get('auth_status') == 'user':
                 # 아직 관심종목에 없을 때 (투표 버튼 노출)
