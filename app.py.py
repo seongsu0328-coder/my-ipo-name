@@ -13,14 +13,7 @@ import re
 import json
 import urllib.parse
 import smtplib
-import gspread# 5. 정렬 최종 적용 (기존 로직 유지)
-        if view_mode != 'watchlist': 
-            if sort_option == "최신순":
-                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
-            elif sort_option == "수익률":
-                display_df = display_df.sort_values(by='temp_return', ascending=False)
-        else:
-            display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+import gspread
 import io
 import xml.etree.ElementTree as ET
 import yfinance as yf 
