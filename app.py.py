@@ -4131,14 +4131,14 @@ elif st.session_state.page == 'detail':
                 # (A) 상단: HOT 게시물 출력
                 if top_5_hot:
                     # [수정] 커스텀 폰트 적용 (1.1rem, 굵게)
-                    st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>🔥 인기글</div>", unsafe_allow_html=True)
+                    st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
                     for p in top_5_hot:
                         render_detail_post(p, is_hot=True)
                     st.write("<br><br>", unsafe_allow_html=True)
 
                 # (B) 하단: 최신 게시물 출력
                 # [수정] 커스텀 폰트 적용 (1.1rem, 굵게)
-                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>🕒 최신글</div>", unsafe_allow_html=True)
+                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
                 if current_display:
                     for p in current_display:
                         render_detail_post(p, is_hot=False)
@@ -4329,7 +4329,7 @@ elif st.session_state.page == 'board':
                 st.write("<br><br>", unsafe_allow_html=True)
 
             # [수정] 커스텀 폰트 적용 (1.1rem, 굵게)
-            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>🕒 최신글</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
             if current_display:
                 for p in current_display:
                     render_post(p, is_hot=False)
