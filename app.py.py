@@ -4035,33 +4035,29 @@ elif st.session_state.page == 'board':
     board_text = "게시판"
     
     # -------------------------------------------------------
-    # [핵심 변경] 직전에 보던 종목이 있는지 확인하여 '뒤로가기' 버튼 생성
+    # [수정] 직전에 보던 종목이 있는지 확인 (버튼 표시 여부 결정용)
     # -------------------------------------------------------
-    last_stock = st.session_state.get('selected_stock') # 직전에 본 종목 정보 가져오기
-    back_text = None
-    
-    # 직전에 본 종목이 있다면 버튼 텍스트 생성 (예: 🔙 삼성전자)
-    if last_stock:
-        stock_name = last_stock.get('name', '종목')
-        back_text = f"🔙 {stock_name}"
+    last_stock = st.session_state.get('selected_stock') 
+    back_text = "뒤로가기" # 버튼 명칭 고정
+    show_back_btn = last_stock is not None # 종목 정보가 있을 때만 버튼 활성화
 
-    # 메뉴 리스트 구성 (순서: 로그인 -> [뒤로가기] -> 권한 -> 메인 -> 관심 -> 게시판)
+    # [수정] 메뉴 리스트 구성 (순서: 로그인 -> 권한 -> 메인 -> 관심 -> 게시판 -> 뒤로가기)
     menu_options = [login_text]
     
-    if back_text: # 뒤로가기 버튼이 있으면 두 번째에 삽입
-        menu_options.append(back_text)
-        
     if is_logged_in:
         menu_options.append(settings_text)
         
     menu_options.extend([main_text, watch_text, board_text])
+    
+    if show_back_btn: # 뒤로가기 버튼을 맨 마지막에 추가
+        menu_options.append(back_text)
     # -------------------------------------------------------
 
     selected_menu = st.pills(
         label="nav_board", 
         options=menu_options, 
         selection_mode="single", 
-        default=board_text,  # 기본값은 '게시판'
+        default=board_text,  # 기본값 '게시판'
         key="nav_pills_board_page", 
         label_visibility="collapsed"
     )
@@ -4069,11 +4065,10 @@ elif st.session_state.page == 'board':
     # 메뉴 이동 로직 처리
     if selected_menu and selected_menu != board_text:
         
-        # [핵심 변경] 뒤로가기 버튼 클릭 시 Detail 페이지로 이동
-        if back_text and selected_menu == back_text:
+        # [핵심] 뒤로가기 버튼 클릭 시 Detail 페이지로 이동
+        if selected_menu == back_text:
             st.session_state.page = 'detail'
-            # Tab 0(첫 페이지)으로 가기 위해 내부 탭 상태를 초기화하고 싶다면 여기서 설정
-            st.session_state.core_topic = "S-1" # (선택사항) Detail 페이지의 Tab0 내부 상태 초기화
+            st.session_state.core_topic = "S-1" # (선택사항) 탭 초기화
             st.rerun()
             
         elif selected_menu == login_text:
