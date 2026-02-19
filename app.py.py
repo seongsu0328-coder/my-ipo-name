@@ -4105,7 +4105,7 @@ elif st.session_state.page == 'board':
                 p_uid = p.get('author_id')
                 p_cat = p.get('category', '자유')
                 
-                # [수정] expander 구조 + 우측 삭제 버튼 배치
+                # [UI] expander 구조 유지
                 with st.expander(f"[{p_cat}] {p.get('title')} | 👤 {p_auth} | {p_date}"):
                     c1, c2 = st.columns([0.85, 0.15])
                     
@@ -4113,21 +4113,23 @@ elif st.session_state.page == 'board':
                         st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                     
                     with c2:
-                        # 삭제 권한 체크
-                        u_info = st.session_state.get('user_info', {})
+                        # [수정] 로그아웃 상태에서도 에러가 나지 않도록 방어 코드 적용
+                        u_info = st.session_state.get('user_info') or {}
                         is_admin = u_info.get('role') == 'admin'
+                        
+                        # 로그인 중이면서 (본인 글이거나 관리자일 때) 삭제 버튼 노출
                         if is_logged_in and (u_info.get('id') == p_uid or is_admin):
                             if st.button("삭제", key=f"del_brd_{p_id}", type="secondary", use_container_width=True):
-                                if db_delete_post(p_id):
+                                if db_delete_post(p_id): # 실제 DB 삭제 함수 실행
                                     st.success("삭제됨")
                                     time.sleep(0.5)
                                     st.rerun()
                     
+                    st.divider() # 내용과 캡션 구분선
                     st.caption(f"📍 카테고리: {p_cat}")
         else:
             st.info("게시글이 없습니다.")
-
-                    
+                        
         
                 #리아 지우와 제주도 다녀오다 사랑하다.
                 
