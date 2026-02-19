@@ -1599,11 +1599,13 @@ if 'auth_status' not in st.session_state:
 if 'user_info' not in st.session_state:
     st.session_state.user_info = {}
 
-with main_container.container():
+# '🦄 Unicorn Finder' 제목 출력 부분은 삭제했습니다.
+# 바로 아래에 기존의 if st.session_state.page == 'login': 로직이 이어지면 됩니다.
+
 
 # --- [1. 로그인 & 회원가입 페이지] ---
 if st.session_state.page == 'login':
-
+  
     # 1. 스타일링
     st.markdown("""
     <style>
@@ -2473,39 +2475,20 @@ if st.session_state.page == 'calendar':
                 -9999
             )
 
-            # ----------------------------------------------------------------
-            # 🚀 [수익률 정렬 완벽 해결본] 
-            # ----------------------------------------------------------------
-            # 1. 공모가 변환 강화 (콤마 및 공백 완벽 제거)
-            def parse_price(x):
-                try: 
-                    return float(str(x).replace('$', '').replace(',', '').strip().split('-')[0])
-                except: 
-                    return 0.0
-
-            p_ipo_series = display_df['price'].apply(parse_price)
-            
-            # 2. 상태값(Active) 검증 강화 (대소문자 무시, 공백 제거)
-            live_status_clean = display_df['live_status'].astype(str).str.strip().str.lower()
-            
-            # 3. 수익률 계산
-            display_df['temp_return'] = np.where(
-                (p_ipo_series > 0) & (display_df['live_price'] > 0) & (live_status_clean == "active"),
-                ((display_df['live_price'] - p_ipo_series) / p_ipo_series) * 100.0,
-                -9999.0
-            )
-
-            # 4. 타입을 확실한 숫자(Float)로 고정
+            # [수정] 5. 정렬 최종 적용 (구조 통합)
+            # 먼저 컬럼의 타입을 확실히 float으로 강제 변환합니다.
             display_df['temp_return'] = pd.to_numeric(display_df['temp_return'], errors='coerce').fillna(-9999.0)
-
-            # 5. 모드(전체/관심종목) 상관없이 안전하게 선택값 가져오기
-            current_sort = st.session_state.get('filter_sort', '최신순')
-
-            if current_sort == "수익률":
-                # -9999인 데이터(Active가 아니거나 가격 없는 종목)는 맨 아래로 밀림
+    
+            if sort_option == "수익률":
+                # 수익률 정렬 (내림차순)
+                # -9999인 데이터(Active가 아니거나 가격 없는 종목)를 마지막으로 보냅니다.
                 display_df = display_df.sort_values(by='temp_return', ascending=False)
             else:
+                # 기본값: 최신순 정렬
                 display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+    
+            # 만약 watchlist 모드에서만 추가적인 정렬 규칙이 필요하다면 여기에 별도로 작성 가능하지만, 
+            # 위 로직만으로도 '관심종목' 페이지 내에서의 수익률 정렬이 가능해집니다.
 
         # ----------------------------------------------------------------
         # [핵심] 리스트 레이아웃 (7 : 3 비율) - 상태값(Status) 반영 버전
@@ -2578,20 +2561,18 @@ if st.session_state.page == 'calendar':
 
 
 
-# --- 5. 상세 페이지 (Detail) ---
+# ---------------------------------------------------------
+# 5. 상세 페이지 (Detail)
+# ---------------------------------------------------------
 elif st.session_state.page == 'detail':
     stock = st.session_state.selected_stock
     
-    # [안전장치]
+    # [안전장치] 선택된 종목이 없으면 캘린더로 복귀
     if not stock:
         st.session_state.page = 'calendar'
         st.rerun()
 
-    # 🚨 [잔상 해결의 핵심] 무거운 작업 시작 전에 "로딩 중" 문구를 띄워 캘린더 화면을 밀어냅니다.
-    loading_placeholder = st.empty()
-    loading_placeholder.info(f"⏳ {stock['name']} 상세 데이터를 불러오는 중입니다...")
-
-    # [1] 변수 초기화 및 무거운 데이터 로딩
+    # [1] 변수 초기화
     profile = None
     fin_data = {}
     current_p = 0
@@ -3021,7 +3002,7 @@ elif st.session_state.page == 'detail':
 
             # 면책 조항 (기존 함수 유지)
             display_disclaimer()
-        
+            
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
         with tab2:
             # [1] 데이터 수집 및 계산 함수
@@ -3776,8 +3757,8 @@ elif st.session_state.page == 'detail':
 
             # 맨 마지막에 호출
             display_disclaimer()
+    
         
-            
         # --- [공통 함수: 게시글 반응 처리] ---
         # 이 함수는 Tab 5 외부(메인 로직 상단)에 두셔도 좋습니다.
         def handle_post_reaction(post_id, reaction_type, user_id):
@@ -4001,24 +3982,14 @@ elif st.session_state.page == 'detail':
                             st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                         
                         with col_btn:
-                            # [초강력 방어 코드] 
-                            # 1. 세션에서 먼저 값을 가져옵니다.
-                            raw_u_info = st.session_state.get('user_info')
-                            
-                            # 2. 값이 확실히 딕셔너리(dict) 형태일 때만 데이터를 빼오고, 아니면 빈 딕셔너리로 만듭니다.
-                            if isinstance(raw_u_info, dict):
-                                u_info = raw_u_info
-                            else:
-                                u_info = {}
-                                
-                            # 이제 안전하게 get()을 쓸 수 있습니다.
+                            # 삭제 권한 체크 (로그인 중 & (본인 글 OR 관리자))
+                            u_info = st.session_state.get('user_info', {})
                             is_admin = u_info.get('role') == 'admin'
                             
-                            # 권한 체크 후 버튼 그리기
                             if st.session_state.get('auth_status') == 'user':
                                 if u_info.get('id') == p_uid or is_admin:
                                     if st.button("삭제", key=f"del_sid_{p_id}", type="secondary", use_container_width=True):
-                                        if db_delete_post(p_id): # 실제 DB 삭제 함수
+                                        if db_delete_post(p_id): # 실제 DB 삭제 함수 호출
                                             st.success("삭제되었습니다.")
                                             time.sleep(0.5)
                                             st.rerun()
@@ -4174,6 +4145,6 @@ elif st.session_state.page == 'board':
                         
         
                 #리아 지우와 제주도 다녀오다 사랑하다.
-                    
+                
                 
                 
