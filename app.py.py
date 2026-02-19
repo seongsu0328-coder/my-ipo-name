@@ -4026,17 +4026,37 @@ elif st.session_state.page == 'detail':
                     p_id = p.get('id')
                     p_uid = p.get('author_id')
                     
-                    # DB에서 추천/비추천 수 가져오기 (없으면 0)
                     likes = p.get('likes') or 0
                     dislikes = p.get('dislikes') or 0
                     
                     with st.expander(f"{p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"):
-                        col_cont, col_btn = st.columns([0.85, 0.15])
+                        # [UI 변경 1] 글 내용이 가로 전체(100%)를 사용하도록 변경
+                        st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                         
-                        with col_cont:
-                            st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
+                        st.divider()
                         
-                        with col_btn:
+                        # [UI 변경 2 & 3] 액션 버튼 3개를 나란히 배치하고 카테고리 텍스트 삭제
+                        # 비율: 추천(1.5), 비추천(1.5), 삭제(1.5), 빈공간(5.5)
+                        action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
+                        
+                        with action_c1:
+                            if st.button(f"👍 추천 {likes}", key=f"like_sid_{p_id}", use_container_width=True):
+                                if st.session_state.get('auth_status') == 'user':
+                                    db_toggle_post_reaction(p_id, user_id, 'like')
+                                    st.rerun()
+                                else:
+                                    st.toast("🔒 로그인 후 이용 가능합니다.")
+                                    
+                        with action_c2:
+                            if st.button(f"👎 비추천 {dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
+                                if st.session_state.get('auth_status') == 'user':
+                                    db_toggle_post_reaction(p_id, user_id, 'dislike')
+                                    st.rerun()
+                                else:
+                                    st.toast("🔒 로그인 후 이용 가능합니다.")
+                                    
+                        with action_c3:
+                            # 삭제 권한 체크 및 버튼 렌더링
                             raw_u_info = st.session_state.get('user_info')
                             u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
                             is_admin = u_info.get('role') == 'admin'
@@ -4048,25 +4068,6 @@ elif st.session_state.page == 'detail':
                                             st.success("삭제되었습니다.")
                                             import time; time.sleep(0.5)
                                             st.rerun()
-                        
-                        st.divider()
-                        
-                        # [추천/비추천 액션 버튼]
-                        btn_col1, btn_col2, _ = st.columns([1, 1, 6])
-                        with btn_col1:
-                            if st.button(f"👍 추천 {likes}", key=f"like_sid_{p_id}", use_container_width=True):
-                                if st.session_state.get('auth_status') == 'user':
-                                    db_toggle_post_reaction(p_id, user_id, 'like')
-                                    st.rerun()
-                                else:
-                                    st.toast("🔒 로그인 후 이용 가능합니다.")
-                        with btn_col2:
-                            if st.button(f"👎 비추천 {dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
-                                if st.session_state.get('auth_status') == 'user':
-                                    db_toggle_post_reaction(p_id, user_id, 'dislike')
-                                    st.rerun()
-                                else:
-                                    st.toast("🔒 로그인 후 이용 가능합니다.")
             else:
                 st.info("첫 의견을 남겨보세요!")
             
@@ -4189,18 +4190,36 @@ elif st.session_state.page == 'board':
                 p_uid = p.get('author_id')
                 p_cat = p.get('category', '자유')
                 
-                # DB에서 추천/비추천 수 가져오기
                 likes = p.get('likes') or 0
                 dislikes = p.get('dislikes') or 0
                 
-                # 제목 탭에 추천/비추천 수 함께 표시
+                # 메인 게시판은 제목 앞에 [카테고리]가 붙어있으므로 하단 카테고리 표시가 없어도 충분합니다.
                 with st.expander(f"[{p_cat}] {p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"):
-                    c1, c2 = st.columns([0.85, 0.15])
+                    # [UI 변경 1] 글 내용 가로 100% 사용
+                    st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                     
-                    with c1:
-                        st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
+                    st.divider()
                     
-                    with c2:
+                    # [UI 변경 2 & 3] 추천/비추천/삭제 버튼을 하단에 나란히 배치
+                    action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
+                    
+                    with action_c1:
+                        if st.button(f"👍 추천 {likes}", key=f"like_brd_{p_id}", use_container_width=True):
+                            if is_logged_in:
+                                db_toggle_post_reaction(p_id, u_info.get('id', ''), 'like')
+                                st.rerun()
+                            else:
+                                st.toast("🔒 로그인이 필요합니다.")
+                                
+                    with action_c2:
+                        if st.button(f"👎 비추천 {dislikes}", key=f"dislike_brd_{p_id}", use_container_width=True):
+                            if is_logged_in:
+                                db_toggle_post_reaction(p_id, u_info.get('id', ''), 'dislike')
+                                st.rerun()
+                            else:
+                                st.toast("🔒 로그인이 필요합니다.")
+                                
+                    with action_c3:
                         raw_u_info = st.session_state.get('user_info')
                         u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
                         is_admin = u_info.get('role') == 'admin'
@@ -4211,28 +4230,6 @@ elif st.session_state.page == 'board':
                                     st.success("삭제됨")
                                     import time; time.sleep(0.5)
                                     st.rerun()
-                    
-                    st.divider()
-                    
-                    # [게시판용 추천/비추천 액션 버튼]
-                    action_c1, action_c2, action_c3 = st.columns([1.5, 1.5, 7])
-                    with action_c1:
-                        if st.button(f"👍 추천 {likes}", key=f"like_brd_{p_id}", use_container_width=True):
-                            if is_logged_in:
-                                db_toggle_post_reaction(p_id, u_info.get('id', ''), 'like')
-                                st.rerun()
-                            else:
-                                st.toast("🔒 로그인이 필요합니다.")
-                    with action_c2:
-                        if st.button(f"👎 비추천 {dislikes}", key=f"dislike_brd_{p_id}", use_container_width=True):
-                            if is_logged_in:
-                                db_toggle_post_reaction(p_id, u_info.get('id', ''), 'dislike')
-                                st.rerun()
-                            else:
-                                st.toast("🔒 로그인이 필요합니다.")
-                    
-                    with action_c3:
-                        st.caption(f"📍 카테고리: {p_cat}")
         else:
             st.info("게시글이 없습니다.")
                         
