@@ -242,6 +242,60 @@ def db_load_posts(limit=50, category=None):
         print(f"❌ DB 로딩 에러: {e}")
         return []
 
+def db_toggle_post_reaction(post_id, user_id, reaction_type):
+    """게시글 추천/비추천 토글 및 DB 저장 (중복 방지 포함)"""
+    try:
+        # 1. 현재 게시글 데이터 가져오기
+        res = supabase.table("board").select("likes, dislikes, like_users, dislike_users").eq("id", post_id).execute()
+        if not res.data: return False
+        
+        post = res.data[0]
+        likes = post.get('likes') or 0
+        dislikes = post.get('dislikes') or 0
+        
+        # 콤마(,)로 구분된 유저 ID 문자열을 리스트로 변환
+        l_str = post.get('like_users') or ""
+        d_str = post.get('dislike_users') or ""
+        l_list = l_str.split(',') if l_str else []
+        d_list = d_str.split(',') if d_str else []
+        
+        # 2. 추천(like) 버튼을 눌렀을 때
+        if reaction_type == 'like':
+            if user_id in l_list:      # 이미 추천했다면 취소
+                l_list.remove(user_id)
+                likes = max(0, likes - 1)
+            else:                      # 추천하기
+                l_list.append(user_id)
+                likes += 1
+                if user_id in d_list:  # 비추천 상태였다면 비추천 해제
+                    d_list.remove(user_id)
+                    dislikes = max(0, dislikes - 1)
+                    
+        # 3. 비추천(dislike) 버튼을 눌렀을 때
+        elif reaction_type == 'dislike':
+            if user_id in d_list:      # 이미 비추천했다면 취소
+                d_list.remove(user_id)
+                dislikes = max(0, dislikes - 1)
+            else:                      # 비추천하기
+                d_list.append(user_id)
+                dislikes += 1
+                if user_id in l_list:  # 추천 상태였다면 추천 해제
+                    l_list.remove(user_id)
+                    likes = max(0, likes - 1)
+        
+        # 4. DB 업데이트 적용
+        supabase.table("board").update({
+            "likes": likes,
+            "dislikes": dislikes,
+            "like_users": ",".join(l_list),
+            "dislike_users": ",".join(d_list)
+        }).eq("id", post_id).execute()
+        
+        return True
+    except Exception as e:
+        print(f"Reaction Update Error: {e}")
+        return False
+
 # [정보 공개 범위 업데이트 함수 - 수정 버전]
 def db_update_user_visibility(user_id, visibility_data):
     try:
@@ -3958,12 +4012,11 @@ elif st.session_state.page == 'detail':
                 st.warning("🔒 로그인 후 투표에 참여할 수 있습니다.")
 
             # ---------------------------------------------------------
-            # 4. 종목 토론방 (목록 출력 및 삭제 기능)
+            # 4. 종목 토론방 (목록 출력, 삭제 및 추천/비추천 기능)
             # ---------------------------------------------------------
             st.write("---")
             st.subheader(f"{sid} 토론방")
             
-            # DB에서 해당 종목(sid) 관련 글 로드
             sid_posts = db_load_posts(limit=20, category=sid)
             
             if sid_posts:
@@ -3973,40 +4026,47 @@ elif st.session_state.page == 'detail':
                     p_id = p.get('id')
                     p_uid = p.get('author_id')
                     
-                    # [UI 통일] 제목 | 작성자 | 날짜 형식의 Expander
-                    with st.expander(f"{p.get('title')} | 👤 {p_auth} | {p_date}"):
-                        # 본문과 삭제 버튼 레이아웃 분리 (85% : 15%)
+                    # DB에서 추천/비추천 수 가져오기 (없으면 0)
+                    likes = p.get('likes') or 0
+                    dislikes = p.get('dislikes') or 0
+                    
+                    with st.expander(f"{p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"):
                         col_cont, col_btn = st.columns([0.85, 0.15])
                         
                         with col_cont:
                             st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                         
                         with col_btn:
-                            # 🚨 [초강력 방어 코드 적용]
-                            # 1. 세션에서 값을 무조건 빼옵니다.
                             raw_u_info = st.session_state.get('user_info')
-                            
-                            # 2. 그 값이 무조건 '딕셔너리(dict)' 형태일 때만 인정하고, 아니면 빈 주머니({})로 만듭니다.
-                            if isinstance(raw_u_info, dict):
-                                u_info = raw_u_info
-                            else:
-                                u_info = {}
-                                
-                            # 3. 이제 절대 에러가 나지 않습니다.
+                            u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
                             is_admin = u_info.get('role') == 'admin'
                             
-                            # 4. 권한 체크 후 삭제 버튼 렌더링
                             if st.session_state.get('auth_status') == 'user':
                                 if u_info.get('id') == p_uid or is_admin:
                                     if st.button("삭제", key=f"del_sid_{p_id}", type="secondary", use_container_width=True):
                                         if db_delete_post(p_id):
                                             st.success("삭제되었습니다.")
-                                            import time # (혹시 상단에 import time이 없다면 여기서 작동하도록 방어)
-                                            time.sleep(0.5)
+                                            import time; time.sleep(0.5)
                                             st.rerun()
                         
                         st.divider()
-                        st.caption("※ 추천/비추천 기능은 게시판 메인에서 가능합니다.")
+                        
+                        # [추천/비추천 액션 버튼]
+                        btn_col1, btn_col2, _ = st.columns([1, 1, 6])
+                        with btn_col1:
+                            if st.button(f"👍 추천 {likes}", key=f"like_sid_{p_id}", use_container_width=True):
+                                if st.session_state.get('auth_status') == 'user':
+                                    db_toggle_post_reaction(p_id, user_id, 'like')
+                                    st.rerun()
+                                else:
+                                    st.toast("🔒 로그인 후 이용 가능합니다.")
+                        with btn_col2:
+                            if st.button(f"👎 비추천 {dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
+                                if st.session_state.get('auth_status') == 'user':
+                                    db_toggle_post_reaction(p_id, user_id, 'dislike')
+                                    st.rerun()
+                                else:
+                                    st.toast("🔒 로그인 후 이용 가능합니다.")
             else:
                 st.info("첫 의견을 남겨보세요!")
             
@@ -4119,7 +4179,7 @@ elif st.session_state.page == 'board':
         elif s_type == "카테고리": posts = [p for p in posts if k in p.get('category','').lower()]
         elif s_type == "작성자": posts = [p for p in posts if k in p.get('author_name','').lower()]
 
-    # [4] 리스트 출력 (종목 토론방 형식과 동일하게 적용)
+    # [4] 리스트 출력 (메인 게시판 - 추천/비추천 통합)
     with post_list_area:
         if posts:
             for p in posts:
@@ -4129,36 +4189,50 @@ elif st.session_state.page == 'board':
                 p_uid = p.get('author_id')
                 p_cat = p.get('category', '자유')
                 
-                # [UI] expander 구조 유지
-                with st.expander(f"[{p_cat}] {p.get('title')} | 👤 {p_auth} | {p_date}"):
+                # DB에서 추천/비추천 수 가져오기
+                likes = p.get('likes') or 0
+                dislikes = p.get('dislikes') or 0
+                
+                # 제목 탭에 추천/비추천 수 함께 표시
+                with st.expander(f"[{p_cat}] {p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes} 👎 {dislikes})"):
                     c1, c2 = st.columns([0.85, 0.15])
                     
                     with c1:
                         st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                     
                     with c2:
-                        # 🚨 [초강력 방어 코드 적용 - Board 게시판]
                         raw_u_info = st.session_state.get('user_info')
-                        
-                        # 딕셔너리일 때만 값을 빼오고, 아니면 빈 주머니로 만들기
-                        if isinstance(raw_u_info, dict):
-                            u_info = raw_u_info
-                        else:
-                            u_info = {}
-                            
+                        u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
                         is_admin = u_info.get('role') == 'admin'
                         
-                        # 로그인 중이면서 (본인 글이거나 관리자일 때) 삭제 버튼 노출
                         if is_logged_in and (u_info.get('id') == p_uid or is_admin):
                             if st.button("삭제", key=f"del_brd_{p_id}", type="secondary", use_container_width=True):
-                                if db_delete_post(p_id): # 실제 DB 삭제 함수 실행
+                                if db_delete_post(p_id):
                                     st.success("삭제됨")
-                                    import time
-                                    time.sleep(0.5)
+                                    import time; time.sleep(0.5)
                                     st.rerun()
                     
-                    st.divider() # 내용과 캡션 구분선
-                    st.caption(f"📍 카테고리: {p_cat}")
+                    st.divider()
+                    
+                    # [게시판용 추천/비추천 액션 버튼]
+                    action_c1, action_c2, action_c3 = st.columns([1.5, 1.5, 7])
+                    with action_c1:
+                        if st.button(f"👍 추천 {likes}", key=f"like_brd_{p_id}", use_container_width=True):
+                            if is_logged_in:
+                                db_toggle_post_reaction(p_id, u_info.get('id', ''), 'like')
+                                st.rerun()
+                            else:
+                                st.toast("🔒 로그인이 필요합니다.")
+                    with action_c2:
+                        if st.button(f"👎 비추천 {dislikes}", key=f"dislike_brd_{p_id}", use_container_width=True):
+                            if is_logged_in:
+                                db_toggle_post_reaction(p_id, u_info.get('id', ''), 'dislike')
+                                st.rerun()
+                            else:
+                                st.toast("🔒 로그인이 필요합니다.")
+                    
+                    with action_c3:
+                        st.caption(f"📍 카테고리: {p_cat}")
         else:
             st.info("게시글이 없습니다.")
                         
