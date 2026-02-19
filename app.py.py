@@ -4033,7 +4033,7 @@ elif st.session_state.page == 'detail':
                         # [UI 변경 1] 글 내용이 가로 전체(100%)를 사용하도록 변경
                         st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                         
-                        st.divider()
+                        st.write("<br>", unsafe_allow_html=True)
                         
                         # [UI 변경 2 & 3] 액션 버튼 3개를 나란히 배치하고 카테고리 텍스트 삭제
                         # 비율: 추천(1.5), 비추천(1.5), 삭제(1.5), 빈공간(5.5)
@@ -4198,7 +4198,7 @@ elif st.session_state.page == 'board':
                     # [UI 변경 1] 글 내용 가로 100% 사용
                     st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
                     
-                    st.divider()
+                    st.write("<br>", unsafe_allow_html=True)
                     
                     # [UI 변경 2 & 3] 추천/비추천/삭제 버튼을 하단에 나란히 배치
                     action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
