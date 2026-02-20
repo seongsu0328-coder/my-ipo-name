@@ -11,6 +11,12 @@ jobs:
   update-price:
     runs-on: ubuntu-latest
     
+    # 🚨 1. 환경변수를 위로 올리고, 파이썬 캐시 파일(.pyc) 생성 방지 옵션 추가
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      PYTHONDONTWRITEBYTECODE: 1
+
     steps:
       - name: 코드 체크아웃
         uses: actions/checkout@v3
@@ -21,11 +27,10 @@ jobs:
           python-version: '3.9'
 
       - name: 라이브러리 설치
+        # 🚨 2. 캐시 무시 + 최신 버전 강제 설치 (supabase 빼고 requests 넣음)
         run: |
-          pip install yfinance pandas supabase pytz
+          pip install --no-cache-dir --upgrade yfinance pandas requests pytz
 
       - name: 주가 업데이트 실행
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        # env는 위로 올렸으므로 여기서는 실행 명령어만 깔끔하게 남깁니다.
         run: python price_worker.py
