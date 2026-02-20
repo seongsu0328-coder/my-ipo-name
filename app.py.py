@@ -3959,7 +3959,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 3. 전망 투표 및 관심종목 (DB 연동 버전)
             # ---------------------------------------------------------
-            st.write("---")
+            st.write("<br>", unsafe_allow_html=True)
             # 폰트 크기 및 굵기 적용
             st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>향후 전망투표</div>", unsafe_allow_html=True)
             
@@ -4013,7 +4013,7 @@ elif st.session_state.page == 'detail':
             # ---------------------------------------------------------
             # 4. 종목 토론방 (글쓰기 상단 + HOT/최신 정렬 + 페이징 적용)
             # ---------------------------------------------------------
-            st.write("---")
+            st.write("<br>", unsafe_allow_html=True)
             # 폰트 크기 및 굵기 적용
             st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{sid} 토론방</div>", unsafe_allow_html=True)
             
