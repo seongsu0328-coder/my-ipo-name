@@ -3912,7 +3912,7 @@ elif st.session_state.page == 'detail':
             missing_steps = [label for step, label in steps if not ud.get(step)]
             
             if missing_steps:
-                st.info(f"💡 모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 결과 차트가 표시됩니다.")
+                st.info(f"모든 분석 단계({', '.join(missing_steps)})를 완료하면 종합 결과 차트가 표시됩니다.")
             else:
                 # 점수 계산 로직
                 score_map = {
@@ -3962,7 +3962,7 @@ elif st.session_state.page == 'detail':
                     c_up, c_down = st.columns(2)
                     
                     # [상승 예측 버튼]
-                    if c_up.button("📈 상승 예측", key=f"up_{sid}", use_container_width=True, type="primary"):
+                    if c_up.button("📈 상승예측", key=f"up_{sid}", use_container_width=True, type="primary"):
                         db_toggle_watchlist(user_id, sid, "UP", action='add')
                         if sid not in st.session_state.watchlist:
                             st.session_state.watchlist.append(sid)
@@ -3971,7 +3971,7 @@ elif st.session_state.page == 'detail':
                         st.rerun()
 
                     # [하락 예측 버튼]
-                    if c_down.button("📉 하락 예측", key=f"dn_{sid}", use_container_width=True):
+                    if c_down.button("📉 하락예측", key=f"dn_{sid}", use_container_width=True):
                         db_toggle_watchlist(user_id, sid, "DOWN", action='add')
                         if sid not in st.session_state.watchlist:
                             st.session_state.watchlist.append(sid)
@@ -3983,7 +3983,7 @@ elif st.session_state.page == 'detail':
                 else:
                     pred = st.session_state.watchlist_predictions.get(sid, "N/A")
                     color = "green" if pred == "UP" else "red"
-                    st.success(f"✅ 관심종목 보관 중 (나의 예측: :{color}[{pred}])")
+                    st.success(f"✅ 관심종목 보관중 (나의 예측: :{color}[{pred}])")
                     
                     # [보관 해제 버튼]
                     if st.button("보관 해제 (투표 취소)", key=f"rm_{sid}", use_container_width=True):
@@ -4011,7 +4011,7 @@ elif st.session_state.page == 'detail':
             st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{sid} 토론방</div>", unsafe_allow_html=True)
             
             # [1] 글쓰기 섹션을 리스트 최상단으로 배치
-            with st.expander("✏️ 글쓰기"):
+            with st.expander("글쓰기"):
                 if st.session_state.get('auth_status') == 'user':
                     if check_permission('write'):
                         with st.form(key=f"write_{sid}_form", clear_on_submit=True):
@@ -4081,9 +4081,9 @@ elif st.session_state.page == 'detail':
                     likes = p.get('likes') or 0
                     dislikes = p.get('dislikes') or 0
                     
-                    prefix = "🔥 [HOT]" if is_hot else ""
+                    prefix = "[HOT]" if is_hot else ""
                     # 괄호 안 텍스트도 영어로
-                    title_disp = f"{prefix} {p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes}  👎 {dislikes})"
+                    title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (추천{likes}  비추천{dislikes})"
                     
                     with st.expander(title_disp.strip()):
                         st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
@@ -4092,14 +4092,14 @@ elif st.session_state.page == 'detail':
                         action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
                         
                         with action_c1:
-                            if st.button(f"👍 Like {likes}", key=f"like_sid_{p_id}", use_container_width=True):
+                            if st.button(f"추천{likes}", key=f"like_sid_{p_id}", use_container_width=True):
                                 if st.session_state.get('auth_status') == 'user':
                                     db_toggle_post_reaction(p_id, user_id, 'like')
                                     st.rerun()
                                 else: st.toast("🔒 로그인 후 이용 가능합니다.")
                                     
                         with action_c2:
-                            if st.button(f"👎 Dislike {dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
+                            if st.button(f"비추천{dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
                                 if st.session_state.get('auth_status') == 'user':
                                     db_toggle_post_reaction(p_id, user_id, 'dislike')
                                     st.rerun()
@@ -4196,12 +4196,12 @@ elif st.session_state.page == 'board':
     post_list_area = st.container()
     f_col1, f_col2 = st.columns(2)
     with f_col1:
-        with st.expander("🔍 검색하기"):
+        with st.expander("검색하기"):
             s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="b_s_type")
             s_keyword = st.text_input("키워드", key="b_s_keyword")
     
     with f_col2:
-        with st.expander("✏️ 글쓰기"):
+        with st.expander("글쓰기"):
             if is_logged_in and check_permission('write'):
                 with st.form(key="board_main_form", clear_on_submit=True):
                     b_cat = st.text_input("종목/말머리", placeholder="자유")
@@ -4277,8 +4277,8 @@ elif st.session_state.page == 'board':
             likes = p.get('likes') or 0
             dislikes = p.get('dislikes') or 0
             
-            prefix = "🔥 [HOT]" if is_hot else f"[{p_cat}]"
-            title_disp = f"{prefix} {p.get('title')} | 👤 {p_auth} | {p_date} (👍 {likes}  👎 {dislikes})"
+            prefix = "[HOT]" if is_hot else f"[{p_cat}]"
+            title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (추천{likes}  비추천{dislikes})"
             
             with st.expander(title_disp.strip()):
                 st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
@@ -4286,13 +4286,13 @@ elif st.session_state.page == 'board':
                 
                 action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
                 with action_c1:
-                    if st.button(f"👍 Like {likes}", key=f"l_{p_id}", use_container_width=True):
+                    if st.button(f"추천{likes}", key=f"l_{p_id}", use_container_width=True):
                         if is_logged_in:
                             db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'like')
                             st.rerun()
                         else: st.toast("🔒 로그인이 필요합니다.")
                 with action_c2:
-                    if st.button(f"👎 Dislike {dislikes}", key=f"d_{p_id}", use_container_width=True):
+                    if st.button(f"비추천{dislikes}", key=f"d_{p_id}", use_container_width=True):
                         if is_logged_in:
                             db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'dislike')
                             st.rerun()
