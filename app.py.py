@@ -3209,15 +3209,17 @@ elif st.session_state.page == 'detail':
         
             # --- 3. AI 종합 진단 (Expander) ---
             with st.expander("거시지표 분석", expanded=False): 
-                # 여기서 AI 함수 호출! (24시간에 한 번만 실행됨)
-                # 만약 아직 get_market_dashboard_analysis 함수를 정의하지 않으셨다면 
-                # 이전 답변의 함수 코드를 app.py 상단에 먼저 추가해주셔야 합니다.
                 try:
                     ai_market_comment = get_market_dashboard_analysis(md)
+                    
+                    # 🚨 [핵심 추가] AI 답변에 포함된 불필요한 HTML 태그 강제 제거!
+                    if isinstance(ai_market_comment, str):
+                        ai_market_comment = ai_market_comment.replace("</div>", "").replace("<div>", "").replace("```html", "").replace("```", "").strip()
+                        
                 except NameError:
                     ai_market_comment = "AI 분석 함수가 아직 로드되지 않았습니다."
 
-                # [수정됨] 제목 div를 제거하고 본문만 남긴 버전
+                # 제목 div를 제거하고 본문만 남긴 버전
                 st.markdown(f"""
                 <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #004e92;'>
                     <div style='font-size:14px; line-height:1.6; color:#333; text-align:justify;'>
