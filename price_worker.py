@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 from datetime import datetime
+import time  # 청크 딜레이를 위해 추가
 import pytz 
 from supabase import create_client
 
@@ -30,7 +31,7 @@ def sanitize_value(v):
     return str(v).strip().replace('\x00', '')
 
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
-    if not data_list: return
+    if not data_list: return False
     endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
     headers = {
         "apikey": SUPABASE_KEY,
@@ -43,12 +44,17 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         payload = {k: sanitize_value(v) for k, v in item.items()}
         if payload.get(on_conflict): clean_batch.append(payload)
 
-    if not clean_batch: return
+    if not clean_batch: return False
+    
     try:
         resp = requests.post(endpoint, json=clean_batch, headers=headers)
         if resp.status_code not in [200, 201, 204]:
             print(f"❌ [{table_name}] 실패 ({resp.status_code}): {resp.text[:200]}") # 에러 내용 확인
-    except Exception as e: print(f"❌ 통신 에러: {e}")
+            return False
+        return True
+    except Exception as e: 
+        print(f"❌ 통신 에러: {e}")
+        return False
 
 # [3] 로직 함수
 def get_target_tickers():
@@ -101,7 +107,37 @@ def fetch_and_update_prices():
     
     if upsert_list:
         print(f"📊 {len(upsert_list)}개 종목 데이터 확보. DB 저장 시도...")
-        batch_upsert("price_cache", upsert_list, on_conflict="ticker")
+        
+        # 🚨 [핵심 수정] 데이터를 50개 단위로 쪼개서 업로드 (서버 과부하 차단)
+        chunk_size = 50
+        success_count = 0
+        
+        for i in range(0, len(upsert_list), chunk_size):
+            chunk = upsert_list[i : i + chunk_size]
+            
+            is_success = batch_upsert("price_cache", chunk, on_conflict="ticker")
+            
+            if is_success:
+                success_count += len(chunk)
+                print(f"  -> {success_count}/{len(upsert_list)}개 저장 완료...")
+            
+            # 너무 빠른 요청으로 인한 Rate Limit 회피
+            time.sleep(0.5)
+            
+        print("✅ 주가 캐싱 전송 완료!")
+        
+        # 📡 [생존 신고 로직 추가] 앱(app.py)의 "✅ 데이터 정상" 배지를 활성화하기 위한 기록
+        try:
+            heartbeat_payload = [{
+                "cache_key": "WORKER_LAST_RUN",
+                "content": '{"status": "alive", "worker": "price_worker"}',
+                "updated_at": now_iso
+            }]
+            batch_upsert("analysis_cache", heartbeat_payload, on_conflict="cache_key")
+            print(f"📡 메인 앱 생존 신고 완료 (KST): {now_iso}")
+        except Exception as e:
+            print(f"⚠️ 생존 신고 실패: {e}")
+            
     else:
         print("⚠️ 저장할 데이터가 없습니다.")
 
