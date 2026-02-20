@@ -352,22 +352,24 @@ def db_delete_user(user_id):
         return False
 
 
-# --- [여기에 추가] 데이터 신선도 조회 함수 ---
+# --- [수정된 버전] 데이터 신선도 조회 함수 ---
 def get_last_cache_update_time():
-    """Supabase analysis_cache 테이블에서 가장 최근 업데이트 시간을 가져옵니다."""
+    """Supabase에서 15분 워커의 가장 최근 생존 신고 시간을 가져옵니다."""
     if not supabase:
         return datetime.now() - timedelta(days=2)
+        
     try:
+        # 🚨 [핵심 수정] 무작정 최신순이 아니라, 워커가 남긴 "WORKER_LAST_RUN"만 콕 집어서 가져옴
         res = supabase.table("analysis_cache")\
             .select("updated_at")\
-            .order("updated_at", ascending=False)\
-            .limit(1)\
+            .eq("cache_key", "WORKER_LAST_RUN")\
             .execute()
         
         if res.data and len(res.data) > 0:
             last_time_str = res.data[0]['updated_at']
-            # ISO 시간을 파이썬 datetime 객체로 변환
-            return datetime.fromisoformat(last_time_str.replace('Z', '+00:00'))
+            # pandas.to_datetime을 쓰면 복잡한 Z(UTC) 문자열이나 타임존을 에러 없이 완벽하게 변환해줍니다.
+            return pd.to_datetime(last_time_str)
+            
     except Exception as e:
         print(f"시간 조회 오류: {e}")
     
