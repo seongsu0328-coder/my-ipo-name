@@ -2099,7 +2099,7 @@ elif st.session_state.page == 'setup':
             
             # 캡션 없이 상태 메시지 박스만 간결하게 표시
             if db_role == 'restricted':
-                st.error("🔒 **Basic 회원** (서류 미제출)")
+                st.error("🔒 **Basic 회원(비인증회원)** (글쓰기 제한)")
                 
             elif db_status == 'pending':
                 st.warning("⏳ **승인 대기중** (관리자 확인중)")
