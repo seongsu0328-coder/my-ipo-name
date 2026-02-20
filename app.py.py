@@ -477,11 +477,11 @@ model = configure_genai()
 
 # (A) Tab 1용: 비즈니스 요약(고품질 유지) + 뉴스 통합(날짜 필터링 적용)
 @st.cache_data(show_spinner=False, ttl=600)
-def get_unified_tab1_analysis(company_name, ticker):
+def get_unified_tab1_analysis(company_name, ticker, lang_code):
     if not model: return "AI 모델 설정 오류", []
     
-    # [Step 1] Supabase DB 조회 (6시간 캐시)
-    cache_key = f"{ticker}_Tab1"
+    # [Step 1] 언어별 고유 캐시 키 생성 (예: AAPL_Tab1_en)
+    cache_key = f"{ticker}_Tab1_{lang_code}"
     now = datetime.now()
     six_hours_ago = (now - timedelta(hours=6)).isoformat()
 
@@ -499,45 +499,38 @@ def get_unified_tab1_analysis(company_name, ticker):
         print(f"Tab1 DB Error: {e}")
 
     # [Step 2] 캐시 없으면 AI 분석 실행
-    
-    # [날짜 계산 로직 추가]
     current_date = now.strftime("%Y-%m-%d")
     one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+    target_lang = LANG_PROMPT_MAP.get(lang_code, '전문적인 한국어(Korean)')
 
-    # [프롬프트 합체] 기존 고품질 비즈니스 프롬프트 + 신규 뉴스 필터링 프롬프트
     prompt = f"""
-    당신은 한국 최고의 증권사 리서치 센터의 시니어 애널리스트입니다.
+    당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다.
     분석 대상: {company_name} ({ticker})
     오늘 날짜: {current_date}
 
     [작업 1: 비즈니스 모델 심층 분석]
     아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
-    1. 언어: 오직 '한국어'만 사용하세요. (영어 고유명사 제외). 
+    1. 언어: 반드시 '{target_lang}'로만 작성하세요. (영어 고유명사 제외). 
     2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
        - 1문단: 비즈니스 모델 및 경쟁 우위 (독점력, 시장 지배력 등)
        - 2문단: 재무 현황 및 공모 자금 활용 (매출 추이, 흑자 전환 여부, 자금 사용처)
        - 3문단: 향후 전망 및 투자 의견 (시장 성장성, 리스크 요인 포함)
-    3. 문체: '~습니다' 체를 사용하되, 문장의 시작을 다양하게 구성하세요.
-       - [중요] 모든 문장이 기업명(예: '동사는', '{company_name}은')으로 시작하지 않도록 주의하세요.
-    4. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 
-       특히 "분석 리포트를 제출합니다", "분석 결과입니다", "안녕하세요"와 같은 
-       인사말이나 도입부 문구를 절대 포함하지 말고, 바로 본론(1문단 내용)부터 시작하세요.
+    3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말이나 도입부 문구를 절대 포함하지 말고, 바로 본론부터 시작하세요.
 
     [작업 2: 최신 뉴스 수집]
-    - **반드시 구글 검색(Google Search)을 실행**하여 최신 정보를 확인하세요.
+    - 반드시 구글 검색(Google Search)을 실행하여 최신 정보를 확인하세요.
     - {current_date} 기준, 최근 3개월 이내의 뉴스 위주로 5개를 선정하세요.
-    - 검색 시 {company_name}의 업종과 관련 없는 동명의 기업 뉴스는 철저히 배제하세요.
-    - **경고: {one_year_ago} 이전의 오래된 뉴스는 절대 포함하지 마세요.**
-    - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. (절대 본문에 섞지 마세요)
+    - 경고: {one_year_ago} 이전의 오래된 뉴스는 절대 포함하지 마세요.
+    - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
+    - [중요] sentiment 값은 파싱을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
     
-    형식: <JSON_START> {{ "news": [ {{ "title_en": "...", "title_ko": "...", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
+    형식: <JSON_START> {{ "news": [ {{ "title_en": "원문 영어 제목", "title_ko": "{target_lang}로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
     """
 
     try:
         response = model.generate_content(prompt)
         full_text = response.text
 
-        # [기존 로직 유지] 텍스트 추출 및 HTML 포맷팅 (스타일 유지)
         biz_analysis = full_text.split("<JSON_START>")[0].strip()
         biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
@@ -546,15 +539,14 @@ def get_unified_tab1_analysis(company_name, ticker):
         for p in paragraphs:
             html_output += f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>'
 
-        # [기존 로직 유지] 뉴스 JSON 파싱
         news_list = []
         if "<JSON_START>" in full_text:
             try:
                 json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
                 news_list = json.loads(json_str).get("news", [])
                 for n in news_list:
-                    if n['sentiment'] == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                    elif n['sentiment'] == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
+                    if n.get('sentiment') == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                    elif n.get('sentiment') == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
                     else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
             except: pass
 
@@ -573,11 +565,11 @@ def get_unified_tab1_analysis(company_name, ticker):
 
 # (B) Tab 4용: 기관 평가 분석 통합 (강력 파싱 버전)
 @st.cache_data(show_spinner=False, ttl=600)
-def get_unified_tab4_analysis(company_name, ticker):
+def get_unified_tab4_analysis(company_name, ticker, lang_code):
     if not model: return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
 
-    # [Step 1] Supabase DB 조회 (24시간 캐시)
-    cache_key = f"{ticker}_Tab4"
+    # [Step 1] Supabase DB 조회 (24시간 캐시) - 언어별 캐시 키 분리
+    cache_key = f"{ticker}_Tab4_{lang_code}"
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
@@ -593,24 +585,27 @@ def get_unified_tab4_analysis(company_name, ticker):
     except Exception as e:
         print(f"Tab4 DB Error: {e}")
 
-    # [Step 2] 캐시 없으면 기존 강력 프롬프트로 분석
+    # 현재 언어 설정 가져오기 (없으면 한국어 기본)
+    target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
+
+    # [Step 2] 캐시 없으면 강력 프롬프트로 분석
     prompt = f"""
     당신은 월가 출신의 IPO 전문 분석가입니다. 
     구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
 
     [작성 지침]
-    1. **언어**: 반드시 한국어로 답변하세요.
+    1. **언어**: 반드시 '{target_lang}'로 답변하세요.
     2. **분석 깊이**: 단순 사실 나열이 아닌, 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
     3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
-    4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요.
+    4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
     5. **Summary**: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
     6. **링크 금지**: Summary, Pro_con 내에는 'Source:', 'http...' 등의 출처 링크를 절대 포함하지 마세요.
 
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell 중 하나",
-        "summary": "전문적인 3줄 요약 내용 (한국어)",
-        "pro_con": "**긍정**:\\n- 내용\\n\\n**부정**:\\n- 내용",
+        "summary": "전문적인 3줄 요약 내용 ({target_lang})",
+        "pro_con": "**Pros**:\\n- 내용\\n\\n**Cons**:\\n- 내용 (언어: {target_lang})",
         "links": [
             {{"title": "검색된 리포트 제목", "link": "URL"}}
         ]
@@ -635,7 +630,7 @@ def get_unified_tab4_analysis(company_name, ticker):
                 clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
                 result_data = json.loads(clean_str, strict=False)
                 
-                # [Step 3] 파싱 성공 시 DB에 저장
+                # [Step 3] 파싱 성공 시 DB에 저장 (언어별 키로 저장)
                 supabase.table("analysis_cache").upsert({
                     "cache_key": cache_key,
                     "content": json.dumps(result_data, ensure_ascii=False),
@@ -648,17 +643,12 @@ def get_unified_tab4_analysis(company_name, ticker):
         return {"rating": "N/A", "summary": "분석 데이터를 정제하는 중입니다.", "pro_con": full_text[:300], "links": []}
     except Exception as e:
         return {"rating": "Error", "summary": f"오류 발생: {str(e)}", "pro_con": "", "links": []}
-
+        
 @st.cache_data(show_spinner=False, ttl=600)
-def get_market_dashboard_analysis(metrics_data):
-    """
-    메인 대시보드(Tab 2)용 시장 진단 리포트 (24시간 Supabase 캐시)
-    metrics_data: get_market_status_internal 함수가 리턴한 딕셔너리
-    """
+def get_market_dashboard_analysis(metrics_data, lang_code):
     if not model: return "AI 모델 연결 실패"
 
-    # [Step 1] 24시간 캐시 확인 (전역 키 사용)
-    cache_key = "Global_Market_Dashboard_Tab2"
+    cache_key = f"Global_Market_Dashboard_Tab2_{lang_code}"
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
@@ -674,34 +664,33 @@ def get_market_dashboard_analysis(metrics_data):
     except Exception as e:
         print(f"Dashboard AI Cache Error: {e}")
 
-    # [Step 2] 캐시 없으면 AI 분석 실행
-    # 수치 데이터를 텍스트로 변환하여 프롬프트에 주입
+    target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
+
     prompt = f"""
     당신은 월가의 수석 시장 전략가(Chief Market Strategist)입니다.
     아래 제공된 실시간 시장 지표를 바탕으로 현재 미국 주식 시장과 IPO 시장의 상태를 진단하는 일일 브리핑을 작성하세요.
 
     [실시간 시장 지표]
-    1. IPO 초기 수익률: {metrics_data.get('ipo_return', 0):.1f}% (20% 이상이면 과열)
-    2. IPO 예정 물량: {metrics_data.get('ipo_volume', 0)}건 (30일 내)
-    3. 적자 기업 비율: {metrics_data.get('unprofitable_pct', 0):.1f}% (80% 이상이면 버블 위험)
+    1. IPO 초기 수익률: {metrics_data.get('ipo_return', 0):.1f}%
+    2. IPO 예정 물량: {metrics_data.get('ipo_volume', 0)}건
+    3. 적자 기업 비율: {metrics_data.get('unprofitable_pct', 0):.1f}%
     4. 상장 철회율: {metrics_data.get('withdrawal_rate', 0):.1f}%
-    5. VIX 지수: {metrics_data.get('vix', 0):.2f} (공포 지수)
+    5. VIX 지수: {metrics_data.get('vix', 0):.2f}
     6. 버핏 지수(GDP 대비 시총): {metrics_data.get('buffett_val', 0):.0f}%
     7. S&P 500 PE: {metrics_data.get('pe_ratio', 0):.1f}배
     8. Fear & Greed Index: {metrics_data.get('fear_greed', 50):.0f}점
 
     [작성 가이드]
-    - 독자: IPO 투자자
+    - 언어: 반드시 '{target_lang}'로 작성하세요.
     - 어조: 냉철하고 전문적인 어조 (인사말 생략)
     - 형식: 줄글로 된 3~5줄의 요약 리포트
-    - 내용: 위 지표들을 종합하여 현재가 '기회'인지 '위험'인지, 그리고 투자자가 어떤 태도(공격적/보수적)를 취해야 하는지 명확한 인사이트를 제공하세요.
+    - 내용: 위 지표들을 종합하여 현재가 '기회'인지 '위험'인지 명확한 인사이트를 제공하세요.
     """
 
     try:
         response = model.generate_content(prompt)
         result = response.text
 
-        # [Step 3] 결과 저장
         supabase.table("analysis_cache").upsert({
             "cache_key": cache_key,
             "content": result,
@@ -1307,15 +1296,10 @@ def _calculate_market_metrics_internal(df_calendar, api_key):
     return data
 
 @st.cache_data(show_spinner=False, ttl=600)
-def get_financial_report_analysis(company_name, ticker, metrics):
-    """
-    Tab 3: 재무 데이터 기반 정성적 분석 (24시간 Supabase 캐시)
-    metrics: PER, ROE, 부채비율 등 핵심 지표가 담긴 딕셔너리
-    """
+def get_financial_report_analysis(company_name, ticker, metrics, lang_code):
     if not model: return "AI 모델 설정 오류"
 
-    # [Step 1] Supabase 캐시 확인 (24시간)
-    cache_key = f"{ticker}_Financial_Report_Tab3"
+    cache_key = f"{ticker}_Financial_Report_Tab3_{lang_code}"
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
@@ -1331,8 +1315,8 @@ def get_financial_report_analysis(company_name, ticker, metrics):
     except Exception as e:
         print(f"Tab3 Cache Error: {e}")
 
-    # [Step 2] 캐시 없으면 AI 분석 실행
-    # 승수님의 기존 로직(목차 구조)을 프롬프트에 반영
+    target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
+
     prompt = f"""
     당신은 CFA 자격을 보유한 수석 주식 애널리스트입니다.
     아래 재무 데이터를 바탕으로 {company_name} ({ticker})에 대한 투자 분석 리포트를 작성하세요.
@@ -1347,8 +1331,8 @@ def get_financial_report_analysis(company_name, ticker, metrics):
     - 발생액 품질: {metrics.get('accruals', 'Unknown')}
 
     [작성 가이드]
-    1. 언어: 전문적인 한국어
-    2. 형식: 아래 4가지 소제목을 **반드시** 사용하여 단락을 구분하세요.
+    1. 언어: 반드시 '{target_lang}'로 작성하세요.
+    2. 형식: 아래 4가지 소제목을 **반드시** 사용하여 단락을 구분하세요. (소제목 자체도 {target_lang}에 맞게 번역해도 좋습니다.)
        **[Valuation & Market Position]**
        **[Operating Performance]**
        **[Risk & Solvency]**
@@ -1361,7 +1345,6 @@ def get_financial_report_analysis(company_name, ticker, metrics):
         response = model.generate_content(prompt)
         result = response.text
 
-        # [Step 3] 결과 저장
         supabase.table("analysis_cache").upsert({
             "cache_key": cache_key,
             "content": result,
@@ -1485,18 +1468,16 @@ else:
     st.error("⚠️ GENAI_API_KEY가 설정되지 않았습니다. Streamlit Secrets를 확인하세요.")
     model = None
 
-@st.cache_data(show_spinner=False, ttl=600) # 메모리 캐시는 짧게, DB가 메인 저장소 역할
-def get_ai_analysis(company_name, topic, points, structure_template):
+@st.cache_data(show_spinner=False, ttl=600) 
+def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
     
-    # [Step 1] DB 조회용 고유 키 생성 (예: AAPL_S-1_Tab0)
-    cache_key = f"{company_name}_{topic}_Tab0"
+    cache_key = f"{company_name}_{topic}_Tab0_{lang_code}"
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
     try:
-        # DB에서 24시간 이내의 데이터가 있는지 확인
         res = supabase.table("analysis_cache") \
             .select("content") \
             .eq("cache_key", cache_key) \
@@ -1504,12 +1485,12 @@ def get_ai_analysis(company_name, topic, points, structure_template):
             .execute()
         
         if res.data:
-            # 존재하면 즉시 반환 (AI 비용 0원, 즉시 로딩)
             return res.data[0]['content']
     except Exception as e:
         print(f"Tab0 DB Cache Error: {e}")
 
-    # [Step 2] 캐시가 없으면 원래의 고품질 분석 수행 (재시도 로직 포함)
+    target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
+
     max_retries = 3
     for i in range(max_retries):
         try:
@@ -1519,31 +1500,28 @@ def get_ai_analysis(company_name, topic, points, structure_template):
             
             [지침]
             당신은 월가 출신의 전문 분석가입니다. 
-            단, **"저는 분석가입니다" 같은 자기소개나 인사말은 절대 하지 마세요.**
+            단, "저는 분석가입니다" 같은 자기소개나 인사말은 절대 하지 마세요.
             
             [내용 구성 및 형식 - 반드시 아래 형식을 따를 것]
             각 문단의 시작에 **[소제목]**을 붙여서 내용을 명확히 구분하고 굵은 글씨를 생략하지 마세요.
             {structure_template}
 
             [문체 가이드]
-            - '~이다' 대신 '~입니다', '~하고 있습니다', '~할 것으로 보입니다'를 사용하세요.
+            - 반드시 '{target_lang}'로 작성하세요.
             - 문장 끝이 끊기지 않도록 매끄럽게 연결하세요.
             - 핵심 위주로 작성하되, 너무 짧은 요약보다는 풍부한 인사이트를 담아주세요.
-            
-            위 내용을 바탕으로 전문적인 어조의 한국어로 작성하세요. (5줄정도)
             """
             
             response = model.generate_content(prompt)
             analysis_result = response.text
 
-            # [Step 3] 분석 성공 시 결과를 DB에 영구 저장 (24시간 보존)
             try:
                 supabase.table("analysis_cache").upsert({
                     "cache_key": cache_key,
                     "content": analysis_result,
                     "updated_at": now.isoformat()
                 }).execute()
-            except: pass # 저장 실패 시에도 결과는 반환
+            except: pass 
 
             return analysis_result
             
@@ -1555,7 +1533,6 @@ def get_ai_analysis(company_name, topic, points, structure_template):
                 return f"현재 분석 엔진을 조율 중입니다. (상세: {str(e)})"
     
     return "⚠️ 사용량이 많아 분석이 지연되고 있습니다. 잠시 후 다시 시도해주세요."
-
 
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
