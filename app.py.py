@@ -4036,7 +4036,6 @@ elif st.session_state.page == 'detail':
                     margin=dict(l=10, r=10, t=30, b=10), 
                     xaxis=dict(title="종합 분석 점수 (-5 ~ +5)", tickmode='linear'), 
                     yaxis=dict(title="참여자 수 (명)", showticklabels=True),
-                    title=dict(text=f"📊 실시간 투자심리 분포 (총 참여자: {total_participants}명)", font=dict(size=14)),
                     paper_bgcolor='rgba(0,0,0,0)', 
                     plot_bgcolor='rgba(0,0,0,0)'
                 )
