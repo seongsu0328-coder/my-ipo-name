@@ -2471,8 +2471,12 @@ if st.session_state.page == 'calendar':
         today_dt = pd.to_datetime(datetime.now().date())
         
         # 2. 필터 로직 (관심종목 vs 일반)
+        
+        # 🚨 [추가] 에러 방지를 위해 변수들을 미리 안전하게 기본값으로 초기화합니다.
+        sort_option = "최신순"  
+        period = "상장 예정 (30일)"
+
         if view_mode == 'watchlist':
-            
             if st.button("🔄 전체 목록 보기", use_container_width=True):
                 st.session_state.view_mode = 'all'
                 st.rerun()
@@ -2484,6 +2488,8 @@ if st.session_state.page == 'calendar':
             with col_f1:
                 period = st.selectbox("조회 기간", ["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"], key="filter_period", label_visibility="collapsed")
             with col_f2:
+                # 덮어쓰기 방식으로 셀렉트박스의 값을 받습니다.
+                sort_option = st.selectbox("정렬 순서", ["최신순", "수익률"], key="filter_sort", label_visibility="collapsed")
                 sort_option = st.selectbox("정렬 순서", ["최신순", "수익률"], key="filter_sort", label_visibility="collapsed")
             
             if period == "상장 예정 (30일)":
