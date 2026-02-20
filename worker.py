@@ -50,6 +50,13 @@ if GENAI_API_KEY:
         model = genai.GenerativeModel('gemini-2.0-flash')
         print("⚠️ AI 모델 기본 로드 (Search Tool 제외)")
 
+# [추가] 다국어 지원 맵
+SUPPORTED_LANGS = {
+    'ko': '전문적인 한국어(Korean)',
+    'en': 'Professional English',
+    'ja': '専門的な日本語(Japanese)'
+}
+
 # ==========================================
 # [2] 헬퍼 함수: 데이터 정제 및 직송 (Universal Upsert)
 # ==========================================
@@ -69,7 +76,6 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
-    # 덮어쓰기를 명확하게 지시하는 헤더
     "Prefer": "return=minimal,resolution=merge-duplicates" 
 }
 
@@ -93,7 +99,7 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         print(f"❌ [{table_name}] 통신 에러: {e}")
 
 # ==========================================
-# [3] 데이터 수집 및 상태 분석 로직 (핵심 수정됨)
+# [3] 데이터 수집 및 상태 분석 로직
 # ==========================================
 
 def get_target_stocks():
@@ -119,13 +125,12 @@ def get_target_stocks():
 
 
 # ==========================================
-# [4] AI 분석 함수들 (동일 유지)
+# [4] AI 분석 함수들 (기존 프롬프트 유지 + 언어변수 추가)
 # ==========================================
 
 def run_tab0_analysis(ticker, company_name):
     if not model: return
     for topic in ["S-1", "424B4"]:
-        cache_key = f"{company_name}_{topic}_Tab0"
         if topic == "S-1":
             points = "Risk Factors, Use of Proceeds, MD&A"
             structure = """
@@ -140,78 +145,93 @@ def run_tab0_analysis(ticker, company_name):
             2. **[자금활용]** : 확정된 조달 자금이 구체적으로 어떤 우선순위 사업에 투입될 예정인지 최종 점검하세요.
             3. **[상장후 전망]** : 주관사단 구성과 배정 물량을 바탕으로 상장 초기 유통 물량 부담이나 변동성을 예측하세요.
             """
-        prompt = f"분석 대상: {company_name} ({ticker}) {topic} 서류\n체크포인트: {points}\n[지침] 월가 전문 분석가 어조.\n[내용 구성] {structure}\n전문적인 한국어로 각 항목당 3~4문장 작성하세요."
-        try:
-            response = model.generate_content(prompt)
-            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-        except: pass
+            
+        for lang_code, target_lang in SUPPORTED_LANGS.items():
+            cache_key = f"{company_name}_{topic}_Tab0_{lang_code}"
+            prompt = f"분석 대상: {company_name} ({ticker}) {topic} 서류\n체크포인트: {points}\n[지침] 월가 전문 분석가 어조.\n[내용 구성] {structure}\n반드시 '{target_lang}'로 각 항목당 3~4문장 작성하세요."
+            try:
+                response = model.generate_content(prompt)
+                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+                time.sleep(1)
+            except: pass
 
 def run_tab1_analysis(ticker, company_name):
     if not model: return False
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
-    cache_key = f"{ticker}_Tab1"
     
-    prompt = f"""
-    당신은 한국 최고의 증권사 시니어 애널리스트입니다. 분석 대상: {company_name} ({ticker}) 오늘 날짜: {current_date}
-    [작업 1: 비즈니스 모델 심층 분석]
-    1. 언어: 한국어 2. 포맷: 반드시 3개 문단(비즈니스 모델, 재무 현황, 향후 전망) 3. 문체: '~습니다' 체 4. 금지: 제목/소제목/인사말 절대 금지.
-    [작업 2: 최신 뉴스 수집]
-    - 구글 검색을 통해 최근 3개월 내 뉴스 5개를 선정하여 JSON으로 답변 마지막에 첨부하세요.
-    형식: <JSON_START> {{ "news": [ {{ "title_ko": "...", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
-    """
-    try:
-        response = model.generate_content(prompt)
-        full_text = response.text
+    for lang_code, target_lang in SUPPORTED_LANGS.items():
+        cache_key = f"{ticker}_Tab1_{lang_code}"
         
-        biz_analysis = full_text.split("<JSON_START>")[0].strip()
-        paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
-        html_output = "".join([f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
-        
-        news_list = []
-        if "<JSON_START>" in full_text:
-            try: 
-                json_part = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
-                news_list = json.loads(json_part).get("news", [])
-            except: pass
+        prompt = f"""
+        당신은 한국 최고의 증권사 시니어 애널리스트입니다. 분석 대상: {company_name} ({ticker}) 오늘 날짜: {current_date}
+        [작업 1: 비즈니스 모델 심층 분석]
+        1. 언어: 반드시 '{target_lang}'로만 작성. 2. 포맷: 반드시 3개 문단(비즈니스 모델, 재무 현황, 향후 전망) 3. 문체: '~습니다' 체 4. 금지: 제목/소제목/인사말 절대 금지.
+        [작업 2: 최신 뉴스 수집]
+        - 구글 검색을 통해 최근 3개월 내 뉴스 5개를 선정하여 JSON으로 답변 마지막에 첨부하세요.
+        형식: <JSON_START> {{ "news": [ {{ "title_ko": "{target_lang} 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
+        """
+        try:
+            response = model.generate_content(prompt)
+            full_text = response.text
             
-        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-        return True
-    except: return False
+            biz_analysis = full_text.split("<JSON_START>")[0].strip()
+            paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
+            html_output = "".join([f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+            
+            news_list = []
+            if "<JSON_START>" in full_text:
+                try: 
+                    json_part = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
+                    news_list = json.loads(json_part).get("news", [])
+                except: pass
+                
+            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+            time.sleep(1.5)
+        except: pass
 
 def run_tab3_analysis(ticker, company_name, metrics):
     if not model: return False
-    cache_key = f"{ticker}_Financial_Report_Tab3"
-    prompt = f"당신은 CFA 애널리스트입니다. {company_name}({ticker})의 재무 데이터 {metrics}를 바탕으로 [Valuation], [Operating Performance], [Risk], [Conclusion] 4개 항목 리포트를 한국어로 10줄 요약하세요."
-    try:
-        response = model.generate_content(prompt)
-        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-        return True
-    except: return False
+    
+    for lang_code, target_lang in SUPPORTED_LANGS.items():
+        cache_key = f"{ticker}_Financial_Report_Tab3_{lang_code}"
+        prompt = f"당신은 CFA 애널리스트입니다. {company_name}({ticker})의 재무 데이터 {metrics}를 바탕으로 [Valuation], [Operating Performance], [Risk], [Conclusion] 4개 항목 리포트를 반드시 '{target_lang}'로 10줄 요약하세요."
+        try:
+            response = model.generate_content(prompt)
+            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+            time.sleep(1)
+        except: pass
 
 def run_tab4_analysis(ticker, company_name):
     if not model: return False
-    cache_key = f"{ticker}_Tab4"
-    prompt = f"IPO 전문 분석가로서 Google 검색을 통해 {company_name}({ticker})의 최신 기관 리포트를 분석하고 아래 JSON 형식으로 출력하세요.\n<JSON_START> {{ \"rating\": \"Buy/Hold/Sell\", \"summary\": \"3줄 요약\", \"pro_con\": \"긍정/부정\", \"links\": [] }} <JSON_END>"
-    try:
-        response = model.generate_content(prompt)
-        match = re.search(r'<JSON_START>(.*?)<JSON_END>', response.text, re.DOTALL)
-        if match:
-            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": match.group(1), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-            return True
-    except: return False
+    
+    for lang_code, target_lang in SUPPORTED_LANGS.items():
+        cache_key = f"{ticker}_Tab4_{lang_code}"
+        prompt = f"IPO 전문 분석가로서 Google 검색을 통해 {company_name}({ticker})의 최신 기관 리포트를 분석하고 아래 JSON 형식으로 출력하세요. 언어는 반드시 '{target_lang}'로 작성.\n<JSON_START> {{ \"rating\": \"Buy/Hold/Sell\", \"summary\": \"3줄 요약\", \"pro_con\": \"긍정/부정\", \"links\": [] }} <JSON_END>"
+        try:
+            response = model.generate_content(prompt)
+            match = re.search(r'<JSON_START>(.*?)<JSON_END>', response.text, re.DOTALL)
+            if match:
+                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": match.group(1), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+            time.sleep(1)
+        except: pass
 
 def update_macro_data(df):
     if not model: return
     print("🌍 거시 지표(Tab 2) 업데이트 중...")
-    cache_key = "Market_Dashboard_Metrics_Tab2"
+    
+    cache_key_data = "Market_Dashboard_Metrics_Tab2"
     data = {"ipo_return": 15.2, "ipo_volume": len(df), "vix": 14.5, "fear_greed": 60} 
-    try:
-        prompt = f"현재 시장 데이터(VIX: {data['vix']:.2f}, IPO수익률: {data['ipo_return']:.1f}%) 기반 IPO 투자 조언 3줄(한국어)."
-        ai_resp = model.generate_content(prompt).text
-        batch_upsert("analysis_cache", [{"cache_key": "Global_Market_Dashboard_Tab2", "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps(data), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-    except: pass
+    batch_upsert("analysis_cache", [{"cache_key": cache_key_data, "content": json.dumps(data), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+    
+    for lang_code, target_lang in SUPPORTED_LANGS.items():
+        cache_key_report = f"Global_Market_Dashboard_Tab2_{lang_code}"
+        try:
+            prompt = f"현재 시장 데이터(VIX: {data['vix']:.2f}, IPO수익률: {data['ipo_return']:.1f}%) 기반 IPO 투자 조언 3줄. 반드시 '{target_lang}'로 작성하세요."
+            ai_resp = model.generate_content(prompt).text
+            batch_upsert("analysis_cache", [{"cache_key": cache_key_report, "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+            time.sleep(1)
+        except: pass
 
 # ==========================================
 # [5] 메인 실행 루프
@@ -225,7 +245,7 @@ def main():
         print("⚠️ 수집된 IPO 종목이 없습니다.")
         return
 
-    # [2] 추적 명단 저장 (DB 테이블 구조: symbol, name, last_updated 에 맞춤)
+    # [2] 추적 명단 저장 
     print("\n📋 [stock_cache] 명단 업데이트 시작...")
     now_iso = datetime.now().isoformat()
     stock_list = []
@@ -234,13 +254,10 @@ def main():
         stock_list.append({
             "symbol": str(row['symbol']),
             "name": str(row['name']) if pd.notna(row['name']) else "Unknown",
-            "last_updated": now_iso  # 'updated_at'을 'last_updated'로 매칭
+            "last_updated": now_iso 
         })
     
-    # 헤더에 return=minimal이 포함된 batch_upsert를 호출합니다.
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
-
-    
 
     # [4] 거시 지표 업데이트 (Tab 2)
     update_macro_data(df)
@@ -262,7 +279,7 @@ def main():
         except: 
             pass
         
-        # 월요일이거나 신규 종목인 경우에만 전체 업데이트 (서버 부하 방지)
+        # 월요일이거나 신규 종목인 경우에만 전체 업데이트
         is_full_update = (datetime.now().weekday() == 0 or not is_old)
         
         print(f"[{idx+1}/{total}] {symbol} 분석 중...", flush=True)
@@ -277,12 +294,11 @@ def main():
                 run_tab4_analysis(symbol, name)
                 try:
                     tk = yf.Ticker(symbol)
-                    # 재무 지표 샘플 (PE 등) 전달
                     run_tab3_analysis(symbol, name, {"pe": tk.info.get('forwardPE', 0)})
                 except: 
                     pass
             
-            # API 할당량 준수를 위한 짧은 휴식
+            # API 할당량 준수를 위한 짧은 휴식 (루프 내부의 휴식과 더불어 추가 안정성 확보)
             time.sleep(1.2) 
             
         except Exception as e:
@@ -293,4 +309,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
