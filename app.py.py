@@ -2288,459 +2288,1981 @@ elif st.session_state.page == 'setup':
                                 args=(u_id, u_email)
                             )
 
-# 4. 캘린더 페이지 (메인 통합: 상단 메뉴 + 리스트)
-if st.session_state.page == 'calendar':
-    # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
-    st.markdown("""
-        <style>
-        /* 1. 기본 설정 */
-        * { box-sizing: border-box !important; }
-        body { color: #333333; }
-        
-        /* 2. 상단 여백 확보 (메인 페이지라 여백을 조금 줄임) */
-        .block-container { 
-            padding-top: 2rem !important; 
-            padding-left: 0.5rem !important; 
-            padding-right: 0.5rem !important; 
-            max-width: 100% !important; 
-        }
+# [추가] 메인 화면 전용 컨테이너 생성
+# 이 컨테이너는 페이지가 바뀔 때 내부를 완전히 비우고 새로 그립니다.
+main_area = st.empty()
 
-        /* [NEW] 상단 메뉴 버튼 스타일 (둥글고 크게) */
-        div[data-testid="column"] button {
-            border-radius: 12px !important;
-            height: 50px !important;
-            font-weight: bold !important;
-        }
-
-        /* 3. 리스트 전용 버튼 스타일 (범위를 리스트 컬럼으로 한정) */
-        /* [수정] 모든 버튼이 아니라, 데이터 리스트(7:3 컬럼) 내부에 있는 버튼만 투명하게 만듭니다. */
-        div[data-testid="column"] .stButton button {
-            background-color: transparent !important;
-            border: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            color: #333 !important;
-            text-align: left !important;
-            box-shadow: none !important;
-            width: 100% !important;
-            display: block !important;
-            overflow: hidden !important;
-            white-space: nowrap !important;
-            text-overflow: ellipsis !important;
-            height: auto !important;
-            line-height: 1.1 !important;
-        }
-
-        /* [추가] 로그인/인증 버튼 등 일반적인 Primary 버튼은 원래 스타일을 유지하도록 강제 */
-        div.stButton > button[kind="primary"] {
-            background-color: #FF4B4B !important; /* 스트림릿 기본 레드 혹은 원하는 색상 */
-            color: white !important;
-            border-radius: 8px !important;
-            padding: 0.25rem 0.75rem !important;
-            height: auto !important;
-        }
-        
-        .stButton button p { font-weight: bold; font-size: 14px; margin-bottom: 0px; }
-
-        /* 4. [모바일 레이아웃 핵심] */
-        @media (max-width: 640px) {
+with main_area.container():
+    # ---------------------------------------------------------
+    # 4. 캘린더 페이지 (Calendar)
+    if st.session_state.page == 'calendar':
+        # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
+        st.markdown("""
+            <style>
+            /* 1. 기본 설정 */
+            * { box-sizing: border-box !important; }
+            body { color: #333333; }
             
-            /* (A) 상단 필터: 줄바꿈 허용 */
-            div[data-testid="stHorizontalBlock"]:nth-of-type(1) {
-                flex-wrap: wrap !important;
-                gap: 10px !important;
-                padding-bottom: 5px !important;
+            /* 2. 상단 여백 확보 (메인 페이지라 여백을 조금 줄임) */
+            .block-container { 
+                padding-top: 2rem !important; 
+                padding-left: 0.5rem !important; 
+                padding-right: 0.5rem !important; 
+                max-width: 100% !important; 
             }
-            div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div {
-                min-width: 100% !important;
-                max-width: 100% !important;
-                flex: 1 1 100% !important;
+    
+            /* [NEW] 상단 메뉴 버튼 스타일 (둥글고 크게) */
+            div[data-testid="column"] button {
+                border-radius: 12px !important;
+                height: 50px !important;
+                font-weight: bold !important;
             }
-
-            /* (B) 리스트 구역: 가로 고정 & 수직 중앙 정렬 */
-            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) {
-                flex-direction: row !important;
-                flex-wrap: nowrap !important;
-                gap: 0px !important;
+    
+            /* 3. 리스트 전용 버튼 스타일 (범위를 리스트 컬럼으로 한정) */
+            /* [수정] 모든 버튼이 아니라, 데이터 리스트(7:3 컬럼) 내부에 있는 버튼만 투명하게 만듭니다. */
+            div[data-testid="column"] .stButton button {
+                background-color: transparent !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                color: #333 !important;
+                text-align: left !important;
+                box-shadow: none !important;
                 width: 100% !important;
-                align-items: center !important; 
-            }
-
-            /* (C) 컬럼 내부 정렬 강제 */
-            div[data-testid="column"] {
-                display: flex !important;
-                flex-direction: column !important;
-                justify-content: center !important; 
-                min-width: 0px !important;
-                padding: 0px 2px !important;
-            }
-
-            /* (D) 리스트 컬럼 비율 (7:3) */
-            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(1) {
-                flex: 0 0 70% !important;
-                max-width: 70% !important;
+                display: block !important;
                 overflow: hidden !important;
+                white-space: nowrap !important;
+                text-overflow: ellipsis !important;
+                height: auto !important;
+                line-height: 1.1 !important;
             }
-            div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(2) {
-                flex: 0 0 30% !important;
-                max-width: 30% !important;
+    
+            /* [추가] 로그인/인증 버튼 등 일반적인 Primary 버튼은 원래 스타일을 유지하도록 강제 */
+            div.stButton > button[kind="primary"] {
+                background-color: #FF4B4B !important; /* 스트림릿 기본 레드 혹은 원하는 색상 */
+                color: white !important;
+                border-radius: 8px !important;
+                padding: 0.25rem 0.75rem !important;
+                height: auto !important;
             }
-
-            /* (E) 폰트 및 간격 미세 조정 */
-            .mobile-sub { font-size: 10px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px; line-height: 1.1; }
-            .price-main { font-size: 13px !important; font-weight: bold; white-space: nowrap; line-height: 1.1; }
-            .price-sub { font-size: 10px !important; color: #666 !important; white-space: nowrap; line-height: 1.1; }
-            .date-text { font-size: 10px !important; color: #888 !important; margin-top: 1px; line-height: 1.1; }
-            .header-text { font-size: 12px !important; line-height: 1.0; }
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # ---------------------------------------------------------
-    # [ANDROID-FIX] 안드로이드 셀렉트박스 닫힘 강제 패치
-    # ---------------------------------------------------------
-    st.markdown("""
-        <style>
-        /* 1. 선택 후 파란색 테두리(포커스) 제거 */
-        .stSelectbox div[data-baseweb="select"]:focus-within {
-            border-color: transparent !important;
-            box-shadow: none !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # 2. 자바스크립트를 이용해 현재 활성화된(Focus) 입력창을 강제로 닫음
-    # 화면이 로드될 때마다 실행되어 모바일 키보드나 드롭다운을 숨깁니다.
-    st.components.v1.html("""
-        <script>
-            var mainDoc = window.parent.document;
-            var activeEl = mainDoc.activeElement;
-            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.getAttribute('role') === 'combobox')) {
-                activeEl.blur();
-            }
-        </script>
-    """, height=0)
-     
-
-    # ---------------------------------------------------------
-    # 1. [STYLE] 블랙 배경 + 화이트 글씨 (테두리 없음)
-    # ---------------------------------------------------------
-    st.markdown("""
-        <style>
-        /* 기본 버튼: 검정 배경 / 흰 글씨 */
-        div[data-testid="stPills"] div[role="radiogroup"] button {
-            border: none !important;
-            outline: none !important;
-            background-color: #000000 !important;
-            color: #ffffff !important;
-            border-radius: 20px !important;
-            padding: 6px 15px !important;
-            margin-right: 5px !important;
-            box-shadow: none !important;
-        }
-
-        /* 선택된 버튼: 진한 회색 배경 (구분용) */
-        div[data-testid="stPills"] button[aria-selected="true"] {
-            background-color: #444444 !important;
-            color: #ffffff !important;
-            font-weight: 800 !important;
-        }
-
-        /* 스트림릿 기본 테두리 제거 */
-        div[data-testid="stPills"] div[data-baseweb="pill"] {
-            border: none !important;
-            background: transparent !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # ---------------------------------------------------------
-    # 2. 메뉴 텍스트 및 현재 상태 정의 (권한설정 버튼 추가)
-    # ---------------------------------------------------------
-    is_logged_in = st.session_state.auth_status == 'user'
-    login_text = "로그아웃" if is_logged_in else "로그인"
-    settings_text = "권한설정"  # [NEW] 설정 버튼 텍스트
-    main_text = "메인"
-    watch_text = f"관심 ({len(st.session_state.watchlist)})"
-    board_text = "게시판"
-    
-    # [수정] 로그인 상태면 '권한설정' 버튼 노출, 아니면 숨김
-    if is_logged_in:
-        # 순서: 로그아웃 -> 권한설정 -> 메인 -> 관심 -> 게시판
-        menu_options = [login_text, settings_text, main_text, watch_text, board_text]
-    else:
-        menu_options = [login_text, main_text, watch_text, board_text]
-
-    # 현재 어떤 페이지에 있는지 계산하여 기본 선택값(Default) 설정
-    default_sel = main_text # 기본값은 메인
-    if st.session_state.get('page') == 'login': 
-        default_sel = login_text
-    elif st.session_state.get('page') == 'setup': # setup 페이지일 때 (혹시나 해서 추가)
-        default_sel = settings_text
-    elif st.session_state.get('view_mode') == 'watchlist': 
-        default_sel = watch_text
-    elif st.session_state.get('page') == 'board': 
-        default_sel = board_text
-
-    # ---------------------------------------------------------
-    # 3. 메뉴 표시 (st.pills)
-    # ---------------------------------------------------------
-    selected_menu = st.pills(
-        label="내비게이션",
-        options=menu_options,
-        selection_mode="single",
-        default=default_sel,
-        key="nav_pills_updated_v2", # 키값 충돌 방지용 변경
-        label_visibility="collapsed"
-    )
-
-    # ---------------------------------------------------------
-    # 4. 클릭 감지 및 페이지 이동 로직 (설정 버튼 연결)
-    # ---------------------------------------------------------
-    if selected_menu and selected_menu != default_sel:
-        if selected_menu == login_text:
-            if is_logged_in: 
-                st.session_state.auth_status = None # 로그아웃 처리
-            st.session_state.page = 'login'
             
-        elif selected_menu == settings_text: # [NEW] 설정 페이지 이동
-            st.session_state.page = 'setup'
-            
-        elif selected_menu == main_text:
-            st.session_state.view_mode = 'all'
-            st.session_state.page = 'calendar' 
-            
-        elif selected_menu == watch_text:
-            st.session_state.view_mode = 'watchlist'
-            st.session_state.page = 'calendar' 
-            
-        elif selected_menu == board_text:
-            st.session_state.page = 'board'
-        
-        # 설정 변경 후 화면 즉시 갱신
-        st.rerun()
-
+            .stButton button p { font-weight: bold; font-size: 14px; margin-bottom: 0px; }
     
-    # ---------------------------------------------------------
-    # [기존 데이터 로직] - Batching 및 30분 캐싱 적용 버전
-    # ---------------------------------------------------------
-    all_df_raw = get_extended_ipo_data(MY_API_KEY)
-    
-    # 데이터 수집 범위 확인
-    if not all_df_raw.empty:
-        min_date = all_df_raw['date'].min()
-        max_date = all_df_raw['date'].max()
-        st.sidebar.info(f"📊 수집된 데이터 범위:\n{min_date} ~ {max_date}")
-        
-    view_mode = st.session_state.get('view_mode', 'all')
-    
-    if not all_df_raw.empty:
-        # 1. 데이터 전처리
-        all_df = all_df_raw.copy()
-        all_df['exchange'] = all_df['exchange'].fillna('-')
-        all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
-        all_df['공모일_dt'] = pd.to_datetime(all_df['date'], errors='coerce').dt.normalize()
-        all_df = all_df.dropna(subset=['공모일_dt'])
-        today_dt = pd.to_datetime(datetime.now().date())
-        
-        # 2. 필터 로직 (관심종목 vs 일반)
-        
-        # 🚨 안전장치: 변수가 없어서 튕기는 현상을 원천 차단하기 위해 미리 기본값 선언
-        sort_option = "최신순"  
-        period = "상장 예정 (30일)"
-        display_df = pd.DataFrame() 
-
-        if view_mode == 'watchlist':
-            if st.button("🔄 전체 목록 보기", use_container_width=True, key="btn_view_all_main_final"):
-                st.session_state.view_mode = 'all'
-                st.rerun()
+            /* 4. [모바일 레이아웃 핵심] */
+            @media (max-width: 640px) {
                 
-            display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
-            if display_df.empty:
-                st.info("아직 관심 종목에 담은 기업이 없습니다.")
-                
-        else:
-            col_f1, col_f2 = st.columns([1, 1]) 
-            with col_f1:
-                period = st.selectbox("조회 기간", ["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"], key="filter_period_final", label_visibility="collapsed")
-            with col_f2:
-                sort_option = st.selectbox("정렬 순서", ["최신순", "수익률"], key="filter_sort_final", label_visibility="collapsed")
-            
-            # 🚨 [복구된 핵심 코드] 선택한 기간에 맞춰 display_df 데이터를 깎아냅니다.
-            if period == "상장 예정 (30일)":
-                display_df = all_df[(all_df['공모일_dt'] >= today_dt) & (all_df['공모일_dt'] <= today_dt + timedelta(days=30))]
-            else:
-                if period == "지난 6개월": start_date = today_dt - timedelta(days=180)
-                elif period == "지난 12개월": start_date = today_dt - timedelta(days=365)
-                elif period == "지난 18개월": start_date = today_dt - timedelta(days=540)
-                
-                display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
-
-        # ----------------------------------------------------------------
-        # 🚀 [최적화 수정본] Batch 주가 조회 및 안전한 상태 표시
-        # ----------------------------------------------------------------
-        if not display_df.empty:
-            symbols_to_fetch = display_df['symbol'].dropna().unique().tolist()
-            
-            with st.spinner("실시간 주가 확인 중..."):
-                # [수정] 이제 함수가 (가격맵, 상태맵) 두 개를 리턴합니다.
-                all_prices_map, all_status_map = get_batch_prices(symbols_to_fetch)
-                
-            db_count = len(all_prices_map)
-            total_req = len(symbols_to_fetch)
-            missing_count = total_req - db_count
-
-            if missing_count > 0:
-                st.toast(f"🐢 속도 저하: DB({db_count}개) / ☁️ API 호출({missing_count}개)", icon="⚠️")
-            else:
-                st.toast(f"⚡ 고속 로딩: {db_count}개 전량 DB 호출 성공!", icon="✅")
-
-            # 데이터 매핑 (가격과 상태를 데이터프레임에 추가)
-            display_df['live_price'] = display_df['symbol'].map(all_prices_map).fillna(0.0)
-            display_df['live_status'] = display_df['symbol'].map(all_status_map).fillna("Active")
-            
-            # 수익률 계산 (Active인 경우만 계산)
-            def parse_price(x):
-                try: return float(str(x).replace('$','').split('-')[0])
-                except: return 0.0
-
-            p_ipo_series = display_df['price'].apply(parse_price)
-            display_df['temp_return'] = np.where(
-                (p_ipo_series > 0) & (display_df['live_price'] > 0) & (display_df['live_status'] == "Active"),
-                ((display_df['live_price'] - p_ipo_series) / p_ipo_series) * 100,
-                -9999
-            )
-
-            # [수정] 5. 정렬 최종 적용 (구조 통합)
-            # 먼저 컬럼의 타입을 확실히 float으로 강제 변환합니다.
-            display_df['temp_return'] = pd.to_numeric(display_df['temp_return'], errors='coerce').fillna(-9999.0)
-    
-            if sort_option == "수익률":
-                # 수익률 정렬 (내림차순)
-                # -9999인 데이터(Active가 아니거나 가격 없는 종목)를 마지막으로 보냅니다.
-                display_df = display_df.sort_values(by='temp_return', ascending=False)
-            else:
-                # 기본값: 최신순 정렬
-                display_df = display_df.sort_values(by='공모일_dt', ascending=False)
-    
-            # 만약 watchlist 모드에서만 추가적인 정렬 규칙이 필요하다면 여기에 별도로 작성 가능하지만, 
-            # 위 로직만으로도 '관심종목' 페이지 내에서의 수익률 정렬이 가능해집니다.
-
-        # ----------------------------------------------------------------
-        # [핵심] 리스트 레이아웃 (7 : 3 비율) - 상태값(Status) 반영 버전
-        # ----------------------------------------------------------------
-        if not display_df.empty:
-            for i, row in display_df.iterrows():
-                p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
-                p_val = p_val if p_val and p_val > 0 else 0
-                
-                live_p = row.get('live_price', 0)
-                live_s = row.get('live_status', 'Active')
-                
-                # [수정] 가격 표시 로직: 상태에 따라 텍스트 변경
-                if live_s == "상장연기":
-                    price_html = f"""
-                        <div class='price-main' style='color:#1919e6 !important;'>상장연기</div>
-                        <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
-                    """
-                elif live_s == "상장폐지":
-                    price_html = f"""
-                        <div class='price-main' style='color:#888888 !important;'>상장폐지</div>
-                        <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
-                    """
-                elif live_p > 0:
-                    pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
-                    if pct > 0:
-                        change_color = "#e61919"; arrow = "▲"
-                    elif pct < 0:
-                        change_color = "#1919e6"; arrow = "▼"
-                    else:
-                        change_color = "#333333"; arrow = ""
-
-                    price_html = f"""
-                        <div class='price-main' style='color:{change_color} !important;'>
-                            ${live_p:,.2f} ({arrow}{pct:+.1f}%)
-                        </div>
-                        <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
-                    """
-                else:
-                    price_html = f"""
-                        <div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div>
-                        <div class='price-sub' style='color:#666666 !important;'>공모가</div>
-                    """
-                
-                date_html = f"<div class='date-text'>{row['date']}</div>"
-
-                c1, c2 = st.columns([7, 3])
-                
-                with c1:
-                    # 기업명 버튼
-                    if st.button(f"{row['name']}", key=f"btn_list_{i}"):
-                        st.session_state.selected_stock = row.to_dict()
-                        st.session_state.page = 'detail'
-                        st.rerun()
-                    
-                    try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
-                    except: s_val = 0
-                    size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
-                    
-                    st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
-
-                with c2:
-                    st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
-                
-                st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
-
-        else:
-            st.info("조건에 맞는 종목이 없습니다.")
-
-
-
-
-# ---------------------------------------------------------
-# 5. 상세 페이지 (Detail)
-# ---------------------------------------------------------
-elif st.session_state.page == 'detail':
-    stock = st.session_state.selected_stock
-    
-    # [안전장치] 선택된 종목이 없으면 캘린더로 복귀
-    if not stock:
-        st.session_state.page = 'calendar'
-        st.rerun()
-
-    # --- [데이터 복구 핵심 변수 추출] ---
-    sid = stock['symbol']
-    user_info = st.session_state.get('user_info') or {}
-    user_id = user_info.get('id', 'guest_id')
-
-    # --- [신규] 재접속 유저를 위한 데이터 복구 로직 ---
-    # 세션에 해당 종목의 판단 데이터가 없을 때만 DB에서 1회 로드합니다.
-    if sid not in st.session_state.user_decisions:
-        with st.spinner("과거 분석 기록을 불러오는 중..."):
-            saved_data = db_load_user_specific_decisions(user_id, sid)
-            if saved_data:
-                # DB에 저장된 값이 있다면 세션 상태에 복구 (라디오 버튼 위치 고정)
-                st.session_state.user_decisions[sid] = {
-                    "filing": saved_data.get('filing'),
-                    "news": saved_data.get('news'),
-                    "macro": saved_data.get('macro'),
-                    "company": saved_data.get('company'),
-                    "ipo_report": saved_data.get('ipo_report')
+                /* (A) 상단 필터: 줄바꿈 허용 */
+                div[data-testid="stHorizontalBlock"]:nth-of-type(1) {
+                    flex-wrap: wrap !important;
+                    gap: 10px !important;
+                    padding-bottom: 5px !important;
                 }
+                div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div {
+                    min-width: 100% !important;
+                    max-width: 100% !important;
+                    flex: 1 1 100% !important;
+                }
+    
+                /* (B) 리스트 구역: 가로 고정 & 수직 중앙 정렬 */
+                div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) {
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    gap: 0px !important;
+                    width: 100% !important;
+                    align-items: center !important; 
+                }
+    
+                /* (C) 컬럼 내부 정렬 강제 */
+                div[data-testid="column"] {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    justify-content: center !important; 
+                    min-width: 0px !important;
+                    padding: 0px 2px !important;
+                }
+    
+                /* (D) 리스트 컬럼 비율 (7:3) */
+                div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(1) {
+                    flex: 0 0 70% !important;
+                    max-width: 70% !important;
+                    overflow: hidden !important;
+                }
+                div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(2) {
+                    flex: 0 0 30% !important;
+                    max-width: 30% !important;
+                }
+    
+                /* (E) 폰트 및 간격 미세 조정 */
+                .mobile-sub { font-size: 10px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px; line-height: 1.1; }
+                .price-main { font-size: 13px !important; font-weight: bold; white-space: nowrap; line-height: 1.1; }
+                .price-sub { font-size: 10px !important; color: #666 !important; white-space: nowrap; line-height: 1.1; }
+                .date-text { font-size: 10px !important; color: #888 !important; margin-top: 1px; line-height: 1.1; }
+                .header-text { font-size: 12px !important; line-height: 1.0; }
+            }
+            </style>
+        """, unsafe_allow_html=True)
+    
+        # ---------------------------------------------------------
+        # [ANDROID-FIX] 안드로이드 셀렉트박스 닫힘 강제 패치
+        # ---------------------------------------------------------
+        st.markdown("""
+            <style>
+            /* 1. 선택 후 파란색 테두리(포커스) 제거 */
+            .stSelectbox div[data-baseweb="select"]:focus-within {
+                border-color: transparent !important;
+                box-shadow: none !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+    
+        # 2. 자바스크립트를 이용해 현재 활성화된(Focus) 입력창을 강제로 닫음
+        # 화면이 로드될 때마다 실행되어 모바일 키보드나 드롭다운을 숨깁니다.
+        st.components.v1.html("""
+            <script>
+                var mainDoc = window.parent.document;
+                var activeEl = mainDoc.activeElement;
+                if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.getAttribute('role') === 'combobox')) {
+                    activeEl.blur();
+                }
+            </script>
+        """, height=0)
+         
+    
+        # ---------------------------------------------------------
+        # 1. [STYLE] 블랙 배경 + 화이트 글씨 (테두리 없음)
+        # ---------------------------------------------------------
+        st.markdown("""
+            <style>
+            /* 기본 버튼: 검정 배경 / 흰 글씨 */
+            div[data-testid="stPills"] div[role="radiogroup"] button {
+                border: none !important;
+                outline: none !important;
+                background-color: #000000 !important;
+                color: #ffffff !important;
+                border-radius: 20px !important;
+                padding: 6px 15px !important;
+                margin-right: 5px !important;
+                box-shadow: none !important;
+            }
+    
+            /* 선택된 버튼: 진한 회색 배경 (구분용) */
+            div[data-testid="stPills"] button[aria-selected="true"] {
+                background-color: #444444 !important;
+                color: #ffffff !important;
+                font-weight: 800 !important;
+            }
+    
+            /* 스트림릿 기본 테두리 제거 */
+            div[data-testid="stPills"] div[data-baseweb="pill"] {
+                border: none !important;
+                background: transparent !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+    
+        # ---------------------------------------------------------
+        # 2. 메뉴 텍스트 및 현재 상태 정의 (권한설정 버튼 추가)
+        # ---------------------------------------------------------
+        is_logged_in = st.session_state.auth_status == 'user'
+        login_text = "로그아웃" if is_logged_in else "로그인"
+        settings_text = "권한설정"  # [NEW] 설정 버튼 텍스트
+        main_text = "메인"
+        watch_text = f"관심 ({len(st.session_state.watchlist)})"
+        board_text = "게시판"
+        
+        # [수정] 로그인 상태면 '권한설정' 버튼 노출, 아니면 숨김
+        if is_logged_in:
+            # 순서: 로그아웃 -> 권한설정 -> 메인 -> 관심 -> 게시판
+            menu_options = [login_text, settings_text, main_text, watch_text, board_text]
+        else:
+            menu_options = [login_text, main_text, watch_text, board_text]
+    
+        # 현재 어떤 페이지에 있는지 계산하여 기본 선택값(Default) 설정
+        default_sel = main_text # 기본값은 메인
+        if st.session_state.get('page') == 'login': 
+            default_sel = login_text
+        elif st.session_state.get('page') == 'setup': # setup 페이지일 때 (혹시나 해서 추가)
+            default_sel = settings_text
+        elif st.session_state.get('view_mode') == 'watchlist': 
+            default_sel = watch_text
+        elif st.session_state.get('page') == 'board': 
+            default_sel = board_text
+    
+        # ---------------------------------------------------------
+        # 3. 메뉴 표시 (st.pills)
+        # ---------------------------------------------------------
+        selected_menu = st.pills(
+            label="내비게이션",
+            options=menu_options,
+            selection_mode="single",
+            default=default_sel,
+            key="nav_pills_updated_v2", # 키값 충돌 방지용 변경
+            label_visibility="collapsed"
+        )
+    
+        # ---------------------------------------------------------
+        # 4. 클릭 감지 및 페이지 이동 로직 (설정 버튼 연결)
+        # ---------------------------------------------------------
+        if selected_menu and selected_menu != default_sel:
+            if selected_menu == login_text:
+                if is_logged_in: 
+                    st.session_state.auth_status = None # 로그아웃 처리
+                st.session_state.page = 'login'
+                
+            elif selected_menu == settings_text: # [NEW] 설정 페이지 이동
+                st.session_state.page = 'setup'
+                
+            elif selected_menu == main_text:
+                st.session_state.view_mode = 'all'
+                st.session_state.page = 'calendar' 
+                
+            elif selected_menu == watch_text:
+                st.session_state.view_mode = 'watchlist'
+                st.session_state.page = 'calendar' 
+                
+            elif selected_menu == board_text:
+                st.session_state.page = 'board'
+            
+            # 설정 변경 후 화면 즉시 갱신
+            st.rerun()
+    
+        
+        # ---------------------------------------------------------
+        # [기존 데이터 로직] - Batching 및 30분 캐싱 적용 버전
+        # ---------------------------------------------------------
+        all_df_raw = get_extended_ipo_data(MY_API_KEY)
+        
+        # 데이터 수집 범위 확인
+        if not all_df_raw.empty:
+            min_date = all_df_raw['date'].min()
+            max_date = all_df_raw['date'].max()
+            st.sidebar.info(f"📊 수집된 데이터 범위:\n{min_date} ~ {max_date}")
+            
+        view_mode = st.session_state.get('view_mode', 'all')
+        
+        if not all_df_raw.empty:
+            # 1. 데이터 전처리
+            all_df = all_df_raw.copy()
+            all_df['exchange'] = all_df['exchange'].fillna('-')
+            all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
+            all_df['공모일_dt'] = pd.to_datetime(all_df['date'], errors='coerce').dt.normalize()
+            all_df = all_df.dropna(subset=['공모일_dt'])
+            today_dt = pd.to_datetime(datetime.now().date())
+            
+            # 2. 필터 로직 (관심종목 vs 일반)
+            
+            # 🚨 안전장치: 변수가 없어서 튕기는 현상을 원천 차단하기 위해 미리 기본값 선언
+            sort_option = "최신순"  
+            period = "상장 예정 (30일)"
+            display_df = pd.DataFrame() 
+    
+            if view_mode == 'watchlist':
+                if st.button("🔄 전체 목록 보기", use_container_width=True, key="btn_view_all_main_final"):
+                    st.session_state.view_mode = 'all'
+                    st.rerun()
+                    
+                display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
+                if display_df.empty:
+                    st.info("아직 관심 종목에 담은 기업이 없습니다.")
+                    
             else:
-                # 기록이 없는 신규 종목일 경우 빈 딕셔너리 생성
-                st.session_state.user_decisions[sid] = {}
-
-    # [1] 변수 초기화 (기존 코드 유지)
-    profile = None
-    fin_data = {}
-    current_p = 0
-    off_val = 0
-
-    if stock:
-        # -------------------------------------------------------------------------
-        # [2] 상단 메뉴바 및 스타일 설정
-        # -------------------------------------------------------------------------
+                col_f1, col_f2 = st.columns([1, 1]) 
+                with col_f1:
+                    period = st.selectbox("조회 기간", ["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"], key="filter_period_final", label_visibility="collapsed")
+                with col_f2:
+                    sort_option = st.selectbox("정렬 순서", ["최신순", "수익률"], key="filter_sort_final", label_visibility="collapsed")
+                
+                # 🚨 [복구된 핵심 코드] 선택한 기간에 맞춰 display_df 데이터를 깎아냅니다.
+                if period == "상장 예정 (30일)":
+                    display_df = all_df[(all_df['공모일_dt'] >= today_dt) & (all_df['공모일_dt'] <= today_dt + timedelta(days=30))]
+                else:
+                    if period == "지난 6개월": start_date = today_dt - timedelta(days=180)
+                    elif period == "지난 12개월": start_date = today_dt - timedelta(days=365)
+                    elif period == "지난 18개월": start_date = today_dt - timedelta(days=540)
+                    
+                    display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
+    
+            # ----------------------------------------------------------------
+            # 🚀 [최적화 수정본] Batch 주가 조회 및 안전한 상태 표시
+            # ----------------------------------------------------------------
+            if not display_df.empty:
+                symbols_to_fetch = display_df['symbol'].dropna().unique().tolist()
+                
+                with st.spinner("실시간 주가 확인 중..."):
+                    # [수정] 이제 함수가 (가격맵, 상태맵) 두 개를 리턴합니다.
+                    all_prices_map, all_status_map = get_batch_prices(symbols_to_fetch)
+                    
+                db_count = len(all_prices_map)
+                total_req = len(symbols_to_fetch)
+                missing_count = total_req - db_count
+    
+                if missing_count > 0:
+                    st.toast(f"🐢 속도 저하: DB({db_count}개) / ☁️ API 호출({missing_count}개)", icon="⚠️")
+                else:
+                    st.toast(f"⚡ 고속 로딩: {db_count}개 전량 DB 호출 성공!", icon="✅")
+    
+                # 데이터 매핑 (가격과 상태를 데이터프레임에 추가)
+                display_df['live_price'] = display_df['symbol'].map(all_prices_map).fillna(0.0)
+                display_df['live_status'] = display_df['symbol'].map(all_status_map).fillna("Active")
+                
+                # 수익률 계산 (Active인 경우만 계산)
+                def parse_price(x):
+                    try: return float(str(x).replace('$','').split('-')[0])
+                    except: return 0.0
+    
+                p_ipo_series = display_df['price'].apply(parse_price)
+                display_df['temp_return'] = np.where(
+                    (p_ipo_series > 0) & (display_df['live_price'] > 0) & (display_df['live_status'] == "Active"),
+                    ((display_df['live_price'] - p_ipo_series) / p_ipo_series) * 100,
+                    -9999
+                )
+    
+                # [수정] 5. 정렬 최종 적용 (구조 통합)
+                # 먼저 컬럼의 타입을 확실히 float으로 강제 변환합니다.
+                display_df['temp_return'] = pd.to_numeric(display_df['temp_return'], errors='coerce').fillna(-9999.0)
+        
+                if sort_option == "수익률":
+                    # 수익률 정렬 (내림차순)
+                    # -9999인 데이터(Active가 아니거나 가격 없는 종목)를 마지막으로 보냅니다.
+                    display_df = display_df.sort_values(by='temp_return', ascending=False)
+                else:
+                    # 기본값: 최신순 정렬
+                    display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+        
+                # 만약 watchlist 모드에서만 추가적인 정렬 규칙이 필요하다면 여기에 별도로 작성 가능하지만, 
+                # 위 로직만으로도 '관심종목' 페이지 내에서의 수익률 정렬이 가능해집니다.
+    
+            # ----------------------------------------------------------------
+            # [핵심] 리스트 레이아웃 (7 : 3 비율) - 상태값(Status) 반영 버전
+            # ----------------------------------------------------------------
+            if not display_df.empty:
+                for i, row in display_df.iterrows():
+                    p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
+                    p_val = p_val if p_val and p_val > 0 else 0
+                    
+                    live_p = row.get('live_price', 0)
+                    live_s = row.get('live_status', 'Active')
+                    
+                    # [수정] 가격 표시 로직: 상태에 따라 텍스트 변경
+                    if live_s == "상장연기":
+                        price_html = f"""
+                            <div class='price-main' style='color:#1919e6 !important;'>상장연기</div>
+                            <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
+                        """
+                    elif live_s == "상장폐지":
+                        price_html = f"""
+                            <div class='price-main' style='color:#888888 !important;'>상장폐지</div>
+                            <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
+                        """
+                    elif live_p > 0:
+                        pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
+                        if pct > 0:
+                            change_color = "#e61919"; arrow = "▲"
+                        elif pct < 0:
+                            change_color = "#1919e6"; arrow = "▼"
+                        else:
+                            change_color = "#333333"; arrow = ""
+    
+                        price_html = f"""
+                            <div class='price-main' style='color:{change_color} !important;'>
+                                ${live_p:,.2f} ({arrow}{pct:+.1f}%)
+                            </div>
+                            <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
+                        """
+                    else:
+                        price_html = f"""
+                            <div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div>
+                            <div class='price-sub' style='color:#666666 !important;'>공모가</div>
+                        """
+                    
+                    date_html = f"<div class='date-text'>{row['date']}</div>"
+    
+                    c1, c2 = st.columns([7, 3])
+                    
+                    with c1:
+                        # 기업명 버튼
+                        if st.button(f"{row['name']}", key=f"btn_list_{i}"):
+                            st.session_state.selected_stock = row.to_dict()
+                            st.session_state.page = 'detail'
+                            st.rerun()
+                        
+                        try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
+                        except: s_val = 0
+                        size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
+                        
+                        st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
+    
+                    with c2:
+                        st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
+                    
+                    st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
+    
+            else:
+                st.info("조건에 맞는 종목이 없습니다.")
+    
+    
+    
+    
+    # ---------------------------------------------------------
+    # 5. 상세 페이지 (Detail)
+    # ---------------------------------------------------------
+    elif st.session_state.page == 'detail':
+        stock = st.session_state.selected_stock
+        
+        if not stock:
+            st.session_state.page = 'calendar'
+            st.rerun()
+    
+        # --- [데이터 복구 핵심 변수 추출] ---
+        sid = stock['symbol']
+        user_info = st.session_state.get('user_info') or {}
+        user_id = user_info.get('id', 'guest_id')
+    
+        # --- [신규] 재접속 유저를 위한 데이터 복구 로직 ---
+        # 세션에 해당 종목의 판단 데이터가 없을 때만 DB에서 1회 로드합니다.
+        if sid not in st.session_state.user_decisions:
+            with st.spinner("과거 분석 기록을 불러오는 중..."):
+                saved_data = db_load_user_specific_decisions(user_id, sid)
+                if saved_data:
+                    # DB에 저장된 값이 있다면 세션 상태에 복구 (라디오 버튼 위치 고정)
+                    st.session_state.user_decisions[sid] = {
+                        "filing": saved_data.get('filing'),
+                        "news": saved_data.get('news'),
+                        "macro": saved_data.get('macro'),
+                        "company": saved_data.get('company'),
+                        "ipo_report": saved_data.get('ipo_report')
+                    }
+                else:
+                    # 기록이 없는 신규 종목일 경우 빈 딕셔너리 생성
+                    st.session_state.user_decisions[sid] = {}
+    
+        # [1] 변수 초기화 (기존 코드 유지)
+        profile = None
+        fin_data = {}
+        current_p = 0
+        off_val = 0
+    
+        if stock:
+            # -------------------------------------------------------------------------
+            # [2] 상단 메뉴바 및 스타일 설정
+            # -------------------------------------------------------------------------
+            st.markdown("""
+                <style>
+                div[data-testid="stPills"] div[role="radiogroup"] button {
+                    border: none !important;
+                    background-color: #000000 !important;
+                    color: #ffffff !important;
+                    border-radius: 20px !important;
+                    padding: 6px 15px !important;
+                    margin-right: 5px !important;
+                    box-shadow: none !important;
+                }
+                div[data-testid="stPills"] button[aria-selected="true"] {
+                    background-color: #444444 !important;
+                    font-weight: 800 !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+    
+            # (2) [교체 완료] 권한설정 버튼이 포함된 새로운 메뉴 로직
+            is_logged_in = st.session_state.auth_status == 'user'
+            login_text = "로그아웃" if is_logged_in else "로그인"
+            settings_text = "권한설정"  # [NEW]
+            main_text = "메인"
+            watch_text = f"관심 ({len(st.session_state.watchlist)})"
+            board_text = "게시판"
+            
+            # 로그인 상태에 따라 메뉴 구성 변경
+            if is_logged_in:
+                menu_options = [login_text, settings_text, main_text, watch_text, board_text]
+            else:
+                menu_options = [login_text, main_text, watch_text, board_text]
+    
+            # 기본 선택값 로직 (Detail 페이지에서는 선택된 게 없는 상태(None)가 기본일 수 있음)
+            # 하지만 메뉴를 눌러 이동하는 것이 목적이므로, default=None으로 두어 
+            # 사용자가 버튼을 누를 때만 동작하게 하는 것이 기존 로직과 맞습니다.
+            
+            selected_menu = st.pills(
+                label="nav", 
+                options=menu_options, 
+                selection_mode="single", 
+                default=None,  # Detail 페이지에서는 메뉴가 '선택'되어 있을 필요가 없음 (누르면 이동)
+                key="detail_nav_updated_final", # 키값 중복 방지
+                label_visibility="collapsed"
+            )
+    
+            if selected_menu:
+                if selected_menu == login_text:
+                    if is_logged_in: st.session_state.auth_status = None
+                    st.session_state.page = 'login'
+                
+                elif selected_menu == settings_text: # [NEW] 설정 이동
+                    st.session_state.page = 'setup'
+    
+                elif selected_menu == main_text:
+                    st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'
+                
+                elif selected_menu == watch_text:
+                    st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
+                
+                elif selected_menu == board_text:
+                    st.session_state.page = 'board'
+                
+                st.rerun()
+    
+            # -------------------------------------------------------------------------
+            # [3] 사용자 판단 로직 및 데이터 로딩 (원형 유지)
+            # -------------------------------------------------------------------------
+            if 'user_decisions' not in st.session_state:
+                st.session_state.user_decisions = {}
+            
+            sid = stock['symbol']
+            if sid not in st.session_state.user_decisions:
+                st.session_state.user_decisions[sid] = {"news": None, "filing": None, "macro": None, "company": None}
+    
+            def draw_decision_box(step_key, title, options):
+                st.write("")
+                st.markdown(f"##### {title}")
+                current_val = st.session_state.user_decisions[sid].get(step_key)
+                choice = st.radio(
+                    label=f"판단_{step_key}",
+                    options=options,
+                    index=options.index(current_val) if current_val in options else None,
+                    key=f"dec_{sid}_{step_key}",
+                    horizontal=True,
+                    label_visibility="collapsed"
+                )
+                if choice:
+                    st.session_state.user_decisions[sid][step_key] = choice
+    
+            # 데이터 로딩
+            today = datetime.now().date()
+            ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
+            status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
+            date_str = ipo_dt.strftime('%Y-%m-%d')
+    
+            with st.spinner(f"🤖 {stock['name']} 분석 중..."):
+                try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
+                except: off_val = 0
+                try:
+                    current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
+                    profile = get_company_profile(stock['symbol'], MY_API_KEY) 
+                    fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
+                except: pass
+    
+            # 'symbol' 대신 'stock['symbol']'을 직접 넣어서 호출합니다.
+            current_p, current_s = get_current_stock_price(stock['symbol'], MY_API_KEY)
+    
+            # 2. 헤더 출력 로직 (상태값에 따른 분기 처리)
+            if current_s == "상장연기":
+                p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / 공모 ${off_val} / 📅 상장연기/기타)</span>"
+            elif current_s == "상장폐지":
+                p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 🚫 상장폐지)</span>"
+            elif current_p > 0 and off_val > 0:
+                # 정상적인 Active 상태일 때 수익률 계산
+                pct = ((current_p - off_val) / off_val) * 100
+                color = "#00ff41" if pct >= 0 else "#ff4b4b"
+                icon = "▲" if pct >= 0 else "▼"
+                # 소수점 2자리까지만 예쁘게 출력
+                p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 현재 ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
+            else:
+                # 상장 전이거나 가격 데이터가 아직 없는 경우
+                p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 상장 대기)</span>"
+    
+            # 3. 여기까지 (최종 출력)
+            st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
+            st.write("")
+    
+            # -------------------------------------------------------------------------
+            # [CSS 추가] 탭 텍스트 색상 고정 (사용자 원형 유지)
+            # -------------------------------------------------------------------------
+            st.markdown("""
+            <style>
+                .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+                    color: #333333 !important; font-weight: bold !important;
+                }
+                .stTabs [data-baseweb="tab-list"] button:hover [data-testid="stMarkdownContainer"] p {
+                    color: #004e92 !important;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+    
+    
+    
+            # -------------------------------------------------------------------------
+            # [5] 탭 메뉴 구성
+            # -------------------------------------------------------------------------
+            tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
+                " 주요공시", 
+                " 주요뉴스", 
+                " 거시지표", 
+                " 미시지표",
+                " 기업평가",
+                " 투자결정"
+            ])
+    
+            # --- Tab 0: 핵심 정보 (공시 가이드 및 AI 분석 강화) ---
+            with tab0:
+                # [세션 상태 관리]
+                if 'core_topic' not in st.session_state:
+                    st.session_state.core_topic = "S-1"
+    
+                # 버튼 스타일 강제 지정 (하얀 바탕, 검정 글씨)
+                st.markdown("""
+                    <style>
+                    div.stButton > button {
+                        background-color: #ffffff !important;
+                        color: #000000 !important;
+                        border: 1px solid #dcdcdc !important;
+                        border-radius: 8px !important;
+                        height: 3em !important;
+                        font-weight: bold !important;
+                    }
+                    /* 마우스를 올렸을 때나 클릭했을 때의 효과 */
+                    div.stButton > button:hover {
+                        border-color: #6e8efb !important;
+                        color: #6e8efb !important;
+                    }
+                    div.stButton > button:active {
+                        background-color: #f0f2f6 !important;
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+    
+                # 1. 문서 선택 버튼 그리드 (기존 코드 유지)
+                r1_c1, r1_c2, r1_c3 = st.columns(3)
+                r2_c1, r2_c2 = st.columns(2)
+    
+                if r1_c1.button("S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
+                if r1_c2.button("S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
+                if r1_c3.button("F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
+                if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
+                if r2_c2.button("424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
+    
+                # 2. 메타데이터 및 체크포인트 설정
+                topic = st.session_state.core_topic
+                
+                # [핵심] 문서별 맞춤형 분석 구조 정의
+                def_meta = {
+                    "S-1": {
+                        "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
+                        "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
+                        # [수정] 원본 스타일의 풍성한 지시사항 적용
+                        "structure": """
+                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
+                        1. **[투자포인트]** : 해당 문서에서 발견된 가장 중요한 투자 포인트를 구체적인 수치나 근거와 함께 상세히 서술하세요.
+                        2. **[성장가능성]** : MD&A(경영진 분석)를 통해 본 기업의 실질적 성장 가능성과 재무적 함의를 깊이 있게 분석하세요.
+                        3. **[핵심리스크]** : 투자자가 반드시 경계해야 할 핵심 리스크 1가지와 그 파급 효과 및 대응책을 구체적으로 서술하세요.
+                        """
+                    },
+                    "S-1/A": {
+                        "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
+                        "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
+                        # S-1/A 전용 질문 (수정 사항 및 가격 중심)
+                        "structure": """
+                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
+                        1. **[수정사항]** : (이전 제출된 S-1 대비 변경된 핵심 사항(주식 수, 공모가 범위 등)을 중점적으로 서술하세요.)
+                        2. **[가격적정성]** : (제시된 공모가 범위가 동종 업계 대비 합리적인지, 또는 수요예측 분위기를 반영했는지 분석하세요.)
+                        3. **[주주희석]** : (신규 공모로 인한 기존 주주 가치 희석(Dilution) 정도와 이것이 투자 매력도에 미치는 영향을 서술하세요.)
+                        """
+                    },
+                    "F-1": {
+                        "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
+                        "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
+                        # F-1 전용 질문 (해외 리스크 중심)
+                        "structure": """
+                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
+                        1. **[글로벌경쟁력]** : (해당 기업이 본국 및 글로벌 시장에서 가진 독보적인 경쟁 우위를 서술하세요.)
+                        2. **[해외리스크]** : (환율, 정치적 이슈, 회계 기준 차이 등 해외 기업 특유의 리스크 요인을 상세히 분석하세요.)
+                        3. **[ADS구조]** : (미국 예탁 증서(ADS) 구조가 주주 권리 행사에 미치는 영향이나 특이사항을 서술하세요.)
+                        """
+                    },
+                    "FWP": {
+                        "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
+                        "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
+                        # FWP 전용 질문 (비전 및 전략 중심)
+                        "structure": """
+                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
+                        1. **[핵심비전]** : (경영진이 로드쇼에서 가장 강조하고 있는 미래 성장 비전과 목표를 서술하세요.)
+                        2. **[차별화전략]** : (경쟁사 대비 부각시키고 있는 기술적/사업적 차별화 포인트를 시각 자료(Graphics) 기반으로 분석하세요.)
+                        3. **[로드쇼반응]** : (자료 톤앤매너를 통해 유추할 수 있는 경영진의 자신감이나 시장 공략 의지를 서술하세요.)
+                        """
+                    },
+                    "424B4": {
+                        "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
+                        "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
+                        # 424B4 전용 질문 (확정 결과 중심)
+                        "structure": """
+                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
+                        1. **[최종공모가]** : (확정된 공모가가 희망 밴드 상단인지 하단인지 분석하고, 그 의미(시장 수요)를 해석하세요.)
+                        2. **[자금활용]** : (확정된 조달 자금이 구체적으로 어떤 우선순위 사업에 투입될 예정인지 최종 점검하세요.)
+                        3. **[상장후 전망]** : (주관사단 구성과 배정 물량을 바탕으로 상장 초기 유통 물량 부담이나 변동성을 예측하세요.)
+                        """
+                    }
+                }
+                
+                curr_meta = def_meta.get(topic, def_meta["S-1"])
+    
+                # UI 출력: 통합된 설명문 출력
+                st.info(curr_meta['desc'])
+                
+                # 1. expander를 누르면 즉시 분석이 시작되도록 설정
+                with st.expander(f" {topic} 요약보기", expanded=False):
+                    with st.spinner(f"{topic}의 핵심 내용을 분석 중입니다..."):
+                        # ▼▼▼ 질문하신 대로 교체 ▼▼▼
+                        analysis_result = get_ai_analysis(
+                            stock['name'], 
+                            topic, 
+                            curr_meta['points'], 
+                            curr_meta.get('structure', "") # 구조 템플릿 전달
+                        )
+                        
+                        if "ERROR_DETAILS" in analysis_result:
+                            st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
+                            with st.expander("상세 에러 내용"):
+                                st.code(analysis_result)
+                        else:
+                            # 2. 불필요한 인사말 없이 결과만 깔끔하게 출력
+                            # 만약 결과값에 "분석한 결과입니다" 등의 문구가 섞여 나온다면 
+                            # get_ai_analysis 함수 내 프롬프트에서 "인사말 생략"을 추가하는 것이 좋습니다.
+                            st.markdown(analysis_result)
+                    
+                    
+                    # 3. 요청하신 하단 캡션 문구로 변경
+                    st.caption(" 자체 알고리즘으로 공시자료를 요약해 제공합니다.")
+                    
+                    
+                    
+                   
+                # ---------------------------------------------------------
+                # 3. SEC URL 및 공식 홈페이지 버튼 생성 (법인 식별자 보존형)
+                # ---------------------------------------------------------
+                import urllib.parse
+                import re
+                
+                # (1) 데이터 준비
+                cik = profile.get('cik', '') if profile else ''
+                
+                # [수정] Inc, Corp, Ltd 등을 삭제하지 않고 전체 이름을 사용합니다.
+                # 불필요한 공백만 제거하여 검색 정확도를 높입니다.
+                full_company_name = stock['name'].strip() 
+                
+                # (2) SEC EDGAR 공시 URL 생성
+                if cik:
+                    sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
+                else:
+                    # 풀네임을 따옴표로 감싸서 정확한 명칭으로 검색하게 합니다.
+                    sec_query = f'"{full_company_name}" {topic}'
+                    sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(sec_query)}&dateRange=all"
+    
+                # (3) 공식 홈페이지 즉시 연결 로직 (DuckDuckGo !Bang 활용)
+                # API에서 직접 제공하는 주소가 있는지 먼저 확인
+                real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
+                
+                if real_website:
+                    website_url = real_website
+                    btn_label = f"회사 공식홈페이지"
+                else:
+                    # [핵심] 회사 풀네임(Inc, Corp 포함) + Investor Relations 조합
+                    # 예: ! AGI Inc. Investor Relations
+                    refined_query = f"! {full_company_name} Investor Relations"
+                    website_url = f"https://duckduckgo.com/?q={urllib.parse.quote(refined_query)}"
+                    btn_label = f"회사 공식홈페이지"
+    
+                # (4) 버튼 출력 (스타일 통일)
+                st.markdown(f"""
+                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
+                        <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>
+                                EDGAR {topic} 공시 확인하기 
+                        </button>
+                    </a>
+                    
+                    <a href="{website_url}" target="_blank" style="text-decoration:none;">
+                        <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>
+                               {btn_label}
+                        </button>
+                    </a>
+                """, unsafe_allow_html=True)
+                
+    
+                # 4. 의사결정 박스 및 면책 조항
+                draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
+                display_disclaimer()
+                
+            # --- Tab 1: 뉴스 & 심층 분석 (Gemini 통합형) ---
+            with tab1:
+                # [1] 통합 분석 데이터 호출 (비즈니스 요약 + 뉴스 5개 통합)
+                with st.spinner(f"{stock['name']}의 최신 데이터를 정밀 분석 중입니다..."):
+                    biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'])
+    
+                # [2] 기업 심층 분석 섹션 (Expander)
+                st.write("<br>", unsafe_allow_html=True)
+                with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
+                    if biz_info:
+                        st.markdown(f"""
+                        <div style="
+                            background-color: #f8f9fa; 
+                            padding: 22px; 
+                            border-radius: 12px; 
+                            border-left: 5px solid #6e8efb; 
+                            color: #333; 
+                            font-family: 'Pretendard', sans-serif;
+                            font-size: 15px;
+                            line-height: 1.6;
+                        ">{biz_info}</div>
+                        """, unsafe_allow_html=True)
+                        
+                        # 💡 [수정] 안내 멘트를 비즈니스 모델 요약 내용 하단으로 이동
+                        st.caption("Google Search 기반으로 실시간 분석 및 뉴스를 제공합니다.")
+                    else:
+                        st.error("⚠️ 비즈니스 분석 정보를 가져오지 못했습니다.")
+    
+                st.write("<br>", unsafe_allow_html=True)
+    
+                # [3] 뉴스 리스트 섹션
+                if final_display_news:
+                    for i, n in enumerate(final_display_news):
+                        ko_title = n.get('title_ko', '번역 오류')
+                        en_title = n.get('title_en', 'No Title')
+                        sentiment_label = n.get('sentiment', '일반')
+                        bg_color = n.get('bg', '#f1f3f4')
+                        text_color = n.get('color', '#5f6368')
+                        news_link = n.get('link', '#')
+                        news_date = n.get('date', 'Recent')
+    
+                        # 특수 기호 처리
+                        safe_en = en_title.replace("$", "\$")
+                        safe_ko = ko_title.replace("$", "\$")
+                        
+                        # 배지 생성
+                        s_badge = f'<span style="background:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{sentiment_label}</span>'
+                        
+                        st.markdown(f"""
+                            <a href="{news_link}" target="_blank" style="text-decoration:none; color:inherit;">
+                                <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <div>
+                                            <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
+                                            <span style="color:#888; font-size:12px;">| 일반</span>
+                                            {s_badge}
+                                        </div>
+                                        <small style="color:#bbb;">{news_date}</small>
+                                    </div>
+                                    <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">
+                                        {safe_en}
+                                        <br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_ko}</span>
+                                    </div>
+                                </div>
+                            </a>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
+    
+                st.write("<br>", unsafe_allow_html=True)
+    
+                # 결정 박스
+                draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
+    
+                # 면책 조항
+                display_disclaimer()
+                
+            # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
+            with tab2:
+                # [1] 데이터 수집 및 계산 함수
+                def get_market_status_internal(df_calendar):
+                    data = {
+                        "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0,
+                        "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50
+                    }
+            
+                    # --- A. [IPO Specific] 앱 내 데이터로 계산 ---
+                    if not df_calendar.empty:
+                        today = datetime.now().date()
+                        
+                        # 1. 수익률 & 적자 비율 (최근 30개 표본)
+                        traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < today].sort_values(by='공모일_dt', ascending=False).head(30)
+                        
+                        ret_sum = 0; ret_cnt = 0; unp_cnt = 0
+                        for _, row in traded_ipos.iterrows():
+                            try:
+                                p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
+                                p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
+                                if p_ipo > 0 and p_curr > 0:
+                                    ret_sum += ((p_curr - p_ipo) / p_ipo) * 100
+                                    ret_cnt += 1
+                                fin = get_financial_metrics(row['symbol'], MY_API_KEY)
+                                if fin and fin.get('net_margin') and fin['net_margin'] < 0: unp_cnt += 1
+                            except: pass
+                        
+                        if ret_cnt > 0: data["ipo_return"] = ret_sum / ret_cnt
+                        if len(traded_ipos) > 0: data["unprofitable_pct"] = (unp_cnt / len(traded_ipos)) * 100
+            
+                        # 2. Filings Volume (향후 30일)
+                        future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= today) & 
+                                                  (df_calendar['공모일_dt'].dt.date <= today + timedelta(days=30))]
+                        data["ipo_volume"] = len(future_ipos)
+            
+                        # 3. Withdrawal Rate (최근 540일)
+                        recent_history = df_calendar[df_calendar['공모일_dt'].dt.date >= (today - timedelta(days=540))]
+                        if not recent_history.empty:
+                            wd = recent_history[recent_history['status'].str.lower() == 'withdrawn']
+                            data["withdrawal_rate"] = (len(wd) / len(recent_history)) * 100
+            
+                    # --- B. [Macro Market] Yahoo Finance 실시간 데이터 ---
+                    try:
+                        vix_obj = yf.Ticker("^VIX")
+                        data["vix"] = vix_obj.history(period="1d")['Close'].iloc[-1]
+            
+                        w5000 = yf.Ticker("^W5000").history(period="1d")['Close'].iloc[-1]
+                        us_gdp_est = 28.0 
+                        mkt_cap_est = w5000 / 1000 * 0.93 
+                        data["buffett_val"] = (mkt_cap_est / us_gdp_est) * 100
+            
+                        try:
+                            spy = yf.Ticker("SPY")
+                            data["pe_ratio"] = spy.info.get('trailingPE', 24.5) 
+                        except: data["pe_ratio"] = 24.5
+            
+                        spx = yf.Ticker("^GSPC").history(period="1y")
+                        curr_spx = spx['Close'].iloc[-1]
+                        ma200 = spx['Close'].rolling(200).mean().iloc[-1]
+                        mom_score = ((curr_spx - ma200) / ma200) * 100
+                        s_vix = max(0, min(100, (35 - data["vix"]) * (100/23)))
+                        s_mom = max(0, min(100, (mom_score + 10) * 5))
+                        data["fear_greed"] = (s_vix + s_mom) / 2
+                    except: pass
+                    
+                    return data
+            
+                # [2] 데이터 로드 및 분석 실행
+                with st.spinner("📊 8대 핵심 지표를 실시간 분석 중입니다..."):
+                    if 'all_df' not in locals(): 
+                        all_df_tab2 = get_extended_ipo_data(MY_API_KEY)
+                        if not all_df_tab2.empty:
+                            all_df_tab2 = all_df_tab2.dropna(subset=['exchange'])
+                            all_df_tab2['공모일_dt'] = pd.to_datetime(all_df_tab2['date'])
+                    else:
+                        all_df_tab2 = all_df
+            
+                    md = get_market_status_internal(all_df_tab2)
+            
+                # --- CSS 스타일 정의 ---
+                st.markdown("""
+                <style>
+                    .metric-card { background-color:#ffffff; padding:15px; border-radius:12px; border: 1px solid #e0e0e0;
+                                  box-shadow: 0 2px 4px rgba(0,0,0,0.03); height: 100%; min-height: 220px; 
+                                  display: flex; flex-direction: column; justify-content: space-between; }
+                    .metric-header { font-weight:bold; font-size:16px; color:#111; margin-bottom:5px; }
+                    .metric-value-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+                    .metric-value { font-size:20px; font-weight:800; color:#004e92; }
+                    .metric-desc { font-size:13px; color:#555; line-height:1.5; margin-bottom:10px; flex-grow: 1; }
+                    .metric-footer { font-size:11px; color:#999; margin-top:5px; border-top:1px solid #f0f0f0; padding-top:8px; font-style: italic; }
+                    .st-badge { font-size:12px; padding: 3px 8px; border-radius:6px; font-weight:bold; }
+                    .st-hot { background-color:#ffebee; color:#c62828; }
+                    .st-cold { background-color:#e3f2fd; color:#1565c0; }
+                    .st-good { background-color:#e8f5e9; color:#2e7d32; }
+                    .st-neutral { background-color:#f5f5f5; color:#616161; }
+                </style>
+                """, unsafe_allow_html=True)
+            
+                # --- 1. IPO 시장 지표 시각화 ---
+                st.markdown('<p style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">IPO 시장 과열 평가</p>', unsafe_allow_html=True)
+                c1, c2, c3, c4 = st.columns(4)
+            
+                with c1:
+                    val = md['ipo_return']; status = "🔥 과열" if val >= 20 else "✅ 적정" if val >= 0 else "❄️ 침체"
+                    st_cls = "st-hot" if val >= 20 else "st-good" if val >= 0 else "st-cold"
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>First-Day Returns</div><div class='metric-value-row'><span class='metric-value'>{val:+.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>상장 첫날 시초가가 공모가 대비 얼마나 상승했는지 나타냅니다. 20% 이상이면 과열로 판단합니다.</div><div class='metric-footer'>Ref: Jay Ritter (Univ. of Florida)</div></div>", unsafe_allow_html=True)
+            
+                with c2:
+                    val = md['ipo_volume']; status = "🔥 활발" if val >= 10 else "⚖️ 보통"
+                    st_cls = "st-hot" if val >= 10 else "st-neutral"
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Filings Volume</div><div class='metric-value-row'><span class='metric-value'>{val}건</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>향후 30일 이내 상장 예정인 기업의 수입니다. 물량이 급증하면 고점 징후일 수 있습니다.</div><div class='metric-footer'>Ref: Ibbotson & Jaffe (1975)</div></div>", unsafe_allow_html=True)
+            
+                with c3:
+                    val = md['unprofitable_pct']; status = "🚨 위험" if val >= 80 else "⚠️ 주의" if val >= 50 else "✅ 건전"
+                    st_cls = "st-hot" if val >= 50 else "st-good"
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Unprofitable IPOs</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>최근 상장 기업 중 순이익이 '적자'인 기업의 비율입니다. 80%에 육박하면 버블로 간주합니다.</div><div class='metric-footer'>Ref: Jay Ritter (Dot-com Bubble)</div></div>", unsafe_allow_html=True)
+            
+                with c4:
+                    val = md['withdrawal_rate']; status = "🔥 과열" if val < 5 else "✅ 정상"
+                    st_cls = "st-hot" if val < 5 else "st-good"
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Withdrawal Rate</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>자진 철회 비율입니다. 낮을수록(10%↓) 묻지마 상장이 많다는 뜻입니다.</div><div class='metric-footer'>Ref: Dunbar (1998)</div></div>", unsafe_allow_html=True)
+            
+                st.write("<br>", unsafe_allow_html=True)
+            
+                # --- 2. 거시 시장 지표 시각화 ---
+                st.markdown('<p style="font-size: 15px; font-weight: 600; margin-top: 20px; margin-bottom: 10px;">미국거시경제 과열 평가</p>', unsafe_allow_html=True)
+                m1, m2, m3, m4 = st.columns(4)
+            
+                with m1:
+                    val = md['vix']; status = "🔥 탐욕" if val <= 15 else "❄️ 공포" if val >= 25 else "⚖️ 중립"
+                    st_cls = "st-hot" if val <= 15 else "st-cold" if val >= 25 else "st-neutral"
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>VIX Index</div><div class='metric-value-row'><span class='metric-value'>{val:.2f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>S&P 500 변동성 지수입니다. 낮을수록 시장이 과도하게 안심하고 있음을 뜻합니다.</div><div class='metric-footer'>Ref: CBOE / Whaley (1993)</div></div>", unsafe_allow_html=True)
+            
+                with m2:
+                    val = md['buffett_val']; status = "🚨 고평가" if val > 150 else "⚠️ 높음"
+                    st_cls = "st-hot" if val > 120 else "st-neutral"
+                    disp_val = f"{val:.0f}%" if val > 0 else "N/A"
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Buffett Indicator</div><div class='metric-value-row'><span class='metric-value'>{disp_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>GDP 대비 시총 비율입니다. 100%를 넘으면 경제 규모 대비 주가가 비싸다는 신호입니다.</div><div class='metric-footer'>Ref: Warren Buffett (2001)</div></div>", unsafe_allow_html=True)
+            
+                with m3:
+                    val = md['pe_ratio']; status = "🔥 고평가" if val > 25 else "✅ 적정"
+                    st_cls = "st-hot" if val > 25 else "st-good"
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>S&P 500 PE</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}x</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>주가수익비율입니다. 역사적 평균(약 16배)보다 높으면 고평가 구간입니다.</div><div class='metric-footer'>Ref: Shiller CAPE Model (Proxy)</div></div>", unsafe_allow_html=True)
+            
+                with m4:
+                    val = md['fear_greed']; status = "🔥 Greed" if val >= 70 else "❄️ Fear" if val <= 30 else "⚖️ Neutral"
+                    st_cls = "st-hot" if val >= 70 else "st-cold" if val <= 30 else "st-neutral"
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Fear & Greed</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>심리 지표입니다. 75점 이상은 '극단적 탐욕' 상태를 의미합니다.</div><div class='metric-footer'>Ref: CNN Business Logic</div></div>", unsafe_allow_html=True)
+            
+                st.write("<br>", unsafe_allow_html=True)
+                
+                # --- 3. AI 종합 진단 (Expander) ---
+                with st.expander("거시지표 분석", expanded=False): 
+                    try:
+                        ai_market_comment = get_market_dashboard_analysis(md)
+                        
+                        # 🚨 [핵심 추가] AI 답변에 포함된 불필요한 HTML 태그 강제 제거!
+                        if isinstance(ai_market_comment, str):
+                            ai_market_comment = ai_market_comment.replace("</div>", "").replace("<div>", "").replace("```html", "").replace("```", "").strip()
+                            
+                    except NameError:
+                        ai_market_comment = "AI 분석 함수가 아직 로드되지 않았습니다."
+    
+                    # 제목 div를 제거하고 본문만 남긴 버전
+                    st.markdown(f"""
+                    <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #004e92;'>
+                        <div style='font-size:14px; line-height:1.6; color:#333; text-align:justify;'>
+                            {ai_market_comment}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 기존의 팁 메시지는 하단에 보조적으로 표시
+                    if md.get('unprofitable_pct', 0) >= 80:
+                        st.warning("🚨 **경고:** 적자 기업 비율이 매우 높습니다. 개별 종목의 펀더멘털 확인이 필수적입니다.")
+            
+               # [4] 참고논문 (expander)
+                with st.expander("참고(References)", expanded=False):
+                    st.markdown("""
+                    <style>
+                        .ref-container { margin-top: 5px; }
+                        .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+                        .ref-item:hover { background-color: #fafafa; padding-left: 5px; padding-right: 5px; }
+                        .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
+                        .ref-title:hover { text-decoration: underline; }
+                        .ref-author { font-size: 12px; color: #666; margin-top: 2px; }
+                        .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 10px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; white-space: nowrap; }
+                        .ref-btn:hover { border-color: #004e92; color: #004e92; background-color: #f0f7ff; }
+                        .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 10px; font-weight: bold; margin-bottom: 5px; }
+                    </style>
+                    """, unsafe_allow_html=True)
+    
+                    # --- 중요: references 변수를 여기서 정의해야 합니다 ---
+                    references = [
+                        {
+                            "label": "IPO 데이터", 
+                            "title": "Initial Public Offerings: Updated Statistics", 
+                            "author": "Jay R. Ritter (Warrington College)", 
+                            "summary": "미국 IPO 시장의 성적표와 공모가 저평가(Underpricing) 통계의 결정판",
+                            "link": "https://site.warrington.ufl.edu/ritter/ipo-data/"
+                        },
+                        {
+                            "label": "시장 과열", 
+                            "title": "'Hot Issue' Markets (Ibbotson & Jaffe)", 
+                            "author": "Ibbotson & Jaffe (1975)", 
+                            "summary": "특정 시기에 IPO 수익률이 비정상적으로 높아지는 '시장 과열' 현상 규명",
+                            "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets"
+                        },
+                        {
+                            "label": "상장 철회", 
+                            "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", 
+                            "author": "Dunbar (1998)", 
+                            "summary": "상장 방식 선택에 따른 기업 가치와 상장 철회 위험의 상관관계 분석",
+                            "link": "https://scholar.google.com/scholar?q=Dunbar+1995+The+Choice+Between+Firm-Commitment+and+Best-Efforts+IPOs"
+                        },
+                        {
+                            "label": "시장 변동성", 
+                            "title": "VIX White Paper: CBOE Volatility Index", 
+                            "author": "CBOE (Official)", 
+                            "summary": "S&P 500 옵션을 기반으로 시장의 공포와 변동성을 측정하는 표준 지표",
+                            "link": "https://www.cboe.com/micro/vix/vixwhite.pdf"
+                        },
+                        {
+                            "label": "밸류에이션", 
+                            "title": "Warren Buffett on the Stock Market (Fortune Classic)", 
+                            "author": "Warren Buffett (2001)", 
+                            "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 버핏 지표",
+                            "link": "https://www.gurufocus.com/news/122602/warren-buffett-on-the-stock-market-2001-article"
+                        },
+                        {
+                            "label": "기초 데이터", 
+                            "title": "U.S. Stock Markets 1871-Present (CAPE Ratio)", 
+                            "author": "Robert Shiller", 
+                            "summary": "경기조정주가수익비율(CAPE)을 활용한 장기적 주식 시장 밸류에이션 데이터",
+                            "link": "http://www.econ.yale.edu/~shiller/data.htm"
+                        },
+                        {
+                            "label": "투자자 심리", 
+                            "title": "Fear & Greed Index (Real-time)", 
+                            "author": "CNN Business", 
+                            "summary": "7가지 지표를 통합해 투자자의 탐욕과 공포 수준을 0~100으로 수치화",
+                            "link": "https://edition.cnn.com/markets/fear-and-greed"
+                        }
+                    ]
+    
+                    # 이제 변수가 정의되었으므로 루프를 돌립니다.
+                    for ref in references:
+                        st.markdown(f"""
+                        <div class='ref-item'>
+                            <div style='flex:1;'>
+                                <div class='ref-badge'>{ref['label']}</div><br>
+                                <a href='{ref['link']}' target='_blank' class='ref-title' style='display:block; margin-bottom:4px;'>📄 {ref['title']}</a>
+                                <div style='font-size: 13px; color: #666; line-height: 1.5;'>
+                                    <span>{ref['summary']}, {ref['author']}</span>
+                                </div>
+                            </div>
+                            <div style='margin-left: 15px; align-self: center;'>
+                                <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
+                            </div>
+                        </div>""", unsafe_allow_html=True)
+            
+                # --- 5. 최종 의사결정 박스 및 면책조항 ---
+                # draw_decision_box 함수가 사전에 정의되어 있어야 합니다.
+                draw_decision_box("macro", "현재 거시경제(Macro) 상황에 대한 판단은?", ["버블", "중립", "침체"])
+                
+                # 맨 마지막 호출
+                display_disclaimer()
+    
+            # --- Tab 3: 개별 기업 평가 (Real Data 연동 - Full Version) ---
+            with tab3:
+                # 🎨 [추가 위치] 카드 내부의 수치 폰트 크기 통일 CSS
+                st.markdown("""
+                <style>
+                    .metric-value {
+                        font-size: 1.2rem !important; /* 글자 크기를 살짝 조절해서 '확인 필요' 등이 안 깨지게 함 */
+                        font-weight: 800 !important;
+                        white-space: nowrap;
+                    }
+                    .st-badge {
+                        font-size: 0.7rem !important;
+                        vertical-align: middle;
+                        margin-left: 5px;
+                    }
+                    .metric-value-row {
+                        display: flex;
+                        align-items: center;
+                        justify-content: flex-start; /* 왼쪽 정렬로 통일감 부여 */
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+            
+                # [0] 데이터 소스 및 1차 유효성 판별
+                data_source = "Unknown"
+                is_data_available = False
+                
+                if fin_data:
+                    if fin_data.get('revenue') and fin_data.get('revenue') > 0:
+                        is_data_available = True
+                        if 'sec' in str(fin_data.get('source', '')).lower():
+                            data_source = "SEC 10-K/Q (공시)"
+                        elif fin_data.get('market_cap'):
+                            data_source = "Finnhub (가공)"
+                        else:
+                            data_source = "Yahoo Finance (보조)"
+            
+                # 🔥 [0.5] 데이터 보강 로직
+                if not is_data_available or not fin_data.get('revenue'):
+                    try:
+                        ticker = yf.Ticker(stock['symbol'])
+                        yf_fin = ticker.financials
+                        yf_info = ticker.info
+                        yf_bal = ticker.balance_sheet
+                        
+                        if not yf_fin.empty:
+                            # [기본 실적]
+                            rev = yf_fin.loc['Total Revenue'].iloc[0]
+                            net_inc = yf_fin.loc['Net Income'].iloc[0]
+                            prev_rev = yf_fin.loc['Total Revenue'].iloc[1] if len(yf_fin.columns) > 1 else rev
+                            
+                            # [지표 계산 및 주입]
+                            fin_data['revenue'] = rev / 1e6
+                            fin_data['net_margin'] = (net_inc / rev) * 100
+                            fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100
+                            fin_data['eps'] = yf_info.get('trailingEps', 0)
+                            
+                            # 영업이익률(op_margin) 계산 추가 (에러 방지용)
+                            if 'Operating Income' in yf_fin.index:
+                                op_inc = yf_fin.loc['Operating Income'].iloc[0]
+                                fin_data['op_margin'] = (op_inc / rev) * 100
+                            else:
+                                fin_data['op_margin'] = fin_data['net_margin'] # 데이터 부재 시 순이익률 활용
+                            
+                            # [추가 전문 지표]
+                            fin_data['market_cap'] = yf_info.get('marketCap', 0) / 1e6
+                            fin_data['forward_pe'] = yf_info.get('forwardPE', 0)
+                            fin_data['price_to_book'] = yf_info.get('priceToBook', 0)
+                            
+                            # [안정성 지표 - 대차대조표 기반]
+                            if not yf_bal.empty:
+                                total_liab = yf_bal.loc['Total Liabilities Net Minority Interest'].iloc[0] if 'Total Liabilities Net Minority Interest' in yf_bal.index else 0
+                                equity = yf_bal.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in yf_bal.index else 1
+                                fin_data['debt_equity'] = (total_liab / equity) * 100
+                                fin_data['roe'] = (net_inc / equity) * 100
+                            
+                            is_data_available = True
+                            data_source = "Yahoo Finance (Full Direct)"
+                    except:
+                        pass
+            
+                # [1] 데이터 전처리 및 지표 계산
+                growth_val = fin_data.get('growth') if is_data_available else None
+                ocf_val = fin_data.get('net_margin') if is_data_available else 0
+                
+                op_m = fin_data.get('op_margin') if is_data_available else None
+                net_m = fin_data.get('net_margin') if is_data_available else None
+                
+                # 발생액 품질 계산
+                if is_data_available and op_m is not None and net_m is not None:
+                    acc_diff = op_m - net_m
+                    accruals_status = "Low" if abs(acc_diff) < 5 else "High"
+                else:
+                    accruals_status = "Unknown"
+    
+                md_stock = {
+                    "sales_growth": growth_val,
+                    "ocf": ocf_val,
+                    "accruals": accruals_status,
+                    "vc_backed": "Checking...",
+                    "discount_rate": 0.0
+                }
+    
+                # 🔥 [1.5] 에러 방지용 안전 변수 가공 (가장 중요)
+                def clean_value(val):
+                    """None, NaN, Inf 값을 0으로 정제하는 함수"""
+                    try:
+                        if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))):
+                            return 0.0
+                        return float(val)
+                    except:
+                        return 0.0
+    
+                # ⚠️ 중요: clean_value 함수 밖(같은 라인)에 위치해야 합니다.
+                if fin_data is None: 
+                    fin_data = {}
+    
+                # 데이터 정제 추출
+                rev_val = clean_value(fin_data.get('revenue', 0))
+                net_m_val = clean_value(fin_data.get('net_margin', 0))
+                op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
+                growth = clean_value(fin_data.get('growth', 0))
+                roe_val = clean_value(fin_data.get('roe', 0))
+                de_ratio = clean_value(fin_data.get('debt_equity', 0))
+                pe_val = clean_value(fin_data.get('forward_pe', 0))
+    
+                # 화면 표시용 텍스트 가공 (nan, inf 대신 N/A 출력)
+                rev_display = f"{rev_val:,.0f}" if rev_val > 0 else "N/A"
+                growth_display = f"{growth:+.1f}%" if abs(growth) > 0.001 else "N/A"
+                net_m_display = f"{net_m_val:.1f}%" if abs(net_m_val) > 0.001 else "N/A"
+                opm_display = f"{op_m_val:.2f}%" if abs(op_m_val) > 0.001 else "N/A"
+    
+                # [2] 카드형 UI 레이아웃 (Metric Cards)
+                r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
+                r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
+    
+                # (1) 매출 성장성 - [수정됨: "산출 불가" -> "N/A"]
+                with r1_c1:
+                    display_val = growth_display if growth_display != "N/A" else "N/A"
+                    if display_val != "N/A":
+                        status, st_cls = ("🔥 고성장", "st-hot") if growth > 20 else ("✅ 안정", "st-good") if growth > 5 else ("⚠️ 둔화", "st-neutral")
+                    else:
+                        status, st_cls = ("🔍 N/A", "st-neutral")
+                    
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>최근 연간 매출 성장률입니다.</div><div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+    
+                # (2) 수익성 - [수정됨: "산출 불가" -> "N/A"]
+                with r1_c2:
+                    display_val = net_m_display if net_m_display != "N/A" else "N/A"
+                    if display_val != "N/A":
+                        status, st_cls = ("✅ 흑자", "st-good") if net_m_val > 0 else ("🚨 적자", "st-hot")
+                    else:
+                        status, st_cls = ("🔍 N/A", "st-neutral")
+    
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Net Margin (Profit)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>순이익률입니다.</div><div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+    
+                # (3) 발생액 품질 (동일 유지)
+                with r1_c3:
+                    val = md_stock['accruals']
+                    status = "✅ 건전" if val == "Low" else "🚨 주의" if val == "High" else "🔍 N/A"
+                    st_cls = "st-good" if val == "Low" else "st-hot" if val == "High" else "st-neutral"
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>회계 장부의 투명성입니다.</div><div class='metric-footer'>Theory: Teoh et al. (1998)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+    
+                # (4) 부채 비율 - [수정됨: "확인 필요" -> "N/A"]
+                with r1_c4:
+                    display_val = f"{de_ratio:.1f}%" if de_ratio > 0 else "N/A"
+                    status, st_cls = ("✅ 안정", "st-good") if (0 < de_ratio < 100) else ("🔍 N/A", "st-neutral")
+                    
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Debt / Equity</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>자본 대비 부채 비중입니다.</div><div class='metric-footer'>Ref: Standard Ratio<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+    
+                # (5) 시장 성과 (r2_c1)
+                with r2_c1:
+                    if current_p > 0 and off_val > 0:
+                        up_rate = ((current_p - off_val) / off_val) * 100
+                        display_val, status, st_cls = (f"{up_rate:+.1f}%", "🚀 급등" if up_rate > 20 else "⚖️ 적정", "st-hot" if up_rate > 20 else "st-good")
+                    else:
+                        display_val, status, st_cls = ("대기 중", "⏳ IPO 예정", "st-neutral")
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Market Performance</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>공모가 대비 수익률입니다.</div><div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div></div>", unsafe_allow_html=True)
+    
+                st.write("<br>", unsafe_allow_html=True)
+    
+                # [2.5] 논문기반 AI 종합 판정 리포트
+                with st.expander("논문기반 AI 분석 보기", expanded=False):
+                    # 1번 수정: 출처 표시 스타일 통일
+                    st.caption(f"Data Source: {data_source} / Currency: USD")
+                    
+                    if is_data_available:
+                        growth_status = "고성장(High-Growth)" if growth > 20 else "안정적(Stable)" if growth > 5 else "정체(Stagnant)"
+                        quality_status = "우수(High-Quality)" if roe_val > 15 else "보통(Average)"
+                        
+                        st.markdown(f"""
+                        **1. 성장성 및 생존 분석 (Jay Ritter, 1991)**
+                        * 현재 매출 성장률은 **{growth_status}** 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {"긍정적 시그널" if growth > 10 else "주의가 필요한 시그널"}로 해석됩니다.
+        
+                        **2. 수익성 품질 및 자본 구조 (Fama & French, 2004)**
+                        * 수익성 지표(Net Margin/ROE)는 **{quality_status}** 등급입니다. 본 기업은 {"상대적으로 견고한 이익 체력" if roe_val > 10 else "영업 효율성 개선이 선행되어야 하는 체력"}을 보유하고 있습니다.
+        
+                        **3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)**
+                        * 발생액 품질(Accruals Quality)이 **{accruals_status}** 상태입니다. 이는 경영진의 이익 조정 가능성이 {"낮음" if accruals_status == "Low" else "존재함"}을 의미합니다.
+                        """)
+                        st.info(f"**AI 종합 판정:** 학술적 관점에서 본 기업은 **{growth_status}** 성격이 강하며, 정보 불확실성은 일정 부분 해소된 상태입니다.")
+                    else:
+                        st.warning("재무 데이터 부재로 정성적 분석이 권장됩니다.")
+            
+                # [3] 재무자료 상세보기 (Summary Table)
+                with st.expander("재무분석", expanded=False):
+                    if is_data_available:
+                        st.caption(f"Data Source: {data_source} / Currency: USD")
+                
+                        # 스타일 수정: Label은 bold, Value는 normal(400)로 설정
+                        st.markdown("""
+                        <style>
+                            .custom-metric-container {
+                                display: flex;
+                                justify-content: space-between;
+                                text-align: center;
+                                padding: 10px 0;
+                            }
+                            .custom-metric-box {
+                                flex: 1;
+                                border-right: 1px solid #f0f0f0; /* 지표 간 구분선 추가 (선택사항) */
+                            }
+                            .custom-metric-box:last-child {
+                                border-right: none;
+                            }
+                            .custom-metric-label {
+                                font-size: 0.85rem; 
+                                font-weight: bold;    /* 지표명을 굵게 변경 */
+                                color: #333333;
+                                margin-bottom: 6px;
+                            }
+                            .custom-metric-value {
+                                font-size: 1.05rem; 
+                                font-weight: 400;    /* 수치를 일반 굵기로 변경 */
+                                color: #1f1f1f;
+                            }
+                        </style>
+                        """, unsafe_allow_html=True)
+                
+                        # 지표 데이터 가공
+                        metrics = [
+                            ("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"),
+                            ("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x"),
+                            ("Net Margin", f"{net_m_val:.1f}%"),
+                            ("ROE", f"{roe_val:.1f}%"),
+                            ("D/E Ratio", f"{de_ratio:.1f}%"),
+                            ("Growth (YoY)", f"{growth:.1f}%")
+                        ]
+                
+                        # 커스텀 메트릭 렌더링
+                        m_cols = st.columns(6)
+                        for i, (label, value) in enumerate(metrics):
+                            with m_cols[i]:
+                                st.markdown(f"""
+                                    <div class="custom-metric-box">
+                                        <div class="custom-metric-label">{label}</div>
+                                        <div class="custom-metric-value">{value}</div>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                
+                        st.markdown(" ")     
+                    
+                    # -------------------------------------------------------
+                        # [수정됨] 기존의 하드코딩된 opinion_text 대신 AI 함수 호출
+                        # -------------------------------------------------------
+                        
+                        # 1. AI에게 보낼 데이터 패키징
+                        ai_metrics = {
+                            "growth": growth_display,
+                            "net_margin": net_m_display,
+                            "op_margin": opm_display,
+                            "roe": f"{roe_val:.1f}%",
+                            "debt_equity": f"{de_ratio:.1f}%",
+                            "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A",
+                            "accruals": accruals_status
+                        }
+    
+                        # 2. Supabase 캐싱된 AI 리포트 호출
+                        with st.spinner("🤖 AI 애널리스트가 재무제표를 분석 중입니다..."):
+                            ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], ai_metrics)
+                        
+                        # 3. 결과 출력
+                        st.info(ai_report)
+                        st.caption("※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
+    
+                    else:
+                        st.warning(f"재무 데이터 부재로 정성적 분석이 권장됩니다.")
+    
+                # [4] 학술적 근거 및 원문 링크 섹션
+                with st.expander("참고(References)", expanded=False):
+                    # 전용 CSS 스타일링
+                    st.markdown("""
+                    <style>
+                        .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+                        .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
+                        .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 10px; font-weight: bold; margin-bottom: 5px; }
+                        .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; }
+                        .ref-btn:hover { background: #f8f9fa; border-color: #bbb; }
+                    </style>
+                    """, unsafe_allow_html=True)
+    
+                    # 참고문헌 데이터 리스트
+                    references_tab3 = [
+                        {"label": "성장성 분석", "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "summary": "신규 상장 기업의 장기적 성과 저하 현상 분석", "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991"},
+                        {"label": "현금흐름", "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "summary": "신규 기업의 재무 건전성과 생존율 추적", "link": "https://scholar.google.com/scholar?q=Fama+French+2004"},
+                        {"label": "회계 품질", "title": "Earnings Management and the Long-Run Performance", "author": "Teoh, Welch, & Wong (1998)", "summary": "상장 전후 이익 조정이 주가에 미치는 영향", "link": "https://scholar.google.com/scholar?q=Teoh+Welch+Wong+1998"},
+                        {"label": "VC 인증", "title": "The Role of Venture Capital", "author": "Barry et al. (1990)", "summary": "VC 투자가 상장 시 갖는 공신력 분석", "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
+                        {"label": "저평가 이론", "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "summary": "정보 비대칭성과 공모가 저평가 메커니즘", "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
+                    ]
+    
+                    st.info(f"💡 현재 분석에 사용된 데이터 출처: **{data_source}**")
+    
+                    # 반복문을 통한 리스트 렌더링
+                    for ref in references_tab3:
+                        st.markdown(f"""
+                        <div class='ref-item'>
+                            <div style='flex:1;'>
+                                <div class='ref-badge'>{ref['label']}</div><br>
+                                <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
+                                <div style='font-size: 13px; color: #666;'>{ref['summary']}, {ref['author']}</div>
+                            </div>
+                            <div style='margin-left: 15px;'>
+                                <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
+                            </div>
+                        </div>""", unsafe_allow_html=True)
+                    
+                    st.caption("※ 본 리포트는 SEC 공시 및 Finnhub API 데이터를 기반으로 위 학술적 모델을 적용했습니다.")
+    
+                # [5] 사용자 최종 판단 박스 (Decision Box)
+               
+                draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["고평가", "중립", "저평가"])
+    
+                # 맨 마지막에 호출
+                display_disclaimer()
+    
+            # --- 탭 글씨 크기 및 스타일 통일 (CSS) ---
+            st.markdown("""
+                <style>
+                /* 모든 탭 버튼의 글씨 크기와 굵기 조절 */
+                button[data-baseweb="tab"] p {
+                    font-size: 1.1rem !important;
+                    font-weight: 600 !important;
+                    color: #31333F;
+                }
+                /* 선택된 탭의 강조 효과 */
+                button[data-baseweb="tab"][aria-selected="true"] p {
+                    color: #FF4B4B !important; /* 스트림릿 기본 레드 컬러 */
+                }
+                </style>
+            """, unsafe_allow_html=True)            
+    
+            # --- Tab 4: 기관평가 (UI 출력 부분) ---
+            with tab4:
+                # 1. 함수 호출 (기존 코드 유지)
+                with st.spinner(f"전문 기관 데이터를 정밀 수집 중..."):
+                    result = get_unified_tab4_analysis(stock['name'], stock['symbol'])
+                
+                # 2. 결과 데이터 매핑 (기존 코드 유지)
+                summary_raw = result.get('summary', '')
+                pro_con_raw = result.get('pro_con', '')
+                rating_val = str(result.get('rating', 'Hold')).strip()
+                score_val = str(result.get('score', '3')).strip() 
+                sources = result.get('links', [])
+                q = stock['symbol'] if stock['symbol'] else stock['name']
+    
+                st.write("<br>", unsafe_allow_html=True)
+            
+                # --- (1) Renaissance Capital & 기관 종합 요약 섹션 ---
+                with st.expander("Renaissance Capital IPO 요약", expanded=False):
+                    import re
+                    pattern = r'(?i)source|출처|https?://'
+                    parts = re.split(pattern, summary_raw)
+                    
+                    # [수정] 모든 줄바꿈(\n)을 제거하고 공백(' ')으로 치환하여 한 문단으로 만듭니다.
+                    # 1. AI가 보낸 텍스트 형태의 \\n 정제
+                    # 2. 실제 줄바꿈 문자(\n)를 공백으로 치환
+                    summary = parts[0].replace('\\n', ' ').replace('\n', ' ').strip().rstrip(' ,.:;-\t')
+                    
+                    if not summary or "분석 불가" in summary:
+                        st.warning("직접적인 분석 리포트를 찾지 못했습니다.")
+                    else:
+                        # [수정] 더 이상 replace('\n', '\n\n')을 하지 않고 바로 출력합니다.
+                        st.info(summary)
+            
+                # --- (2) Seeking Alpha & Morningstar 섹션 (수정됨) ---
+                with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
+                    # [핵심 수정] 문자열 \n을 실제 엔터로 변환
+                    pro_con = pro_con_raw.replace('\\n', '\n').replace("###", "").strip()
+                    
+                    # [문단 공백 로직] '부정' 키워드 앞에 엔터를 추가하여 한 행 공백 생성
+                    pro_con = pro_con.replace("긍정:", "**긍정**:").replace("부정:", "\n\n**부정**:")
+                    pro_con = pro_con.replace("✅ 긍정", "**긍정**").replace("⚠️ 부정", "\n\n**부정**")
+                    
+                    if "의견 수집 중" in pro_con or not pro_con:
+                        st.error("AI가 실시간 리포트 본문을 분석하는 데 실패했습니다.")
+                    else:
+                        # 최종 출력 시 줄바꿈 강제 적용
+                        st.success(pro_con.replace('\n', '\n\n'))
+            
+            
+                # --- (3) Institutional Sentiment 섹션 ---
+                with st.expander("Sentiment Score", expanded=False):
+                    s_col1, s_col2 = st.columns(2)
+                    
+                    # 데이터 가져오기 및 세척
+                    rating_val = str(result.get('rating', 'Hold')).strip()
+                    score_val = str(result.get('score', '3')).strip()
+                
+                    with s_col1:
+                        # Analyst Ratings 체계 안내 텍스트 생성
+                        r_list = {
+                            "Strong Buy": "적극 매수 추천",
+                            "Buy": "매수 추천",
+                            "Hold": "보유 및 중립 관망",
+                            "Neutral": "보유 및 중립 관망",
+                            "Sell": "매도 및 비중 축소"
+                        }
+                        
+                        rating_desc = "**[Analyst Ratings 체계]**\n"
+                        for k, v in r_list.items():
+                            is_current = " **(현재)**" if k.lower() in rating_val.lower() else ""
+                            rating_desc += f"- **{k}**: {v}{is_current}\n"
+                
+                        st.write("**[Analyst Ratings]**")
+                        
+                        # [수정] help 파라미터를 삭제하여 물음표 툴팁을 제거함
+                        st.metric(label="Consensus Rating", value=rating_val)
+                        
+                        # 상태별 색상 피드백 및 하단 설명 집중
+                        if any(x in rating_val for x in ["Buy", "Positive", "Outperform", "Strong"]):
+                            st.success(f"의견: {r_list.get(rating_val, '긍정적')}")
+                            st.caption(f"✅ 시장의 긍정적인 평가를 받고 있습니다.\n\n{rating_desc}")
+                        elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
+                            st.error(f"의견: {r_list.get(rating_val, '주의')}")
+                            st.caption(f"🚨 보수적인 접근이 필요한 시점입니다.\n\n{rating_desc}")
+                        else:
+                            st.info(f"의견: {r_list.get(rating_val, '중립')}")
+                            st.caption(f"ℹ️ {rating_desc}")
+    
+                    with s_col2:
+                        # IPO Scoop Score 체계 안내 텍스트 생성
+                        s_list = {
+                            "5": "대박 (Moonshot)",
+                            "4": "강력한 수익",
+                            "3": "양호 (Good)",
+                            "2": "미미한 수익 예상",
+                            "1": "공모가 하회 위험"
+                        }
+                        
+                        score_desc = "**[IPO Scoop Score 체계]**\n"
+                        for k, v in s_list.items():
+                            is_current = f" **(현재 {score_val}점)**" if k == score_val else ""
+                            score_desc += f"- ⭐ {k}개: {v}{is_current}\n"
+                
+                        st.write("**[IPO Scoop Score]**")
+                        
+                        # [수정] help 파라미터를 삭제하여 물음표 툴팁을 제거함
+                        st.metric(label="Expected IPO Score", value=f"⭐ {score_val}")
+                        
+                        # 점수별 색상 피드백 및 하단 설명 집중
+                        if score_val in ["4", "5"]:
+                            st.success(f"평가: {s_list.get(score_val, '정보 없음')}")
+                        elif score_val == "3":
+                            st.info(f"평가: {s_list.get(score_val, '정보 없음')}")
+                        else:
+                            st.warning(f"평가: {s_list.get(score_val, '정보 없음')}")
+    
+                        st.caption(f"ℹ️ {score_desc}")
+    
+                # --- (4) References (제목 제거 및 링크 통합) ---
+                with st.expander("References", expanded=False):
+                    # 1. AI가 동적으로 찾아낸 뉴스/리포트 링크들 (제목 없이 바로 노출)
+                    if sources:
+                        for src in sources:
+                            st.markdown(f"- [{src['title']}]({src['link']})")
+                    else:
+                        st.caption("실시간 참조 리포트 링크를 불러올 수 없습니다.")
+                    
+                    # 2. 주요 분석 기관 바로가기 (구분선과 제목 제거 후 리스트 통합)
+                    st.markdown(f"- [Renaissance Capital: {stock['name']} 상세 데이터](https://www.google.com/search?q=site:renaissancecapital.com+{q})")
+                    st.markdown(f"- [Seeking Alpha: {stock['name']} 심층 분석글](https://seekingalpha.com/symbol/{q}/analysis)")
+                    st.markdown(f"- [Morningstar: {stock['name']} 리서치 결과](https://www.morningstar.com/search?query={q})")
+                    st.markdown(f"- [Google Finance: {stock['name']} 시장 동향](https://www.google.com/finance/quote/{q}:NASDAQ)")
+    
+                    
+    
+                # [✅ 5단계 사용자 판단]
+                draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
+    
+                # 맨 마지막에 호출
+                display_disclaimer()
+        
+            
+            # --- [공통 함수: 게시글 반응 처리] ---
+            # 이 함수는 Tab 5 외부(메인 로직 상단)에 두셔도 좋습니다.
+            def handle_post_reaction(post_id, reaction_type, user_id):
+                if not user_id:
+                    st.warning("🔒 로그인이 필요한 기능입니다.")
+                    return
+            
+                user_list_key = 'like_users' if reaction_type == 'likes' else 'dislike_users'
+                
+                for p in st.session_state.posts:
+                    if p['id'] == post_id:
+                        p.setdefault('like_users', [])
+                        p.setdefault('dislike_users', [])
+                        
+                        # 중복 투표 방지
+                        if user_id not in p[user_list_key]:
+                            p[reaction_type] = p.get(reaction_type, 0) + 1
+                            p[user_list_key].append(user_id)
+                            st.rerun()
+                        else:
+                            st.toast("이미 참여하신 게시글입니다.")
+                        break
+            
+            
+    
+    
+            # =========================================================
+            # --- Tab 5: 최종 투자 결정 (데이터 영구 저장 및 복구 통합) ---
+            # =========================================================
+            with tab5:
+                # ---------------------------------------------------------------------------
+                # 1. [스타일] 흰 배경 및 UI 설정
+                # ---------------------------------------------------------------------------
+                st.markdown("""
+                    <style>
+                    .stApp { background-color: #ffffff !important; color: #000000 !important; }
+                    p, h1, h2, h3, h4, h5, h6, span, li, div { color: #000000 !important; }
+                    .streamlit-expanderHeader { background-color: #f8f9fa !important; color: #000000 !important; border: 1px solid #ddd !important; }
+                    div[data-testid="stExpanderDetails"] { background-color: #ffffff !important; border: 1px solid #ddd !important; border-top: none !important; }
+                    </style>
+                """, unsafe_allow_html=True)
+                
+                sid = stock['symbol']
+                user_info = st.session_state.get('user_info') or {}
+                user_id = user_info.get('id', 'guest_id')
+    
+                # ---------------------------------------------------------
+                # 2. 투자 분석 결과 섹션 (차트 시각화 및 DB 동기화)
+                # ---------------------------------------------------------
+                if 'user_decisions' not in st.session_state: st.session_state.user_decisions = {}
+                ud = st.session_state.user_decisions.get(sid, {})
+                
+                steps = [
+                    ('filing', 'Step 1 (공시)'), ('news', 'Step 2 (뉴스)'), 
+                    ('macro', 'Step 3 (거시)'), ('company', 'Step 4 (미시)'), 
+                    ('ipo_report', 'Step 5 (기관)')
+                ]
+                
+                missing_steps = [label for step, label in steps if not ud.get(step)]
+                
+                if missing_steps:
+                    st.info(f"모든 분석단계({', '.join(missing_steps)})를 완료하면 나와 시장 참여자들의 리얼타임 종합 결과 차트가 표시됩니다.")
+                else:
+                    # 1) 내 점수 계산 로직
+                    score_map = {
+                        "긍정적": 1, "수용적": 1, "안정적": 1, "저평가": 1, "매수": 1, "침체": 1,
+                        "중립적": 0, "중립": 0, "적정": 0,
+                        "부정적": -1, "회의적": -1, "버블": -1, "고평가": -1, "매도": -1
+                    }
+                    user_score = sum(score_map.get(ud.get(s[0], "중립적"), 0) for s in steps)
+                    
+                    # 2) 🚨 [영구 저장] 내 선택 텍스트들과 합산 점수를 DB에 동시 저장
+                    if user_id != 'guest_id':
+                        db_save_user_decision(user_id, sid, user_score, ud)
+                    
+                    # 3) DB에서 전체 커뮤니티 데이터 로드
+                    community_scores = db_load_community_scores(sid)
+                    if not community_scores:
+                        community_scores = [user_score]
+    
+                    import pandas as pd
+                    import plotly.graph_objects as go
+                    
+                    total_participants = len(community_scores)
+    
+                    # 4) 통계 계산
+                    optimists = sum(1 for s in community_scores if s > 0)
+                    optimist_pct = (optimists / total_participants * 100) if total_participants > 0 else 0
+                    user_percentile = (sum(1 for s in community_scores if s <= user_score) / total_participants * 100) if total_participants > 0 else 100
+    
+                    m1, m2 = st.columns(2)
+                    m1.metric("시장 참여자 낙관도", f"{optimist_pct:.1f}%", help="전체 참여자 중 긍정 평가 비율")
+                    m2.metric("나의 분석 위치", f"상위 {100-user_percentile:.1f}%", f"{user_score}점")
+                    
+                    # 5) 차트 그리기
+                    score_counts = pd.Series(community_scores).value_counts().sort_index()
+                    score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
+                    
+                    fig = go.Figure(go.Bar(
+                        x=score_counts.index, 
+                        y=score_counts.values, 
+                        marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
+                        hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
+                    ))
+                    fig.update_layout(
+                        height=220, 
+                        margin=dict(l=10, r=10, t=30, b=10), 
+                        xaxis=dict(title="종합 분석 점수 (-5 ~ +5)", tickmode='linear'), 
+                        yaxis=dict(title="참여자 수", showticklabels=True),
+                       
+                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+    
+                # ---------------------------------------------------------
+                # 3. 전망 투표 및 실시간 Sentiment (BULL vs BEAR) - 최종본
+                # ---------------------------------------------------------
+                st.write("<br>", unsafe_allow_html=True)
+                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>실시간 커뮤니티 전망</div>", unsafe_allow_html=True)
+                
+                # [1] 실시간 데이터 로드 (DB에서 직접 집계)
+                up_voters, down_voters = db_load_sentiment_counts(sid)
+                total_votes = up_voters + down_voters
+                
+                # 비율 계산 (분모 0 방지)
+                up_pct = (up_voters / total_votes * 100) if total_votes > 0 else 50
+                down_pct = (down_voters / total_votes * 100) if total_votes > 0 else 50
+    
+                # [2] Bullish & Bearish 시각화 카드
+                col_bull, col_bear = st.columns(2)
+                
+                with col_bull:
+                    st.markdown(f"""
+                        <div style="background-color: #ebfaef; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #c3e6cb;">
+                            <img src="https://img.icons8.com/color/96/bull.png" width="60" style="margin-bottom:10px;">
+                            <div style="color: #28a745; font-weight: 800; font-size: 1.2rem;">BULLISH</div>
+                            <div style="color: #333; font-size: 1.5rem; font-weight: 900;">{up_pct:.1f}%</div>
+                            
+                        </div>
+                    """, unsafe_allow_html=True)
+    
+                with col_bear:
+                    st.markdown(f"""
+                        <div style="background-color: #fff5f5; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #feb2b2;">
+                            <img src="https://img.icons8.com/color/96/bear.png" width="60" style="margin-bottom:10px;">
+                            <div style="color: #dc3545; font-weight: 800; font-size: 1.2rem;">BEARISH</div>
+                            <div style="color: #333; font-size: 1.5rem; font-weight: 900;">{down_pct:.1f}%</div>
+                           
+                        </div>
+                    """, unsafe_allow_html=True)
+    
+               
+    
+                # [3] 투표 버튼 및 관심종목 로직
+                if st.session_state.get('auth_status') == 'user':
+                    if sid not in st.session_state.watchlist:
+                        st.caption("투표시 관심종목에 자동 저장되며, 실시간 결과에 반영됩니다.")
+                        c_up, c_down = st.columns(2)
+                        
+                        if c_up.button("📈 상승", key=f"up_vote_{sid}", use_container_width=True, type="primary"):
+                            db_toggle_watchlist(user_id, sid, "UP", action='add')
+                            if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
+                            st.session_state.watchlist_predictions[sid] = "UP"
+                            st.rerun()
+    
+                        if c_down.button("📉 하락", key=f"dn_vote_{sid}", use_container_width=True):
+                            db_toggle_watchlist(user_id, sid, "DOWN", action='add')
+                            if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
+                            st.session_state.watchlist_predictions[sid] = "DOWN"
+                            st.rerun()
+                    else:
+                        # 이미 참여한 경우 상태 표시
+                        pred = st.session_state.watchlist_predictions.get(sid, "N/A")
+                        color = "#28a745" if pred == "UP" else "#dc3545"
+                        pred_text = "BULLISH (상승)" if pred == "UP" else "BEARISH (하락)"
+                        
+                        st.markdown(f"""
+                            <div style="padding: 15px; border-radius: 10px; border: 1px solid {color}; text-align: center; font-weight: bold; color: {color};">
+                                나의 선택: {pred_text} 
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
+                        if st.button("투표 취소 및 관심종목 해제", key=f"rm_vote_{sid}", use_container_width=True):
+                            db_toggle_watchlist(user_id, sid, action='remove')
+                            if sid in st.session_state.watchlist: st.session_state.watchlist.remove(sid)
+                            if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
+                            st.rerun()
+                else:
+                    st.warning("🔒 로그인 후 투표에 참여하고 전체 결과를 확인할 수 있습니다.")
+    
+                # ---------------------------------------------------------
+                # 4. 종목 토론방 (글쓰기 상단 + HOT/최신 정렬 + 페이징 적용)
+                # ---------------------------------------------------------
+                st.write("<br>", unsafe_allow_html=True)
+                # 폰트 크기 및 굵기 적용
+                st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{sid} 토론방</div>", unsafe_allow_html=True)
+                
+                # [1] 글쓰기 섹션을 리스트 최상단으로 배치
+                with st.expander("글쓰기"):
+                    if st.session_state.get('auth_status') == 'user':
+                        if check_permission('write'):
+                            with st.form(key=f"write_{sid}_form", clear_on_submit=True):
+                                new_title = st.text_input("제목")
+                                new_content = st.text_area("내용")
+                                if st.form_submit_button("등록", type="primary", use_container_width=True):
+                                    if new_title and new_content:
+                                        u_id = st.session_state.user_info.get('id')
+                                        try:
+                                            fresh_user = db_load_user(u_id)
+                                            d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
+                                            st.session_state.user_info = fresh_user
+                                        except:
+                                            d_name = f"{u_id[:3]}***"
+                                        
+                                        if db_save_post(sid, new_title, new_content, d_name, u_id):
+                                            st.success("등록되었습니다!")
+                                            import time; time.sleep(0.5)
+                                            st.rerun()
+                    else:
+                        st.warning("🔒 로그인 후 이용 가능합니다.")
+                
+                st.write("<br>", unsafe_allow_html=True)
+                
+                # [2] DB에서 해당 종목(sid) 관련 글 넉넉히 로드
+                sid_posts = db_load_posts(limit=100, category=sid)
+                
+                if sid_posts:
+                    from datetime import datetime, timedelta
+                    three_days_ago = datetime.now() - timedelta(days=3)
+                    
+                    hot_candidates = []
+                    normal_posts = []
+    
+                    # 날짜 및 추천수 기반 분류
+                    for p in sid_posts:
+                        try:
+                            created_dt_str = str(p.get('created_at', '')).split('.')[0]
+                            created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
+                            if created_dt >= three_days_ago and p.get('likes', 0) > 0:
+                                hot_candidates.append(p)
+                            else:
+                                normal_posts.append(p)
+                        except:
+                            normal_posts.append(p)
+                            
+                    # HOT 정렬 및 5개 추출
+                    hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
+                    top_5_hot = hot_candidates[:5]
+                    
+                    # 나머지 병합 및 최신순 정렬
+                    normal_posts.extend(hot_candidates[5:])
+                    normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+    
+                    # 종목 토론방 전용 페이징 상태 관리
+                    page_key = f'detail_display_count_{sid}'
+                    if page_key not in st.session_state:
+                        st.session_state[page_key] = 5
+                    current_display = normal_posts[:st.session_state[page_key]]
+    
+                    # 종목 토론방용 UI 출력 함수
+                    def render_detail_post(p, is_hot=False):
+                        p_auth = p.get('author_name', 'Unknown')
+                        p_date = str(p.get('created_at', '')).split('T')[0]
+                        p_id = p.get('id')
+                        p_uid = p.get('author_id')
+                        likes = p.get('likes') or 0
+                        dislikes = p.get('dislikes') or 0
+                        
+                        prefix = "[HOT]" if is_hot else ""
+                        # 괄호 안 텍스트도 영어로
+                        title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (추천{likes}  비추천{dislikes})"
+                        
+                        with st.expander(title_disp.strip()):
+                            st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
+                            st.write("<br>", unsafe_allow_html=True)
+                            
+                            action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
+                            
+                            with action_c1:
+                                if st.button(f"추천{likes}", key=f"like_sid_{p_id}", use_container_width=True):
+                                    if st.session_state.get('auth_status') == 'user':
+                                        db_toggle_post_reaction(p_id, user_id, 'like')
+                                        st.rerun()
+                                    else: st.toast("🔒 로그인 후 이용 가능합니다.")
+                                        
+                            with action_c2:
+                                if st.button(f"비추천{dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
+                                    if st.session_state.get('auth_status') == 'user':
+                                        db_toggle_post_reaction(p_id, user_id, 'dislike')
+                                        st.rerun()
+                                    else: st.toast("🔒 로그인 후 이용가능합니다.")
+                                        
+                            with action_c3:
+                                raw_u_info = st.session_state.get('user_info')
+                                u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
+                                is_admin = u_info.get('role') == 'admin'
+                                
+                                if st.session_state.get('auth_status') == 'user':
+                                    if u_info.get('id') == p_uid or is_admin:
+                                        if st.button("삭제", key=f"del_sid_{p_id}", type="secondary", use_container_width=True):
+                                            if db_delete_post(p_id):
+                                                st.success("삭제되었습니다.")
+                                                import time; time.sleep(0.5)
+                                                st.rerun()
+    
+                    # (A) 상단: HOT 게시물 출력
+                    if top_5_hot:
+                        st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
+                        for p in top_5_hot:
+                            render_detail_post(p, is_hot=True)
+                        st.write("<br><br>", unsafe_allow_html=True)
+    
+                    # (B) 하단: 최신 게시물 출력
+                    st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
+                    if current_display:
+                        for p in current_display:
+                            render_detail_post(p, is_hot=False)
+                    else:
+                        st.info("조건에 맞는 최신 글이 없습니다.")
+                        
+                    # (C) 더 보기 버튼
+                    if len(normal_posts) > st.session_state[page_key]:
+                        st.write("<br>", unsafe_allow_html=True)
+                        if st.button("🔽 더보기", key=f"more_{sid}", use_container_width=True):
+                            st.session_state[page_key] += 10
+                            st.rerun()
+                else:
+                    st.info("첫 의견을 남겨보세요!")
+    
+    
+    # ---------------------------------------------------------
+    # [NEW] 6. 게시판 페이지 (Board)
+    # ---------------------------------------------------------
+    elif st.session_state.page == 'board':
+        
         st.markdown("""
             <style>
             div[data-testid="stPills"] div[role="radiogroup"] button {
@@ -2750,7 +4272,6 @@ elif st.session_state.page == 'detail':
                 border-radius: 20px !important;
                 padding: 6px 15px !important;
                 margin-right: 5px !important;
-                box-shadow: none !important;
             }
             div[data-testid="stPills"] button[aria-selected="true"] {
                 background-color: #444444 !important;
@@ -2758,1708 +4279,192 @@ elif st.session_state.page == 'detail':
             }
             </style>
         """, unsafe_allow_html=True)
-
-        # (2) [교체 완료] 권한설정 버튼이 포함된 새로운 메뉴 로직
-        is_logged_in = st.session_state.auth_status == 'user'
-        login_text = "로그아웃" if is_logged_in else "로그인"
-        settings_text = "권한설정"  # [NEW]
-        main_text = "메인"
-        watch_text = f"관심 ({len(st.session_state.watchlist)})"
-        board_text = "게시판"
+    
+        # [1] 메뉴 구성 및 네비게이션
+        is_logged_in = (st.session_state.auth_status == 'user')
+        login_text, settings_text, main_text, watch_text, board_text, back_text = "로그아웃" if is_logged_in else "로그인", "권한설정", "메인", f"관심 ({len(st.session_state.watchlist)})", "게시판", "뒤로가기"
         
-        # 로그인 상태에 따라 메뉴 구성 변경
-        if is_logged_in:
-            menu_options = [login_text, settings_text, main_text, watch_text, board_text]
-        else:
-            menu_options = [login_text, main_text, watch_text, board_text]
-
-        # 기본 선택값 로직 (Detail 페이지에서는 선택된 게 없는 상태(None)가 기본일 수 있음)
-        # 하지만 메뉴를 눌러 이동하는 것이 목적이므로, default=None으로 두어 
-        # 사용자가 버튼을 누를 때만 동작하게 하는 것이 기존 로직과 맞습니다.
+        menu_options = [login_text]
+        if is_logged_in: menu_options.append(settings_text)
+        menu_options.extend([main_text, watch_text, board_text])
         
-        selected_menu = st.pills(
-            label="nav", 
-            options=menu_options, 
-            selection_mode="single", 
-            default=None,  # Detail 페이지에서는 메뉴가 '선택'되어 있을 필요가 없음 (누르면 이동)
-            key="detail_nav_updated_final", # 키값 중복 방지
-            label_visibility="collapsed"
-        )
-
-        if selected_menu:
-            if selected_menu == login_text:
+        last_stock = st.session_state.get('selected_stock')
+        if last_stock: menu_options.append(back_text)
+    
+        selected_menu = st.pills(label="nav_board", options=menu_options, selection_mode="single", default=board_text, key="nav_board_v3", label_visibility="collapsed")
+    
+        if selected_menu and selected_menu != board_text:
+            if selected_menu == back_text: st.session_state.page = 'detail'; st.rerun()
+            elif selected_menu == login_text: 
                 if is_logged_in: st.session_state.auth_status = None
-                st.session_state.page = 'login'
-            
-            elif selected_menu == settings_text: # [NEW] 설정 이동
-                st.session_state.page = 'setup'
-
-            elif selected_menu == main_text:
-                st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'
-            
-            elif selected_menu == watch_text:
-                st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
-            
-            elif selected_menu == board_text:
-                st.session_state.page = 'board'
-            
-            st.rerun()
-
-        # -------------------------------------------------------------------------
-        # [3] 사용자 판단 로직 및 데이터 로딩 (원형 유지)
-        # -------------------------------------------------------------------------
-        if 'user_decisions' not in st.session_state:
-            st.session_state.user_decisions = {}
+                st.session_state.page = 'login'; st.rerun()
+            elif selected_menu == settings_text: st.session_state.page = 'setup'; st.rerun()
+            elif selected_menu == main_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'all'; st.rerun()
+            elif selected_menu == watch_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'watchlist'; st.rerun()
+    
+        # [2] 게시판 데이터 로드 및 검색 필터링 적용
+        s_keyword = ""
+        s_type = "제목"
         
-        sid = stock['symbol']
-        if sid not in st.session_state.user_decisions:
-            st.session_state.user_decisions[sid] = {"news": None, "filing": None, "macro": None, "company": None}
-
-        def draw_decision_box(step_key, title, options):
-            st.write("")
-            st.markdown(f"##### {title}")
-            current_val = st.session_state.user_decisions[sid].get(step_key)
-            choice = st.radio(
-                label=f"판단_{step_key}",
-                options=options,
-                index=options.index(current_val) if current_val in options else None,
-                key=f"dec_{sid}_{step_key}",
-                horizontal=True,
-                label_visibility="collapsed"
-            )
-            if choice:
-                st.session_state.user_decisions[sid][step_key] = choice
-
-        # 데이터 로딩
-        today = datetime.now().date()
-        ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
-        status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
-        date_str = ipo_dt.strftime('%Y-%m-%d')
-
-        with st.spinner(f"🤖 {stock['name']} 분석 중..."):
-            try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
-            except: off_val = 0
-            try:
-                current_p = get_current_stock_price(stock['symbol'], MY_API_KEY)
-                profile = get_company_profile(stock['symbol'], MY_API_KEY) 
-                fin_data = get_financial_metrics(stock['symbol'], MY_API_KEY)
-            except: pass
-
-        # 'symbol' 대신 'stock['symbol']'을 직접 넣어서 호출합니다.
-        current_p, current_s = get_current_stock_price(stock['symbol'], MY_API_KEY)
-
-        # 2. 헤더 출력 로직 (상태값에 따른 분기 처리)
-        if current_s == "상장연기":
-            p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / 공모 ${off_val} / 📅 상장연기/기타)</span>"
-        elif current_s == "상장폐지":
-            p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 🚫 상장폐지)</span>"
-        elif current_p > 0 and off_val > 0:
-            # 정상적인 Active 상태일 때 수익률 계산
-            pct = ((current_p - off_val) / off_val) * 100
-            color = "#00ff41" if pct >= 0 else "#ff4b4b"
-            icon = "▲" if pct >= 0 else "▼"
-            # 소수점 2자리까지만 예쁘게 출력
-            p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 현재 ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
-        else:
-            # 상장 전이거나 가격 데이터가 아직 없는 경우
-            p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / 공모 ${off_val} / 상장 대기)</span>"
-
-        # 3. 여기까지 (최종 출력)
-        st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
-        st.write("")
-
-        # -------------------------------------------------------------------------
-        # [CSS 추가] 탭 텍스트 색상 고정 (사용자 원형 유지)
-        # -------------------------------------------------------------------------
-        st.markdown("""
-        <style>
-            .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-                color: #333333 !important; font-weight: bold !important;
-            }
-            .stTabs [data-baseweb="tab-list"] button:hover [data-testid="stMarkdownContainer"] p {
-                color: #004e92 !important;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-
-
-
-        # -------------------------------------------------------------------------
-        # [5] 탭 메뉴 구성
-        # -------------------------------------------------------------------------
-        tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            " 주요공시", 
-            " 주요뉴스", 
-            " 거시지표", 
-            " 미시지표",
-            " 기업평가",
-            " 투자결정"
-        ])
-
-        # --- Tab 0: 핵심 정보 (공시 가이드 및 AI 분석 강화) ---
-        with tab0:
-            # [세션 상태 관리]
-            if 'core_topic' not in st.session_state:
-                st.session_state.core_topic = "S-1"
-
-            # 버튼 스타일 강제 지정 (하얀 바탕, 검정 글씨)
-            st.markdown("""
-                <style>
-                div.stButton > button {
-                    background-color: #ffffff !important;
-                    color: #000000 !important;
-                    border: 1px solid #dcdcdc !important;
-                    border-radius: 8px !important;
-                    height: 3em !important;
-                    font-weight: bold !important;
-                }
-                /* 마우스를 올렸을 때나 클릭했을 때의 효과 */
-                div.stButton > button:hover {
-                    border-color: #6e8efb !important;
-                    color: #6e8efb !important;
-                }
-                div.stButton > button:active {
-                    background-color: #f0f2f6 !important;
-                }
-                </style>
-            """, unsafe_allow_html=True)
-
-            # 1. 문서 선택 버튼 그리드 (기존 코드 유지)
-            r1_c1, r1_c2, r1_c3 = st.columns(3)
-            r2_c1, r2_c2 = st.columns(2)
-
-            if r1_c1.button("S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
-            if r1_c2.button("S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
-            if r1_c3.button("F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
-            if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
-            if r2_c2.button("424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
-
-            # 2. 메타데이터 및 체크포인트 설정
-            topic = st.session_state.core_topic
+        # 세션에서 검색 상태를 기억하도록 하여 검색 후 페이지 새로고침 시에도 유지되도록 함.
+        if 'b_s_type' in st.session_state:
+            s_type = st.session_state.b_s_type
+        if 'b_s_keyword' in st.session_state:
+            s_keyword = st.session_state.b_s_keyword
             
-            # [핵심] 문서별 맞춤형 분석 구조 정의
-            def_meta = {
-                "S-1": {
-                    "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
-                    "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
-                    # [수정] 원본 스타일의 풍성한 지시사항 적용
-                    "structure": """
-                    [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                    1. **[투자포인트]** : 해당 문서에서 발견된 가장 중요한 투자 포인트를 구체적인 수치나 근거와 함께 상세히 서술하세요.
-                    2. **[성장가능성]** : MD&A(경영진 분석)를 통해 본 기업의 실질적 성장 가능성과 재무적 함의를 깊이 있게 분석하세요.
-                    3. **[핵심리스크]** : 투자자가 반드시 경계해야 할 핵심 리스크 1가지와 그 파급 효과 및 대응책을 구체적으로 서술하세요.
-                    """
-                },
-                "S-1/A": {
-                    "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
-                    "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
-                    # S-1/A 전용 질문 (수정 사항 및 가격 중심)
-                    "structure": """
-                    [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                    1. **[수정사항]** : (이전 제출된 S-1 대비 변경된 핵심 사항(주식 수, 공모가 범위 등)을 중점적으로 서술하세요.)
-                    2. **[가격적정성]** : (제시된 공모가 범위가 동종 업계 대비 합리적인지, 또는 수요예측 분위기를 반영했는지 분석하세요.)
-                    3. **[주주희석]** : (신규 공모로 인한 기존 주주 가치 희석(Dilution) 정도와 이것이 투자 매력도에 미치는 영향을 서술하세요.)
-                    """
-                },
-                "F-1": {
-                    "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
-                    "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
-                    # F-1 전용 질문 (해외 리스크 중심)
-                    "structure": """
-                    [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                    1. **[글로벌경쟁력]** : (해당 기업이 본국 및 글로벌 시장에서 가진 독보적인 경쟁 우위를 서술하세요.)
-                    2. **[해외리스크]** : (환율, 정치적 이슈, 회계 기준 차이 등 해외 기업 특유의 리스크 요인을 상세히 분석하세요.)
-                    3. **[ADS구조]** : (미국 예탁 증서(ADS) 구조가 주주 권리 행사에 미치는 영향이나 특이사항을 서술하세요.)
-                    """
-                },
-                "FWP": {
-                    "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
-                    "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
-                    # FWP 전용 질문 (비전 및 전략 중심)
-                    "structure": """
-                    [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                    1. **[핵심비전]** : (경영진이 로드쇼에서 가장 강조하고 있는 미래 성장 비전과 목표를 서술하세요.)
-                    2. **[차별화전략]** : (경쟁사 대비 부각시키고 있는 기술적/사업적 차별화 포인트를 시각 자료(Graphics) 기반으로 분석하세요.)
-                    3. **[로드쇼반응]** : (자료 톤앤매너를 통해 유추할 수 있는 경영진의 자신감이나 시장 공략 의지를 서술하세요.)
-                    """
-                },
-                "424B4": {
-                    "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
-                    "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
-                    # 424B4 전용 질문 (확정 결과 중심)
-                    "structure": """
-                    [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                    1. **[최종공모가]** : (확정된 공모가가 희망 밴드 상단인지 하단인지 분석하고, 그 의미(시장 수요)를 해석하세요.)
-                    2. **[자금활용]** : (확정된 조달 자금이 구체적으로 어떤 우선순위 사업에 투입될 예정인지 최종 점검하세요.)
-                    3. **[상장후 전망]** : (주관사단 구성과 배정 물량을 바탕으로 상장 초기 유통 물량 부담이나 변동성을 예측하세요.)
-                    """
-                }
-            }
-            
-            curr_meta = def_meta.get(topic, def_meta["S-1"])
-
-            # UI 출력: 통합된 설명문 출력
-            st.info(curr_meta['desc'])
-            
-            # 1. expander를 누르면 즉시 분석이 시작되도록 설정
-            with st.expander(f" {topic} 요약보기", expanded=False):
-                with st.spinner(f"{topic}의 핵심 내용을 분석 중입니다..."):
-                    # ▼▼▼ 질문하신 대로 교체 ▼▼▼
-                    analysis_result = get_ai_analysis(
-                        stock['name'], 
-                        topic, 
-                        curr_meta['points'], 
-                        curr_meta.get('structure', "") # 구조 템플릿 전달
-                    )
-                    
-                    if "ERROR_DETAILS" in analysis_result:
-                        st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
-                        with st.expander("상세 에러 내용"):
-                            st.code(analysis_result)
+        all_posts = db_load_posts(limit=100) 
+        
+        posts = all_posts
+        if s_keyword:
+            k = s_keyword.lower()
+            if s_type == "제목": posts = [p for p in posts if k in p.get('title','').lower()]
+            elif s_type == "제목+내용": posts = [p for p in posts if k in p.get('title','').lower() or k in p.get('content','').lower()]
+            elif s_type == "카테고리": posts = [p for p in posts if k in p.get('category','').lower()]
+            elif s_type == "작성자": posts = [p for p in posts if k in p.get('author_name','').lower()]
+    
+        # [3] 정렬 및 분리 로직 (HOT 5개 / 나머지 최신순 페이징)
+        hot_candidates = []
+        normal_posts = []
+    
+        if posts:
+            from datetime import datetime, timedelta
+            three_days_ago = datetime.now() - timedelta(days=3)
+    
+            for p in posts:
+                try:
+                    created_dt_str = str(p.get('created_at', '')).split('.')[0]
+                    created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
+                    if created_dt >= three_days_ago and p.get('likes', 0) > 0:
+                        hot_candidates.append(p)
                     else:
-                        # 2. 불필요한 인사말 없이 결과만 깔끔하게 출력
-                        # 만약 결과값에 "분석한 결과입니다" 등의 문구가 섞여 나온다면 
-                        # get_ai_analysis 함수 내 프롬프트에서 "인사말 생략"을 추가하는 것이 좋습니다.
-                        st.markdown(analysis_result)
-                
-                
-                # 3. 요청하신 하단 캡션 문구로 변경
-                st.caption(" 자체 알고리즘으로 공시자료를 요약해 제공합니다.")
-                
-                
-                
-               
-            # ---------------------------------------------------------
-            # 3. SEC URL 및 공식 홈페이지 버튼 생성 (법인 식별자 보존형)
-            # ---------------------------------------------------------
-            import urllib.parse
-            import re
-            
-            # (1) 데이터 준비
-            cik = profile.get('cik', '') if profile else ''
-            
-            # [수정] Inc, Corp, Ltd 등을 삭제하지 않고 전체 이름을 사용합니다.
-            # 불필요한 공백만 제거하여 검색 정확도를 높입니다.
-            full_company_name = stock['name'].strip() 
-            
-            # (2) SEC EDGAR 공시 URL 생성
-            if cik:
-                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
-            else:
-                # 풀네임을 따옴표로 감싸서 정확한 명칭으로 검색하게 합니다.
-                sec_query = f'"{full_company_name}" {topic}'
-                sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(sec_query)}&dateRange=all"
-
-            # (3) 공식 홈페이지 즉시 연결 로직 (DuckDuckGo !Bang 활용)
-            # API에서 직접 제공하는 주소가 있는지 먼저 확인
-            real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
-            
-            if real_website:
-                website_url = real_website
-                btn_label = f"회사 공식홈페이지"
-            else:
-                # [핵심] 회사 풀네임(Inc, Corp 포함) + Investor Relations 조합
-                # 예: ! AGI Inc. Investor Relations
-                refined_query = f"! {full_company_name} Investor Relations"
-                website_url = f"https://duckduckgo.com/?q={urllib.parse.quote(refined_query)}"
-                btn_label = f"회사 공식홈페이지"
-
-            # (4) 버튼 출력 (스타일 통일)
-            st.markdown(f"""
-                <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                    <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>
-                            EDGAR {topic} 공시 확인하기 
-                    </button>
-                </a>
-                
-                <a href="{website_url}" target="_blank" style="text-decoration:none;">
-                    <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>
-                           {btn_label}
-                    </button>
-                </a>
-            """, unsafe_allow_html=True)
-            
-
-            # 4. 의사결정 박스 및 면책 조항
-            draw_decision_box("filing", "공시 정보에 대한 입장은?", ["수용적", "중립적", "회의적"])
-            display_disclaimer()
-            
-        # --- Tab 1: 뉴스 & 심층 분석 (Gemini 통합형) ---
-        with tab1:
-            # [1] 통합 분석 데이터 호출 (비즈니스 요약 + 뉴스 5개 통합)
-            with st.spinner(f"{stock['name']}의 최신 데이터를 정밀 분석 중입니다..."):
-                biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'])
-
-            # [2] 기업 심층 분석 섹션 (Expander)
-            st.write("<br>", unsafe_allow_html=True)
-            with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
-                if biz_info:
-                    st.markdown(f"""
-                    <div style="
-                        background-color: #f8f9fa; 
-                        padding: 22px; 
-                        border-radius: 12px; 
-                        border-left: 5px solid #6e8efb; 
-                        color: #333; 
-                        font-family: 'Pretendard', sans-serif;
-                        font-size: 15px;
-                        line-height: 1.6;
-                    ">{biz_info}</div>
-                    """, unsafe_allow_html=True)
-                    
-                    # 💡 [수정] 안내 멘트를 비즈니스 모델 요약 내용 하단으로 이동
-                    st.caption("Google Search 기반으로 실시간 분석 및 뉴스를 제공합니다.")
-                else:
-                    st.error("⚠️ 비즈니스 분석 정보를 가져오지 못했습니다.")
-
-            st.write("<br>", unsafe_allow_html=True)
-
-            # [3] 뉴스 리스트 섹션
-            if final_display_news:
-                for i, n in enumerate(final_display_news):
-                    ko_title = n.get('title_ko', '번역 오류')
-                    en_title = n.get('title_en', 'No Title')
-                    sentiment_label = n.get('sentiment', '일반')
-                    bg_color = n.get('bg', '#f1f3f4')
-                    text_color = n.get('color', '#5f6368')
-                    news_link = n.get('link', '#')
-                    news_date = n.get('date', 'Recent')
-
-                    # 특수 기호 처리
-                    safe_en = en_title.replace("$", "\$")
-                    safe_ko = ko_title.replace("$", "\$")
-                    
-                    # 배지 생성
-                    s_badge = f'<span style="background:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{sentiment_label}</span>'
-                    
-                    st.markdown(f"""
-                        <a href="{news_link}" target="_blank" style="text-decoration:none; color:inherit;">
-                            <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
-                                <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <div>
-                                        <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
-                                        <span style="color:#888; font-size:12px;">| 일반</span>
-                                        {s_badge}
-                                    </div>
-                                    <small style="color:#bbb;">{news_date}</small>
-                                </div>
-                                <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">
-                                    {safe_en}
-                                    <br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_ko}</span>
-                                </div>
-                            </div>
-                        </a>
-                    """, unsafe_allow_html=True)
-            else:
-                st.warning("⚠️ 현재 표시할 최신 뉴스가 없습니다.")
-
-            st.write("<br>", unsafe_allow_html=True)
-
-            # 결정 박스
-            draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
-
-            # 면책 조항
-            display_disclaimer()
-            
-        # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
-        with tab2:
-            # [1] 데이터 수집 및 계산 함수
-            def get_market_status_internal(df_calendar):
-                data = {
-                    "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0,
-                    "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50
-                }
-        
-                # --- A. [IPO Specific] 앱 내 데이터로 계산 ---
-                if not df_calendar.empty:
-                    today = datetime.now().date()
-                    
-                    # 1. 수익률 & 적자 비율 (최근 30개 표본)
-                    traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < today].sort_values(by='공모일_dt', ascending=False).head(30)
-                    
-                    ret_sum = 0; ret_cnt = 0; unp_cnt = 0
-                    for _, row in traded_ipos.iterrows():
-                        try:
-                            p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
-                            p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
-                            if p_ipo > 0 and p_curr > 0:
-                                ret_sum += ((p_curr - p_ipo) / p_ipo) * 100
-                                ret_cnt += 1
-                            fin = get_financial_metrics(row['symbol'], MY_API_KEY)
-                            if fin and fin.get('net_margin') and fin['net_margin'] < 0: unp_cnt += 1
-                        except: pass
-                    
-                    if ret_cnt > 0: data["ipo_return"] = ret_sum / ret_cnt
-                    if len(traded_ipos) > 0: data["unprofitable_pct"] = (unp_cnt / len(traded_ipos)) * 100
-        
-                    # 2. Filings Volume (향후 30일)
-                    future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= today) & 
-                                              (df_calendar['공모일_dt'].dt.date <= today + timedelta(days=30))]
-                    data["ipo_volume"] = len(future_ipos)
-        
-                    # 3. Withdrawal Rate (최근 540일)
-                    recent_history = df_calendar[df_calendar['공모일_dt'].dt.date >= (today - timedelta(days=540))]
-                    if not recent_history.empty:
-                        wd = recent_history[recent_history['status'].str.lower() == 'withdrawn']
-                        data["withdrawal_rate"] = (len(wd) / len(recent_history)) * 100
-        
-                # --- B. [Macro Market] Yahoo Finance 실시간 데이터 ---
-                try:
-                    vix_obj = yf.Ticker("^VIX")
-                    data["vix"] = vix_obj.history(period="1d")['Close'].iloc[-1]
-        
-                    w5000 = yf.Ticker("^W5000").history(period="1d")['Close'].iloc[-1]
-                    us_gdp_est = 28.0 
-                    mkt_cap_est = w5000 / 1000 * 0.93 
-                    data["buffett_val"] = (mkt_cap_est / us_gdp_est) * 100
-        
-                    try:
-                        spy = yf.Ticker("SPY")
-                        data["pe_ratio"] = spy.info.get('trailingPE', 24.5) 
-                    except: data["pe_ratio"] = 24.5
-        
-                    spx = yf.Ticker("^GSPC").history(period="1y")
-                    curr_spx = spx['Close'].iloc[-1]
-                    ma200 = spx['Close'].rolling(200).mean().iloc[-1]
-                    mom_score = ((curr_spx - ma200) / ma200) * 100
-                    s_vix = max(0, min(100, (35 - data["vix"]) * (100/23)))
-                    s_mom = max(0, min(100, (mom_score + 10) * 5))
-                    data["fear_greed"] = (s_vix + s_mom) / 2
-                except: pass
-                
-                return data
-        
-            # [2] 데이터 로드 및 분석 실행
-            with st.spinner("📊 8대 핵심 지표를 실시간 분석 중입니다..."):
-                if 'all_df' not in locals(): 
-                    all_df_tab2 = get_extended_ipo_data(MY_API_KEY)
-                    if not all_df_tab2.empty:
-                        all_df_tab2 = all_df_tab2.dropna(subset=['exchange'])
-                        all_df_tab2['공모일_dt'] = pd.to_datetime(all_df_tab2['date'])
-                else:
-                    all_df_tab2 = all_df
-        
-                md = get_market_status_internal(all_df_tab2)
-        
-            # --- CSS 스타일 정의 ---
-            st.markdown("""
-            <style>
-                .metric-card { background-color:#ffffff; padding:15px; border-radius:12px; border: 1px solid #e0e0e0;
-                              box-shadow: 0 2px 4px rgba(0,0,0,0.03); height: 100%; min-height: 220px; 
-                              display: flex; flex-direction: column; justify-content: space-between; }
-                .metric-header { font-weight:bold; font-size:16px; color:#111; margin-bottom:5px; }
-                .metric-value-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-                .metric-value { font-size:20px; font-weight:800; color:#004e92; }
-                .metric-desc { font-size:13px; color:#555; line-height:1.5; margin-bottom:10px; flex-grow: 1; }
-                .metric-footer { font-size:11px; color:#999; margin-top:5px; border-top:1px solid #f0f0f0; padding-top:8px; font-style: italic; }
-                .st-badge { font-size:12px; padding: 3px 8px; border-radius:6px; font-weight:bold; }
-                .st-hot { background-color:#ffebee; color:#c62828; }
-                .st-cold { background-color:#e3f2fd; color:#1565c0; }
-                .st-good { background-color:#e8f5e9; color:#2e7d32; }
-                .st-neutral { background-color:#f5f5f5; color:#616161; }
-            </style>
-            """, unsafe_allow_html=True)
-        
-            # --- 1. IPO 시장 지표 시각화 ---
-            st.markdown('<p style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">IPO 시장 과열 평가</p>', unsafe_allow_html=True)
-            c1, c2, c3, c4 = st.columns(4)
-        
-            with c1:
-                val = md['ipo_return']; status = "🔥 과열" if val >= 20 else "✅ 적정" if val >= 0 else "❄️ 침체"
-                st_cls = "st-hot" if val >= 20 else "st-good" if val >= 0 else "st-cold"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>First-Day Returns</div><div class='metric-value-row'><span class='metric-value'>{val:+.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>상장 첫날 시초가가 공모가 대비 얼마나 상승했는지 나타냅니다. 20% 이상이면 과열로 판단합니다.</div><div class='metric-footer'>Ref: Jay Ritter (Univ. of Florida)</div></div>", unsafe_allow_html=True)
-        
-            with c2:
-                val = md['ipo_volume']; status = "🔥 활발" if val >= 10 else "⚖️ 보통"
-                st_cls = "st-hot" if val >= 10 else "st-neutral"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Filings Volume</div><div class='metric-value-row'><span class='metric-value'>{val}건</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>향후 30일 이내 상장 예정인 기업의 수입니다. 물량이 급증하면 고점 징후일 수 있습니다.</div><div class='metric-footer'>Ref: Ibbotson & Jaffe (1975)</div></div>", unsafe_allow_html=True)
-        
-            with c3:
-                val = md['unprofitable_pct']; status = "🚨 위험" if val >= 80 else "⚠️ 주의" if val >= 50 else "✅ 건전"
-                st_cls = "st-hot" if val >= 50 else "st-good"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Unprofitable IPOs</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>최근 상장 기업 중 순이익이 '적자'인 기업의 비율입니다. 80%에 육박하면 버블로 간주합니다.</div><div class='metric-footer'>Ref: Jay Ritter (Dot-com Bubble)</div></div>", unsafe_allow_html=True)
-        
-            with c4:
-                val = md['withdrawal_rate']; status = "🔥 과열" if val < 5 else "✅ 정상"
-                st_cls = "st-hot" if val < 5 else "st-good"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Withdrawal Rate</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>자진 철회 비율입니다. 낮을수록(10%↓) 묻지마 상장이 많다는 뜻입니다.</div><div class='metric-footer'>Ref: Dunbar (1998)</div></div>", unsafe_allow_html=True)
-        
-            st.write("<br>", unsafe_allow_html=True)
-        
-            # --- 2. 거시 시장 지표 시각화 ---
-            st.markdown('<p style="font-size: 15px; font-weight: 600; margin-top: 20px; margin-bottom: 10px;">미국거시경제 과열 평가</p>', unsafe_allow_html=True)
-            m1, m2, m3, m4 = st.columns(4)
-        
-            with m1:
-                val = md['vix']; status = "🔥 탐욕" if val <= 15 else "❄️ 공포" if val >= 25 else "⚖️ 중립"
-                st_cls = "st-hot" if val <= 15 else "st-cold" if val >= 25 else "st-neutral"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>VIX Index</div><div class='metric-value-row'><span class='metric-value'>{val:.2f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>S&P 500 변동성 지수입니다. 낮을수록 시장이 과도하게 안심하고 있음을 뜻합니다.</div><div class='metric-footer'>Ref: CBOE / Whaley (1993)</div></div>", unsafe_allow_html=True)
-        
-            with m2:
-                val = md['buffett_val']; status = "🚨 고평가" if val > 150 else "⚠️ 높음"
-                st_cls = "st-hot" if val > 120 else "st-neutral"
-                disp_val = f"{val:.0f}%" if val > 0 else "N/A"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Buffett Indicator</div><div class='metric-value-row'><span class='metric-value'>{disp_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>GDP 대비 시총 비율입니다. 100%를 넘으면 경제 규모 대비 주가가 비싸다는 신호입니다.</div><div class='metric-footer'>Ref: Warren Buffett (2001)</div></div>", unsafe_allow_html=True)
-        
-            with m3:
-                val = md['pe_ratio']; status = "🔥 고평가" if val > 25 else "✅ 적정"
-                st_cls = "st-hot" if val > 25 else "st-good"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>S&P 500 PE</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}x</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>주가수익비율입니다. 역사적 평균(약 16배)보다 높으면 고평가 구간입니다.</div><div class='metric-footer'>Ref: Shiller CAPE Model (Proxy)</div></div>", unsafe_allow_html=True)
-        
-            with m4:
-                val = md['fear_greed']; status = "🔥 Greed" if val >= 70 else "❄️ Fear" if val <= 30 else "⚖️ Neutral"
-                st_cls = "st-hot" if val >= 70 else "st-cold" if val <= 30 else "st-neutral"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Fear & Greed</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>심리 지표입니다. 75점 이상은 '극단적 탐욕' 상태를 의미합니다.</div><div class='metric-footer'>Ref: CNN Business Logic</div></div>", unsafe_allow_html=True)
-        
-            st.write("<br>", unsafe_allow_html=True)
-            
-            # --- 3. AI 종합 진단 (Expander) ---
-            with st.expander("거시지표 분석", expanded=False): 
-                try:
-                    ai_market_comment = get_market_dashboard_analysis(md)
-                    
-                    # 🚨 [핵심 추가] AI 답변에 포함된 불필요한 HTML 태그 강제 제거!
-                    if isinstance(ai_market_comment, str):
-                        ai_market_comment = ai_market_comment.replace("</div>", "").replace("<div>", "").replace("```html", "").replace("```", "").strip()
-                        
-                except NameError:
-                    ai_market_comment = "AI 분석 함수가 아직 로드되지 않았습니다."
-
-                # 제목 div를 제거하고 본문만 남긴 버전
-                st.markdown(f"""
-                <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #004e92;'>
-                    <div style='font-size:14px; line-height:1.6; color:#333; text-align:justify;'>
-                        {ai_market_comment}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # 기존의 팁 메시지는 하단에 보조적으로 표시
-                if md.get('unprofitable_pct', 0) >= 80:
-                    st.warning("🚨 **경고:** 적자 기업 비율이 매우 높습니다. 개별 종목의 펀더멘털 확인이 필수적입니다.")
-        
-           # [4] 참고논문 (expander)
-            with st.expander("참고(References)", expanded=False):
-                st.markdown("""
-                <style>
-                    .ref-container { margin-top: 5px; }
-                    .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
-                    .ref-item:hover { background-color: #fafafa; padding-left: 5px; padding-right: 5px; }
-                    .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
-                    .ref-title:hover { text-decoration: underline; }
-                    .ref-author { font-size: 12px; color: #666; margin-top: 2px; }
-                    .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 10px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; white-space: nowrap; }
-                    .ref-btn:hover { border-color: #004e92; color: #004e92; background-color: #f0f7ff; }
-                    .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 10px; font-weight: bold; margin-bottom: 5px; }
-                </style>
-                """, unsafe_allow_html=True)
-
-                # --- 중요: references 변수를 여기서 정의해야 합니다 ---
-                references = [
-                    {
-                        "label": "IPO 데이터", 
-                        "title": "Initial Public Offerings: Updated Statistics", 
-                        "author": "Jay R. Ritter (Warrington College)", 
-                        "summary": "미국 IPO 시장의 성적표와 공모가 저평가(Underpricing) 통계의 결정판",
-                        "link": "https://site.warrington.ufl.edu/ritter/ipo-data/"
-                    },
-                    {
-                        "label": "시장 과열", 
-                        "title": "'Hot Issue' Markets (Ibbotson & Jaffe)", 
-                        "author": "Ibbotson & Jaffe (1975)", 
-                        "summary": "특정 시기에 IPO 수익률이 비정상적으로 높아지는 '시장 과열' 현상 규명",
-                        "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets"
-                    },
-                    {
-                        "label": "상장 철회", 
-                        "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", 
-                        "author": "Dunbar (1998)", 
-                        "summary": "상장 방식 선택에 따른 기업 가치와 상장 철회 위험의 상관관계 분석",
-                        "link": "https://scholar.google.com/scholar?q=Dunbar+1995+The+Choice+Between+Firm-Commitment+and+Best-Efforts+IPOs"
-                    },
-                    {
-                        "label": "시장 변동성", 
-                        "title": "VIX White Paper: CBOE Volatility Index", 
-                        "author": "CBOE (Official)", 
-                        "summary": "S&P 500 옵션을 기반으로 시장의 공포와 변동성을 측정하는 표준 지표",
-                        "link": "https://www.cboe.com/micro/vix/vixwhite.pdf"
-                    },
-                    {
-                        "label": "밸류에이션", 
-                        "title": "Warren Buffett on the Stock Market (Fortune Classic)", 
-                        "author": "Warren Buffett (2001)", 
-                        "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 버핏 지표",
-                        "link": "https://www.gurufocus.com/news/122602/warren-buffett-on-the-stock-market-2001-article"
-                    },
-                    {
-                        "label": "기초 데이터", 
-                        "title": "U.S. Stock Markets 1871-Present (CAPE Ratio)", 
-                        "author": "Robert Shiller", 
-                        "summary": "경기조정주가수익비율(CAPE)을 활용한 장기적 주식 시장 밸류에이션 데이터",
-                        "link": "http://www.econ.yale.edu/~shiller/data.htm"
-                    },
-                    {
-                        "label": "투자자 심리", 
-                        "title": "Fear & Greed Index (Real-time)", 
-                        "author": "CNN Business", 
-                        "summary": "7가지 지표를 통합해 투자자의 탐욕과 공포 수준을 0~100으로 수치화",
-                        "link": "https://edition.cnn.com/markets/fear-and-greed"
-                    }
-                ]
-
-                # 이제 변수가 정의되었으므로 루프를 돌립니다.
-                for ref in references:
-                    st.markdown(f"""
-                    <div class='ref-item'>
-                        <div style='flex:1;'>
-                            <div class='ref-badge'>{ref['label']}</div><br>
-                            <a href='{ref['link']}' target='_blank' class='ref-title' style='display:block; margin-bottom:4px;'>📄 {ref['title']}</a>
-                            <div style='font-size: 13px; color: #666; line-height: 1.5;'>
-                                <span>{ref['summary']}, {ref['author']}</span>
-                            </div>
-                        </div>
-                        <div style='margin-left: 15px; align-self: center;'>
-                            <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
-                        </div>
-                    </div>""", unsafe_allow_html=True)
-        
-            # --- 5. 최종 의사결정 박스 및 면책조항 ---
-            # draw_decision_box 함수가 사전에 정의되어 있어야 합니다.
-            draw_decision_box("macro", "현재 거시경제(Macro) 상황에 대한 판단은?", ["버블", "중립", "침체"])
-            
-            # 맨 마지막 호출
-            display_disclaimer()
-
-        # --- Tab 3: 개별 기업 평가 (Real Data 연동 - Full Version) ---
-        with tab3:
-            # 🎨 [추가 위치] 카드 내부의 수치 폰트 크기 통일 CSS
-            st.markdown("""
-            <style>
-                .metric-value {
-                    font-size: 1.2rem !important; /* 글자 크기를 살짝 조절해서 '확인 필요' 등이 안 깨지게 함 */
-                    font-weight: 800 !important;
-                    white-space: nowrap;
-                }
-                .st-badge {
-                    font-size: 0.7rem !important;
-                    vertical-align: middle;
-                    margin-left: 5px;
-                }
-                .metric-value-row {
-                    display: flex;
-                    align-items: center;
-                    justify-content: flex-start; /* 왼쪽 정렬로 통일감 부여 */
-                }
-            </style>
-            """, unsafe_allow_html=True)
-        
-            # [0] 데이터 소스 및 1차 유효성 판별
-            data_source = "Unknown"
-            is_data_available = False
-            
-            if fin_data:
-                if fin_data.get('revenue') and fin_data.get('revenue') > 0:
-                    is_data_available = True
-                    if 'sec' in str(fin_data.get('source', '')).lower():
-                        data_source = "SEC 10-K/Q (공시)"
-                    elif fin_data.get('market_cap'):
-                        data_source = "Finnhub (가공)"
-                    else:
-                        data_source = "Yahoo Finance (보조)"
-        
-            # 🔥 [0.5] 데이터 보강 로직
-            if not is_data_available or not fin_data.get('revenue'):
-                try:
-                    ticker = yf.Ticker(stock['symbol'])
-                    yf_fin = ticker.financials
-                    yf_info = ticker.info
-                    yf_bal = ticker.balance_sheet
-                    
-                    if not yf_fin.empty:
-                        # [기본 실적]
-                        rev = yf_fin.loc['Total Revenue'].iloc[0]
-                        net_inc = yf_fin.loc['Net Income'].iloc[0]
-                        prev_rev = yf_fin.loc['Total Revenue'].iloc[1] if len(yf_fin.columns) > 1 else rev
-                        
-                        # [지표 계산 및 주입]
-                        fin_data['revenue'] = rev / 1e6
-                        fin_data['net_margin'] = (net_inc / rev) * 100
-                        fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100
-                        fin_data['eps'] = yf_info.get('trailingEps', 0)
-                        
-                        # 영업이익률(op_margin) 계산 추가 (에러 방지용)
-                        if 'Operating Income' in yf_fin.index:
-                            op_inc = yf_fin.loc['Operating Income'].iloc[0]
-                            fin_data['op_margin'] = (op_inc / rev) * 100
-                        else:
-                            fin_data['op_margin'] = fin_data['net_margin'] # 데이터 부재 시 순이익률 활용
-                        
-                        # [추가 전문 지표]
-                        fin_data['market_cap'] = yf_info.get('marketCap', 0) / 1e6
-                        fin_data['forward_pe'] = yf_info.get('forwardPE', 0)
-                        fin_data['price_to_book'] = yf_info.get('priceToBook', 0)
-                        
-                        # [안정성 지표 - 대차대조표 기반]
-                        if not yf_bal.empty:
-                            total_liab = yf_bal.loc['Total Liabilities Net Minority Interest'].iloc[0] if 'Total Liabilities Net Minority Interest' in yf_bal.index else 0
-                            equity = yf_bal.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in yf_bal.index else 1
-                            fin_data['debt_equity'] = (total_liab / equity) * 100
-                            fin_data['roe'] = (net_inc / equity) * 100
-                        
-                        is_data_available = True
-                        data_source = "Yahoo Finance (Full Direct)"
+                        normal_posts.append(p)
                 except:
-                    pass
-        
-            # [1] 데이터 전처리 및 지표 계산
-            growth_val = fin_data.get('growth') if is_data_available else None
-            ocf_val = fin_data.get('net_margin') if is_data_available else 0
-            
-            op_m = fin_data.get('op_margin') if is_data_available else None
-            net_m = fin_data.get('net_margin') if is_data_available else None
-            
-            # 발생액 품질 계산
-            if is_data_available and op_m is not None and net_m is not None:
-                acc_diff = op_m - net_m
-                accruals_status = "Low" if abs(acc_diff) < 5 else "High"
-            else:
-                accruals_status = "Unknown"
-
-            md_stock = {
-                "sales_growth": growth_val,
-                "ocf": ocf_val,
-                "accruals": accruals_status,
-                "vc_backed": "Checking...",
-                "discount_rate": 0.0
-            }
-
-            # 🔥 [1.5] 에러 방지용 안전 변수 가공 (가장 중요)
-            def clean_value(val):
-                """None, NaN, Inf 값을 0으로 정제하는 함수"""
-                try:
-                    if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))):
-                        return 0.0
-                    return float(val)
-                except:
-                    return 0.0
-
-            # ⚠️ 중요: clean_value 함수 밖(같은 라인)에 위치해야 합니다.
-            if fin_data is None: 
-                fin_data = {}
-
-            # 데이터 정제 추출
-            rev_val = clean_value(fin_data.get('revenue', 0))
-            net_m_val = clean_value(fin_data.get('net_margin', 0))
-            op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
-            growth = clean_value(fin_data.get('growth', 0))
-            roe_val = clean_value(fin_data.get('roe', 0))
-            de_ratio = clean_value(fin_data.get('debt_equity', 0))
-            pe_val = clean_value(fin_data.get('forward_pe', 0))
-
-            # 화면 표시용 텍스트 가공 (nan, inf 대신 N/A 출력)
-            rev_display = f"{rev_val:,.0f}" if rev_val > 0 else "N/A"
-            growth_display = f"{growth:+.1f}%" if abs(growth) > 0.001 else "N/A"
-            net_m_display = f"{net_m_val:.1f}%" if abs(net_m_val) > 0.001 else "N/A"
-            opm_display = f"{op_m_val:.2f}%" if abs(op_m_val) > 0.001 else "N/A"
-
-            # [2] 카드형 UI 레이아웃 (Metric Cards)
-            r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
-            r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
-
-            # (1) 매출 성장성 - [수정됨: "산출 불가" -> "N/A"]
-            with r1_c1:
-                display_val = growth_display if growth_display != "N/A" else "N/A"
-                if display_val != "N/A":
-                    status, st_cls = ("🔥 고성장", "st-hot") if growth > 20 else ("✅ 안정", "st-good") if growth > 5 else ("⚠️ 둔화", "st-neutral")
-                else:
-                    status, st_cls = ("🔍 N/A", "st-neutral")
-                
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>최근 연간 매출 성장률입니다.</div><div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
-
-            # (2) 수익성 - [수정됨: "산출 불가" -> "N/A"]
-            with r1_c2:
-                display_val = net_m_display if net_m_display != "N/A" else "N/A"
-                if display_val != "N/A":
-                    status, st_cls = ("✅ 흑자", "st-good") if net_m_val > 0 else ("🚨 적자", "st-hot")
-                else:
-                    status, st_cls = ("🔍 N/A", "st-neutral")
-
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Net Margin (Profit)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>순이익률입니다.</div><div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
-
-            # (3) 발생액 품질 (동일 유지)
-            with r1_c3:
-                val = md_stock['accruals']
-                status = "✅ 건전" if val == "Low" else "🚨 주의" if val == "High" else "🔍 N/A"
-                st_cls = "st-good" if val == "Low" else "st-hot" if val == "High" else "st-neutral"
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>회계 장부의 투명성입니다.</div><div class='metric-footer'>Theory: Teoh et al. (1998)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
-
-            # (4) 부채 비율 - [수정됨: "확인 필요" -> "N/A"]
-            with r1_c4:
-                display_val = f"{de_ratio:.1f}%" if de_ratio > 0 else "N/A"
-                status, st_cls = ("✅ 안정", "st-good") if (0 < de_ratio < 100) else ("🔍 N/A", "st-neutral")
-                
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Debt / Equity</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>자본 대비 부채 비중입니다.</div><div class='metric-footer'>Ref: Standard Ratio<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
-
-            # (5) 시장 성과 (r2_c1)
-            with r2_c1:
-                if current_p > 0 and off_val > 0:
-                    up_rate = ((current_p - off_val) / off_val) * 100
-                    display_val, status, st_cls = (f"{up_rate:+.1f}%", "🚀 급등" if up_rate > 20 else "⚖️ 적정", "st-hot" if up_rate > 20 else "st-good")
-                else:
-                    display_val, status, st_cls = ("대기 중", "⏳ IPO 예정", "st-neutral")
-                st.markdown(f"<div class='metric-card'><div class='metric-header'>Market Performance</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>공모가 대비 수익률입니다.</div><div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div></div>", unsafe_allow_html=True)
-
-            st.write("<br>", unsafe_allow_html=True)
-
-            # [2.5] 논문기반 AI 종합 판정 리포트
-            with st.expander("논문기반 AI 분석 보기", expanded=False):
-                # 1번 수정: 출처 표시 스타일 통일
-                st.caption(f"Data Source: {data_source} / Currency: USD")
-                
-                if is_data_available:
-                    growth_status = "고성장(High-Growth)" if growth > 20 else "안정적(Stable)" if growth > 5 else "정체(Stagnant)"
-                    quality_status = "우수(High-Quality)" if roe_val > 15 else "보통(Average)"
+                    normal_posts.append(p)
                     
-                    st.markdown(f"""
-                    **1. 성장성 및 생존 분석 (Jay Ritter, 1991)**
-                    * 현재 매출 성장률은 **{growth_status}** 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {"긍정적 시그널" if growth > 10 else "주의가 필요한 시그널"}로 해석됩니다.
+            # HOT 정렬 및 최대 5개 추출
+            hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
+            top_5_hot = hot_candidates[:5]
+            
+            # 나머지 병합 및 최신순 정렬
+            normal_posts.extend(hot_candidates[5:])
+            normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
     
-                    **2. 수익성 품질 및 자본 구조 (Fama & French, 2004)**
-                    * 수익성 지표(Net Margin/ROE)는 **{quality_status}** 등급입니다. 본 기업은 {"상대적으로 견고한 이익 체력" if roe_val > 10 else "영업 효율성 개선이 선행되어야 하는 체력"}을 보유하고 있습니다.
+        # 게시판에 들어올 때 무조건 5개로 시작하도록 강제 설정
+        if 'board_display_count' not in st.session_state:
+            st.session_state.board_display_count = 5
+        
+        current_display = normal_posts[:st.session_state.board_display_count]
     
-                    **3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)**
-                    * 발생액 품질(Accruals Quality)이 **{accruals_status}** 상태입니다. 이는 경영진의 이익 조정 가능성이 {"낮음" if accruals_status == "Low" else "존재함"}을 의미합니다.
-                    """)
-                    st.info(f"**AI 종합 판정:** 학술적 관점에서 본 기업은 **{growth_status}** 성격이 강하며, 정보 불확실성은 일정 부분 해소된 상태입니다.")
-                else:
-                    st.warning("재무 데이터 부재로 정성적 분석이 권장됩니다.")
-        
-            # [3] 재무자료 상세보기 (Summary Table)
-            with st.expander("재무분석", expanded=False):
-                if is_data_available:
-                    st.caption(f"Data Source: {data_source} / Currency: USD")
+        # UI 출력 함수
+        def render_post(p, is_hot=False):
+            p_auth = p.get('author_name', 'Unknown')
+            p_date = str(p.get('created_at', '')).split('T')[0]
+            p_id = p.get('id')
+            p_uid = p.get('author_id')
+            p_cat = p.get('category', '자유')
+            likes = p.get('likes') or 0
+            dislikes = p.get('dislikes') or 0
             
-                    # 스타일 수정: Label은 bold, Value는 normal(400)로 설정
-                    st.markdown("""
-                    <style>
-                        .custom-metric-container {
-                            display: flex;
-                            justify-content: space-between;
-                            text-align: center;
-                            padding: 10px 0;
-                        }
-                        .custom-metric-box {
-                            flex: 1;
-                            border-right: 1px solid #f0f0f0; /* 지표 간 구분선 추가 (선택사항) */
-                        }
-                        .custom-metric-box:last-child {
-                            border-right: none;
-                        }
-                        .custom-metric-label {
-                            font-size: 0.85rem; 
-                            font-weight: bold;    /* 지표명을 굵게 변경 */
-                            color: #333333;
-                            margin-bottom: 6px;
-                        }
-                        .custom-metric-value {
-                            font-size: 1.05rem; 
-                            font-weight: 400;    /* 수치를 일반 굵기로 변경 */
-                            color: #1f1f1f;
-                        }
-                    </style>
-                    """, unsafe_allow_html=True)
+            prefix = "[HOT]" if is_hot else f"[{p_cat}]"
+            title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (추천{likes}  비추천{dislikes})"
             
-                    # 지표 데이터 가공
-                    metrics = [
-                        ("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"),
-                        ("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x"),
-                        ("Net Margin", f"{net_m_val:.1f}%"),
-                        ("ROE", f"{roe_val:.1f}%"),
-                        ("D/E Ratio", f"{de_ratio:.1f}%"),
-                        ("Growth (YoY)", f"{growth:.1f}%")
-                    ]
-            
-                    # 커스텀 메트릭 렌더링
-                    m_cols = st.columns(6)
-                    for i, (label, value) in enumerate(metrics):
-                        with m_cols[i]:
-                            st.markdown(f"""
-                                <div class="custom-metric-box">
-                                    <div class="custom-metric-label">{label}</div>
-                                    <div class="custom-metric-value">{value}</div>
-                                </div>
-                            """, unsafe_allow_html=True)
-            
-                    st.markdown(" ")     
+            with st.expander(title_disp.strip()):
+                st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
+                st.write("<br>", unsafe_allow_html=True)
                 
-                # -------------------------------------------------------
-                    # [수정됨] 기존의 하드코딩된 opinion_text 대신 AI 함수 호출
-                    # -------------------------------------------------------
+                action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
+                with action_c1:
+                    if st.button(f"추천{likes}", key=f"l_{p_id}", use_container_width=True):
+                        if is_logged_in:
+                            db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'like')
+                            st.rerun()
+                        else: st.toast("🔒 로그인이 필요합니다.")
+                with action_c2:
+                    if st.button(f"비추천{dislikes}", key=f"d_{p_id}", use_container_width=True):
+                        if is_logged_in:
+                            db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'dislike')
+                            st.rerun()
+                        else: st.toast("🔒 로그인이 필요합니다.")
+                with action_c3:
+                    raw_u_info = st.session_state.get('user_info')
+                    u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
+                    is_admin = u_info.get('role') == 'admin'
                     
-                    # 1. AI에게 보낼 데이터 패키징
-                    ai_metrics = {
-                        "growth": growth_display,
-                        "net_margin": net_m_display,
-                        "op_margin": opm_display,
-                        "roe": f"{roe_val:.1f}%",
-                        "debt_equity": f"{de_ratio:.1f}%",
-                        "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A",
-                        "accruals": accruals_status
-                    }
-
-                    # 2. Supabase 캐싱된 AI 리포트 호출
-                    with st.spinner("🤖 AI 애널리스트가 재무제표를 분석 중입니다..."):
-                        ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], ai_metrics)
-                    
-                    # 3. 결과 출력
-                    st.info(ai_report)
-                    st.caption("※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
-
-                else:
-                    st.warning(f"재무 데이터 부재로 정성적 분석이 권장됩니다.")
-
-            # [4] 학술적 근거 및 원문 링크 섹션
-            with st.expander("참고(References)", expanded=False):
-                # 전용 CSS 스타일링
-                st.markdown("""
-                <style>
-                    .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
-                    .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
-                    .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 10px; font-weight: bold; margin-bottom: 5px; }
-                    .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; }
-                    .ref-btn:hover { background: #f8f9fa; border-color: #bbb; }
-                </style>
-                """, unsafe_allow_html=True)
-
-                # 참고문헌 데이터 리스트
-                references_tab3 = [
-                    {"label": "성장성 분석", "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "summary": "신규 상장 기업의 장기적 성과 저하 현상 분석", "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991"},
-                    {"label": "현금흐름", "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "summary": "신규 기업의 재무 건전성과 생존율 추적", "link": "https://scholar.google.com/scholar?q=Fama+French+2004"},
-                    {"label": "회계 품질", "title": "Earnings Management and the Long-Run Performance", "author": "Teoh, Welch, & Wong (1998)", "summary": "상장 전후 이익 조정이 주가에 미치는 영향", "link": "https://scholar.google.com/scholar?q=Teoh+Welch+Wong+1998"},
-                    {"label": "VC 인증", "title": "The Role of Venture Capital", "author": "Barry et al. (1990)", "summary": "VC 투자가 상장 시 갖는 공신력 분석", "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
-                    {"label": "저평가 이론", "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "summary": "정보 비대칭성과 공모가 저평가 메커니즘", "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
-                ]
-
-                st.info(f"💡 현재 분석에 사용된 데이터 출처: **{data_source}**")
-
-                # 반복문을 통한 리스트 렌더링
-                for ref in references_tab3:
-                    st.markdown(f"""
-                    <div class='ref-item'>
-                        <div style='flex:1;'>
-                            <div class='ref-badge'>{ref['label']}</div><br>
-                            <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
-                            <div style='font-size: 13px; color: #666;'>{ref['summary']}, {ref['author']}</div>
-                        </div>
-                        <div style='margin-left: 15px;'>
-                            <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
-                        </div>
-                    </div>""", unsafe_allow_html=True)
-                
-                st.caption("※ 본 리포트는 SEC 공시 및 Finnhub API 데이터를 기반으로 위 학술적 모델을 적용했습니다.")
-
-            # [5] 사용자 최종 판단 박스 (Decision Box)
-           
-            draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["고평가", "중립", "저평가"])
-
-            # 맨 마지막에 호출
-            display_disclaimer()
-
-        # --- 탭 글씨 크기 및 스타일 통일 (CSS) ---
-        st.markdown("""
-            <style>
-            /* 모든 탭 버튼의 글씨 크기와 굵기 조절 */
-            button[data-baseweb="tab"] p {
-                font-size: 1.1rem !important;
-                font-weight: 600 !important;
-                color: #31333F;
-            }
-            /* 선택된 탭의 강조 효과 */
-            button[data-baseweb="tab"][aria-selected="true"] p {
-                color: #FF4B4B !important; /* 스트림릿 기본 레드 컬러 */
-            }
-            </style>
-        """, unsafe_allow_html=True)            
-
-        # --- Tab 4: 기관평가 (UI 출력 부분) ---
-        with tab4:
-            # 1. 함수 호출 (기존 코드 유지)
-            with st.spinner(f"전문 기관 데이터를 정밀 수집 중..."):
-                result = get_unified_tab4_analysis(stock['name'], stock['symbol'])
-            
-            # 2. 결과 데이터 매핑 (기존 코드 유지)
-            summary_raw = result.get('summary', '')
-            pro_con_raw = result.get('pro_con', '')
-            rating_val = str(result.get('rating', 'Hold')).strip()
-            score_val = str(result.get('score', '3')).strip() 
-            sources = result.get('links', [])
-            q = stock['symbol'] if stock['symbol'] else stock['name']
-
-            st.write("<br>", unsafe_allow_html=True)
-        
-            # --- (1) Renaissance Capital & 기관 종합 요약 섹션 ---
-            with st.expander("Renaissance Capital IPO 요약", expanded=False):
-                import re
-                pattern = r'(?i)source|출처|https?://'
-                parts = re.split(pattern, summary_raw)
-                
-                # [수정] 모든 줄바꿈(\n)을 제거하고 공백(' ')으로 치환하여 한 문단으로 만듭니다.
-                # 1. AI가 보낸 텍스트 형태의 \\n 정제
-                # 2. 실제 줄바꿈 문자(\n)를 공백으로 치환
-                summary = parts[0].replace('\\n', ' ').replace('\n', ' ').strip().rstrip(' ,.:;-\t')
-                
-                if not summary or "분석 불가" in summary:
-                    st.warning("직접적인 분석 리포트를 찾지 못했습니다.")
-                else:
-                    # [수정] 더 이상 replace('\n', '\n\n')을 하지 않고 바로 출력합니다.
-                    st.info(summary)
-        
-            # --- (2) Seeking Alpha & Morningstar 섹션 (수정됨) ---
-            with st.expander("Seeking Alpha & Morningstar 요약", expanded=False):
-                # [핵심 수정] 문자열 \n을 실제 엔터로 변환
-                pro_con = pro_con_raw.replace('\\n', '\n').replace("###", "").strip()
-                
-                # [문단 공백 로직] '부정' 키워드 앞에 엔터를 추가하여 한 행 공백 생성
-                pro_con = pro_con.replace("긍정:", "**긍정**:").replace("부정:", "\n\n**부정**:")
-                pro_con = pro_con.replace("✅ 긍정", "**긍정**").replace("⚠️ 부정", "\n\n**부정**")
-                
-                if "의견 수집 중" in pro_con or not pro_con:
-                    st.error("AI가 실시간 리포트 본문을 분석하는 데 실패했습니다.")
-                else:
-                    # 최종 출력 시 줄바꿈 강제 적용
-                    st.success(pro_con.replace('\n', '\n\n'))
-        
-        
-            # --- (3) Institutional Sentiment 섹션 ---
-            with st.expander("Sentiment Score", expanded=False):
-                s_col1, s_col2 = st.columns(2)
-                
-                # 데이터 가져오기 및 세척
-                rating_val = str(result.get('rating', 'Hold')).strip()
-                score_val = str(result.get('score', '3')).strip()
-            
-                with s_col1:
-                    # Analyst Ratings 체계 안내 텍스트 생성
-                    r_list = {
-                        "Strong Buy": "적극 매수 추천",
-                        "Buy": "매수 추천",
-                        "Hold": "보유 및 중립 관망",
-                        "Neutral": "보유 및 중립 관망",
-                        "Sell": "매도 및 비중 축소"
-                    }
-                    
-                    rating_desc = "**[Analyst Ratings 체계]**\n"
-                    for k, v in r_list.items():
-                        is_current = " **(현재)**" if k.lower() in rating_val.lower() else ""
-                        rating_desc += f"- **{k}**: {v}{is_current}\n"
-            
-                    st.write("**[Analyst Ratings]**")
-                    
-                    # [수정] help 파라미터를 삭제하여 물음표 툴팁을 제거함
-                    st.metric(label="Consensus Rating", value=rating_val)
-                    
-                    # 상태별 색상 피드백 및 하단 설명 집중
-                    if any(x in rating_val for x in ["Buy", "Positive", "Outperform", "Strong"]):
-                        st.success(f"의견: {r_list.get(rating_val, '긍정적')}")
-                        st.caption(f"✅ 시장의 긍정적인 평가를 받고 있습니다.\n\n{rating_desc}")
-                    elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
-                        st.error(f"의견: {r_list.get(rating_val, '주의')}")
-                        st.caption(f"🚨 보수적인 접근이 필요한 시점입니다.\n\n{rating_desc}")
-                    else:
-                        st.info(f"의견: {r_list.get(rating_val, '중립')}")
-                        st.caption(f"ℹ️ {rating_desc}")
-
-                with s_col2:
-                    # IPO Scoop Score 체계 안내 텍스트 생성
-                    s_list = {
-                        "5": "대박 (Moonshot)",
-                        "4": "강력한 수익",
-                        "3": "양호 (Good)",
-                        "2": "미미한 수익 예상",
-                        "1": "공모가 하회 위험"
-                    }
-                    
-                    score_desc = "**[IPO Scoop Score 체계]**\n"
-                    for k, v in s_list.items():
-                        is_current = f" **(현재 {score_val}점)**" if k == score_val else ""
-                        score_desc += f"- ⭐ {k}개: {v}{is_current}\n"
-            
-                    st.write("**[IPO Scoop Score]**")
-                    
-                    # [수정] help 파라미터를 삭제하여 물음표 툴팁을 제거함
-                    st.metric(label="Expected IPO Score", value=f"⭐ {score_val}")
-                    
-                    # 점수별 색상 피드백 및 하단 설명 집중
-                    if score_val in ["4", "5"]:
-                        st.success(f"평가: {s_list.get(score_val, '정보 없음')}")
-                    elif score_val == "3":
-                        st.info(f"평가: {s_list.get(score_val, '정보 없음')}")
-                    else:
-                        st.warning(f"평가: {s_list.get(score_val, '정보 없음')}")
-
-                    st.caption(f"ℹ️ {score_desc}")
-
-            # --- (4) References (제목 제거 및 링크 통합) ---
-            with st.expander("References", expanded=False):
-                # 1. AI가 동적으로 찾아낸 뉴스/리포트 링크들 (제목 없이 바로 노출)
-                if sources:
-                    for src in sources:
-                        st.markdown(f"- [{src['title']}]({src['link']})")
-                else:
-                    st.caption("실시간 참조 리포트 링크를 불러올 수 없습니다.")
-                
-                # 2. 주요 분석 기관 바로가기 (구분선과 제목 제거 후 리스트 통합)
-                st.markdown(f"- [Renaissance Capital: {stock['name']} 상세 데이터](https://www.google.com/search?q=site:renaissancecapital.com+{q})")
-                st.markdown(f"- [Seeking Alpha: {stock['name']} 심층 분석글](https://seekingalpha.com/symbol/{q}/analysis)")
-                st.markdown(f"- [Morningstar: {stock['name']} 리서치 결과](https://www.morningstar.com/search?query={q})")
-                st.markdown(f"- [Google Finance: {stock['name']} 시장 동향](https://www.google.com/finance/quote/{q}:NASDAQ)")
-
-                
-
-            # [✅ 5단계 사용자 판단]
-            draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
-
-            # 맨 마지막에 호출
-            display_disclaimer()
+                    if is_logged_in and (u_info.get('id') == p_uid or is_admin):
+                        if st.button("삭제", key=f"del_{p_id}", type="secondary", use_container_width=True):
+                            if db_delete_post(p_id):
+                                st.success("삭제됨")
+                                import time; time.sleep(0.5)
+                                st.rerun()
     
+        # [4] 리스트 및 컨트롤 UI 렌더링
+        post_list_area = st.container()
         
-        # --- [공통 함수: 게시글 반응 처리] ---
-        # 이 함수는 Tab 5 외부(메인 로직 상단)에 두셔도 좋습니다.
-        def handle_post_reaction(post_id, reaction_type, user_id):
-            if not user_id:
-                st.warning("🔒 로그인이 필요한 기능입니다.")
-                return
-        
-            user_list_key = 'like_users' if reaction_type == 'likes' else 'dislike_users'
+        with post_list_area:
             
-            for p in st.session_state.posts:
-                if p['id'] == post_id:
-                    p.setdefault('like_users', [])
-                    p.setdefault('dislike_users', [])
-                    
-                    # 중복 투표 방지
-                    if user_id not in p[user_list_key]:
-                        p[reaction_type] = p.get(reaction_type, 0) + 1
-                        p[user_list_key].append(user_id)
+            # 1. 검색 및 글쓰기 영역 (최상단으로 이동)
+            f_col1, f_col2 = st.columns(2)
+            with f_col1:
+                with st.expander("검색하기"):
+                    s_type_new = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="b_s_type_temp", index=["제목", "제목+내용", "카테고리", "작성자"].index(s_type))
+                    s_keyword_new = st.text_input("키워드", value=s_keyword, key="b_s_keyword_temp")
+                    if st.button("검색", key="search_btn", use_container_width=True):
+                        st.session_state.b_s_type = s_type_new
+                        st.session_state.b_s_keyword = s_keyword_new
                         st.rerun()
-                    else:
-                        st.toast("이미 참여하신 게시글입니다.")
-                    break
-        
-        
-
-
-        # =========================================================
-        # --- Tab 5: 최종 투자 결정 (데이터 영구 저장 및 복구 통합) ---
-        # =========================================================
-        with tab5:
-            # ---------------------------------------------------------------------------
-            # 1. [스타일] 흰 배경 및 UI 설정
-            # ---------------------------------------------------------------------------
-            st.markdown("""
-                <style>
-                .stApp { background-color: #ffffff !important; color: #000000 !important; }
-                p, h1, h2, h3, h4, h5, h6, span, li, div { color: #000000 !important; }
-                .streamlit-expanderHeader { background-color: #f8f9fa !important; color: #000000 !important; border: 1px solid #ddd !important; }
-                div[data-testid="stExpanderDetails"] { background-color: #ffffff !important; border: 1px solid #ddd !important; border-top: none !important; }
-                </style>
-            """, unsafe_allow_html=True)
             
-            sid = stock['symbol']
-            user_info = st.session_state.get('user_info') or {}
-            user_id = user_info.get('id', 'guest_id')
-
-            # ---------------------------------------------------------
-            # 2. 투자 분석 결과 섹션 (차트 시각화 및 DB 동기화)
-            # ---------------------------------------------------------
-            if 'user_decisions' not in st.session_state: st.session_state.user_decisions = {}
-            ud = st.session_state.user_decisions.get(sid, {})
-            
-            steps = [
-                ('filing', 'Step 1 (공시)'), ('news', 'Step 2 (뉴스)'), 
-                ('macro', 'Step 3 (거시)'), ('company', 'Step 4 (미시)'), 
-                ('ipo_report', 'Step 5 (기관)')
-            ]
-            
-            missing_steps = [label for step, label in steps if not ud.get(step)]
-            
-            if missing_steps:
-                st.info(f"모든 분석단계({', '.join(missing_steps)})를 완료하면 나와 시장 참여자들의 리얼타임 종합 결과 차트가 표시됩니다.")
-            else:
-                # 1) 내 점수 계산 로직
-                score_map = {
-                    "긍정적": 1, "수용적": 1, "안정적": 1, "저평가": 1, "매수": 1, "침체": 1,
-                    "중립적": 0, "중립": 0, "적정": 0,
-                    "부정적": -1, "회의적": -1, "버블": -1, "고평가": -1, "매도": -1
-                }
-                user_score = sum(score_map.get(ud.get(s[0], "중립적"), 0) for s in steps)
-                
-                # 2) 🚨 [영구 저장] 내 선택 텍스트들과 합산 점수를 DB에 동시 저장
-                if user_id != 'guest_id':
-                    db_save_user_decision(user_id, sid, user_score, ud)
-                
-                # 3) DB에서 전체 커뮤니티 데이터 로드
-                community_scores = db_load_community_scores(sid)
-                if not community_scores:
-                    community_scores = [user_score]
-
-                import pandas as pd
-                import plotly.graph_objects as go
-                
-                total_participants = len(community_scores)
-
-                # 4) 통계 계산
-                optimists = sum(1 for s in community_scores if s > 0)
-                optimist_pct = (optimists / total_participants * 100) if total_participants > 0 else 0
-                user_percentile = (sum(1 for s in community_scores if s <= user_score) / total_participants * 100) if total_participants > 0 else 100
-
-                m1, m2 = st.columns(2)
-                m1.metric("시장 참여자 낙관도", f"{optimist_pct:.1f}%", help="전체 참여자 중 긍정 평가 비율")
-                m2.metric("나의 분석 위치", f"상위 {100-user_percentile:.1f}%", f"{user_score}점")
-                
-                # 5) 차트 그리기
-                score_counts = pd.Series(community_scores).value_counts().sort_index()
-                score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
-                
-                fig = go.Figure(go.Bar(
-                    x=score_counts.index, 
-                    y=score_counts.values, 
-                    marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
-                    hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
-                ))
-                fig.update_layout(
-                    height=220, 
-                    margin=dict(l=10, r=10, t=30, b=10), 
-                    xaxis=dict(title="종합 분석 점수 (-5 ~ +5)", tickmode='linear'), 
-                    yaxis=dict(title="참여자 수", showticklabels=True),
-                   
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-            # ---------------------------------------------------------
-            # 3. 전망 투표 및 실시간 Sentiment (BULL vs BEAR) - 최종본
-            # ---------------------------------------------------------
-            st.write("<br>", unsafe_allow_html=True)
-            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>실시간 커뮤니티 전망</div>", unsafe_allow_html=True)
-            
-            # [1] 실시간 데이터 로드 (DB에서 직접 집계)
-            up_voters, down_voters = db_load_sentiment_counts(sid)
-            total_votes = up_voters + down_voters
-            
-            # 비율 계산 (분모 0 방지)
-            up_pct = (up_voters / total_votes * 100) if total_votes > 0 else 50
-            down_pct = (down_voters / total_votes * 100) if total_votes > 0 else 50
-
-            # [2] Bullish & Bearish 시각화 카드
-            col_bull, col_bear = st.columns(2)
-            
-            with col_bull:
-                st.markdown(f"""
-                    <div style="background-color: #ebfaef; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #c3e6cb;">
-                        <img src="https://img.icons8.com/color/96/bull.png" width="60" style="margin-bottom:10px;">
-                        <div style="color: #28a745; font-weight: 800; font-size: 1.2rem;">BULLISH</div>
-                        <div style="color: #333; font-size: 1.5rem; font-weight: 900;">{up_pct:.1f}%</div>
-                        
-                    </div>
-                """, unsafe_allow_html=True)
-
-            with col_bear:
-                st.markdown(f"""
-                    <div style="background-color: #fff5f5; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #feb2b2;">
-                        <img src="https://img.icons8.com/color/96/bear.png" width="60" style="margin-bottom:10px;">
-                        <div style="color: #dc3545; font-weight: 800; font-size: 1.2rem;">BEARISH</div>
-                        <div style="color: #333; font-size: 1.5rem; font-weight: 900;">{down_pct:.1f}%</div>
-                       
-                    </div>
-                """, unsafe_allow_html=True)
-
-           
-
-            # [3] 투표 버튼 및 관심종목 로직
-            if st.session_state.get('auth_status') == 'user':
-                if sid not in st.session_state.watchlist:
-                    st.caption("투표시 관심종목에 자동 저장되며, 실시간 결과에 반영됩니다.")
-                    c_up, c_down = st.columns(2)
-                    
-                    if c_up.button("📈 상승", key=f"up_vote_{sid}", use_container_width=True, type="primary"):
-                        db_toggle_watchlist(user_id, sid, "UP", action='add')
-                        if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
-                        st.session_state.watchlist_predictions[sid] = "UP"
-                        st.rerun()
-
-                    if c_down.button("📉 하락", key=f"dn_vote_{sid}", use_container_width=True):
-                        db_toggle_watchlist(user_id, sid, "DOWN", action='add')
-                        if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
-                        st.session_state.watchlist_predictions[sid] = "DOWN"
-                        st.rerun()
-                else:
-                    # 이미 참여한 경우 상태 표시
-                    pred = st.session_state.watchlist_predictions.get(sid, "N/A")
-                    color = "#28a745" if pred == "UP" else "#dc3545"
-                    pred_text = "BULLISH (상승)" if pred == "UP" else "BEARISH (하락)"
-                    
-                    st.markdown(f"""
-                        <div style="padding: 15px; border-radius: 10px; border: 1px solid {color}; text-align: center; font-weight: bold; color: {color};">
-                            나의 선택: {pred_text} 
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    if st.button("투표 취소 및 관심종목 해제", key=f"rm_vote_{sid}", use_container_width=True):
-                        db_toggle_watchlist(user_id, sid, action='remove')
-                        if sid in st.session_state.watchlist: st.session_state.watchlist.remove(sid)
-                        if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
-                        st.rerun()
-            else:
-                st.warning("🔒 로그인 후 투표에 참여하고 전체 결과를 확인할 수 있습니다.")
-
-            # ---------------------------------------------------------
-            # 4. 종목 토론방 (글쓰기 상단 + HOT/최신 정렬 + 페이징 적용)
-            # ---------------------------------------------------------
-            st.write("<br>", unsafe_allow_html=True)
-            # 폰트 크기 및 굵기 적용
-            st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{sid} 토론방</div>", unsafe_allow_html=True)
-            
-            # [1] 글쓰기 섹션을 리스트 최상단으로 배치
-            with st.expander("글쓰기"):
-                if st.session_state.get('auth_status') == 'user':
-                    if check_permission('write'):
-                        with st.form(key=f"write_{sid}_form", clear_on_submit=True):
-                            new_title = st.text_input("제목")
-                            new_content = st.text_area("내용")
+            with f_col2:
+                with st.expander("글쓰기"):
+                    if is_logged_in and check_permission('write'):
+                        with st.form(key="board_main_form", clear_on_submit=True):
+                            b_cat = st.text_input("종목/말머리", placeholder="자유")
+                            b_tit = st.text_input("제목")
+                            b_cont = st.text_area("내용")
                             if st.form_submit_button("등록", type="primary", use_container_width=True):
-                                if new_title and new_content:
-                                    u_id = st.session_state.user_info.get('id')
+                                if b_tit and b_cont:
+                                    u_id = st.session_state.user_info['id']
                                     try:
                                         fresh_user = db_load_user(u_id)
                                         d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
-                                        st.session_state.user_info = fresh_user
-                                    except:
-                                        d_name = f"{u_id[:3]}***"
+                                    except: d_name = f"{u_id[:3]}***"
                                     
-                                    if db_save_post(sid, new_title, new_content, d_name, u_id):
-                                        st.success("등록되었습니다!")
+                                    if db_save_post(b_cat, b_tit, b_cont, d_name, u_id):
+                                        st.success("등록 완료!")
                                         import time; time.sleep(0.5)
+                                        # 글 작성 후 전체 리스트를 다시 불러오도록 검색 조건 초기화
+                                        if 'b_s_type' in st.session_state: del st.session_state.b_s_type
+                                        if 'b_s_keyword' in st.session_state: del st.session_state.b_s_keyword
                                         st.rerun()
-                else:
-                    st.warning("🔒 로그인 후 이용 가능합니다.")
-            
+                    else:
+                        st.warning("🔒 로그인 및 권한 인증이 필요합니다.")
+    
             st.write("<br>", unsafe_allow_html=True)
             
-            # [2] DB에서 해당 종목(sid) 관련 글 넉넉히 로드
-            sid_posts = db_load_posts(limit=100, category=sid)
+            # 2. 인기글 영역 (검색창 아래)
+            if hot_candidates and top_5_hot: # 에러 방지용 조건 강화
+                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
+                for p in top_5_hot:
+                    render_post(p, is_hot=True)
+                st.write("<br><br>", unsafe_allow_html=True)
             
-            if sid_posts:
-                from datetime import datetime, timedelta
-                three_days_ago = datetime.now() - timedelta(days=3)
-                
-                hot_candidates = []
-                normal_posts = []
-
-                # 날짜 및 추천수 기반 분류
-                for p in sid_posts:
-                    try:
-                        created_dt_str = str(p.get('created_at', '')).split('.')[0]
-                        created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
-                        if created_dt >= three_days_ago and p.get('likes', 0) > 0:
-                            hot_candidates.append(p)
-                        else:
-                            normal_posts.append(p)
-                    except:
-                        normal_posts.append(p)
-                        
-                # HOT 정렬 및 5개 추출
-                hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
-                top_5_hot = hot_candidates[:5]
-                
-                # 나머지 병합 및 최신순 정렬
-                normal_posts.extend(hot_candidates[5:])
-                normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
-
-                # 종목 토론방 전용 페이징 상태 관리
-                page_key = f'detail_display_count_{sid}'
-                if page_key not in st.session_state:
-                    st.session_state[page_key] = 5
-                current_display = normal_posts[:st.session_state[page_key]]
-
-                # 종목 토론방용 UI 출력 함수
-                def render_detail_post(p, is_hot=False):
-                    p_auth = p.get('author_name', 'Unknown')
-                    p_date = str(p.get('created_at', '')).split('T')[0]
-                    p_id = p.get('id')
-                    p_uid = p.get('author_id')
-                    likes = p.get('likes') or 0
-                    dislikes = p.get('dislikes') or 0
-                    
-                    prefix = "[HOT]" if is_hot else ""
-                    # 괄호 안 텍스트도 영어로
-                    title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (추천{likes}  비추천{dislikes})"
-                    
-                    with st.expander(title_disp.strip()):
-                        st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
-                        st.write("<br>", unsafe_allow_html=True)
-                        
-                        action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
-                        
-                        with action_c1:
-                            if st.button(f"추천{likes}", key=f"like_sid_{p_id}", use_container_width=True):
-                                if st.session_state.get('auth_status') == 'user':
-                                    db_toggle_post_reaction(p_id, user_id, 'like')
-                                    st.rerun()
-                                else: st.toast("🔒 로그인 후 이용 가능합니다.")
-                                    
-                        with action_c2:
-                            if st.button(f"비추천{dislikes}", key=f"dislike_sid_{p_id}", use_container_width=True):
-                                if st.session_state.get('auth_status') == 'user':
-                                    db_toggle_post_reaction(p_id, user_id, 'dislike')
-                                    st.rerun()
-                                else: st.toast("🔒 로그인 후 이용가능합니다.")
-                                    
-                        with action_c3:
-                            raw_u_info = st.session_state.get('user_info')
-                            u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
-                            is_admin = u_info.get('role') == 'admin'
-                            
-                            if st.session_state.get('auth_status') == 'user':
-                                if u_info.get('id') == p_uid or is_admin:
-                                    if st.button("삭제", key=f"del_sid_{p_id}", type="secondary", use_container_width=True):
-                                        if db_delete_post(p_id):
-                                            st.success("삭제되었습니다.")
-                                            import time; time.sleep(0.5)
-                                            st.rerun()
-
-                # (A) 상단: HOT 게시물 출력
-                if top_5_hot:
-                    st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
-                    for p in top_5_hot:
-                        render_detail_post(p, is_hot=True)
-                    st.write("<br><br>", unsafe_allow_html=True)
-
-                # (B) 하단: 최신 게시물 출력
-                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
+            # 3. 최신글 영역 (인기글 아래)
+            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
+            
+            if posts:
                 if current_display:
                     for p in current_display:
-                        render_detail_post(p, is_hot=False)
+                        render_post(p, is_hot=False)
                 else:
                     st.info("조건에 맞는 최신 글이 없습니다.")
                     
-                # (C) 더 보기 버튼
-                if len(normal_posts) > st.session_state[page_key]:
+                # 더보기 버튼 로직 (고유 Key 추가)
+                if len(normal_posts) > st.session_state.board_display_count:
                     st.write("<br>", unsafe_allow_html=True)
-                    if st.button("🔽 더보기", key=f"more_{sid}", use_container_width=True):
-                        st.session_state[page_key] += 10
+                    if st.button("🔽 더보기", key="more_board_posts", use_container_width=True):
+                        st.session_state.board_display_count += 10
                         st.rerun()
             else:
-                st.info("첫 의견을 남겨보세요!")
-
-
-# ---------------------------------------------------------
-# [NEW] 6. 게시판 페이지 (Board)
-# ---------------------------------------------------------
-elif st.session_state.page == 'board':
-    
-    st.markdown("""
-        <style>
-        div[data-testid="stPills"] div[role="radiogroup"] button {
-            border: none !important;
-            background-color: #000000 !important;
-            color: #ffffff !important;
-            border-radius: 20px !important;
-            padding: 6px 15px !important;
-            margin-right: 5px !important;
-        }
-        div[data-testid="stPills"] button[aria-selected="true"] {
-            background-color: #444444 !important;
-            font-weight: 800 !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # [1] 메뉴 구성 및 네비게이션
-    is_logged_in = (st.session_state.auth_status == 'user')
-    login_text, settings_text, main_text, watch_text, board_text, back_text = "로그아웃" if is_logged_in else "로그인", "권한설정", "메인", f"관심 ({len(st.session_state.watchlist)})", "게시판", "뒤로가기"
-    
-    menu_options = [login_text]
-    if is_logged_in: menu_options.append(settings_text)
-    menu_options.extend([main_text, watch_text, board_text])
-    
-    last_stock = st.session_state.get('selected_stock')
-    if last_stock: menu_options.append(back_text)
-
-    selected_menu = st.pills(label="nav_board", options=menu_options, selection_mode="single", default=board_text, key="nav_board_v3", label_visibility="collapsed")
-
-    if selected_menu and selected_menu != board_text:
-        if selected_menu == back_text: st.session_state.page = 'detail'; st.rerun()
-        elif selected_menu == login_text: 
-            if is_logged_in: st.session_state.auth_status = None
-            st.session_state.page = 'login'; st.rerun()
-        elif selected_menu == settings_text: st.session_state.page = 'setup'; st.rerun()
-        elif selected_menu == main_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'all'; st.rerun()
-        elif selected_menu == watch_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'watchlist'; st.rerun()
-
-    # [2] 게시판 데이터 로드 및 검색 필터링 적용
-    s_keyword = ""
-    s_type = "제목"
-    
-    # 세션에서 검색 상태를 기억하도록 하여 검색 후 페이지 새로고침 시에도 유지되도록 함.
-    if 'b_s_type' in st.session_state:
-        s_type = st.session_state.b_s_type
-    if 'b_s_keyword' in st.session_state:
-        s_keyword = st.session_state.b_s_keyword
-        
-    all_posts = db_load_posts(limit=100) 
-    
-    posts = all_posts
-    if s_keyword:
-        k = s_keyword.lower()
-        if s_type == "제목": posts = [p for p in posts if k in p.get('title','').lower()]
-        elif s_type == "제목+내용": posts = [p for p in posts if k in p.get('title','').lower() or k in p.get('content','').lower()]
-        elif s_type == "카테고리": posts = [p for p in posts if k in p.get('category','').lower()]
-        elif s_type == "작성자": posts = [p for p in posts if k in p.get('author_name','').lower()]
-
-    # [3] 정렬 및 분리 로직 (HOT 5개 / 나머지 최신순 페이징)
-    hot_candidates = []
-    normal_posts = []
-
-    if posts:
-        from datetime import datetime, timedelta
-        three_days_ago = datetime.now() - timedelta(days=3)
-
-        for p in posts:
-            try:
-                created_dt_str = str(p.get('created_at', '')).split('.')[0]
-                created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
-                if created_dt >= three_days_ago and p.get('likes', 0) > 0:
-                    hot_candidates.append(p)
-                else:
-                    normal_posts.append(p)
-            except:
-                normal_posts.append(p)
-                
-        # HOT 정렬 및 최대 5개 추출
-        hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
-        top_5_hot = hot_candidates[:5]
-        
-        # 나머지 병합 및 최신순 정렬
-        normal_posts.extend(hot_candidates[5:])
-        normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
-
-    # 게시판에 들어올 때 무조건 5개로 시작하도록 강제 설정
-    if 'board_display_count' not in st.session_state:
-        st.session_state.board_display_count = 5
-    
-    current_display = normal_posts[:st.session_state.board_display_count]
-
-    # UI 출력 함수
-    def render_post(p, is_hot=False):
-        p_auth = p.get('author_name', 'Unknown')
-        p_date = str(p.get('created_at', '')).split('T')[0]
-        p_id = p.get('id')
-        p_uid = p.get('author_id')
-        p_cat = p.get('category', '자유')
-        likes = p.get('likes') or 0
-        dislikes = p.get('dislikes') or 0
-        
-        prefix = "[HOT]" if is_hot else f"[{p_cat}]"
-        title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (추천{likes}  비추천{dislikes})"
-        
-        with st.expander(title_disp.strip()):
-            st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
-            st.write("<br>", unsafe_allow_html=True)
-            
-            action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
-            with action_c1:
-                if st.button(f"추천{likes}", key=f"l_{p_id}", use_container_width=True):
-                    if is_logged_in:
-                        db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'like')
-                        st.rerun()
-                    else: st.toast("🔒 로그인이 필요합니다.")
-            with action_c2:
-                if st.button(f"비추천{dislikes}", key=f"d_{p_id}", use_container_width=True):
-                    if is_logged_in:
-                        db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'dislike')
-                        st.rerun()
-                    else: st.toast("🔒 로그인이 필요합니다.")
-            with action_c3:
-                raw_u_info = st.session_state.get('user_info')
-                u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
-                is_admin = u_info.get('role') == 'admin'
-                
-                if is_logged_in and (u_info.get('id') == p_uid or is_admin):
-                    if st.button("삭제", key=f"del_{p_id}", type="secondary", use_container_width=True):
-                        if db_delete_post(p_id):
-                            st.success("삭제됨")
-                            import time; time.sleep(0.5)
-                            st.rerun()
-
-    # [4] 리스트 및 컨트롤 UI 렌더링
-    post_list_area = st.container()
-    
-    with post_list_area:
-        
-        # 1. 검색 및 글쓰기 영역 (최상단으로 이동)
-        f_col1, f_col2 = st.columns(2)
-        with f_col1:
-            with st.expander("검색하기"):
-                s_type_new = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="b_s_type_temp", index=["제목", "제목+내용", "카테고리", "작성자"].index(s_type))
-                s_keyword_new = st.text_input("키워드", value=s_keyword, key="b_s_keyword_temp")
-                if st.button("검색", key="search_btn", use_container_width=True):
-                    st.session_state.b_s_type = s_type_new
-                    st.session_state.b_s_keyword = s_keyword_new
-                    st.rerun()
-        
-        with f_col2:
-            with st.expander("글쓰기"):
-                if is_logged_in and check_permission('write'):
-                    with st.form(key="board_main_form", clear_on_submit=True):
-                        b_cat = st.text_input("종목/말머리", placeholder="자유")
-                        b_tit = st.text_input("제목")
-                        b_cont = st.text_area("내용")
-                        if st.form_submit_button("등록", type="primary", use_container_width=True):
-                            if b_tit and b_cont:
-                                u_id = st.session_state.user_info['id']
-                                try:
-                                    fresh_user = db_load_user(u_id)
-                                    d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
-                                except: d_name = f"{u_id[:3]}***"
-                                
-                                if db_save_post(b_cat, b_tit, b_cont, d_name, u_id):
-                                    st.success("등록 완료!")
-                                    import time; time.sleep(0.5)
-                                    # 글 작성 후 전체 리스트를 다시 불러오도록 검색 조건 초기화
-                                    if 'b_s_type' in st.session_state: del st.session_state.b_s_type
-                                    if 'b_s_keyword' in st.session_state: del st.session_state.b_s_keyword
-                                    st.rerun()
-                else:
-                    st.warning("🔒 로그인 및 권한 인증이 필요합니다.")
-
-        st.write("<br>", unsafe_allow_html=True)
-        
-        # 2. 인기글 영역 (검색창 아래)
-        if hot_candidates and top_5_hot: # 에러 방지용 조건 강화
-            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
-            for p in top_5_hot:
-                render_post(p, is_hot=True)
-            st.write("<br><br>", unsafe_allow_html=True)
-        
-        # 3. 최신글 영역 (인기글 아래)
-        st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
-        
-        if posts:
-            if current_display:
-                for p in current_display:
-                    render_post(p, is_hot=False)
-            else:
-                st.info("조건에 맞는 최신 글이 없습니다.")
-                
-            # 더보기 버튼 로직 (고유 Key 추가)
-            if len(normal_posts) > st.session_state.board_display_count:
-                st.write("<br>", unsafe_allow_html=True)
-                if st.button("🔽 더보기", key="more_board_posts", use_container_width=True):
-                    st.session_state.board_display_count += 10
-                    st.rerun()
-        else:
-            st.info("게시글이 없습니다.")
+                st.info("게시글이 없습니다.")
 
                 
                         
