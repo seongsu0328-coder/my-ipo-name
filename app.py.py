@@ -1842,7 +1842,7 @@ if st.session_state.page == 'login':
             # =========================================================
             # [NEW 위치] 3개 국어 언어 선택 버튼 (구경하기 버튼 바로 아래)
             # =========================================================
-            st.write("<br>", unsafe_allow_html=True)
+            
             lang_cols = st.columns(3)
             with lang_cols[0]:
                 if st.button("🇰🇷 한국어", use_container_width=True): 
