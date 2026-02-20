@@ -385,37 +385,29 @@ def get_last_cache_update_time():
     return datetime.now() - timedelta(days=2)
 
 # ==========================================
-# [신규] Tab 0~4 사용자 투자 판단 DB 연동 함수
+# [수정] Tab 0~4 사용자 투자 판단 DB 연동 함수
 # ==========================================
 def db_save_user_decision(user_id, ticker, total_score):
     """사용자의 최종 판단 점수(-5 ~ +5)를 DB에 저장 (UPSERT)"""
     if user_id == 'guest_id' or not user_id: 
-        return False # 비로그인 유저는 저장하지 않음
+        return False
     try:
         data = {
-            "user_id": user_id,
-            "ticker": ticker,
-            "score": total_score,
+            "user_id": str(user_id),
+            "ticker": str(ticker),
+            "score": int(total_score),
             "updated_at": datetime.now().isoformat()
         }
-        # 이미 투표한 이력이 있으면 덮어쓰기(수정) 처리
-        supabase.table("user_decisions").upsert(data, on_conflict="user_id, ticker").execute()
+        
+        # 🚨 [핵심 수정] 띄어쓰기 없애고, SQL에서 만든 자물쇠 이름(unique_user_ticker)을 직접 호출합니다!
+        supabase.table("user_decisions").upsert(data, on_conflict="unique_user_ticker").execute()
+        
         return True
     except Exception as e:
-        print(f"Decision Save Error: {e}")
+        # 에러 발생 시 앱 화면 상단에 빨간색으로 바로 띄워주도록 수정
+        import streamlit as st
+        st.error(f"🚨 DB 저장 에러: {e}")
         return False
-
-def db_load_community_scores(ticker):
-    """특정 종목(ticker)에 대한 모든 실제 유저의 점수 리스트를 불러옴"""
-    try:
-        res = supabase.table("user_decisions").select("score").eq("ticker", ticker).execute()
-        if res.data:
-            return [item['score'] for item in res.data]
-        return []
-    except Exception as e:
-        print(f"Community Load Error: {e}")
-        return []
-
 
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
