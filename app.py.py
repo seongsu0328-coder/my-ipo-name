@@ -4012,7 +4012,7 @@ elif st.session_state.page == 'detail':
             st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{sid} 토론방</div>", unsafe_allow_html=True)
             
             # [1] 글쓰기 섹션을 리스트 최상단으로 배치
-            with st.expander("✏️ 글쓰기"):
+            with st.expander("글쓰기"):
                 if st.session_state.get('auth_status') == 'user':
                     if check_permission('write'):
                         with st.form(key=f"write_{sid}_form", clear_on_submit=True):
