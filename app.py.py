@@ -385,14 +385,13 @@ def get_last_cache_update_time():
     return datetime.now() - timedelta(days=2)
 
 # ==========================================
-# [수정] Tab 0~4 사용자 투자 판단 DB 연동 함수 (강력 디버깅 추가)
+# [최종 수정판] Tab 0~4 사용자 투자 판단 DB 연동 함수
 # ==========================================
 def db_save_user_decision(user_id, ticker, total_score):
-    """사용자의 최종 판단 점수(-5 ~ +5)를 DB에 저장 (UPSERT)"""
-    import streamlit as st # 디버깅 메시지 출력을 위해 추가
+    """사용자의 최종 판단 점수를 DB에 저장 (UPSERT)"""
+    import streamlit as st
     
     if user_id == 'guest_id' or not user_id: 
-        st.toast("⚠️ 비로그인 상태라 DB 저장을 건너뜁니다.")
         return False
         
     try:
@@ -403,25 +402,28 @@ def db_save_user_decision(user_id, ticker, total_score):
             "updated_at": datetime.now().isoformat()
         }
         
-        # [디버깅] 전송 직전 데이터 확인
-        st.toast(f"📡 DB 전송 시도... ({ticker}: {total_score}점)", icon="⏳")
+        # 🚨 [가장 중요] 띄어쓰기 절대 없이 "user_id,ticker" 로 묶어야 완벽하게 덮어쓰기가 됩니다.
+        res = supabase.table("user_decisions").upsert(data, on_conflict="user_id,ticker").execute()
         
-        # 🚨 on_conflict 자물쇠 명시
-        res = supabase.table("user_decisions").upsert(data, on_conflict="unique_user_ticker").execute()
-        
-        # [디버깅] 응답 결과 확인
         if res.data:
-            st.toast(f"✅ DB 저장 성공! ({ticker} / {total_score}점)", icon="🎉")
+            st.toast(f"✅ 커뮤니티 투표 저장 완료! ({ticker} / {total_score}점)", icon="🎉")
             return True
-        else:
-            st.warning("⚠️ 에러는 안 났지만 DB에서 응답 데이터가 없습니다. (테이블 구조 확인 필요)")
-            return False
+        return False
             
     except Exception as e:
-        # 🚨 [디버깅] 실제 터진 에러 화면 출력
         st.error(f"🚨 DB 저장 에러 발생!\n상세 원인: {e}")
-        print(f"Decision Save Error: {e}")
         return False
+
+def db_load_community_scores(ticker):
+    """특정 종목(ticker)에 대한 모든 실제 유저의 점수 리스트를 불러옴"""
+    try:
+        res = supabase.table("user_decisions").select("score").eq("ticker", ticker).execute()
+        if res.data:
+            return [item['score'] for item in res.data]
+        return []
+    except Exception as e:
+        print(f"Community Load Error: {e}")
+        return []
 
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
