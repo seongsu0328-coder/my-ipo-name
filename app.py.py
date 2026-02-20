@@ -4120,7 +4120,7 @@ elif st.session_state.page == 'detail':
 
                 # (A) 상단: HOT 게시물 출력
                 if top_5_hot:
-                    st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>🔥 인기글</div>", unsafe_allow_html=True)
+                    st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
                     for p in top_5_hot:
                         render_detail_post(p, is_hot=True)
                     st.write("<br><br>", unsafe_allow_html=True)
@@ -4312,12 +4312,12 @@ elif st.session_state.page == 'board':
         # [5] 리스트 UI 렌더링
         with post_list_area:
             if top_5_hot:
-                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>🔥 인기글</div>", unsafe_allow_html=True)
+                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
                 for p in top_5_hot:
                     render_post(p, is_hot=True)
                 st.write("<br><br>", unsafe_allow_html=True)
 
-            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>🕒 최신글</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
             
             # 전체(normal_posts)가 아닌 current_display 만큼만 반복
             if current_display:
