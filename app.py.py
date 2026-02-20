@@ -726,17 +726,13 @@ def get_gcp_clients():
         return None, None
 
 @st.cache_data(ttl=43200) # 12시간마다 갱신
-def get_daily_quote():
-    # 1. 예비용 명언 리스트 (한글 번역 추가됨)
+def get_daily_quote(lang='ko'):
+    # 1. 예비용 명언 리스트 (다국어 지원)
     backup_quotes = [
-        {"eng": "Opportunities don't happen. You create them.", "kor": "기회는 찾아오는 것이 아닙니다. 당신이 만드는 것입니다.", "author": "Chris Grosser"},
-        {"eng": "The best way to predict the future is to create it.", "kor": "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것입니다.", "author": "Peter Drucker"},
-        {"eng": "Do not be embarrassed by your failures, learn from them and start again.", "kor": "실패를 부끄러워하지 마세요. 배우고 다시 시작하세요.", "author": "Richard Branson"},
-        {"eng": "Innovation distinguishes between a leader and a follower.", "kor": "혁신이 리더와 추종자를 구분합니다.", "author": "Steve Jobs"},
-        {"eng": "It’s not about ideas. It’s about making ideas happen.", "kor": "아이디어 자체가 중요한 게 아닙니다. 실행하는 것이 중요합니다.", "author": "Scott Belsky"},
-        {"eng": "The only way to do great work is to love what you do.", "kor": "위대한 일을 하는 유일한 방법은 그 일을 사랑하는 것입니다.", "author": "Steve Jobs"},
-        {"eng": "Risk comes from not knowing what you're doing.", "kor": "위험은 자신이 무엇을 하는지 모르는 데서 옵니다.", "author": "Warren Buffett"},
-        {"eng": "Success is walking from failure to failure with no loss of enthusiasm.", "kor": "성공이란 열정을 잃지 않고 실패를 거듭해 나가는 능력입니다.", "author": "Winston Churchill"}
+        {"eng": "Opportunities don't happen. You create them.", "ko": "기회는 찾아오는 것이 아닙니다. 당신이 만드는 것입니다.", "ja": "機会は起こるものではありません。あなたが創り出すものです。", "author": "Chris Grosser"},
+        {"eng": "The best way to predict the future is to create it.", "ko": "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것입니다.", "ja": "未来を予測する最良の方法は、それを創り出すことです。", "author": "Peter Drucker"},
+        {"eng": "Innovation distinguishes between a leader and a follower.", "ko": "혁신이 리더와 추종자를 구분합니다.", "ja": "イノベーションがリーダーとフォロワーを区別します。", "author": "Steve Jobs"},
+        {"eng": "Risk comes from not knowing what you're doing.", "ko": "위험은 자신이 무엇을 하는지 모르는 데서 옵니다.", "ja": "リスクは、自分が何をしているかを知らないことから来ます。", "author": "Warren Buffett"}
     ]
 
     try:
@@ -745,25 +741,32 @@ def get_daily_quote():
         eng_text = res['content']
         author = res['author']
         
-        # 2. 한글 번역 시도 (기존 뉴스 번역 API 활용)
-        kor_text = ""
+        # 영어를 선택한 경우 원문만 반환
+        if lang == 'en':
+            return {"eng": eng_text, "translated": eng_text, "author": author}
+        
+        # 2. 번역 API 시도 (선택된 언어로)
+        translated_text = ""
         try:
             trans_url = "https://api.mymemory.translated.net/get"
-            trans_res = requests.get(trans_url, params={'q': eng_text, 'langpair': 'en|ko'}, timeout=2).json()
+            trans_res = requests.get(trans_url, params={'q': eng_text, 'langpair': f'en|{lang}'}, timeout=2).json()
             if trans_res['responseStatus'] == 200:
-                kor_text = trans_res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
+                translated_text = trans_res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
         except:
-            pass # 번역 실패 시 빈 칸
+            pass 
 
-        # 번역 실패 시 예비 멘트 혹은 영어만 리턴 방지
-        if not kor_text: 
-            kor_text = "Global Business Quote"
+        # 번역 실패 시 영어 원문 유지
+        if not translated_text: 
+            translated_text = eng_text
 
-        return {"eng": eng_text, "kor": kor_text, "author": author}
+        return {"eng": eng_text, "translated": translated_text, "author": author}
 
     except:
         # API 실패 시, 예비 리스트에서 랜덤 선택
-        return random.choice(backup_quotes)
+        choice = random.choice(backup_quotes)
+        trans = choice.get(lang, choice['eng'])
+        return {"eng": choice['eng'], "translated": trans, "author": choice['author']}
+        
 @st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
 def get_financial_metrics(symbol, api_key):
     try:
@@ -1773,7 +1776,7 @@ if st.session_state.page == 'login':
 
     with col_center:
         st.write("<br>", unsafe_allow_html=True)
-        # 💡 [여기 수정!] 다국어 함수를 빼고 영문 고정으로 변경합니다.
+        # 💡 타이틀 영문 고정
         st.markdown("<h1 class='login-title'>UnicornFinder</h1>", unsafe_allow_html=True)
         
         # 상태 초기화
@@ -1783,46 +1786,38 @@ if st.session_state.page == 'login':
         if 'db_users' not in st.session_state: st.session_state.db_users = ["admin"]
 
         # ---------------------------------------------------------
-        # [통합 화면] 로그인 입력 + 버튼 (기존 Step 1, 2 통합)
+        # [통합 화면] 로그인 입력 + 버튼
         # ---------------------------------------------------------
-        # 'choice' 상태이거나 'login_input' 상태(혹시 남아있을 경우)일 때 메인 화면 표시
         if st.session_state.login_step in ['choice', 'login_input']:
             
             st.write("<br>", unsafe_allow_html=True)
             
-            # [1] 아이디/비번 입력창 (바로 노출) - [수정] 다국어 적용
+            # [1] 아이디/비번 입력창 (다국어 적용)
             l_id = st.text_input(get_text('id_label'), key="login_id")
             l_pw = st.text_input(get_text('pw_label'), type="password", key="login_pw")
             
             st.write("<br>", unsafe_allow_html=True)
             
             # [2] 버튼 섹션
-            # 버튼 1: 로그인 (누르면 즉시 검증) - [수정] 다국어 적용
+            # 버튼 1: 로그인 (다국어 적용)
             if st.button(get_text('btn_login'), use_container_width=True, type="primary"):
                 if not l_id or not l_pw:
                       st.error("아이디와 비밀번호를 입력해주세요." if st.session_state.lang == 'ko' else "Please enter your ID and password.")
                 else:
                     with st.spinner("로그인 중..." if st.session_state.lang == 'ko' else "Logging in..."):
-                        # [📌 변경 코드] DB에서 ID로 단건 조회 (속도 향상 및 DB 전환)
                         user = db_load_user(l_id)
                         
                         if user and str(user.get('pw')) == str(l_pw):
                             st.session_state.auth_status = 'user'
                             st.session_state.user_info = user
                             
-                            # [📌 추가됨] 영구 저장된 관심종목 & 예측 불러오기 (핵심 기능)
                             saved_watchlist, saved_preds = db_sync_watchlist(l_id)
                             st.session_state.watchlist = saved_watchlist
                             st.session_state.watchlist_predictions = saved_preds
                             
-                            # 상태값 추출 및 정제
                             raw_status = user.get('status', 'pending')
                             user_status = str(raw_status).strip().lower()
                             
-                            # 터미널 로그 기록
-                            print(f"🔒 LOGIN SUCCESS: {l_id} | Status: {user_status}") 
-                            
-                            # 페이지 이동 로직
                             if user_status == 'approved':
                                 st.session_state.page = 'calendar'
                             else:
@@ -1832,48 +1827,22 @@ if st.session_state.page == 'login':
                         else:
                             st.error("아이디 또는 비밀번호가 틀립니다." if st.session_state.lang == 'ko' else "Invalid ID or password.")
             
-            # 버튼 2: 회원가입 (누르면 인증 화면으로 이동) - [수정] 다국어 적용
+            # 버튼 2: 회원가입 (다국어 적용)
             if st.button(get_text('btn_signup'), use_container_width=True):
-                st.session_state.login_step = 'signup_input' # 회원가입 단계로 전환
-                st.session_state.auth_code_sent = False      # 인증 상태 초기화
+                st.session_state.login_step = 'signup_input' 
+                st.session_state.auth_code_sent = False      
                 st.rerun()
                 
-            # 버튼 3: 구경하기 - [수정] 다국어 적용
+            # 버튼 3: 구경하기 (다국어 적용)
             if st.button(get_text('btn_guest'), use_container_width=True):
                 st.session_state.auth_status = 'guest'
                 st.session_state.page = 'calendar'
                 st.rerun()
 
-            # [3] 명언 섹션 (하단 배치)
-            st.write("<br><br>", unsafe_allow_html=True) 
-            
-            quote_data = get_daily_quote()
-            st.markdown(f"""
-                <div style="
-                    background-color: #ffffff; 
-                    padding: 15px; 
-                    border-radius: 12px; 
-                    border: 1px solid #f0f0f0;
-                    text-align: center;
-                ">
-                    <div style="font-size: 0.95rem; color: #333; font-weight: 600; line-height: 1.5; margin-bottom: 5px;">
-                        "{quote_data['kor']}"
-                    </div>
-                    <div style="font-size: 0.8rem; color: #888; font-style: italic; margin-bottom: 8px;">
-                        {quote_data['eng']}
-                    </div>
-                    <div style="font-size: 0.85rem; color: #666;">
-                        - {quote_data['author']} -
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            
             # =========================================================
-            # [NEW] 3개 국어 언어 선택 버튼 (명언 섹션 바로 아래)
+            # [NEW 위치] 3개 국어 언어 선택 버튼 (구경하기 버튼 바로 아래)
             # =========================================================
             st.write("<br>", unsafe_allow_html=True)
-            st.markdown("<div style='text-align: center; color: #888; font-size: 0.85rem; margin-bottom: 8px;'>Language / 언어 / 言語</div>", unsafe_allow_html=True)
-            
             lang_cols = st.columns(3)
             with lang_cols[0]:
                 if st.button("🇰🇷 한국어", use_container_width=True): 
@@ -1887,6 +1856,35 @@ if st.session_state.page == 'login':
                 if st.button("🇯🇵 日本語", use_container_width=True): 
                     st.session_state.lang = 'ja'
                     st.rerun()
+
+            # ---------------------------------------------------------
+            # [3] 명언 섹션 (언어 선택에 따라 동적 번역)
+            # ---------------------------------------------------------
+            st.write("<br>", unsafe_allow_html=True) 
+            
+            # 선택된 언어 파라미터 전달
+            quote_data = get_daily_quote(st.session_state.lang) 
+            
+            # 영어를 선택했을 때는 원문만 표기, 다른 언어일 때는 번역본 + 원문(sub_text) 표기
+            sub_text = "" if st.session_state.lang == 'en' else f"<div style='font-size: 0.8rem; color: #888; font-style: italic; margin-bottom: 8px;'>{quote_data['eng']}</div>"
+
+            st.markdown(f"""
+                <div style="
+                    background-color: #ffffff; 
+                    padding: 15px; 
+                    border-radius: 12px; 
+                    border: 1px solid #f0f0f0;
+                    text-align: center;
+                ">
+                    <div style="font-size: 0.95rem; color: #333; font-weight: 600; line-height: 1.5; margin-bottom: 5px;">
+                        "{quote_data['translated']}"
+                    </div>
+                    {sub_text}
+                    <div style="font-size: 0.85rem; color: #666;">
+                        - {quote_data['author']} -
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
             
         # ---------------------------------------------------------
         # [Step 3] 회원가입 로직 (통합본)
