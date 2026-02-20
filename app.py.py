@@ -3015,7 +3015,7 @@ elif st.session_state.page == 'detail':
                     """, unsafe_allow_html=True)
                     
                     # 💡 [수정] 안내 멘트를 비즈니스 모델 요약 내용 하단으로 이동
-                    st.caption("🔍 Google Search 기반 실시간 분석 및 뉴스를 제공합니다.")
+                    st.caption("Google Search 기반 실시간 분석 및 뉴스를 제공합니다.")
                 else:
                     st.error("⚠️ 비즈니스 분석 정보를 가져오지 못했습니다.")
 
