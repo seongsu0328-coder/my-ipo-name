@@ -1625,16 +1625,20 @@ try:
 except:
     pass # 이미 설정되어 있다면 패스
 
-# 2. 세션 상태 안전 초기화
-for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view_mode', 'user_info', 'selected_stock']:
+# 2. 세션 상태 안전 초기화 (lang 추가됨)
+for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view_mode', 'user_info', 'selected_stock', 'lang']:
     if key not in st.session_state:
         if key == 'page': st.session_state[key] = 'login'
         elif key == 'watchlist': st.session_state[key] = []
         elif key == 'posts': st.session_state[key] = []
         elif key == 'user_decisions': st.session_state[key] = {}
         elif key == 'view_mode': st.session_state[key] = 'all'
+        elif key == 'lang': st.session_state[key] = 'ko'  # 💡 [핵심] 언어 기본값 한국어 설정
         else: st.session_state[key] = None
 
+# ==========================================
+# [추가] 다국어(i18n) 지원 설정 및 사전(Dictionary)
+# ==========================================
 # 다국어 매핑 사전 (필요한 UI 텍스트를 여기에 계속 추가하시면 됩니다)
 UI_TEXT = {
     'login_title': {'ko': '유니콘 파인더', 'en': 'UnicornFinder', 'ja': 'ユニコーンファインダー'},
@@ -1654,8 +1658,6 @@ UI_TEXT = {
     'tab_3': {'ko': ' 미시지표', 'en': ' Micro', 'ja': ' ミクロ指標'},
     'tab_4': {'ko': ' 기업평가', 'en': ' Valuation', 'ja': ' 企業評価'},
     'tab_5': {'ko': ' 투자결정', 'en': ' Decision', 'ja': ' 投資決定'},
-    
-    # 💡 [NEW] 추가된 "저장" 및 "인증" 관련 텍스트
     'btn_save': {'ko': '저장하고 시작하기', 'en': 'Save & Start', 'ja': '保存して開始'},
     'btn_verify': {'ko': '인증하기 (서류제출)', 'en': 'Verify (Submit Docs)', 'ja': '認証する (書類提出)'},
 }
