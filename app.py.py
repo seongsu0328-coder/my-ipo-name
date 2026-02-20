@@ -1866,25 +1866,20 @@ if st.session_state.page == 'login':
             quote_data = get_daily_quote(st.session_state.lang) 
             
             # 영어를 선택했을 때는 원문만 표기, 다른 언어일 때는 번역본 + 원문(sub_text) 표기
-            sub_text = "" if st.session_state.lang == 'en' else f"<div style='font-size: 0.8rem; color: #888; font-style: italic; margin-bottom: 8px;'>{quote_data['eng']}</div>"
+            if st.session_state.lang == 'en':
+                sub_text = ""
+            else:
+                sub_text = f"<div style='font-size: 0.8rem; color: #888; font-style: italic; margin-bottom: 8px;'>{quote_data['eng']}</div>"
 
-            st.markdown(f"""
-                <div style="
-                    background-color: #ffffff; 
-                    padding: 15px; 
-                    border-radius: 12px; 
-                    border: 1px solid #f0f0f0;
-                    text-align: center;
-                ">
-                    <div style="font-size: 0.95rem; color: #333; font-weight: 600; line-height: 1.5; margin-bottom: 5px;">
-                        "{quote_data['translated']}"
-                    </div>
-                    {sub_text}
-                    <div style="font-size: 0.85rem; color: #666;">
-                        - {quote_data['author']} -
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+            # 💡 아래 html_content 부분에서 태그 사이의 줄바꿈을 없애서 에러를 방지합니다.
+            html_content = f"""
+            <div style="background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #f0f0f0; text-align: center;">
+                <div style="font-size: 0.95rem; color: #333; font-weight: 600; line-height: 1.5; margin-bottom: 5px;">
+                    "{quote_data['translated']}"
+                </div>{sub_text}<div style="font-size: 0.85rem; color: #666;">- {quote_data['author']} -</div>
+            </div>
+            """
+            st.markdown(html_content, unsafe_allow_html=True)
             
         # ---------------------------------------------------------
         # [Step 3] 회원가입 로직 (통합본)
