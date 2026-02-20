@@ -4099,7 +4099,7 @@ elif st.session_state.page == 'detail':
                     </div>
                 """, unsafe_allow_html=True)
 
-            st.write("<br>", unsafe_allow_html=True)
+           
 
             # [3] 투표 버튼 및 관심종목 로직
             if st.session_state.get('auth_status') == 'user':
