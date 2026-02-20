@@ -385,12 +385,16 @@ def get_last_cache_update_time():
     return datetime.now() - timedelta(days=2)
 
 # ==========================================
-# [수정] Tab 0~4 사용자 투자 판단 DB 연동 함수
+# [수정] Tab 0~4 사용자 투자 판단 DB 연동 함수 (강력 디버깅 추가)
 # ==========================================
 def db_save_user_decision(user_id, ticker, total_score):
     """사용자의 최종 판단 점수(-5 ~ +5)를 DB에 저장 (UPSERT)"""
+    import streamlit as st # 디버깅 메시지 출력을 위해 추가
+    
     if user_id == 'guest_id' or not user_id: 
+        st.toast("⚠️ 비로그인 상태라 DB 저장을 건너뜁니다.")
         return False
+        
     try:
         data = {
             "user_id": str(user_id),
@@ -399,14 +403,24 @@ def db_save_user_decision(user_id, ticker, total_score):
             "updated_at": datetime.now().isoformat()
         }
         
-        # 🚨 [핵심 수정] 띄어쓰기 없애고, SQL에서 만든 자물쇠 이름(unique_user_ticker)을 직접 호출합니다!
-        supabase.table("user_decisions").upsert(data, on_conflict="unique_user_ticker").execute()
+        # [디버깅] 전송 직전 데이터 확인
+        st.toast(f"📡 DB 전송 시도... ({ticker}: {total_score}점)", icon="⏳")
         
-        return True
+        # 🚨 on_conflict 자물쇠 명시
+        res = supabase.table("user_decisions").upsert(data, on_conflict="unique_user_ticker").execute()
+        
+        # [디버깅] 응답 결과 확인
+        if res.data:
+            st.toast(f"✅ DB 저장 성공! ({ticker} / {total_score}점)", icon="🎉")
+            return True
+        else:
+            st.warning("⚠️ 에러는 안 났지만 DB에서 응답 데이터가 없습니다. (테이블 구조 확인 필요)")
+            return False
+            
     except Exception as e:
-        # 에러 발생 시 앱 화면 상단에 빨간색으로 바로 띄워주도록 수정
-        import streamlit as st
-        st.error(f"🚨 DB 저장 에러: {e}")
+        # 🚨 [디버깅] 실제 터진 에러 화면 출력
+        st.error(f"🚨 DB 저장 에러 발생!\n상세 원인: {e}")
+        print(f"Decision Save Error: {e}")
         return False
 
 # ---------------------------------------------------------
@@ -3890,7 +3904,7 @@ elif st.session_state.page == 'detail':
 
 
         # =========================================================
-        # --- Tab 5: 최종 투자 결정 (종목 상세 페이지 내) ---
+        # --- Tab 5: 최종 투자 결정 (실시간 DB 연동 + 디버깅 버전) ---
         # =========================================================
         with tab5:
             # ---------------------------------------------------------------------------
@@ -3933,13 +3947,10 @@ elif st.session_state.page == 'detail':
                 current_user_phone = user_info.get('phone', 'guest')
             else:
                 # 로그인이 안 되어 있거나 guest 상태일 때
+                user_info = {}
                 user_id = 'guest_id'
                 current_user_phone = 'guest'
             
-            # 1. user_info를 가져오되, 값이 None이면 빈 딕셔너리 {}로 변환합니다.
-            user_info = st.session_state.get('user_info') or {}
-            
-            # 2. 이제 user_info는 무조건 딕셔너리이므로 안전하게 .get()을 쓸 수 있습니다.
             is_admin = (user_info.get('role') == 'admin')
             
             # 데이터 초기화
@@ -3950,7 +3961,7 @@ elif st.session_state.page == 'detail':
             if 'posts' not in st.session_state: st.session_state.posts = []
 
             # ---------------------------------------------------------
-            # 2. 투자 분석 결과 섹션 (차트 시각화)
+            # 2. 투자 분석 결과 섹션 (차트 시각화 및 DB 연동)
             # ---------------------------------------------------------
             if 'user_decisions' not in st.session_state: st.session_state.user_decisions = {}
             ud = st.session_state.user_decisions.get(sid, {})
@@ -3963,41 +3974,70 @@ elif st.session_state.page == 'detail':
             
             missing_steps = [label for step, label in steps if not ud.get(step)]
             
+            # 🚨 [디버깅용 화면 출력] : 지우지 말고 테스트 후 지워주세요!
+            # st.caption(f"*(디버그)* 현재 클릭 상태: {ud}")
+            
             if missing_steps:
                 st.info(f"모든 분석단계({', '.join(missing_steps)})를 완료하면 종합 결과 차트가 표시됩니다.")
             else:
-                # 점수 계산 로직
+                # 1) 내 점수 계산 로직
                 score_map = {
-                    "긍정적": 1, "수용적": 1, "침체": 1, "안정적": 1, "저평가": 1, "매수": 1,
+                    "긍정적": 1, "수용적": 1, "안정적": 1, "저평가": 1, "매수": 1,
                     "중립적": 0, "중립": 0, "적정": 0,
-                    "부정적": -1, "회의적": -1, "버블": -1, "고평가": -1, "매도": -1
+                    "부정적": -1, "회의적": -1, "침체": -1, "버블": -1, "고평가": -1, "매도": -1
                 }
                 user_score = sum(score_map.get(ud.get(s[0], "중립적"), 0) for s in steps)
                 
-                # 커뮤니티 데이터 시뮬레이션
-                import numpy as np
+                # 2) 🚨 DB 저장 시도 (5단계 모두 눌렀을 때만 작동)
+                if user_id != 'guest_id':
+                    db_save_user_decision(user_id, sid, user_score)
+                else:
+                    st.warning("⚠️ 현재 비로그인 상태입니다. 차트는 확인할 수 있으나 점수가 DB에 누적되지는 않습니다.")
+
+                # 3) DB에서 커뮤니티 실제 데이터 불러오기
+                community_scores = db_load_community_scores(sid)
+                
+                # 아직 아무도 투표하지 않아 DB가 비어있다면, 화면 오류를 막기 위해 내 점수만 배열에 넣음
+                if not community_scores:
+                    community_scores = [user_score]
+
+                import pandas as pd
                 import plotly.graph_objects as go
                 
-                np.random.seed(42)
-                community_scores = np.clip(np.random.normal(0, 1.5, 1000).round().astype(int), -5, 5)
-                user_percentile = (community_scores <= user_score).sum() / len(community_scores) * 100
-                
+                total_participants = len(community_scores)
+
+                # 4) 통계 계산
+                if total_participants > 0:
+                    optimists = sum(1 for s in community_scores if s > 0)
+                    optimist_pct = (optimists / total_participants) * 100
+                    user_percentile = (sum(1 for s in community_scores if s <= user_score) / total_participants) * 100
+                else:
+                    optimist_pct = 0.0
+                    user_percentile = 100.0
+
                 m1, m2 = st.columns(2)
-                m1.metric("시장 참여자 낙관도", "52.4%", help="전체 유저의 평균 점수")
+                m1.metric("시장 참여자 낙관도", f"{optimist_pct:.1f}%", help=f"전체 참여자 {total_participants}명 중 긍정적 평가(0점 초과) 비율")
                 m2.metric("나의 분석 위치", f"상위 {100-user_percentile:.1f}%", f"{user_score}점")
                 
-                # 차트 그리기
+                # 5) 차트 그리기
                 score_counts = pd.Series(community_scores).value_counts().sort_index()
                 score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
                 
                 fig = go.Figure(go.Bar(
-                    x=score_counts.index, y=score_counts.values, 
+                    x=score_counts.index, 
+                    y=score_counts.values, 
                     marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
                     hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
                 ))
-                fig.update_layout(height=180, margin=dict(l=10, r=10, t=10, b=10), 
-                                  xaxis=dict(title="분석 점수 분포"), yaxis=dict(showticklabels=False),
-                                  paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                fig.update_layout(
+                    height=200, 
+                    margin=dict(l=10, r=10, t=30, b=10), 
+                    xaxis=dict(title="종합 분석 점수 (-5 ~ +5)", tickmode='linear'), 
+                    yaxis=dict(title="참여자 수 (명)", showticklabels=True),
+                    title=dict(text=f"📊 실시간 투자심리 분포 (총 참여자: {total_participants}명)", font=dict(size=14)),
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
             # ---------------------------------------------------------
