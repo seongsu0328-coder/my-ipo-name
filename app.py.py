@@ -1641,7 +1641,23 @@ for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view
 # ==========================================
 # 다국어 매핑 사전 (필요한 UI 텍스트를 여기에 계속 추가하시면 됩니다)
 UI_TEXT = {
-    # --- [1. 로그인 및 회원가입 전 단계] ---
+    # ==========================================
+    # 1. 공통, 네비게이션, 설정 (Common & Nav)
+    # ==========================================
+    'menu_main': {'ko': '메인', 'en': 'Main', 'ja': 'メイン'},
+    'menu_watch': {'ko': '관심', 'en': 'Watchlist', 'ja': 'お気に入り'},
+    'menu_board': {'ko': '게시판', 'en': 'Board', 'ja': '掲示板'},
+    'menu_settings': {'ko': '권한설정', 'en': 'Settings', 'ja': '設定'},
+    'menu_logout': {'ko': '로그아웃', 'en': 'Logout', 'ja': 'ログアウト'},
+    'menu_back': {'ko': '뒤로가기', 'en': 'Back', 'ja': '戻る'},
+    'btn_save': {'ko': '저장', 'en': 'Save', 'ja': '保存'},
+    'btn_verify': {'ko': '인증', 'en': 'Verify', 'ja': '認証'},
+    'disclaimer_title': {'ko': '이용 유의사항', 'en': 'Disclaimer', 'ja': '免責事項'},
+    'disclaimer_text': {'ko': '본 서비스는 자체 알고리즘과 AI 모델을 활용한 요약 정보를 제공하며, 원저작권자의 권리를 존중합니다. 요약본은 원문과 차이가 있을 수 있으므로 반드시 원문을 확인하시기 바랍니다. 모든 투자 결정의 최종 책임은 사용자 본인에게 있습니다.', 'en': 'This service provides summaries using its own algorithms and AI models. Summaries may differ from the original; please check the source. All investment decisions are the sole responsibility of the user.', 'ja': '本サービスは独自のアルゴリズムとAIモデルを活用した要約情報を提供します。要約は原文と異なる場合があるため、必ず原文を確認してください。すべての投資決定の最終責任は利用者本人が負うものとします。'},
+
+    # ==========================================
+    # 2. 로그인 및 회원가입 (Auth)
+    # ==========================================
     'login_title': {'ko': '유니콘 파인더', 'en': 'UnicornFinder', 'ja': 'ユニコーンファインダー'},
     'id_label': {'ko': '아이디', 'en': 'User ID', 'ja': 'ユーザーID'},
     'pw_label': {'ko': '비밀번호', 'en': 'Password', 'ja': 'パスワード'},
@@ -1649,50 +1665,54 @@ UI_TEXT = {
     'btn_login': {'ko': '로그인', 'en': 'Login', 'ja': 'ログイン'},
     'btn_signup': {'ko': '회원가입', 'en': 'Sign Up', 'ja': '新規登録'},
     'btn_guest': {'ko': '구경하기', 'en': 'Explore as Guest', 'ja': 'ゲストとして見る'},
-    
-    # 회원가입 1단계
     'signup_title_step1': {'ko': '1단계: 정보 입력', 'en': 'Step 1: Information', 'ja': '1段階：情報入力'},
     'phone_label': {'ko': '연락처 (예: 01012345678)', 'en': 'Phone Number', 'ja': '電話番号'},
     'email_label': {'ko': '이메일', 'en': 'Email', 'ja': 'メールアドレス'},
     'auth_method_label': {'ko': '인증 수단', 'en': 'Verification Method', 'ja': '認証手段'},
     'auth_phone': {'ko': '휴대폰(가상)', 'en': 'Phone (Virtual)', 'ja': '携帯電話(仮想)'},
     'auth_email': {'ko': '이메일(실제)', 'en': 'Email (Real)', 'ja': 'メール(実用)'},
-    'msg_pw_match': {'ko': '✅ 비밀번호가 일치합니다.', 'en': '✅ Passwords match.', 'ja': '✅ パスワードが一致します。'},
-    'msg_pw_mismatch': {'ko': '❌ 비밀번호가 일치하지 않습니다.', 'en': '❌ Passwords do not match.', 'ja': '❌ パスワードが一致しません。'},
     'btn_get_code': {'ko': '인증번호 받기', 'en': 'Get Code', 'ja': '認証番号取得'},
     'btn_back_to_start': {'ko': '처음으로 돌아가기', 'en': 'Back to Home', 'ja': 'ホームに戻る'},
-
-    # 회원가입 2단계 (인증)
     'auth_code_title': {'ko': '인증번호 6자리 입력', 'en': 'Enter 6-digit Code', 'ja': '6桁の認証番号を入力'},
     'placeholder_code': {'ko': '숫자 6자리', 'en': '6-digit number', 'ja': '数字6桁'},
     'btn_confirm_auth': {'ko': '인증 확인', 'en': 'Confirm', 'ja': '認証確認'},
     'btn_resend_auth': {'ko': '취소/재발송', 'en': 'Cancel/Resend', 'ja': 'キャンセル/再送'},
-
-    # 회원가입 3단계 (증빙)
-    'signup_title_step3': {'ko': '3단계: 선택적 자격 증빙', 'en': 'Step 3: Verification (Optional)', 'ja': '3段階：選択的資格証明'},
+    'signup_title_step3': {'ko': '3단계: 선택적 자격 증빙', 'en': 'Step 3: Verification', 'ja': '3段階：選択的資格証明'},
     'signup_guide_step3': {'ko': "💡 서류를 하나라도 제출하면 '글쓰기/투표' 권한이 신청됩니다.", 'en': "💡 Submit docs to apply for posting rights.", 'ja': "💡 書類提出で投稿権限が申請されます。"},
-    'label_univ': {'ko': '대학 혹은 학과', 'en': 'University or Dept', 'ja': '大学または学科'},
-    'label_univ_file': {'ko': '학생증/졸업증명서', 'en': 'Student ID/Grad Cert', 'ja': '学生証/卒業証明書'},
-    'label_job': {'ko': '직장 혹은 직업', 'en': 'Company or Job', 'ja': '職場または職業'},
-    'label_job_file': {'ko': '사원증 혹은 직장이메일', 'en': 'Work ID or Email', 'ja': '社員証または職場メール'},
+    'label_univ': {'ko': '대학 혹은 학과', 'en': 'University/Dept', 'ja': '大学または学科'},
+    'label_job': {'ko': '직장 혹은 직업', 'en': 'Company/Job', 'ja': '職場または職業'},
     'label_asset': {'ko': '자산 규모', 'en': 'Asset Size', 'ja': '資産規模'},
+    'label_univ_file': {'ko': '학생증/졸업증명서', 'en': 'Student ID/Grad Cert', 'ja': '学生証/卒業証明書'},
+    'label_job_file': {'ko': '사원증 혹은 직장이메일', 'en': 'Work ID/Email', 'ja': '社員証/職場メール'},
     'label_asset_file': {'ko': '계좌인증', 'en': 'Account Verification', 'ja': '口座認証'},
     'opt_asset_none': {'ko': '선택 안 함', 'en': 'Not Selected', 'ja': '選択しない'},
     'btn_signup_complete': {'ko': '가입 신청 완료', 'en': 'Complete Signup', 'ja': '加入申請完了'},
 
-    # --- [2. 네비게이션 및 설정] ---
-    'menu_main': {'ko': '메인', 'en': 'Main', 'ja': 'メイン'},
-    'menu_watch': {'ko': '관심', 'en': 'Watchlist', 'ja': 'お気に入り'},
-    'menu_board': {'ko': '게시판', 'en': 'Board', 'ja': '掲示板'},
-    'menu_settings': {'ko': '권한설정', 'en': 'Settings', 'ja': '設定'},
-    'menu_logout': {'ko': '로그아웃', 'en': 'Logout', 'ja': 'ログアウト'},
-    'setup_guide': {'ko': '활동닉네임과 노출범위를 확인해주세요. 인증회원은 글쓰기와 투표참여가 가능합니다.', 'en': 'Check your nickname and visibility.', 'ja': 'ニックネームと公開範囲を確認してください。'},
+    # ==========================================
+    # 3. 설정 (Setup) & 관리자 (Admin)
+    # ==========================================
+    'setup_guide': {'ko': '활동닉네임과 노출범위를 확인해주세요. 인증회원은 글쓰기와 투표참여가 가능합니다.', 'en': 'Check your nickname and visibility. Verified members can post and vote.', 'ja': '活動ニックネームと公開範囲を確認してください。認証会員は投稿と投票が可能です。'},
+    'show_univ': {'ko': '대학 및 학과', 'en': 'University', 'ja': '大学および学科'},
+    'show_job': {'ko': '직장 혹은 직업', 'en': 'Company/Job', 'ja': '職場/職業'},
+    'show_asset': {'ko': '자산', 'en': 'Assets', 'ja': '資産'},
     'label_id_info': {'ko': '아이디: ', 'en': 'ID: ', 'ja': 'ユーザーID: '},
     'label_nick_info': {'ko': '활동 닉네임: ', 'en': 'Nickname: ', 'ja': '活動ニックネーム: '},
-    'btn_save': {'ko': '저장', 'en': 'Save', 'ja': '保存'},
-    'btn_verify': {'ko': '인증', 'en': 'Verify', 'ja': '認証'},
+    'status_basic': {'ko': '🔒 Basic 회원(비인증회원)', 'en': '🔒 Basic (Unverified)', 'ja': '🔒 Basic会員(未認証)'},
+    'status_pending': {'ko': '⏳ 승인 대기중', 'en': '⏳ Pending Approval', 'ja': '⏳ 承認待ち'},
+    'status_approved': {'ko': '✅ 인증 회원', 'en': '✅ Verified Member', 'ja': '✅ 認証会員'},
+    'status_anonymous': {'ko': '🔒 익명 모드', 'en': '🔒 Anonymous', 'ja': '🔒 匿名モード'},
+    'admin_refresh_users': {'ko': '가입신청회원 새로고침', 'en': 'Refresh Applicants', 'ja': '加入申請会員を更新'},
+    'admin_no_pending': {'ko': '현재 승인 대기 중인 유저가 없습니다.', 'en': 'No pending users.', 'ja': '承認待ちのユーザーはいません。'},
+    'admin_not_provided': {'ko': '미기재', 'en': 'Not provided', 'ja': '未記載'},
+    'admin_reason': {'ko': '보류 사유', 'en': 'Reason for Rejection', 'ja': '保留の理由'},
+    'admin_reason_ph': {'ko': '예: 서류 식별 불가', 'en': 'e.g., Unreadable document', 'ja': '例: 書類が識別不可'},
+    'admin_btn_approve': {'ko': '✅ 승인', 'en': '✅ Approve', 'ja': '✅ 承認'},
+    'admin_btn_reject': {'ko': '❌ 보류', 'en': '❌ Reject', 'ja': '❌ 保留'},
+    'admin_system_refresh': {'ko': '🔄 시스템 전체 새로고침', 'en': '🔄 Full System Refresh', 'ja': '🔄 システム全体更新'},
 
-    # --- [3. 캘린더 페이지 필터 및 상태] ---
+    # ==========================================
+    # 4. 메인 캘린더 (Calendar)
+    # ==========================================
     'filter_period': {'ko': '조회 기간', 'en': 'Period', 'ja': '照会期間'},
     'period_upcoming': {'ko': '상장 예정 (30일)', 'en': 'Upcoming (30d)', 'ja': '上場予定 (30日)'},
     'period_6m': {'ko': '지난 6개월', 'en': 'Past 6 Months', 'ja': '過去6ヶ月'},
@@ -1704,44 +1724,154 @@ UI_TEXT = {
     'label_ipo_price': {'ko': '공모가', 'en': 'IPO Price', 'ja': '公募価格'},
     'status_delayed': {'ko': '상장연기', 'en': 'Delayed', 'ja': '上場延期'},
     'status_delisted': {'ko': '상장폐지', 'en': 'Delisted', 'ja': '上場廃止'},
+    'status_waiting': {'ko': '상장 대기', 'en': 'Waiting', 'ja': '上場待機'},
+    'btn_view_all': {'ko': '🔄 전체 목록 보기', 'en': '🔄 View All', 'ja': '🔄 全リスト表示'},
 
-    # --- [4. Tab 0: 주요공시 상세 가이드] ---
+    # ==========================================
+    # 5. 상세 페이지 공통 (Detail Shared)
+    # ==========================================
     'tab_0': {'ko': ' 주요공시', 'en': ' Filings', 'ja': ' 主な開示'},
+    'tab_1': {'ko': ' 주요뉴스', 'en': ' News', 'ja': ' ニュース'},
+    'tab_2': {'ko': ' 거시지표', 'en': ' Macro', 'ja': ' マクロ指標'},
+    'tab_3': {'ko': ' 미시지표', 'en': ' Micro', 'ja': ' ミクロ指標'},
+    'tab_4': {'ko': ' 기업평가', 'en': ' Valuation', 'ja': ' 企業評価'},
+    'tab_5': {'ko': ' 투자결정', 'en': ' Decision', 'ja': ' 投資決定'},
+    'expander_references': {'ko': '참고(References)', 'en': 'References', 'ja': '参考(References)'},
+    'btn_view_original': {'ko': '원문 보기 ↗', 'en': 'View Original ↗', 'ja': '原文を見る ↗'},
+
+    # ==========================================
+    # 6. Tab 0: 주요공시
+    # ==========================================
     'label_s1': {'ko': 'S-1 (최초신고서)', 'en': 'S-1 (Initial)', 'ja': 'S-1 (初回)'},
     'label_s1a': {'ko': 'S-1/A (수정신고)', 'en': 'S-1/A (Amended)', 'ja': 'S-1/A (修正)'},
     'label_f1': {'ko': 'F-1 (해외기업)', 'en': 'F-1 (Foreign)', 'ja': 'F-1 (海外)'},
     'label_fwp': {'ko': 'FWP (IR 자료)', 'en': 'FWP (IR Docs)', 'ja': 'FWP (IR資料)'},
     'label_424b4': {'ko': '424B4 (최종확정)', 'en': '424B4 (Final)', 'ja': '424B4 (確定)'},
-    'desc_s1': {'ko': "S-1은 상장을 위해 최초로 제출하는 서류입니다. Risk Factors, Use of Proceeds 등을 확인할 수 있습니다.", 'en': "S-1 is the initial registration statement...", 'ja': "S-1は上場の初回届出書です..."},
-    'desc_s1a': {'ko': "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. Pricing Terms(공모가 확정 범위)와 Dilution(기존 주주 대비 희석률)을 확인할 수 있습니다.", 'en': "S-1/A is an amendment with fixed pricing terms and dilution.", 'ja': "S-1/Aは公募価格帯と株式数が確定する修正書類です。"},
+    'desc_s1': {'ko': "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.", 'en': "S-1 is the initial registration statement. You can check Risk Factors, Use of Proceeds, and MD&A.", 'ja': "S-1は上場の初回届出書です。リスク要因、資金使途、経営陣の解説を確認できます。"},
+    'desc_s1a': {'ko': "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.", 'en': "S-1/A is an amendment where price range and shares are fixed. You can check Pricing Terms and Dilution.", 'ja': "S-1/Aは公募価格帯と株式数が確定する修正書類です。価格決定条件と希薄化を確認できます。"},
+    'desc_f1': {'ko': "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.", 'en': "F-1 is for foreign issuers. You can check Foreign Risk and Accounting differences.", 'ja': "F-1は海外企業が米国上場時に提出する書類です。外国リスクや会計基準の差を確認できます。"},
+    'desc_fwp': {'ko': "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.", 'en': "FWP includes Roadshow PPT materials. You can check Graphics and Strategy.", 'ja': "FWPは機関投資家向けのロードショーPPT資料です。視覚資料や経営戦略を確認できます。"},
+    'desc_424b4': {'ko': "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.", 'en': "424B4 is the final prospectus. You can check Underwriting and the Final Price.", 'ja': "424B4は公募価格が最終確定した後に発行される目論見書です。引受と最終価格を確認できます。"},
+    'btn_summary_view': {'ko': '요약보기', 'en': 'View Summary', 'ja': '要約表示'},
     'btn_sec_link': {'ko': '공시 확인하기', 'en': 'Check SEC Filings', 'ja': '開示を確認する'},
     'btn_official_web': {'ko': '회사 공식 홈페이지', 'en': 'Official Website', 'ja': '公式サイト'},
     'decision_question_filing': {'ko': '공시 정보에 대한 입장은?', 'en': 'Opinion on filings?', 'ja': '開示情報への見解は？'},
-    'opt_positive': {'ko': '수용적', 'en': 'Positive', 'ja': '受容的'},
-    'opt_neutral': {'ko': '중립적', 'en': 'Neutral', 'ja': '中立的'},
-    'opt_skeptical': {'ko': '회의적', 'en': 'Skeptical', 'ja': '懐疑的'},
+    
+    # ==========================================
+    # 7. Tab 1: 주요뉴스
+    # ==========================================
+    'expander_biz_summary': {'ko': '비즈니스 모델 요약 보기', 'en': 'View Business Model Summary', 'ja': 'ビジネスモデル要約表示'},
+    'caption_google_search': {'ko': 'Google Search 기반으로 실시간 분석 및 뉴스를 제공합니다.', 'en': 'Real-time analysis based on Google Search.', 'ja': 'Google検索に基づいたリアルタイム分析を提供します。'},
+    'sentiment_positive': {'ko': '긍정적', 'en': 'Positive', 'ja': '肯定的'},
+    'sentiment_neutral': {'ko': '중립적', 'en': 'Neutral', 'ja': '中立的'},
+    'sentiment_negative': {'ko': '부정적', 'en': 'Negative', 'ja': '否定的'},
+    'decision_news_impression': {'ko': '신규기업에 대해 어떤 인상인가요?', 'en': 'What is your impression of this company?', 'ja': '新規企業についてどのような印象をお持ちですか？'},
+    'label_general': {'ko': '일반', 'en': 'General', 'ja': '一般'},
 
-    # --- [5. Tab 2 & 3: 시장 지표 카드 설명] ---
-    'desc_first_day': {'ko': '상장 첫날 시초가가 공모가 대비 얼마나 상승했는지 나타냅니다. 20% 이상이면 과열로 판단합니다.', 'en': 'Shows first-day gain from IPO. Over 20% is overheated.', 'ja': '上場初日の騰落率。20%以上は過熱。'},
-    'desc_accruals': {'ko': '회계 장부의 투명성입니다.', 'en': 'Transparency of accounting logs.', 'ja': '会計帳簿の透明性。'},
-    'desc_unprofitable': {'ko': "최근 상장 기업 중 순이익이 '적자'인 기업의 비율입니다.", 'en': "Percentage of loss-making IPOs.", 'ja': "直近の上場企業のうち赤字企業の割合。"},
-    'decision_question_macro': {'ko': '현재 거시경제(Macro) 상황에 대한 판단은?', 'en': 'Macro outlook?', 'ja': '現在のマクロ経済状況の判断は？'},
+    # ==========================================
+    # 8. Tab 2 & 3: 거시/미시 지표
+    # ==========================================
+    'ipo_overheat_title': {'ko': 'IPO 시장 과열 평가', 'en': 'IPO Market Overheat', 'ja': 'IPO市場の過熱評価'},
+    'macro_overheat_title': {'ko': '미국거시경제 과열 평가', 'en': 'US Macro Overheat', 'ja': '米国マクロ経済の過熱評価'},
+    'desc_first_day': {'ko': '상장 첫날 시초가가 공모가 대비 얼마나 상승했는지 나타냅니다. 20% 이상이면 과열로 판단합니다.', 'en': 'First-day gain from IPO. Over 20% is overheated.', 'ja': '上場初日の騰落率。20%以上は過熱。'},
+    'desc_filings_vol': {'ko': '향후 30일 이내 상장 예정인 기업의 수입니다. 물량이 급증하면 고점 징후일 수 있습니다.', 'en': 'Number of IPOs in next 30 days. Surges may signal a market peak.', 'ja': '今後30日以内に上場予定の企業数です。供給の急増は天井の兆候。'},
+    'desc_unprofitable': {'ko': "최근 상장 기업 중 순이익이 '적자'인 기업의 비율입니다. 80%에 육박하면 버블로 간주합니다.", 'en': "Percentage of loss-making IPOs. Near 80% signals a bubble.", 'ja': "直近の上場企業のうち赤字企業の割合。80%に迫るとバブル。"},
+    'desc_withdrawal': {'ko': '자진 철회 비율입니다. 낮을수록(10%↓) 묻지마 상장이 많다는 뜻입니다.', 'en': 'Percentage of withdrawals. Lower means more irrational listings.', 'ja': '自主撤回の割合。低いほど不適切な上場が多い。'},
+    'desc_vix': {'ko': 'S&P 500 변동성 지수입니다. 낮을수록 시장이 과도하게 안심하고 있음을 뜻합니다.', 'en': 'S&P 500 volatility index. Lower means excess complacency.', 'ja': 'S&P500の変動性指数。低いほど市場が過度に安心している。'},
+    'desc_buffett': {'ko': 'GDP 대비 시총 비율입니다. 100%를 넘으면 경제 규모 대비 주가가 비싸다는 신호입니다.', 'en': 'Ratio of market cap to GDP. Over 100% signals overvaluation.', 'ja': 'GDPに対する時価総額の比率。100%を超えると割高のサイン。'},
+    'desc_pe': {'ko': '주가수익비율입니다. 역사적 평균(약 16배)보다 높으면 고평가 구간입니다.', 'en': 'Price-to-earnings ratio. Higher than historical average is overvaluation.', 'ja': '株価収益率。歴史的平均より高い場合は割高圏。'},
+    'desc_fear_greed': {'ko': "심리 지표입니다. 75점 이상은 '극단적 탐욕' 상태를 의미합니다.", 'en': "Sentiment index. 75+ signals 'Extreme Greed'.", 'ja': '心理指標。75点以上は「極端な強欲」状態。'},
+    'expander_macro_analysis': {'ko': '거시지표 분석', 'en': 'Macro Indicator Analysis', 'ja': 'マクロ指標分析'},
+    'decision_macro_outlook': {'ko': '현재 거시경제(Macro) 상황에 대한 판단은?', 'en': 'Current judgment on Macro environment?', 'ja': '現在のマクロ経済状況に対する判断は？'},
     'opt_bubble': {'ko': '버블', 'en': 'Bubble', 'ja': 'バブル'},
     'opt_recession': {'ko': '침체', 'en': 'Recession', 'ja': '停滞'},
-    'decision_question_micro': {'ko': '가치평가(Valuation) 최종 판단', 'en': 'Valuation Verdict', 'ja': '価値評価の最終判断'},
+    'desc_growth': {'ko': '최근 연간 매출 성장률입니다.', 'en': 'Recent annual revenue growth rate.', 'ja': '直近の年間売上成長率。'},
+    'desc_net_margin': {'ko': '순이익률입니다.', 'en': 'Net profit margin.', 'ja': '純利益率。'},
+    'desc_accruals': {'ko': '회계 장부의 투명성입니다.', 'en': 'Transparency of accounting logs.', 'ja': '会計帳簿の透明性。'},
+    'desc_debt_equity': {'ko': '자본 대비 부채 비중입니다.', 'en': 'Total debt to equity ratio.', 'ja': '自己資本に対する負債の割合。'},
+    'desc_performance': {'ko': '공모가 대비 수익률입니다.', 'en': 'Returns relative to the IPO price.', 'ja': '公募価格に対する収益率。'},
+    'expander_financial_analysis': {'ko': '재무분석', 'en': 'Financial Analysis', 'ja': '財務分析'},
+    'expander_academic_analysis': {'ko': '논문기반 AI 분석 보기', 'en': 'View Academic AI Analysis', 'ja': '論文ベースのAI分析を表示'},
+    'decision_valuation_verdict': {'ko': '가치평가(Valuation) 최종 판단', 'en': 'Final Valuation Verdict', 'ja': '価値評価の最終判断'},
+    'opt_overvalued': {'ko': '고평가', 'en': 'Overvalued', 'ja': '高評価'},
+    'opt_undervalued': {'ko': '저평가', 'en': 'Undervalued', 'ja': '低評価'},
 
-    # --- [6. Tab 4 & 5: 기관평가 및 최종 결정] ---
-    'expander_renaissance': {'ko': 'Renaissance Capital IPO 요약', 'en': 'Renaissance Capital Summary', 'ja': 'Renaissance Capital IPO要約'},
-    'decision_final_invest': {'ko': '기관 분석을 참고한 나의 최종 판단은?', 'en': 'My final investment decision?', 'ja': '私の最終判断は？'},
+    # ==========================================
+    # 9. Tab 4: 기관평가
+    # ==========================================
+    'expander_renaissance': {'ko': 'Renaissance Capital IPO 요약', 'en': 'Renaissance Capital Summary', 'ja': 'Renaissance Capital要約'},
+    'expander_seeking_alpha': {'ko': 'Seeking Alpha & Morningstar 요약', 'en': 'Seeking Alpha & Morningstar', 'ja': 'Seeking Alpha & Morningstar要約'},
+    'label_rating_system': {'ko': 'Analyst Ratings 체계', 'en': 'Analyst Ratings System', 'ja': 'アナリスト格付け体系'},
+
+    # ==========================================
+    # 10. Tab 5: 투자결정 및 차트
+    # ==========================================
+    'decision_final_invest': {'ko': '기관 분석을 참고한 나의 최종 판단은?', 'en': 'Final decision based on analysis?', 'ja': '機関分析を参考にした最終判断は？'},
     'opt_buy': {'ko': '매수', 'en': 'Buy', 'ja': '買い'},
     'opt_sell': {'ko': '매도', 'en': 'Sell', 'ja': '売り'},
+    'community_outlook': {'ko': '실시간 커뮤니티 전망', 'en': 'Community Sentiment', 'ja': 'コミュニティ展望'},
+    'btn_vote_up': {'ko': '📈 상승', 'en': '📈 Bull', 'ja': '📈 上昇'},
+    'btn_vote_down': {'ko': '📉 하락', 'en': '📉 Bear', 'ja': '📉 下落'},
+    'btn_vote_cancel': {'ko': '투표 취소 및 관심종목 해제', 'en': 'Cancel Vote & Remove', 'ja': '投票取消・お気に入り解除'},
+    'chart_optimism': {'ko': '시장 참여자 낙관도', 'en': 'Market Optimism', 'ja': '市場参加者の楽観度'},
+    'chart_my_position': {'ko': '나의 분석 위치', 'en': 'My Analysis Position', 'ja': '私の分析位置'},
+    'help_optimism': {'ko': '전체 참여자 중 긍정 평가 비율', 'en': 'Percentage of positive evaluations', 'ja': '全体参加者のうち肯定評価の割合'},
+    'chart_x_axis': {'ko': '종합 분석 점수 (-5 ~ +5)', 'en': 'Total Score (-5 to +5)', 'ja': '総合分析スコア (-5 ~ +5)'},
+    'chart_y_axis': {'ko': '참여자 수', 'en': 'Number of Participants', 'ja': '参加者数'},
+    'chart_hover': {'ko': '점수: %{x}<br>인원: %{y}명<extra></extra>', 'en': 'Score: %{x}<br>People: %{y}<extra></extra>', 'ja': 'スコア: %{x}<br>人数: %{y}名<extra></extra>'},
+    'label_my_choice': {'ko': '나의 선택: ', 'en': 'My Choice: ', 'ja': '私の選択: '},
 
-    # --- [7. 게시판 및 유의사항] ---
+    # ==========================================
+    # 11. 게시판 (Board) - 리스트, 컨트롤, 상세
+    # ==========================================
+    'board_discussion': {'ko': '토론방', 'en': 'Discussion', 'ja': '討論部屋'},
+    'expander_search': {'ko': '검색하기', 'en': 'Search', 'ja': '検索'},
+    'search_scope': {'ko': '범위', 'en': 'Scope', 'ja': '範囲'},
+    'search_keyword': {'ko': '키워드', 'en': 'Keyword', 'ja': 'キーワード'},
+    'btn_search': {'ko': '검색', 'en': 'Search', 'ja': '検索'},
+    'opt_search_title': {'ko': '제목', 'en': 'Title', 'ja': 'タイトル'},
+    'opt_search_title_content': {'ko': '제목+내용', 'en': 'Title+Content', 'ja': 'タイトル+内容'},
+    'opt_search_category': {'ko': '카테고리', 'en': 'Category', 'ja': 'カテゴリ'},
+    'opt_search_author': {'ko': '작성자', 'en': 'Author', 'ja': '作成者'},
+    'expander_write': {'ko': '글쓰기', 'en': 'Write Post', 'ja': '投稿する'},
+    'label_category': {'ko': '종목/말머리', 'en': 'Category/Tag', 'ja': '種目/タグ'},
+    'placeholder_free': {'ko': '자유', 'en': 'General', 'ja': '自由'},
     'label_title': {'ko': '제목', 'en': 'Title', 'ja': 'タイトル'},
     'label_content': {'ko': '내용', 'en': 'Content', 'ja': '内容'},
     'btn_submit': {'ko': '등록', 'en': 'Submit', 'ja': '登録'},
-    'disclaimer_title': {'ko': '이용 유의사항', 'en': 'Disclaimer', 'ja': '免責事項'},
-    'disclaimer_text': {'ko': '본 서비스는 자체 알고리즘과 AI 모델을 활용한 요약 정보를 제공하며...', 'en': 'This service provides AI summaries...', 'ja': '本サービスはAI要約を提供します...'},
+    'hot_posts': {'ko': '인기글', 'en': 'HOT Posts', 'ja': '人気投稿'},
+    'new_posts': {'ko': '최신글', 'en': 'Latest Posts', 'ja': '最新投稿'},
+    'btn_more': {'ko': '🔽 더보기', 'en': '🔽 More', 'ja': '🔽 もっと見る'},
+    'btn_recommend': {'ko': '추천', 'en': 'Like', 'ja': 'おすすめ'},
+    'btn_dislike': {'ko': '비추천', 'en': 'Dislike', 'ja': '低評価'},
+    'btn_delete': {'ko': '삭제', 'en': 'Delete', 'ja': '削除'},
+
+    # ==========================================
+    # 12. 시스템 메시지 (Toast, Spinner, Error)
+    # ==========================================
+    'msg_analyzing': {'ko': '분석 중...', 'en': 'Analyzing...', 'ja': '分析中...'},
+    'msg_analyzing_filing': {'ko': '핵심 내용을 분석 중입니다...', 'en': 'Analyzing key content...', 'ja': '主要内容を分析中です...'},
+    'msg_analyzing_tab1': {'ko': '최신 데이터를 정밀 분석 중입니다...', 'en': 'Analyzing latest data...', 'ja': '最新データを精密分析中です...'},
+    'msg_analyzing_macro': {'ko': '📊 8대 핵심 지표를 실시간 분석 중입니다...', 'en': '📊 Analyzing 8 key metrics...', 'ja': '📊 8大指標をリアルタイム分析中です...'},
+    'msg_analyzing_financial': {'ko': '🤖 AI 애널리스트가 재무제표를 분석 중입니다...', 'en': '🤖 AI is analyzing financials...', 'ja': '🤖 AIが財務諸表を分析中です...'},
+    'msg_analyzing_institutional': {'ko': '전문 기관 데이터를 정밀 수집 중...', 'en': 'Collecting institutional data...', 'ja': '専門機関データを精密収集中...'},
+    
+    'caption_algorithm': {'ko': ' 자체 알고리즘으로 요약해 제공합니다.', 'en': ' Summarized by our algorithm.', 'ja': ' 独自アルゴリズムで要約を提供します。'},
+    'err_no_biz_info': {'ko': '⚠️ 비즈니스 분석 정보를 가져오지 못했습니다.', 'en': '⚠️ Failed to fetch business info.', 'ja': '⚠️ ビジネス情報の取得に失敗しました。'},
+    'err_no_news': {'ko': '⚠️ 현재 표시할 최신 뉴스가 없습니다.', 'en': '⚠️ No recent news to display.', 'ja': '⚠️ 表示する最新ニュースがありません。'},
+    'err_no_institutional': {'ko': '직접적인 분석 리포트를 찾지 못했습니다.', 'en': 'No direct reports found.', 'ja': '直接的な分析レポートは見つかりませんでした。'},
+    
+    'msg_login_auth_needed': {'ko': '🔒 로그인 및 권한 인증이 필요합니다.', 'en': '🔒 Login and authorization required.', 'ja': '🔒 ログインと権限認証が必要です。'},
+    'msg_vote_auto_save': {'ko': '투표시 관심종목에 자동 저장되며, 실시간 결과에 반영됩니다.', 'en': 'Votes auto-save to Watchlist.', 'ja': '投票はお気に入りに自動保存されます。'},
+    'msg_login_for_vote': {'ko': '🔒 로그인 후 투표에 참여하고 전체 결과를 확인할 수 있습니다.', 'en': '🔒 Login to vote and view results.', 'ja': '🔒 ログイン後に投票・結果確認が可能です。'},
+    'msg_chart_unlock': {'ko': '모든 분석단계를 완료하면 종합 결과 차트가 표시됩니다.', 'en': 'Complete all steps to unlock the chart.', 'ja': '全ステップ完了で総合チャートが表示されます。'},
+    
+    'msg_submit_success': {'ko': '등록 완료!', 'en': 'Posted successfully!', 'ja': '登録完了！'},
+    'msg_deleted': {'ko': '삭제되었습니다.', 'en': 'Deleted.', 'ja': '削除されました。'},
+    'msg_already_voted': {'ko': '이미 참여하신 게시글입니다.', 'en': 'You have already voted.', 'ja': 'すでに投票済みです。'},
+    'msg_no_latest_posts': {'ko': '조건에 맞는 최신 글이 없습니다.', 'en': 'No matching recent posts.', 'ja': '条件に合う最新の投稿がありません。'},
+    'msg_no_posts': {'ko': '게시글이 없습니다.', 'en': 'No posts available.', 'ja': '投稿がありません。'},
+    'msg_first_comment': {'ko': '첫 의견을 남겨보세요!', 'en': 'Be the first to comment!', 'ja': '最初のコメントを残してみましょう！'},
 }
 
 def get_text(key):
