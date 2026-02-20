@@ -4063,20 +4063,13 @@ elif st.session_state.page == 'detail':
                 st.plotly_chart(fig, use_container_width=True)
 
             # ---------------------------------------------------------
-            # 3. 전망 투표 및 실시간 Sentiment (디버깅 강화 버전)
+            # 3. 전망 투표 및 실시간 Sentiment (BULL vs BEAR) - 최종본
             # ---------------------------------------------------------
             st.write("<br>", unsafe_allow_html=True)
             st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>실시간 커뮤니티 전망</div>", unsafe_allow_html=True)
             
-            # 🐞 디버그 1: 현재 종목과 유저 아이디 확인
-            st.info(f"🐞 [DEBUG] 현재 종목: {sid} / 현재 유저: {user_id}")
-
-            # [1] 실시간 데이터 로드
+            # [1] 실시간 데이터 로드 (DB에서 직접 집계)
             up_voters, down_voters = db_load_sentiment_counts(sid)
-            
-            # 🐞 디버그 2: DB 결과값 확인
-            st.write(f"🐞 [DEBUG] DB 수신 결과 -> 상승: {up_voters}명, 하락: {down_voters}명")
-            
             total_votes = up_voters + down_voters
             
             # 비율 계산 (분모 0 방지)
@@ -4084,9 +4077,6 @@ elif st.session_state.page == 'detail':
             down_pct = (down_voters / total_votes * 100) if total_votes > 0 else 50
 
             # [2] Bullish & Bearish 시각화 카드
-            # 🐞 디버그 3: 렌더링 시도 알림
-            st.toast("🎨 Bull/Bear 카드 렌더링 시도 중...")
-            
             col_bull, col_bear = st.columns(2)
             
             with col_bull:
@@ -4111,11 +4101,8 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # [3] 투표 버튼 로직 (동일)
+            # [3] 투표 버튼 및 관심종목 로직
             if st.session_state.get('auth_status') == 'user':
-                # 🐞 디버그 4: 관심종목 리스트 상태
-                # st.write(f"🐞 [DEBUG] 현재 내 관심목록: {st.session_state.watchlist}")
-                
                 if sid not in st.session_state.watchlist:
                     st.caption("💡 투표 시 관심종목에 자동 저장되며, 실시간 결과에 반영됩니다.")
                     c_up, c_down = st.columns(2)
@@ -4132,6 +4119,7 @@ elif st.session_state.page == 'detail':
                         st.session_state.watchlist_predictions[sid] = "DOWN"
                         st.rerun()
                 else:
+                    # 이미 참여한 경우 상태 표시
                     pred = st.session_state.watchlist_predictions.get(sid, "N/A")
                     color = "#28a745" if pred == "UP" else "#dc3545"
                     pred_text = "BULLISH (상승)" if pred == "UP" else "BEARISH (하락)"
