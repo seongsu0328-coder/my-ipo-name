@@ -2163,8 +2163,7 @@ elif st.session_state.page == 'setup':
         user_id = str(user.get('id', ''))
         full_masked_id = "*" * len(user_id) 
         
-        # [수정 2 & 3 반영] 
-        # 하얀색 바탕(#ffffff), 검은색 글씨(#000000), 얇은 테두리(선택사항) 적용
+        # 상단 안내 문구 (다국어 적용)
         st.markdown(f"""
             <div style="
                 background-color: #ffffff; 
@@ -2175,26 +2174,25 @@ elif st.session_state.page == 'setup':
                 font-size: 1rem;
                 margin-bottom: 10px;
             ">
-                활동닉네임과 노출범위를 확인해주세요. 인증회원은 글쓰기와 투표참여가 가능합니다.
+                {get_text('setup_guide')}
             </div>
         """, unsafe_allow_html=True)
         
         # -----------------------------------------------------------
-        # 1. 내 정보 노출 설정 (체크박스)
+        # 1. 내 정보 노출 설정 (체크박스 - 다국어 적용)
         # -----------------------------------------------------------
-        # 저장된 설정값 불러오기
         saved_vis = user.get('visibility', 'True,True,True').split(',')
         def_univ = saved_vis[0] == 'True' if len(saved_vis) > 0 else True
         def_job = saved_vis[1] == 'True' if len(saved_vis) > 1 else True
         def_asset = saved_vis[2] == 'True' if len(saved_vis) > 2 else True
 
         c1, c2, c3 = st.columns(3)
-        show_univ = c1.checkbox("대학 및 학과", value=def_univ)
-        show_job = c2.checkbox("직장 혹은 직업", value=def_job)
-        show_asset = c3.checkbox("자산", value=def_asset)
+        show_univ = c1.checkbox(get_text('show_univ'), value=def_univ)
+        show_job = c2.checkbox(get_text('show_job'), value=def_job)
+        show_asset = c3.checkbox(get_text('show_asset'), value=def_asset)
 
         # -----------------------------------------------------------
-        # 2. 닉네임 미리보기 (캡션 제거 버전)
+        # 2. 닉네임 미리보기
         # -----------------------------------------------------------
         is_public_mode = any([show_univ, show_job, show_asset])
         
@@ -2204,60 +2202,52 @@ elif st.session_state.page == 'setup':
         if show_asset: info_parts.append(get_asset_grade(user.get('asset', '')))
         
         prefix = " ".join([p for p in info_parts if p])
-        
         final_nickname = f"{prefix} {full_masked_id}" if prefix else full_masked_id
         
         c_info, c_status = st.columns([2, 1])
         
         with c_info:
-            st.markdown(f"아이디: {full_masked_id}")
-            st.markdown(f"활동 닉네임: <span style='font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
+            st.markdown(f"{get_text('label_id_info')} {full_masked_id}")
+            st.markdown(f"{get_text('label_nick_info')} <span style='font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
         
         with c_status:
             db_role = user.get('role', 'restricted')
             db_status = user.get('status', 'pending')
             
             if db_role == 'restricted':
-                st.error("🔒 **Basic 회원(비인증회원)** (글쓰기 제한)")
+                st.error(get_text('status_basic'))
             elif db_status == 'pending':
-                st.warning("⏳ **승인 대기중** (관리자 확인중)")
+                st.warning(get_text('status_pending'))
             elif db_status == 'approved':
                 if is_public_mode:
-                    st.success("✅ **인증 회원** (모든 기능 사용가능)")
+                    st.success(get_text('status_approved'))
                 else:
-                    st.info("🔒 **익명 모드** (글쓰기 제한됨)")
+                    st.info(get_text('status_anonymous'))
         
         st.write("<br>", unsafe_allow_html=True)
 
         # -----------------------------------------------------------
-        # 3. [메인 기능] 설정 저장 / 인증하기 / 로그아웃 (비율 조정)
+        # 3. [메인 기능] 인증 / 저장 / 로그아웃
         # -----------------------------------------------------------
-        
-        # 💡 [핵심 수정] 인증하기 버튼 추가를 위해 컬럼을 3개로 나눕니다.
-        col_cert, col_save, col_logout = st.columns([1, 1.5, 1])
+        col_cert, col_save, col_logout = st.columns([1, 1, 1])
 
-        # [인증하기 버튼] (회원 등급이 restricted 일 때만 노출하는 것이 좋습니다)
+        # [A] 인증하기 버튼 (비인증 상태일 때만 표시)
         with col_cert:
             if db_role == 'restricted' or db_status == 'rejected':
-                if st.button("인증)", use_container_width=True):
-                    # 1. 회원가입 프로세스 페이지로 강제 전환
+                if st.button(get_text('btn_verify'), use_container_width=True):
                     st.session_state.page = 'login' 
                     st.session_state.login_step = 'signup_input'
-                    # 2. 바로 서류제출 단계(3단계)로 점프
-                    st.session_state.signup_stage = 3 
-                    # 3. 현재 유저 정보를 임시 데이터에 백업 (DB 업데이트를 위해)
+                    st.session_state.signup_stage = 3 # 서류 제출로 점프
                     st.session_state.temp_user_data = {
-                        "id": user.get('id'), 
-                        "pw": user.get('pw'), 
-                        "phone": user.get('phone'), 
-                        "email": user.get('email')
+                        "id": user.get('id'), "pw": user.get('pw'), 
+                        "phone": user.get('phone'), "email": user.get('email')
                     }
                     st.rerun()
 
-        # [저장 버튼]
+        # [B] 저장 버튼 (항상 표시)
         with col_save:
-            if st.button("저장", type="primary", use_container_width=True):
-                with st.spinner("설정 적용 중..."):
+            if st.button(get_text('btn_save'), type="primary", use_container_width=True):
+                with st.spinner("Saving..." if st.session_state.lang != 'ko' else "저장 중..."):
                     current_settings = [show_univ, show_job, show_asset]
                     vis_str = ",".join([str(v) for v in current_settings])
                     
@@ -2269,15 +2259,14 @@ elif st.session_state.page == 'setup':
                     if db_update_user_info(user.get('id'), update_data):
                         st.session_state.user_info['visibility'] = vis_str
                         st.session_state.user_info['display_name'] = final_nickname
-                        
                         st.session_state.page = 'calendar' 
                         st.rerun()
                     else:
-                        st.error("저장 실패. 네트워크를 확인하세요.")
+                        st.error("Error saving settings.")
 
-        # [로그아웃 버튼]
+        # [C] 로그아웃 버튼
         with col_logout:
-            if st.button("로그아웃", use_container_width=True):
+            if st.button(get_text('menu_logout'), use_container_width=True):
                 st.session_state.clear()
                 st.rerun()
 
