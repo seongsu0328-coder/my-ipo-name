@@ -2072,7 +2072,7 @@ elif st.session_state.page == 'setup':
         show_asset = c3.checkbox("자산", value=def_asset)
 
         # -----------------------------------------------------------
-        # 2. 닉네임 미리보기
+        # 2. 닉네임 미리보기 (캡션 제거 버전)
         # -----------------------------------------------------------
         is_public_mode = any([show_univ, show_job, show_asset])
         
@@ -2083,15 +2083,13 @@ elif st.session_state.page == 'setup':
         
         prefix = " ".join([p for p in info_parts if p])
         
-        # [수정 3] 미리보기에서는 완전 마스킹된 ID 사용
+        # 미리보기에서는 완전 마스킹된 ID 사용
         final_nickname = f"{prefix} {full_masked_id}" if prefix else full_masked_id
-        
-        # ▼▼▼▼▼ [삭제함] 원래 여기에 있던 st.divider()를 지웠습니다. ▼▼▼▼▼
         
         c_info, c_status = st.columns([2, 1])
         
         with c_info:
-            # [수정 1] 글자 크기를 체크박스와 유사하게 맞춤
+            # 아이디와 활동 닉네임 정보 표시
             st.markdown(f"아이디: {full_masked_id}")
             st.markdown(f"활동 닉네임: <span style='font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
         
@@ -2099,20 +2097,19 @@ elif st.session_state.page == 'setup':
             db_role = user.get('role', 'restricted')
             db_status = user.get('status', 'pending')
             
+            # 캡션 없이 상태 메시지 박스만 간결하게 표시
             if db_role == 'restricted':
                 st.error("🔒 **Basic 회원** (서류 미제출)")
-                st.caption("권한: 관심종목 O / 글쓰기 X")
+                
             elif db_status == 'pending':
-                st.warning("**승인 대기중 : 관리자 승인후 글쓰기 가능**")
+                st.warning("⏳ **승인 대기중** (관리자 확인중)")
                
             elif db_status == 'approved':
                 if is_public_mode:
-                    st.success("**인증 회원 :모든기능 사용가능합니다**")
-                    st.caption("권한: 모든 기능 사용 가능")
+                    st.success("✅ **인증 회원** (모든 기능 사용가능)")
                 else:
-                    st.info("🔒 **익명 모드 : 글쓰기가 제한됩니다**")
-                    st.caption("모든 정보를 가려 **글쓰기가 제한**됩니다.")
-
+                    st.info("🔒 **익명 모드** (글쓰기 제한됨)")
+        
         st.write("<br>", unsafe_allow_html=True)
 
         # -----------------------------------------------------------
