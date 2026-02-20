@@ -4190,7 +4190,7 @@ elif st.session_state.page == 'board':
         elif selected_menu == main_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'all'; st.rerun()
         elif selected_menu == watch_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'watchlist'; st.rerun()
 
-    # [2] 게시판 데이터 로드 및 검색 필터링 적용 (상단 이동)
+    # [2] 게시판 데이터 로드 및 검색 필터링 적용
     s_keyword = ""
     s_type = "제목"
     
@@ -4290,14 +4290,7 @@ elif st.session_state.page == 'board':
     
     with post_list_area:
         
-        # 1. 인기글 영역 (최상단)
-        if hot_candidates and top_5_hot: # 에러 방지용 조건 강화
-            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
-            for p in top_5_hot:
-                render_post(p, is_hot=True)
-            st.write("<br><br>", unsafe_allow_html=True)
-
-        # 2. 검색 및 글쓰기 영역 (인기글과 최신글 사이)
+        # 1. 검색 및 글쓰기 영역 (최상단으로 이동)
         f_col1, f_col2 = st.columns(2)
         with f_col1:
             with st.expander("검색하기"):
@@ -4335,7 +4328,14 @@ elif st.session_state.page == 'board':
 
         st.write("<br>", unsafe_allow_html=True)
         
-        # 3. 최신글 영역
+        # 2. 인기글 영역 (검색창 아래)
+        if hot_candidates and top_5_hot: # 에러 방지용 조건 강화
+            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
+            for p in top_5_hot:
+                render_post(p, is_hot=True)
+            st.write("<br><br>", unsafe_allow_html=True)
+        
+        # 3. 최신글 영역 (인기글 아래)
         st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
         
         if posts:
