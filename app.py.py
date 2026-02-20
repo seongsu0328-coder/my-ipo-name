@@ -3207,6 +3207,8 @@ elif st.session_state.page == 'detail':
                 st_cls = "st-hot" if val >= 70 else "st-cold" if val <= 30 else "st-neutral"
                 st.markdown(f"<div class='metric-card'><div class='metric-header'>Fear & Greed</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>심리 지표입니다. 75점 이상은 '극단적 탐욕' 상태를 의미합니다.</div><div class='metric-footer'>Ref: CNN Business Logic</div></div>", unsafe_allow_html=True)
         
+            st.write("<br>", unsafe_allow_html=True)
+            
             # --- 3. AI 종합 진단 (Expander) ---
             with st.expander("거시지표 분석", expanded=False): 
                 try:
