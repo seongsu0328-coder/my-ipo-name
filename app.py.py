@@ -3818,9 +3818,10 @@ with main_area.container():
     
             # --- Tab 4: 기관평가 (UI 출력 부분) ---
             with tab4:
-                # 1. 함수 호출 (기존 코드 유지)
+                # 1. 함수 호출 (다국어 파라미터 추가)
                 with st.spinner(f"전문 기관 데이터를 정밀 수집 중..."):
-                    result = get_unified_tab4_analysis(stock['name'], stock['symbol'])
+                    # 💡 [핵심 수정] 맨 끝에 st.session_state.lang 을 추가했습니다!
+                    result = get_unified_tab4_analysis(stock['name'], stock['symbol'], st.session_state.lang)
                 
                 # 2. 결과 데이터 매핑 (기존 코드 유지)
                 summary_raw = result.get('summary', '')
