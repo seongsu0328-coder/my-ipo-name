@@ -176,6 +176,27 @@ def db_load_all_users():
         return res.data if res.data else []
     except: return []
 
+def db_load_sentiment_counts(ticker):
+    """watchlist 테이블에서 해당 종목의 UP/DOWN 개수를 집계 (디버깅 추가)"""
+    try:
+        # 상승(UP) 투표 수 조회
+        up_res = supabase.table("watchlist").select("ticker", count="exact").eq("ticker", ticker).eq("prediction", "UP").execute()
+        up_count = up_res.count if up_res.count is not None else 0
+        
+        # 하락(DOWN) 투표 수 조회
+        down_res = supabase.table("watchlist").select("ticker", count="exact").eq("ticker", ticker).eq("prediction", "DOWN").execute()
+        down_count = down_res.count if down_res.count is not None else 0
+        
+        # [디버그 로그]
+        print(f"--- DB Fetch Debug ({ticker}) --- UP: {up_count}, DOWN: {down_count}")
+        return up_count, down_count
+    except Exception as e:
+        # 화면에 에러 표시
+        import streamlit as st
+        st.error(f"🐞 DB 집계 에러: {e}")
+        return 0, 0
+
+
 # 5. 관심종목 & 투표 불러오기 (로그인 직후 실행)
 def db_sync_watchlist(user_id):
     try:
@@ -4042,58 +4063,92 @@ elif st.session_state.page == 'detail':
                 st.plotly_chart(fig, use_container_width=True)
 
             # ---------------------------------------------------------
-            # 3. 전망 투표 및 관심종목 (DB 연동 버전)
+            # 3. 전망 투표 및 실시간 Sentiment (디버깅 강화 버전)
             # ---------------------------------------------------------
             st.write("<br>", unsafe_allow_html=True)
-            # 폰트 크기 및 굵기 적용
-            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>향후 전망투표</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>실시간 커뮤니티 전망</div>", unsafe_allow_html=True)
             
+            # 🐞 디버그 1: 현재 종목과 유저 아이디 확인
+            st.info(f"🐞 [DEBUG] 현재 종목: {sid} / 현재 유저: {user_id}")
+
+            # [1] 실시간 데이터 로드
+            up_voters, down_voters = db_load_sentiment_counts(sid)
+            
+            # 🐞 디버그 2: DB 결과값 확인
+            st.write(f"🐞 [DEBUG] DB 수신 결과 -> 상승: {up_voters}명, 하락: {down_voters}명")
+            
+            total_votes = up_voters + down_voters
+            
+            # 비율 계산 (분모 0 방지)
+            up_pct = (up_voters / total_votes * 100) if total_votes > 0 else 50
+            down_pct = (down_voters / total_votes * 100) if total_votes > 0 else 50
+
+            # [2] Bullish & Bearish 시각화 카드
+            # 🐞 디버그 3: 렌더링 시도 알림
+            st.toast("🎨 Bull/Bear 카드 렌더링 시도 중...")
+            
+            col_bull, col_bear = st.columns(2)
+            
+            with col_bull:
+                st.markdown(f"""
+                    <div style="background-color: #ebfaef; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #c3e6cb;">
+                        <img src="https://img.icons8.com/color/96/bull.png" width="60" style="margin-bottom:10px;">
+                        <div style="color: #28a745; font-weight: 800; font-size: 1.2rem;">BULLISH</div>
+                        <div style="color: #333; font-size: 1.5rem; font-weight: 900;">{up_pct:.1f}%</div>
+                        <div style="color: #666; font-size: 0.8rem;">{up_voters}명의 선택</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            with col_bear:
+                st.markdown(f"""
+                    <div style="background-color: #fff5f5; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #feb2b2;">
+                        <img src="https://img.icons8.com/color/96/bear.png" width="60" style="margin-bottom:10px;">
+                        <div style="color: #dc3545; font-weight: 800; font-size: 1.2rem;">BEARISH</div>
+                        <div style="color: #333; font-size: 1.5rem; font-weight: 900;">{down_pct:.1f}%</div>
+                        <div style="color: #666; font-size: 0.8rem;">{down_voters}명의 선택</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            st.write("<br>", unsafe_allow_html=True)
+
+            # [3] 투표 버튼 로직 (동일)
             if st.session_state.get('auth_status') == 'user':
-                # 아직 관심종목에 없을 때 (투표 버튼 노출)
+                # 🐞 디버그 4: 관심종목 리스트 상태
+                # st.write(f"🐞 [DEBUG] 현재 내 관심목록: {st.session_state.watchlist}")
+                
                 if sid not in st.session_state.watchlist:
-                    st.caption("투표 시 관심종목에 자동 저장됩니다. (DB 영구 저장)")
+                    st.caption("💡 투표 시 관심종목에 자동 저장되며, 실시간 결과에 반영됩니다.")
                     c_up, c_down = st.columns(2)
                     
-                    # [상승 예측 버튼]
-                    if c_up.button("📈 상승예측", key=f"up_{sid}", use_container_width=True, type="primary"):
+                    if c_up.button("📈 나도 상승에 투표", key=f"up_vote_{sid}", use_container_width=True, type="primary"):
                         db_toggle_watchlist(user_id, sid, "UP", action='add')
-                        if sid not in st.session_state.watchlist:
-                            st.session_state.watchlist.append(sid)
+                        if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "UP"
-                        st.session_state.vote_data[sid]['u'] += 1
                         st.rerun()
 
-                    # [하락 예측 버튼]
-                    if c_down.button("📉 하락예측", key=f"dn_{sid}", use_container_width=True):
+                    if c_down.button("📉 나도 하락에 투표", key=f"dn_vote_{sid}", use_container_width=True):
                         db_toggle_watchlist(user_id, sid, "DOWN", action='add')
-                        if sid not in st.session_state.watchlist:
-                            st.session_state.watchlist.append(sid)
+                        if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "DOWN"
-                        st.session_state.vote_data[sid]['f'] += 1
                         st.rerun()
-
-                # 이미 관심종목에 있을 때 (상태 표시 및 해제 버튼)
                 else:
                     pred = st.session_state.watchlist_predictions.get(sid, "N/A")
-                    color = "green" if pred == "UP" else "red"
-                    st.success(f"✅ 관심종목 보관중 (나의 예측: :{color}[{pred}])")
+                    color = "#28a745" if pred == "UP" else "#dc3545"
+                    pred_text = "BULLISH (상승)" if pred == "UP" else "BEARISH (하락)"
                     
-                    # [보관 해제 버튼]
-                    if st.button("보관 해제 (투표 취소)", key=f"rm_{sid}", use_container_width=True):
+                    st.markdown(f"""
+                        <div style="padding: 15px; border-radius: 10px; border: 1px solid {color}; text-align: center; font-weight: bold; color: {color};">
+                            나의 선택: {pred_text} 
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    if st.button("투표 취소 및 관심종목 해제", key=f"rm_vote_{sid}", use_container_width=True):
                         db_toggle_watchlist(user_id, sid, action='remove')
-                        if sid in st.session_state.watchlist:
-                            st.session_state.watchlist.remove(sid)
-                        
-                        if pred in ["UP", "DOWN"]:
-                            key = 'u' if pred == "UP" else 'f'
-                            st.session_state.vote_data[sid][key] -= 1
-                        
-                        if sid in st.session_state.watchlist_predictions:
-                            del st.session_state.watchlist_predictions[sid]
-                            
+                        if sid in st.session_state.watchlist: st.session_state.watchlist.remove(sid)
+                        if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
                         st.rerun()
             else:
-                st.warning("🔒 로그인 후 투표에 참여할 수 있습니다.")
+                st.warning("🔒 로그인 후 투표에 참여하고 전체 결과를 확인할 수 있습니다.")
 
             # ---------------------------------------------------------
             # 4. 종목 토론방 (글쓰기 상단 + HOT/최신 정렬 + 페이징 적용)
