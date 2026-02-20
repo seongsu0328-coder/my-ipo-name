@@ -4190,18 +4190,19 @@ elif st.session_state.page == 'board':
     # [2] 게시판 상단 컨트롤 (검색 & 글쓰기) 및 데이터 로드 
     s_keyword = ""
     s_type = "제목"
-    all_posts = db_load_posts(limit=100) # 여기서 데이터를 불러옵니다.
+    # 🚨 [중요 변경] limit을 넉넉하게 100으로 가져오되, 이걸 화면에 다 뿌리는게 아니라 뒤에서 자릅니다.
+    all_posts = db_load_posts(limit=100) 
     
     # 2-1. 최상단에 검색과 글쓰기를 좌우로 배치
     post_list_area = st.container()
     f_col1, f_col2 = st.columns(2)
     with f_col1:
-        with st.expander("검색하기"):
+        with st.expander("🔍 검색하기"):
             s_type = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="b_s_type")
             s_keyword = st.text_input("키워드", key="b_s_keyword")
     
     with f_col2:
-        with st.expander("글쓰기"):
+        with st.expander("✏️ 글쓰기"):
             if is_logged_in and check_permission('write'):
                 with st.form(key="board_main_form", clear_on_submit=True):
                     b_cat = st.text_input("종목/말머리", placeholder="자유")
@@ -4222,7 +4223,7 @@ elif st.session_state.page == 'board':
             else:
                 st.warning("🔒 로그인 및 권한 인증이 필요합니다.")
 
-    st.write("<br>", unsafe_allow_html=True) # 상단 컨트롤과 리스트 사이 여백
+    st.write("<br>", unsafe_allow_html=True) 
 
     # [3] 검색 필터링 적용
     posts = all_posts
@@ -4252,7 +4253,7 @@ elif st.session_state.page == 'board':
             except:
                 normal_posts.append(p)
                 
-        # HOT 정렬 및 5개 추출
+        # HOT 정렬 및 최대 5개 추출
         hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
         top_5_hot = hot_candidates[:5]
         
@@ -4260,11 +4261,12 @@ elif st.session_state.page == 'board':
         normal_posts.extend(hot_candidates[5:])
         normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
 
-        # 페이징 상태 관리 (초기값 5개)
+        # 🚨 [핵심 수정: 페이징 상태 관리] 
+        # 게시판에 들어올 때 무조건 5개로 시작하도록 강제 설정
         if 'board_display_count' not in st.session_state:
             st.session_state.board_display_count = 5
         
-        # 현재 보여줄 만큼만 슬라이싱
+        # 현재 화면에 보여줄 갯수(기본 5개)만큼만 자르기
         current_display = normal_posts[:st.session_state.board_display_count]
 
         # UI 출력 함수
@@ -4278,7 +4280,7 @@ elif st.session_state.page == 'board':
             dislikes = p.get('dislikes') or 0
             
             prefix = "[HOT]" if is_hot else f"[{p_cat}]"
-            title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (추천{likes}  비추천{dislikes})"
+            title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (👍 {likes}  👎 {dislikes})"
             
             with st.expander(title_disp.strip()):
                 st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
@@ -4286,13 +4288,13 @@ elif st.session_state.page == 'board':
                 
                 action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
                 with action_c1:
-                    if st.button(f"추천{likes}", key=f"l_{p_id}", use_container_width=True):
+                    if st.button(f"👍 Like {likes}", key=f"l_{p_id}", use_container_width=True):
                         if is_logged_in:
                             db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'like')
                             st.rerun()
                         else: st.toast("🔒 로그인이 필요합니다.")
                 with action_c2:
-                    if st.button(f"비추천{dislikes}", key=f"d_{p_id}", use_container_width=True):
+                    if st.button(f"👎 Dislike {dislikes}", key=f"d_{p_id}", use_container_width=True):
                         if is_logged_in:
                             db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'dislike')
                             st.rerun()
@@ -4312,24 +4314,24 @@ elif st.session_state.page == 'board':
         # [5] 리스트 UI 렌더링
         with post_list_area:
             if top_5_hot:
-                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
+                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>🔥 인기글</div>", unsafe_allow_html=True)
                 for p in top_5_hot:
                     render_post(p, is_hot=True)
                 st.write("<br><br>", unsafe_allow_html=True)
 
-            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>🕒 최신글</div>", unsafe_allow_html=True)
             
-            # 전체(normal_posts)가 아닌 current_display 만큼만 반복
+            # [핵심 수정] 전체(normal_posts)가 아닌 자른 배열(current_display)만 루프를 돕니다.
             if current_display:
                 for p in current_display:
                     render_post(p, is_hot=False)
             else:
                 st.info("조건에 맞는 최신 글이 없습니다.")
                 
-            # 더보기 버튼 로직
+            # [핵심 수정] 더보기 버튼 로직 (고유 Key 추가)
             if len(normal_posts) > st.session_state.board_display_count:
                 st.write("<br>", unsafe_allow_html=True)
-                if st.button("🔽 더 보기", use_container_width=True):
+                if st.button("🔽 더 보기", key="more_board_posts", use_container_width=True):
                     st.session_state.board_display_count += 10
                     st.rerun()
                     
