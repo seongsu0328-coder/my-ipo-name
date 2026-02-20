@@ -4126,7 +4126,7 @@ elif st.session_state.page == 'detail':
                     st.write("<br><br>", unsafe_allow_html=True)
 
                 # (B) 하단: 최신 게시물 출력
-                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>🕒 최신글</div>", unsafe_allow_html=True)
+                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
                 if current_display:
                     for p in current_display:
                         render_detail_post(p, is_hot=False)
