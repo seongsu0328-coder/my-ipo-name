@@ -3039,15 +3039,14 @@ with main_area.container():
                 # UI 출력: 통합된 설명문 출력
                 st.info(curr_meta['desc'])
                 
-                # 1. expander를 누르면 즉시 분석이 시작되도록 설정
-                with st.expander(f" {topic} 요약보기", expanded=False):
-                    with st.spinner(f"{topic}의 핵심 내용을 분석 중입니다..."):
-                        # ▼▼▼ 질문하신 대로 교체 ▼▼▼
+               with st.spinner(f"{topic}의 핵심 내용을 분석 중입니다..."):
+                        # ▼▼▼ 맨 끝에 st.session_state.lang 을 추가해 줍니다! ▼▼▼
                         analysis_result = get_ai_analysis(
                             stock['name'], 
                             topic, 
                             curr_meta['points'], 
-                            curr_meta.get('structure', "") # 구조 템플릿 전달
+                            curr_meta.get('structure', ""), # 쉼표(,) 잊지 마세요!
+                            st.session_state.lang           # 💡 [여기에 추가됨]
                         )
                         
                         if "ERROR_DETAILS" in analysis_result:
