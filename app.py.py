@@ -2100,18 +2100,18 @@ elif st.session_state.page == 'setup':
             db_status = user.get('status', 'pending')
             
             if db_role == 'restricted':
-                st.error("🔒 **Basic 회원** (서류 미제출)")
-                st.caption("권한: 관심종목 O / 글쓰기 X")
+                st.error("🔒 **Basic 회원** (서류 미제출) : 글쓰기가 제한됩니다")
+                
             elif db_status == 'pending':
                 st.warning("**승인 대기중 : 관리자 승인후 글쓰기 가능**")
                
             elif db_status == 'approved':
                 if is_public_mode:
-                    st.success("**인증 회원 :모든기능 사용가능합니다**")
-                    st.caption("권한: 모든 기능 사용 가능")
+                    st.success("**인증 회원 : 모든기능 사용가능합니다**")
+                    
                 else:
                     st.info("🔒 **익명 모드 : 글쓰기가 제한됩니다**")
-                    st.caption("모든 정보를 가려 **글쓰기가 제한**됩니다.")
+                    s
 
         st.write("<br>", unsafe_allow_html=True)
 
