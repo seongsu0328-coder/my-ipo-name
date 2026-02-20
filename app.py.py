@@ -4079,16 +4079,16 @@ elif st.session_state.page == 'detail':
             # [3] 투표 버튼 및 관심종목 로직
             if st.session_state.get('auth_status') == 'user':
                 if sid not in st.session_state.watchlist:
-                    st.caption("💡 투표 시 관심종목에 자동 저장되며, 실시간 결과에 반영됩니다.")
+                    st.caption("투표시 관심종목에 자동 저장되며, 실시간 결과에 반영됩니다.")
                     c_up, c_down = st.columns(2)
                     
-                    if c_up.button("📈 나도 상승에 투표", key=f"up_vote_{sid}", use_container_width=True, type="primary"):
+                    if c_up.button("📈 상승", key=f"up_vote_{sid}", use_container_width=True, type="primary"):
                         db_toggle_watchlist(user_id, sid, "UP", action='add')
                         if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "UP"
                         st.rerun()
 
-                    if c_down.button("📉 나도 하락에 투표", key=f"dn_vote_{sid}", use_container_width=True):
+                    if c_down.button("📉 하락", key=f"dn_vote_{sid}", use_container_width=True):
                         db_toggle_watchlist(user_id, sid, "DOWN", action='add')
                         if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
                         st.session_state.watchlist_predictions[sid] = "DOWN"
