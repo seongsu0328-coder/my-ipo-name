@@ -1773,8 +1773,8 @@ if st.session_state.page == 'login':
 
     with col_center:
         st.write("<br>", unsafe_allow_html=True)
-        # [수정] 타이틀 다국어 적용
-        st.markdown(f"<h1 class='login-title'>{get_text('login_title')}</h1>", unsafe_allow_html=True)
+        # 💡 [여기 수정!] 다국어 함수를 빼고 영문 고정으로 변경합니다.
+        st.markdown("<h1 class='login-title'>UnicornFinder</h1>", unsafe_allow_html=True)
         
         # 상태 초기화
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
