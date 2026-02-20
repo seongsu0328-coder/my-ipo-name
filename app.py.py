@@ -3690,6 +3690,8 @@ elif st.session_state.page == 'detail':
             score_val = str(result.get('score', '3')).strip() 
             sources = result.get('links', [])
             q = stock['symbol'] if stock['symbol'] else stock['name']
+
+            st.write("<br>", unsafe_allow_html=True)
         
             # --- (1) Renaissance Capital & 기관 종합 요약 섹션 ---
             with st.expander("Renaissance Capital IPO 요약", expanded=False):
