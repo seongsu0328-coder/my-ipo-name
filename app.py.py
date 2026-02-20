@@ -2151,8 +2151,8 @@ elif st.session_state.page == 'setup':
                         st.success(f"✅ 데이터 정상: {display_time.strftime('%m-%d %H:%M')}")
                 
                 with col_status2:
-                    # 목록 새로고침 버튼 옆에 배치하거나 단독으로 둠
                     if st.button("🔄 시스템 전체 새로고침", key="admin_refresh"):
+                        st.cache_data.clear() # 🚨 [핵심 추가] 쥐고 있던 예전 데이터를 강제로 버림
                         st.rerun()
             
             st.divider()
