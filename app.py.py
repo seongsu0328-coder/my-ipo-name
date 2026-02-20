@@ -2987,6 +2987,7 @@ elif st.session_state.page == 'detail':
                 biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'])
 
             # [2] 기업 심층 분석 섹션 (Expander)
+            st.write("<br>", unsafe_allow_html=True)
             with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
                 if biz_info:
                     st.markdown(f"""
