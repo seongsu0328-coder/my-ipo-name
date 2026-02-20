@@ -1,6 +1,4 @@
 import os
-import json
-import requests
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -20,7 +18,8 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 if SUPABASE_URL and SUPABASE_KEY:
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 else:
-    print("❌ Supabase 환경변수 누락"); exit()
+    print("❌ Supabase 환경변수 누락", flush=True)
+    exit()
 
 # [2] 표준 엔진
 def sanitize_value(v):
@@ -30,15 +29,10 @@ def sanitize_value(v):
     if isinstance(v, (np.integer, int)): return int(v)
     return str(v).strip().replace('\x00', '')
 
+# 🚨 [수정 1] 불안정한 requests.post 대신 Supabase 공식 라이브러리로 전면 교체
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not data_list: return False
-    endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates"
-    }
+    
     clean_batch = []
     for item in data_list:
         payload = {k: sanitize_value(v) for k, v in item.items()}
@@ -47,15 +41,11 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not clean_batch: return False
     
     try:
-        # 🚨 [핵심 1] timeout=10 을 추가하여 무한 대기(프리징) 현상 원천 차단!
-        resp = requests.post(endpoint, json=clean_batch, headers=headers, timeout=10)
-        
-        if resp.status_code not in [200, 201, 204]:
-            print(f"❌ [{table_name}] 실패 ({resp.status_code}): {resp.text[:200]}", flush=True) 
-            return False
+        # 공식 라이브러리가 알아서 안전하게 전송 및 재시도를 처리해줍니다.
+        supabase.table(table_name).upsert(clean_batch).execute()
         return True
     except Exception as e: 
-        print(f"❌ 통신 에러 (Timeout 등): {e}", flush=True)
+        print(f"❌ [{table_name}] DB 전송 에러: {e}", flush=True)
         return False
 
 # [3] 로직 함수
@@ -71,13 +61,15 @@ def fetch_and_update_prices():
     print(f"🚀 주가 수집 시작 (ET: {datetime.now().strftime('%H:%M')})", flush=True)
     tickers = get_target_tickers()
     if not tickers: 
-        print("대상 종목 없음", flush=True); return
+        print("대상 종목 없음", flush=True)
+        return
 
     print(f"대상 종목: {len(tickers)}개 -> 다운로드 시작", flush=True)
     
     try:
-        # yfinance 에러가 로그를 너무 많이 차지하는 것을 막기 위해 옵션 조정
-        data = yf.download(tickers, period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
+        # 🚨 [수정 2 핵심] 메모리 폭발의 원인이었던 interval="1m" 삭제!
+        # period="1d"만 써도 당일 최신 현재가를 가져오며, 데이터 크기가 1/100로 줄어듭니다.
+        data = yf.download(tickers, period="1d", group_by='ticker', threads=True, progress=False)
     except Exception as e:
         print(f"⚠️ 다운로드 중 에러 발생: {e}", flush=True)
         return
@@ -97,19 +89,25 @@ def fetch_and_update_prices():
             valid_closes = closes.dropna()
             if valid_closes.empty: continue
             
-            last_price = valid_closes.iloc[-1]
+            # float로 명시적 변환하여 JSON 에러 방지
+            last_price = float(valid_closes.iloc[-1])
             
             if last_price > 0:
-                upsert_list.append({"ticker": symbol, "price": float(last_price), "updated_at": now_iso})
-        except: continue 
+                upsert_list.append({
+                    "ticker": str(symbol), 
+                    "price": last_price, 
+                    "updated_at": now_iso
+                })
+        except Exception as e: 
+            continue 
     
     if upsert_list:
-        # 🚨 [핵심 2] flush=True 를 넣어 GitHub Actions에서 글씨가 즉시 뜨게 만듦
         print(f"📊 {len(upsert_list)}개 종목 데이터 확보. DB 저장 시도...", flush=True)
         
         chunk_size = 50
         success_count = 0
         
+        # 50개씩 청크 분할하여 업로드
         for i in range(0, len(upsert_list), chunk_size):
             chunk = upsert_list[i : i + chunk_size]
             try:
@@ -117,12 +115,13 @@ def fetch_and_update_prices():
                 if is_success:
                     success_count += len(chunk)
                     print(f"  -> {success_count}/{len(upsert_list)}개 저장 완료...", flush=True)
-                time.sleep(1.0) # 혹시 모를 서버 부하를 막기 위해 1초 휴식
+                time.sleep(0.5) 
             except Exception as e:
                 print(f"❌ 청크 저장 중 에러: {e}", flush=True)
             
         print("✅ 주가 캐싱 전송 완료!", flush=True)
         
+        # 메인 앱(대시보드)에 생존 신고 기록
         try:
             heartbeat_payload = [{
                 "cache_key": "WORKER_LAST_RUN",
