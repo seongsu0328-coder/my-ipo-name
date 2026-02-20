@@ -1796,7 +1796,8 @@ if st.session_state.page == 'login':
 
     with col_center:
         st.write("<br>", unsafe_allow_html=True)
-        st.markdown("<h1 class='login-title'>UnicornFinder</h1>", unsafe_allow_html=True)
+        # [수정] 타이틀 다국어 적용
+        st.markdown(f"<h1 class='login-title'>{get_text('login_title')}</h1>", unsafe_allow_html=True)
         
         # 상태 초기화
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
@@ -1812,19 +1813,19 @@ if st.session_state.page == 'login':
             
             st.write("<br>", unsafe_allow_html=True)
             
-            # [1] 아이디/비번 입력창 (바로 노출)
-            l_id = st.text_input("아이디", key="login_id")
-            l_pw = st.text_input("비밀번호", type="password", key="login_pw")
+            # [1] 아이디/비번 입력창 (바로 노출) - [수정] 다국어 적용
+            l_id = st.text_input(get_text('id_label'), key="login_id")
+            l_pw = st.text_input(get_text('pw_label'), type="password", key="login_pw")
             
             st.write("<br>", unsafe_allow_html=True)
             
             # [2] 버튼 섹션
-            # 버튼 1: 로그인 (누르면 즉시 검증)
-            if st.button("로그인", use_container_width=True, type="primary"):
+            # 버튼 1: 로그인 (누르면 즉시 검증) - [수정] 다국어 적용
+            if st.button(get_text('btn_login'), use_container_width=True, type="primary"):
                 if not l_id or not l_pw:
-                      st.error("아이디와 비밀번호를 입력해주세요.")
+                      st.error("아이디와 비밀번호를 입력해주세요." if st.session_state.lang == 'ko' else "Please enter your ID and password.")
                 else:
-                    with st.spinner("로그인 중..."):
+                    with st.spinner("로그인 중..." if st.session_state.lang == 'ko' else "Logging in..."):
                         # [📌 변경 코드] DB에서 ID로 단건 조회 (속도 향상 및 DB 전환)
                         user = db_load_user(l_id)
                         
@@ -1833,7 +1834,6 @@ if st.session_state.page == 'login':
                             st.session_state.user_info = user
                             
                             # [📌 추가됨] 영구 저장된 관심종목 & 예측 불러오기 (핵심 기능)
-                            # 로그인과 동시에 DB에 저장해뒀던 내 관심종목을 메모리로 가져옵니다.
                             saved_watchlist, saved_preds = db_sync_watchlist(l_id)
                             st.session_state.watchlist = saved_watchlist
                             st.session_state.watchlist_predictions = saved_preds
@@ -1853,16 +1853,16 @@ if st.session_state.page == 'login':
                                 
                             st.rerun()
                         else:
-                            st.error("아이디 또는 비밀번호가 틀립니다.")
+                            st.error("아이디 또는 비밀번호가 틀립니다." if st.session_state.lang == 'ko' else "Invalid ID or password.")
             
-            # 버튼 2: 회원가입 (누르면 인증 화면으로 이동)
-            if st.button("회원가입", use_container_width=True):
+            # 버튼 2: 회원가입 (누르면 인증 화면으로 이동) - [수정] 다국어 적용
+            if st.button(get_text('btn_signup'), use_container_width=True):
                 st.session_state.login_step = 'signup_input' # 회원가입 단계로 전환
                 st.session_state.auth_code_sent = False      # 인증 상태 초기화
                 st.rerun()
                 
-            # 버튼 3: 구경하기
-            if st.button("구경하기", use_container_width=True):
+            # 버튼 3: 구경하기 - [수정] 다국어 적용
+            if st.button(get_text('btn_guest'), use_container_width=True):
                 st.session_state.auth_status = 'guest'
                 st.session_state.page = 'calendar'
                 st.rerun()
@@ -1890,6 +1890,26 @@ if st.session_state.page == 'login':
                     </div>
                 </div>
             """, unsafe_allow_html=True)
+            
+            # =========================================================
+            # [NEW] 3개 국어 언어 선택 버튼 (명언 섹션 바로 아래)
+            # =========================================================
+            st.write("<br>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align: center; color: #888; font-size: 0.85rem; margin-bottom: 8px;'>Language / 언어 / 言語</div>", unsafe_allow_html=True)
+            
+            lang_cols = st.columns(3)
+            with lang_cols[0]:
+                if st.button("🇰🇷 한국어", use_container_width=True): 
+                    st.session_state.lang = 'ko'
+                    st.rerun()
+            with lang_cols[1]:
+                if st.button("🇺🇸 English", use_container_width=True): 
+                    st.session_state.lang = 'en'
+                    st.rerun()
+            with lang_cols[2]:
+                if st.button("🇯🇵 日本語", use_container_width=True): 
+                    st.session_state.lang = 'ja'
+                    st.rerun()
             
         # ---------------------------------------------------------
         # [Step 3] 회원가입 로직 (통합본)
