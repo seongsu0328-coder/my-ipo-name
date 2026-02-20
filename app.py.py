@@ -2982,10 +2982,7 @@ elif st.session_state.page == 'detail':
             
         # --- Tab 1: 뉴스 & 심층 분석 (Gemini 통합형) ---
         with tab1:
-            st.caption("Google Search 기반 실시간 분석 및 뉴스를 제공합니다.")
-            
             # [1] 통합 분석 데이터 호출 (비즈니스 요약 + 뉴스 5개 통합)
-            # 기존의 여러 함수 호출을 이 한 줄로 대체하여 속도와 비용을 최적화합니다.
             with st.spinner(f"{stock['name']}의 최신 데이터를 정밀 분석 중입니다..."):
                 biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'])
 
@@ -3004,6 +3001,9 @@ elif st.session_state.page == 'detail':
                         line-height: 1.6;
                     ">{biz_info}</div>
                     """, unsafe_allow_html=True)
+                    
+                    # 💡 [수정] 안내 멘트를 비즈니스 모델 요약 내용 하단으로 이동
+                    st.caption("🔍 Google Search 기반 실시간 분석 및 뉴스를 제공합니다.")
                 else:
                     st.error("⚠️ 비즈니스 분석 정보를 가져오지 못했습니다.")
 
@@ -3012,7 +3012,6 @@ elif st.session_state.page == 'detail':
             # [3] 뉴스 리스트 섹션
             if final_display_news:
                 for i, n in enumerate(final_display_news):
-                    # 통합 함수에서 이미 번역 및 감성 분석된 데이터를 사용합니다.
                     ko_title = n.get('title_ko', '번역 오류')
                     en_title = n.get('title_en', 'No Title')
                     sentiment_label = n.get('sentiment', '일반')
@@ -3021,7 +3020,7 @@ elif st.session_state.page == 'detail':
                     news_link = n.get('link', '#')
                     news_date = n.get('date', 'Recent')
 
-                    # 특수 기호 처리 ($ 기호가 수식으로 오인되지 않도록 처리)
+                    # 특수 기호 처리
                     safe_en = en_title.replace("$", "\$")
                     safe_ko = ko_title.replace("$", "\$")
                     
@@ -3051,10 +3050,10 @@ elif st.session_state.page == 'detail':
 
             st.write("<br>", unsafe_allow_html=True)
 
-            # 결정 박스 (기존 함수 유지)
+            # 결정 박스
             draw_decision_box("news", "신규기업에 대해 어떤 인상인가요?", ["긍정적", "중립적", "부정적"])
 
-            # 면책 조항 (기존 함수 유지)
+            # 면책 조항
             display_disclaimer()
             
         # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
