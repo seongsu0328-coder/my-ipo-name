@@ -3350,9 +3350,10 @@ with main_area.container():
                 # --- 3. AI 종합 진단 (Expander) ---
                 with st.expander("거시지표 분석", expanded=False): 
                     try:
-                        ai_market_comment = get_market_dashboard_analysis(md)
+                        # 💡 [핵심 수정] 여기에 st.session_state.lang 을 추가했습니다!
+                        ai_market_comment = get_market_dashboard_analysis(md, st.session_state.lang)
                         
-                        # 🚨 [핵심 추가] AI 답변에 포함된 불필요한 HTML 태그 강제 제거!
+                        # AI 답변에 포함된 불필요한 HTML 태그 강제 제거!
                         if isinstance(ai_market_comment, str):
                             ai_market_comment = ai_market_comment.replace("</div>", "").replace("<div>", "").replace("```html", "").replace("```", "").strip()
                             
