@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 from datetime import datetime
-import time  # 청크 딜레이를 위해 추가
+import time  
 import pytz 
 from supabase import create_client
 
@@ -47,44 +47,43 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not clean_batch: return False
     
     try:
-        resp = requests.post(endpoint, json=clean_batch, headers=headers)
+        # 🚨 [핵심 1] timeout=10 을 추가하여 무한 대기(프리징) 현상 원천 차단!
+        resp = requests.post(endpoint, json=clean_batch, headers=headers, timeout=10)
+        
         if resp.status_code not in [200, 201, 204]:
-            print(f"❌ [{table_name}] 실패 ({resp.status_code}): {resp.text[:200]}") # 에러 내용 확인
+            print(f"❌ [{table_name}] 실패 ({resp.status_code}): {resp.text[:200]}", flush=True) 
             return False
         return True
     except Exception as e: 
-        print(f"❌ 통신 에러: {e}")
+        print(f"❌ 통신 에러 (Timeout 등): {e}", flush=True)
         return False
 
 # [3] 로직 함수
 def get_target_tickers():
     try:
-        # stock_cache가 없으면 빈 리스트 반환
         res = supabase.table("stock_cache").select("symbol").execute()
         return [item['symbol'] for item in res.data] if res.data else []
     except Exception as e:
-        print(f"⚠️ 티커 목록 로드 실패: {e}")
+        print(f"⚠️ 티커 목록 로드 실패: {e}", flush=True)
         return []
 
 def fetch_and_update_prices():
-    print(f"🚀 주가 수집 시작 (ET: {datetime.now().strftime('%H:%M')})")
+    print(f"🚀 주가 수집 시작 (ET: {datetime.now().strftime('%H:%M')})", flush=True)
     tickers = get_target_tickers()
-    if not tickers: print("대상 종목 없음"); return
+    if not tickers: 
+        print("대상 종목 없음", flush=True); return
 
-    print(f"대상 종목: {len(tickers)}개 -> 다운로드 시작")
+    print(f"대상 종목: {len(tickers)}개 -> 다운로드 시작", flush=True)
     
-    # yfinance 에러 메시지가 너무 많으면 threads=False로 하거나 quiet=True 시도
-    # ignore_tz=True로 타임존 경고 무시
     try:
+        # yfinance 에러가 로그를 너무 많이 차지하는 것을 막기 위해 옵션 조정
         data = yf.download(tickers, period="1d", interval="1m", group_by='ticker', threads=True, progress=False)
     except Exception as e:
-        print(f"⚠️ 다운로드 중 에러 발생: {e}")
+        print(f"⚠️ 다운로드 중 에러 발생: {e}", flush=True)
         return
 
     upsert_list = []
     now_iso = datetime.now(pytz.timezone('Asia/Seoul')).isoformat() 
-    
-    # 데이터 구조가 1개일 때와 여러 개일 때 다름
     is_multi = len(tickers) > 1
     
     for symbol in tickers:
@@ -95,7 +94,6 @@ def fetch_and_update_prices():
             else:
                 closes = data['Close']
             
-            # 유효한 데이터만 추출
             valid_closes = closes.dropna()
             if valid_closes.empty: continue
             
@@ -103,30 +101,28 @@ def fetch_and_update_prices():
             
             if last_price > 0:
                 upsert_list.append({"ticker": symbol, "price": float(last_price), "updated_at": now_iso})
-        except: continue # 개별 에러 무시
+        except: continue 
     
     if upsert_list:
-        print(f"📊 {len(upsert_list)}개 종목 데이터 확보. DB 저장 시도...")
+        # 🚨 [핵심 2] flush=True 를 넣어 GitHub Actions에서 글씨가 즉시 뜨게 만듦
+        print(f"📊 {len(upsert_list)}개 종목 데이터 확보. DB 저장 시도...", flush=True)
         
-        # 🚨 [핵심 수정] 데이터를 50개 단위로 쪼개서 업로드 (서버 과부하 차단)
         chunk_size = 50
         success_count = 0
         
         for i in range(0, len(upsert_list), chunk_size):
             chunk = upsert_list[i : i + chunk_size]
+            try:
+                is_success = batch_upsert("price_cache", chunk, on_conflict="ticker")
+                if is_success:
+                    success_count += len(chunk)
+                    print(f"  -> {success_count}/{len(upsert_list)}개 저장 완료...", flush=True)
+                time.sleep(1.0) # 혹시 모를 서버 부하를 막기 위해 1초 휴식
+            except Exception as e:
+                print(f"❌ 청크 저장 중 에러: {e}", flush=True)
             
-            is_success = batch_upsert("price_cache", chunk, on_conflict="ticker")
-            
-            if is_success:
-                success_count += len(chunk)
-                print(f"  -> {success_count}/{len(upsert_list)}개 저장 완료...")
-            
-            # 너무 빠른 요청으로 인한 Rate Limit 회피
-            time.sleep(0.5)
-            
-        print("✅ 주가 캐싱 전송 완료!")
+        print("✅ 주가 캐싱 전송 완료!", flush=True)
         
-        # 📡 [생존 신고 로직 추가] 앱(app.py)의 "✅ 데이터 정상" 배지를 활성화하기 위한 기록
         try:
             heartbeat_payload = [{
                 "cache_key": "WORKER_LAST_RUN",
@@ -134,12 +130,12 @@ def fetch_and_update_prices():
                 "updated_at": now_iso
             }]
             batch_upsert("analysis_cache", heartbeat_payload, on_conflict="cache_key")
-            print(f"📡 메인 앱 생존 신고 완료 (KST): {now_iso}")
+            print(f"📡 메인 앱 생존 신고 완료 (KST): {now_iso}", flush=True)
         except Exception as e:
-            print(f"⚠️ 생존 신고 실패: {e}")
+            print(f"⚠️ 생존 신고 실패: {e}", flush=True)
             
     else:
-        print("⚠️ 저장할 데이터가 없습니다.")
+        print("⚠️ 저장할 데이터가 없습니다.", flush=True)
 
 if __name__ == "__main__":
     fetch_and_update_prices()
