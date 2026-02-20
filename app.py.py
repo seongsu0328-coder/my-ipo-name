@@ -384,6 +384,38 @@ def get_last_cache_update_time():
     
     return datetime.now() - timedelta(days=2)
 
+# ==========================================
+# [신규] Tab 0~4 사용자 투자 판단 DB 연동 함수
+# ==========================================
+def db_save_user_decision(user_id, ticker, total_score):
+    """사용자의 최종 판단 점수(-5 ~ +5)를 DB에 저장 (UPSERT)"""
+    if user_id == 'guest_id' or not user_id: 
+        return False # 비로그인 유저는 저장하지 않음
+    try:
+        data = {
+            "user_id": user_id,
+            "ticker": ticker,
+            "score": total_score,
+            "updated_at": datetime.now().isoformat()
+        }
+        # 이미 투표한 이력이 있으면 덮어쓰기(수정) 처리
+        supabase.table("user_decisions").upsert(data, on_conflict="user_id, ticker").execute()
+        return True
+    except Exception as e:
+        print(f"Decision Save Error: {e}")
+        return False
+
+def db_load_community_scores(ticker):
+    """특정 종목(ticker)에 대한 모든 실제 유저의 점수 리스트를 불러옴"""
+    try:
+        res = supabase.table("user_decisions").select("score").eq("ticker", ticker).execute()
+        if res.data:
+            return [item['score'] for item in res.data]
+        return []
+    except Exception as e:
+        print(f"Community Load Error: {e}")
+        return []
+
 
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
