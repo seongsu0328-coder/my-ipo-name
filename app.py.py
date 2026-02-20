@@ -3126,8 +3126,9 @@ with main_area.container():
             with tab1:
                 # [1] 통합 분석 데이터 호출 (비즈니스 요약 + 뉴스 5개 통합)
                 with st.spinner(f"{stock['name']}의 최신 데이터를 정밀 분석 중입니다..."):
-                    biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'])
-    
+                    # [수정] 파라미터 맨 끝에 st.session_state.lang 을 추가합니다.
+                    biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'], st.session_state.lang)
+
                 # [2] 기업 심층 분석 섹션 (Expander)
                 st.write("<br>", unsafe_allow_html=True)
                 with st.expander(f"비즈니스 모델 요약 보기", expanded=False):
@@ -3145,7 +3146,6 @@ with main_area.container():
                         ">{biz_info}</div>
                         """, unsafe_allow_html=True)
                         
-                        # 💡 [수정] 안내 멘트를 비즈니스 모델 요약 내용 하단으로 이동
                         st.caption("Google Search 기반으로 실시간 분석 및 뉴스를 제공합니다.")
                     else:
                         st.error("⚠️ 비즈니스 분석 정보를 가져오지 못했습니다.")
