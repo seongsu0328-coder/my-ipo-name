@@ -296,6 +296,15 @@ def db_toggle_post_reaction(post_id, user_id, reaction_type):
         print(f"Reaction Update Error: {e}")
         return False
 
+#  게시글 삭제 함수
+def db_delete_post(post_id):
+    try:
+        response = supabase.table("board").delete().eq("id", post_id).execute()
+        return True if response.data else False
+    except Exception as e:
+        print(f"Post Delete Error: {e}")
+        return False
+
 # [정보 공개 범위 업데이트 함수 - 수정 버전]
 def db_update_user_visibility(user_id, visibility_data):
     try:
@@ -3015,7 +3024,7 @@ elif st.session_state.page == 'detail':
                     """, unsafe_allow_html=True)
                     
                     # 💡 [수정] 안내 멘트를 비즈니스 모델 요약 내용 하단으로 이동
-                    st.caption("Google Search 기반 실시간 분석 및 뉴스를 제공합니다.")
+                    st.caption("Google Search 기반으로 실시간 분석 및 뉴스를 제공합니다.")
                 else:
                     st.error("⚠️ 비즈니스 분석 정보를 가져오지 못했습니다.")
 
