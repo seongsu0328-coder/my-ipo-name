@@ -1635,12 +1635,6 @@ for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view
         elif key == 'view_mode': st.session_state[key] = 'all'
         else: st.session_state[key] = None
 
-# ==========================================
-# [추가] 다국어(i18n) 지원 설정 및 사전(Dictionary)
-# ==========================================
-if 'lang' not in st.session_state:
-    st.session_state.lang = 'ko' # 기본값: 한국어
-
 # 다국어 매핑 사전 (필요한 UI 텍스트를 여기에 계속 추가하시면 됩니다)
 UI_TEXT = {
     'login_title': {'ko': '유니콘 파인더', 'en': 'UnicornFinder', 'ja': 'ユニコーンファインダー'},
@@ -1660,6 +1654,10 @@ UI_TEXT = {
     'tab_3': {'ko': ' 미시지표', 'en': ' Micro', 'ja': ' ミクロ指標'},
     'tab_4': {'ko': ' 기업평가', 'en': ' Valuation', 'ja': ' 企業評価'},
     'tab_5': {'ko': ' 투자결정', 'en': ' Decision', 'ja': ' 投資決定'},
+    
+    # 💡 [NEW] 추가된 "저장" 및 "인증" 관련 텍스트
+    'btn_save': {'ko': '저장하고 시작하기', 'en': 'Save & Start', 'ja': '保存して開始'},
+    'btn_verify': {'ko': '인증하기 (서류제출)', 'en': 'Verify (Submit Docs)', 'ja': '認証する (書類提出)'},
 }
 
 def get_text(key):
@@ -2083,16 +2081,9 @@ elif st.session_state.page == 'setup':
             </div>
         """, unsafe_allow_html=True)
         
-        # 1번 요청 사항: 문장 밑에 한 줄 공백 추가
-        
-        
         # -----------------------------------------------------------
         # 1. 내 정보 노출 설정 (체크박스)
         # -----------------------------------------------------------
-        
-        
-        
-
         # 저장된 설정값 불러오기
         saved_vis = user.get('visibility', 'True,True,True').split(',')
         def_univ = saved_vis[0] == 'True' if len(saved_vis) > 0 else True
@@ -2100,7 +2091,6 @@ elif st.session_state.page == 'setup':
         def_asset = saved_vis[2] == 'True' if len(saved_vis) > 2 else True
 
         c1, c2, c3 = st.columns(3)
-        # 글자 크기는 Streamlit 기본 위젯 크기를 따릅니다.
         show_univ = c1.checkbox("대학 및 학과", value=def_univ)
         show_job = c2.checkbox("직장 혹은 직업", value=def_job)
         show_asset = c3.checkbox("자산", value=def_asset)
@@ -2117,13 +2107,11 @@ elif st.session_state.page == 'setup':
         
         prefix = " ".join([p for p in info_parts if p])
         
-        # 미리보기에서는 완전 마스킹된 ID 사용
         final_nickname = f"{prefix} {full_masked_id}" if prefix else full_masked_id
         
         c_info, c_status = st.columns([2, 1])
         
         with c_info:
-            # 아이디와 활동 닉네임 정보 표시
             st.markdown(f"아이디: {full_masked_id}")
             st.markdown(f"활동 닉네임: <span style='font-weight:bold; color:#5c6bc0;'>{final_nickname}</span>", unsafe_allow_html=True)
         
@@ -2131,13 +2119,10 @@ elif st.session_state.page == 'setup':
             db_role = user.get('role', 'restricted')
             db_status = user.get('status', 'pending')
             
-            # 캡션 없이 상태 메시지 박스만 간결하게 표시
             if db_role == 'restricted':
                 st.error("🔒 **Basic 회원(비인증회원)** (글쓰기 제한)")
-                
             elif db_status == 'pending':
                 st.warning("⏳ **승인 대기중** (관리자 확인중)")
-               
             elif db_status == 'approved':
                 if is_public_mode:
                     st.success("✅ **인증 회원** (모든 기능 사용가능)")
@@ -2147,32 +2132,46 @@ elif st.session_state.page == 'setup':
         st.write("<br>", unsafe_allow_html=True)
 
         # -----------------------------------------------------------
-        # 3. [메인 기능] 설정 저장 및 로그아웃 (1:1 균등 분할)
+        # 3. [메인 기능] 설정 저장 / 인증하기 / 로그아웃 (비율 조정)
         # -----------------------------------------------------------
-        col_save, col_logout = st.columns(2)
+        
+        # 💡 [핵심 수정] 인증하기 버튼 추가를 위해 컬럼을 3개로 나눕니다.
+        col_cert, col_save, col_logout = st.columns([1, 1.5, 1])
+
+        # [인증하기 버튼] (회원 등급이 restricted 일 때만 노출하는 것이 좋습니다)
+        with col_cert:
+            if db_role == 'restricted' or db_status == 'rejected':
+                if st.button("인증)", use_container_width=True):
+                    # 1. 회원가입 프로세스 페이지로 강제 전환
+                    st.session_state.page = 'login' 
+                    st.session_state.login_step = 'signup_input'
+                    # 2. 바로 서류제출 단계(3단계)로 점프
+                    st.session_state.signup_stage = 3 
+                    # 3. 현재 유저 정보를 임시 데이터에 백업 (DB 업데이트를 위해)
+                    st.session_state.temp_user_data = {
+                        "id": user.get('id'), 
+                        "pw": user.get('pw'), 
+                        "phone": user.get('phone'), 
+                        "email": user.get('email')
+                    }
+                    st.rerun()
 
         # [저장 버튼]
         with col_save:
-            if st.button("저장하고 시작하기", type="primary", use_container_width=True):
+            if st.button("저장", type="primary", use_container_width=True):
                 with st.spinner("설정 적용 중..."):
-                    # 1. 공개 설정 문자열 생성 (예: 'True,False,True')
                     current_settings = [show_univ, show_job, show_asset]
                     vis_str = ",".join([str(v) for v in current_settings])
                     
-                    # 2. DB 저장용 데이터 패키징
-                    # 'display_name'에 '신경외과 *******' 형태의 nickname을 직접 저장합니다.
                     update_data = {
                         "visibility": vis_str,
                         "display_name": final_nickname
                     }
                     
-                    # 3. DB 업데이트 실행
                     if db_update_user_info(user.get('id'), update_data):
-                        # [핵심] 세션 즉시 갱신: 게시판 글쓰기 시 DB 조회 없이도 즉시 반영되도록 함
                         st.session_state.user_info['visibility'] = vis_str
                         st.session_state.user_info['display_name'] = final_nickname
                         
-                        # 4. 메인 캘린더 페이지로 이동
                         st.session_state.page = 'calendar' 
                         st.rerun()
                     else:
@@ -2181,10 +2180,10 @@ elif st.session_state.page == 'setup':
         # [로그아웃 버튼]
         with col_logout:
             if st.button("로그아웃", use_container_width=True):
-                # 모든 세션 정보를 삭제하고 로그인 화면으로 초기화
                 st.session_state.clear()
                 st.rerun()
 
+        
         # ===========================================================
         # 👇 [수정 완료] 관리자 승인 기능 (Supabase 연동 버전)
         # ===========================================================
