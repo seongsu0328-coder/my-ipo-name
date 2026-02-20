@@ -4085,7 +4085,7 @@ elif st.session_state.page == 'detail':
                         <img src="https://img.icons8.com/color/96/bull.png" width="60" style="margin-bottom:10px;">
                         <div style="color: #28a745; font-weight: 800; font-size: 1.2rem;">BULLISH</div>
                         <div style="color: #333; font-size: 1.5rem; font-weight: 900;">{up_pct:.1f}%</div>
-                        <div style="color: #666; font-size: 0.8rem;">{up_voters}명의 선택</div>
+                        
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -4095,7 +4095,7 @@ elif st.session_state.page == 'detail':
                         <img src="https://img.icons8.com/color/96/bear.png" width="60" style="margin-bottom:10px;">
                         <div style="color: #dc3545; font-weight: 800; font-size: 1.2rem;">BEARISH</div>
                         <div style="color: #333; font-size: 1.5rem; font-weight: 900;">{down_pct:.1f}%</div>
-                        <div style="color: #666; font-size: 0.8rem;">{down_voters}명의 선택</div>
+                       
                     </div>
                 """, unsafe_allow_html=True)
 
