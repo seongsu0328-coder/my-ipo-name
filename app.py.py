@@ -1655,6 +1655,45 @@ for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view
         elif key == 'view_mode': st.session_state[key] = 'all'
         else: st.session_state[key] = None
 
+# ==========================================
+# [추가] 다국어(i18n) 지원 설정 및 사전(Dictionary)
+# ==========================================
+if 'lang' not in st.session_state:
+    st.session_state.lang = 'ko' # 기본값: 한국어
+
+# 다국어 매핑 사전 (필요한 UI 텍스트를 여기에 계속 추가하시면 됩니다)
+UI_TEXT = {
+    'login_title': {'ko': '유니콘 파인더', 'en': 'UnicornFinder', 'ja': 'ユニコーンファインダー'},
+    'id_label': {'ko': '아이디', 'en': 'User ID', 'ja': 'ユーザーID'},
+    'pw_label': {'ko': '비밀번호', 'en': 'Password', 'ja': 'パスワード'},
+    'btn_login': {'ko': '로그인', 'en': 'Login', 'ja': 'ログイン'},
+    'btn_signup': {'ko': '회원가입', 'en': 'Sign Up', 'ja': 'サインアップ'},
+    'btn_guest': {'ko': '구경하기', 'en': 'Explore as Guest', 'ja': 'ゲストとして見る'},
+    'menu_main': {'ko': '메인', 'en': 'Main', 'ja': 'メイン'},
+    'menu_watch': {'ko': '관심', 'en': 'Watchlist', 'ja': 'お気に入り'},
+    'menu_board': {'ko': '게시판', 'en': 'Board', 'ja': '掲示板'},
+    'menu_settings': {'ko': '권한설정', 'en': 'Settings', 'ja': '設定'},
+    'menu_logout': {'ko': '로그아웃', 'en': 'Logout', 'ja': 'ログアウト'},
+    'tab_0': {'ko': ' 주요공시', 'en': ' Filings', 'ja': ' 主な開示'},
+    'tab_1': {'ko': ' 주요뉴스', 'en': ' News', 'ja': ' ニュース'},
+    'tab_2': {'ko': ' 거시지표', 'en': ' Macro', 'ja': ' マクロ指標'},
+    'tab_3': {'ko': ' 미시지표', 'en': ' Micro', 'ja': ' ミクロ指標'},
+    'tab_4': {'ko': ' 기업평가', 'en': ' Valuation', 'ja': ' 企業評価'},
+    'tab_5': {'ko': ' 투자결정', 'en': ' Decision', 'ja': ' 投資決定'},
+}
+
+def get_text(key):
+    """현재 세션 언어에 맞는 텍스트를 반환하는 헬퍼 함수"""
+    lang = st.session_state.lang
+    return UI_TEXT.get(key, {}).get(lang, UI_TEXT.get(key, {}).get('ko', key))
+
+# 현재 AI 프롬프트에 주입할 언어명 문자열 매핑
+LANG_PROMPT_MAP = {
+    'ko': '전문적인 한국어(Korean)',
+    'en': 'Professional English',
+    'ja': '専門的な日本語(Japanese)'
+}
+
 # 3. 공통 UI 함수 정의 (전역)
 def draw_decision_box(step_key, title, options):
     """사용자 투표/판단 박스를 그리는 함수"""
