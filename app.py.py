@@ -405,35 +405,36 @@ def get_last_cache_update_time():
     
     return datetime.now() - timedelta(days=2)
 
-# ==========================================
-# [최종 수정판] Tab 0~4 사용자 투자 판단 DB 연동 함수
-# ==========================================
-def db_save_user_decision(user_id, ticker, total_score):
-    """사용자의 최종 판단 점수를 DB에 저장 (UPSERT)"""
-    import streamlit as st
-    
-    if user_id == 'guest_id' or not user_id: 
-        return False
-        
+# [수정] 5개 선택 항목을 모두 포함하여 저장하는 함수
+def db_save_user_decision(user_id, ticker, total_score, ud_dict):
+    if user_id == 'guest_id' or not user_id: return False
     try:
         data = {
             "user_id": str(user_id),
             "ticker": str(ticker),
             "score": int(total_score),
+            "filing": ud_dict.get('filing'),
+            "news": ud_dict.get('news'),
+            "macro": ud_dict.get('macro'),
+            "company": ud_dict.get('company'),
+            "ipo_report": ud_dict.get('ipo_report'),
             "updated_at": datetime.now().isoformat()
         }
-        
-        # 🚨 [가장 중요] 띄어쓰기 절대 없이 "user_id,ticker" 로 묶어야 완벽하게 덮어쓰기가 됩니다.
-        res = supabase.table("user_decisions").upsert(data, on_conflict="user_id,ticker").execute()
-        
-        if res.data:
-            st.toast(f"✅ 커뮤니티 투표 저장 완료! ({ticker} / {total_score}점)", icon="🎉")
-            return True
-        return False
-            
+        # user_id와 ticker가 겹치면 덮어쓰기(Upsert)
+        supabase.table("user_decisions").upsert(data, on_conflict="user_id,ticker").execute()
+        return True
     except Exception as e:
-        st.error(f"🚨 DB 저장 에러 발생!\n상세 원인: {e}")
+        print(f"Decision Save Error: {e}")
         return False
+
+# [신규] 재접속 시 해당 유저의 기존 선택값들을 불러오는 함수
+def db_load_user_specific_decisions(user_id, ticker):
+    if user_id == 'guest_id' or not user_id: return None
+    try:
+        res = supabase.table("user_decisions").select("*").eq("user_id", user_id).eq("ticker", ticker).execute()
+        return res.data[0] if res.data else None
+    except:
+        return None
 
 def db_load_community_scores(ticker):
     """특정 종목(ticker)에 대한 모든 실제 유저의 점수 리스트를 불러옴"""
@@ -2707,7 +2708,30 @@ elif st.session_state.page == 'detail':
         st.session_state.page = 'calendar'
         st.rerun()
 
-    # [1] 변수 초기화
+    # --- [데이터 복구 핵심 변수 추출] ---
+    sid = stock['symbol']
+    user_info = st.session_state.get('user_info') or {}
+    user_id = user_info.get('id', 'guest_id')
+
+    # --- [신규] 재접속 유저를 위한 데이터 복구 로직 ---
+    # 세션에 해당 종목의 판단 데이터가 없을 때만 DB에서 1회 로드합니다.
+    if sid not in st.session_state.user_decisions:
+        with st.spinner("과거 분석 기록을 불러오는 중..."):
+            saved_data = db_load_user_specific_decisions(user_id, sid)
+            if saved_data:
+                # DB에 저장된 값이 있다면 세션 상태에 복구 (라디오 버튼 위치 고정)
+                st.session_state.user_decisions[sid] = {
+                    "filing": saved_data.get('filing'),
+                    "news": saved_data.get('news'),
+                    "macro": saved_data.get('macro'),
+                    "company": saved_data.get('company'),
+                    "ipo_report": saved_data.get('ipo_report')
+                }
+            else:
+                # 기록이 없는 신규 종목일 경우 빈 딕셔너리 생성
+                st.session_state.user_decisions[sid] = {}
+
+    # [1] 변수 초기화 (기존 코드 유지)
     profile = None
     fin_data = {}
     current_p = 0
@@ -2715,9 +2739,8 @@ elif st.session_state.page == 'detail':
 
     if stock:
         # -------------------------------------------------------------------------
-        # [2] 상단 메뉴바 (블랙 스타일 & 이동 로직 통합 보정)
+        # [2] 상단 메뉴바 및 스타일 설정
         # -------------------------------------------------------------------------
-        # (1) 스타일은 그대로 유지
         st.markdown("""
             <style>
             div[data-testid="stPills"] div[role="radiogroup"] button {
@@ -3927,100 +3950,56 @@ elif st.session_state.page == 'detail':
 
 
         # =========================================================
-        # --- Tab 5: 최종 투자 결정 (실시간 DB 연동 + 디버깅 버전) ---
+        # --- Tab 5: 최종 투자 결정 (데이터 영구 저장 및 복구 통합) ---
         # =========================================================
         with tab5:
             # ---------------------------------------------------------------------------
-            # 1. [스타일 및 설정] 흰 배경 강제 적용 및 변수 초기화
+            # 1. [스타일] 흰 배경 및 UI 설정
             # ---------------------------------------------------------------------------
             st.markdown("""
                 <style>
-                /* 전체 앱 배경 흰색, 글자 검은색 강제 적용 */
                 .stApp { background-color: #ffffff !important; color: #000000 !important; }
                 p, h1, h2, h3, h4, h5, h6, span, li, div { color: #000000 !important; }
-                
-                /* Expander 스타일 */
-                .streamlit-expanderHeader {
-                    background-color: #f8f9fa !important;
-                    color: #000000 !important;
-                    border: 1px solid #ddd !important;
-                }
-                div[data-testid="stExpanderDetails"] {
-                    background-color: #ffffff !important;
-                    border: 1px solid #ddd !important;
-                    border-top: none !important;
-                }
-                
-                /* 입력창 스타일 */
-                .stTextInput input, .stTextArea textarea {
-                    background-color: #ffffff !important;
-                    color: #000000 !important;
-                    border: 1px solid #ccc !important;
-                }
+                .streamlit-expanderHeader { background-color: #f8f9fa !important; color: #000000 !important; border: 1px solid #ddd !important; }
+                div[data-testid="stExpanderDetails"] { background-color: #ffffff !important; border: 1px solid #ddd !important; border-top: none !important; }
                 </style>
             """, unsafe_allow_html=True)
             
-            # [수정본] 세션 정보에서 실제 유저 데이터 추출
             sid = stock['symbol']
-            
-            # 로그인 상태('user')이고 유저 정보가 있을 때만 실제 값을 가져옴
-            if st.session_state.get('auth_status') == 'user' and st.session_state.get('user_info'):
-                user_info = st.session_state.user_info
-                user_id = user_info.get('id', 'guest_id')
-                current_user_phone = user_info.get('phone', 'guest')
-            else:
-                # 로그인이 안 되어 있거나 guest 상태일 때
-                user_info = {}
-                user_id = 'guest_id'
-                current_user_phone = 'guest'
-            
-            is_admin = (user_info.get('role') == 'admin')
-            
-            # 데이터 초기화
-            if 'vote_data' not in st.session_state: st.session_state.vote_data = {}
-            if sid not in st.session_state.vote_data: st.session_state.vote_data[sid] = {'u': 10, 'f': 3}
-            if 'watchlist' not in st.session_state: st.session_state.watchlist = []
-            if 'watchlist_predictions' not in st.session_state: st.session_state.watchlist_predictions = {}
-            if 'posts' not in st.session_state: st.session_state.posts = []
+            user_info = st.session_state.get('user_info') or {}
+            user_id = user_info.get('id', 'guest_id')
 
             # ---------------------------------------------------------
-            # 2. 투자 분석 결과 섹션 (차트 시각화 및 DB 연동)
+            # 2. 투자 분석 결과 섹션 (차트 시각화 및 DB 동기화)
             # ---------------------------------------------------------
             if 'user_decisions' not in st.session_state: st.session_state.user_decisions = {}
             ud = st.session_state.user_decisions.get(sid, {})
             
             steps = [
-                ('filing', 'Step 1'), ('news', 'Step 2'), 
-                ('macro', 'Step 3'), ('company', 'Step 4'), 
-                ('ipo_report', 'Step 5')
+                ('filing', 'Step 1 (공시)'), ('news', 'Step 2 (뉴스)'), 
+                ('macro', 'Step 3 (거시)'), ('company', 'Step 4 (미시)'), 
+                ('ipo_report', 'Step 5 (기관)')
             ]
             
             missing_steps = [label for step, label in steps if not ud.get(step)]
             
-            # 🚨 [디버깅용 화면 출력] : 지우지 말고 테스트 후 지워주세요!
-            # st.caption(f"*(디버그)* 현재 클릭 상태: {ud}")
-            
             if missing_steps:
-                st.info(f"모든 분석단계({', '.join(missing_steps)})를 완료하면 종합 결과 차트가 표시됩니다.")
+                st.info(f"모든 분석단계({', '.join(missing_steps)})를 완료하면 나와 시장 참여자들의 리얼타임 종합 결과 차트가 표시됩니다.")
             else:
                 # 1) 내 점수 계산 로직
                 score_map = {
-                    "긍정적": 1, "수용적": 1, "안정적": 1, "저평가": 1, "매수": 1,
+                    "긍정적": 1, "수용적": 1, "안정적": 1, "저평가": 1, "매수": 1, "침체": 1,
                     "중립적": 0, "중립": 0, "적정": 0,
-                    "부정적": -1, "회의적": -1, "침체": -1, "버블": -1, "고평가": -1, "매도": -1
+                    "부정적": -1, "회의적": -1, "버블": -1, "고평가": -1, "매도": -1
                 }
                 user_score = sum(score_map.get(ud.get(s[0], "중립적"), 0) for s in steps)
                 
-                # 2) 🚨 DB 저장 시도 (5단계 모두 눌렀을 때만 작동)
+                # 2) 🚨 [영구 저장] 내 선택 텍스트들과 합산 점수를 DB에 동시 저장
                 if user_id != 'guest_id':
-                    db_save_user_decision(user_id, sid, user_score)
-                else:
-                    st.warning("⚠️ 현재 비로그인 상태입니다. 차트는 확인할 수 있으나 점수가 DB에 누적되지는 않습니다.")
-
-                # 3) DB에서 커뮤니티 실제 데이터 불러오기
-                community_scores = db_load_community_scores(sid)
+                    db_save_user_decision(user_id, sid, user_score, ud)
                 
-                # 아직 아무도 투표하지 않아 DB가 비어있다면, 화면 오류를 막기 위해 내 점수만 배열에 넣음
+                # 3) DB에서 전체 커뮤니티 데이터 로드
+                community_scores = db_load_community_scores(sid)
                 if not community_scores:
                     community_scores = [user_score]
 
@@ -4030,16 +4009,12 @@ elif st.session_state.page == 'detail':
                 total_participants = len(community_scores)
 
                 # 4) 통계 계산
-                if total_participants > 0:
-                    optimists = sum(1 for s in community_scores if s > 0)
-                    optimist_pct = (optimists / total_participants) * 100
-                    user_percentile = (sum(1 for s in community_scores if s <= user_score) / total_participants) * 100
-                else:
-                    optimist_pct = 0.0
-                    user_percentile = 100.0
+                optimists = sum(1 for s in community_scores if s > 0)
+                optimist_pct = (optimists / total_participants * 100) if total_participants > 0 else 0
+                user_percentile = (sum(1 for s in community_scores if s <= user_score) / total_participants * 100) if total_participants > 0 else 100
 
                 m1, m2 = st.columns(2)
-                m1.metric("시장 참여자 낙관도", f"{optimist_pct:.1f}%", help=f"전체 참여자 {total_participants}명 중 긍정적 평가(0점 초과) 비율")
+                m1.metric("시장 참여자 낙관도", f"{optimist_pct:.1f}%", help="전체 참여자 중 긍정 평가 비율")
                 m2.metric("나의 분석 위치", f"상위 {100-user_percentile:.1f}%", f"{user_score}점")
                 
                 # 5) 차트 그리기
@@ -4053,12 +4028,12 @@ elif st.session_state.page == 'detail':
                     hovertemplate="점수: %{x}<br>인원: %{y}명<extra></extra>"
                 ))
                 fig.update_layout(
-                    height=200, 
+                    height=220, 
                     margin=dict(l=10, r=10, t=30, b=10), 
                     xaxis=dict(title="종합 분석 점수 (-5 ~ +5)", tickmode='linear'), 
-                    yaxis=dict(title="참여자 수 (명)", showticklabels=True),
-                    paper_bgcolor='rgba(0,0,0,0)', 
-                    plot_bgcolor='rgba(0,0,0,0)'
+                    yaxis=dict(title="참여자 수", showticklabels=True),
+                    title=dict(text=f"📊 실시간 투자심리 분포 (총 {total_participants}명 참여)", font=dict(size=14)),
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
