@@ -50,19 +50,14 @@ if GENAI_API_KEY:
     except Exception as e:
         print(f"❌ AI 모델 로드 실패: {e}")
 
-SUPPORTED_LANGS = {
-    'ko': '전문적인 한국어(Korean)',
-    'en': 'Professional English',
-    'ja': '専門的な日本語(Japanese)'
-}
+SUPPORTED_LANGS = ['ko', 'en', 'ja']
 
 # ==========================================
 # [2] 헬퍼 함수
 # ==========================================
 def sanitize_value(v):
     if v is None or pd.isna(v): return None
-    if isinstance(v, (np.floating, float)):
-        return float(v) if not (np.isinf(v) or np.isnan(v)) else 0.0
+    if isinstance(v, (np.floating, float)): return float(v) if not (np.isinf(v) or np.isnan(v)) else 0.0
     if isinstance(v, (np.integer, int)): return int(v)
     if isinstance(v, (np.bool_, bool)): return bool(v)
     return str(v).strip().replace('\x00', '')
@@ -79,8 +74,7 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
     clean_batch = []
     for item in data_list:
         payload = {k: sanitize_value(v) for k, v in item.items()}
-        if payload.get(on_conflict):
-            clean_batch.append(payload)
+        if payload.get(on_conflict): clean_batch.append(payload)
 
     if not clean_batch: return
 
@@ -110,20 +104,39 @@ def get_target_stocks():
     df['symbol'] = df['symbol'].astype(str).str.strip()
     return df.drop_duplicates(subset=['symbol'])
 
-# 💡 [신규] price_worker가 모아둔 최신 가격 가져오기
 def get_current_prices():
     try:
-        # price_cache 테이블에서 전체 조회
         res = supabase.table("price_cache").select("ticker, price").execute()
         return {item['ticker']: float(item['price']) for item in res.data if item['price']}
-    except:
-        return {}
+    except: return {}
+
+def translate_from_ko(korean_text, target_lang):
+    if target_lang == 'ko': return korean_text
+    lang_str = "English" if target_lang == 'en' else "日本語(Japanese)"
+    
+    prompt = f"""
+    Translate the following Korean financial text into {lang_str}.
+    
+    [CRITICAL RULES]
+    1. Maintain a professional Wall Street analyst tone.
+    2. Keep ALL HTML tags (<p>, <br>, <b>, etc.) and line breaks exactly as they are.
+    3. If there are <JSON_START> and <JSON_END> tags, keep them intact.
+    4. DO NOT translate JSON keys (e.g., "news", "title_en", "translated_title", "link", "sentiment", "date", "rating", "summary", "pro_con", "links").
+    5. In JSON, the value for "sentiment" MUST remain exactly as "긍정", "부정", or "일반". Do not translate these three words.
+    
+    [Korean Text to Translate]
+    {korean_text}
+    """
+    try:
+        return standard_model.generate_content(prompt).text
+    except: return korean_text
+
 
 # ==========================================
-# [3] AI 분석 함수들 (비용 최적화 적용)
+# [3] AI 분석 함수들 (비용 최적화 & 기존 프롬프트 100% 보존 & 말투 교정)
 # ==========================================
 
-# Tab 0: 일반 모델 (무료)
+# Tab 0: 공시 (일반 모델)
 def run_tab0_analysis(ticker, company_name):
     if not standard_model: return
     
@@ -135,43 +148,45 @@ def run_tab0_analysis(ticker, company_name):
         "424B4": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)"
     }
 
+    # 💡 말투 교정 추가
     format_instruction = """
     [출력 형식 및 번역 규칙 - 반드시 지킬 것]
     - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
     - [분량 조건] 전체 요약이 아닙니다! **각 문단(1, 2, 3)마다 반드시 4~5문장(약 5줄 분량)씩** 내용을 상세하고 풍성하게 채워 넣으세요.
     - 금지 예시: **[Heading - 한국어]** (X), **[Heading]** \n Content (X)
+    - [어조 조건] 모든 문장은 반드시 '~합니다', '~입니다' 형태의 정중한 경어체로 작성하세요. ('~이다', '~한다' 절대 금지)
     """
 
     for topic in ["S-1", "S-1/A", "F-1", "FWP", "424B4"]:
         if topic not in def_meta: continue
         points = def_meta[topic]
         
-        for lang_code, target_lang in SUPPORTED_LANGS.items():
-            cache_key = f"{company_name}_{topic}_Tab0_v11_{lang_code}"
-            
-            prompt = f"""
-            Role: Wall Street Senior Analyst.
-            Task: Analyze {company_name} ({ticker})'s {topic} filing points: {points}.
-            Language: Strictly in {target_lang}.
-            
-            [Structure]
-            1. First paragraph: Analysis of key investment points in the document.
-            2. Second paragraph: Analysis of growth potential and financial implications.
-            3. Third paragraph: One key risk factor and its impact.
+        prompt_ko = f"""
+        Role: Wall Street Senior Analyst.
+        Task: Analyze {company_name} ({ticker})'s {topic} filing points: {points}.
+        Language: Strictly in 전문적인 한국어(Korean).
+        
+        [Structure]
+        1. First paragraph: Analysis of key investment points in the document.
+        2. Second paragraph: Analysis of growth potential and financial implications.
+        3. Third paragraph: One key risk factor and its impact.
 
-            {format_instruction}
-            """
-            try:
-                response = standard_model.generate_content(prompt)
-                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-                time.sleep(0.5)
-            except: pass
+        {format_instruction}
+        """
+        try:
+            ko_text = standard_model.generate_content(prompt_ko).text
+            time.sleep(0.5)
+            
+            for lang_code in SUPPORTED_LANGS:
+                cache_key = f"{company_name}_{topic}_Tab0_v11_{lang_code}"
+                final_text = translate_from_ko(ko_text, lang_code)
+                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": final_text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+        except: pass
 
-# Tab 1: 검색 1회 -> 번역 3회 (비용 절감)
+# Tab 1: 비즈니스 및 뉴스 (검색 모델 -> 번역)
 def run_tab1_analysis(ticker, company_name):
     if not search_model or not standard_model: return
     
-    # 1. [검색 단계] 영어로 1번만 검색
     source_text = ""
     try:
         search_prompt = f"""
@@ -182,41 +197,35 @@ def run_tab1_analysis(ticker, company_name):
         source_text = source_resp.text
     except: return 
 
-    # 2. [번역 단계] 
-    for lang_code, target_lang in SUPPORTED_LANGS.items():
-        cache_key = f"{ticker}_Tab1_v2_{lang_code}"
+    json_format = f"""{{ "news": [ {{ "title_en": "Original Title", "translated_title": "한국어 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+    
+    # 💡 말투 교정 추가
+    prompt_ko = f"""
+    Based on the provided source info below, create a report for {company_name} ({ticker}).
+    Source Info: {source_text[:10000]} 
+
+    [Task 1: Business Model]
+    - Write 3 paragraphs (Model, Financials, Outlook) in 전문적인 한국어(Korean). 반드시 한국어로 작성하세요.
+    - No headers, just plain text paragraphs.
+    - 주의: 모든 문장은 반드시 '~합니다', '~입니다' 형태의 정중한 경어체로 작성하세요. ('~이다' 절대 금지)
+
+    [Task 2: News]
+    - Extract 5 news from source and format as JSON.
+    - Important: Keep 'sentiment' value as "긍정", "부정", or "일반" (Korean) regardless of output language.
+    
+    <JSON_START>
+    {json_format}
+    <JSON_END>
+    """
+    try:
+        ko_text = standard_model.generate_content(prompt_ko).text
+        time.sleep(1)
         
-        if lang_code == 'ja':
-            lang_instruction = "必ず日本語(Japanese)のみで作成してください。"
-            json_format = f"""{{ "news": [ {{ "title_en": "Original Title", "translated_title": "日本語タイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-        elif lang_code == 'en':
-            lang_instruction = "Write strictly in English."
-            json_format = f"""{{ "news": [ {{ "title_en": "Original Title", "translated_title": "Original Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-        else:
-            lang_instruction = "반드시 한국어로 작성하세요."
-            json_format = f"""{{ "news": [ {{ "title_en": "Original Title", "translated_title": "한국어 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-
-        prompt = f"""
-        Based on the provided source info below, create a report for {company_name} ({ticker}).
-        Source Info: {source_text[:10000]} 
-
-        [Task 1: Business Model]
-        - Write 3 paragraphs (Model, Financials, Outlook) in {target_lang}. {lang_instruction}
-        - No headers, just plain text paragraphs.
-
-        [Task 2: News]
-        - Extract 5 news from source and format as JSON.
-        - Important: Keep 'sentiment' value as "긍정", "부정", or "일반" (Korean) regardless of output language.
-        
-        <JSON_START>
-        {json_format}
-        <JSON_END>
-        """
-        try:
-            response = standard_model.generate_content(prompt)
-            full_text = response.text
+        for lang_code in SUPPORTED_LANGS:
+            cache_key = f"{ticker}_Tab1_v2_{lang_code}"
+            final_text = translate_from_ko(ko_text, lang_code)
             
-            biz_analysis = full_text.split("<JSON_START>")[0].strip()
+            biz_analysis = final_text.split("<JSON_START>")[0].strip()
             biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
             paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
             
@@ -224,39 +233,42 @@ def run_tab1_analysis(ticker, company_name):
             html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
             
             news_list = []
-            if "<JSON_START>" in full_text:
+            if "<JSON_START>" in final_text:
                 try: 
-                    json_part = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
+                    json_part = final_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
                     news_list = json.loads(json_part).get("news", [])
                 except: pass
             
             batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-            time.sleep(1)
-        except: pass
+    except: pass
 
-# Tab 3: 일반 모델 (무료)
+# Tab 3: 재무 분석 (일반 모델)
 def run_tab3_analysis(ticker, company_name, metrics):
     if not standard_model: return
-    for lang_code, target_lang in SUPPORTED_LANGS.items():
-        cache_key = f"{ticker}_Financial_Report_Tab3_{lang_code}"
-        prompt = f"""
-        Role: CFA Analyst.
-        Task: Write a financial report for {company_name} based on: {metrics}.
-        Language: {target_lang}.
-        Format: 4 sections [Valuation], [Operating], [Risk], [Conclusion].
-        Length: 10-12 lines total.
-        """
-        try:
-            response = standard_model.generate_content(prompt)
-            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-            time.sleep(0.5)
-        except: pass
+    
+    # 💡 말투 교정 추가
+    prompt_ko = f"""
+    Role: CFA Analyst.
+    Task: Write a financial report for {company_name} based on: {metrics}.
+    Language: 전문적인 한국어(Korean).
+    Format: 4 sections [Valuation], [Operating], [Risk], [Conclusion].
+    Length: 10-12 lines total.
+    Rule: 모든 문장은 반드시 '~합니다', '~입니다' 형태의 정중한 경어체로 작성하세요. ('~이다', '~한다' 절대 금지)
+    """
+    try:
+        ko_text = standard_model.generate_content(prompt_ko).text
+        time.sleep(0.5)
+        
+        for lang_code in SUPPORTED_LANGS:
+            cache_key = f"{ticker}_Financial_Report_Tab3_{lang_code}"
+            final_text = translate_from_ko(ko_text, lang_code)
+            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": final_text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+    except: pass
 
-# Tab 4: 검색 1회 -> 번역 3회 (비용 절감)
+# Tab 4: 기관 평가 분석 (검색 모델 -> 번역)
 def run_tab4_analysis(ticker, company_name):
     if not search_model or not standard_model: return
 
-    # 1. [검색 단계] 영어로 기관 리포트 검색
     source_text = ""
     try:
         search_prompt = f"Find recent institutional analyst ratings, price targets, and pros/cons reports for {company_name} ({ticker})."
@@ -264,52 +276,55 @@ def run_tab4_analysis(ticker, company_name):
         source_text = source_resp.text
     except: return
 
-    # 2. [번역 단계]
-    for lang_code, target_lang in SUPPORTED_LANGS.items():
-        cache_key = f"{ticker}_Tab4_{lang_code}"
+    json_format = '"summary": "3줄 요약 (반드시 경어체 사용)", "pro_con": "**Pros(장점)**... **Cons(단점)**..."'
+    
+    # 💡 말투 교정 추가
+    prompt_ko = f"""
+    Using the source info below, create an institutional report summary for {company_name} ({ticker}).
+    Source Info: {source_text[:8000]}
+    Language: 전문적인 한국어(Korean) (Strictly).
+    Rule: 모든 문장은 반드시 '~합니다', '~입니다' 형태의 정중한 경어체로 작성하세요. ('~이다' 절대 금지)
+    
+    <JSON_START>
+    {{
+        "rating": "Buy/Hold/Sell",
+        {json_format},
+        "links": [{{"title": "Report Title", "link": "URL"}}]
+    }}
+    <JSON_END>
+    """
+    try:
+        ko_text = standard_model.generate_content(prompt_ko).text
+        time.sleep(1)
         
-        if lang_code == 'ja':
-            json_format = '"summary": "3行要約", "pro_con": "**Pros(長所)**:\\n- 内容\\n\\n**Cons(短所)**:\\n- 内容 (必ず日本語で)",'
-        elif lang_code == 'en':
-            json_format = '"summary": "3-line summary", "pro_con": "**Pros**:... **Cons**:..."'
-        else:
-            json_format = '"summary": "3줄 요약", "pro_con": "**Pros(장점)**... **Cons(단점)**..."'
-
-        prompt = f"""
-        Using the source info below, create an institutional report summary for {company_name} ({ticker}).
-        Source Info: {source_text[:8000]}
-        Language: {target_lang} (Strictly).
-        
-        <JSON_START>
-        {{
-            "rating": "Buy/Hold/Sell",
-            {json_format},
-            "links": [{{"title": "Report Title", "link": "URL"}}]
-        }}
-        <JSON_END>
-        """
-        try:
-            response = standard_model.generate_content(prompt)
-            match = re.search(r'<JSON_START>(.*?)<JSON_END>', response.text, re.DOTALL)
+        for lang_code in SUPPORTED_LANGS:
+            cache_key = f"{ticker}_Tab4_{lang_code}"
+            final_text = translate_from_ko(ko_text, lang_code)
+            
+            match = re.search(r'<JSON_START>(.*?)<JSON_END>', final_text, re.DOTALL)
             if match:
                 clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', match.group(1).strip())
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": clean_str, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-            time.sleep(1)
-        except: pass
+    except: pass
 
+# Tab 2: 거시 지표 (단 1회 실행)
 def update_macro_data(df):
     if not standard_model: return
-    print("🌍 거시 지표(Tab 2) 업데이트 중...")
+    print("🌍 거시 지표(Tab 2) 1회 업데이트 중...")
     data = {"ipo_return": 15.2, "ipo_volume": len(df), "vix": 14.5, "fear_greed": 60} 
     
-    for lang_code, target_lang in SUPPORTED_LANGS.items():
-        cache_key = f"Global_Market_Dashboard_Tab2_{lang_code}"
-        try:
-            prompt = f"Market Data: {data}. Write a 3-line daily market briefing in {target_lang}. No headers."
-            ai_resp = standard_model.generate_content(prompt).text
-            ai_resp = re.sub(r'^#+.*$', '', ai_resp, flags=re.MULTILINE).strip()
-            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-        except: pass
+    # 💡 말투 교정 추가
+    prompt_ko = f"Market Data: {data}. Write a 3-line daily market briefing in 전문적인 한국어(Korean). No headers. 모든 문장은 반드시 '~합니다', '~입니다' 형태의 정중한 경어체로 작성하세요. ('~이다' 절대 금지)"
+    try:
+        ko_text = standard_model.generate_content(prompt_ko).text
+        ko_text = re.sub(r'^#+.*$', '', ko_text, flags=re.MULTILINE).strip()
+        time.sleep(0.5)
+        
+        for lang_code in SUPPORTED_LANGS:
+            cache_key = f"Global_Market_Dashboard_Tab2_{lang_code}"
+            final_text = translate_from_ko(ko_text, lang_code)
+            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": final_text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+    except: pass
 
 # ==========================================
 # [4] 메인 실행 루프
@@ -322,25 +337,19 @@ def main():
         print("⚠️ 수집된 IPO 종목이 없습니다.")
         return
 
-    # [1] 전체 명단 DB 업데이트 (Hot 여부 상관없이 목록은 최신화)
     print("\n📋 [stock_cache] 명단 업데이트...")
     now_iso = datetime.now().isoformat()
     stock_list = [{"symbol": str(row['symbol']), "name": str(row['name']) or "Unknown", "last_updated": now_iso} for _, row in df.iterrows()]
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
 
-    # [2] 매크로 업데이트 (비용 거의 없음)
     update_macro_data(df)
     
-    # ----------------------------------------------------
-    # 💡 [핵심] Hot 종목 선별 로직 (상장 예정 + 상위 수익률 30위)
-    # ----------------------------------------------------
     print("🔥 Hot 종목 선별 중...")
-    price_map = get_current_prices() # price_worker가 모은 최신 가격
+    price_map = get_current_prices() 
     
     today = datetime.now()
     hot_symbols = set()
     
-    # (1) 상장 예정 종목 (오늘 이후 ~ 35일 이내)
     try:
         df['dt'] = pd.to_datetime(df['date'])
         upcoming = df[(df['dt'] > today) & (df['dt'] <= today + timedelta(days=35))]
@@ -348,37 +357,24 @@ def main():
         print(f"   -> 상장 예정: {len(upcoming)}개")
     except: pass
     
-    # (2) 최근 12개월 상장 중 수익률 상위 30개
     try:
         past_12m = df[(df['dt'] >= today - timedelta(days=365)) & (df['dt'] <= today)].copy()
-        
-        # 수익률 계산 함수
         def calc_return(row):
             try:
-                # IPO 가격 파싱 ($10.00-12.00 형태 처리)
-                ipo_p_str = str(row.get('price', '0')).replace('$','').split('-')[0]
-                ipo_p = float(ipo_p_str)
+                ipo_p = float(str(row.get('price', '0')).replace('$','').split('-')[0])
                 curr_p = price_map.get(row['symbol'], 0.0)
-                
-                if ipo_p > 0 and curr_p > 0:
-                    return (curr_p - ipo_p) / ipo_p * 100
-                return -9999.0 # 가격 정보 없으면 하위로
-            except:
+                if ipo_p > 0 and curr_p > 0: return (curr_p - ipo_p) / ipo_p * 100
                 return -9999.0
-        
+            except: return -9999.0
         past_12m['return'] = past_12m.apply(calc_return, axis=1)
         top_30 = past_12m.sort_values(by='return', ascending=False).head(30)
         hot_symbols.update(top_30['symbol'].tolist())
         print(f"   -> 수익률 상위: 30개 (1위: {top_30.iloc[0]['symbol']} {top_30.iloc[0]['return']:.1f}%)")
-        
     except Exception as e:
-        print(f"   ⚠️ 수익률 계산 중 에러: {e}")
+        print(f"   ⚠️ 수익률 계산 에러: {e}")
 
     print(f"✅ 최종 Hot 종목: 총 {len(hot_symbols)}개")
 
-    # ----------------------------------------------------
-    # [3] 분석 루프 시작
-    # ----------------------------------------------------
     total = len(df)
     print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 중 Hot 종목 위주 실행)...")
     
@@ -387,19 +383,16 @@ def main():
         name = row.get('name')
         
         is_hot = symbol in hot_symbols
-        # 월요일이거나 Hot 종목이면 전체 업데이트 (그 외에는 비용 절약을 위해 스킵)
         is_full_update = (today.weekday() == 0 or is_hot)
         
         print(f"[{idx+1}/{total}] {symbol} (Hot:{is_hot}) 처리 중...", flush=True)
         
         try:
-            # 1. Tab 1, 4 (돈 드는 검색 모델): 오직 Hot 종목만 실행!
             if is_hot:
                 run_tab1_analysis(symbol, name)
                 if is_full_update:
                     run_tab4_analysis(symbol, name)
             
-            # 2. Tab 0, 3 (돈 안 드는 일반 모델): 필요 시 실행 (비용 부담 없음)
             if is_full_update:
                 run_tab0_analysis(symbol, name)
                 try:
