@@ -2969,52 +2969,43 @@ with main_area.container():
         user_id = user_info.get('id', 'guest_id')
     
         # --- [신규] 재접속 유저를 위한 데이터 복구 로직 ---
-        # 세션에 해당 종목의 판단 데이터가 없을 때만 DB에서 1회 로드합니다.
+        # 💡 [핵심 최적화] 스피너를 제거하여 화면 전환을 막지 않게 수정했습니다!
         if sid not in st.session_state.user_decisions:
-            with st.spinner(get_text('msg_analyzing')):
-                saved_data = db_load_user_specific_decisions(user_id, sid)
-                if saved_data:
-                    # DB에 저장된 값이 있다면 세션 상태에 복구 (라디오 버튼 위치 고정)
-                    st.session_state.user_decisions[sid] = {
-                        "filing": saved_data.get('filing'),
-                        "news": saved_data.get('news'),
-                        "macro": saved_data.get('macro'),
-                        "company": saved_data.get('company'),
-                        "ipo_report": saved_data.get('ipo_report')
-                    }
-                else:
-                    # 기록이 없는 신규 종목일 경우 빈 딕셔너리 생성
-                    st.session_state.user_decisions[sid] = {}
+            saved_data = db_load_user_specific_decisions(user_id, sid)
+            if saved_data:
+                # DB에 저장된 값이 있다면 세션 상태에 복구 (라디오 버튼 위치 고정)
+                st.session_state.user_decisions[sid] = {
+                    "filing": saved_data.get('filing'),
+                    "news": saved_data.get('news'),
+                    "macro": saved_data.get('macro'),
+                    "company": saved_data.get('company'),
+                    "ipo_report": saved_data.get('ipo_report')
+                }
+            else:
+                # 기록이 없는 신규 종목일 경우 빈 딕셔너리 생성
+                st.session_state.user_decisions[sid] = {}
     
         # [1] 변수 초기화 (기존 코드 유지)
         profile = None
         fin_data = {}
         current_p = 0
         off_val = 0
+        current_s = "" # 상태값 추가
     
         if stock:
             # -------------------------------------------------------------------------
-            # [2] 상단 메뉴바 및 스타일 설정
+            # [Step 1] 정적 UI (Nav, Header, Tabs) 즉시 렌더링 -> 잔상 완벽 제거 핵심
             # -------------------------------------------------------------------------
             st.markdown("""
                 <style>
                 div[data-testid="stPills"] div[role="radiogroup"] button {
-                    border: none !important;
-                    background-color: #000000 !important;
-                    color: #ffffff !important;
-                    border-radius: 20px !important;
-                    padding: 6px 15px !important;
-                    margin-right: 5px !important;
-                    box-shadow: none !important;
+                    border: none !important; background-color: #000000 !important; color: #ffffff !important; border-radius: 20px !important; padding: 6px 15px !important; margin-right: 5px !important; box-shadow: none !important;
                 }
-                div[data-testid="stPills"] button[aria-selected="true"] {
-                    background-color: #444444 !important;
-                    font-weight: 800 !important;
-                }
+                div[data-testid="stPills"] button[aria-selected="true"] { background-color: #444444 !important; font-weight: 800 !important; }
                 </style>
             """, unsafe_allow_html=True)
     
-            # (2) [교체 완료] 권한설정 버튼이 포함된 새로운 메뉴 로직
+            # (2) 권한설정 버튼이 포함된 새로운 메뉴 로직
             is_logged_in = st.session_state.auth_status == 'user'
             login_text = get_text('menu_logout') if is_logged_in else get_text('btn_login')
             settings_text = get_text('menu_settings')
@@ -3023,134 +3014,63 @@ with main_area.container():
             board_text = get_text('menu_board')
             
             # 로그인 상태에 따라 메뉴 구성 변경
-            if is_logged_in:
-                menu_options = [login_text, settings_text, main_text, watch_text, board_text]
-            else:
-                menu_options = [login_text, main_text, watch_text, board_text]
+            if is_logged_in: menu_options = [login_text, settings_text, main_text, watch_text, board_text]
+            else: menu_options = [login_text, main_text, watch_text, board_text]
     
-            # 기본 선택값 로직 (Detail 페이지에서는 선택된 게 없는 상태(None)가 기본일 수 있음)
-            selected_menu = st.pills(
-                label="nav", 
-                options=menu_options, 
-                selection_mode="single", 
-                default=None, 
-                key="detail_nav_updated_final", 
-                label_visibility="collapsed"
-            )
+            # 기본 선택값 로직
+            selected_menu = st.pills(label="nav", options=menu_options, selection_mode="single", default=None, key="detail_nav_updated_final", label_visibility="collapsed")
     
             if selected_menu:
                 if selected_menu == login_text:
                     if is_logged_in: st.session_state.auth_status = None
                     st.session_state.page = 'login'
-                elif selected_menu == settings_text:
-                    st.session_state.page = 'setup'
-                elif selected_menu == main_text:
-                    st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'
-                elif selected_menu == watch_text:
-                    st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
-                elif selected_menu == board_text:
-                    st.session_state.page = 'board'
+                elif selected_menu == settings_text: st.session_state.page = 'setup'
+                elif selected_menu == main_text: st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'
+                elif selected_menu == watch_text: st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
+                elif selected_menu == board_text: st.session_state.page = 'board'
                 st.rerun()
-    
-            # -------------------------------------------------------------------------
-            # [3] 사용자 판단 로직 및 데이터 로딩 (원형 유지)
-            # -------------------------------------------------------------------------
-            if 'user_decisions' not in st.session_state:
-                st.session_state.user_decisions = {}
-            
-            sid = stock['symbol']
-            if sid not in st.session_state.user_decisions:
-                st.session_state.user_decisions[sid] = {"news": None, "filing": None, "macro": None, "company": None}
-    
-            # 데이터 로딩
+
+            # 💡 [핵심] 빈 헤더(Placeholder)를 먼저 그려서 이전 화면의 잔상을 덮어버림
+            header_placeholder = st.empty()
             today = datetime.now().date()
             ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
             status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
-            date_str = ipo_dt.strftime('%Y-%m-%d')
-    
-            with st.spinner(get_text('msg_analyzing')):
-                try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
-                except: off_val = 0
-                try:
-                    current_p, current_s = get_current_stock_price(sid, MY_API_KEY)
-                    profile = get_company_profile(sid, MY_API_KEY) 
-                    fin_data = get_financial_metrics(sid, MY_API_KEY)
-                except: pass
-    
-            # 2. 헤더 출력 로직 (원본 상태값 및 HTML 100% 보존 + 다국어)
-            label_ipo = get_text('label_ipo_price')
-            if current_s == "상장연기":
-                status_txt = get_text('status_delayed')
-                p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {status_txt})</span>"
-            elif current_s == "상장폐지":
-                status_txt = get_text('status_delisted')
-                p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {status_txt})</span>"
-            elif current_p > 0 and off_val > 0:
-                # 정상적인 Active 상태일 때 수익률 계산
-                pct = ((current_p - off_val) / off_val) * 100
-                color = "#00ff41" if pct >= 0 else "#ff4b4b"
-                icon = "▲" if pct >= 0 else "▼"
-                # "현재" 글자 다국어 처리 (사전에 label_general: 일반 활용)
-                label_curr = get_text('label_general')
-                p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {label_curr} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
-            else:
-                # 상장 전이거나 가격 데이터가 아직 없는 경우
-                status_txt = get_text('status_waiting')
-                p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {status_txt})</span>"
-    
-            # 3. 최종 출력
-            st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
+            
+            # API를 부르기 전에 화면부터 점유
+            header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> <span style='color:#888;'>Loading Data...</span></div>", unsafe_allow_html=True)
             st.write("")
     
             # -------------------------------------------------------------------------
-            # [CSS 추가] 탭 텍스트 스타일 (원본 유지)
+            # [CSS 추가] 탭 텍스트 스타일
             # -------------------------------------------------------------------------
             st.markdown("""
             <style>
-                .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-                    color: #333333 !important; font-weight: bold !important;
-                }
-                .stTabs [data-baseweb="tab-list"] button:hover [data-testid="stMarkdownContainer"] p {
-                    color: #004e92 !important;
-                }
+                .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p { color: #333333 !important; font-weight: bold !important; }
+                .stTabs [data-baseweb="tab-list"] button:hover [data-testid="stMarkdownContainer"] p { color: #004e92 !important; }
             </style>
             """, unsafe_allow_html=True)
     
             # -------------------------------------------------------------------------
-            # [5] 탭 메뉴 구성
+            # [5] 탭 메뉴 구성 (선행 렌더링 완료)
             # -------------------------------------------------------------------------
             tab_labels = [get_text(f'tab_{i}') for i in range(6)]
             tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_labels)
     
-            # --- Tab 0: 핵심 정보 (공시 가이드 및 AI 분석 강화) ---
+            # --- Tab 0: 핵심 정보 ---
             with tab0:
                 # [세션 상태 관리]
-                if 'core_topic' not in st.session_state:
-                    st.session_state.core_topic = "S-1"
+                if 'core_topic' not in st.session_state: st.session_state.core_topic = "S-1"
     
                 # 버튼 스타일 강제 지정 (하얀 바탕, 검정 글씨)
                 st.markdown("""
                     <style>
-                    div.stButton > button {
-                        background-color: #ffffff !important;
-                        color: #000000 !important;
-                        border: 1px solid #dcdcdc !important;
-                        border-radius: 8px !important;
-                        height: 3em !important;
-                        font-weight: bold !important;
-                    }
-                    /* 마우스를 올렸을 때나 클릭했을 때의 효과 */
-                    div.stButton > button:hover {
-                        border-color: #6e8efb !important;
-                        color: #6e8efb !important;
-                    }
-                    div.stButton > button:active {
-                        background-color: #f0f2f6 !important;
-                    }
+                    div.stButton > button { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; }
+                    div.stButton > button:hover { border-color: #6e8efb !important; color: #6e8efb !important; }
+                    div.stButton > button:active { background-color: #f0f2f6 !important; }
                     </style>
                 """, unsafe_allow_html=True)
     
-                # 1. 문서 선택 버튼 그리드 (다국어 UI 적용, 내부 로직은 원본 토픽 유지)
+                # 1. 문서 선택 버튼 그리드 (스피너 돌기 전에 화면에 가장 먼저 뿌려줍니다!)
                 r1_c1, r1_c2, r1_c3 = st.columns(3)
                 r2_c1, r2_c2 = st.columns(2)
     
@@ -3159,6 +3079,40 @@ with main_area.container():
                 if r1_c3.button(get_text('label_f1'), use_container_width=True): st.session_state.core_topic = "F-1"
                 if r2_c1.button(get_text('label_fwp'), use_container_width=True): st.session_state.core_topic = "FWP"
                 if r2_c2.button(get_text('label_424b4'), use_container_width=True): st.session_state.core_topic = "424B4"
+
+                topic = st.session_state.core_topic
+                curr_lang = st.session_state.lang
+                
+                # -------------------------------------------------------------------------
+                # [Step 2] 무거운 데이터 로딩 (버튼을 다 그린 후 여기서 조용히 실행)
+                # -------------------------------------------------------------------------
+                with st.spinner(get_text('msg_analyzing')):
+                    try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
+                    except: off_val = 0
+                    try:
+                        current_p, current_s = get_current_stock_price(sid, MY_API_KEY)
+                        profile = get_company_profile(sid, MY_API_KEY) 
+                        fin_data = get_financial_metrics(sid, MY_API_KEY)
+                    except: pass
+                    
+                # -------------------------------------------------------------------------
+                # [Step 3] 로딩 완료 후 임시 헤더를 진짜 데이터로 교체!
+                # -------------------------------------------------------------------------
+                date_str = ipo_dt.strftime('%Y-%m-%d')
+                label_ipo = get_text('label_ipo_price')
+                if current_s == "상장연기": p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
+                elif current_s == "상장폐지": p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
+                elif current_p > 0 and off_val > 0:
+                    pct = ((current_p - off_val) / off_val) * 100
+                    color = "#00ff41" if pct >= 0 else "#ff4b4b"
+                    icon = "▲" if pct >= 0 else "▼"
+                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
+                else:
+                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_waiting')})</span>"
+                
+                header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
+                
+               
     
                 # 2. 메타데이터 및 체크포인트 설정
                 topic = st.session_state.core_topic
