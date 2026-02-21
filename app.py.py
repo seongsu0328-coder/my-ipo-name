@@ -2915,7 +2915,6 @@ with main_area.container():
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        with c1:
                         # 💡 [최종 해결책] 2단 렌더링을 위한 상태 플래그(detail_init_render) 추가
                         def go_detail(stock_data):
                             st.session_state.selected_stock = stock_data
@@ -2931,6 +2930,7 @@ with main_area.container():
                         size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
                         
                         st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
+                        
                     with c2:
                         st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                     
