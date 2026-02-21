@@ -2994,99 +2994,79 @@ with main_area.container():
     
         if stock:
             # -------------------------------------------------------------------------
-            # [Step 1] 정적 UI (Nav, Header, Tabs) 즉시 렌더링 -> 잔상 완벽 제거 핵심
+            # [Step 1] 최상단 UI 즉시 렌더링 (메뉴 & 헤더 껍데기)
             # -------------------------------------------------------------------------
             st.markdown("""
                 <style>
-                div[data-testid="stPills"] div[role="radiogroup"] button {
-                    border: none !important; background-color: #000000 !important; color: #ffffff !important; border-radius: 20px !important; padding: 6px 15px !important; margin-right: 5px !important; box-shadow: none !important;
-                }
+                div[data-testid="stPills"] div[role="radiogroup"] button { border: none !important; background-color: #000000 !important; color: #ffffff !important; border-radius: 20px !important; padding: 6px 15px !important; margin-right: 5px !important; box-shadow: none !important; }
                 div[data-testid="stPills"] button[aria-selected="true"] { background-color: #444444 !important; font-weight: 800 !important; }
+                .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p { color: #333333 !important; font-weight: bold !important; }
+                .stTabs [data-baseweb="tab-list"] button:hover [data-testid="stMarkdownContainer"] p { color: #004e92 !important; }
                 </style>
             """, unsafe_allow_html=True)
     
-            # (2) 권한설정 버튼이 포함된 새로운 메뉴 로직
             is_logged_in = st.session_state.auth_status == 'user'
             login_text = get_text('menu_logout') if is_logged_in else get_text('btn_login')
-            settings_text = get_text('menu_settings')
-            main_text = get_text('menu_main')
-            watch_text = f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})"
-            board_text = get_text('menu_board')
+            menu_options = [login_text, get_text('menu_settings'), get_text('menu_main'), f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})", get_text('menu_board')] if is_logged_in else [login_text, get_text('menu_main'), f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})", get_text('menu_board')]
             
-            # 로그인 상태에 따라 메뉴 구성 변경
-            if is_logged_in: menu_options = [login_text, settings_text, main_text, watch_text, board_text]
-            else: menu_options = [login_text, main_text, watch_text, board_text]
-    
-            # 기본 선택값 로직
             selected_menu = st.pills(label="nav", options=menu_options, selection_mode="single", default=None, key="detail_nav_updated_final", label_visibility="collapsed")
-    
             if selected_menu:
                 if selected_menu == login_text:
                     if is_logged_in: st.session_state.auth_status = None
                     st.session_state.page = 'login'
-                elif selected_menu == settings_text: st.session_state.page = 'setup'
-                elif selected_menu == main_text: st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'
-                elif selected_menu == watch_text: st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
-                elif selected_menu == board_text: st.session_state.page = 'board'
+                elif selected_menu == get_text('menu_settings'): st.session_state.page = 'setup'
+                elif selected_menu == get_text('menu_main'): st.session_state.view_mode = 'all'; st.session_state.page = 'calendar'
+                elif selected_menu == f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})": st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar'
+                elif selected_menu == get_text('menu_board'): st.session_state.page = 'board'
                 st.rerun()
 
-            # 💡 [핵심] 빈 헤더(Placeholder)를 먼저 그려서 이전 화면의 잔상을 덮어버림
+            # [헤더 껍데기] 데이터를 불러오기 전에 화면부터 점유합니다.
             header_placeholder = st.empty()
             today = datetime.now().date()
             ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
             status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
-            
-            # API를 부르기 전에 화면부터 점유
             header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> <span style='color:#888;'>Loading Data...</span></div>", unsafe_allow_html=True)
             st.write("")
     
-            # -------------------------------------------------------------------------
-            # [CSS 추가] 탭 텍스트 스타일
-            # -------------------------------------------------------------------------
-            st.markdown("""
-            <style>
-                .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p { color: #333333 !important; font-weight: bold !important; }
-                .stTabs [data-baseweb="tab-list"] button:hover [data-testid="stMarkdownContainer"] p { color: #004e92 !important; }
-            </style>
-            """, unsafe_allow_html=True)
-    
-            # -------------------------------------------------------------------------
-            # [5] 탭 메뉴 구성 (선행 렌더링 완료)
-            # -------------------------------------------------------------------------
+            # 탭 구조 렌더링
             tab_labels = [get_text(f'tab_{i}') for i in range(6)]
             tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_labels)
     
             # --- Tab 0: 핵심 정보 ---
             with tab0:
-                # [세션 상태 관리]
                 if 'core_topic' not in st.session_state: st.session_state.core_topic = "S-1"
+                st.markdown("""<style>div.stButton > button { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } div.stButton > button:hover { border-color: #6e8efb !important; color: #6e8efb !important; } div.stButton > button:active { background-color: #f0f2f6 !important; }</style>""", unsafe_allow_html=True)
     
-                # 버튼 스타일 강제 지정 (하얀 바탕, 검정 글씨)
-                st.markdown("""
-                    <style>
-                    div.stButton > button { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; }
-                    div.stButton > button:hover { border-color: #6e8efb !important; color: #6e8efb !important; }
-                    div.stButton > button:active { background-color: #f0f2f6 !important; }
-                    </style>
-                """, unsafe_allow_html=True)
-    
-                # 1. 문서 선택 버튼 그리드 (스피너 돌기 전에 화면에 가장 먼저 뿌려줍니다!)
+                # -------------------------------------------------------------------------
+                # [Step 2] 정적 UI 틀(Placeholder) 미리 그리기 -> 여기서 잔상 종결!
+                # -------------------------------------------------------------------------
+                # 1. 상단 문서 선택 버튼 즉시 렌더링
                 r1_c1, r1_c2, r1_c3 = st.columns(3)
                 r2_c1, r2_c2 = st.columns(2)
-    
-                if r1_c1.button(get_text('label_s1'), use_container_width=True): st.session_state.core_topic = "S-1"
-                if r1_c2.button(get_text('label_s1a'), use_container_width=True): st.session_state.core_topic = "S-1/A"
-                if r1_c3.button(get_text('label_f1'), use_container_width=True): st.session_state.core_topic = "F-1"
-                if r2_c1.button(get_text('label_fwp'), use_container_width=True): st.session_state.core_topic = "FWP"
-                if r2_c2.button(get_text('label_424b4'), use_container_width=True): st.session_state.core_topic = "424B4"
+                if r1_c1.button(get_text('label_s1'), use_container_width=True): st.session_state.core_topic = "S-1"; st.rerun()
+                if r1_c2.button(get_text('label_s1a'), use_container_width=True): st.session_state.core_topic = "S-1/A"; st.rerun()
+                if r1_c3.button(get_text('label_f1'), use_container_width=True): st.session_state.core_topic = "F-1"; st.rerun()
+                if r2_c1.button(get_text('label_fwp'), use_container_width=True): st.session_state.core_topic = "FWP"; st.rerun()
+                if r2_c2.button(get_text('label_424b4'), use_container_width=True): st.session_state.core_topic = "424B4"; st.rerun()
 
                 topic = st.session_state.core_topic
                 curr_lang = st.session_state.lang
-                
+                st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
+
+                # 2. 로딩 후 데이터가 들어갈 "빈 상자"들을 미리 예약합니다.
+                expander_ph = st.empty()
+                links_ph = st.empty()
+                decision_ph = st.empty()
+
+                # 3. [핵심] 면책 조항(공지사항)을 맨 마지막에 미리 그려버립니다!
+                # 이렇게 하면 브라우저는 스피너가 돌기 전에 이미 화면 전체 레이아웃을 완성합니다.
+                display_disclaimer()
+
                 # -------------------------------------------------------------------------
-                # [Step 2] 무거운 데이터 로딩 (버튼을 다 그린 후 여기서 조용히 실행)
+                # [Step 3] 백그라운드 데이터 로딩 및 상자 채우기
                 # -------------------------------------------------------------------------
                 with st.spinner(get_text('msg_analyzing')):
+                    # API 호출
                     try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
                     except: off_val = 0
                     try:
@@ -3095,9 +3075,7 @@ with main_area.container():
                         fin_data = get_financial_metrics(sid, MY_API_KEY)
                     except: pass
                     
-                # -------------------------------------------------------------------------
-                # [Step 3] 로딩 완료 후 임시 헤더를 진짜 데이터로 교체!
-                # -------------------------------------------------------------------------
+                # 로딩 완료 후 1: 헤더 진짜 데이터로 교체
                 date_str = ipo_dt.strftime('%Y-%m-%d')
                 label_ipo = get_text('label_ipo_price')
                 if current_s == "상장연기": p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
@@ -3112,6 +3090,55 @@ with main_area.container():
                 
                 header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
                 
+                # 로딩 완료 후 2: 요약 표시 (Expander) 빈 상자 채우기
+                with expander_ph.container():
+                    with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
+                        with st.spinner(get_text('msg_analyzing_filing')):
+                            # 프롬프트 메타데이터 보존
+                            def_meta = {
+                                "S-1": { "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)", "structure": "[문단 구성 지침]\n1. 첫 번째 문단: 해당 문서에서 발견된 가장 중요한 투자 포인트 분석\n2. 두 번째 문단: 실질적 성장 가능성과 재무적 의미 분석\n3. 세 번째 문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책" },
+                                "S-1/A": { "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)", "structure": "[문단 구성 지침]\n1. 첫 번째 문단: 이전 S-1 대비 변경된 핵심 사항 분석\n2. 두 번째 문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기 분석\n3. 세 번째 문단: 기존 주주 가치 희석 정도와 투자 매력도 분석" },
+                                "F-1": { "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)", "structure": "[문단 구성 지침]\n1. 첫 번째 문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위\n2. 두 번째 문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크 분석\n3. 세 번째 문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향" },
+                                "FWP": { "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)", "structure": "[문단 구성 지침]\n1. 첫 번째 문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전\n2. 두 번째 문단: 경쟁사 대비 부각시키는 기술적/사업적 차별화 포인트\n3. 세 번째 문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지" },
+                                "424B4": { "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)", "structure": "[문단 구성 지침]\n1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석\n2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검\n3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측" }
+                            }
+                            curr_meta = def_meta.get(topic, def_meta["S-1"])
+                            format_instruction = "\n[출력 형식 및 번역 규칙]\n- 각 문단 시작은 해당 언어로 번역된 **[소제목]** 후 줄바꿈 없이 이어가세요.\n- 각 문단마다 4~5문장씩 풍성하게 채우세요.\n- 한국어 병기 절대 금지, 소제목 뒤 줄바꿈 절대 금지."
+                            
+                            analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'] + format_instruction, curr_lang)
+                            
+                            if "ERROR_DETAILS" in analysis_result:
+                                st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
+                            else:
+                                import re
+                                formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
+                                indent_size = "14px" if curr_lang == "ko" else "0px"
+                                st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">{formatted_result.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+                        st.caption(get_text('caption_algorithm'))
+
+                # 로딩 완료 후 3: SEC 링크 빈 상자 채우기
+                with links_ph.container():
+                    import urllib.parse
+                    cik = profile.get('cik', '') if profile else ''
+                    full_company_name = stock['name'].strip() 
+                    if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
+                    else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_company_name)}&dateRange=all"
+                    
+                    real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
+                    website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + full_company_name + ' Investor Relations')}"
+                    
+                    st.markdown(f"""
+                        <a href="{sec_url}" target="_blank" style="text-decoration:none;">
+                            <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({topic})</button>
+                        </a>
+                        <a href="{website_url}" target="_blank" style="text-decoration:none;">
+                            <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button>
+                        </a>
+                    """, unsafe_allow_html=True)
+
+                # 로딩 완료 후 4: 의사결정 박스 채우기
+                with decision_ph.container():
+                    draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
                
     
                 # 2. 메타데이터 및 체크포인트 설정
