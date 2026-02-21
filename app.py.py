@@ -2924,23 +2924,24 @@ with main_area.container():
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        # 💡 [최종 수정] 잔상 제거(empty)와 끊김 방지(sleep 제거)를 모두 잡는 코드
-                        if st.button(f"{row['name']}", key=f"btn_list_{i}"):
-                            # 1. 캘린더 화면(컨테이너)을 물리적으로 즉시 삭제 -> 잔상 해결!
-                            main_area.empty() 
-                            
-                            # 2. 데이터 세팅
-                            st.session_state.selected_stock = row.to_dict()
+                        # 💡 [최종 해결책] 'on_click'을 사용하여 클릭 순간 즉시 상태를 확정하고 화면을 전환합니다.
+                        # 이 방식이 캘린더 잔상을 없애고 디테일 페이지 로딩을 가장 빠르게 시작합니다.
+                        def go_detail(stock_data):
+                            st.session_state.selected_stock = stock_data
                             st.session_state.page = 'detail'
-                            
-                            # 3. time.sleep() 없이 즉시 리런 -> 디테일 페이지 UI가 끊김 없이 한 번에 쫙 깔림!
-                            st.rerun()
+
+                        if st.button(f"{row['name']}", key=f"btn_list_{i}", on_click=go_detail, args=(row.to_dict(),)):
+                            # 1. 클릭된 순간 캘린더 화면(컨테이너)을 물리적으로 폭파(비움) -> 잔상 즉시 제거
+                            main_area.empty()
+                            # 2. st.rerun()을 쓰지 않아도 on_click이 끝나면 Streamlit이 알아서 
+                            #    가장 빠른 속도로 디테일 페이지를 그리기 시작합니다.
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                         except: s_val = 0
                         size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
                         
                         st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
+                        
                     with c2:
                         st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                     
