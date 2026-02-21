@@ -2666,97 +2666,39 @@ with main_area.container():
     # 4. 캘린더 페이지 (Calendar)
     # ---------------------------------------------------------
     if st.session_state.page == 'calendar':
-        # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
+        # [CSS] 스타일 정의
         st.markdown("""
             <style>
-            /* 1. 기본 설정 */
             * { box-sizing: border-box !important; }
             body { color: #333333; }
-            
-            /* 2. 상단 여백 확보 */
-            .block-container { 
-                padding-top: 2rem !important; 
-                padding-left: 0.5rem !important; 
-                padding-right: 0.5rem !important; 
-                max-width: 100% !important; 
-            }
-    
-            /* [NEW] 상단 메뉴 버튼 스타일 */
-            div[data-testid="column"] button {
-                border-radius: 12px !important;
-                height: 50px !important;
-                font-weight: bold !important;
-            }
-    
-            /* 3. 리스트 전용 버튼 스타일 */
-            div[data-testid="column"] .stButton button {
-                background-color: transparent !important;
-                border: none !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                color: #333 !important;
-                text-align: left !important;
-                box-shadow: none !important;
-                width: 100% !important;
-                display: block !important;
-                overflow: hidden !important;
-                white-space: nowrap !important;
-                text-overflow: ellipsis !important;
-                height: auto !important;
-                line-height: 1.1 !important;
-            }
-    
-            div.stButton > button[kind="primary"] {
-                background-color: #FF4B4B !important; 
-                color: white !important;
-                border-radius: 8px !important;
-                padding: 0.25rem 0.75rem !important;
-                height: auto !important;
-            }
-            
+            .block-container { padding-top: 2rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; max-width: 100% !important; }
+            div[data-testid="column"] button { border-radius: 12px !important; height: 50px !important; font-weight: bold !important; }
+            div[data-testid="column"] .stButton button { background-color: transparent !important; border: none !important; padding: 0 !important; margin: 0 !important; color: #333 !important; text-align: left !important; box-shadow: none !important; width: 100% !important; display: block !important; overflow: hidden !important; white-space: nowrap !important; text-overflow: ellipsis !important; height: auto !important; line-height: 1.1 !important; }
+            div.stButton > button[kind="primary"] { background-color: #FF4B4B !important; color: white !important; border-radius: 8px !important; padding: 0.25rem 0.75rem !important; height: auto !important; }
             .stButton button p { font-weight: bold; font-size: 14px; margin-bottom: 0px; }
-    
-            /* 4. 모바일 레이아웃 핵심 */
             @media (max-width: 640px) {
-                div[data-testid="stHorizontalBlock"]:nth-of-type(1) {
-                    flex-wrap: wrap !important; gap: 10px !important; padding-bottom: 5px !important;
-                }
-                div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div {
-                    min-width: 100% !important; max-width: 100% !important; flex: 1 1 100% !important;
-                }
-                div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) {
-                    flex-direction: row !important; flex-wrap: nowrap !important; gap: 0px !important; width: 100% !important; align-items: center !important; 
-                }
-                div[data-testid="column"] {
-                    display: flex !important; flex-direction: column !important; justify-content: center !important; min-width: 0px !important; padding: 0px 2px !important;
-                }
-                div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(1) {
-                    flex: 0 0 70% !important; max-width: 70% !important; overflow: hidden !important;
-                }
-                div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(2) {
-                    flex: 0 0 30% !important; max-width: 30% !important;
-                }
+                div[data-testid="stHorizontalBlock"]:nth-of-type(1) { flex-wrap: wrap !important; gap: 10px !important; padding-bottom: 5px !important; }
+                div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div { min-width: 100% !important; max-width: 100% !important; flex: 1 1 100% !important; }
+                div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) { flex-direction: row !important; flex-wrap: nowrap !important; gap: 0px !important; width: 100% !important; align-items: center !important; }
+                div[data-testid="column"] { display: flex !important; flex-direction: column !important; justify-content: center !important; min-width: 0px !important; padding: 0px 2px !important; }
+                div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(1) { flex: 0 0 70% !important; max-width: 70% !important; overflow: hidden !important; }
+                div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(2) { flex: 0 0 30% !important; max-width: 30% !important; }
                 .mobile-sub { font-size: 10px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px; line-height: 1.1; }
                 .price-main { font-size: 13px !important; font-weight: bold; white-space: nowrap; line-height: 1.1; }
                 .price-sub { font-size: 10px !important; color: #666 !important; white-space: nowrap; line-height: 1.1; }
                 .date-text { font-size: 10px !important; color: #888 !important; margin-top: 1px; line-height: 1.1; }
             }
-            </style>
-        """, unsafe_allow_html=True)
-    
-        # [ANDROID-FIX]
-        st.markdown("""<style>.stSelectbox div[data-baseweb="select"]:focus-within { border-color: transparent !important; box-shadow: none !important; }</style>""", unsafe_allow_html=True)
-        st.components.v1.html("<script>var mainDoc=window.parent.document; var activeEl=mainDoc.activeElement; if(activeEl && (activeEl.tagName==='INPUT' || activeEl.getAttribute('role')==='combobox')){ activeEl.blur(); }</script>", height=0)
-        
-        st.markdown("""
-            <style>
             div[data-testid="stPills"] div[role="radiogroup"] button { border: none !important; outline: none !important; background-color: #000000 !important; color: #ffffff !important; border-radius: 20px !important; padding: 6px 15px !important; margin-right: 5px !important; box-shadow: none !important; }
             div[data-testid="stPills"] button[aria-selected="true"] { background-color: #444444 !important; color: #ffffff !important; font-weight: 800 !important; }
             div[data-testid="stPills"] div[data-baseweb="pill"] { border: none !important; background: transparent !important; }
             </style>
         """, unsafe_allow_html=True)
     
-        # 2. 메뉴 텍스트 및 상태 (다국어)
+        # [ANDROID-FIX]
+        st.markdown("""<style>.stSelectbox div[data-baseweb="select"]:focus-within { border-color: transparent !important; box-shadow: none !important; }</style>""", unsafe_allow_html=True)
+        st.components.v1.html("<script>var mainDoc=window.parent.document; var activeEl=mainDoc.activeElement; if(activeEl && (activeEl.tagName==='INPUT' || activeEl.getAttribute('role')==='combobox')){ activeEl.blur(); }</script>", height=0)
+    
+        # 2. 메뉴 텍스트 및 상태
         is_logged_in = st.session_state.auth_status == 'user'
         login_text = get_text('menu_logout') if is_logged_in else get_text('btn_login')
         settings_text = get_text('menu_settings') 
@@ -2764,11 +2706,8 @@ with main_area.container():
         watch_text = f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})"
         board_text = get_text('menu_board')
         
-        if is_logged_in:
-            menu_options = [login_text, settings_text, main_text, watch_text, board_text]
-        else:
-            menu_options = [login_text, main_text, watch_text, board_text]
-    
+        menu_options = [login_text, settings_text, main_text, watch_text, board_text] if is_logged_in else [login_text, main_text, watch_text, board_text]
+        
         default_sel = main_text
         if st.session_state.get('page') == 'login': default_sel = login_text
         elif st.session_state.get('page') == 'setup': default_sel = settings_text
@@ -2781,16 +2720,10 @@ with main_area.container():
             if selected_menu == login_text:
                 if is_logged_in: st.session_state.auth_status = None 
                 st.session_state.page = 'login'
-            elif selected_menu == settings_text: 
-                st.session_state.page = 'setup'
-            elif selected_menu == main_text:
-                st.session_state.view_mode = 'all'
-                st.session_state.page = 'calendar' 
-            elif selected_menu == watch_text:
-                st.session_state.view_mode = 'watchlist'
-                st.session_state.page = 'calendar' 
-            elif selected_menu == board_text:
-                st.session_state.page = 'board'
+            elif selected_menu == settings_text: st.session_state.page = 'setup'
+            elif selected_menu == main_text: st.session_state.view_mode = 'all'; st.session_state.page = 'calendar' 
+            elif selected_menu == watch_text: st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar' 
+            elif selected_menu == board_text: st.session_state.page = 'board'
             st.rerun()
     
         all_df_raw = get_extended_ipo_data(MY_API_KEY)
@@ -2804,12 +2737,10 @@ with main_area.container():
             all_df = all_df.dropna(subset=['공모일_dt'])
             today_dt = pd.to_datetime(datetime.now().date())
             
-            # 🚨 [수정 완료]: 파이썬 내부 필터링 로직 안정성을 위해 다국어 변수 사전 할당
             opt_period_upcoming = get_text('period_upcoming')
             opt_period_6m = get_text('period_6m')
             opt_period_12m = get_text('period_12m')
             opt_period_18m = get_text('period_18m')
-            
             opt_sort_latest = get_text('sort_latest')
             opt_sort_return = get_text('sort_return')
             
@@ -2821,28 +2752,22 @@ with main_area.container():
                 if st.button(get_text('btn_view_all'), use_container_width=True, key="btn_view_all_main_final"):
                     st.session_state.view_mode = 'all'
                     st.rerun()
-                    
                 display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
                 if display_df.empty:
                     st.info("아직 관심 종목에 담은 기업이 없습니다." if st.session_state.lang == 'ko' else "No stocks in your watchlist.")
-                    
             else:
                 col_f1, col_f2 = st.columns([1, 1]) 
                 with col_f1:
-                    # 필터명 다국어 처리
                     period = st.selectbox(get_text('filter_period'), [opt_period_upcoming, opt_period_6m, opt_period_12m, opt_period_18m], key="filter_period_final", label_visibility="collapsed")
                 with col_f2:
-                    # 정렬명 다국어 처리
                     sort_option = st.selectbox(get_text('filter_sort'), [opt_sort_latest, opt_sort_return], key="filter_sort_final", label_visibility="collapsed")
                 
-                # 다국어 변수로 파이썬 내부 로직 처리
                 if period == opt_period_upcoming:
                     display_df = all_df[(all_df['공모일_dt'] >= today_dt) & (all_df['공모일_dt'] <= today_dt + timedelta(days=30))]
                 else:
                     if period == opt_period_6m: start_date = today_dt - timedelta(days=180)
                     elif period == opt_period_12m: start_date = today_dt - timedelta(days=365)
                     elif period == opt_period_18m: start_date = today_dt - timedelta(days=540)
-                    
                     display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
     
             if not display_df.empty:
@@ -2861,18 +2786,24 @@ with main_area.container():
                 p_ipo_series = display_df['price'].apply(parse_price)
                 display_df['temp_return'] = np.where(
                     (p_ipo_series > 0) & (display_df['live_price'] > 0) & (display_df['live_status'] == "Active"),
-                    ((display_df['live_price'] - p_ipo_series) / p_ipo_series) * 100,
-                    -9999
+                    ((display_df['live_price'] - p_ipo_series) / p_ipo_series) * 100, -9999
                 )
-    
                 display_df['temp_return'] = pd.to_numeric(display_df['temp_return'], errors='coerce').fillna(-9999.0)
         
-                if sort_option == opt_sort_return:
-                    display_df = display_df.sort_values(by='temp_return', ascending=False)
-                else:
-                    display_df = display_df.sort_values(by='공모일_dt', ascending=False)
+                if sort_option == opt_sort_return: display_df = display_df.sort_values(by='temp_return', ascending=False)
+                else: display_df = display_df.sort_values(by='공모일_dt', ascending=False)
     
             if not display_df.empty:
+                # 💡 [최종 수정] go_detail 함수를 반복문 밖에서 딱 한 번만 정의합니다.
+                # 이렇게 해야 main_area(전역 컨테이너)를 정확하게 참조(Closure)하여 확실하게 지울 수 있습니다.
+                def go_detail(stock_data):
+                    # 1. 캘린더가 들어있는 컨테이너(main_area)를 즉시 비웁니다.
+                    main_area.empty()
+                    # 2. 상태 변경
+                    st.session_state.selected_stock = stock_data
+                    st.session_state.page = 'detail'
+                    st.session_state.detail_init_render = False
+
                 for i, row in display_df.iterrows():
                     p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
                     p_val = p_val if p_val and p_val > 0 else 0
@@ -2880,67 +2811,32 @@ with main_area.container():
                     live_p = row.get('live_price', 0)
                     live_s = row.get('live_status', 'Active')
                     
-                    if live_s == "상장연기":
-                        price_html = f"""
-                            <div class='price-main' style='color:#1919e6 !important;'>{get_text('status_delayed')}</div>
-                            <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
-                        """
-                    elif live_s == "상장폐지":
-                        price_html = f"""
-                            <div class='price-main' style='color:#888888 !important;'>{get_text('status_delisted')}</div>
-                            <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
-                        """
+                    if live_s == "상장연기": price_html = f"<div class='price-main' style='color:#1919e6 !important;'>{get_text('status_delayed')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                    elif live_s == "상장폐지": price_html = f"<div class='price-main' style='color:#888888 !important;'>{get_text('status_delisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     elif live_p > 0:
                         pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
-                        if pct > 0:
-                            change_color = "#e61919"; arrow = "▲"
-                        elif pct < 0:
-                            change_color = "#1919e6"; arrow = "▼"
-                        else:
-                            change_color = "#333333"; arrow = ""
-    
-                        price_html = f"""
-                            <div class='price-main' style='color:{change_color} !important;'>
-                                ${live_p:,.2f} ({arrow}{pct:+.1f}%)
-                            </div>
-                            <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
-                        """
-                    else:
-                        price_html = f"""
-                            <div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div>
-                            <div class='price-sub' style='color:#666666 !important;'>{get_text('label_ipo_price')}</div>
-                        """
+                        change_color = "#e61919" if pct > 0 else "#1919e6" if pct < 0 else "#333333"
+                        arrow = "▲" if pct > 0 else "▼" if pct < 0 else ""
+                        price_html = f"<div class='price-main' style='color:{change_color} !important;'>${live_p:,.2f} ({arrow}{pct:+.1f}%)</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                    else: price_html = f"<div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div><div class='price-sub' style='color:#666666 !important;'>{get_text('label_ipo_price')}</div>"
                     
                     date_html = f"<div class='date-text'>{row['date']}</div>"
-    
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        # 💡 [최종 해결책] 잔상 제거를 위해 main_area(화면 전체 틀)를 함수에 전달합니다.
-                        def go_detail(stock_data, container_to_clear):
-                            # 1. 버튼 누르는 즉시! 화면 전체를 하얗게 날려버립니다. (잔상 원천 차단)
-                            container_to_clear.empty()
-                            
-                            # 2. 그 다음 상태를 변경합니다.
-                            st.session_state.selected_stock = stock_data
-                            st.session_state.page = 'detail'
-                            st.session_state.detail_init_render = False
-
-                        # 🚨 args에 'main_area'를 추가하여 함수로 넘겨주는 것이 핵심입니다!
-                        if st.button(f"{row['name']}", key=f"btn_list_{i}", on_click=go_detail, args=(row.to_dict(), main_area)):
-                            pass # 이미 on_click에서 화면을 지웠으므로 여기는 비워둡니다.
+                        # 🚨 [수정] args에서 main_area를 제거했습니다. 함수 내부에서 직접 참조합니다.
+                        if st.button(f"{row['name']}", key=f"btn_list_{i}", on_click=go_detail, args=(row.to_dict(),)):
+                            pass
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                         except: s_val = 0
                         size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
-                        
                         st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
                     
                     with c2:
                         st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                     
                     st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
-    
             else:
                 st.info("조건에 맞는 종목이 없습니다." if st.session_state.lang == 'ko' else "No results found.")
     
