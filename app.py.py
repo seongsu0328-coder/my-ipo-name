@@ -3172,7 +3172,7 @@ with main_area.container():
                 
             # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
             with tab2:
-                # [1] 데이터 수집 및 계산 함수
+                # [1] 데이터 수집 및 계산 함수 (원본 로직 보존)
                 def get_market_status_internal(df_calendar):
                     data = {
                         "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0,
@@ -3190,7 +3190,7 @@ with main_area.container():
                         for _, row in traded_ipos.iterrows():
                             try:
                                 p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
-                                p_curr = get_current_stock_price(row['symbol'], MY_API_KEY)
+                                p_curr, _ = get_current_stock_price(row['symbol'], MY_API_KEY)
                                 if p_ipo > 0 and p_curr > 0:
                                     ret_sum += ((p_curr - p_ipo) / p_ipo) * 100
                                     ret_cnt += 1
@@ -3238,8 +3238,8 @@ with main_area.container():
                     
                     return data
             
-                # [2] 데이터 로드 및 분석 실행
-                with st.spinner("📊 8대 핵심 지표를 실시간 분석 중입니다..."):
+                # [2] 데이터 로드 및 분석 실행 (다국어 스피너)
+                with st.spinner(get_text('msg_analyzing_macro')):
                     if 'all_df' not in locals(): 
                         all_df_tab2 = get_extended_ipo_data(MY_API_KEY)
                         if not all_df_tab2.empty:
@@ -3250,7 +3250,7 @@ with main_area.container():
             
                     md = get_market_status_internal(all_df_tab2)
             
-                # --- CSS 스타일 정의 ---
+                # --- CSS 스타일 정의 (원본 유지) ---
                 st.markdown("""
                 <style>
                     .metric-card { background-color:#ffffff; padding:15px; border-radius:12px; border: 1px solid #e0e0e0;
@@ -3269,73 +3269,85 @@ with main_area.container():
                 </style>
                 """, unsafe_allow_html=True)
             
+                # 💡 상태 텍스트 다국어 맵
+                stat_map = {
+                    "over": {"ko": "🔥 과열", "en": "🔥 Overheated", "ja": "🔥 過熱"},
+                    "good": {"ko": "✅ 적정", "en": "✅ Normal", "ja": "✅ 適正"},
+                    "cold": {"ko": "❄️ 침체", "en": "❄️ Sluggish", "ja": "❄️ 停滞"},
+                    "active": {"ko": "🔥 활발", "en": "🔥 Active", "ja": "🔥 活発"},
+                    "normal": {"ko": "⚖️ 보통", "en": "⚖️ Normal", "ja": "⚖️ 普通"},
+                    "risk": {"ko": "🚨 위험", "en": "🚨 Risk", "ja": "🚨 危険"},
+                    "warn": {"ko": "⚠️ 주의", "en": "⚠️ Warning", "ja": "⚠️ 注意"},
+                    "greed": {"ko": "🔥 탐욕", "en": "🔥 Greed", "ja": "🔥 強欲"},
+                    "fear": {"ko": "❄️ 공포", "en": "❄️ Fear", "ja": "❄️ 恐怖"},
+                    "neutral": {"ko": "⚖️ 중립", "en": "⚖️ Neutral", "ja": "⚖️ 中立"},
+                    "high": {"ko": "🚨 고평가", "en": "🚨 Overvalued", "ja": "🚨 割高"}
+                }
+                def get_stat(key): return stat_map[key].get(st.session_state.lang, stat_map[key]['ko'])
+
                 # --- 1. IPO 시장 지표 시각화 ---
-                st.markdown('<p style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">IPO 시장 과열 평가</p>', unsafe_allow_html=True)
+                st.markdown(f'<p style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">{get_text("ipo_overheat_title")}</p>', unsafe_allow_html=True)
                 c1, c2, c3, c4 = st.columns(4)
             
                 with c1:
-                    val = md['ipo_return']; status = "🔥 과열" if val >= 20 else "✅ 적정" if val >= 0 else "❄️ 침체"
+                    val = md['ipo_return']; status = get_stat("over") if val >= 20 else get_stat("good") if val >= 0 else get_stat("cold")
                     st_cls = "st-hot" if val >= 20 else "st-good" if val >= 0 else "st-cold"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>First-Day Returns</div><div class='metric-value-row'><span class='metric-value'>{val:+.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>상장 첫날 시초가가 공모가 대비 얼마나 상승했는지 나타냅니다. 20% 이상이면 과열로 판단합니다.</div><div class='metric-footer'>Ref: Jay Ritter (Univ. of Florida)</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>First-Day Returns</div><div class='metric-value-row'><span class='metric-value'>{val:+.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_first_day')}</div><div class='metric-footer'>Ref: Jay Ritter (Univ. of Florida)</div></div>", unsafe_allow_html=True)
             
                 with c2:
-                    val = md['ipo_volume']; status = "🔥 활발" if val >= 10 else "⚖️ 보통"
+                    val = md['ipo_volume']; status = get_stat("active") if val >= 10 else get_stat("normal")
                     st_cls = "st-hot" if val >= 10 else "st-neutral"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Filings Volume</div><div class='metric-value-row'><span class='metric-value'>{val}건</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>향후 30일 이내 상장 예정인 기업의 수입니다. 물량이 급증하면 고점 징후일 수 있습니다.</div><div class='metric-footer'>Ref: Ibbotson & Jaffe (1975)</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Filings Volume</div><div class='metric-value-row'><span class='metric-value'>{val}건</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_filings_vol')}</div><div class='metric-footer'>Ref: Ibbotson & Jaffe (1975)</div></div>", unsafe_allow_html=True)
             
                 with c3:
-                    val = md['unprofitable_pct']; status = "🚨 위험" if val >= 80 else "⚠️ 주의" if val >= 50 else "✅ 건전"
+                    val = md['unprofitable_pct']; status = get_stat("risk") if val >= 80 else get_stat("warn") if val >= 50 else get_stat("good")
                     st_cls = "st-hot" if val >= 50 else "st-good"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Unprofitable IPOs</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>최근 상장 기업 중 순이익이 '적자'인 기업의 비율입니다. 80%에 육박하면 버블로 간주합니다.</div><div class='metric-footer'>Ref: Jay Ritter (Dot-com Bubble)</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Unprofitable IPOs</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_unprofitable')}</div><div class='metric-footer'>Ref: Jay Ritter (Dot-com Bubble)</div></div>", unsafe_allow_html=True)
             
                 with c4:
-                    val = md['withdrawal_rate']; status = "🔥 과열" if val < 5 else "✅ 정상"
+                    val = md['withdrawal_rate']; status = get_stat("over") if val < 5 else get_stat("good")
                     st_cls = "st-hot" if val < 5 else "st-good"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Withdrawal Rate</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>자진 철회 비율입니다. 낮을수록(10%↓) 묻지마 상장이 많다는 뜻입니다.</div><div class='metric-footer'>Ref: Dunbar (1998)</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Withdrawal Rate</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_withdrawal')}</div><div class='metric-footer'>Ref: Dunbar (1998)</div></div>", unsafe_allow_html=True)
             
                 st.write("<br>", unsafe_allow_html=True)
             
                 # --- 2. 거시 시장 지표 시각화 ---
-                st.markdown('<p style="font-size: 15px; font-weight: 600; margin-top: 20px; margin-bottom: 10px;">미국거시경제 과열 평가</p>', unsafe_allow_html=True)
+                st.markdown(f'<p style="font-size: 15px; font-weight: 600; margin-top: 20px; margin-bottom: 10px;">{get_text("macro_overheat_title")}</p>', unsafe_allow_html=True)
                 m1, m2, m3, m4 = st.columns(4)
             
                 with m1:
-                    val = md['vix']; status = "🔥 탐욕" if val <= 15 else "❄️ 공포" if val >= 25 else "⚖️ 중립"
+                    val = md['vix']; status = get_stat("greed") if val <= 15 else get_stat("fear") if val >= 25 else get_stat("neutral")
                     st_cls = "st-hot" if val <= 15 else "st-cold" if val >= 25 else "st-neutral"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>VIX Index</div><div class='metric-value-row'><span class='metric-value'>{val:.2f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>S&P 500 변동성 지수입니다. 낮을수록 시장이 과도하게 안심하고 있음을 뜻합니다.</div><div class='metric-footer'>Ref: CBOE / Whaley (1993)</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>VIX Index</div><div class='metric-value-row'><span class='metric-value'>{val:.2f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_vix')}</div><div class='metric-footer'>Ref: CBOE / Whaley (1993)</div></div>", unsafe_allow_html=True)
             
                 with m2:
-                    val = md['buffett_val']; status = "🚨 고평가" if val > 150 else "⚠️ 높음"
+                    val = md['buffett_val']; status = get_stat("high") if val > 150 else get_stat("warn")
                     st_cls = "st-hot" if val > 120 else "st-neutral"
                     disp_val = f"{val:.0f}%" if val > 0 else "N/A"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Buffett Indicator</div><div class='metric-value-row'><span class='metric-value'>{disp_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>GDP 대비 시총 비율입니다. 100%를 넘으면 경제 규모 대비 주가가 비싸다는 신호입니다.</div><div class='metric-footer'>Ref: Warren Buffett (2001)</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Buffett Indicator</div><div class='metric-value-row'><span class='metric-value'>{disp_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_buffett')}</div><div class='metric-footer'>Ref: Warren Buffett (2001)</div></div>", unsafe_allow_html=True)
             
                 with m3:
-                    val = md['pe_ratio']; status = "🔥 고평가" if val > 25 else "✅ 적정"
+                    val = md['pe_ratio']; status = get_stat("high") if val > 25 else get_stat("good")
                     st_cls = "st-hot" if val > 25 else "st-good"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>S&P 500 PE</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}x</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>주가수익비율입니다. 역사적 평균(약 16배)보다 높으면 고평가 구간입니다.</div><div class='metric-footer'>Ref: Shiller CAPE Model (Proxy)</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>S&P 500 PE</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}x</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_pe')}</div><div class='metric-footer'>Ref: Shiller CAPE Model (Proxy)</div></div>", unsafe_allow_html=True)
             
                 with m4:
                     val = md['fear_greed']; status = "🔥 Greed" if val >= 70 else "❄️ Fear" if val <= 30 else "⚖️ Neutral"
                     st_cls = "st-hot" if val >= 70 else "st-cold" if val <= 30 else "st-neutral"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Fear & Greed</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>심리 지표입니다. 75점 이상은 '극단적 탐욕' 상태를 의미합니다.</div><div class='metric-footer'>Ref: CNN Business Logic</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Fear & Greed</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_fear_greed')}</div><div class='metric-footer'>Ref: CNN Business Logic</div></div>", unsafe_allow_html=True)
             
                 st.write("<br>", unsafe_allow_html=True)
                 
                 # --- 3. AI 종합 진단 (Expander) ---
-                with st.expander("거시지표 분석", expanded=False): 
+                with st.expander(get_text('expander_macro_analysis'), expanded=False): 
                     try:
-                        # 💡 [핵심 수정] 여기에 st.session_state.lang 을 추가했습니다!
+                        # 💡 언어 설정 전달 유지
                         ai_market_comment = get_market_dashboard_analysis(md, st.session_state.lang)
-                        
-                        # AI 답변에 포함된 불필요한 HTML 태그 강제 제거!
                         if isinstance(ai_market_comment, str):
                             ai_market_comment = ai_market_comment.replace("</div>", "").replace("<div>", "").replace("```html", "").replace("```", "").strip()
-                            
-                    except NameError:
-                        ai_market_comment = "AI 분석 함수가 아직 로드되지 않았습니다."
+                    except:
+                        ai_market_comment = "Error generating AI analysis."
     
-                    # 제목 div를 제거하고 본문만 남긴 버전
                     st.markdown(f"""
                     <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #004e92;'>
                         <div style='font-size:14px; line-height:1.6; color:#333; text-align:justify;'>
@@ -3344,19 +3356,17 @@ with main_area.container():
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # 기존의 팁 메시지는 하단에 보조적으로 표시
                     if md.get('unprofitable_pct', 0) >= 80:
-                        st.warning("🚨 **경고:** 적자 기업 비율이 매우 높습니다. 개별 종목의 펀더멘털 확인이 필수적입니다.")
+                        st.warning("🚨 **WARNING:** Very high percentage of loss-making IPOs. Careful fundamental check required." if st.session_state.lang != 'ko' else "🚨 **경고:** 적자 기업 비율이 매우 높습니다. 개별 종목의 펀더멘털 확인이 필수적입니다.")
             
-               # [4] 참고논문 (expander)
-                with st.expander("참고(References)", expanded=False):
+                # [4] 참고논문 (expander - 원본 리스트 100% 복구)
+                with st.expander(get_text('expander_references'), expanded=False):
                     st.markdown("""
                     <style>
                         .ref-container { margin-top: 5px; }
                         .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
                         .ref-item:hover { background-color: #fafafa; padding-left: 5px; padding-right: 5px; }
                         .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
-                        .ref-title:hover { text-decoration: underline; }
                         .ref-author { font-size: 12px; color: #666; margin-top: 2px; }
                         .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 10px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; white-space: nowrap; }
                         .ref-btn:hover { border-color: #004e92; color: #004e92; background-color: #f0f7ff; }
@@ -3364,80 +3374,36 @@ with main_area.container():
                     </style>
                     """, unsafe_allow_html=True)
     
-                    # --- 중요: references 변수를 여기서 정의해야 합니다 ---
+                    # 🚨 [복구 완]: 원본의 모든 참고 문헌 데이터 리스트
                     references = [
-                        {
-                            "label": "IPO 데이터", 
-                            "title": "Initial Public Offerings: Updated Statistics", 
-                            "author": "Jay R. Ritter (Warrington College)", 
-                            "summary": "미국 IPO 시장의 성적표와 공모가 저평가(Underpricing) 통계의 결정판",
-                            "link": "https://site.warrington.ufl.edu/ritter/ipo-data/"
-                        },
-                        {
-                            "label": "시장 과열", 
-                            "title": "'Hot Issue' Markets (Ibbotson & Jaffe)", 
-                            "author": "Ibbotson & Jaffe (1975)", 
-                            "summary": "특정 시기에 IPO 수익률이 비정상적으로 높아지는 '시장 과열' 현상 규명",
-                            "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets"
-                        },
-                        {
-                            "label": "상장 철회", 
-                            "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", 
-                            "author": "Dunbar (1998)", 
-                            "summary": "상장 방식 선택에 따른 기업 가치와 상장 철회 위험의 상관관계 분석",
-                            "link": "https://scholar.google.com/scholar?q=Dunbar+1995+The+Choice+Between+Firm-Commitment+and+Best-Efforts+IPOs"
-                        },
-                        {
-                            "label": "시장 변동성", 
-                            "title": "VIX White Paper: CBOE Volatility Index", 
-                            "author": "CBOE (Official)", 
-                            "summary": "S&P 500 옵션을 기반으로 시장의 공포와 변동성을 측정하는 표준 지표",
-                            "link": "https://www.cboe.com/micro/vix/vixwhite.pdf"
-                        },
-                        {
-                            "label": "밸류에이션", 
-                            "title": "Warren Buffett on the Stock Market (Fortune Classic)", 
-                            "author": "Warren Buffett (2001)", 
-                            "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 버핏 지표",
-                            "link": "https://www.gurufocus.com/news/122602/warren-buffett-on-the-stock-market-2001-article"
-                        },
-                        {
-                            "label": "기초 데이터", 
-                            "title": "U.S. Stock Markets 1871-Present (CAPE Ratio)", 
-                            "author": "Robert Shiller", 
-                            "summary": "경기조정주가수익비율(CAPE)을 활용한 장기적 주식 시장 밸류에이션 데이터",
-                            "link": "http://www.econ.yale.edu/~shiller/data.htm"
-                        },
-                        {
-                            "label": "투자자 심리", 
-                            "title": "Fear & Greed Index (Real-time)", 
-                            "author": "CNN Business", 
-                            "summary": "7가지 지표를 통합해 투자자의 탐욕과 공포 수준을 0~100으로 수치화",
-                            "link": "https://edition.cnn.com/markets/fear-and-greed"
-                        }
+                        { "label": "IPO 데이터", "title": "Initial Public Offerings: Updated Statistics", "author": "Jay R. Ritter (Warrington College)", "summary": "미국 IPO 시장의 성적표와 공모가 저평가(Underpricing) 통계의 결정판", "link": "https://site.warrington.ufl.edu/ritter/ipo-data/" },
+                        { "label": "시장 과열", "title": "'Hot Issue' Markets (Ibbotson & Jaffe)", "author": "Ibbotson & Jaffe (1975)", "summary": "특정 시기에 IPO 수익률이 비정상적으로 높아지는 '시장 과열' 현상 규명", "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets" },
+                        { "label": "상장 철회", "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", "author": "Dunbar (1998)", "summary": "상장 방식 선택에 따른 기업 가치와 상장 철회 위험의 상관관계 분석", "link": "https://scholar.google.com/scholar?q=Dunbar+1995+The+Choice+Between+Firm-Commitment+and+Best-Efforts+IPOs" },
+                        { "label": "시장 변동성", "title": "VIX White Paper: CBOE Volatility Index", "author": "CBOE (Official)", "summary": "S&P 500 옵션을 기반으로 시장의 공포와 변동성을 측정하는 표준 지표", "link": "https://www.cboe.com/micro/vix/vixwhite.pdf" },
+                        { "label": "밸류에이션", "title": "Warren Buffett on the Stock Market (Fortune Classic)", "author": "Warren Buffett (2001)", "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 버핏 지표", "link": "https://www.gurufocus.com/news/122602/warren-buffett-on-the-stock-market-2001-article" },
+                        { "label": "기초 데이터", "title": "U.S. Stock Markets 1871-Present (CAPE Ratio)", "author": "Robert Shiller", "summary": "경기조정주가수익비율(CAPE)을 활용한 장기적 주식 시장 밸류에이션 데이터", "link": "http://www.econ.yale.edu/~shiller/data.htm" },
+                        { "label": "투자자 심리", "title": "Fear & Greed Index (Real-time)", "author": "CNN Business", "summary": "7가지 지표를 통합해 투자자의 탐욕과 공포 수준을 0~100으로 수치화", "link": "https://edition.cnn.com/markets/fear-and-greed" }
                     ]
     
-                    # 이제 변수가 정의되었으므로 루프를 돌립니다.
                     for ref in references:
+                        # 요약 및 라벨 다국어화 보조 (영어일 때만 영어로 자동 전환)
+                        disp_sum = ref['summary'] if st.session_state.lang == 'ko' else "Academic reference for market data."
                         st.markdown(f"""
                         <div class='ref-item'>
                             <div style='flex:1;'>
                                 <div class='ref-badge'>{ref['label']}</div><br>
                                 <a href='{ref['link']}' target='_blank' class='ref-title' style='display:block; margin-bottom:4px;'>📄 {ref['title']}</a>
                                 <div style='font-size: 13px; color: #666; line-height: 1.5;'>
-                                    <span>{ref['summary']}, {ref['author']}</span>
+                                    <span>{disp_sum}, {ref['author']}</span>
                                 </div>
                             </div>
                             <div style='margin-left: 15px; align-self: center;'>
-                                <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
+                                <a href='{ref['link']}' target='_blank' class='ref-btn'>View Original ↗</a>
                             </div>
                         </div>""", unsafe_allow_html=True)
             
                 # --- 5. 최종 의사결정 박스 및 면책조항 ---
-                # draw_decision_box 함수가 사전에 정의되어 있어야 합니다.
-                draw_decision_box("macro", "현재 거시경제(Macro) 상황에 대한 판단은?", ["버블", "중립", "침체"])
-                
-                # 맨 마지막 호출
+                draw_decision_box("macro", get_text('decision_macro_outlook'), [get_text('opt_bubble'), get_text('sentiment_neutral'), get_text('opt_recession')])
                 display_disclaimer()
     
             # --- Tab 3: 개별 기업 평가 (Real Data 연동 - Full Version) ---
