@@ -3124,13 +3124,13 @@ with main_area.container():
             tab_labels = [get_text(f'tab_{i}') for i in range(6)]
             tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_labels)
     
-            # --- Tab 0: 핵심 정보 (사용자 원본 프롬프트 100% 보존 버전) ---
+            # --- Tab 0: 핵심 정보 (공시 가이드 및 AI 분석 강화) ---
             with tab0:
                 # [세션 상태 관리]
                 if 'core_topic' not in st.session_state:
                     st.session_state.core_topic = "S-1"
     
-                # 1. 버튼 스타일 강제 지정
+                # 버튼 스타일 강제 지정 (하얀 바탕, 검정 글씨)
                 st.markdown("""
                     <style>
                     div.stButton > button {
@@ -3141,6 +3141,7 @@ with main_area.container():
                         height: 3em !important;
                         font-weight: bold !important;
                     }
+                    /* 마우스를 올렸을 때나 클릭했을 때의 효과 */
                     div.stButton > button:hover {
                         border-color: #6e8efb !important;
                         color: #6e8efb !important;
@@ -3151,23 +3152,24 @@ with main_area.container():
                     </style>
                 """, unsafe_allow_html=True)
     
-                # 2. 문서 선택 버튼 그리드
+                # 1. 문서 선택 버튼 그리드 (다국어 UI 적용, 내부 로직은 원본 토픽 유지)
                 r1_c1, r1_c2, r1_c3 = st.columns(3)
                 r2_c1, r2_c2 = st.columns(2)
     
-                if r1_c1.button("S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
-                if r1_c2.button("S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
-                if r1_c3.button("F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
-                if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
-                if r2_c2.button("424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
+                if r1_c1.button(get_text('label_s1'), use_container_width=True): st.session_state.core_topic = "S-1"
+                if r1_c2.button(get_text('label_s1a'), use_container_width=True): st.session_state.core_topic = "S-1/A"
+                if r1_c3.button(get_text('label_f1'), use_container_width=True): st.session_state.core_topic = "F-1"
+                if r2_c1.button(get_text('label_fwp'), use_container_width=True): st.session_state.core_topic = "FWP"
+                if r2_c2.button(get_text('label_424b4'), use_container_width=True): st.session_state.core_topic = "424B4"
     
+                # 2. 메타데이터 및 체크포인트 설정
                 topic = st.session_state.core_topic
                 curr_lang = st.session_state.lang
-
-                # 💡 [원본 보존] 요청하신 모든 상세 지침을 하나도 빠짐없이 정의합니다.
+                
+                # [핵심] 대표님의 고품질 한국어 프롬프트 구조 100% 보존
+                # AI 내부 엔진은 이 한국어 지시를 읽고 가장 완벽한 분석을 수행한 뒤, 최종 답변만 해당 언어로 번역합니다.
                 def_meta = {
                     "S-1": {
-                        "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
                         "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
                         "structure": """
                         [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
@@ -3177,7 +3179,6 @@ with main_area.container():
                         """
                     },
                     "S-1/A": {
-                        "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
                         "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
                         "structure": """
                         [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
@@ -3187,7 +3188,6 @@ with main_area.container():
                         """
                     },
                     "F-1": {
-                        "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
                         "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
                         "structure": """
                         [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
@@ -3197,7 +3197,6 @@ with main_area.container():
                         """
                     },
                     "FWP": {
-                        "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
                         "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
                         "structure": """
                         [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
@@ -3207,7 +3206,6 @@ with main_area.container():
                         """
                     },
                     "424B4": {
-                        "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
                         "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
                         "structure": """
                         [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
@@ -3219,67 +3217,88 @@ with main_area.container():
                 }
                 
                 curr_meta = def_meta.get(topic, def_meta["S-1"])
-                
-                # 💡 [로딩 최적화] AI 분석 결과가 들어갈 자리를 미리 확보
-                ai_result_container = st.container()
-                
-                # .replace('-','') 를 추가하여 하이픈까지 깔끔하게 지워줍니다.
+    
+                # UI 출력: 다국어 설명문 출력
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
                 
-                st.write("<br>", unsafe_allow_html=True)
-                
-                # 버튼 섹션 (SEC 링크 및 홈페이지)
-                cik = profile.get('cik', '') if profile else ''
-                full_name = stock['name'].strip()
-                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}" if cik else f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_name + ' ' + topic)}"
-                web_url = (profile.get('weburl') or profile.get('website', '')) if profile else f"https://duckduckgo.com/?q={urllib.parse.quote(full_name + ' Investor Relations')}"
-    
-                st.markdown(f"""
-                    <a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({topic})</button></a>
-                    <a href="{web_url}" target="_blank" style="text-decoration:none;"><button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button></a>
-                """, unsafe_allow_html=True)
-                
-                draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
-                display_disclaimer()
-                
-                # 💡 [AI 실행] 확보된 컨테이너 안에 결과 렌더링
-                with ai_result_container:
-                    with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
-                        with st.spinner(get_text('msg_analyzing_filing')):
-                            # 💡 원본 한국어 structure를 그대로 전달하되, lang_code를 넘겨 함수 내부에서 번역 지시함
-                            analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'], curr_lang)
-                            
-                            # 들여쓰기 및 가독성 스타일링
+                # 1. expander 다국어 처리
+                with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
+                    with st.spinner(get_text('msg_analyzing_filing')):
+                        analysis_result = get_ai_analysis(
+                            stock['name'], 
+                            topic, 
+                            curr_meta['points'], 
+                            curr_meta.get('structure', ""),
+                            curr_lang
+                        )
+                        
+                        if "ERROR_DETAILS" in analysis_result:
+                            st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
+                            with st.expander("상세 에러 내용"):
+                                st.code(analysis_result)
+                        else:
+                            # 들여쓰기 최적화 (한국어만 들여쓰기 적용)
                             indent_size = "14px" if curr_lang == "ko" else "0px"
                             st.markdown(f"""
                                 <div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">
                                     {analysis_result.replace(chr(10), '<br>')}
                                 </div>
                             """, unsafe_allow_html=True)
-                        st.caption(get_text('caption_algorithm'))
+                    
+                    st.caption(get_text('caption_algorithm'))
+                   
+                # ---------------------------------------------------------
+                # 3. SEC URL 및 공식 홈페이지 버튼 생성
+                # ---------------------------------------------------------
+                import urllib.parse
                 
-            # --- Tab 1: 뉴스 & 심층 분석 (Gemini 통합형) ---
+                cik = profile.get('cik', '') if profile else ''
+                full_company_name = stock['name'].strip() 
+                
+                if cik:
+                    sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
+                else:
+                    sec_query = f'"{full_company_name}" {topic}'
+                    sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(sec_query)}&dateRange=all"
+    
+                real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
+                
+                if real_website:
+                    website_url = real_website
+                else:
+                    refined_query = f"! {full_company_name} Investor Relations"
+                    website_url = f"https://duckduckgo.com/?q={urllib.parse.quote(refined_query)}"
+    
+                st.markdown(f"""
+                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
+                        <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>
+                                {get_text('btn_sec_link')} ({topic})
+                        </button>
+                    </a>
+                    
+                    <a href="{website_url}" target="_blank" style="text-decoration:none;">
+                        <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>
+                               {get_text('btn_official_web')}
+                        </button>
+                    </a>
+                """, unsafe_allow_html=True)
+                
+                # 의사결정 박스 (다국어)
+                draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
+                display_disclaimer()
+                
+            # --- Tab 1: 뉴스 & 심층 분석 ---
             with tab1:
-                # [1] 통합 분석 데이터 호출 (비즈니스 요약 + 뉴스 5개 통합)
-                with st.spinner(f"{stock['name']} {get_text('msg_analyzing_tab1')}"):
-                    # 파라미터로 현재 언어 코드를 넘겨 AI가 해당 언어로 번역하도록 함
+                with st.spinner(get_text('msg_analyzing_tab1')):
                     biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'], st.session_state.lang)
 
-                # [2] 기업 심층 분석 섹션 (Expander)
                 st.write("<br>", unsafe_allow_html=True)
                 with st.expander(get_text('expander_biz_summary'), expanded=False):
                     if biz_info:
                         st.markdown(f"""
-                        <div style="
-                            background-color: #f8f9fa; 
-                            padding: 22px; 
-                            border-radius: 12px; 
-                            border-left: 5px solid #6e8efb; 
-                            color: #333; 
-                            font-family: 'Pretendard', sans-serif;
-                            font-size: 15px;
-                            line-height: 1.6;
-                        ">{biz_info}</div>
+                        <div style="background-color: #f8f9fa; padding: 22px; border-radius: 12px; border-left: 5px solid #6e8efb; color: #333; font-family: 'Pretendard', sans-serif; font-size: 15px; line-height: 1.6;">
+                            {biz_info}
+                        </div>
                         """, unsafe_allow_html=True)
                         st.caption(get_text('caption_google_search'))
                     else:
@@ -3287,18 +3306,12 @@ with main_area.container():
     
                 st.write("<br>", unsafe_allow_html=True)
     
-                # [3] 뉴스 리스트 섹션 (언어별 조건부 제목 노출)
                 if final_display_news:
-                    curr_lang = st.session_state.lang # 현재 언어 상태 확인
-                    
+                    curr_lang = st.session_state.lang
                     for i, n in enumerate(final_display_news):
-                        # 영어 원문 제목
                         en_title = n.get('title_en', 'No Title')
-                        
-                        # 💡 [핵심] AI가 키 이름을 마음대로 바꿨을 경우를 대비한 모든 경우의 수 방어
                         trans_title = n.get('translated_title') or n.get('title_ko') or n.get('title_ja') or n.get('title_jp') or n.get('title', '')
                         
-                        # 감성 라벨 다국어 매핑
                         raw_sentiment = n.get('sentiment', '일반')
                         if raw_sentiment == "긍정": sentiment_label = get_text('sentiment_positive')
                         elif raw_sentiment == "부정": sentiment_label = get_text('sentiment_negative')
@@ -3309,19 +3322,14 @@ with main_area.container():
                         news_link = n.get('link', '#')
                         news_date = n.get('date', 'Recent')
     
-                        # 특수 기호 처리
                         safe_en = str(en_title).replace("$", "\$")
                         safe_trans = str(trans_title).replace("$", "\$")
                         
-                        # 💡 번역된 제목이 존재하고, 원문(영어)과 내용이 다를 때만 렌더링
                         sub_title_html = ""
                         if safe_trans and safe_trans != safe_en: 
-                            if curr_lang == 'ko':
-                                sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_trans}</span>"
-                            elif curr_lang == 'ja':
-                                sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇯🇵 {safe_trans}</span>"
+                            if curr_lang == 'ko': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_trans}</span>"
+                            elif curr_lang == 'ja': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇯🇵 {safe_trans}</span>"
 
-                        # 배지 및 카드 렌더링
                         s_badge = f'<span style="background:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{sentiment_label}</span>'
                         label_gen = get_text('label_general')
                         
@@ -3329,11 +3337,7 @@ with main_area.container():
                             <a href="{news_link}" target="_blank" style="text-decoration:none; color:inherit;">
                                 <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
                                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                                        <div>
-                                            <span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> 
-                                            <span style="color:#888; font-size:12px;">| {label_gen}</span>
-                                            {s_badge}
-                                        </div>
+                                        <div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> <span style="color:#888; font-size:12px;">| {label_gen}</span>{s_badge}</div>
                                         <small style="color:#bbb;">{news_date}</small>
                                     </div>
                                     <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">
@@ -3346,99 +3350,59 @@ with main_area.container():
                     st.warning(get_text('err_no_news'))
     
                 st.write("<br>", unsafe_allow_html=True)
-    
-                # 결정 박스
                 draw_decision_box("news", get_text('decision_news_impression'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
-    
-                # 면책 조항
                 display_disclaimer()
                 
             # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
             with tab2:
-                # [1] 데이터 수집 및 계산 함수 (원본 로직 보존)
                 def get_market_status_internal(df_calendar):
-                    data = {
-                        "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0,
-                        "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50
-                    }
-            
-                    # --- A. [IPO Specific] 앱 내 데이터로 계산 ---
+                    data = {"ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0, "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50}
                     if not df_calendar.empty:
                         today = datetime.now().date()
-                        
-                        # 1. 수익률 & 적자 비율 (최근 30개 표본)
                         traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < today].sort_values(by='공모일_dt', ascending=False).head(30)
-                        
                         ret_sum = 0; ret_cnt = 0; unp_cnt = 0
                         for _, row in traded_ipos.iterrows():
                             try:
                                 p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
                                 p_curr, _ = get_current_stock_price(row['symbol'], MY_API_KEY)
                                 if p_ipo > 0 and p_curr > 0:
-                                    ret_sum += ((p_curr - p_ipo) / p_ipo) * 100
-                                    ret_cnt += 1
+                                    ret_sum += ((p_curr - p_ipo) / p_ipo) * 100; ret_cnt += 1
                                 fin = get_financial_metrics(row['symbol'], MY_API_KEY)
                                 if fin and fin.get('net_margin') and fin['net_margin'] < 0: unp_cnt += 1
                             except: pass
-                        
                         if ret_cnt > 0: data["ipo_return"] = ret_sum / ret_cnt
                         if len(traded_ipos) > 0: data["unprofitable_pct"] = (unp_cnt / len(traded_ipos)) * 100
-            
-                        # 2. Filings Volume (향후 30일)
-                        future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= today) & 
-                                                  (df_calendar['공모일_dt'].dt.date <= today + timedelta(days=30))]
+                        future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= today) & (df_calendar['공모일_dt'].dt.date <= today + timedelta(days=30))]
                         data["ipo_volume"] = len(future_ipos)
-            
-                        # 3. Withdrawal Rate (최근 540일)
                         recent_history = df_calendar[df_calendar['공모일_dt'].dt.date >= (today - timedelta(days=540))]
                         if not recent_history.empty:
                             wd = recent_history[recent_history['status'].str.lower() == 'withdrawn']
                             data["withdrawal_rate"] = (len(wd) / len(recent_history)) * 100
-            
-                    # --- B. [Macro Market] Yahoo Finance 실시간 데이터 ---
                     try:
-                        vix_obj = yf.Ticker("^VIX")
-                        data["vix"] = vix_obj.history(period="1d")['Close'].iloc[-1]
-            
+                        vix_obj = yf.Ticker("^VIX"); data["vix"] = vix_obj.history(period="1d")['Close'].iloc[-1]
                         w5000 = yf.Ticker("^W5000").history(period="1d")['Close'].iloc[-1]
-                        us_gdp_est = 28.0 
-                        mkt_cap_est = w5000 / 1000 * 0.93 
-                        data["buffett_val"] = (mkt_cap_est / us_gdp_est) * 100
-            
-                        try:
-                            spy = yf.Ticker("SPY")
-                            data["pe_ratio"] = spy.info.get('trailingPE', 24.5) 
+                        data["buffett_val"] = ((w5000 / 1000 * 0.93) / 28.0) * 100
+                        try: spy = yf.Ticker("SPY"); data["pe_ratio"] = spy.info.get('trailingPE', 24.5) 
                         except: data["pe_ratio"] = 24.5
-            
-                        spx = yf.Ticker("^GSPC").history(period="1y")
-                        curr_spx = spx['Close'].iloc[-1]
-                        ma200 = spx['Close'].rolling(200).mean().iloc[-1]
+                        spx = yf.Ticker("^GSPC").history(period="1y"); curr_spx = spx['Close'].iloc[-1]; ma200 = spx['Close'].rolling(200).mean().iloc[-1]
                         mom_score = ((curr_spx - ma200) / ma200) * 100
-                        s_vix = max(0, min(100, (35 - data["vix"]) * (100/23)))
-                        s_mom = max(0, min(100, (mom_score + 10) * 5))
+                        s_vix = max(0, min(100, (35 - data["vix"]) * (100/23))); s_mom = max(0, min(100, (mom_score + 10) * 5))
                         data["fear_greed"] = (s_vix + s_mom) / 2
                     except: pass
-                    
                     return data
             
-                # [2] 데이터 로드 및 분석 실행 (다국어 스피너)
                 with st.spinner(get_text('msg_analyzing_macro')):
                     if 'all_df' not in locals(): 
                         all_df_tab2 = get_extended_ipo_data(MY_API_KEY)
                         if not all_df_tab2.empty:
                             all_df_tab2 = all_df_tab2.dropna(subset=['exchange'])
                             all_df_tab2['공모일_dt'] = pd.to_datetime(all_df_tab2['date'])
-                    else:
-                        all_df_tab2 = all_df
-            
+                    else: all_df_tab2 = all_df
                     md = get_market_status_internal(all_df_tab2)
             
-                # --- CSS 스타일 정의 (원본 유지) ---
                 st.markdown("""
                 <style>
-                    .metric-card { background-color:#ffffff; padding:15px; border-radius:12px; border: 1px solid #e0e0e0;
-                                  box-shadow: 0 2px 4px rgba(0,0,0,0.03); height: 100%; min-height: 220px; 
-                                  display: flex; flex-direction: column; justify-content: space-between; }
+                    .metric-card { background-color:#ffffff; padding:15px; border-radius:12px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.03); height: 100%; min-height: 220px; display: flex; flex-direction: column; justify-content: space-between; }
                     .metric-header { font-weight:bold; font-size:16px; color:#111; margin-bottom:5px; }
                     .metric-value-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
                     .metric-value { font-size:20px; font-weight:800; color:#004e92; }
@@ -3452,7 +3416,6 @@ with main_area.container():
                 </style>
                 """, unsafe_allow_html=True)
             
-                # 💡 상태 텍스트 다국어 맵
                 stat_map = {
                     "over": {"ko": "🔥 과열", "en": "🔥 Overheated", "ja": "🔥 過熱"},
                     "good": {"ko": "✅ 적정", "en": "✅ Normal", "ja": "✅ 適正"},
@@ -3468,7 +3431,6 @@ with main_area.container():
                 }
                 def get_stat(key): return stat_map[key].get(st.session_state.lang, stat_map[key]['ko'])
 
-                # --- 1. IPO 시장 지표 시각화 ---
                 st.markdown(f'<p style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">{get_text("ipo_overheat_title")}</p>', unsafe_allow_html=True)
                 c1, c2, c3, c4 = st.columns(4)
             
@@ -3480,7 +3442,7 @@ with main_area.container():
                 with c2:
                     val = md['ipo_volume']; status = get_stat("active") if val >= 10 else get_stat("normal")
                     st_cls = "st-hot" if val >= 10 else "st-neutral"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Filings Volume</div><div class='metric-value-row'><span class='metric-value'>{val}건</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_filings_vol')}</div><div class='metric-footer'>Ref: Ibbotson & Jaffe (1975)</div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Filings Volume</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_filings_vol')}</div><div class='metric-footer'>Ref: Ibbotson & Jaffe (1975)</div></div>", unsafe_allow_html=True)
             
                 with c3:
                     val = md['unprofitable_pct']; status = get_stat("risk") if val >= 80 else get_stat("warn") if val >= 50 else get_stat("good")
@@ -3492,9 +3454,6 @@ with main_area.container():
                     st_cls = "st-hot" if val < 5 else "st-good"
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Withdrawal Rate</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_withdrawal')}</div><div class='metric-footer'>Ref: Dunbar (1998)</div></div>", unsafe_allow_html=True)
             
-                st.write("<br>", unsafe_allow_html=True)
-            
-                # --- 2. 거시 시장 지표 시각화 ---
                 st.markdown(f'<p style="font-size: 15px; font-weight: 600; margin-top: 20px; margin-bottom: 10px;">{get_text("macro_overheat_title")}</p>', unsafe_allow_html=True)
                 m1, m2, m3, m4 = st.columns(4)
             
@@ -3515,409 +3474,172 @@ with main_area.container():
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>S&P 500 PE</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}x</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_pe')}</div><div class='metric-footer'>Ref: Shiller CAPE Model (Proxy)</div></div>", unsafe_allow_html=True)
             
                 with m4:
-                    val = md['fear_greed']; status = "🔥 Greed" if val >= 70 else "❄️ Fear" if val <= 30 else "⚖️ Neutral"
+                    val = md['fear_greed']; status = get_stat("greed") if val >= 70 else get_stat("fear") if val <= 30 else get_stat("neutral")
                     st_cls = "st-hot" if val >= 70 else "st-cold" if val <= 30 else "st-neutral"
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Fear & Greed</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_fear_greed')}</div><div class='metric-footer'>Ref: CNN Business Logic</div></div>", unsafe_allow_html=True)
             
                 st.write("<br>", unsafe_allow_html=True)
                 
-                # --- 3. AI 종합 진단 (제목 제거 필터 적용) ---
                 with st.expander(get_text('expander_macro_analysis'), expanded=False): 
                     try:
                         ai_market_comment = get_market_dashboard_analysis(md, st.session_state.lang)
                         if isinstance(ai_market_comment, str):
-                            # 🚨 [제목 제거 핵심 로직]: ## 제목이나 # 제목을 찾아 삭제
                             import re
                             ai_market_comment = re.sub(r'^#+.*$', '', ai_market_comment, flags=re.MULTILINE)
-                            # 특정 문구 수동 제거 (백업용)
-                            ai_market_comment = ai_market_comment.replace("Daily Market Briefing", "")
                             ai_market_comment = ai_market_comment.replace("</div>", "").replace("<div>", "").replace("```html", "").replace("```", "").strip()
-                    except:
-                        ai_market_comment = "Error generating AI analysis."
+                    except: ai_market_comment = "Error generating AI analysis."
     
-                    st.markdown(f"""
-                    <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #004e92;'>
-                        <div style='font-size:14px; line-height:1.6; color:#333; text-align:justify;'>
-                            {ai_market_comment}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    if md.get('unprofitable_pct', 0) >= 80:
-                        st.warning("🚨 **WARNING:** High risk IPO market." if st.session_state.lang != 'ko' else "🚨 **경고:** 적자 기업 비율이 매우 높습니다.")
-                # [4] 참고논문 (expander - 다국어 적용 최종본)
-                with st.expander(get_text('expander_references'), expanded=False):
-                    # (기존 스타일 정의 CSS 코드는 그대로 유지하세요)
-                    
-                    # 🚨 [수정 완료]: 모든 라벨과 요약을 get_text()로 연결
-                    references = [
-                        { 
-                            "label": get_text('ref_label_ipo'), 
-                            "title": "Initial Public Offerings: Updated Statistics", 
-                            "author": "Jay R. Ritter (Warrington College)", 
-                            "summary": get_text('ref_sum_ipo'), 
-                            "link": "https://site.warrington.ufl.edu/ritter/ipo-data/" 
-                        },
-                        { 
-                            "label": get_text('ref_label_overheat'), 
-                            "title": "'Hot Issue' Markets (Ibbotson & Jaffe)", 
-                            "author": "Ibbotson & Jaffe (1975)", 
-                            "summary": get_text('ref_sum_overheat'), 
-                            "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets" 
-                        },
-                        { 
-                            "label": get_text('ref_label_withdrawal'), 
-                            "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", 
-                            "author": "Dunbar (1998)", 
-                            "summary": get_text('ref_sum_withdrawal'), 
-                            "link": "https://scholar.google.com/scholar?q=Dunbar+1995+The+Choice+Between+Firm-Commitment+and+Best-Efforts+IPOs" 
-                        },
-                        { 
-                            "label": get_text('ref_label_vix'), 
-                            "title": "VIX White Paper: CBOE Volatility Index", 
-                            "author": "CBOE (Official)", 
-                            "summary": get_text('ref_sum_vix'), 
-                            "link": "https://www.cboe.com/micro/vix/vixwhite.pdf" 
-                        },
-                        { 
-                            "label": get_text('ref_label_buffett'), 
-                            "title": "Warren Buffett on the Stock Market (Fortune Classic)", 
-                            "author": "Warren Buffett (2001)", 
-                            "summary": get_text('ref_sum_buffett'), 
-                            "link": "https://www.gurufocus.com/news/122602/warren-buffett-on-the-stock-market-2001-article" 
-                        },
-                        { 
-                            "label": get_text('ref_label_cape'), 
-                            "title": "U.S. Stock Markets 1871-Present (CAPE Ratio)", 
-                            "author": "Robert Shiller", 
-                            "summary": get_text('ref_sum_cape'), 
-                            "link": "http://www.econ.yale.edu/~shiller/data.htm" 
-                        },
-                        { 
-                            "label": get_text('ref_label_feargreed'), 
-                            "title": "Fear & Greed Index (Real-time)", 
-                            "author": "CNN Business", 
-                            "summary": get_text('ref_sum_feargreed'), 
-                            "link": "https://edition.cnn.com/markets/fear-and-greed" 
-                        }
-                    ]
-    
-                    for ref in references:
-                        st.markdown(f"""
-                        <div class='ref-item'>
-                            <div style='flex:1;'>
-                                <div class='ref-badge'>{ref['label']}</div><br>
-                                <a href='{ref['link']}' target='_blank' class='ref-title' style='display:block; margin-bottom:4px;'>📄 {ref['title']}</a>
-                                <div style='font-size: 13px; color: #666; line-height: 1.5;'>
-                                    <span>{ref['summary']}, {ref['author']}</span>
-                                </div>
-                            </div>
-                            <div style='margin-left: 15px; align-self: center;'>
-                                <a href='{ref['link']}' target='_blank' class='ref-btn'>View Original ↗</a>
-                            </div>
-                        </div>""", unsafe_allow_html=True)
+                    st.markdown(f"<div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #004e92;'><div style='font-size:14px; line-height:1.6; color:#333; text-align:justify;'>{ai_market_comment}</div></div>", unsafe_allow_html=True)
             
-                # --- 5. 최종 의사결정 박스 및 면책조항 ---
+                with st.expander(get_text('expander_references'), expanded=False):
+                    references = [
+                        { "label": get_text('ref_label_ipo'), "title": "Initial Public Offerings", "author": "Jay R. Ritter", "summary": get_text('ref_sum_ipo'), "link": "https://site.warrington.ufl.edu/ritter/ipo-data/" },
+                        { "label": get_text('ref_label_overheat'), "title": "'Hot Issue' Markets", "author": "Ibbotson & Jaffe (1975)", "summary": get_text('ref_sum_overheat'), "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets" },
+                        { "label": get_text('ref_label_withdrawal'), "title": "The Choice Between IPOs", "author": "Dunbar (1998)", "summary": get_text('ref_sum_withdrawal'), "link": "https://scholar.google.com/scholar?q=Dunbar+1995" },
+                        { "label": get_text('ref_label_vix'), "title": "VIX White Paper", "author": "CBOE", "summary": get_text('ref_sum_vix'), "link": "https://www.cboe.com/micro/vix/vixwhite.pdf" },
+                        { "label": get_text('ref_label_buffett'), "title": "Warren Buffett on the Stock Market", "author": "Warren Buffett (2001)", "summary": get_text('ref_sum_buffett'), "link": "https://www.gurufocus.com/news/122602" },
+                        { "label": get_text('ref_label_cape'), "title": "U.S. Stock Markets 1871-Present", "author": "Robert Shiller", "summary": get_text('ref_sum_cape'), "link": "http://www.econ.yale.edu/~shiller/data.htm" },
+                        { "label": get_text('ref_label_feargreed'), "title": "Fear & Greed Index", "author": "CNN Business", "summary": get_text('ref_sum_feargreed'), "link": "https://edition.cnn.com/markets/fear-and-greed" }
+                    ]
+                    for ref in references:
+                        st.markdown(f"<div class='ref-item'><div style='flex:1;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div style='font-size: 13px; color: #666;'>{ref['summary']}, {ref['author']}</div></div><div style='margin-left: 15px;'><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
+            
                 draw_decision_box("macro", get_text('decision_macro_outlook'), [get_text('opt_bubble'), get_text('sentiment_neutral'), get_text('opt_recession')])
                 display_disclaimer()
     
-            # --- Tab 3: 개별 기업 평가 (Real Data 연동 - Full Version) ---
+            # --- Tab 3: 개별 기업 평가 ---
             with tab3:
-                # 💡 언어 판별 변수 최상단 선언
                 curr_lang = st.session_state.lang
                 is_ko = (curr_lang == 'ko')
 
-                # 🎨 카드 내부의 수치 폰트 크기 통일 CSS 
                 st.markdown("""
                 <style>
-                    .metric-value {
-                        font-size: 1.2rem !important;
-                        font-weight: 800 !important;
-                        white-space: nowrap;
-                    }
-                    .st-badge {
-                        font-size: 0.7rem !important;
-                        vertical-align: middle;
-                        margin-left: 5px;
-                    }
-                    .metric-value-row {
-                        display: flex;
-                        align-items: center;
-                        justify-content: flex-start;
-                    }
-                    /* 전체 텍스트 폰트 통일용 클래스 */
-                    .unified-text {
-                        font-size: 0.95rem !important;
-                        line-height: 1.6 !important;
-                        color: #222222;
-                    }
+                    .metric-value { font-size: 1.2rem !important; font-weight: 800 !important; white-space: nowrap; }
+                    .st-badge { font-size: 0.7rem !important; vertical-align: middle; margin-left: 5px; }
+                    .metric-value-row { display: flex; align-items: center; justify-content: flex-start; }
+                    .unified-text { font-size: 0.95rem !important; line-height: 1.6 !important; color: #222222; }
                 </style>
                 """, unsafe_allow_html=True)
             
-                # [0] 데이터 소스 및 1차 유효성 판별
                 data_source = "Unknown"
                 is_data_available = False
                 
-                if fin_data:
-                    if fin_data.get('revenue') and fin_data.get('revenue') > 0:
-                        is_data_available = True
-                        if 'sec' in str(fin_data.get('source', '')).lower():
-                            data_source = "SEC 10-K/Q (공시)"
-                        elif fin_data.get('market_cap'):
-                            data_source = "Finnhub (가공)"
-                        else:
-                            data_source = "Yahoo Finance (보조)"
+                if fin_data and fin_data.get('revenue') and fin_data.get('revenue') > 0:
+                    is_data_available = True
+                    data_source = "SEC 10-K/Q" if 'sec' in str(fin_data.get('source', '')).lower() else "Finnhub" if fin_data.get('market_cap') else "Yahoo Finance"
             
-                # 🔥 [0.5] 데이터 보강 로직
                 if not is_data_available or not fin_data.get('revenue'):
                     try:
                         ticker = yf.Ticker(stock['symbol'])
-                        yf_fin = ticker.financials
-                        yf_info = ticker.info
-                        yf_bal = ticker.balance_sheet
-                        
+                        yf_fin = ticker.financials; yf_info = ticker.info; yf_bal = ticker.balance_sheet
                         if not yf_fin.empty:
-                            rev = yf_fin.loc['Total Revenue'].iloc[0]
-                            net_inc = yf_fin.loc['Net Income'].iloc[0]
+                            rev = yf_fin.loc['Total Revenue'].iloc[0]; net_inc = yf_fin.loc['Net Income'].iloc[0]
                             prev_rev = yf_fin.loc['Total Revenue'].iloc[1] if len(yf_fin.columns) > 1 else rev
-                            
-                            fin_data['revenue'] = rev / 1e6
-                            fin_data['net_margin'] = (net_inc / rev) * 100
-                            fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100
+                            fin_data['revenue'] = rev / 1e6; fin_data['net_margin'] = (net_inc / rev) * 100; fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100
                             fin_data['eps'] = yf_info.get('trailingEps', 0)
-                            
-                            if 'Operating Income' in yf_fin.index:
-                                op_inc = yf_fin.loc['Operating Income'].iloc[0]
-                                fin_data['op_margin'] = (op_inc / rev) * 100
-                            else:
-                                fin_data['op_margin'] = fin_data['net_margin']
-                            
-                            fin_data['market_cap'] = yf_info.get('marketCap', 0) / 1e6
-                            fin_data['forward_pe'] = yf_info.get('forwardPE', 0)
-                            fin_data['price_to_book'] = yf_info.get('priceToBook', 0)
-                            
+                            fin_data['op_margin'] = (yf_fin.loc['Operating Income'].iloc[0] / rev) * 100 if 'Operating Income' in yf_fin.index else fin_data['net_margin']
+                            fin_data['market_cap'] = yf_info.get('marketCap', 0) / 1e6; fin_data['forward_pe'] = yf_info.get('forwardPE', 0); fin_data['price_to_book'] = yf_info.get('priceToBook', 0)
                             if not yf_bal.empty:
                                 total_liab = yf_bal.loc['Total Liabilities Net Minority Interest'].iloc[0] if 'Total Liabilities Net Minority Interest' in yf_bal.index else 0
                                 equity = yf_bal.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in yf_bal.index else 1
-                                fin_data['debt_equity'] = (total_liab / equity) * 100
-                                fin_data['roe'] = (net_inc / equity) * 100
-                            
-                            is_data_available = True
-                            data_source = "Yahoo Finance (Full Direct)"
-                    except:
-                        pass
+                                fin_data['debt_equity'] = (total_liab / equity) * 100; fin_data['roe'] = (net_inc / equity) * 100
+                            is_data_available = True; data_source = "Yahoo Finance"
+                    except: pass
             
-                # [1] 데이터 전처리 및 지표 계산
                 growth_val = fin_data.get('growth') if is_data_available else None
                 ocf_val = fin_data.get('net_margin') if is_data_available else 0
                 op_m = fin_data.get('op_margin') if is_data_available else None
                 net_m = fin_data.get('net_margin') if is_data_available else None
-                
-                if is_data_available and op_m is not None and net_m is not None:
-                    acc_diff = op_m - net_m
-                    accruals_status = "Low" if abs(acc_diff) < 5 else "High"
-                else:
-                    accruals_status = "Unknown"
+                accruals_status = "Low" if is_data_available and op_m is not None and net_m is not None and abs(op_m - net_m) < 5 else "High" if is_data_available else "Unknown"
     
-                md_stock = {
-                    "sales_growth": growth_val,
-                    "ocf": ocf_val,
-                    "accruals": accruals_status,
-                    "vc_backed": "Checking...",
-                    "discount_rate": 0.0
-                }
-    
-                # 🔥 [1.5] 에러 방지용 안전 변수 가공
                 def clean_value(val):
-                    try:
-                        if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))): return 0.0
-                        return float(val)
+                    try: return 0.0 if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))) else float(val)
                     except: return 0.0
-    
                 if fin_data is None: fin_data = {}
     
-                rev_val = clean_value(fin_data.get('revenue', 0))
-                net_m_val = clean_value(fin_data.get('net_margin', 0))
-                op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
-                growth = clean_value(fin_data.get('growth', 0))
-                roe_val = clean_value(fin_data.get('roe', 0))
-                de_ratio = clean_value(fin_data.get('debt_equity', 0))
-                pe_val = clean_value(fin_data.get('forward_pe', 0))
+                rev_val = clean_value(fin_data.get('revenue', 0)); net_m_val = clean_value(fin_data.get('net_margin', 0)); op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
+                growth = clean_value(fin_data.get('growth', 0)); roe_val = clean_value(fin_data.get('roe', 0)); de_ratio = clean_value(fin_data.get('debt_equity', 0)); pe_val = clean_value(fin_data.get('forward_pe', 0))
     
-                rev_display = f"{rev_val:,.0f}" if rev_val > 0 else "N/A"
                 growth_display = f"{growth:+.1f}%" if abs(growth) > 0.001 else "N/A"
                 net_m_display = f"{net_m_val:.1f}%" if abs(net_m_val) > 0.001 else "N/A"
                 opm_display = f"{op_m_val:.2f}%" if abs(op_m_val) > 0.001 else "N/A"
     
-                # [2] 카드형 UI 레이아웃
                 r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
                 r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
     
                 with r1_c1:
                     display_val = growth_display
-                    if display_val != "N/A":
-                        status, st_cls = ("🔥 " + ("High-Growth" if not is_ko else "고성장"), "st-hot") if growth > 20 else ("✅ " + ("Stable" if not is_ko else "안정"), "st-good") if growth > 5 else ("⚠️ " + ("Slowdown" if not is_ko else "둔화"), "st-neutral")
+                    if display_val != "N/A": status, st_cls = ("🔥 High-Growth" if not is_ko else "🔥 고성장", "st-hot") if growth > 20 else ("✅ Stable" if not is_ko else "✅ 안정", "st-good") if growth > 5 else ("⚠️ Slowdown" if not is_ko else "⚠️ 둔화", "st-neutral")
                     else: status, st_cls = ("🔍 N/A", "st-neutral")
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_growth')}</div><div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
                 with r1_c2:
                     display_val = net_m_display
-                    if display_val != "N/A":
-                        status, st_cls = ("✅ " + ("Profit" if not is_ko else "흑자"), "st-good") if net_m_val > 0 else ("🚨 " + ("Loss" if not is_ko else "적자"), "st-hot")
+                    if display_val != "N/A": status, st_cls = ("✅ Profit" if not is_ko else "✅ 흑자", "st-good") if net_m_val > 0 else ("🚨 Loss" if not is_ko else "🚨 적자", "st-hot")
                     else: status, st_cls = ("🔍 N/A", "st-neutral")
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Net Margin (Profit)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_net_margin')}</div><div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
                 with r1_c3:
-                    val = md_stock['accruals']
-                    status = ("✅ " + ("Solid" if not is_ko else "건전")) if val == "Low" else ("🚨 " + ("Caution" if not is_ko else "주의")) if val == "High" else "🔍 N/A"
+                    val = accruals_status
+                    status = ("✅ Solid" if not is_ko else "✅ 건전") if val == "Low" else ("🚨 Caution" if not is_ko else "🚨 주의") if val == "High" else "🔍 N/A"
                     st_cls = "st-good" if val == "Low" else "st-hot" if val == "High" else "st-neutral"
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_accruals')}</div><div class='metric-footer'>Theory: Teoh et al. (1998)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
                 with r1_c4:
                     display_val = f"{de_ratio:.1f}%" if de_ratio > 0 else "N/A"
-                    status, st_cls = ("✅ " + ("Stable" if not is_ko else "안정"), "st-good") if (0 < de_ratio < 100) else ("🔍 N/A", "st-neutral")
+                    status, st_cls = ("✅ Stable" if not is_ko else "✅ 안정", "st-good") if (0 < de_ratio < 100) else ("🔍 N/A", "st-neutral")
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Debt / Equity</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_debt_equity')}</div><div class='metric-footer'>Ref: Standard Ratio<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
                 with r2_c1:
                     if current_p > 0 and off_val > 0:
                         up_rate = ((current_p - off_val) / off_val) * 100
-                        display_val, status, st_cls = (f"{up_rate:+.1f}%", ("🚀 " + ("Surge" if not is_ko else "급등")) if up_rate > 20 else ("⚖️ " + ("Fair" if not is_ko else "적정")), "st-hot" if up_rate > 20 else "st-good")
-                    else:
-                        display_val, status, st_cls = (get_text('status_waiting'), ("⏳ " + ("IPO" if not is_ko else "예정")), "st-neutral")
+                        display_val, status, st_cls = (f"{up_rate:+.1f}%", ("🚀 Surge" if not is_ko else "🚀 급등") if up_rate > 20 else ("⚖️ Fair" if not is_ko else "⚖️ 적정"), "st-hot" if up_rate > 20 else "st-good")
+                    else: display_val, status, st_cls = (get_text('status_waiting'), ("⏳ IPO" if not is_ko else "⏳ 예정"), "st-neutral")
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Market Performance</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_performance')}</div><div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div></div>", unsafe_allow_html=True)
     
                 st.write("<br>", unsafe_allow_html=True)
     
-                # [2.5] 논문기반 AI 종합 판정 리포트 (💡 일본어 분기 및 폰트 통일 적용)
                 with st.expander(get_text('expander_academic_analysis'), expanded=False):
                     st.caption(f"Data Source: {data_source} / Currency: USD")
-                    
                     if is_data_available:
                         if curr_lang == 'ko':
                             growth_status_text = "고성장" if growth > 20 else "안정적" if growth > 5 else "정체"
                             quality_status_text = "우수" if roe_val > 15 else "보통"
-                            
-                            st.markdown(f"""
-                            <div class='unified-text'>
-                            <b>1. 성장성 및 생존 분석 (Jay Ritter, 1991)</b><br>
-                            현재 매출 성장률은 <b>{growth_status_text}</b> 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {"긍정적 시그널" if growth > 10 else "주의가 필요한 시그널"}로 해석됩니다.<br><br>
-        
-                            <b>2. 수익성 품질 및 자본 구조 (Fama & French, 2004)</b><br>
-                            수익성 지표(Net Margin/ROE)는 <b>{quality_status_text}</b> 등급입니다. 본 기업은 {"상대적으로 견고한 이익 체력" if roe_val > 10 else "영업 효율성 개선이 선행되어야 하는 체력"}을 보유하고 있습니다.<br><br>
-        
-                            <b>3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)</b><br>
-                            발생액 품질(Accruals Quality)이 <b>{accruals_status}</b> 상태입니다. 이는 경영진의 이익 조정 가능성이 {"낮음" if accruals_status == "Low" else "존재함"}을 의미합니다.
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.markdown(f"<div class='unified-text'><b>1. 성장성 및 생존 분석 (Jay Ritter, 1991)</b><br>현재 매출 성장률은 <b>{growth_status_text}</b> 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {'긍정적 시그널' if growth > 10 else '주의가 필요한 시그널'}로 해석됩니다.<br><br><b>2. 수익성 품질 및 자본 구조 (Fama & French, 2004)</b><br>수익성 지표(Net Margin/ROE)는 <b>{quality_status_text}</b> 등급입니다. 본 기업은 {'상대적으로 견고한 이익 체력' if roe_val > 10 else '영업 효율성 개선이 선행되어야 하는 체력'}을 보유하고 있습니다.<br><br><b>3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)</b><br>발생액 품질(Accruals Quality)이 <b>{accruals_status}</b> 상태입니다. 이는 경영진의 이익 조정 가능성이 {'낮음' if accruals_status == 'Low' else '존재함'}을 의미합니다.</div>", unsafe_allow_html=True)
                             st.info(f"**AI 종합 판정:** 학술적 관점에서 본 기업은 **{growth_status_text}** 성격이 강하며, 정보 불확실성은 일정 부분 해소된 상태입니다.")
-                            
                         elif curr_lang == 'ja':
                             growth_status_text = "高成長" if growth > 20 else "安定的" if growth > 5 else "停滞"
                             quality_status_text = "優秀" if roe_val > 15 else "普通"
-                            
-                            st.markdown(f"""
-                            <div class='unified-text'>
-                            <b>1. 成長性と生存分析 (Jay Ritter, 1991)</b><br>
-                            現在の売上成長率は<b>{growth_status_text}</b>段階です。Ritterの理論によると、上場初期の高成長企業は今後3〜5年間の「成長鈍化の罠」に注意すべきであり、現在の数値は{"肯定的なシグナル" if growth > 10 else "注意が必要なシグナル"}と解釈されます。<br><br>
-        
-                            <b>2. 収益性の質と資本構造 (Fama & French, 2004)</b><br>
-                            収益性指標(Net Margin/ROE)は<b>{quality_status_text}</b>レベルです。この企業は{"比較的堅固な利益創出力" if roe_val > 10 else "営業効率の改善が先行されるべき体力"}を保持しています。<br><br>
-        
-                            <b>3. 情報の非対称性と会計の質 (Teoh et al., 1998)</b><br>
-                            発生額の質(Accruals Quality)が<b>{accruals_status}</b>の状態です。これは経営陣による利益調整の可能性が{"低い" if accruals_status == "Low" else "存在する"}ことを意味します。
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.markdown(f"<div class='unified-text'><b>1. 成長性と生存分析 (Jay Ritter, 1991)</b><br>現在の売上成長率は<b>{growth_status_text}</b>段階です。Ritterの理論によると、上場初期の高成長企業は今後3〜5年間の「成長鈍化の罠」に注意すべきであり、現在の数値は{'肯定的なシグナル' if growth > 10 else '注意が必要なシグナル'}と解釈されます。<br><br><b>2. 収益性の質と資本構造 (Fama & French, 2004)</b><br>収益性指標(Net Margin/ROE)は<b>{quality_status_text}</b>レベルです。この企業は{'比較的堅固な利益創出力' if roe_val > 10 else '営業効率の改善が先行されるべき体力'}を保持しています。<br><br><b>3. 情報の非対称性と会計の質 (Teoh et al., 1998)</b><br>発生額の質(Accruals Quality)が<b>{accruals_status}</b>の状態です。これは経営陣による利益調整の可能性が{'低い' if accruals_status == 'Low' else '存在する'}ことを意味します。</div>", unsafe_allow_html=True)
                             st.info(f"**AI 総合判定:** 学術的な観点から、この企業は**{growth_status_text}**の性格が強く、情報の不確実性は一定部分解消された状態です。")
-                            
-                        else: # English
+                        else:
                             growth_status_text = "High-Growth" if growth > 20 else "Stable" if growth > 5 else "Stagnant"
                             quality_status_text = "High-Quality" if roe_val > 15 else "Average"
-                            
-                            st.markdown(f"""
-                            <div class='unified-text'>
-                            <b>1. Growth & Survival Analysis (Jay Ritter, 1991)</b><br>
-                            Current revenue growth is in the <b>{growth_status_text}</b> stage. According to Ritter's theory, high-growth firms should beware of the 'growth trap' in the next 3-5 years. Current metrics indicate a {"positive" if growth > 10 else "cautionary"} signal.<br><br>
-        
-                            <b>2. Profitability & Capital Structure (Fama & French, 2004)</b><br>
-                            Profitability (Net Margin/ROE) is rated as <b>{quality_status_text}</b>. This firm possesses {"relatively solid earnings power" if roe_val > 10 else "room for operational improvement"}.<br><br>
-        
-                            <b>3. Information Asymmetry & Accounting Quality (Teoh et al., 1998)</b><br>
-                            Accruals quality is <b>{accruals_status}</b>, implying the risk of earnings management by executives is {"low" if accruals_status == "Low" else "notable"}.
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.markdown(f"<div class='unified-text'><b>1. Growth & Survival Analysis (Jay Ritter, 1991)</b><br>Current revenue growth is in the <b>{growth_status_text}</b> stage. According to Ritter's theory, high-growth firms should beware of the 'growth trap' in the next 3-5 years. Current metrics indicate a {'positive' if growth > 10 else 'cautionary'} signal.<br><br><b>2. Profitability & Capital Structure (Fama & French, 2004)</b><br>Profitability (Net Margin/ROE) is rated as <b>{quality_status_text}</b>. This firm possesses {'relatively solid earnings power' if roe_val > 10 else 'room for operational improvement'}.<br><br><b>3. Information Asymmetry & Accounting Quality (Teoh et al., 1998)</b><br>Accruals quality is <b>{accruals_status}</b>, implying the risk of earnings management by executives is {'low' if accruals_status == 'Low' else 'notable'}.</div>", unsafe_allow_html=True)
                             st.info(f"**AI Verdict:** Academically, this firm exhibits **{growth_status_text}** characteristics with manageable information uncertainty.")
-                    else:
-                        st.warning(get_text('err_no_biz_info') if not is_ko else "재무 데이터 부재로 정성적 분석이 권장됩니다.")
+                    else: st.warning(get_text('err_no_biz_info'))
             
-                # [3] 재무자료 상세보기
                 with st.expander(get_text('expander_financial_analysis'), expanded=False):
                     if is_data_available:
                         st.caption(f"Data Source: {data_source} / Currency: USD")
-                
-                        st.markdown("""
-                        <style>
-                            .custom-metric-container { display: flex; justify-content: space-between; text-align: center; padding: 10px 0; }
-                            .custom-metric-box { flex: 1; border-right: 1px solid #f0f0f0; }
-                            .custom-metric-box:last-child { border-right: none; }
-                            .custom-metric-label { font-size: 0.85rem; font-weight: bold; color: #333333; margin-bottom: 6px; }
-                            .custom-metric-value { font-size: 1.05rem; font-weight: 400; color: #1f1f1f; }
-                        </style>
-                        """, unsafe_allow_html=True)
-                
-                        metrics = [
-                            ("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"),
-                            ("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x"),
-                            ("Net Margin", f"{net_m_val:.1f}%"),
-                            ("ROE", f"{roe_val:.1f}%"),
-                            ("D/E Ratio", f"{de_ratio:.1f}%"),
-                            ("Growth (YoY)", f"{growth:.1f}%")
-                        ]
-                
+                        st.markdown("""<style>.custom-metric-container { display: flex; justify-content: space-between; text-align: center; padding: 10px 0; } .custom-metric-box { flex: 1; border-right: 1px solid #f0f0f0; } .custom-metric-box:last-child { border-right: none; } .custom-metric-label { font-size: 0.85rem; font-weight: bold; color: #333333; margin-bottom: 6px; } .custom-metric-value { font-size: 1.05rem; font-weight: 400; color: #1f1f1f; }</style>""", unsafe_allow_html=True)
+                        metrics = [("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"), ("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x"), ("Net Margin", f"{net_m_val:.1f}%"), ("ROE", f"{roe_val:.1f}%"), ("D/E Ratio", f"{de_ratio:.1f}%"), ("Growth (YoY)", f"{growth:.1f}%")]
                         m_cols = st.columns(6)
                         for i, (label, value) in enumerate(metrics):
-                            with m_cols[i]:
-                                st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
-                
+                            with m_cols[i]: st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
                         st.markdown(" ")     
-                
-                        ai_metrics = {
-                            "growth": growth_display, "net_margin": net_m_display, "op_margin": opm_display,
-                            "roe": f"{roe_val:.1f}%", "debt_equity": f"{de_ratio:.1f}%",
-                            "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A", "accruals": accruals_status
-                        }
-    
+                        ai_metrics = {"growth": growth_display, "net_margin": net_m_display, "op_margin": opm_display, "roe": f"{roe_val:.1f}%", "debt_equity": f"{de_ratio:.1f}%", "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A", "accruals": accruals_status}
                         with st.spinner(get_text('msg_analyzing_financial')):
                             ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], ai_metrics, curr_lang)
-                        
                         st.info(ai_report)
                         st.caption("※ CFA algorithm analysis applied." if not is_ko else "※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
-                
-                    else:
-                        st.warning(get_text('err_no_biz_info') if not is_ko else "재무 데이터 부재로 정성적 분석이 권장됩니다.")
+                    else: st.warning(get_text('err_no_biz_info'))
     
-                # [4] 학술적 근거 및 원문 링크 (💡 요약 문구 다국어 처리 및 폰트 통일)
                 with st.expander(get_text('expander_references'), expanded=False):
-                    st.markdown("""
-                    <style>
-                        .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
-                        .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 0.95rem; }
-                        .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; }
-                        .ref-summary { font-size: 0.85rem; color: #666666; margin-top: 3px; }
-                        .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; color: #555; text-decoration: none; white-space: nowrap; }
-                    </style>
-                    """, unsafe_allow_html=True)
-    
-                    # 언어별 하드코딩 요약본 변환
-                    if curr_lang == 'ko':
-                        sum_vc = "VC 투자가 상장 시 갖는 공신력 분석"
-                        sum_rock = "정보 비대칭성과 공모가 저평가 메커니즘"
-                    elif curr_lang == 'ja':
-                        sum_vc = "VC投資が上場時に持つ公信力の分析"
-                        sum_rock = "情報の非対称性と公募価格の割安メカニズム"
-                    else:
-                        sum_vc = "Analyzing the credibility of VC certification."
-                        sum_rock = "Information asymmetry and pricing mechanism."
-
+                    st.markdown("""<style>.ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; } .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 0.95rem; } .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; } .ref-summary { font-size: 0.85rem; color: #666666; margin-top: 3px; } .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; color: #555; text-decoration: none; white-space: nowrap; }</style>""", unsafe_allow_html=True)
+                    if curr_lang == 'ko': sum_vc = "VC 투자가 상장 시 갖는 공신력 분석"; sum_rock = "정보 비대칭성과 공모가 저평가 메커니즘"
+                    elif curr_lang == 'ja': sum_vc = "VC投資が上場時に持つ公信力の分析"; sum_rock = "情報の非対称性と公募価格の割安メカニズム"
+                    else: sum_vc = "Analyzing the credibility of VC certification."; sum_rock = "Information asymmetry and pricing mechanism."
                     references_tab3 = [
                         {"label": get_text('ref_label_growth'), "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "summary": get_text('ref_sum_ipo'), "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991"},
                         {"label": get_text('ref_label_fundamental'), "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "summary": get_text('ref_sum_withdrawal'), "link": "https://scholar.google.com/scholar?q=Fama+French+2004"},
@@ -3925,106 +3647,56 @@ with main_area.container():
                         {"label": get_text('ref_label_vc'), "title": "The Role of Venture Capital", "author": "Barry et al. (1990)", "summary": sum_vc, "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
                         {"label": get_text('ref_label_underpricing'), "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "summary": sum_rock, "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
                     ]
-    
                     st.info(f"💡 {get_text('caption_google_search')} (Source: **{data_source}**)")
-    
                     for ref in references_tab3:
-                        st.markdown(f"""
-                        <div class='ref-item'>
-                            <div style='flex:1; padding-right: 10px;'>
-                                <div class='ref-badge'>{ref['label']}</div><br>
-                                <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
-                                <div class='ref-summary'>{ref['summary']}, {ref['author']}</div>
-                            </div>
-                            <div>
-                                <a href='{ref['link']}' target='_blank' class='ref-btn'>View ↗</a>
-                            </div>
-                        </div>""", unsafe_allow_html=True)
+                        st.markdown(f"<div class='ref-item'><div style='flex:1; padding-right: 10px;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div class='ref-summary'>{ref['summary']}, {ref['author']}</div></div><div><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
     
-                # [5] 사용자 최종 판단 박스 (Decision Box)
                 draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", [get_text('opt_overvalued'), get_text('sentiment_neutral'), get_text('opt_undervalued')])
                 display_disclaimer()            
     
-            # --- Tab 4: 기관평가 (UI 출력 부분) ---
+            # --- Tab 4: 기관평가 (UI 출력 부분 다국어 적용) ---
             with tab4:
-                # 💡 [NameError 방지] 현재 언어 설정 미리 확보
                 curr_lang = st.session_state.lang
-                is_ko = (curr_lang == 'ko')
-
-                # 1. 함수 호출 (다국어 파라미터 전달 유지)
-                with st.spinner(get_text('msg_analyzing_tab4')):
-                    # AI 모델이 결과값을 요청된 언어에 맞춰 생성하도록 설계됨
+                with st.spinner(get_text('msg_analyzing_institutional')):
                     result = get_unified_tab4_analysis(stock['name'], stock['symbol'], curr_lang)
                 
-                # 2. 결과 데이터 매핑
                 summary_raw = result.get('summary', '')
                 pro_con_raw = result.get('pro_con', '')
                 rating_val = str(result.get('rating', 'Hold')).strip()
                 score_val = str(result.get('score', '3')).strip() 
                 sources = result.get('links', [])
                 q = stock['symbol'] if stock['symbol'] else stock['name']
-
+    
                 st.write("<br>", unsafe_allow_html=True)
             
-                # --- (1) Renaissance Capital & 기관 종합 요약 섹션 ---
                 with st.expander(get_text('expander_renaissance'), expanded=False):
                     import re
                     pattern = r'(?i)source|출처|https?://'
                     parts = re.split(pattern, summary_raw)
-                    
-                    # [원본 로직 유지] 줄바꿈 제거 및 한 문단 통합 처리
                     summary = parts[0].replace('\\n', ' ').replace('\n', ' ').strip().rstrip(' ,.:;-\t')
-                    
-                    if not summary or "분석 불가" in summary or "N/A" in summary.upper():
-                        st.warning(get_text('err_no_institutional_report'))
-                    else:
-                        st.info(summary)
+                    if not summary or "분석 불가" in summary or "N/A" in summary.upper(): st.warning(get_text('err_no_institutional_report'))
+                    else: st.info(summary)
             
-                # --- (2) Seeking Alpha & Morningstar 섹션 ---
                 with st.expander(get_text('expander_seeking_alpha'), expanded=False):
-                    # 문자열 \n을 실제 엔터로 변환
                     pro_con = pro_con_raw.replace('\\n', '\n').replace("###", "").strip()
-                    
-                    # [개선됨] AI가 어떤 언어로 출력하든 일관되게 다국어 레이블로 덮어씌우는 로직
-                    label_pro = get_text('sentiment_positive')
-                    label_con = get_text('sentiment_negative')
-                    
-                    # 한국어 포맷 대응
+                    label_pro = get_text('sentiment_positive'); label_con = get_text('sentiment_negative')
                     pro_con = pro_con.replace("긍정:", f"**{label_pro}**:").replace("부정:", f"\n\n**{label_con}**:")
                     pro_con = pro_con.replace("✅ 긍정", f"**{label_pro}**").replace("⚠️ 부정", f"\n\n**{label_con}**")
-                    # 영어/기본 포맷 대응 (AI가 Pros/Cons로 출력할 때)
                     pro_con = pro_con.replace("**Pros**:", f"**{label_pro}**:").replace("**Cons**:", f"\n\n**{label_con}**:")
                     pro_con = pro_con.replace("Pros:", f"**{label_pro}**:").replace("Cons:", f"\n\n**{label_con}**:")
-                    
-                    if "의견 수집 중" in pro_con or not pro_con:
-                        st.error(get_text('err_ai_analysis_failed'))
-                    else:
-                        # 최종 출력 시 줄바꿈 강제 적용
-                        st.success(pro_con.replace('\n', '\n\n'))
+                    if "의견 수집 중" in pro_con or not pro_con: st.error(get_text('err_ai_analysis_failed'))
+                    else: st.success(pro_con.replace('\n', '\n\n'))
             
-                # --- (3) Institutional Sentiment 섹션 ---
                 with st.expander(get_text('expander_sentiment'), expanded=False):
                     s_col1, s_col2 = st.columns(2)
-                    
                     with s_col1:
-                        # Analyst Ratings 체계 다국어 매핑
-                        r_list = {
-                            "Strong Buy": get_text('rating_strong_buy'),
-                            "Buy": get_text('rating_buy'),
-                            "Hold": get_text('rating_hold'),
-                            "Neutral": get_text('rating_neutral'),
-                            "Sell": get_text('rating_sell')
-                        }
-                        
+                        r_list = {"Strong Buy": get_text('rating_strong_buy'), "Buy": get_text('rating_buy'), "Hold": get_text('rating_hold'), "Neutral": get_text('rating_neutral'), "Sell": get_text('rating_sell')}
                         rating_desc = f"**[{get_text('label_rating_system')}]**\n"
                         for k, v in r_list.items():
                             is_current = f" **({get_text('label_current')})**" if k.lower() in rating_val.lower() else ""
                             rating_desc += f"- **{k}**: {v}{is_current}\n"
-                
                         st.write(f"**[Analyst Ratings]**")
                         st.metric(label="Consensus Rating", value=rating_val)
-                        
-                        # 상태별 피드백 로직
                         if any(x in rating_val for x in ["Buy", "Positive", "Outperform", "Strong"]):
                             st.success(f"{get_text('label_opinion')}: {get_text('sentiment_positive')}")
                             st.caption(f"✅ {get_text('msg_rating_positive')}\n\n{rating_desc}")
@@ -4036,83 +3708,32 @@ with main_area.container():
                             st.caption(f"ℹ️ {rating_desc}")
             
                     with s_col2:
-                        # IPO Scoop Score 체계 다국어 매핑
-                        s_list = {
-                            "5": get_text('score_5'),
-                            "4": get_text('score_4'),
-                            "3": get_text('score_3'),
-                            "2": get_text('score_2'),
-                            "1": get_text('score_1')
-                        }
-                        
+                        s_list = {"5": get_text('score_5'), "4": get_text('score_4'), "3": get_text('score_3'), "2": get_text('score_2'), "1": get_text('score_1')}
                         score_desc = f"**[{get_text('label_score_system')}]**\n"
                         for k, v in s_list.items():
                             is_current = f" **({get_text('label_current')} {score_val}{get_text('label_point')})**" if k == score_val else ""
                             score_desc += f"- ⭐ {k}{get_text('label_count')}: {v}{is_current}\n"
-                
                         st.write(f"**[IPO Scoop Score]**")
                         st.metric(label="Expected IPO Score", value=f"⭐ {score_val}")
-                        
-                        # 점수별 평가 피드백
                         eval_label = get_text('label_evaluation')
-                        if score_val in ["4", "5"]:
-                            st.success(f"{eval_label}: {s_list.get(score_val, 'N/A')}")
-                        elif score_val == "3":
-                            st.info(f"{eval_label}: {s_list.get(score_val, 'N/A')}")
-                        else:
-                            st.warning(f"{eval_label}: {s_list.get(score_val, 'N/A')}")
-            
+                        if score_val in ["4", "5"]: st.success(f"{eval_label}: {s_list.get(score_val, 'N/A')}")
+                        elif score_val == "3": st.info(f"{eval_label}: {s_list.get(score_val, 'N/A')}")
+                        else: st.warning(f"{eval_label}: {s_list.get(score_val, 'N/A')}")
                         st.caption(f"ℹ️ {score_desc}")
             
-                # --- (4) References ---
                 with st.expander("References", expanded=False):
                     if sources:
-                        for src in sources:
-                            st.markdown(f"- [{src['title']}]({src['link']})")
-                    else:
-                        st.caption(get_text('err_no_links'))
-                    
+                        for src in sources: st.markdown(f"- [{src['title']}]({src['link']})")
+                    else: st.caption(get_text('err_no_links'))
                     st.markdown(f"- [Renaissance Capital: {stock['name']} {get_text('label_detail_data')}](https://www.google.com/search?q=site:renaissancecapital.com+{q})")
                     st.markdown(f"- [Seeking Alpha: {stock['name']} {get_text('label_deep_analysis')}](https://seekingalpha.com/symbol/{q}/analysis)")
                     st.markdown(f"- [Morningstar: {stock['name']} {get_text('label_research_result')}](https://www.morningstar.com/search?query={q})")
                     st.markdown(f"- [Google Finance: {stock['name']} {get_text('label_market_trend')}](https://www.google.com/finance/quote/{q}:NASDAQ)")
             
-                # [✅ 5단계 사용자 판단]
                 draw_decision_box("ipo_report", get_text('decision_final_institutional'), [get_text('btn_buy'), get_text('sentiment_neutral'), get_text('btn_sell')])
-    
-                # 면책 조항
                 display_disclaimer()
-        
-            
-            # --- [공통 함수: 게시글 반응 처리] ---
-            # 이 함수는 Tab 5 외부(메인 로직 상단)에 두셔도 좋습니다.
-            def handle_post_reaction(post_id, reaction_type, user_id):
-                if not user_id:
-                    st.warning("🔒 로그인이 필요한 기능입니다.")
-                    return
-            
-                user_list_key = 'like_users' if reaction_type == 'likes' else 'dislike_users'
                 
-                for p in st.session_state.posts:
-                    if p['id'] == post_id:
-                        p.setdefault('like_users', [])
-                        p.setdefault('dislike_users', [])
-                        
-                        # 중복 투표 방지
-                        if user_id not in p[user_list_key]:
-                            p[reaction_type] = p.get(reaction_type, 0) + 1
-                            p[user_list_key].append(user_id)
-                            st.rerun()
-                        else:
-                            st.toast("이미 참여하신 게시글입니다.")
-                        break
-            
-            
-    
-    
-            # =========================================================
-            # --- Tab 5: 최종 투자 결정 (데이터 영구 저장 및 복구 통합) ---
-            # =========================================================
+            # Tab 5 (의사결정 및 토론방)은 기존 코드가 완벽히 다국어화되어 있으므로 그대로 사용하시면 됩니다.
             with tab5:
                 # 💡 [핵심] 제목과 내용을 동시에 번역하는 주문형 번역 함수
                 def translate_post_on_demand(title, content, target_lang_code):
@@ -4358,7 +3979,7 @@ with main_area.container():
                         st.session_state[page_key] = 5
                     current_display = normal_posts[:st.session_state[page_key]]
     
-                    # 💡 종목 토론방 전용 UI 렌더러 (에러 방지 적용)
+                    # 💡 종목 토론방 전용 UI 렌더러
                     def render_detail_post(p, is_hot=False):
                         p_auth = p.get('author_name', 'Unknown')
                         p_date = str(p.get('created_at', '')).split('T')[0]
@@ -4370,7 +3991,6 @@ with main_area.container():
                         original_title = p.get('title', '')
                         original_content = p.get('content', '')
                         
-                        # 번역 상태 확인 및 스와핑 (구버전 캐시 방어코드 포함)
                         is_translated = p_id in st.session_state.translated_posts
                         if is_translated:
                             trans_data = st.session_state.translated_posts[p_id]
@@ -4390,7 +4010,6 @@ with main_area.container():
                         with st.expander(title_disp.strip()):
                             st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-bottom:10px;'>{display_content}</div>", unsafe_allow_html=True)
                             
-                            # 번역 버튼 & 액션 버튼 레이아웃
                             btn_c1, btn_c2, btn_c3, btn_c4 = st.columns([2.5, 1.5, 1.5, 1.5])
                             
                             with btn_c1:
@@ -4428,20 +4047,17 @@ with main_area.container():
                                                 import time; time.sleep(0.5)
                                                 st.rerun()
     
-                    # (A) 상단: HOT 게시물 출력
                     if top_5_hot:
                         st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>{get_text('label_hot_posts')}</div>", unsafe_allow_html=True)
                         for p in top_5_hot: render_detail_post(p, is_hot=True)
                         st.write("<br><br>", unsafe_allow_html=True)
     
-                    # (B) 하단: 최신 게시물 출력
                     st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{get_text('label_recent_posts')}</div>", unsafe_allow_html=True)
                     if current_display:
                         for p in current_display: render_detail_post(p, is_hot=False)
                     else:
                         st.info(get_text('msg_no_recent_posts'))
                         
-                    # (C) 더 보기 버튼
                     if len(normal_posts) > st.session_state[page_key]:
                         st.write("<br>", unsafe_allow_html=True)
                         if st.button(get_text('btn_load_more'), key=f"more_{sid}", use_container_width=True):
