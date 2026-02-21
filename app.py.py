@@ -3970,12 +3970,15 @@ with main_area.container():
                         p_date = str(p.get('created_at', '')).split('T')[0]
                         p_id = str(p.get('id'))
                         p_uid = p.get('author_id')
+                        p_cat = p.get('category', '자유')
                         likes = p.get('likes') or 0
                         dislikes = p.get('dislikes') or 0
                         
                         original_title = p.get('title', '')
                         original_content = p.get('content', '')
+                        curr_lang = st.session_state.get('lang', 'ko')
                         
+                        # 번역 상태 체크 로직
                         is_translated = p_id in st.session_state.translated_posts
                         if is_translated:
                             trans_data = st.session_state.translated_posts[p_id]
@@ -3995,9 +3998,11 @@ with main_area.container():
                         with st.expander(title_disp.strip()):
                             st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-bottom:10px;'>{display_content}</div>", unsafe_allow_html=True)
                             
+                            # 4분할 버튼 영역 (번역 기능 포함)
                             btn_c1, btn_c2, btn_c3, btn_c4 = st.columns([2.5, 1.5, 1.5, 1.5])
                             with btn_c1:
                                 trans_label = get_text('btn_see_original') if is_translated else get_text('btn_see_translation')
+                                # 🚨 키 충돌 방지: 메인 게시판과 구분을 위해 '_det_' 사용
                                 if st.button(trans_label, key=f"t_det_{p_id}", use_container_width=True):
                                     if is_translated: del st.session_state.translated_posts[p_id]
                                     else:
@@ -4024,6 +4029,7 @@ with main_area.container():
                                                 import time; time.sleep(0.5)
                                                 st.rerun()
                     
+                    # 렌더링 실행
                     if top_5_hot:
                         st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>{get_text('label_hot_posts')}</div>", unsafe_allow_html=True)
                         for p in top_5_hot: render_detail_post(p, is_hot=True)
@@ -4036,234 +4042,18 @@ with main_area.container():
                     else: 
                         st.info(get_text('msg_no_recent_posts'))
                         
+                    # 더보기 버튼 (키 고유화)
                     if len(normal_posts) > st.session_state[page_key]:
                         st.write("<br>", unsafe_allow_html=True)
-                        if st.button(get_text('btn_load_more'), key=f"more_{sid}", use_container_width=True):
+                        if st.button(get_text('btn_load_more'), key=f"more_det_{sid}", use_container_width=True):
                             st.session_state[page_key] += 10
                             st.rerun()
                 else: 
                     st.info(get_text('msg_first_comment'))
-                
+                    
                 # 최종 판단 박스 & 면책조항
                 draw_decision_box("ipo_report", get_text('decision_final_invest'), [get_text('opt_buy'), get_text('sentiment_neutral'), get_text('opt_sell')])
                 display_disclaimer()
-
-    # ---------------------------------------------------------
-    # [NEW] 6. 게시판 페이지 (Board)
-    # ---------------------------------------------------------
-    elif st.session_state.page == 'board':
-        
-        # 🚀 [잔상 제거의 핵심] 이전 컨테이너(캘린더 or 상세페이지)를 즉시 폭파하고 100vh로 화면을 덮어버림
-        main_area.empty() 
-        
-        with main_area.container():
-            st.markdown("<div style='min-height: 100vh; background-color: white; padding: 10px;'>", unsafe_allow_html=True)
-            
-            st.markdown("""
-                <style>
-                div[data-testid="stPills"] div[role="radiogroup"] button {
-                    border: none !important;
-                    background-color: #000000 !important;
-                    color: #ffffff !important;
-                    border-radius: 20px !important;
-                    padding: 6px 15px !important;
-                    margin-right: 5px !important;
-                }
-                div[data-testid="stPills"] button[aria-selected="true"] {
-                    background-color: #444444 !important;
-                    font-weight: 800 !important;
-                }
-                </style>
-            """, unsafe_allow_html=True)
-        
-            # [1] 메뉴 구성 및 네비게이션
-            is_logged_in = (st.session_state.auth_status == 'user')
-            login_text, settings_text, main_text, watch_text, board_text, back_text = "로그아웃" if is_logged_in else "로그인", "권한설정", "메인", f"관심 ({len(st.session_state.watchlist)})", "게시판", "뒤로가기"
-            
-            menu_options = [login_text]
-            if is_logged_in: menu_options.append(settings_text)
-            menu_options.extend([main_text, watch_text, board_text])
-            
-            last_stock = st.session_state.get('selected_stock')
-            if last_stock: menu_options.append(back_text)
-        
-            selected_menu = st.pills(label="nav_board", options=menu_options, selection_mode="single", default=board_text, key="nav_board_v3", label_visibility="collapsed")
-        
-            if selected_menu and selected_menu != board_text:
-                if selected_menu == back_text: st.session_state.page = 'detail'; st.rerun()
-                elif selected_menu == login_text: 
-                    if is_logged_in: st.session_state.auth_status = None
-                    st.session_state.page = 'login'; st.rerun()
-                elif selected_menu == settings_text: st.session_state.page = 'setup'; st.rerun()
-                elif selected_menu == main_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'all'; st.rerun()
-                elif selected_menu == watch_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'watchlist'; st.rerun()
-        
-            # [2] 게시판 데이터 로드 및 검색 필터링 적용
-            s_keyword = ""
-            s_type = "제목"
-            
-            # 세션에서 검색 상태를 기억하도록 하여 검색 후 페이지 새로고침 시에도 유지되도록 함.
-            if 'b_s_type' in st.session_state:
-                s_type = st.session_state.b_s_type
-            if 'b_s_keyword' in st.session_state:
-                s_keyword = st.session_state.b_s_keyword
-                
-            all_posts = db_load_posts(limit=100) 
-            
-            posts = all_posts
-            if s_keyword:
-                k = s_keyword.lower()
-                if s_type == "제목": posts = [p for p in posts if k in p.get('title','').lower()]
-                elif s_type == "제목+내용": posts = [p for p in posts if k in p.get('title','').lower() or k in p.get('content','').lower()]
-                elif s_type == "카테고리": posts = [p for p in posts if k in p.get('category','').lower()]
-                elif s_type == "작성자": posts = [p for p in posts if k in p.get('author_name','').lower()]
-        
-            # [3] 정렬 및 분리 로직 (HOT 5개 / 나머지 최신순 페이징)
-            hot_candidates = []
-            normal_posts = []
-        
-            if posts:
-                from datetime import datetime, timedelta
-                three_days_ago = datetime.now() - timedelta(days=3)
-        
-                for p in posts:
-                    try:
-                        created_dt_str = str(p.get('created_at', '')).split('.')[0]
-                        created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
-                        if created_dt >= three_days_ago and p.get('likes', 0) > 0:
-                            hot_candidates.append(p)
-                        else:
-                            normal_posts.append(p)
-                    except:
-                        normal_posts.append(p)
-                        
-                # HOT 정렬 및 최대 5개 추출
-                hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
-                top_5_hot = hot_candidates[:5]
-                
-                # 나머지 병합 및 최신순 정렬
-                normal_posts.extend(hot_candidates[5:])
-                normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
-        
-            # 게시판에 들어올 때 무조건 5개로 시작하도록 강제 설정
-            if 'board_display_count' not in st.session_state:
-                st.session_state.board_display_count = 5
-            
-            current_display = normal_posts[:st.session_state.board_display_count]
-        
-            # UI 출력 함수
-            def render_post(p, is_hot=False):
-                p_auth = p.get('author_name', 'Unknown')
-                p_date = str(p.get('created_at', '')).split('T')[0]
-                p_id = p.get('id')
-                p_uid = p.get('author_id')
-                p_cat = p.get('category', '자유')
-                likes = p.get('likes') or 0
-                dislikes = p.get('dislikes') or 0
-                
-                prefix = "[HOT]" if is_hot else f"[{p_cat}]"
-                title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (추천{likes}  비추천{dislikes})"
-                
-                with st.expander(title_disp.strip()):
-                    st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{p.get('content')}</div>", unsafe_allow_html=True)
-                    st.write("<br>", unsafe_allow_html=True)
-                    
-                    action_c1, action_c2, action_c3, _ = st.columns([1.5, 1.5, 1.5, 5.5])
-                    with action_c1:
-                        if st.button(f"추천{likes}", key=f"l_{p_id}", use_container_width=True):
-                            if is_logged_in:
-                                db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'like')
-                                st.rerun()
-                            else: st.toast("🔒 로그인이 필요합니다.")
-                    with action_c2:
-                        if st.button(f"비추천{dislikes}", key=f"d_{p_id}", use_container_width=True):
-                            if is_logged_in:
-                                db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'dislike')
-                                st.rerun()
-                            else: st.toast("🔒 로그인이 필요합니다.")
-                    with action_c3:
-                        raw_u_info = st.session_state.get('user_info')
-                        u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
-                        is_admin = u_info.get('role') == 'admin'
-                        
-                        if is_logged_in and (u_info.get('id') == p_uid or is_admin):
-                            if st.button("삭제", key=f"del_{p_id}", type="secondary", use_container_width=True):
-                                if db_delete_post(p_id):
-                                    st.success("삭제됨")
-                                    import time; time.sleep(0.5)
-                                    st.rerun()
-        
-            # [4] 리스트 및 컨트롤 UI 렌더링
-            post_list_area = st.container()
-            
-            with post_list_area:
-                
-                # 1. 검색 및 글쓰기 영역 (최상단으로 이동)
-                f_col1, f_col2 = st.columns(2)
-                with f_col1:
-                    with st.expander("검색하기"):
-                        s_type_new = st.selectbox("범위", ["제목", "제목+내용", "카테고리", "작성자"], key="b_s_type_temp", index=["제목", "제목+내용", "카테고리", "작성자"].index(s_type))
-                        s_keyword_new = st.text_input("키워드", value=s_keyword, key="b_s_keyword_temp")
-                        if st.button("검색", key="search_btn", use_container_width=True):
-                            st.session_state.b_s_type = s_type_new
-                            st.session_state.b_s_keyword = s_keyword_new
-                            st.rerun()
-                
-                with f_col2:
-                    with st.expander("글쓰기"):
-                        if is_logged_in and check_permission('write'):
-                            with st.form(key="board_main_form", clear_on_submit=True):
-                                # 👇 고유 key 추가
-                                b_cat = st.text_input("종목/말머리", placeholder="자유", key="main_b_cat")
-                                b_tit = st.text_input("제목", key="main_b_tit")
-                                b_cont = st.text_area("내용", key="main_b_cont")
-                                if st.form_submit_button("등록", type="primary", use_container_width=True):
-                                    if b_tit and b_cont:
-                                        u_id = st.session_state.user_info['id']
-                                        try:
-                                            fresh_user = db_load_user(u_id)
-                                            d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
-                                        except: d_name = f"{u_id[:3]}***"
-                                        
-                                        if db_save_post(b_cat, b_tit, b_cont, d_name, u_id):
-                                            st.success("등록 완료!")
-                                            import time; time.sleep(0.5)
-                                            # 글 작성 후 전체 리스트를 다시 불러오도록 검색 조건 초기화
-                                            if 'b_s_type' in st.session_state: del st.session_state.b_s_type
-                                            if 'b_s_keyword' in st.session_state: del st.session_state.b_s_keyword
-                                            st.rerun()
-                        else:
-                            st.warning("🔒 로그인 및 권한 인증이 필요합니다.")
-        
-                st.write("<br>", unsafe_allow_html=True)
-                
-                # 2. 인기글 영역 (검색창 아래)
-                if hot_candidates and top_5_hot: # 에러 방지용 조건 강화
-                    st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
-                    for p in top_5_hot:
-                        render_post(p, is_hot=True)
-                    st.write("<br><br>", unsafe_allow_html=True)
-                
-                # 3. 최신글 영역 (인기글 아래)
-                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
-                
-                if posts:
-                    if current_display:
-                        for p in current_display:
-                            render_post(p, is_hot=False)
-                    else:
-                        st.info("조건에 맞는 최신 글이 없습니다.")
-                        
-                    # 더보기 버튼 로직 (고유 Key 추가)
-                    if len(normal_posts) > st.session_state.board_display_count:
-                        st.write("<br>", unsafe_allow_html=True)
-                        if st.button("🔽 더보기", key="more_board_posts", use_container_width=True):
-                            st.session_state.board_display_count += 10
-                            st.rerun()
-                else:
-                    st.info("게시글이 없습니다.")
-            
-            st.markdown("</div>", unsafe_allow_html=True) # 100vh div 닫기
                 
                         
         
