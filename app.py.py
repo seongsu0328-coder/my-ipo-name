@@ -2794,15 +2794,14 @@ with main_area.container():
                 else: display_df = display_df.sort_values(by='공모일_dt', ascending=False)
     
             if not display_df.empty:
-                # 💡 [최종 수정] go_detail 함수를 반복문 밖에서 딱 한 번만 정의합니다.
-                # 이렇게 해야 main_area(전역 컨테이너)를 정확하게 참조(Closure)하여 확실하게 지울 수 있습니다.
-                def go_detail(stock_data):
-                    # 1. 캘린더가 들어있는 컨테이너(main_area)를 즉시 비웁니다.
-                    main_area.empty()
-                    # 2. 상태 변경
+                # 💡 [핵심] main_area(현재 캘린더가 그려진 그릇)를 인자로 받아 강제로 비우는 함수
+                def go_detail(stock_data, container_to_clear):
+                    # 1. 캘린더 화면(전달받은 컨테이너)을 물리적으로 폭파!
+                    container_to_clear.empty()
+                    # 2. 상태 변경 (화면 전환)
                     st.session_state.selected_stock = stock_data
                     st.session_state.page = 'detail'
-                    st.session_state.detail_init_render = False
+                    # detail_init_render 같은 플래그가 있다면 여기서 처리
 
                 for i, row in display_df.iterrows():
                     p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
@@ -2824,8 +2823,9 @@ with main_area.container():
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        # 🚨 [수정] args에서 main_area를 제거했습니다. 함수 내부에서 직접 참조합니다.
-                        if st.button(f"{row['name']}", key=f"btn_list_{i}", on_click=go_detail, args=(row.to_dict(),)):
+                        # 🚨 [중요] args에 main_area(전역 컨테이너 변수)를 꼭 넣어주세요!
+                        # 이렇게 해야 함수가 "아, 이 그릇을 비우면 되는구나"라고 정확히 알 수 있습니다.
+                        if st.button(f"{row['name']}", key=f"btn_list_{i}", on_click=go_detail, args=(row.to_dict(), main_area)):
                             pass
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
