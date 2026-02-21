@@ -2189,7 +2189,10 @@ if st.session_state.page == 'login':
             
             # [B구역] 3단계일 때 (서류 제출 화면)
             elif st.session_state.signup_stage == 3:
-                st.subheader(get_text('signup_title_step3'))
+                # 💡 1단계와 동일한 타이틀 스타일 적용
+                title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
+                st.markdown(f"<p style='{title_style}'>{get_text('signup_title_step3')}</p>", unsafe_allow_html=True)
+                
                 st.info(get_text('signup_guide_step3'))
                 
                 # 입력창
