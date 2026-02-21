@@ -3131,10 +3131,34 @@ with main_area.container():
 
                 # UI 출력: 다국어 설명문 출력
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
-                
+
+                # =========================================================
+                # 🚀 [마법의 렌더링] 1. 스피너가 돌기 전에 빈 상자와 면책조항 먼저 깔기
+                # =========================================================
+                ai_summary_ph = st.empty()
+                links_ph = st.empty()
+                decision_ph = st.empty()
+
+                display_disclaimer()
+
+                # =========================================================
+                # 🚀 [마법의 렌더링] 2. 화면이 덮어씌워진 상태에서 스피너(로딩) 시작!
+                # =========================================================
+                with st.spinner(get_text('msg_analyzing')):
+                    try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
+                    except: off_val = 0
+                    try:
+                        current_p, current_s = get_current_stock_price(sid, MY_API_KEY)
+                        profile = get_company_profile(sid, MY_API_KEY) 
+                        fin_data = get_financial_metrics(sid, MY_API_KEY)
+                    except: pass
+                    
+                    # 💡 여기에 에러 났던 코드가 스피너 "안쪽"으로 들어옵니다! (들여쓰기 완벽 해결)
                     analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'] + format_instruction, curr_lang)
 
-                # 3. 로딩 완료 후 빈 상자 채워넣기
+                # =========================================================
+                # 🚀 [마법의 렌더링] 3. 로딩 완료 후 아까 만든 빈 상자 채워넣기
+                # =========================================================
                 date_str = ipo_dt.strftime('%Y-%m-%d')
                 label_ipo = get_text('label_ipo_price')
                 if current_s == "상장연기": p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
@@ -3180,7 +3204,6 @@ with main_area.container():
 
                 with decision_ph.container():
                     draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
-            
             # --- Tab 1: 뉴스 & 심층 분석 ---
             with tab1:
                 with st.spinner(get_text('msg_analyzing_tab1')):
