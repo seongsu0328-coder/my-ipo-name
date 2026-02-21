@@ -364,7 +364,7 @@ def run_tab3_analysis(ticker, company_name, metrics):
         except: pass
 
 def run_tab1_analysis(ticker, company_name):
-    """Tab 1: 비즈니스 요약 및 뉴스 (v2 캐시키 동기화)"""
+    """Tab 1: 비즈니스 요약 및 뉴스 (v2 캐시키 동기화) - 디테일 프롬프트 보존판"""
     if not model: return False
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
@@ -372,29 +372,50 @@ def run_tab1_analysis(ticker, company_name):
     for lang_code, _ in SUPPORTED_LANGS.items():
         cache_key = f"{ticker}_Tab1_v2_{lang_code}"
         
-        # 💡 [핵심] 시스템 지시어와 JSON 구조를 언어별로 완전히 분리
+        # 💡 [핵심] 언어별 시스템 지시어와 사용자 지침(Label) 분리
         if lang_code == 'ja':
             sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。韓国語は絶対に使用しないでください。"
+            task1_label = "[タスク1: ビジネスモデルの深層分析]"
+            task2_label = "[タスク2: 最新ニュースの収集]"
+            target_lang = "日本語(Japanese)"
+            lang_instruction = "必ず自然な日本語のみで作成してください。韓国語や英語の単語を混ぜないでください（企業名のみ英語可）。"
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
         elif lang_code == 'en':
             sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English. Do not use any Korean words."
+            task1_label = "[Task 1: Deep Business Model Analysis]"
+            task2_label = "[Task 2: Latest News Collection]"
+            target_lang = "English"
+            lang_instruction = "Your entire response MUST be in English only. Do not use any Korean."
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
         else:
             sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
+            task1_label = "[작업 1: 비즈니스 모델 심층 분석]"
+            task2_label = "[작업 2: 최신 뉴스 수집]"
+            target_lang = "한국어(Korean)"
+            lang_instruction = "반드시 자연스러운 한국어만 사용하세요."
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국어로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
 
         prompt = f"""
         {sys_prompt}
-        분석 대상: {company_name} ({ticker}) 오늘 날짜: {current_date}
+        분석 대상: {company_name} ({ticker})
+        오늘 날짜: {current_date}
 
-        [작업 1: 비즈니스 모델 심층 분석]
-        - 반드시 3개의 문단(비즈니스 모델, 재무 현황, 향후 전망)으로 나누어 작성하세요.
-        - 제목, 소제목, 특수기호, 불렛포인트(-) 없이 바로 본론부터 줄글로 시작하세요.
+        {task1_label}
+        아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
+        1. 언어: {lang_instruction}
+           - 경고: 영어 단어(potential, growth 등)를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
+        2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
+           - 1문단: 비즈니스 모델 및 경쟁 우위
+           - 2문단: 재무 현황 및 공모 자금 활용
+           - 3문단: 향후 전망 및 투자 의견
+        3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
 
-        [작업 2: 최신 뉴스 수집]
-        - 구글 검색을 통해 최근 1년 이내의 영문 뉴스 5개를 찾으세요.
-        - [중요] sentiment 값은 파이썬 로직 처리를 위해 반드시 "긍정", "부정", "일반" 중 하나로(한국어로) 유지하세요.
-        
+        {task2_label}
+        - 반드시 구글 검색을 실행하여 최신 정보를 확인하세요.
+        - {current_date} 기준, 최근 1년 이내의 뉴스 5개를 선정하세요.
+        - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
+        - [중요] sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
+
         <JSON_START>
         {json_format}
         <JSON_END>
@@ -420,7 +441,6 @@ def run_tab1_analysis(ticker, company_name):
             batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
             time.sleep(1.5)
         except: pass
-
 
 def run_tab4_analysis(ticker, company_name):
     """Tab 4: 월가 기관 분석 (강력 파싱 버전 동기화)"""
