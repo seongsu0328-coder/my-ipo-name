@@ -481,8 +481,8 @@ model = configure_genai()
 def get_unified_tab1_analysis(company_name, ticker, lang_code):
     if not model: return "AI 모델 설정 오류", []
     
-    # [Step 1] 언어별 고유 캐시 키 생성
-    cache_key = f"{ticker}_Tab1_{lang_code}"
+    # [Step 1] 언어별 고유 캐시 키 생성 (중요: 언어별로 캐시를 완전히 분리합니다)
+    cache_key = f"{ticker}_Tab1_v2_{lang_code}"
     now = datetime.now()
     six_hours_ago = (now - timedelta(hours=6)).isoformat()
 
@@ -499,44 +499,53 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
     except Exception as e:
         print(f"Tab1 DB Error: {e}")
 
-    # [Step 2] 캐시 없으면 AI 분석 실행
-    current_date = now.strftime("%Y-%m-%d")
-    one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
-    
+    # [Step 2] 언어별 지시어 및 레이블 설정
     LANG_MAP = {
         'ko': '전문적이고 자연스러운 한국어(Korean)',
         'en': 'Professional English',
         'ja': '極めて自然で専門的な日本語(Japanese)'
     }
-    target_lang = LANG_MAP.get(lang_code, '전문적이고 자연스러운 한국어(Korean)')
+    target_lang = LANG_MAP.get(lang_code, '한국어')
 
+    # 프롬프트 내부 섹션 제목도 해당 언어로 변경하여 AI의 언어 혼동 방지
     if lang_code == 'ja':
-        lang_instruction = "必ず自然な日本語のみで作成してください。「potential」「growth」「risk」のような英단어를 그대로 쓰지 말고, 모두 적절한 일본어로 번역하세요. 기업명만 영어를 허용합니다."
-    elif lang_code == 'ko':
-        lang_instruction = "반드시 자연스러운 한국어만 사용하세요. 'potential', 'growth' 같은 영단어를 그대로 쓰지 말고 완벽히 번역하세요."
+        task1_label = "[タスク1: ビジネスモデルの深層分析]"
+        task2_label = "[タスク2: 最新ニュースの収集]"
+        lang_instruction = "必ず自然な日本語のみで作成してください。韓国어나 영어 단어를 섞지 마세요. 기업명만 영어를 허용합니다."
+    elif lang_code == 'en':
+        task1_label = "[Task 1: Deep Business Model Analysis]"
+        task2_label = "[Task 2: Latest News Collection]"
+        lang_instruction = "Your entire response MUST be in English only. Do not use any Korean."
     else:
-        lang_instruction = f"All your responses MUST be strictly in {target_lang}."
+        task1_label = "[작업 1: 비즈니스 모델 심층 분석]"
+        task2_label = "[작업 2: 최신 뉴스 수집]"
+        lang_instruction = "반드시 자연스러운 한국어만 사용하세요."
+
+    current_date = now.strftime("%Y-%m-%d")
+    one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
 
     prompt = f"""
     당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다.
     분석 대상: {company_name} ({ticker})
     오늘 날짜: {current_date}
 
-    [작업 1: 비즈니스 모델 심층 분석]
+    {task1_label}
     아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
     1. 언어: {lang_instruction}
-       - 경고: 영어 단어를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
+       - 경고: 영어 단어(potential, growth 등)를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
     2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
        - 1문단: 비즈니스 모델 및 경쟁 우위
        - 2문단: 재무 현황 및 공모 자금 활용
        - 3문단: 향후 전망 및 투자 의견
     3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
 
-    [작업 2: 최신 뉴스 수집]
-    - {current_date} 기준, 최근 1년 이내의 뉴스 위주로 5개를 선정하세요.
-    - [중요] sentiment 값은 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
+    {task2_label}
+    - 반드시 구글 검색을 실행하여 최신 정보를 확인하세요.
+    - {current_date} 기준, 최근 1년 이내의 뉴스 5개를 선정하세요.
+    - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
+    - [중요] sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
     
-    형식: <JSON_START> {{ "news": [ {{ "title_en": "원문 영어 제목", "translated_title": "{target_lang}로 번역된 완벽한 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
+    형식: <JSON_START> {{ "news": [ {{ "title_en": "Original English Title", "translated_title": "{target_lang}로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
     """
 
     try:
@@ -547,8 +556,7 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
         biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
         
-        # 💡 [개선 포인트] 언어별 들여쓰기 최적화
-        # 한국어(ko)일 때만 들여쓰기 14px 적용, 영어/일본어는 들여쓰기 제거(0px)
+        # 💡 [들여쓰기 개선] 한국어일 때만 14px 적용, 그 외에는 0px
         indent_size = "14px" if lang_code == "ko" else "0px"
         
         html_output = ""
@@ -566,6 +574,7 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
                     else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
             except: pass
 
+        # [Step 3] Supabase에 저장
         supabase.table("analysis_cache").upsert({
             "cache_key": cache_key,
             "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
