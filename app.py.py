@@ -4056,15 +4056,28 @@ with main_area.container():
             # --- Tab 5: 최종 투자 결정 (데이터 영구 저장 및 복구 통합) ---
             # =========================================================
             with tab5:
-                # 💡 [핵심] 주문형 번역(On-Demand Translation) 도우미 함수
-                def translate_post_on_demand(text, target_lang_code):
-                    if not text: return ""
+                # 💡 [핵심] 제목과 내용을 동시에 번역하는 주문형 번역 함수
+                def translate_post_on_demand(title, content, target_lang_code):
+                    if not title and not content: return {"title": "", "content": ""}
                     target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語"
-                    prompt = f"Please translate the following text to {target_lang_str}. If it is already in {target_lang_str}, just return the original text. Do not add any quotes or extra explanations:\n\n{text}"
+                    
+                    prompt = f"""Please translate the following Title and Content to {target_lang_str}. 
+                    You MUST keep the exact string '|||SEP|||' between the translated Title and translated Content. 
+                    Do not add any quotes or extra explanations:
+                    
+                    {title}
+                    |||SEP|||
+                    {content}"""
+                    
                     try:
-                        return model.generate_content(prompt).text.strip()
-                    except:
-                        return text # 실패시 원문 반환
+                        res_text = model.generate_content(prompt).text.strip()
+                        if "|||SEP|||" in res_text:
+                            t, c = res_text.split("|||SEP|||", 1)
+                            return {"title": t.strip(), "content": c.strip()}
+                        else:
+                            return {"title": title, "content": res_text}
+                    except: 
+                        return {"title": title, "content": content}
 
                 # 💡 번역 상태를 저장할 전역 딕셔너리 초기화
                 if 'translated_posts' not in st.session_state:
@@ -4287,7 +4300,7 @@ with main_area.container():
                         st.session_state[page_key] = 5
                     current_display = normal_posts[:st.session_state[page_key]]
     
-                    # 💡 종목 토론방 전용 UI 렌더러 (번역 버튼 포함)
+                    # 💡 종목 토론방 전용 UI 렌더러 (제목+내용 번역)
                     def render_detail_post(p, is_hot=False):
                         p_auth = p.get('author_name', 'Unknown')
                         p_date = str(p.get('created_at', '')).split('T')[0]
@@ -4295,16 +4308,24 @@ with main_area.container():
                         p_uid = p.get('author_id')
                         likes = p.get('likes') or 0
                         dislikes = p.get('dislikes') or 0
+                        
+                        original_title = p.get('title', '')
                         original_content = p.get('content', '')
                         
+                        # 번역 상태 확인 및 스와핑
+                        is_translated = p_id in st.session_state.translated_posts
+                        if is_translated:
+                            trans_data = st.session_state.translated_posts[p_id]
+                            display_title = trans_data.get('title', original_title)
+                            display_content = trans_data.get('content', original_content)
+                        else:
+                            display_title = original_title
+                            display_content = original_content
+                        
                         prefix = "[HOT]" if is_hot else ""
-                        title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (👍{likes}  👎{dislikes})"
+                        title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} (👍{likes}  👎{dislikes})"
                         
                         with st.expander(title_disp.strip()):
-                            # 💡 주문형 번역 로직 적용
-                            is_translated = p_id in st.session_state.translated_posts
-                            display_content = st.session_state.translated_posts[p_id] if is_translated else original_content
-                            
                             st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-bottom:10px;'>{display_content}</div>", unsafe_allow_html=True)
                             
                             # 번역 버튼 & 액션 버튼 레이아웃
@@ -4317,7 +4338,7 @@ with main_area.container():
                                         del st.session_state.translated_posts[p_id]
                                     else:
                                         with st.spinner("Translating..."):
-                                            st.session_state.translated_posts[p_id] = translate_post_on_demand(original_content, curr_lang)
+                                            st.session_state.translated_posts[p_id] = translate_post_on_demand(original_title, original_content, curr_lang)
                                     st.rerun()
 
                             with btn_c2:
@@ -4464,19 +4485,12 @@ with main_area.container():
         
         current_display = normal_posts[:st.session_state.board_display_count]
     
-        # 💡 [핵심] 주문형 번역 함수 선언 및 UI 렌더러
+        # 💡 메인 게시판 전용 번역 상태 초기화
         curr_lang = st.session_state.lang
         if 'translated_posts' not in st.session_state:
             st.session_state.translated_posts = {}
 
-        def translate_post_on_demand(text, target_lang_code):
-            if not text: return ""
-            target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語"
-            prompt = f"Please translate the following text to {target_lang_str}. If it is already in {target_lang_str}, just return the original text. Do not add any quotes or extra explanations:\n\n{text}"
-            try:
-                return model.generate_content(prompt).text.strip()
-            except: return text
-
+        # 💡 메인 게시판 UI 렌더러 (제목+내용 번역)
         def render_board_post(p, is_hot=False):
             p_auth = p.get('author_name', 'Unknown')
             p_date = str(p.get('created_at', '')).split('T')[0]
@@ -4485,16 +4499,24 @@ with main_area.container():
             p_cat = p.get('category', '자유')
             likes = p.get('likes') or 0
             dislikes = p.get('dislikes') or 0
+            
+            original_title = p.get('title', '')
             original_content = p.get('content', '')
             
+            # 번역 상태 확인 및 제목/내용 스와핑
+            is_translated = p_id in st.session_state.translated_posts
+            if is_translated:
+                trans_data = st.session_state.translated_posts[p_id]
+                display_title = trans_data.get('title', original_title)
+                display_content = trans_data.get('content', original_content)
+            else:
+                display_title = original_title
+                display_content = original_content
+            
             prefix = "[HOT]" if is_hot else f"[{p_cat}]"
-            title_disp = f"{prefix} {p.get('title')} | {p_auth} | {p_date} (👍{likes}  👎{dislikes})"
+            title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} (👍{likes}  👎{dislikes})"
             
             with st.expander(title_disp.strip()):
-                # 주문형 번역 확인
-                is_translated = p_id in st.session_state.translated_posts
-                display_content = st.session_state.translated_posts[p_id] if is_translated else original_content
-                
                 st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-bottom:10px;'>{display_content}</div>", unsafe_allow_html=True)
                 
                 # 버튼 레이아웃
@@ -4506,7 +4528,7 @@ with main_area.container():
                             del st.session_state.translated_posts[p_id]
                         else:
                             with st.spinner("Translating..."):
-                                st.session_state.translated_posts[p_id] = translate_post_on_demand(original_content, curr_lang)
+                                st.session_state.translated_posts[p_id] = translate_post_on_demand(original_title, original_content, curr_lang)
                         st.rerun()
                 
                 with btn_c2:
