@@ -2916,14 +2916,19 @@ with main_area.container():
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        # 💡 [최종 해결책] 다른 종목을 클릭할 때마다 반드시 스위치를 꺼줍니다!
-                        def go_detail(stock_data):
+                        # 💡 [최종 해결책] 잔상 제거를 위해 main_area(화면 전체 틀)를 함수에 전달합니다.
+                        def go_detail(stock_data, container_to_clear):
+                            # 1. 버튼 누르는 즉시! 화면 전체를 하얗게 날려버립니다. (잔상 원천 차단)
+                            container_to_clear.empty()
+                            
+                            # 2. 그 다음 상태를 변경합니다.
                             st.session_state.selected_stock = stock_data
                             st.session_state.page = 'detail'
-                            st.session_state.detail_init_render = False # 👈 핵심! 이 한 줄을 꼭 넣어주세요!
+                            st.session_state.detail_init_render = False
 
-                        if st.button(f"{row['name']}", key=f"btn_list_{i}", on_click=go_detail, args=(row.to_dict(),)):
-                            pass # 👈 main_area.empty() 같은 폭파 코드는 이제 필요 없습니다. 비워두세요.
+                        # 🚨 args에 'main_area'를 추가하여 함수로 넘겨주는 것이 핵심입니다!
+                        if st.button(f"{row['name']}", key=f"btn_list_{i}", on_click=go_detail, args=(row.to_dict(), main_area)):
+                            pass # 이미 on_click에서 화면을 지웠으므로 여기는 비워둡니다.
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                         except: s_val = 0
