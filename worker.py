@@ -231,42 +231,35 @@ def run_tab1_analysis(ticker, company_name):
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     
-    LANG_MAP = {
-        'ko': '전문적이고 자연스러운 한국어(Korean)',
-        'en': 'Professional English',
-        'ja': '極めて自然で専門的な日本語(Japanese)'
-    }
-    
     for lang_code, _ in SUPPORTED_LANGS.items():
-        # 🚨 [핵심] app.py와 동일한 캐시 키 적용 (v2)
         cache_key = f"{ticker}_Tab1_v2_{lang_code}"
-        target_lang = LANG_MAP.get(lang_code, '한국어')
         
+        # 💡 [핵심] 시스템 지시어와 JSON 구조를 언어별로 완전히 분리
         if lang_code == 'ja':
-            task1_label = "[タスク1: ビジネスモデルの深層分析]"
-            task2_label = "[タスク2: 最新ニュースの収集]"
-            lang_instruction = "必ず自然な日本語のみで作成してください。韓国어나 영어 단어를 섞지 마세요. 기업명만 영어를 허용합니다."
+            sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。韓国語は絶対に使用しないでください。"
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
         elif lang_code == 'en':
-            task1_label = "[Task 1: Deep Business Model Analysis]"
-            task2_label = "[Task 2: Latest News Collection]"
-            lang_instruction = "Your entire response MUST be in English only. Do not use any Korean."
+            sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English. Do not use any Korean words."
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
         else:
-            task1_label = "[작업 1: 비즈니스 모델 심층 분석]"
-            task2_label = "[작업 2: 최신 뉴스 수집]"
-            lang_instruction = "반드시 자연스러운 한국어만 사용하세요."
+            sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국어로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
 
         prompt = f"""
-        당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 분석 대상: {company_name} ({ticker}) 오늘 날짜: {current_date}
+        {sys_prompt}
+        분석 대상: {company_name} ({ticker}) 오늘 날짜: {current_date}
 
-        {task1_label}
-        1. 언어: {lang_instruction}
-        2. 포맷: 반드시 3개의 문단(비즈니스 모델, 재무 현황, 향후 전망)으로 나누어 작성하세요.
-        3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
+        [작업 1: 비즈니스 모델 심층 분석]
+        - 반드시 3개의 문단(비즈니스 모델, 재무 현황, 향후 전망)으로 나누어 작성하세요.
+        - 제목, 소제목, 특수기호, 불렛포인트(-) 없이 바로 본론부터 줄글로 시작하세요.
 
-        {task2_label}
-        - 반드시 구글 검색을 실행하여 최근 1년 이내의 뉴스 5개를 선정하세요.
-        - [중요] sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
-        형식: <JSON_START> {{ "news": [ {{ "title_en": "Original English Title", "translated_title": "{target_lang}로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
+        [작업 2: 최신 뉴스 수집]
+        - 구글 검색을 통해 최근 1년 이내의 영문 뉴스 5개를 찾으세요.
+        - [중요] sentiment 값은 파이썬 로직 처리를 위해 반드시 "긍정", "부정", "일반" 중 하나로(한국어로) 유지하세요.
+        
+        <JSON_START>
+        {json_format}
+        <JSON_END>
         """
         try:
             response = model.generate_content(prompt)
@@ -288,6 +281,60 @@ def run_tab1_analysis(ticker, company_name):
                 
             batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
             time.sleep(1.5)
+        except: pass
+
+
+def run_tab4_analysis(ticker, company_name):
+    """Tab 4: 월가 기관 분석 (강력 파싱 버전 동기화)"""
+    if not model: return False
+    
+    for lang_code, _ in SUPPORTED_LANGS.items():
+        cache_key = f"{ticker}_Tab4_{lang_code}"
+        
+        # 💡 [핵심] JSON 포맷 내의 pro_con 항목까지 해당 언어로 강제
+        if lang_code == 'ja':
+            sys_prompt = "あなたはウォール街出身のIPO専門アナリストです。必ず日本語で作成してください。韓国語を混ぜないでください。"
+            json_format = """
+            "summary": "日本語での専門的な3行要約",
+            "pro_con": "**Pros(長所)**:\\n- 内容\\n\\n**Cons(短所)**:\\n- 内容 (必ず日本語で)",
+            """
+        elif lang_code == 'en':
+            sys_prompt = "You are an IPO specialized analyst from Wall Street. Respond strictly in English. Do not mix Korean."
+            json_format = """
+            "summary": "Professional 3-line summary in English",
+            "pro_con": "**Pros**:\\n- Details\\n\\n**Cons**:\\n- Details (all in English)",
+            """
+        else:
+            sys_prompt = "당신은 월가 출신의 IPO 전문 분석가입니다. 반드시 한국어로 답변하세요."
+            json_format = """
+            "summary": "한국어 전문 3줄 요약",
+            "pro_con": "**Pros(장점)**:\\n- 내용\\n\\n**Cons(단점)**:\\n- 내용 (한국어)",
+            """
+
+        prompt = f"""
+        {sys_prompt}
+        구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 찾아 심층 분석하세요.
+
+        [작성 지침]
+        1. 분석 깊이: 단순 사실 나열이 아닌 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
+        2. Rating: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
+        3. 링크 위치: 참조한 리포트의 실제 URL은 반드시 하단의 "links" 리스트 안에만 기입하세요.
+
+        <JSON_START>
+        {{
+            "rating": "Buy/Hold/Sell 중 하나",
+            {json_format}
+            "links": [ {{"title": "검색된 리포트 제목", "link": "URL"}} ]
+        }}
+        <JSON_END>
+        """
+        try:
+            response = model.generate_content(prompt)
+            match = re.search(r'<JSON_START>(.*?)<JSON_END>', response.text, re.DOTALL)
+            if match:
+                clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', match.group(1).strip())
+                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": clean_str, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+            time.sleep(1)
         except: pass
 
 def run_tab3_analysis(ticker, company_name, metrics):
@@ -316,17 +363,91 @@ def run_tab3_analysis(ticker, company_name, metrics):
             time.sleep(1)
         except: pass
 
+def run_tab1_analysis(ticker, company_name):
+    """Tab 1: 비즈니스 요약 및 뉴스 (v2 캐시키 동기화)"""
+    if not model: return False
+    now = datetime.now()
+    current_date = now.strftime("%Y-%m-%d")
+    
+    for lang_code, _ in SUPPORTED_LANGS.items():
+        cache_key = f"{ticker}_Tab1_v2_{lang_code}"
+        
+        # 💡 [핵심] 시스템 지시어와 JSON 구조를 언어별로 완전히 분리
+        if lang_code == 'ja':
+            sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。韓国語は絶対に使用しないでください。"
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+        elif lang_code == 'en':
+            sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English. Do not use any Korean words."
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+        else:
+            sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국어로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+
+        prompt = f"""
+        {sys_prompt}
+        분석 대상: {company_name} ({ticker}) 오늘 날짜: {current_date}
+
+        [작업 1: 비즈니스 모델 심층 분석]
+        - 반드시 3개의 문단(비즈니스 모델, 재무 현황, 향후 전망)으로 나누어 작성하세요.
+        - 제목, 소제목, 특수기호, 불렛포인트(-) 없이 바로 본론부터 줄글로 시작하세요.
+
+        [작업 2: 최신 뉴스 수집]
+        - 구글 검색을 통해 최근 1년 이내의 영문 뉴스 5개를 찾으세요.
+        - [중요] sentiment 값은 파이썬 로직 처리를 위해 반드시 "긍정", "부정", "일반" 중 하나로(한국어로) 유지하세요.
+        
+        <JSON_START>
+        {json_format}
+        <JSON_END>
+        """
+        try:
+            response = model.generate_content(prompt)
+            full_text = response.text
+            
+            biz_analysis = full_text.split("<JSON_START>")[0].strip()
+            biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
+            paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
+            
+            indent_size = "14px" if lang_code == "ko" else "0px"
+            html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+            
+            news_list = []
+            if "<JSON_START>" in full_text:
+                try: 
+                    json_part = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
+                    news_list = json.loads(json_part).get("news", [])
+                except: pass
+                
+            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+            time.sleep(1.5)
+        except: pass
+
+
 def run_tab4_analysis(ticker, company_name):
     """Tab 4: 월가 기관 분석 (강력 파싱 버전 동기화)"""
     if not model: return False
     
-    LANG_MAP = {'ko': '한국어 (Korean)', 'en': '영어 (English)', 'ja': '일본어 (Japanese)'}
-    
     for lang_code, _ in SUPPORTED_LANGS.items():
         cache_key = f"{ticker}_Tab4_{lang_code}"
-        target_lang = LANG_MAP.get(lang_code, '한국어 (Korean)')
-        lang_instruction = f"Respond strictly in {target_lang}."
-        if lang_code == 'ja': lang_instruction = "必ず日本語(Japanese)で作成してください。"
+        
+        # 💡 [핵심] JSON 포맷 내의 pro_con 항목까지 해당 언어로 강제
+        if lang_code == 'ja':
+            sys_prompt = "あなたはウォール街出身のIPO専門アナリストです。必ず日本語で作成してください。韓国語を混ぜないでください。"
+            json_format = """
+            "summary": "日本語での専門的な3行要約",
+            "pro_con": "**Pros(長所)**:\\n- 内容\\n\\n**Cons(短所)**:\\n- 内容 (必ず日本語で)",
+            """
+        elif lang_code == 'en':
+            sys_prompt = "You are an IPO specialized analyst from Wall Street. Respond strictly in English. Do not mix Korean."
+            json_format = """
+            "summary": "Professional 3-line summary in English",
+            "pro_con": "**Pros**:\\n- Details\\n\\n**Cons**:\\n- Details (all in English)",
+            """
+        else:
+            sys_prompt = "당신은 월가 출신의 IPO 전문 분석가입니다. 반드시 한국어로 답변하세요."
+            json_format = """
+            "summary": "한국어 전문 3줄 요약",
+            "pro_con": "**Pros(장점)**:\\n- 내용\\n\\n**Cons(단점)**:\\n- 내용 (한국어)",
+            """
 
         prompt = f"""
         당신은 월가 출신의 IPO 전문 분석가입니다. 
@@ -343,8 +464,7 @@ def run_tab4_analysis(ticker, company_name):
         <JSON_START>
         {{
             "rating": "Buy/Hold/Sell 중 하나",
-            "summary": "{target_lang}에 맞게 번역된 3줄 요약 내용",
-            "pro_con": "**Pros**:\\n- 내용\\n\\n**Cons**:\\n- 내용 (언어: {target_lang})",
+            {json_format}
             "links": [ {{"title": "검색된 리포트 제목", "link": "URL"}} ]
         }}
         <JSON_END>
