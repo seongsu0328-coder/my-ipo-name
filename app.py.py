@@ -852,7 +852,7 @@ def get_extended_ipo_data(api_key):
     
     return df
 
-@st.cache_data(ttl=600, show_spinner=False)
+
 @st.cache_data(ttl=600, show_spinner=False)
 def get_batch_prices(ticker_list):
     """
@@ -1258,13 +1258,9 @@ def translate_news_title(en_title):
     return en_title
 
 # ---------------------------------------------------------
-# [내부용] 실제 시장 지표를 계산하는 함수 (API 호출 포함)
+# [수정] 실제 시장 지표를 계산하는 함수 (API 일괄 호출 최적화)
 # ---------------------------------------------------------
 def _calculate_market_metrics_internal(df_calendar, api_key):
-    """
-    실제 야후 파이낸스 API와 승수님의 내부 함수를 호출하여 
-    데이터를 계산하는 '작업자(Worker)' 함수입니다.
-    """
     data = {
         "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0,
         "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50
@@ -1276,16 +1272,24 @@ def _calculate_market_metrics_internal(df_calendar, api_key):
         # 1. IPO 데이터 계산 (최근 30개 기준)
         traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < today].sort_values(by='공모일_dt', ascending=False).head(30)
         
+        # 💡 [핵심 최적화] 30개 종목의 실시간 가격을 한 번에(Batch) 가져옵니다!
+        symbols_to_fetch = traded_ipos['symbol'].dropna().unique().tolist()
+        batch_prices, _ = get_batch_prices(symbols_to_fetch)
+        
         ret_sum = 0; ret_cnt = 0; unp_cnt = 0
         for _, row in traded_ipos.iterrows():
+            sym = row['symbol']
             try:
-                # [주의] get_current_stock_price, get_financial_metrics 함수가 정의되어 있어야 합니다.
                 p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
-                p_curr = get_current_stock_price(row['symbol'], api_key) 
+                # 개별 API 호출 대신, 방금 한 번에 가져온 batch_prices에서 꺼내 씁니다.
+                p_curr = batch_prices.get(sym, 0.0) 
+                
                 if p_ipo > 0 and p_curr > 0:
                     ret_sum += ((p_curr - p_ipo) / p_ipo) * 100
                     ret_cnt += 1
-                fin = get_financial_metrics(row['symbol'], api_key)
+                
+                # 재무 정보는 24시간 캐시가 걸려있어 비교적 안전하나, 이 부분도 필요시 최적화 가능
+                fin = get_financial_metrics(sym, api_key)
                 if fin and fin.get('net_margin') and fin['net_margin'] < 0: unp_cnt += 1
             except: pass
         
@@ -1293,7 +1297,8 @@ def _calculate_market_metrics_internal(df_calendar, api_key):
         if len(traded_ipos) > 0: data["unprofitable_pct"] = (unp_cnt / len(traded_ipos)) * 100
 
         # 2. 향후 30일 물량 및 1.5년 철회율
-        future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= today) & (df_calendar['공모일_dt'].dt.date <= today + timedelta(days=30))]
+        future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= today) & 
+                                  (df_calendar['공모일_dt'].dt.date <= today + timedelta(days=30))]
         data["ipo_volume"] = len(future_ipos)
         
         recent_history = df_calendar[df_calendar['공모일_dt'].dt.date >= (today - timedelta(days=540))]
@@ -1307,7 +1312,6 @@ def _calculate_market_metrics_internal(df_calendar, api_key):
         data["vix"] = vix_obj.history(period="1d")['Close'].iloc[-1]
         
         w5000 = yf.Ticker("^W5000").history(period="1d")['Close'].iloc[-1]
-        # 미국 GDP 추정치 (약 28조 달러)
         data["buffett_val"] = ( (w5000 / 1000 * 0.93) / 28.0 ) * 100
         
         spy = yf.Ticker("SPY")
