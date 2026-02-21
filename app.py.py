@@ -2900,8 +2900,12 @@ with main_area.container():
                     
                     with c1:
                         if st.button(f"{row['name']}", key=f"btn_list_{i}"):
+                            # 💡 [핵심] 페이지 전환 전, 현재 화면(컨테이너)을 물리적으로 폭파시켜 잔상을 지웁니다.
+                            main_area.empty() 
                             st.session_state.selected_stock = row.to_dict()
                             st.session_state.page = 'detail'
+                            # 💡 [핵심] 약간의 텀을 주어 Streamlit이 화면 지우기를 렌더링할 시간을 확보합니다.
+                            import time; time.sleep(0.05) 
                             st.rerun()
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
