@@ -1944,16 +1944,12 @@ st.markdown("""
 # 필수 변수들이 세션에 없으면 초기값 설정
 if 'page' not in st.session_state:
     st.session_state.page = 'login'
-
 if 'login_step' not in st.session_state:
     st.session_state.login_step = 'choice'
-
 if 'signup_stage' not in st.session_state:
     st.session_state.signup_stage = 1
-
 if 'auth_status' not in st.session_state:
     st.session_state.auth_status = None
-
 if 'user_info' not in st.session_state:
     st.session_state.user_info = {}
 
@@ -1984,8 +1980,8 @@ if st.session_state.page == 'login':
 
     with col_center:
         st.write("<br>", unsafe_allow_html=True)
-        # 💡 타이틀 다국어 지원
-        st.markdown(f"<h1 class='login-title'>{get_text('login_title')}</h1>", unsafe_allow_html=True)
+        # 💡 타이틀 영문 고정 (사용자 요청 반영)
+        st.markdown("<h1 class='login-title'>UnicornFinder</h1>", unsafe_allow_html=True)
         
         # 상태 초기화
         if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
