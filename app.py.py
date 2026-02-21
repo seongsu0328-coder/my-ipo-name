@@ -503,7 +503,6 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
     current_date = now.strftime("%Y-%m-%d")
     one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
     
-    # 💡 [핵심] 언어 타겟팅 및 어휘 강제화
     LANG_MAP = {
         'ko': '전문적이고 자연스러운 한국어(Korean)',
         'en': 'Professional English',
@@ -511,11 +510,10 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
     }
     target_lang = LANG_MAP.get(lang_code, '전문적이고 자연스러운 한국어(Korean)')
 
-    # 언어별 특별 지시문 추가 (외국어 혼용 절대 금지)
     if lang_code == 'ja':
-        lang_instruction = "必ず自然な日本語のみで作成してください。「potential」「growth」「risk」のような英単語をそのまま使わず、すべて適切な日本語（例：可能性、成長、リスク）に翻訳してください。企業名や固有代名詞のみ英語を許可します。"
+        lang_instruction = "必ず自然な日本語のみで作成してください。「potential」「growth」「risk」のような英단어를 그대로 쓰지 말고, 모두 적절한 일본어로 번역하세요. 기업명만 영어를 허용합니다."
     elif lang_code == 'ko':
-        lang_instruction = "반드시 자연스러운 한국어만 사용하세요. 'potential', 'growth' 같은 영단어를 그대로 쓰지 말고 완벽히 번역하세요. 기업명 등 고유명사만 영어 표기를 허용합니다."
+        lang_instruction = "반드시 자연스러운 한국어만 사용하세요. 'potential', 'growth' 같은 영단어를 그대로 쓰지 말고 완벽히 번역하세요."
     else:
         lang_instruction = f"All your responses MUST be strictly in {target_lang}."
 
@@ -527,19 +525,16 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
     [작업 1: 비즈니스 모델 심층 분석]
     아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
     1. 언어: {lang_instruction}
-       - 경고: 영어 단어(potential, business, risk 등)를 중간에 그대로 노출하는 비문(외국어 혼용)을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
+       - 경고: 영어 단어를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
     2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
-       - 1문단: 비즈니스 모델 및 경쟁 우위 (독점력, 시장 지배력 등)
-       - 2문단: 재무 현황 및 공모 자금 활용 (매출 추이, 흑자 전환 여부, 자금 사용처)
-       - 3문단: 향후 전망 및 투자 의견 (시장 성장성, 리스크 요인 포함)
-    3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말이나 도입부 문구를 절대 포함하지 말고, 바로 본론부터 시작하세요.
+       - 1문단: 비즈니스 모델 및 경쟁 우위
+       - 2문단: 재무 현황 및 공모 자금 활용
+       - 3문단: 향후 전망 및 투자 의견
+    3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
 
     [작업 2: 최신 뉴스 수집]
-    - 반드시 구글 검색(Google Search)을 실행하여 최신 정보를 확인하세요.
     - {current_date} 기준, 최근 1년 이내의 뉴스 위주로 5개를 선정하세요.
-    - 경고: {one_year_ago} 이전의 오래된 뉴스는 절대 포함하지 마세요.
-    - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
-    - [중요] sentiment 값은 파싱을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
+    - [중요] sentiment 값은 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
     
     형식: <JSON_START> {{ "news": [ {{ "title_en": "원문 영어 제목", "translated_title": "{target_lang}로 번역된 완벽한 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }} <JSON_END>
     """
@@ -552,9 +547,13 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
         biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
         
+        # 💡 [개선 포인트] 언어별 들여쓰기 최적화
+        # 한국어(ko)일 때만 들여쓰기 14px 적용, 영어/일본어는 들여쓰기 제거(0px)
+        indent_size = "14px" if lang_code == "ko" else "0px"
+        
         html_output = ""
         for p in paragraphs:
-            html_output += f'<p style="display:block; text-indent:14px; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>'
+            html_output += f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>'
 
         news_list = []
         if "<JSON_START>" in full_text:
@@ -567,7 +566,6 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
                     else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
             except: pass
 
-        # [Step 3] Supabase에 저장
         supabase.table("analysis_cache").upsert({
             "cache_key": cache_key,
             "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
@@ -1526,16 +1524,25 @@ def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
 
     target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
 
+    # 💡 [핵심] 대표님의 원래 문구를 바탕으로 언어별 맞춤형 '도입부 금지' 설정
+    if lang_code == 'en':
+        no_intro_prompt = 'CRITICAL: NEVER introduce yourself ("I am an analyst...") or use filler greetings like "Okay, let\'s analyze". START IMMEDIATELY with the first heading.'
+    elif lang_code == 'ja':
+        no_intro_prompt = '【重要】「私はアナリストです」などの自己紹介や、「はい、分析します」などの挨拶・前置きは絶対に書かないでください。1文字目からいきなり本論（見出し）から始めてください。'
+    else:
+        no_intro_prompt = '단, "저는 분석가입니다", "네, 분석해드리겠습니다" 같은 자기소개나 인사말, 서론은 절대 쓰지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
+
     max_retries = 3
     for i in range(max_retries):
         try:
+            # {no_intro_prompt} 변수가 선택된 언어에 맞춰 쏙 들어갑니다.
             prompt = f"""
             분석 대상: {company_name}의 {topic} 서류
             체크포인트: {points}
             
             [지침]
             당신은 월가 출신의 전문 분석가입니다. 
-            단, "저는 분석가입니다" 같은 자기소개나 인사말은 절대 하지 마세요.
+            {no_intro_prompt}
             
             [내용 구성 및 형식 - 반드시 아래 형식을 따를 것]
             각 문단의 시작에 **[소제목]**을 붙여서 내용을 명확히 구분하고 굵은 글씨를 생략하지 마세요.
@@ -1568,6 +1575,8 @@ def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
                 return f"현재 분석 엔진을 조율 중입니다. (상세: {str(e)})"
     
     return "⚠️ 사용량이 많아 분석이 지연되고 있습니다. 잠시 후 다시 시도해주세요."
+    
+    
 
 # ==========================================
 # [1] 학술 논문 데이터 리스트 (기본 제공 데이터)
