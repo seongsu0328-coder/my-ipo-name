@@ -2924,19 +2924,23 @@ with main_area.container():
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
+                        # 💡 [최종 수정] 잔상 제거(empty)와 끊김 방지(sleep 제거)를 모두 잡는 코드
                         if st.button(f"{row['name']}", key=f"btn_list_{i}"):
-                            # 💡 [핵심] 렌더링을 방해(목에 가시)하던 empty()와 sleep()을 완전히 제거!
-                            # 상태값만 Detail로 바꾸고 '즉시' rerun을 때려야 전체 UI가 한 번에 그려집니다.
+                            # 1. 캘린더 화면(컨테이너)을 물리적으로 즉시 삭제 -> 잔상 해결!
+                            main_area.empty() 
+                            
+                            # 2. 데이터 세팅
                             st.session_state.selected_stock = row.to_dict()
                             st.session_state.page = 'detail'
-                            st.rerun() 
+                            
+                            # 3. time.sleep() 없이 즉시 리런 -> 디테일 페이지 UI가 끊김 없이 한 번에 쫙 깔림!
+                            st.rerun()
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                         except: s_val = 0
                         size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
                         
                         st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
-                    
                     with c2:
                         st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                     
