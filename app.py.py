@@ -3127,7 +3127,7 @@ with main_area.container():
                 if 'core_topic' not in st.session_state:
                     st.session_state.core_topic = "S-1"
     
-                # 버튼 스타일 강제 지정
+                # 버튼 스타일 강제 지정 (기존 스타일 유지)
                 st.markdown("""
                     <style>
                     div.stButton > button {
@@ -3158,73 +3158,66 @@ with main_area.container():
                 if r2_c1.button(get_text('label_fwp'), use_container_width=True): st.session_state.core_topic = "FWP"
                 if r2_c2.button(get_text('label_424b4'), use_container_width=True): st.session_state.core_topic = "424B4"
     
-                # 2. 메타데이터 및 체크포인트 설정
                 topic = st.session_state.core_topic
-                
-                # 메타데이터 딕셔너리
+                curr_lang = st.session_state.lang
+
+                # 💡 [핵심 개선] AI에게 전달할 소제목(Structure)을 언어별로 자동 매핑
+                if curr_lang == 'en':
+                    s_points = "Investment Points"; s_growth = "Growth Potential"; s_risk = "Key Risks"
+                    s_amend = "Amendments"; s_valuation = "Price Fairness"; s_dilution = "Share Dilution"
+                    s_global = "Global Competitiveness"; s_foreign = "Foreign Risks"; s_ads = "ADS Structure"
+                    s_vision = "Core Vision"; s_strategy = "Strategy"; s_response = "Roadshow Response"
+                    s_final = "Final Price"; s_use = "Use of Proceeds"; s_outlook = "Post-IPO Outlook"
+                elif curr_lang == 'ja':
+                    s_points = "投資ポイント"; s_growth = "成長可能性"; s_risk = "主要リスク"
+                    s_amend = "修正事項"; s_valuation = "価格の妥당性"; s_dilution = "株主希薄化"
+                    s_global = "グローバル競争力"; s_foreign = "海外リスク"; s_ads = "ADS構造"
+                    s_vision = "核心ビジョン"; s_strategy = "差別化戦略"; s_response = "ロードショー反応"
+                    s_final = "最終公募価格"; s_use = "資金使途"; s_outlook = "上場後の展望"
+                else: # ko
+                    s_points = "투자포인트"; s_growth = "성장가능성"; s_risk = "핵심리스크"
+                    s_amend = "수정사항"; s_valuation = "가격적정성"; s_dilution = "주주희석"
+                    s_global = "글로벌경쟁력"; s_foreign = "해외리스크"; s_ads = "ADS구조"
+                    s_vision = "핵심비전"; s_strategy = "차별화전략"; s_response = "로드쇼반응"
+                    s_final = "최종공모가"; s_use = "자금활용"; s_outlook = "상장후 전망"
+
+                # 2. 메타데이터 정의 (구조 텍스트에 현지화된 변수 주입)
                 def_meta = {
                     "S-1": {
                         "desc": get_text('desc_s1'),
-                        "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
-                        "structure": """
-                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                        1. **[투자포인트]** : 해당 문서에서 발견된 가장 중요한 투자 포인트를 구체적인 수치나 근거와 함께 상세히 서술하세요.
-                        2. **[성장가능성]** : MD&A(경영진 분석)를 통해 본 기업의 실질적 성장 가능성과 재무적 함의를 깊이 있게 분석하세요.
-                        3. **[핵심리스크]** : 투자자가 반드시 경계해야 할 핵심 리스크 1가지와 그 파급 효과 및 대응책을 구체적으로 서술하세요.
-                        """
+                        "points": "Risk Factors, Use of Proceeds, MD&A",
+                        "structure": f"1. **[{s_points}]**, 2. **[{s_growth}]**, 3. **[{s_risk}]**"
                     },
                     "S-1/A": {
                         "desc": get_text('desc_s1a'),
-                        "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
-                        "structure": """
-                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                        1. **[수정사항]** : (이전 제출된 S-1 대비 변경된 핵심 사항(주식 수, 공모가 범위 등)을 중점적으로 서술하세요.)
-                        2. **[가격적정성]** : (제시된 공모가 범위가 동종 업계 대비 합리적인지, 또는 수요예측 분위기를 반영했는지 분석하세요.)
-                        3. **[주주희석]** : (신규 공모로 인한 기존 주주 가치 희석(Dilution) 정도와 이것이 투자 매력도에 미치는 영향을 서술하세요.)
-                        """
+                        "points": "Pricing Terms, Dilution, Changes",
+                        "structure": f"1. **[{s_amend}]**, 2. **[{s_valuation}]**, 3. **[{s_dilution}]**"
                     },
                     "F-1": {
                         "desc": get_text('desc_f1'),
-                        "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
-                        "structure": """
-                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                        1. **[글로벌경쟁력]** : (해당 기업이 본국 및 글로벌 시장에서 가진 독보적인 경쟁 우위를 서술하세요.)
-                        2. **[해외리스크]** : (환율, 정치적 이슈, 회계 기준 차이 등 해외 기업 특유의 리스크 요인을 상세히 분석하세요.)
-                        3. **[ADS구조]** : (미국 예탁 증서(ADS) 구조가 주주 권리 행사에 미치는 영향이나 특이사항을 서술하세요.)
-                        """
+                        "points": "Foreign Risk, Accounting, ADS Structure",
+                        "structure": f"1. **[{s_global}]**, 2. **[{s_foreign}]**, 3. **[{s_ads}]**"
                     },
                     "FWP": {
                         "desc": get_text('desc_fwp'),
-                        "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
-                        "structure": """
-                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                        1. **[핵심비전]** : (경영진이 로드쇼에서 가장 강조하고 있는 미래 성장 비전과 목표를 서술하세요.)
-                        2. **[차별화전략]** : (경쟁사 대비 부각시키고 있는 기술적/사업적 차별화 포인트를 시각 자료(Graphics) 기반으로 분석하세요.)
-                        3. **[로드쇼반응]** : (자료 톤앤매너를 통해 유추할 수 있는 경영진의 자신감이나 시장 공략 의지를 서술하세요.)
-                        """
+                        "points": "Graphics, Strategy, Highlights",
+                        "structure": f"1. **[{s_vision}]**, 2. **[{s_strategy}]**, 3. **[{s_response}]**"
                     },
                     "424B4": {
                         "desc": get_text('desc_424b4'),
-                        "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
-                        "structure": """
-                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                        1. **[최종공모가]** : (확정된 공모가가 희망 밴드 상단인지 하단인지 분석하고, 그 의미(시장 수요)를 해석하세요.)
-                        2. **[자금활용]** : (확정된 조달 자금이 구체적으로 어떤 우선순위 사업에 투입될 예정인지 최종 점검하세요.)
-                        3. **[상장후 전망]** : (주관사단 구성과 배정 물량을 바탕으로 상장 초기 유통 물량 부담이나 변동성을 예측하세요.)
-                        """
+                        "points": "Underwriting, Final Price, IPO Outcome",
+                        "structure": f"1. **[{s_final}]**, 2. **[{s_use}]**, 3. **[{s_outlook}]**"
                     }
                 }
                 
                 curr_meta = def_meta.get(topic, def_meta["S-1"])
                 st.info(curr_meta['desc'])
                 
-                # 💡 [핵심 최적화 1] 화면 레이아웃(틀)을 먼저 그려둡니다.
-                # AI 분석 결과가 들어갈 자리를 빈 상자(container)로 미리 만들어둡니다.
+                # 💡 [최적화] AI 분석 결과가 들어갈 자리를 미리 확보 (Skeleton UI)
                 ai_result_container = st.container()
-                
                 st.write("<br>", unsafe_allow_html=True)
                 
-                # 💡 [핵심 최적화 2] SEC 링크 버튼과 의사결정 박스를 AI 로딩과 상관없이 먼저 그려버립니다!
+                # 3. SEC 링크 및 공식 홈페이지 버튼 (AI 분석보다 먼저 렌더링)
                 cik = profile.get('cik', '') if profile else ''
                 full_company_name = stock['name'].strip() 
                 
@@ -3250,21 +3243,29 @@ with main_area.container():
                     </a>
                 """, unsafe_allow_html=True)
                 
+                # 4. 의사결정 박스 및 면책 조항 (AI 분석보다 먼저 렌더링)
                 draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
                 display_disclaimer()
                 
-                # 💡 [핵심 최적화 3] 하단 UI가 다 그려진 후, 아까 만들어둔 빈 상자에 AI 분석을 시작합니다.
+                # 💡 [핵심 최적화] 화면의 뼈대가 다 그려진 후, 아까 비워둔 자리에 AI 분석을 실행합니다.
                 with ai_result_container:
                     with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
                         with st.spinner(get_text('msg_analyzing_filing')):
+                            # AI 호출 시 현지화된 structure 양식을 전달합니다.
                             analysis_result = get_ai_analysis(
                                 stock['name'], 
                                 topic, 
                                 curr_meta['points'], 
-                                curr_meta.get('structure', ""), 
-                                st.session_state.lang
+                                curr_meta['structure'], 
+                                curr_lang
                             )
-                            st.markdown(analysis_result)
+                            # 💡 언어별 들여쓰기 최적화 및 줄바꿈 처리
+                            indent_size = "14px" if curr_lang == "ko" else "0px"
+                            st.markdown(f"""
+                                <div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">
+                                    {analysis_result.replace(chr(10), '<br>')}
+                                </div>
+                            """, unsafe_allow_html=True)
                         st.caption(get_text('caption_algorithm'))
                 
             # --- Tab 1: 뉴스 & 심층 분석 (Gemini 통합형) ---
