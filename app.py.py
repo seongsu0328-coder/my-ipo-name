@@ -1515,8 +1515,8 @@ def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
     
-    # 💡 캐시 버전 v9 (대표님의 원본 프롬프트 구조 완전 보존 버전)
-    cache_key = f"{company_name}_{topic}_Tab0_v9_{lang_code}"
+    # 💡 [핵심 수정] 캐시 버전 v10 (한글 섞임 및 줄바꿈 해결 버전)
+    cache_key = f"{company_name}_{topic}_Tab0_v10_{lang_code}"
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
@@ -1534,28 +1534,25 @@ def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
 
     target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
 
-    # 💡 [대표님 요청 사항] 프롬프트 뼈대 및 페르소나 지시문 현지화 구성
-    # 이 섹션의 지침들이 AI에게 한국어 지시문을 가리고 해당 언어에 몰입하게 만듭니다.
     if lang_code == 'en':
         labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
         role_desc = "You are a professional senior analyst from Wall Street."
-        no_intro_prompt = 'CRITICAL: NEVER introduce yourself (e.g., "I am an analyst") or use filler greetings like "Okay, let\'s analyze". DO NOT include Korean translations in headings. START IMMEDIATELY with the first English **[Heading]**.'
+        no_intro_prompt = 'CRITICAL: NEVER introduce yourself. DO NOT include Korean translations in headings. START IMMEDIATELY with the first English **[Heading]**.'
         lang_directive = "The guide below is in Korean for reference, but you MUST translate all headings and content into English."
     elif lang_code == 'ja':
         labels = ["分析対象", "指針", "内容構成および形式", "文体ガイド"]
         role_desc = "あなたはウォール街出身の専門分析家です。"
-        no_intro_prompt = '【重要】「私はアナリストです」などの自己紹介や、「はい、分析します」などの挨拶・前置きは絶対に禁止です。見出しに韓国語を併記しないでください。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
-        lang_directive = "構成 가이드는 참고용으로 한국어로 제공되나, 모든 제목과 내용은 반드시 일본어로만 작성하세요."
+        no_intro_prompt = '【重要】自己紹介は絶対に禁止です。見出しに韓国語を併記しないでください。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
+        lang_directive = "構成 가이드는 참고용으로 한국어로 제공되나,すべての見出しと内容は必ず日本語(Japanese)のみで作成してください。"
     else:
         labels = ["분석 대상", "지침", "내용 구성 및 형식 - 반드시 아래 형식을 따를 것", "문체 가이드"]
         role_desc = "당신은 월가 출신의 전문 분석가입니다."
-        no_intro_prompt = '단, "저는 분석가입니다", "네, 분석해드리겠습니다" 같은 자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
+        no_intro_prompt = '자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
         lang_directive = ""
 
     max_retries = 3
     for i in range(max_retries):
         try:
-            # 💡 [원본 구조 보존] 대표님이 요청하신 레이블 구조와 지침을 100% 유지합니다.
             prompt = f"""
             {labels[0]}: {company_name} - {topic}
             {labels[1]} (Checkpoints): {points}
@@ -1566,13 +1563,11 @@ def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
             {lang_directive}
             
             [{labels[2]}]
-            각 문단의 시작에 해당 언어로 번역된 **[소제목]**을 붙여서 내용을 명확히 구분하고 굵은 글씨를 생략하지 마세요.
             {structure_template}
 
             [{labels[3]}]
             - 반드시 '{target_lang}'로만 작성하세요. (절대 다른 언어를 섞지 마세요)
             - 문장 끝이 끊기지 않도록 매끄럽게 연결하세요.
-            - 핵심 위주로 작성하되, 너무 짧은 요약보다는 풍부한 인사이트를 담아주세요.
             """
             
             response = model.generate_content(prompt)
@@ -3170,66 +3165,80 @@ with main_area.container():
                 # AI 내부 엔진은 이 한국어 지시를 읽고 가장 완벽한 분석을 수행한 뒤, 최종 답변만 해당 언어로 번역합니다.
                 def_meta = {
                     "S-1": {
+                        "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
                         "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
                         "structure": """
-                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                        1. **[투자포인트]** : 해당 문서에서 발견된 가장 중요한 투자 포인트를 구체적인 수치나 근거와 함께 상세히 서술하세요.
-                        2. **[성장가능성]** : MD&A(경영진 분석)를 통해 본 기업의 실질적 성장 가능성과 재무적 함의를 깊이 있게 분석하세요.
-                        3. **[핵심리스크]** : 투자자가 반드시 경계해야 할 핵심 리스크 1가지와 그 파급 효과 및 대응책을 구체적으로 서술하세요.
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 해당 문서에서 발견된 가장 중요한 투자 포인트 분석
+                        2. 두 번째 문단: 실질적 성장 가능성과 재무적 의미 분석
+                        3. 세 번째 문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책
                         """
                     },
                     "S-1/A": {
+                        "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
                         "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
                         "structure": """
-                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                        1. **[수정사항]** : (이전 제출된 S-1 대비 변경된 핵심 사항(주식 수, 공모가 범위 등)을 중점적으로 서술하세요.)
-                        2. **[가격적정성]** : (제시된 공모가 범위가 동종 업계 대비 합리적인지, 또는 수요예측 분위기를 반영했는지 분석하세요.)
-                        3. **[주주희석]** : (신규 공모로 인한 기존 주주 가치 희석(Dilution) 정도와 이것이 투자 매력도에 미치는 영향을 서술하세요.)
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 이전 S-1 대비 변경된 핵심 사항 분석
+                        2. 두 번째 문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기 분석
+                        3. 세 번째 문단: 기존 주주 가치 희석 정도와 투자 매력도 분석
                         """
                     },
                     "F-1": {
+                        "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
                         "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
                         "structure": """
-                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                        1. **[글로벌경쟁력]** : (해당 기업이 본국 및 글로벌 시장에서 가진 독보적인 경쟁 우위를 서술하세요.)
-                        2. **[해외리스크]** : (환율, 정치적 이슈, 회계 기준 차이 등 해외 기업 특유의 리스크 요인을 상세히 분석하세요.)
-                        3. **[ADS구조]** : (미국 예탁 증서(ADS) 구조가 주주 권리 행사에 미치는 영향이나 특이사항을 서술하세요.)
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위
+                        2. 두 번째 문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크 분석
+                        3. 세 번째 문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향
                         """
                     },
                     "FWP": {
+                        "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
                         "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
                         "structure": """
-                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                        1. **[핵심비전]** : (경영진이 로드쇼에서 가장 강조하고 있는 미래 성장 비전과 목표를 서술하세요.)
-                        2. **[차별화전략]** : (경쟁사 대비 부각시키고 있는 기술적/사업적 차별화 포인트를 시각 자료(Graphics) 기반으로 분석하세요.)
-                        3. **[로드쇼반응]** : (자료 톤앤매너를 통해 유추할 수 있는 경영진의 자신감이나 시장 공략 의지를 서술하세요.)
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전
+                        2. 두 번째 문단: 경쟁사 대비 부각시키는 기술적/사업적 차별화 포인트
+                        3. 세 번째 문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지
                         """
                     },
                     "424B4": {
+                        "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
                         "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
                         "structure": """
-                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-                        1. **[최종공모가]** : (확정된 공모가가 희망 밴드 상단인지 하단인지 분석하고, 그 의미(시장 수요)를 해석하세요.)
-                        2. **[자금활용]** : (확정된 조달 자금이 구체적으로 어떤 우선순위 사업에 투입될 예정인지 최종 점검하세요.)
-                        3. **[상장후 전망]** : (주관사단 구성과 배정 물량을 바탕으로 상장 초기 유통 물량 부담이나 변동성을 예측하세요.)
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석
+                        2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검
+                        3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측
                         """
                     }
                 }
                 
                 curr_meta = def_meta.get(topic, def_meta["S-1"])
-    
+                
+                # 💡 [초강력 포맷 지시] 한글 병기 금지 + 줄바꿈 금지
+                format_instruction = """
+                [출력 형식 및 번역 규칙 - 반드시 지킬 것]
+                - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
+                - 올바른 예시(영어): **[Investment Point]** The company's main advantage is...
+                - 올바른 예시(일본어): **[投資ポイント]** 同社の最大の強みは...
+                - 금지 예시(한국어 병기 절대 금지): **[Investment Point - 투자포인트]** (X)
+                - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
+                """
+
                 # UI 출력: 다국어 설명문 출력
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
                 
-                # 1. expander 다국어 처리
                 with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
                     with st.spinner(get_text('msg_analyzing_filing')):
                         analysis_result = get_ai_analysis(
                             stock['name'], 
                             topic, 
                             curr_meta['points'], 
-                            curr_meta.get('structure', ""),
-                            curr_lang
+                            curr_meta['structure'] + format_instruction, # 구조와 포맷 규칙 결합
+                            st.session_state.lang           
                         )
                         
                         if "ERROR_DETAILS" in analysis_result:
@@ -3237,7 +3246,7 @@ with main_area.container():
                             with st.expander("상세 에러 내용"):
                                 st.code(analysis_result)
                         else:
-                            # 들여쓰기 최적화 (한국어만 들여쓰기 적용)
+                            # 💡 줄바꿈은 문단 사이에만 유지하도록 출력
                             indent_size = "14px" if curr_lang == "ko" else "0px"
                             st.markdown(f"""
                                 <div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">
