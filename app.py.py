@@ -1824,8 +1824,55 @@ UI_TEXT = {
     # ==========================================
     'expander_renaissance': {'ko': 'Renaissance Capital IPO 요약', 'en': 'Renaissance Capital Summary', 'ja': 'Renaissance Capital要約'},
     'expander_seeking_alpha': {'ko': 'Seeking Alpha & Morningstar 요약', 'en': 'Seeking Alpha & Morningstar', 'ja': 'Seeking Alpha & Morningstar要約'},
+    'expander_sentiment': {'ko': '기관 투자 심리 (Sentiment)', 'en': 'Institutional Sentiment', 'ja': '機関投資家心理 (センチメント)'},
+    
+    # 분석 체계 라벨
     'label_rating_system': {'ko': 'Analyst Ratings 체계', 'en': 'Analyst Ratings System', 'ja': 'アナリスト格付け体系'},
+    'label_score_system': {'ko': 'IPO Scoop Score 체계', 'en': 'IPO Scoop Score System', 'ja': 'IPO Scoopスコア体系'},
+    'label_current': {'ko': '현재', 'en': 'Current', 'ja': '現在'},
+    'label_opinion': {'ko': '의견', 'en': 'Opinion', 'ja': '意見'},
+    'label_evaluation': {'ko': '평가', 'en': 'Evaluation', 'ja': '評価'},
+    'label_point': {'ko': '점', 'en': 'pts', 'ja': '点'},
+    'label_count': {'ko': '개', 'en': '', 'ja': '個'},
+    
+    # Analyst Ratings 상세 (분기 로직용)
+    'rating_strong_buy': {'ko': '적극 매수 추천', 'en': 'Strong Buy Recommendation', 'ja': '強力買い推奨'},
+    'rating_buy': {'ko': '매수 추천', 'en': 'Buy Recommendation', 'ja': '買い推奨'},
+    'rating_hold': {'ko': '보유 및 중립 관망', 'en': 'Hold / Neutral', 'ja': 'ホールド・中립'},
+    'rating_neutral': {'ko': '보유 및 중립 관망', 'en': 'Neutral', 'ja': '中立'},
+    'rating_sell': {'ko': '매도 및 비중 축소', 'en': 'Sell / Reduce', 'ja': '売り・比重縮小'},
+    
+    # IPO Scoop 상세
+    'score_5': {'ko': '대박 (Moonshot)', 'en': 'Moonshot', 'ja': '大当たり (Moonshot)'},
+    'score_4': {'ko': '강력한 수익', 'en': 'Strong Profit', 'ja': '強力な収益'},
+    'score_3': {'ko': '양호 (Good)', 'en': 'Good', 'ja': '良好 (Good)'},
+    'score_2': {'ko': '미미한 수익 예상', 'en': 'Modest Profit', 'ja': 'わずかな収益予想'},
+    'score_1': {'ko': '공모가 하회 위험', 'en': 'Risk below IPO price', 'ja': '公募価格割れリスク'},
+    
+    # 상태 메시지
+    'msg_rating_positive': {'ko': '시장의 긍정적인 평가를 받고 있습니다.', 'en': 'Market sentiment is positive.', 'ja': '市場から肯定的な評価を受けています。'},
+    'msg_rating_negative': {'ko': '보수적인 접근이 필요한 시점입니다.', 'en': 'A conservative approach is required.', 'ja': '保守的なアプローチが必要な時期です。'},
+    
+    # 참조 링크 라벨
+    'label_detail_data': {'ko': '상세 데이터', 'en': 'Detailed Data', 'ja': '詳細データ'},
+    'label_deep_analysis': {'ko': '심층 분석글', 'en': 'Deep Analysis', 'ja': '深層分析記事'},
+    'label_research_result': {'ko': '리서치 결과', 'en': 'Research Results', 'ja': 'リサーチ結果'},
+    'label_market_trend': {'ko': '시장 동향', 'en': 'Market Trends', 'ja': '市場動向'},
+    
+    # 에러 메시지
+    'err_no_institutional_report': {'ko': '직접적인 분석 리포트를 찾지 못했습니다.', 'en': 'No direct analysis report found.', 'ja': '直接的な分析レポートが見つかりませんでした。'},
+    'err_ai_analysis_failed': {'ko': 'AI가 실시간 리포트 본문을 분석하는 데 실패했습니다.', 'en': 'AI failed to analyze the report body.', 'ja': 'AIがリアルタイムレポート本文の分析に失敗しました。'},
+    'err_no_links': {'ko': '실시간 참조 리포트 링크를 불러올 수 없습니다.', 'en': 'Unable to load reference report links.', 'ja': 'リアルタイム参照レポートのリンクを読み込めませんでした。'},
 
+    # 의사결정 버튼 (사용자 판단 박스)
+    'decision_final_institutional': {'ko': '기관 분석을 참고한 나의 최종 판단은?', 'en': 'Final judgment based on institutional analysis?', 'ja': '機関分析を参考にした私の最終判断は？'},
+    'btn_buy': {'ko': '매수', 'en': 'Buy', 'ja': '買い'},
+    'btn_sell': {'ko': '매도', 'en': 'Sell', 'ja': '売り'},
+    'sentiment_neutral': {'ko': '중립적', 'en': 'Neutral', 'ja': '中立的'},
+    
+
+
+    
     # ==========================================
     # 10. Tab 5: 투자결정 및 차트
     # ==========================================
