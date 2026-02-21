@@ -3246,11 +3246,15 @@ with main_area.container():
                             with st.expander("상세 에러 내용"):
                                 st.code(analysis_result)
                         else:
-                            # 💡 줄바꿈은 문단 사이에만 유지하도록 출력
+                            # 👉 여기서부터 교체! (호출부에서 화면에 그리기 직전에만 텍스트를 다듬습니다)
+                            import re
+                            # AI가 준 **텍스트** 를 HTML 굵은 글씨 태그인 <b>텍스트</b> 로 변환
+                            formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
+                            
                             indent_size = "14px" if curr_lang == "ko" else "0px"
                             st.markdown(f"""
                                 <div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">
-                                    {analysis_result.replace(chr(10), '<br>')}
+                                    {formatted_result.replace(chr(10), '<br>')}
                                 </div>
                             """, unsafe_allow_html=True)
                     
