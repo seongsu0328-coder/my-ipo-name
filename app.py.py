@@ -3721,8 +3721,10 @@ with main_area.container():
                 draw_decision_box("ipo_report", get_text('decision_final_invest'), [get_text('opt_buy'), get_text('sentiment_neutral'), get_text('opt_sell')])
                 display_disclaimer()
                 
-            # Tab 5 (의사결정 및 토론방)은 기존 코드가 완벽히 다국어화되어 있으므로 그대로 사용하시면 됩니다.
-            with tab5:
+            # ---------------------------------------------------------
+            # Tab 5: 투자결정 및 토론방 (st.pills 구조로 완벽 변경)
+            # ---------------------------------------------------------
+            elif selected_sub_menu == get_text('tab_5'):
                 # 💡 [핵심] 제목과 내용을 동시에 번역하는 주문형 번역 함수
                 def translate_post_on_demand(title, content, target_lang_code):
                     if not title and not content: return {"title": "", "content": ""}
@@ -3746,13 +3748,10 @@ with main_area.container():
                     except: 
                         return {"title": title, "content": content}
 
-                # 💡 번역 상태를 저장할 전역 딕셔너리 초기화
                 if 'translated_posts' not in st.session_state:
                     st.session_state.translated_posts = {}
 
-                # ---------------------------------------------------------------------------
-                # 1. [스타일] 흰 배경 및 UI 설정
-                # ---------------------------------------------------------------------------
+                # 스타일링
                 st.markdown("""
                     <style>
                     .stApp { background-color: #ffffff !important; color: #000000 !important; }
@@ -3767,9 +3766,7 @@ with main_area.container():
                 user_id = user_info.get('id', 'guest_id')
                 curr_lang = st.session_state.lang
     
-                # ---------------------------------------------------------
-                # 2. 투자 분석 결과 섹션 (차트 시각화 및 DB 동기화)
-                # ---------------------------------------------------------
+                # 유저 결정 데이터 로드
                 if 'user_decisions' not in st.session_state: st.session_state.user_decisions = {}
                 ud = st.session_state.user_decisions.get(sid, {})
                 
@@ -3781,105 +3778,73 @@ with main_area.container():
                 
                 missing_steps = [label for step, label in steps if not ud.get(step)]
                 
+                # 분석 단계 체크
                 if missing_steps:
                     st.info(get_text('msg_need_all_steps'))
                 else:
-                    # 1) 내 점수 계산 로직
-                    score_map = {
-                        "긍정적": 1, "수용적": 1, "안정적": 1, "저평가": 1, "매수": 1, "침체": 1,
-                        "중립적": 0, "중립": 0, "적정": 0,
-                        "부정적": -1, "회의적": -1, "버블": -1, "고평가": -1, "매도": -1
-                    }
+                    score_map = {"긍정적": 1, "수용적": 1, "안정적": 1, "저평가": 1, "매수": 1, "침체": 1, "중립적": 0, "중립": 0, "적정": 0, "부정적": -1, "회의적": -1, "버블": -1, "고평가": -1, "매도": -1}
                     user_score = sum(score_map.get(ud.get(s[0], "중립적"), 0) for s in steps)
                     
-                    # 2) 🚨 [영구 저장] 내 선택 텍스트들과 합산 점수를 DB에 동시 저장
-                    if user_id != 'guest_id':
-                        db_save_user_decision(user_id, sid, user_score, ud)
+                    # DB 저장
+                    if user_id != 'guest_id': db_save_user_decision(user_id, sid, user_score, ud)
                     
-                    # 3) DB에서 전체 커뮤니티 데이터 로드
+                    # 커뮤니티 데이터 로드
                     community_scores = db_load_community_scores(sid)
-                    if not community_scores:
-                        community_scores = [user_score]
-    
-                    import pandas as pd
-                    import plotly.graph_objects as go
+                    if not community_scores: community_scores = [user_score]
                     
+                    # 차트 및 지표 계산
                     total_participants = len(community_scores)
-    
-                    # 4) 통계 계산
                     optimists = sum(1 for s in community_scores if s > 0)
                     optimist_pct = (optimists / total_participants * 100) if total_participants > 0 else 0
                     user_percentile = (sum(1 for s in community_scores if s <= user_score) / total_participants * 100) if total_participants > 0 else 100
-    
+                    
                     m1, m2 = st.columns(2)
                     m1.metric(get_text('label_market_optimism'), f"{optimist_pct:.1f}%")
                     m2.metric(get_text('label_my_position'), f"{get_text('label_top_pct')} {100-user_percentile:.1f}%", f"{user_score}{get_text('label_point')}")
                     
-                    # 5) 차트 그리기
                     score_counts = pd.Series(community_scores).value_counts().sort_index()
                     score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
                     
                     fig = go.Figure(go.Bar(
                         x=score_counts.index, 
                         y=score_counts.values, 
-                        marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index],
+                        marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index], 
                         hovertemplate="Score: %{x}<br>Users: %{y}<extra></extra>"
                     ))
                     fig.update_layout(
                         height=220, 
                         margin=dict(l=10, r=10, t=30, b=10), 
                         xaxis=dict(title="Total Score (-5 ~ +5)", tickmode='linear'), 
-                        yaxis=dict(title="Participants", showticklabels=True),
+                        yaxis=dict(title="Participants", showticklabels=True), 
                         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
                     )
                     st.plotly_chart(fig, use_container_width=True)
     
-                # ---------------------------------------------------------
-                # 3. 전망 투표 및 실시간 Sentiment (BULL vs BEAR)
-                # ---------------------------------------------------------
+                # Bull/Bear Sentiment
                 st.write("<br>", unsafe_allow_html=True)
                 st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>{get_text('label_community_forecast')}</div>", unsafe_allow_html=True)
                 
-                # [1] 실시간 데이터 로드
                 up_voters, down_voters = db_load_sentiment_counts(sid)
                 total_votes = up_voters + down_voters
-                
                 up_pct = (up_voters / total_votes * 100) if total_votes > 0 else 50
                 down_pct = (down_voters / total_votes * 100) if total_votes > 0 else 50
-    
-                # [2] Bullish & Bearish 시각화 카드
-                col_bull, col_bear = st.columns(2)
                 
-                with col_bull:
-                    st.markdown(f"""
-                        <div style="background-color: #ebfaef; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #c3e6cb;">
-                            <img src="https://img.icons8.com/color/96/bull.png" width="60" style="margin-bottom:10px;">
-                            <div style="color: #28a745; font-weight: 800; font-size: 1.2rem;">BULLISH</div>
-                            <div style="color: #333; font-size: 1.5rem; font-weight: 900;">{up_pct:.1f}%</div>
-                        </div>
-                    """, unsafe_allow_html=True)
+                col_bull, col_bear = st.columns(2)
+                with col_bull: 
+                    st.markdown(f"<div style='background-color: #ebfaef; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #c3e6cb;'><img src='https://img.icons8.com/color/96/bull.png' width='60' style='margin-bottom:10px;'><div style='color: #28a745; font-weight: 800; font-size: 1.2rem;'>BULLISH</div><div style='color: #333; font-size: 1.5rem; font-weight: 900;'>{up_pct:.1f}%</div></div>", unsafe_allow_html=True)
+                with col_bear: 
+                    st.markdown(f"<div style='background-color: #fff5f5; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #feb2b2;'><img src='https://img.icons8.com/color/96/bear.png' width='60' style='margin-bottom:10px;'><div style='color: #dc3545; font-weight: 800; font-size: 1.2rem;'>BEARISH</div><div style='color: #333; font-size: 1.5rem; font-weight: 900;'>{down_pct:.1f}%</div></div>", unsafe_allow_html=True)
     
-                with col_bear:
-                    st.markdown(f"""
-                        <div style="background-color: #fff5f5; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #feb2b2;">
-                            <img src="https://img.icons8.com/color/96/bear.png" width="60" style="margin-bottom:10px;">
-                            <div style="color: #dc3545; font-weight: 800; font-size: 1.2rem;">BEARISH</div>
-                            <div style="color: #333; font-size: 1.5rem; font-weight: 900;">{down_pct:.1f}%</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-    
-                # [3] 투표 버튼 및 관심종목 로직
+                # 투표 버튼 영역
                 if st.session_state.get('auth_status') == 'user':
                     if sid not in st.session_state.watchlist:
                         st.caption(get_text('msg_vote_guide'))
                         c_up, c_down = st.columns(2)
-                        
                         if c_up.button(get_text('btn_vote_up'), key=f"up_vote_{sid}", use_container_width=True, type="primary"):
                             db_toggle_watchlist(user_id, sid, "UP", action='add')
                             if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
                             st.session_state.watchlist_predictions[sid] = "UP"
                             st.rerun()
-    
                         if c_down.button(get_text('btn_vote_down'), key=f"dn_vote_{sid}", use_container_width=True):
                             db_toggle_watchlist(user_id, sid, "DOWN", action='add')
                             if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
@@ -3889,28 +3854,19 @@ with main_area.container():
                         pred = st.session_state.watchlist_predictions.get(sid, "N/A")
                         color = "#28a745" if pred == "UP" else "#dc3545"
                         pred_text = "BULLISH" if pred == "UP" else "BEARISH"
-                        
-                        st.markdown(f"""
-                            <div style="padding: 15px; border-radius: 10px; border: 1px solid {color}; text-align: center; font-weight: bold; color: {color};">
-                                {get_text('msg_my_choice')} {pred_text} 
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
+                        st.markdown(f"<div style='padding: 15px; border-radius: 10px; border: 1px solid {color}; text-align: center; font-weight: bold; color: {color};'>{get_text('msg_my_choice')} {pred_text} </div>", unsafe_allow_html=True)
                         if st.button(get_text('btn_cancel_vote'), key=f"rm_vote_{sid}", use_container_width=True):
                             db_toggle_watchlist(user_id, sid, action='remove')
                             if sid in st.session_state.watchlist: st.session_state.watchlist.remove(sid)
                             if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
                             st.rerun()
-                else:
+                else: 
                     st.warning(get_text('msg_login_vote'))
     
-                # ---------------------------------------------------------
-                # 4. 종목 토론방 (On-Demand 번역 적용)
-                # ---------------------------------------------------------
+                # 종목 토론방 영역
                 st.write("<br>", unsafe_allow_html=True)
                 st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{sid} {get_text('label_discussion_board')}</div>", unsafe_allow_html=True)
                 
-                # [1] 글쓰기 섹션
                 with st.expander(get_text('expander_write')):
                     if st.session_state.get('auth_status') == 'user':
                         if check_permission('write'):
@@ -3924,50 +3880,43 @@ with main_area.container():
                                             fresh_user = db_load_user(u_id)
                                             d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
                                             st.session_state.user_info = fresh_user
-                                        except:
-                                            d_name = f"{u_id[:3]}***"
+                                        except: d_name = f"{u_id[:3]}***"
                                         
                                         if db_save_post(sid, new_title, new_content, d_name, u_id):
                                             st.success(get_text('msg_submitted'))
                                             import time; time.sleep(0.5)
                                             st.rerun()
-                    else:
+                    else: 
                         st.warning(get_text('msg_login_vote'))
                 
                 st.write("<br>", unsafe_allow_html=True)
                 
-                # [2] DB에서 해당 종목 관련 글 로드
+                # 게시글 로드
                 sid_posts = db_load_posts(limit=100, category=sid)
-                
                 if sid_posts:
                     from datetime import datetime, timedelta
                     three_days_ago = datetime.now() - timedelta(days=3)
-                    
                     hot_candidates = []
                     normal_posts = []
-    
+                    
                     for p in sid_posts:
                         try:
                             created_dt_str = str(p.get('created_at', '')).split('.')[0]
                             created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
-                            if created_dt >= three_days_ago and p.get('likes', 0) > 0:
-                                hot_candidates.append(p)
-                            else:
-                                normal_posts.append(p)
-                        except:
-                            normal_posts.append(p)
-                            
+                            if created_dt >= three_days_ago and p.get('likes', 0) > 0: hot_candidates.append(p)
+                            else: normal_posts.append(p)
+                        except: normal_posts.append(p)
+                        
                     hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
                     top_5_hot = hot_candidates[:5]
                     normal_posts.extend(hot_candidates[5:])
                     normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
-    
+                    
                     page_key = f'detail_display_count_{sid}'
-                    if page_key not in st.session_state:
-                        st.session_state[page_key] = 5
+                    if page_key not in st.session_state: st.session_state[page_key] = 5
                     current_display = normal_posts[:st.session_state[page_key]]
     
-                    # 💡 종목 토론방 전용 UI 렌더러
+                    # 게시글 렌더링 함수
                     def render_detail_post(p, is_hot=False):
                         p_auth = p.get('author_name', 'Unknown')
                         p_date = str(p.get('created_at', '')).split('T')[0]
@@ -3991,7 +3940,7 @@ with main_area.container():
                         else:
                             display_title = original_title
                             display_content = original_content
-                        
+                            
                         prefix = "[HOT]" if is_hot else ""
                         title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} (👍{likes}  👎{dislikes})"
                         
@@ -3999,34 +3948,26 @@ with main_area.container():
                             st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-bottom:10px;'>{display_content}</div>", unsafe_allow_html=True)
                             
                             btn_c1, btn_c2, btn_c3, btn_c4 = st.columns([2.5, 1.5, 1.5, 1.5])
-                            
                             with btn_c1:
                                 trans_label = get_text('btn_see_original') if is_translated else get_text('btn_see_translation')
                                 if st.button(trans_label, key=f"t_det_{p_id}", use_container_width=True):
-                                    if is_translated:
-                                        del st.session_state.translated_posts[p_id]
+                                    if is_translated: del st.session_state.translated_posts[p_id]
                                     else:
                                         with st.spinner("Translating..."):
                                             st.session_state.translated_posts[p_id] = translate_post_on_demand(original_title, original_content, curr_lang)
                                     st.rerun()
-
                             with btn_c2:
                                 if st.button(f"{get_text('btn_like')}{likes}", key=f"l_det_{p_id}", use_container_width=True):
-                                    if st.session_state.get('auth_status') == 'user':
-                                        db_toggle_post_reaction(p_id, user_id, 'like'); st.rerun()
+                                    if st.session_state.get('auth_status') == 'user': db_toggle_post_reaction(p_id, user_id, 'like'); st.rerun()
                                     else: st.toast(get_text('msg_login_vote'))
-                                        
                             with btn_c3:
                                 if st.button(f"{get_text('btn_dislike')}{dislikes}", key=f"d_det_{p_id}", use_container_width=True):
-                                    if st.session_state.get('auth_status') == 'user':
-                                        db_toggle_post_reaction(p_id, user_id, 'dislike'); st.rerun()
+                                    if st.session_state.get('auth_status') == 'user': db_toggle_post_reaction(p_id, user_id, 'dislike'); st.rerun()
                                     else: st.toast(get_text('msg_login_vote'))
-                                        
                             with btn_c4:
                                 raw_u_info = st.session_state.get('user_info')
                                 u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
                                 is_admin = u_info.get('role') == 'admin'
-                                
                                 if st.session_state.get('auth_status') == 'user':
                                     if u_info.get('id') == p_uid or is_admin:
                                         if st.button(get_text('btn_delete'), key=f"del_det_{p_id}", type="secondary", use_container_width=True):
@@ -4034,16 +3975,17 @@ with main_area.container():
                                                 st.success(get_text('msg_deleted'))
                                                 import time; time.sleep(0.5)
                                                 st.rerun()
-    
+                    
                     if top_5_hot:
                         st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>{get_text('label_hot_posts')}</div>", unsafe_allow_html=True)
                         for p in top_5_hot: render_detail_post(p, is_hot=True)
                         st.write("<br><br>", unsafe_allow_html=True)
-    
+                        
                     st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{get_text('label_recent_posts')}</div>", unsafe_allow_html=True)
+                    
                     if current_display:
                         for p in current_display: render_detail_post(p, is_hot=False)
-                    else:
+                    else: 
                         st.info(get_text('msg_no_recent_posts'))
                         
                     if len(normal_posts) > st.session_state[page_key]:
@@ -4051,273 +3993,12 @@ with main_area.container():
                         if st.button(get_text('btn_load_more'), key=f"more_{sid}", use_container_width=True):
                             st.session_state[page_key] += 10
                             st.rerun()
-                else:
+                else: 
                     st.info(get_text('msg_first_comment'))
-    
-    
-    # ---------------------------------------------------------
-    # [NEW] 6. 게시판 페이지 (Board) - On-Demand 번역 적용
-    # ---------------------------------------------------------
-    elif st.session_state.page == 'board':
-        
-        st.markdown("""
-            <style>
-            div[data-testid="stPills"] div[role="radiogroup"] button {
-                border: none !important;
-                background-color: #000000 !important;
-                color: #ffffff !important;
-                border-radius: 20px !important;
-                padding: 6px 15px !important;
-                margin-right: 5px !important;
-            }
-            div[data-testid="stPills"] button[aria-selected="true"] {
-                background-color: #444444 !important;
-                font-weight: 800 !important;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-    
-        # [1] 메뉴 구성 및 네비게이션
-        is_logged_in = (st.session_state.auth_status == 'user')
-        login_text = get_text('menu_logout') if is_logged_in else get_text('btn_login')
-        settings_text = get_text('menu_settings')
-        main_text = get_text('menu_main')
-        watch_text = f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})"
-        board_text = get_text('menu_board')
-        
-        # 언어별 뒤로가기 버튼 텍스트 설정
-        if st.session_state.lang == 'en': back_text = "🔙 Back"
-        elif st.session_state.lang == 'ja': back_text = "🔙 戻る"
-        else: back_text = "🔙 뒤로가기"
-        
-        menu_options = [login_text]
-        if is_logged_in: menu_options.append(settings_text)
-        menu_options.extend([main_text, watch_text, board_text])
-        
-        last_stock = st.session_state.get('selected_stock')
-        if last_stock: menu_options.append(back_text)
-    
-        selected_menu = st.pills(label="nav_board", options=menu_options, selection_mode="single", default=board_text, key="nav_board_v3", label_visibility="collapsed")
-    
-        if selected_menu and selected_menu != board_text:
-            if selected_menu == back_text: st.session_state.page = 'detail'; st.rerun()
-            elif selected_menu == login_text: 
-                if is_logged_in: st.session_state.auth_status = None
-                st.session_state.page = 'login'; st.rerun()
-            elif selected_menu == settings_text: st.session_state.page = 'setup'; st.rerun()
-            elif selected_menu == main_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'all'; st.rerun()
-            elif selected_menu == watch_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'watchlist'; st.rerun()
-    
-        # [2] 게시판 데이터 로드 및 검색 필터링 적용
-        s_keyword = ""
-        s_type = "제목"
-        
-        if 'b_s_type' in st.session_state: s_type = st.session_state.b_s_type
-        if 'b_s_keyword' in st.session_state: s_keyword = st.session_state.b_s_keyword
-            
-        all_posts = db_load_posts(limit=100) 
-        
-        posts = all_posts
-        if s_keyword:
-            k = s_keyword.lower()
-            if s_type == "제목": posts = [p for p in posts if k in p.get('title','').lower()]
-            elif s_type == "제목+내용": posts = [p for p in posts if k in p.get('title','').lower() or k in p.get('content','').lower()]
-            elif s_type == "카테고리": posts = [p for p in posts if k in p.get('category','').lower()]
-            elif s_type == "작성자": posts = [p for p in posts if k in p.get('author_name','').lower()]
-    
-        # [3] 정렬 및 분리 로직 (HOT 5개 / 나머지 최신순 페이징)
-        hot_candidates = []
-        normal_posts = []
-    
-        if posts:
-            from datetime import datetime, timedelta
-            three_days_ago = datetime.now() - timedelta(days=3)
-    
-            for p in posts:
-                try:
-                    created_dt_str = str(p.get('created_at', '')).split('.')[0]
-                    created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
-                    if created_dt >= three_days_ago and p.get('likes', 0) > 0:
-                        hot_candidates.append(p)
-                    else:
-                        normal_posts.append(p)
-                except:
-                    normal_posts.append(p)
-                    
-            hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
-            top_5_hot = hot_candidates[:5]
-            
-            normal_posts.extend(hot_candidates[5:])
-            normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
-    
-        if 'board_display_count' not in st.session_state:
-            st.session_state.board_display_count = 5
-        
-        current_display = normal_posts[:st.session_state.board_display_count]
-    
-        # 💡 [핵심] 게시판용 번역 함수 및 UI 렌더러
-        curr_lang = st.session_state.lang
-        if 'translated_posts' not in st.session_state:
-            st.session_state.translated_posts = {}
-
-        def translate_post_on_demand(title, content, target_lang_code):
-            if not title and not content: return {"title": "", "content": ""}
-            target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語"
-            
-            prompt = f"""Please translate the following Title and Content to {target_lang_str}. 
-            You MUST keep the exact string '|||SEP|||' between the translated Title and translated Content. 
-            Do not add any quotes or extra explanations:
-            
-            {title}
-            |||SEP|||
-            {content}"""
-            
-            try:
-                res_text = model.generate_content(prompt).text.strip()
-                if "|||SEP|||" in res_text:
-                    t, c = res_text.split("|||SEP|||", 1)
-                    return {"title": t.strip(), "content": c.strip()}
-                else:
-                    return {"title": title, "content": res_text}
-            except: 
-                return {"title": title, "content": content}
-
-        def render_board_post(p, is_hot=False):
-            p_auth = p.get('author_name', 'Unknown')
-            p_date = str(p.get('created_at', '')).split('T')[0]
-            p_id = str(p.get('id'))
-            p_uid = p.get('author_id')
-            p_cat = p.get('category', '자유')
-            likes = p.get('likes') or 0
-            dislikes = p.get('dislikes') or 0
-            
-            original_title = p.get('title', '')
-            original_content = p.get('content', '')
-            
-            # 번역 상태 확인 및 스와핑 (에러 방지 적용)
-            is_translated = p_id in st.session_state.translated_posts
-            if is_translated:
-                trans_data = st.session_state.translated_posts[p_id]
-                if isinstance(trans_data, dict):
-                    display_title = trans_data.get('title', original_title)
-                    display_content = trans_data.get('content', original_content)
-                else:
-                    display_title = original_title
-                    display_content = trans_data
-            else:
-                display_title = original_title
-                display_content = original_content
-            
-            prefix = "[HOT]" if is_hot else f"[{p_cat}]"
-            title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} (👍{likes}  👎{dislikes})"
-            
-            with st.expander(title_disp.strip()):
-                st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-bottom:10px;'>{display_content}</div>", unsafe_allow_html=True)
                 
-                # 버튼 레이아웃
-                btn_c1, btn_c2, btn_c3, btn_c4 = st.columns([2.5, 1.5, 1.5, 1.5])
-                with btn_c1:
-                    trans_label = get_text('btn_see_original') if is_translated else get_text('btn_see_translation')
-                    if st.button(trans_label, key=f"t_brd_{p_id}", use_container_width=True):
-                        if is_translated:
-                            del st.session_state.translated_posts[p_id]
-                        else:
-                            with st.spinner("Translating..."):
-                                st.session_state.translated_posts[p_id] = translate_post_on_demand(original_title, original_content, curr_lang)
-                        st.rerun()
-                
-                with btn_c2:
-                    if st.button(f"{get_text('btn_like')}{likes}", key=f"l_brd_{p_id}", use_container_width=True):
-                        if is_logged_in:
-                            db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'like'); st.rerun()
-                        else: st.toast(get_text('msg_login_vote'))
-                
-                with btn_c3:
-                    if st.button(f"{get_text('btn_dislike')}{dislikes}", key=f"d_brd_{p_id}", use_container_width=True):
-                        if is_logged_in:
-                            db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'dislike'); st.rerun()
-                        else: st.toast(get_text('msg_login_vote'))
-                        
-                with btn_c4:
-                    raw_u_info = st.session_state.get('user_info')
-                    u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
-                    is_admin = u_info.get('role') == 'admin'
-                    
-                    if is_logged_in and (u_info.get('id') == p_uid or is_admin):
-                        if st.button(get_text('btn_delete'), key=f"del_brd_{p_id}", type="secondary", use_container_width=True):
-                            if db_delete_post(p_id):
-                                st.success(get_text('msg_deleted'))
-                                import time; time.sleep(0.5)
-                                st.rerun()
-    
-        # [4] 리스트 및 컨트롤 UI 렌더링
-        post_list_area = st.container()
-        with post_list_area:
-            
-            # 1. 검색 및 글쓰기 영역
-            f_col1, f_col2 = st.columns(2)
-            with f_col1:
-                with st.expander(get_text('expander_search')):
-                    s_type_opts = ["제목", "제목+내용", "카테고리", "작성자"]
-                    try:
-                        idx = s_type_opts.index(s_type)
-                    except: idx = 0
-                    s_type_new = st.selectbox("Scope", s_type_opts, key="b_s_type_temp", index=idx)
-                    s_keyword_new = st.text_input("Keyword", value=s_keyword, key="b_s_keyword_temp")
-                    if st.button(get_text('btn_search'), key="search_btn", use_container_width=True):
-                        st.session_state.b_s_type = s_type_new
-                        st.session_state.b_s_keyword = s_keyword_new
-                        st.rerun()
-            
-            with f_col2:
-                with st.expander(get_text('expander_write')):
-                    if is_logged_in and check_permission('write'):
-                        with st.form(key="board_main_form", clear_on_submit=True):
-                            b_cat = st.text_input("Category/Symbol", placeholder="AAPL")
-                            b_tit = st.text_input(get_text('label_title'))
-                            b_cont = st.text_area(get_text('label_content'))
-                            if st.form_submit_button(get_text('btn_submit'), type="primary", use_container_width=True):
-                                if b_tit and b_cont:
-                                    u_id = st.session_state.user_info['id']
-                                    try:
-                                        fresh_user = db_load_user(u_id)
-                                        d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
-                                    except: d_name = f"{u_id[:3]}***"
-                                    
-                                    if db_save_post(b_cat, b_tit, b_cont, d_name, u_id):
-                                        st.success(get_text('msg_submitted'))
-                                        import time; time.sleep(0.5)
-                                        if 'b_s_type' in st.session_state: del st.session_state.b_s_type
-                                        if 'b_s_keyword' in st.session_state: del st.session_state.b_s_keyword
-                                        st.rerun()
-                    else:
-                        st.warning(get_text('msg_login_vote'))
-    
-            st.write("<br>", unsafe_allow_html=True)
-            
-            # 2. 인기글 영역
-            if hot_candidates and top_5_hot: 
-                st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>{get_text('label_hot_posts')}</div>", unsafe_allow_html=True)
-                for p in top_5_hot: render_board_post(p, is_hot=True)
-                st.write("<br><br>", unsafe_allow_html=True)
-            
-            # 3. 최신글 영역
-            st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{get_text('label_recent_posts')}</div>", unsafe_allow_html=True)
-            
-            if posts:
-                if current_display:
-                    for p in current_display: render_board_post(p, is_hot=False)
-                else:
-                    st.info(get_text('msg_no_recent_posts'))
-                    
-                # 더보기 버튼
-                if len(normal_posts) > st.session_state.board_display_count:
-                    st.write("<br>", unsafe_allow_html=True)
-                    if st.button(get_text('btn_load_more'), key="more_board_posts", use_container_width=True):
-                        st.session_state.board_display_count += 10
-                        st.rerun()
-            else:
-                st.info(get_text('msg_no_recent_posts'))
+                # 최종 판단 박스 & 면책조항
+                draw_decision_box("ipo_report", get_text('decision_final_invest'), [get_text('opt_buy'), get_text('sentiment_neutral'), get_text('opt_sell')])
+                display_disclaimer()
                 
                         
         
