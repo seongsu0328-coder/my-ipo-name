@@ -3615,43 +3615,50 @@ with main_area.container():
     
                 st.write("<br>", unsafe_allow_html=True)
     
-                # [2.5] 논문기반 AI 종합 판정 리포트 (다국어화 핵심)
+                # [2.5] 논문기반 AI 종합 판정 리포트 (원본 텍스트 완벽 복구 및 다국어화)
                 with st.expander(get_text('expander_academic_analysis'), expanded=False):
                     st.caption(f"Data Source: {data_source} / Currency: USD")
                     if is_data_available:
                         is_ko = st.session_state.lang == 'ko'
+                        # 상태 텍스트 분기
                         growth_status = ("고성장(High-Growth)" if growth > 20 else "안정적(Stable)" if growth > 5 else "정체(Stagnant)") if is_ko else ("High-Growth" if growth > 20 else "Stable" if growth > 5 else "Stagnant")
                         quality_status = ("우수(High-Quality)" if roe_val > 15 else "보통(Average)") if is_ko else ("High-Quality" if roe_val > 15 else "Average")
                         
-                        st.markdown(f"**{get_text('academic_growth_title')}**")
-                        if is_ko:
-                            st.markdown(f"* 현재 매출 성장률은 **{growth_status}** 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {'긍정적 시그널' if growth > 10 else '주의가 필요한 시그널'}로 해석됩니다.")
-                        else:
-                            st.markdown(f"* Current revenue growth is in the **{growth_status}** stage. According to Ritter, high-growth firms should beware of the 'growth trap' in the coming years.")
-                        
+                        # 💡 Jay Ritter의 IPO 장기 성과 이론 시각화 추가
                         
 
-                        st.markdown(f"**{get_text('academic_profit_title')}**")
                         if is_ko:
-                            st.markdown(f"* 수익성 지표(Net Margin/ROE)는 **{quality_status}** 등급입니다. 본 기업은 {'상대적으로 견고한 이익 체력' if roe_val > 10 else '영업 효율성 개선이 선행되어야 하는 체력'}을 보유하고 있습니다.")
+                            st.markdown(f"""
+                            **1. 성장성 및 생존 분석 (Jay Ritter, 1991)**
+                            * 현재 매출 성장률은 **{growth_status}** 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {"긍정적 시그널" if growth > 10 else "주의가 필요한 시그널"}로 해석됩니다.
+                            
+                            **2. 수익성 품질 및 자본 구조 (Fama & French, 2004)**
+                            * 수익성 지표(Net Margin/ROE)는 **{quality_status}** 등급입니다. 본 기업은 {"상대적으로 견고한 이익 체력" if roe_val > 10 else "영업 효율성 개선이 선행되어야 하는 체력"}을 보유하고 있습니다.
+                            
+                            **3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)**
+                            * 발생액 품질(Accruals Quality)이 **{accruals_status}** 상태입니다. 이는 경영진의 이익 조정 가능성이 {"낮음" if accruals_status == "Low" else "존재함"}을 의미합니다.
+                            """)
+                            st.info(f"**AI 종합 판정:** 학술적 관점에서 본 기업은 **{growth_status}** 성격이 강하며, 정보 불확실성은 일정 부분 해소된 상태입니다.")
                         else:
-                            st.markdown(f"* Profitability (Net Margin/ROE) is rated as **{quality_status}**. The firm has {'solid earnings power' if roe_val > 10 else 'room for operational improvement'}.")
-
-                        st.markdown(f"**{get_text('academic_accrual_title')}**")
-                        if is_ko:
-                            st.markdown(f"* 발생액 품질(Accruals Quality)이 **{accruals_status}** 상태입니다. 이는 경영진의 이익 조정 가능성이 {'낮음' if accruals_status == 'Low' else '존재함'}을 의미합니다.")
-                        else:
-                            st.markdown(f"* Accruals quality is **{accruals_status}**, implying the risk of earnings management is {'low' if accruals_status == 'Low' else 'notable'}.")
-                        
-                        st.info(f"**{get_text('academic_verdict_label')}** " + (f"학술적 관점에서 본 기업은 **{growth_status}** 성격이 강하며, 정보 불확실성은 일정 부분 해소된 상태입니다." if is_ko else f"Academically, this firm exhibits **{growth_status}** characteristics with manageable information uncertainty."))
+                            st.markdown(f"""
+                            **1. Growth & Survival Analysis (Jay Ritter, 1991)**
+                            * Current revenue growth is in the **{growth_status}** stage. According to Ritter, high-growth firms should beware of the 'growth trap' in the coming years. Metrics indicate a {"positive" if growth > 10 else "cautionary"} signal.
+                            
+                            **2. Profitability & Capital Structure (Fama & French, 2004)**
+                            * Profitability (Net Margin/ROE) is rated as **{quality_status}**. The firm has {"solid earnings power" if roe_val > 10 else "room for improvement"}.
+                            
+                            **3. Information Asymmetry & Accounting Quality (Teoh et al., 1998)**
+                            * Accruals quality is **{accruals_status}**, implying the risk of earnings management by executives is {"low" if accruals_status == "Low" else "notable"}.
+                            """)
+                            st.info(f"**AI Verdict:** Academically, this firm exhibits **{growth_status}** characteristics with manageable information uncertainty.")
                     else:
-                        st.warning(get_text('err_no_biz_info'))
+                        st.warning("⚠️ " + (get_text('err_no_biz_info') if not is_ko else "재무 데이터 부재로 정성적 분석이 권장됩니다."))
             
-                # [3] 재무자료 상세보기 (Summary Table)
+                # [3] 재무자료 상세보기 (6개 지표 그리드 완벽 복구)
                 with st.expander(get_text('expander_financial_analysis'), expanded=False):
                     if is_data_available:
-                        st.caption(f"Source: {data_source}")
-                        metrics_list = [
+                        st.caption(f"Data Source: {data_source} / Currency: USD")
+                        metrics = [
                             ("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"),
                             ("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x"),
                             ("Net Margin", f"{net_m_val:.1f}%"),
@@ -3660,23 +3667,28 @@ with main_area.container():
                             ("Growth (YoY)", f"{growth:.1f}%")
                         ]
                         m_cols = st.columns(6)
-                        for i, (label, value) in enumerate(metrics_list):
+                        for i, (label, value) in enumerate(metrics):
                             with m_cols[i]:
-                                st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
+                                st.markdown(f"""
+                                    <div class="custom-metric-box">
+                                        <div class="custom-metric-label" style="font-weight:bold; font-size:0.85rem; color:#333;">{label}</div>
+                                        <div class="custom-metric-value" style="font-size:1.05rem;">{value}</div>
+                                    </div>
+                                """, unsafe_allow_html=True)
                         
                         st.markdown(" ")
                         with st.spinner(get_text('msg_analyzing_financial')):
-                            ai_metrics = {"growth": growth_display, "net_margin": net_m_display, "op_margin": f"{op_m_val:.1f}%", "roe": f"{roe_val:.1f}%", "debt_equity": f"{de_ratio:.1f}%", "pe": f"{pe_val:.1f}x", "accruals": accruals_status}
+                            ai_metrics = {"growth": growth_display, "net_margin": net_m_display, "op_margin": opm_display, "roe": f"{roe_val:.1f}%", "debt_equity": f"{de_ratio:.1f}%", "pe": f"{pe_val:.1f}x", "accruals": accruals_status}
                             ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], ai_metrics, st.session_state.lang)
                         st.info(ai_report)
-                        st.caption("※ CFA algorithm applied." if st.session_state.lang != 'ko' else "※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
+                        st.caption(get_text('caption_cfa_algorithm') if 'caption_cfa_algorithm' in UI_TEXT else "※ CFA algorithm based analysis.")
     
-                # [4] 학술적 근거 및 원문 링크 섹션 (다국어 적용)
+                # [4] 학술적 근거 및 원문 링크 섹션 (5대 논문 전체 복구 및 다국어 라벨)
                 with st.expander(get_text('expander_references'), expanded=False):
                     st.markdown("""<style>.ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; } .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; } .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 10px; font-weight: bold; margin-bottom: 5px; } .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; } .ref-btn:hover { background: #f8f9fa; border-color: #bbb; }</style>""", unsafe_allow_html=True)
                     
-                    # 💡 다국어 라벨 매핑
-                    references_tab3 = [
+                    # 💡 원본의 5대 논문 데이터셋 다국어 매핑 복구
+                    ref_list = [
                         {"label": get_text('ref_label_growth'), "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991", "sum": get_text('ref_sum_ipo')},
                         {"label": get_text('ref_label_fundamental'), "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "link": "https://scholar.google.com/scholar?q=Fama+French+2004", "sum": get_text('ref_sum_withdrawal')},
                         {"label": get_text('ref_label_accounting'), "title": "Earnings Management and the Long-Run Performance", "author": "Teoh, Welch, & Wong (1998)", "link": "https://scholar.google.com/scholar?q=Teoh+Welch+Wong+1998", "sum": get_text('ref_sum_overheat')},
@@ -3684,23 +3696,23 @@ with main_area.container():
                         {"label": get_text('ref_label_underpricing'), "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541", "sum": "Mechanism of IPO underpricing."}
                     ]
                     
-                    st.info(f"{get_text('caption_google_search')} (Source: **{data_source}**)")
+                    st.info(f"💡 {get_text('caption_google_search')} (Source: **{data_source}**)")
     
-                    for ref in references_tab3:
+                    for r in ref_list:
                         st.markdown(f"""
                         <div class='ref-item'>
                             <div style='flex:1;'>
-                                <div class='ref-badge'>{ref['label']}</div><br>
-                                <a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a>
-                                <div style='font-size: 13px; color: #666;'>{ref['sum']}, {ref['author']}</div>
+                                <div class='ref-badge'>{r['label']}</div><br>
+                                <a href='{r['link']}' target='_blank' class='ref-title'>📄 {r['title']}</a>
+                                <div style='font-size: 13px; color: #666;'>{r['sum']}, {r['author']}</div>
                             </div>
                             <div style='margin-left: 15px;'>
-                                <a href='{ref['link']}' target='_blank' class='ref-btn'>View Original ↗</a>
+                                <a href='{r['link']}' target='_blank' class='ref-btn'>View ↗</a>
                             </div>
                         </div>""", unsafe_allow_html=True)
     
-                # [5] 사용자 최종 판단 박스 (다국어 적용)
-                draw_decision_box("company", get_text('decision_valuation_verdict'), [get_text('opt_overvalued'), get_text('sentiment_neutral'), get_text('opt_undervalued')])
+                # [5] 사용자 최종 판단 박스 (Decision Box)
+                draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", [get_text('opt_overvalued'), get_text('sentiment_neutral'), get_text('opt_undervalued')])
                 display_disclaimer()
     
             # --- 탭 글씨 크기 및 스타일 통일 (CSS) ---
