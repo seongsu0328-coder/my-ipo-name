@@ -2048,7 +2048,8 @@ UI_TEXT = {
 
 def get_text(key):
     """현재 세션 언어에 맞는 텍스트를 반환하는 헬퍼 함수"""
-    lang = st.session_state.lang
+    # 💡 [핵심] lang 값이 아직 세션에 없더라도 에러를 뿜지 않고 기본값 'ko'를 쓰도록 안전장치 적용
+    lang = st.session_state.get('lang', 'ko') 
     return UI_TEXT.get(key, {}).get(lang, UI_TEXT.get(key, {}).get('ko', key))
 
 # 현재 AI 프롬프트에 주입할 언어명 문자열 매핑
