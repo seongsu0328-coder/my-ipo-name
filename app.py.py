@@ -3918,8 +3918,9 @@ with main_area.container():
                     if st.session_state.get('auth_status') == 'user':
                         if check_permission('write'):
                             with st.form(key=f"write_{sid}_form", clear_on_submit=True):
-                                new_title = st.text_input(get_text('label_title'))
-                                new_content = st.text_area(get_text('label_content'))
+                                # 👇 고유 key 추가
+                                new_title = st.text_input(get_text('label_title'), key=f"tab5_title_{sid}")
+                                new_content = st.text_area(get_text('label_content'), key=f"tab5_content_{sid}")
                                 if st.form_submit_button(get_text('btn_submit'), type="primary", use_container_width=True):
                                     if new_title and new_content:
                                         u_id = st.session_state.user_info.get('id')
@@ -4212,9 +4213,10 @@ with main_area.container():
                     with st.expander("글쓰기"):
                         if is_logged_in and check_permission('write'):
                             with st.form(key="board_main_form", clear_on_submit=True):
-                                b_cat = st.text_input("종목/말머리", placeholder="자유")
-                                b_tit = st.text_input("제목")
-                                b_cont = st.text_area("내용")
+                                # 👇 고유 key 추가
+                                b_cat = st.text_input("종목/말머리", placeholder="자유", key="main_b_cat")
+                                b_tit = st.text_input("제목", key="main_b_tit")
+                                b_cont = st.text_area("내용", key="main_b_cont")
                                 if st.form_submit_button("등록", type="primary", use_container_width=True):
                                     if b_tit and b_cont:
                                         u_id = st.session_state.user_info['id']
