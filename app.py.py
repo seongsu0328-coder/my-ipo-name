@@ -684,8 +684,8 @@ def get_market_dashboard_analysis(metrics_data, lang_code):
     [작성 가이드]
     - 언어: 반드시 '{target_lang}'로 작성하세요.
     - 어조: 냉철하고 전문적인 어조 (인사말 생략)
-    - 형식: 줄글로 된 3~5줄의 요약 리포트
-    - 내용: 위 지표들을 종합하여 현재가 '기회'인지 '위험'인지 명확한 인사이트를 제공하세요.
+    - 형식: 줄글로 된 3~5줄의 요약 리포트로 제목, 소제목, 헤더(##), 인사말을 절대 포함하지 마세요.
+    - 내용: 위 지표들을 종합하여 현재가 '기회'인지 '위험'인지 명확한 인사이트를 제공하세요. 
     """
 
     try:
@@ -1848,7 +1848,31 @@ UI_TEXT = {
     'btn_delete': {'ko': '삭제', 'en': 'Delete', 'ja': '削除'},
 
     # ==========================================
-    # 12. 시스템 메시지 (Toast, Spinner, Error)
+    # 12. 참고 문헌 (References Content)
+    # ==========================================
+    'ref_label_ipo': {'ko': 'IPO 데이터', 'en': 'IPO Data', 'ja': 'IPOデータ'},
+    'ref_sum_ipo': {'ko': '미국 IPO 시장의 성적표와 공모가 저평가 통계의 결정판', 'en': 'Comprehensive statistics on US IPO performance and underpricing.', 'ja': '米国IPO市場の成績表と公募価格の割安性の統計'},
+    
+    'ref_label_overheat': {'ko': '시장 과열', 'en': 'Market Overheat', 'ja': '市場の過熱'},
+    'ref_sum_overheat': {'ko': '특정 시기에 IPO 수익률이 비정상적으로 높아지는 현상 규명', 'en': 'Identification of hot issue markets with abnormal returns.', 'ja': '特定の時期にIPO収益率が異常に高まる現象の解明'},
+    
+    'ref_label_withdrawal': {'ko': '상장 철회', 'en': 'Withdrawal', 'ja': '上場撤回'},
+    'ref_sum_withdrawal': {'ko': '상장 방식 선택에 따른 기업 가치와 철회 위험 분석', 'en': 'Analysis of corporate value and withdrawal risk by listing method.', 'ja': '上場方式の選択による企業価値と撤回リスクの分析'},
+    
+    'ref_label_vix': {'ko': '시장 변동성', 'en': 'Volatility', 'ja': '市場の変動性'},
+    'ref_sum_vix': {'ko': 'S&P 500 옵션 기반 시장 공포와 변동성 측정 표준', 'en': 'Standard measure of market fear and volatility based on S&P 500 options.', 'ja': 'S&P500オプションに基づく市場の恐怖と変動性の測定標準'},
+    
+    'ref_label_buffett': {'ko': '밸류에이션', 'en': 'Valuation', 'ja': 'バリュエーション'},
+    'ref_sum_buffett': {'ko': 'GDP 대비 시가총액 비율을 통한 시장 고평가 판단', 'en': 'Assessing market overvaluation via the market cap-to-GDP ratio.', 'ja': 'GDPに対する時価総額比率による市場の割高判断'},
+    
+    'ref_label_cape': {'ko': '기초 데이터', 'en': 'Fundamental Data', 'ja': '基礎データ'},
+    'ref_sum_cape': {'ko': '경기조정주가수익비율(CAPE)을 활용한 장기 데이터', 'en': 'Long-term market valuation using the CAPE ratio.', 'ja': '景気調整後株価収益率(CAPE)を活用した長期データ'},
+    
+    'ref_label_feargreed': {'ko': '투자자 심리', 'en': 'Investor Sentiment', 'ja': '投資家心理'},
+    'ref_sum_feargreed': {'ko': '7가지 지표를 통합한 탐욕과 공포 수준 수치화', 'en': 'Quantifying greed and fear through seven integrated indicators.', 'ja': '7つの指標を統合した強欲と恐怖指数の数値化'},
+
+    # ==========================================
+    # 13. 시스템 메시지 (Toast, Spinner, Error)
     # ==========================================
     'msg_analyzing': {'ko': '분석 중...', 'en': 'Analyzing...', 'ja': '分析中...'},
     'msg_analyzing_filing': {'ko': '핵심 내용을 분석 중입니다...', 'en': 'Analyzing key content...', 'ja': '主要内容を分析中です...'},
@@ -3338,12 +3362,16 @@ with main_area.container():
             
                 st.write("<br>", unsafe_allow_html=True)
                 
-                # --- 3. AI 종합 진단 (Expander) ---
+                # --- 3. AI 종합 진단 (제목 제거 필터 적용) ---
                 with st.expander(get_text('expander_macro_analysis'), expanded=False): 
                     try:
-                        # 💡 언어 설정 전달 유지
                         ai_market_comment = get_market_dashboard_analysis(md, st.session_state.lang)
                         if isinstance(ai_market_comment, str):
+                            # 🚨 [제목 제거 핵심 로직]: ## 제목이나 # 제목을 찾아 삭제
+                            import re
+                            ai_market_comment = re.sub(r'^#+.*$', '', ai_market_comment, flags=re.MULTILINE)
+                            # 특정 문구 수동 제거 (백업용)
+                            ai_market_comment = ai_market_comment.replace("Daily Market Briefing", "")
                             ai_market_comment = ai_market_comment.replace("</div>", "").replace("<div>", "").replace("```html", "").replace("```", "").strip()
                     except:
                         ai_market_comment = "Error generating AI analysis."
@@ -3357,8 +3385,7 @@ with main_area.container():
                     """, unsafe_allow_html=True)
                     
                     if md.get('unprofitable_pct', 0) >= 80:
-                        st.warning("🚨 **WARNING:** Very high percentage of loss-making IPOs. Careful fundamental check required." if st.session_state.lang != 'ko' else "🚨 **경고:** 적자 기업 비율이 매우 높습니다. 개별 종목의 펀더멘털 확인이 필수적입니다.")
-            
+                        st.warning("🚨 **WARNING:** High risk IPO market." if st.session_state.lang != 'ko' else "🚨 **경고:** 적자 기업 비율이 매우 높습니다.")
                 # [4] 참고논문 (expander - 원본 리스트 100% 복구)
                 with st.expander(get_text('expander_references'), expanded=False):
                     st.markdown("""
