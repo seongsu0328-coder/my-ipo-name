@@ -2794,15 +2794,6 @@ with main_area.container():
                 else: display_df = display_df.sort_values(by='공모일_dt', ascending=False)
     
             if not display_df.empty:
-                # 💡 [핵심] main_area(현재 캘린더가 그려진 그릇)를 인자로 받아 강제로 비우는 함수
-                def go_detail(stock_data, container_to_clear):
-                    # 1. 캘린더 화면(전달받은 컨테이너)을 물리적으로 폭파!
-                    container_to_clear.empty()
-                    # 2. 상태 변경 (화면 전환)
-                    st.session_state.selected_stock = stock_data
-                    st.session_state.page = 'detail'
-                    # detail_init_render 같은 플래그가 있다면 여기서 처리
-
                 for i, row in display_df.iterrows():
                     p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
                     p_val = p_val if p_val and p_val > 0 else 0
@@ -2823,10 +2814,14 @@ with main_area.container():
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        # 🚨 [중요] args에 main_area(전역 컨테이너 변수)를 꼭 넣어주세요!
-                        # 이렇게 해야 함수가 "아, 이 그릇을 비우면 되는구나"라고 정확히 알 수 있습니다.
-                        if st.button(f"{row['name']}", key=f"btn_list_{i}", on_click=go_detail, args=(row.to_dict(), main_area)):
-                            pass
+                        # 🚨 [최종 해결 코드]
+                        # 1. on_click 등 복잡한 콜백 제거 (스코프 문제 해결)
+                        # 2. 버튼 클릭 시 -> main_area(캘린더 화면)를 즉시 비우고(empty) -> 리런(rerun)
+                        if st.button(f"{row['name']}", key=f"btn_list_{i}"):
+                            main_area.empty()  # 여기가 핵심입니다! 화면을 하얗게 날립니다.
+                            st.session_state.selected_stock = row.to_dict()
+                            st.session_state.page = 'detail'
+                            st.rerun()         # 그리고 즉시 Detail 페이지로 넘어갑니다.
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                         except: s_val = 0
