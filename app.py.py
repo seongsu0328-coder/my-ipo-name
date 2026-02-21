@@ -2951,13 +2951,32 @@ with main_area.container():
         if not stock:
             st.session_state.page = 'calendar'
             st.rerun()
-    
-        # --- [데이터 복구 핵심 변수 추출] ---
+
         sid = stock['symbol']
+
+        # =========================================================================
+        # 🚀 [마법의 2단 렌더링 - 캘린더 잔상 절대 폭파 로직]
+        # 이전 종목(detail_loaded_sid)과 방금 클릭한 종목(sid)이 다르다면?
+        # 무조건 모든 연산을 멈추고 '가짜 로딩 화면'을 프론트엔드로 쏴서 캘린더를 날려버립니다!
+        # =========================================================================
+        if st.session_state.get('detail_loaded_sid') != sid:
+            st.session_state.detail_loaded_sid = sid # 현재 종목으로 업데이트
+            
+            # 빈 도화지에 아주 가벼운 로딩 화면만 그립니다.
+            st.markdown(f"""
+            <div style="display:flex; justify-content:center; align-items:center; height: 60vh; flex-direction:column;">
+                <h1 style="color: #004e92; margin-bottom: 10px; font-weight: 800;">🦄 {stock['name']}</h1>
+                <p style="color: #666; font-size: 1.1rem; font-weight: 500;">AI Analysis in Progress...</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # 즉시 스크립트를 멈추고 화면을 새로고침! (이 순간 브라우저의 캘린더 잔상이 100% 소멸됨)
+            st.rerun() 
+
+        # --- [이하 데이터 복구 및 실제 UI 렌더링 로직 (잔상이 사라진 깨끗한 상태에서 실행됨)] ---
         user_info = st.session_state.get('user_info') or {}
         user_id = user_info.get('id', 'guest_id')
     
-        # --- [신규] 재접속 유저를 위한 데이터 복구 로직 ---
         if sid not in st.session_state.user_decisions:
             saved_data = db_load_user_specific_decisions(user_id, sid)
             if saved_data:
@@ -2975,9 +2994,6 @@ with main_area.container():
         current_s = "Active"
     
         if stock:
-            # -------------------------------------------------------------------------
-            # [Step 1] 상단 메뉴바 (렌더링)
-            # -------------------------------------------------------------------------
             st.markdown("""
                 <style>
                 div[data-testid="stPills"] div[role="radiogroup"] button { border: none !important; background-color: #000000 !important; color: #ffffff !important; border-radius: 20px !important; padding: 6px 15px !important; margin-right: 5px !important; box-shadow: none !important; }
@@ -3000,7 +3016,6 @@ with main_area.container():
                 elif selected_menu == get_text('menu_board'): st.session_state.page = 'board'
                 st.rerun()
 
-            # 💡 [임시 헤더] 즉시 렌더링
             header_placeholder = st.empty()
             today = datetime.now().date()
             ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
@@ -3017,7 +3032,7 @@ with main_area.container():
                 if 'core_topic' not in st.session_state: st.session_state.core_topic = "S-1"
                 st.markdown("""<style>div.stButton > button { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } div.stButton > button:hover { border-color: #6e8efb !important; color: #6e8efb !important; } div.stButton > button:active { background-color: #f0f2f6 !important; }</style>""", unsafe_allow_html=True)
     
-                # 1. 상단 문서 선택 버튼 즉시 그리기
+                # 1. 껍데기(Placeholder)와 하단 UI부터 먼저 그리기
                 r1_c1, r1_c2, r1_c3 = st.columns(3)
                 r2_c1, r2_c2 = st.columns(2)
                 if r1_c1.button(get_text('label_s1'), use_container_width=True): st.session_state.core_topic = "S-1"; st.rerun()
@@ -3028,8 +3043,25 @@ with main_area.container():
 
                 topic = st.session_state.core_topic
                 curr_lang = st.session_state.lang
-                
-                # [핵심] 대표님의 고품질 한국어 프롬프트 구조 100% 보존
+                st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
+
+                ai_summary_ph = st.empty()
+                links_ph = st.empty()
+                decision_ph = st.empty()
+
+                display_disclaimer()
+
+                # 2. 화면이 100% 깔린 상태에서 스피너 돌기 시작
+                with st.spinner(get_text('msg_analyzing')):
+                    try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
+                    except: off_val = 0
+                    try:
+                        current_p, current_s = get_current_stock_price(sid, MY_API_KEY)
+                        profile = get_company_profile(sid, MY_API_KEY) 
+                        fin_data = get_financial_metrics(sid, MY_API_KEY)
+                    except: pass
+                    
+                    # [핵심] 대표님의 고품질 한국어 프롬프트 구조 100% 보존
                 # AI 내부 엔진은 이 한국어 지시를 읽고 가장 완벽한 분석을 수행한 뒤, 최종 답변만 해당 언어로 번역합니다.
                 def_meta = {
                     "S-1": {
@@ -3099,22 +3131,10 @@ with main_area.container():
 
                 # UI 출력: 다국어 설명문 출력
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
-
-                # =========================================================================
-                # 🚀 [마법의 렌더링 순서] 
-                # 1. 빠르고 가벼운 데이터만 스피너 없이 즉시 가져옵니다.
-                # =========================================================================
-                try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
-                except: off_val = 0
-                try:
-                    current_p, current_s = get_current_stock_price(sid, MY_API_KEY)
-                    profile = get_company_profile(sid, MY_API_KEY) 
-                    fin_data = get_financial_metrics(sid, MY_API_KEY)
-                except: 
-                    current_p, current_s = 0, "Active"
-                    profile = None
                 
-                # 2. 헤더 실시간 업데이트
+                    analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'] + format_instruction, curr_lang)
+
+                # 3. 로딩 완료 후 빈 상자 채워넣기
                 date_str = ipo_dt.strftime('%Y-%m-%d')
                 label_ipo = get_text('label_ipo_price')
                 if current_s == "상장연기": p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
@@ -3124,47 +3144,12 @@ with main_area.container():
                     color = "#00ff41" if pct >= 0 else "#ff4b4b"
                     icon = "▲" if pct >= 0 else "▼"
                     p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
-                else: p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_waiting')})</span>"
+                else:
+                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_waiting')})</span>"
                 header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
-
-                # 3. AI 분석이 들어갈 빈 공간(상자)만 예약해 둡니다! (아직 안 그림)
-                ai_summary_ph = st.empty()
-
-                # 4. SEC 버튼 및 공식 홈페이지 즉시 렌더링
-                import urllib.parse
-                cik = profile.get('cik', '') if profile else ''
-                full_company_name = stock['name'].strip() 
-                if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
-                else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_company_name)}&dateRange=all"
                 
-                real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
-                website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + full_company_name + ' Investor Relations')}"
-                
-                st.markdown(f"""
-                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({topic})</button>
-                    </a>
-                    <a href="{website_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button>
-                    </a>
-                """, unsafe_allow_html=True)
-
-                # 5. 의사결정 박스 즉시 렌더링
-                draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
-                
-                # 6. 하단 면책조항 즉시 렌더링 (이로써 캘린더 화면은 완전히 밀려납니다!)
-                display_disclaimer()
-
-                # =========================================================
-                # 7. 화면에 모든 UI가 배치된 후, 예약해둔 공간에서 AI 스피너 시작!
-                # =========================================================
                 with ai_summary_ph.container():
-                    # 💡 사용자 요청: "S-1 요약보기" 윤곽도 미리 그려져야 하므로 expander 안에 spinner를 넣습니다.
                     with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
-                        with st.spinner(get_text('msg_analyzing_filing')):
-                            analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'] + format_instruction, curr_lang)
-                        
-                        # 로딩이 완료되면 결과를 출력
                         if "ERROR_DETAILS" in analysis_result:
                             st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
                         else:
@@ -3172,7 +3157,29 @@ with main_area.container():
                             formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
                             indent_size = "14px" if curr_lang == "ko" else "0px"
                             st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">{formatted_result.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-                    st.caption(get_text('caption_algorithm'))
+                        st.caption(get_text('caption_algorithm'))
+
+                with links_ph.container():
+                    import urllib.parse
+                    cik = profile.get('cik', '') if profile else ''
+                    full_company_name = stock['name'].strip() 
+                    if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
+                    else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_company_name)}&dateRange=all"
+                    
+                    real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
+                    website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + full_company_name + ' Investor Relations')}"
+                    
+                    st.markdown(f"""
+                        <a href="{sec_url}" target="_blank" style="text-decoration:none;">
+                            <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({topic})</button>
+                        </a>
+                        <a href="{website_url}" target="_blank" style="text-decoration:none;">
+                            <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button>
+                        </a>
+                    """, unsafe_allow_html=True)
+
+                with decision_ph.container():
+                    draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
             
             # --- Tab 1: 뉴스 & 심층 분석 ---
             with tab1:
