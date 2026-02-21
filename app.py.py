@@ -611,8 +611,9 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
     3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
     4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
     5. **Summary**: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
-    6. **링크 금지**: Summary, Pro_con 내에는 'Source:', 'http...' 등의 출처 링크를 절대 포함하지 마세요.
-
+    6. **링크 위치 구분**: 
+       - 'summary'와 'pro_con' 본문 안에는 절대 URL(http...)을 넣지 마세요. 
+       - 대신, 참조한 리포트의 실제 URL은 반드시 하단의 **"links" 리스트 안에만** 정확히 기입하세요. AI의 거절 문구(links를 제공할 수 없다 등)를 리스트에 넣지 마세요.
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell 중 하나",
