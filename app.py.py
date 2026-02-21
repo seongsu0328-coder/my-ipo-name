@@ -3223,8 +3223,8 @@ with main_area.container():
                 # 💡 [로딩 최적화] AI 분석 결과가 들어갈 자리를 미리 확보
                 ai_result_container = st.container()
                 
-                # UI 출력: 설명문 (이미 다국어 처리됨)
-                st.info(get_text(f"desc_{topic.lower().replace('/','')}"))
+                # .replace('-','') 를 추가하여 하이픈까지 깔끔하게 지워줍니다.
+                st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
                 
                 st.write("<br>", unsafe_allow_html=True)
                 
