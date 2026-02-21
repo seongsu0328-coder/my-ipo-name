@@ -3287,8 +3287,9 @@ with main_area.container():
                         safe_en = str(en_title).replace("$", "\$")
                         safe_trans = str(trans_title).replace("$", "\$")
                         
+                        # 💡 [핵심 수정] 언어가 영어가 아닐 때만 번역 제목을 출력합니다.
                         sub_title_html = ""
-                        if safe_trans and safe_trans != safe_en: 
+                        if safe_trans and safe_trans != safe_en and curr_lang != 'en': 
                             if curr_lang == 'ko': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_trans}</span>"
                             elif curr_lang == 'ja': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇯🇵 {safe_trans}</span>"
 
@@ -3641,11 +3642,18 @@ with main_area.container():
             
                 with st.expander(get_text('expander_seeking_alpha'), expanded=False):
                     pro_con = pro_con_raw.replace('\\n', '\n').replace("###", "").strip()
-                    label_pro = get_text('sentiment_positive'); label_con = get_text('sentiment_negative')
-                    pro_con = pro_con.replace("긍정:", f"**{label_pro}**:").replace("부정:", f"\n\n**{label_con}**:")
-                    pro_con = pro_con.replace("✅ 긍정", f"**{label_pro}**").replace("⚠️ 부정", f"\n\n**{label_con}**")
-                    pro_con = pro_con.replace("**Pros**:", f"**{label_pro}**:").replace("**Cons**:", f"\n\n**{label_con}**:")
-                    pro_con = pro_con.replace("Pros:", f"**{label_pro}**:").replace("Cons:", f"\n\n**{label_con}**:")
+                    
+                    label_pro = get_text('sentiment_positive') # 다국어: 긍정적 / Positive / 肯定的
+                    label_con = get_text('sentiment_negative') # 다국어: 부정적 / Negative / 否定的
+                    
+                    # 💡 [핵심 수정] 새 프롬프트 형식에 맞춰 장단점 텍스트를 안전하게 치환
+                    pro_con = pro_con.replace("**Pros(장점)**:", f"**✅ {label_pro}**:")
+                    pro_con = pro_con.replace("**Cons(단점)**:", f"\n\n**🚨 {label_con}**:")
+                    pro_con = pro_con.replace("**Pros(長所)**:", f"**✅ {label_pro}**:")
+                    pro_con = pro_con.replace("**Cons(短所)**:", f"\n\n**🚨 {label_con}**:")
+                    pro_con = pro_con.replace("**Pros**:", f"**✅ {label_pro}**:")
+                    pro_con = pro_con.replace("**Cons**:", f"\n\n**🚨 {label_con}**:")
+                    
                     if "의견 수집 중" in pro_con or not pro_con: st.error(get_text('err_ai_analysis_failed'))
                     else: st.success(pro_con.replace('\n', '\n\n'))
             
