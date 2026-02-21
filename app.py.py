@@ -156,7 +156,8 @@ def db_load_user(user_id):
 def db_signup_user(user_data):
     try:
         # DB 컬럼명과 user_data 키값이 일치해야 함
-        supabase.table("users").insert(user_data).execute()
+        # 💡 [핵심 수정]: insert를 upsert로 변경하여 기존 회원의 '추가 인증' 업데이트도 자연스럽게 덮어쓰도록 처리
+        supabase.table("users").upsert(user_data).execute()
         return True
     except Exception as e:
         print(f"Signup DB Error: {e}")
