@@ -2925,20 +2925,18 @@ with main_area.container():
                     
                     with c1:
                         if st.button(f"{row['name']}", key=f"btn_list_{i}"):
-                            # 💡 [핵심] 페이지 전환 전, 현재 화면(컨테이너)을 물리적으로 폭파시켜 잔상을 지웁니다.
-                            main_area.empty() 
+                            # 💡 [핵심] 렌더링을 방해(목에 가시)하던 empty()와 sleep()을 완전히 제거!
+                            # 상태값만 Detail로 바꾸고 '즉시' rerun을 때려야 전체 UI가 한 번에 그려집니다.
                             st.session_state.selected_stock = row.to_dict()
                             st.session_state.page = 'detail'
-                            # 💡 [핵심] 약간의 텀을 주어 Streamlit이 화면 지우기를 렌더링할 시간을 확보합니다.
-                            import time; time.sleep(0.05) 
-                            st.rerun()
+                            st.rerun() 
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                         except: s_val = 0
                         size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
                         
                         st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
-    
+                    
                     with c2:
                         st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                     
