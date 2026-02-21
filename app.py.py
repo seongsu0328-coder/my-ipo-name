@@ -2952,31 +2952,12 @@ with main_area.container():
             st.session_state.page = 'calendar'
             st.rerun()
 
+        # --- [데이터 복구 핵심 변수 추출] ---
         sid = stock['symbol']
-
-        # =========================================================================
-        # 🚀 [마법의 2단 렌더링 - 캘린더 잔상 절대 폭파 로직]
-        # 이전 종목(detail_loaded_sid)과 방금 클릭한 종목(sid)이 다르다면?
-        # 무조건 모든 연산을 멈추고 '가짜 로딩 화면'을 프론트엔드로 쏴서 캘린더를 날려버립니다!
-        # =========================================================================
-        if st.session_state.get('detail_loaded_sid') != sid:
-            st.session_state.detail_loaded_sid = sid # 현재 종목으로 업데이트
-            
-            # 빈 도화지에 아주 가벼운 로딩 화면만 그립니다.
-            st.markdown(f"""
-            <div style="display:flex; justify-content:center; align-items:center; height: 60vh; flex-direction:column;">
-                <h1 style="color: #004e92; margin-bottom: 10px; font-weight: 800;">🦄 {stock['name']}</h1>
-                <p style="color: #666; font-size: 1.1rem; font-weight: 500;">AI Analysis in Progress...</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # 즉시 스크립트를 멈추고 화면을 새로고침! (이 순간 브라우저의 캘린더 잔상이 100% 소멸됨)
-            st.rerun() 
-
-        # --- [이하 데이터 복구 및 실제 UI 렌더링 로직 (잔상이 사라진 깨끗한 상태에서 실행됨)] ---
         user_info = st.session_state.get('user_info') or {}
         user_id = user_info.get('id', 'guest_id')
     
+        # --- [신규] 재접속 유저를 위한 데이터 복구 로직 ---
         if sid not in st.session_state.user_decisions:
             saved_data = db_load_user_specific_decisions(user_id, sid)
             if saved_data:
@@ -2994,6 +2975,9 @@ with main_area.container():
         current_s = "Active"
     
         if stock:
+            # -------------------------------------------------------------------------
+            # [Step 1] 상단 메뉴바 (렌더링)
+            # -------------------------------------------------------------------------
             st.markdown("""
                 <style>
                 div[data-testid="stPills"] div[role="radiogroup"] button { border: none !important; background-color: #000000 !important; color: #ffffff !important; border-radius: 20px !important; padding: 6px 15px !important; margin-right: 5px !important; box-shadow: none !important; }
@@ -3016,6 +3000,7 @@ with main_area.container():
                 elif selected_menu == get_text('menu_board'): st.session_state.page = 'board'
                 st.rerun()
 
+            # 💡 [임시 헤더] 스피너 없이 즉시 렌더링
             header_placeholder = st.empty()
             today = datetime.now().date()
             ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
@@ -3032,7 +3017,9 @@ with main_area.container():
                 if 'core_topic' not in st.session_state: st.session_state.core_topic = "S-1"
                 st.markdown("""<style>div.stButton > button { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } div.stButton > button:hover { border-color: #6e8efb !important; color: #6e8efb !important; } div.stButton > button:active { background-color: #f0f2f6 !important; }</style>""", unsafe_allow_html=True)
     
-                # 1. 껍데기(Placeholder)와 하단 UI부터 먼저 그리기
+                # -------------------------------------------------------------------------
+                # [순서 1] 가장 가벼운 UI (버튼, 설명문) 즉시 렌더링
+                # -------------------------------------------------------------------------
                 r1_c1, r1_c2, r1_c3 = st.columns(3)
                 r2_c1, r2_c2 = st.columns(2)
                 if r1_c1.button(get_text('label_s1'), use_container_width=True): st.session_state.core_topic = "S-1"; st.rerun()
@@ -3045,80 +3032,75 @@ with main_area.container():
                 curr_lang = st.session_state.lang
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
 
-                ai_summary_ph = st.empty()
-                links_ph = st.empty()
-                decision_ph = st.empty()
+                # -------------------------------------------------------------------------
+                # [순서 2] API 연산 없이 주가/프로필 등 기본 데이터만 빠르게 확보 (0.1초)
+                # -------------------------------------------------------------------------
+                try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
+                except: off_val = 0
+                try:
+                    current_p, current_s = get_current_stock_price(sid, MY_API_KEY)
+                    profile = get_company_profile(sid, MY_API_KEY) 
+                except: pass
 
+                # -------------------------------------------------------------------------
+                # [순서 3] 헤더 실시간 업데이트
+                # -------------------------------------------------------------------------
+                date_str = ipo_dt.strftime('%Y-%m-%d')
+                label_ipo = get_text('label_ipo_price')
+                if current_s == "상장연기": p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
+                elif current_s == "상장폐지": p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
+                elif current_p > 0 and off_val > 0:
+                    pct = ((current_p - off_val) / off_val) * 100
+                    color = "#00ff41" if pct >= 0 else "#ff4b4b"
+                    icon = "▲" if pct >= 0 else "▼"
+                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
+                else: p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_waiting')})</span>"
+                
+                header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
+
+                # -------------------------------------------------------------------------
+                # [순서 4] 나중에 AI가 그릴 상자 공간만 예약! (스피너 안 돔)
+                # -------------------------------------------------------------------------
+                ai_summary_ph = st.empty()
+
+                # -------------------------------------------------------------------------
+                # [순서 5] 하단 SEC 버튼, 홈페이지 버튼, 면책조항 즉시 그리기!
+                # 💡 핵심: 무거운 AI 분석이 시작되기 전에 여기까지 그려지므로 캘린더 잔상이 박살납니다.
+                # -------------------------------------------------------------------------
+                import urllib.parse
+                cik = profile.get('cik', '') if profile else ''
+                full_company_name = stock['name'].strip() 
+                if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
+                else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_company_name)}&dateRange=all"
+                
+                real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
+                website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + full_company_name + ' Investor Relations')}"
+                
+                st.markdown(f"""
+                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
+                        <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({topic})</button>
+                    </a>
+                    <a href="{website_url}" target="_blank" style="text-decoration:none;">
+                        <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button>
+                    </a>
+                """, unsafe_allow_html=True)
+
+                draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
+                
                 display_disclaimer()
 
-                # 2. 화면이 100% 깔린 상태에서 스피너 돌기 시작
-                with st.spinner(get_text('msg_analyzing')):
-                    try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
-                    except: off_val = 0
-                    try:
-                        current_p, current_s = get_current_stock_price(sid, MY_API_KEY)
-                        profile = get_company_profile(sid, MY_API_KEY) 
-                        fin_data = get_financial_metrics(sid, MY_API_KEY)
-                    except: pass
-                    
-                    # [핵심] 대표님의 고품질 한국어 프롬프트 구조 100% 보존
-                # AI 내부 엔진은 이 한국어 지시를 읽고 가장 완벽한 분석을 수행한 뒤, 최종 답변만 해당 언어로 번역합니다.
+                # =========================================================================
+                # [순서 6] 가장 마지막 단계! 화면이 다 그려진 후 예약된 상자 안에서 AI 연산 시작!
+                # =========================================================================
                 def_meta = {
-                    "S-1": {
-                        "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
-                        "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 해당 문서에서 발견된 가장 중요한 투자 포인트 분석
-                        2. 두 번째 문단: 실질적 성장 가능성과 재무적 의미 분석
-                        3. 세 번째 문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책
-                        """
-                    },
-                    "S-1/A": {
-                        "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
-                        "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 이전 S-1 대비 변경된 핵심 사항 분석
-                        2. 두 번째 문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기 분석
-                        3. 세 번째 문단: 기존 주주 가치 희석 정도와 투자 매력도 분석
-                        """
-                    },
-                    "F-1": {
-                        "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
-                        "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위
-                        2. 두 번째 문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크 분석
-                        3. 세 번째 문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향
-                        """
-                    },
-                    "FWP": {
-                        "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
-                        "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전
-                        2. 두 번째 문단: 경쟁사 대비 부각시키는 기술적/사업적 차별화 포인트
-                        3. 세 번째 문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지
-                        """
-                    },
-                    "424B4": {
-                        "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
-                        "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석
-                        2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검
-                        3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측
-                        """
-                    }
+                    "S-1": { "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.", "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)", "structure": "\n[문단 구성 지침]\n1. 첫 번째 문단: 해당 문서에서 발견된 가장 중요한 투자 포인트 분석\n2. 두 번째 문단: 실질적 성장 가능성과 재무적 의미 분석\n3. 세 번째 문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책\n" },
+                    "S-1/A": { "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.", "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)", "structure": "\n[문단 구성 지침]\n1. 첫 번째 문단: 이전 S-1 대비 변경된 핵심 사항 분석\n2. 두 번째 문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기 분석\n3. 세 번째 문단: 기존 주주 가치 희석 정도와 투자 매력도 분석\n" },
+                    "F-1": { "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.", "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)", "structure": "\n[문단 구성 지침]\n1. 첫 번째 문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위\n2. 두 번째 문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크 분석\n3. 세 번째 문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향\n" },
+                    "FWP": { "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.", "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)", "structure": "\n[문단 구성 지침]\n1. 첫 번째 문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전\n2. 두 번째 문단: 경쟁사 대비 부각시키는 기술적/사업적 차별화 포인트\n3. 세 번째 문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지\n" },
+                    "424B4": { "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.", "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)", "structure": "\n[문단 구성 지침]\n1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석\n2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검\n3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측\n" }
                 }
-                
                 curr_meta = def_meta.get(topic, def_meta["S-1"])
                 
-                # 💡 [초강력 포맷 지시] 한글 병기 금지 + 줄바꿈 금지
                 format_instruction = """
                 [출력 형식 및 번역 규칙 - 반드시 지킬 것]
                 - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
@@ -3129,51 +3111,12 @@ with main_area.container():
                 - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
                 """
 
-                # UI 출력: 다국어 설명문 출력
-                st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
-
-                # =========================================================
-                # 🚀 [마법의 렌더링] 1. 스피너가 돌기 전에 빈 상자와 면책조항 먼저 깔기
-                # =========================================================
-                ai_summary_ph = st.empty()
-                links_ph = st.empty()
-                decision_ph = st.empty()
-
-                display_disclaimer()
-
-                # =========================================================
-                # 🚀 [마법의 렌더링] 2. 화면이 덮어씌워진 상태에서 스피너(로딩) 시작!
-                # =========================================================
-                with st.spinner(get_text('msg_analyzing')):
-                    try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
-                    except: off_val = 0
-                    try:
-                        current_p, current_s = get_current_stock_price(sid, MY_API_KEY)
-                        profile = get_company_profile(sid, MY_API_KEY) 
-                        fin_data = get_financial_metrics(sid, MY_API_KEY)
-                    except: pass
-                    
-                    # 💡 여기에 에러 났던 코드가 스피너 "안쪽"으로 들어옵니다! (들여쓰기 완벽 해결)
-                    analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'] + format_instruction, curr_lang)
-
-                # =========================================================
-                # 🚀 [마법의 렌더링] 3. 로딩 완료 후 아까 만든 빈 상자 채워넣기
-                # =========================================================
-                date_str = ipo_dt.strftime('%Y-%m-%d')
-                label_ipo = get_text('label_ipo_price')
-                if current_s == "상장연기": p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
-                elif current_s == "상장폐지": p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
-                elif current_p > 0 and off_val > 0:
-                    pct = ((current_p - off_val) / off_val) * 100
-                    color = "#00ff41" if pct >= 0 else "#ff4b4b"
-                    icon = "▲" if pct >= 0 else "▼"
-                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
-                else:
-                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_waiting')})</span>"
-                header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
-                
+                # 예약된 공간(ai_summary_ph) 안에 expander와 spinner를 넣어서 그립니다.
                 with ai_summary_ph.container():
                     with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
+                        with st.spinner(get_text('msg_analyzing_filing')):
+                            analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'] + format_instruction, curr_lang)
+                            
                         if "ERROR_DETAILS" in analysis_result:
                             st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
                         else:
@@ -3181,29 +3124,8 @@ with main_area.container():
                             formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
                             indent_size = "14px" if curr_lang == "ko" else "0px"
                             st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">{formatted_result.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-                        st.caption(get_text('caption_algorithm'))
-
-                with links_ph.container():
-                    import urllib.parse
-                    cik = profile.get('cik', '') if profile else ''
-                    full_company_name = stock['name'].strip() 
-                    if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
-                    else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_company_name)}&dateRange=all"
+                    st.caption(get_text('caption_algorithm'))
                     
-                    real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
-                    website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + full_company_name + ' Investor Relations')}"
-                    
-                    st.markdown(f"""
-                        <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                            <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({topic})</button>
-                        </a>
-                        <a href="{website_url}" target="_blank" style="text-decoration:none;">
-                            <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button>
-                        </a>
-                    """, unsafe_allow_html=True)
-
-                with decision_ph.container():
-                    draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
             # --- Tab 1: 뉴스 & 심층 분석 ---
             with tab1:
                 with st.spinner(get_text('msg_analyzing_tab1')):
