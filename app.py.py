@@ -3913,25 +3913,132 @@ with main_area.container():
     
                 # --- (4) References (제목 제거 및 링크 통합) ---
                 with st.expander("References", expanded=False):
-                    # 1. AI가 동적으로 찾아낸 뉴스/리포트 링크들 (제목 없이 바로 노출)
+                    # 1. AI가 동적으로 찾아낸 뉴스/리포트 링크들 (# --- Tab 4: 기관평가 (UI 출력 부분) ---
+            with tab4:
+                # 1. 함수 호출 (다국어 파라미터 전달 유지)
+                with st.spinner(get_text('msg_analyzing_tab4')):
+                    # 💡 AI 모델이 결과값을 이미 요청된 언어에 맞춰 생성하도록 설계됨
+                    result = get_unified_tab4_analysis(stock['name'], stock['symbol'], st.session_state.lang)
+                
+                # 2. 결과 데이터 매핑
+                summary_raw = result.get('summary', '')
+                pro_con_raw = result.get('pro_con', '')
+                rating_val = str(result.get('rating', 'Hold')).strip()
+                score_val = str(result.get('score', '3')).strip() 
+                sources = result.get('links', [])
+                q = stock['symbol'] if stock['symbol'] else stock['name']
+
+                st.write("<br>", unsafe_allow_html=True)
+            
+                # --- (1) Renaissance Capital & 기관 종합 요약 섹션 (원본 정제 로직 보존) ---
+                with st.expander(get_text('expander_renaissance'), expanded=False):
+                    import re
+                    pattern = r'(?i)source|출처|https?://'
+                    parts = re.split(pattern, summary_raw)
+                    
+                    # [원본 로직] 줄바꿈 제거 및 한 문단 통합 처리
+                    summary = parts[0].replace('\\n', ' ').replace('\n', ' ').strip().rstrip(' ,.:;-\t')
+                    
+                    if not summary or "분석 불가" in summary or "N/A" in summary.upper():
+                        st.warning(get_text('err_no_institutional_report'))
+                    else:
+                        st.info(summary)
+            
+                # --- (2) Seeking Alpha & Morningstar 섹션 (원본 긍/부정 로직 보존) ---
+                with st.expander(get_text('expander_seeking_alpha'), expanded=False):
+                    # [원본 로직] \n 변환 및 마크다운 정제
+                    pro_con = pro_con_raw.replace('\\n', '\n').replace("###", "").strip()
+                    
+                    # [원본 문단 공백 로직] 다국어 대응형 치환
+                    label_pro = get_text('sentiment_positive')
+                    label_con = get_text('sentiment_negative')
+                    
+                    pro_con = pro_con.replace("긍정:", f"**{label_pro}**:").replace("부정:", f"\n\n**{label_con}**:")
+                    pro_con = pro_con.replace("✅ 긍정", f"**{label_pro}**").replace("⚠️ 부정", f"\n\n**{label_con}**")
+                    
+                    if "의견 수집 중" in pro_con or not pro_con:
+                        st.error(get_text('err_ai_analysis_failed'))
+                    else:
+                        st.success(pro_con.replace('\n', '\n\n'))
+            
+                # --- (3) Institutional Sentiment 섹션 (점수 체계 다국어화) ---
+                with st.expander(get_text('expander_sentiment'), expanded=False):
+                    s_col1, s_col2 = st.columns(2)
+                    
+                    with s_col1:
+                        # Analyst Ratings 체계 다국어 매핑
+                        r_list = {
+                            "Strong Buy": get_text('rating_strong_buy'),
+                            "Buy": get_text('rating_buy'),
+                            "Hold": get_text('rating_hold'),
+                            "Neutral": get_text('rating_neutral'),
+                            "Sell": get_text('rating_sell')
+                        }
+                        
+                        rating_desc = f"**[{get_text('label_rating_system')}]**\n"
+                        for k, v in r_list.items():
+                            is_current = f" **({get_text('label_current')})**" if k.lower() in rating_val.lower() else ""
+                            rating_desc += f"- **{k}**: {v}{is_current}\n"
+                
+                        st.write(f"**[Analyst Ratings]**")
+                        st.metric(label="Consensus Rating", value=rating_val)
+                        
+                        # 상태별 피드백
+                        if any(x in rating_val for x in ["Buy", "Positive", "Outperform", "Strong"]):
+                            st.success(f"{get_text('label_opinion')}: {get_text('sentiment_positive')}")
+                            st.caption(f"✅ {get_text('msg_rating_positive')}\n\n{rating_desc}")
+                        elif any(x in rating_val for x in ["Sell", "Negative", "Underperform"]):
+                            st.error(f"{get_text('label_opinion')}: {get_text('sentiment_negative')}")
+                            st.caption(f"🚨 {get_text('msg_rating_negative')}\n\n{rating_desc}")
+                        else:
+                            st.info(f"{get_text('label_opinion')}: {get_text('sentiment_neutral')}")
+                            st.caption(f"ℹ️ {rating_desc}")
+            
+                    with s_col2:
+                        # IPO Scoop Score 체계 다국어 매핑
+                        s_list = {
+                            "5": get_text('score_5'),
+                            "4": get_text('score_4'),
+                            "3": get_text('score_3'),
+                            "2": get_text('score_2'),
+                            "1": get_text('score_1')
+                        }
+                        
+                        score_desc = f"**[{get_text('label_score_system')}]**\n"
+                        for k, v in s_list.items():
+                            is_current = f" **({get_text('label_current')} {score_val}{get_text('label_point')})**" if k == score_val else ""
+                            score_desc += f"- ⭐ {k}{get_text('label_count')}: {v}{is_current}\n"
+                
+                        st.write(f"**[IPO Scoop Score]**")
+                        st.metric(label="Expected IPO Score", value=f"⭐ {score_val}")
+                        
+                        if score_val in ["4", "5"]:
+                            st.success(f"{get_text('label_evaluation')}: {s_list.get(score_val, 'N/A')}")
+                        elif score_val == "3":
+                            st.info(f"{get_text('label_evaluation')}: {s_list.get(score_val, 'N/A')}")
+                        else:
+                            st.warning(f"{get_text('label_evaluation')}: {s_list.get(score_val, 'N/A')}")
+            
+                        st.caption(f"ℹ️ {score_desc}")
+            
+                # --- (4) References (원본 링크 리스트 보존) ---
+                with st.expander("References", expanded=False):
                     if sources:
                         for src in sources:
                             st.markdown(f"- [{src['title']}]({src['link']})")
                     else:
-                        st.caption("실시간 참조 리포트 링크를 불러올 수 없습니다.")
+                        st.caption(get_text('err_no_links'))
                     
-                    # 2. 주요 분석 기관 바로가기 (구분선과 제목 제거 후 리스트 통합)
-                    st.markdown(f"- [Renaissance Capital: {stock['name']} 상세 데이터](https://www.google.com/search?q=site:renaissancecapital.com+{q})")
-                    st.markdown(f"- [Seeking Alpha: {stock['name']} 심층 분석글](https://seekingalpha.com/symbol/{q}/analysis)")
-                    st.markdown(f"- [Morningstar: {stock['name']} 리서치 결과](https://www.morningstar.com/search?query={q})")
-                    st.markdown(f"- [Google Finance: {stock['name']} 시장 동향](https://www.google.com/finance/quote/{q}:NASDAQ)")
-    
-                    
-    
+                    # 기관별 상세 페이지 링크
+                    st.markdown(f"- [Renaissance Capital: {stock['name']} {get_text('label_detail_data')}](https://www.google.com/search?q=site:renaissancecapital.com+{q})")
+                    st.markdown(f"- [Seeking Alpha: {stock['name']} {get_text('label_deep_analysis')}](https://seekingalpha.com/symbol/{q}/analysis)")
+                    st.markdown(f"- [Morningstar: {stock['name']} {get_text('label_research_result')}](https://www.morningstar.com/search?query={q})")
+                    st.markdown(f"- [Google Finance: {stock['name']} {get_text('label_market_trend')}](https://www.google.com/finance/quote/{q}:NASDAQ)")
+            
                 # [✅ 5단계 사용자 판단]
-                draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
+                draw_decision_box("ipo_report", get_text('decision_final_institutional'), [get_text('btn_buy'), get_text('sentiment_neutral'), get_text('btn_sell')])
     
-                # 맨 마지막에 호출
+                # 면책 조항
                 display_disclaimer()
         
             
