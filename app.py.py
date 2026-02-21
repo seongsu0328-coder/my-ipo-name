@@ -2907,7 +2907,10 @@ with main_area.container():
             today = datetime.now().date()
             ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
             status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
-            header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> <span style='color:#888;'>데이터 로딩 중...</span></div>", unsafe_allow_html=True)
+            
+            # 👇 "데이터 로딩 중..." 부분을 완전히 제거했습니다.
+            header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span></div>", unsafe_allow_html=True)
+            
             st.write("")
     
             # 💡 [핵심 변경] st.tabs를 제거하고 st.pills로 탭 기능을 대체합니다.
