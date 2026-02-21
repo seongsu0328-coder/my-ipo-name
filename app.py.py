@@ -2915,24 +2915,22 @@ with main_area.container():
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        # 💡 [최종 해결책] 'on_click'을 사용하여 클릭 순간 즉시 상태를 확정하고 화면을 전환합니다.
-                        # 이 방식이 캘린더 잔상을 없애고 디테일 페이지 로딩을 가장 빠르게 시작합니다.
+                        with c1:
+                        # 💡 [최종 해결책] 2단 렌더링을 위한 상태 플래그(detail_init_render) 추가
                         def go_detail(stock_data):
                             st.session_state.selected_stock = stock_data
                             st.session_state.page = 'detail'
+                            st.session_state.detail_init_render = False # 핵심!
 
+                        # 불필요한 폭파 로직 삭제 (이벤트 콜백만 깔끔하게 남김)
                         if st.button(f"{row['name']}", key=f"btn_list_{i}", on_click=go_detail, args=(row.to_dict(),)):
-                            # 1. 클릭된 순간 캘린더 화면(컨테이너)을 물리적으로 폭파(비움) -> 잔상 즉시 제거
-                            main_area.empty()
-                            # 2. st.rerun()을 쓰지 않아도 on_click이 끝나면 Streamlit이 알아서 
-                            #    가장 빠른 속도로 디테일 페이지를 그리기 시작합니다.
+                            pass 
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                         except: s_val = 0
                         size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
                         
                         st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
-                        
                     with c2:
                         st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                     
@@ -2953,6 +2951,19 @@ with main_area.container():
         if not stock:
             st.session_state.page = 'calendar'
             st.rerun()
+
+        # 🚀 [마법의 2단 렌더링 - 잔상 완벽 제거]
+        # 브라우저가 화면을 넘기기도 전에 API 연산이 시작되어 캘린더가 남는 현상 원천 차단.
+        # 진입 즉시 0.05초 만에 깔끔한 "로딩 화면"을 브라우저에 쏴서 캘린더를 확실히 지웁니다.
+        if not st.session_state.get('detail_init_render', False):
+            st.markdown(f"""
+            <div style="display:flex; justify-content:center; align-items:center; height: 60vh; flex-direction:column;">
+                <h1 style="color: #004e92; margin-bottom: 10px; font-weight: 800;">🦄 {stock['name']}</h1>
+                <p style="color: #666; font-size: 1.1rem; font-weight: 500;">AI Analysis in Progress...</p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.session_state.detail_init_render = True
+            st.rerun() # 강제 화면 새로고침 (여기서 잔상 완전 소멸)
     
         # --- [데이터 복구 핵심 변수 추출] ---
         sid = stock['symbol']
