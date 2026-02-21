@@ -1969,6 +1969,7 @@ UI_TEXT = {
     'btn_load_more': {'ko': '🔽 더보기', 'en': '🔽 Load More', 'ja': '🔽 もっと見る'},
     'expander_search': {'ko': '검색하기', 'en': 'Search', 'ja': '検索する'},
     'btn_search': {'ko': '검색', 'en': 'Search', 'ja': '検索'},
+    'msg_first_comment': {'ko': '첫 의견을 남겨보세요!', 'en': 'Be the first to leave a comment!', 'ja': '最初のコメントを残してみましょう！'},
     
     # 💡 번역 및 액션 버튼
     'btn_see_translation': {'ko': '🌐 번역 보기', 'en': '🌐 See Translation', 'ja': '🌐 翻訳を見る'},
@@ -4364,7 +4365,7 @@ with main_area.container():
                             st.session_state[page_key] += 10
                             st.rerun()
                 else:
-                    st.info("첫 의견을 남겨보세요! / Be the first to leave a comment!")
+                    st.info(get_text('msg_first_comment'))
     
     
     # ---------------------------------------------------------
