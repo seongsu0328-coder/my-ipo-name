@@ -1837,7 +1837,7 @@ UI_TEXT = {
     # Analyst Ratings 상세 (분기 로직용)
     'rating_strong_buy': {'ko': '적극 매수 추천', 'en': 'Strong Buy Recommendation', 'ja': '強力買い推奨'},
     'rating_buy': {'ko': '매수 추천', 'en': 'Buy Recommendation', 'ja': '買い推奨'},
-    'rating_hold': {'ko': '보유 및 중립 관망', 'en': 'Hold / Neutral', 'ja': 'ホールド・中립'},
+    'rating_hold': {'ko': '보유 및 중립 관망', 'en': 'Hold / Neutral', 'ja': 'ホールド・中立'},
     'rating_neutral': {'ko': '보유 및 중립 관망', 'en': 'Neutral', 'ja': '中立'},
     'rating_sell': {'ko': '매도 및 비중 축소', 'en': 'Sell / Reduce', 'ja': '売り・比重縮小'},
     
@@ -3934,23 +3934,27 @@ with main_area.container():
             
                 # --- (2) Seeking Alpha & Morningstar 섹션 ---
                 with st.expander(get_text('expander_seeking_alpha'), expanded=False):
-                    # [원본 로직 유지] 문자열 \n을 실제 엔터로 변환
+                    # 문자열 \n을 실제 엔터로 변환
                     pro_con = pro_con_raw.replace('\\n', '\n').replace("###", "").strip()
                     
-                    # [원본 문단 공백 로직] 다국어 레이블로 치환
+                    # [개선됨] AI가 어떤 언어로 출력하든 일관되게 다국어 레이블로 덮어씌우는 로직
                     label_pro = get_text('sentiment_positive')
                     label_con = get_text('sentiment_negative')
                     
+                    # 한국어 포맷 대응
                     pro_con = pro_con.replace("긍정:", f"**{label_pro}**:").replace("부정:", f"\n\n**{label_con}**:")
                     pro_con = pro_con.replace("✅ 긍정", f"**{label_pro}**").replace("⚠️ 부정", f"\n\n**{label_con}**")
+                    # 영어/기본 포맷 대응 (AI가 Pros/Cons로 출력할 때)
+                    pro_con = pro_con.replace("**Pros**:", f"**{label_pro}**:").replace("**Cons**:", f"\n\n**{label_con}**:")
+                    pro_con = pro_con.replace("Pros:", f"**{label_pro}**:").replace("Cons:", f"\n\n**{label_con}**:")
                     
                     if "의견 수집 중" in pro_con or not pro_con:
                         st.error(get_text('err_ai_analysis_failed'))
                     else:
-                        # 최종 출력 시 줄바꿈 강제 적용 (원본 로직 보존)
+                        # 최종 출력 시 줄바꿈 강제 적용
                         st.success(pro_con.replace('\n', '\n\n'))
             
-                # --- (3) Institutional Sentiment 섹션 (점수 체계 다국어화) ---
+                # --- (3) Institutional Sentiment 섹션 ---
                 with st.expander(get_text('expander_sentiment'), expanded=False):
                     s_col1, s_col2 = st.columns(2)
                     
@@ -3972,7 +3976,7 @@ with main_area.container():
                         st.write(f"**[Analyst Ratings]**")
                         st.metric(label="Consensus Rating", value=rating_val)
                         
-                        # 상태별 피드백 로직 (원본 유지 + 다국어)
+                        # 상태별 피드백 로직
                         if any(x in rating_val for x in ["Buy", "Positive", "Outperform", "Strong"]):
                             st.success(f"{get_text('label_opinion')}: {get_text('sentiment_positive')}")
                             st.caption(f"✅ {get_text('msg_rating_positive')}\n\n{rating_desc}")
@@ -4001,7 +4005,7 @@ with main_area.container():
                         st.write(f"**[IPO Scoop Score]**")
                         st.metric(label="Expected IPO Score", value=f"⭐ {score_val}")
                         
-                        # 점수별 평가 피드백 (원본 로직 보존)
+                        # 점수별 평가 피드백
                         eval_label = get_text('label_evaluation')
                         if score_val in ["4", "5"]:
                             st.success(f"{eval_label}: {s_list.get(score_val, 'N/A')}")
@@ -4012,7 +4016,7 @@ with main_area.container():
             
                         st.caption(f"ℹ️ {score_desc}")
             
-                # --- (4) References (다국어 링크 텍스트 적용) ---
+                # --- (4) References ---
                 with st.expander("References", expanded=False):
                     if sources:
                         for src in sources:
@@ -4020,7 +4024,6 @@ with main_area.container():
                     else:
                         st.caption(get_text('err_no_links'))
                     
-                    # 기관별 링크 설명 다국어화
                     st.markdown(f"- [Renaissance Capital: {stock['name']} {get_text('label_detail_data')}](https://www.google.com/search?q=site:renaissancecapital.com+{q})")
                     st.markdown(f"- [Seeking Alpha: {stock['name']} {get_text('label_deep_analysis')}](https://seekingalpha.com/symbol/{q}/analysis)")
                     st.markdown(f"- [Morningstar: {stock['name']} {get_text('label_research_result')}](https://www.morningstar.com/search?query={q})")
