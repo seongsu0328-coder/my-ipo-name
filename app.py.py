@@ -1515,9 +1515,8 @@ def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
     
-    # [Step 1] 언어별 캐시 분리 (언어가 다르면 새로 생성하여 혼용 방지)
-    # 💡 캐시 키 버전업(_v4_)을 통해 기존의 잘못된 한국어 캐시를 즉시 무효화합니다.
-    cache_key = f"{company_name}_{topic}_Tab0_v4_{lang_code}"
+    # 💡 캐시 버전 v9 (대표님의 원본 프롬프트 구조 완전 보존 버전)
+    cache_key = f"{company_name}_{topic}_Tab0_v9_{lang_code}"
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
@@ -1535,25 +1534,28 @@ def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
 
     target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
 
-    # 💡 [핵심 개선] 프롬프트 뼈대와 페르소나 지시문을 해당 언어로 완전 번역
-    # AI에게 한국어 지시문을 아예 보여주지 않아야 외국어 버전에서 한국어가 섞이지 않습니다.
+    # 💡 [대표님 요청 사항] 프롬프트 뼈대 및 페르소나 지시문 현지화 구성
+    # 이 섹션의 지침들이 AI에게 한국어 지시문을 가리고 해당 언어에 몰입하게 만듭니다.
     if lang_code == 'en':
         labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
         role_desc = "You are a professional senior analyst from Wall Street."
-        no_intro_prompt = 'CRITICAL: NEVER introduce yourself (e.g., "I am an analyst") or use filler greetings like "Okay, let\'s analyze". START IMMEDIATELY with the first localized **[Heading]**.'
+        no_intro_prompt = 'CRITICAL: NEVER introduce yourself (e.g., "I am an analyst") or use filler greetings like "Okay, let\'s analyze". DO NOT include Korean translations in headings. START IMMEDIATELY with the first English **[Heading]**.'
+        lang_directive = "The guide below is in Korean for reference, but you MUST translate all headings and content into English."
     elif lang_code == 'ja':
         labels = ["分析対象", "指針", "内容構成および形式", "文体ガイド"]
         role_desc = "あなたはウォール街出身の専門分析家です。"
-        no_intro_prompt = '【重要】「私はアナリストです」などの自己紹介や、「はい、分析します」などの挨拶・前置きは絶対に禁止です。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
+        no_intro_prompt = '【重要】「私はアナリストです」などの自己紹介や、「はい、分析します」などの挨拶・前置きは絶対に禁止です。見出しに韓国語を併記しないでください。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
+        lang_directive = "構成 가이드는 참고용으로 한국어로 제공되나, 모든 제목과 내용은 반드시 일본어로만 작성하세요."
     else:
         labels = ["분석 대상", "지침", "내용 구성 및 형식 - 반드시 아래 형식을 따를 것", "문체 가이드"]
         role_desc = "당신은 월가 출신의 전문 분석가입니다."
         no_intro_prompt = '단, "저는 분석가입니다", "네, 분석해드리겠습니다" 같은 자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
+        lang_directive = ""
 
     max_retries = 3
     for i in range(max_retries):
         try:
-            # 💡 대표님의 원본 지침을 유지하되, 모든 레이블을 현지화하여 언어 혼동을 방지합니다.
+            # 💡 [원본 구조 보존] 대표님이 요청하신 레이블 구조와 지침을 100% 유지합니다.
             prompt = f"""
             {labels[0]}: {company_name} - {topic}
             {labels[1]} (Checkpoints): {points}
@@ -1561,6 +1563,7 @@ def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
             [{labels[1]}]
             {role_desc}
             {no_intro_prompt}
+            {lang_directive}
             
             [{labels[2]}]
             각 문단의 시작에 해당 언어로 번역된 **[소제목]**을 붙여서 내용을 명확히 구분하고 굵은 글씨를 생략하지 마세요.
@@ -3121,13 +3124,13 @@ with main_area.container():
             tab_labels = [get_text(f'tab_{i}') for i in range(6)]
             tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_labels)
     
-            # --- Tab 0: 핵심 정보 (공시 가이드 및 AI 분석 강화) ---
+            # --- Tab 0: 핵심 정보 (사용자 원본 프롬프트 100% 보존 버전) ---
             with tab0:
                 # [세션 상태 관리]
                 if 'core_topic' not in st.session_state:
                     st.session_state.core_topic = "S-1"
     
-                # 버튼 스타일 강제 지정 (기존 스타일 유지)
+                # 1. 버튼 스타일 강제 지정
                 st.markdown("""
                     <style>
                     div.stButton > button {
@@ -3148,118 +3151,105 @@ with main_area.container():
                     </style>
                 """, unsafe_allow_html=True)
     
-                # 1. 문서 선택 버튼 그리드 (다국어 키 적용)
+                # 2. 문서 선택 버튼 그리드
                 r1_c1, r1_c2, r1_c3 = st.columns(3)
                 r2_c1, r2_c2 = st.columns(2)
     
-                if r1_c1.button(get_text('label_s1'), use_container_width=True): st.session_state.core_topic = "S-1"
-                if r1_c2.button(get_text('label_s1a'), use_container_width=True): st.session_state.core_topic = "S-1/A"
-                if r1_c3.button(get_text('label_f1'), use_container_width=True): st.session_state.core_topic = "F-1"
-                if r2_c1.button(get_text('label_fwp'), use_container_width=True): st.session_state.core_topic = "FWP"
-                if r2_c2.button(get_text('label_424b4'), use_container_width=True): st.session_state.core_topic = "424B4"
+                if r1_c1.button("S-1 (최초신고서)", use_container_width=True): st.session_state.core_topic = "S-1"
+                if r1_c2.button("S-1/A (수정신고)", use_container_width=True): st.session_state.core_topic = "S-1/A"
+                if r1_c3.button("F-1 (해외기업)", use_container_width=True): st.session_state.core_topic = "F-1"
+                if r2_c1.button("FWP (IR/로드쇼)", use_container_width=True): st.session_state.core_topic = "FWP"
+                if r2_c2.button("424B4 (최종확정)", use_container_width=True): st.session_state.core_topic = "424B4"
     
                 topic = st.session_state.core_topic
                 curr_lang = st.session_state.lang
 
-                # 💡 [핵심 개선] AI에게 전달할 소제목(Structure)을 언어별로 자동 매핑
-                if curr_lang == 'en':
-                    s_points = "Investment Points"; s_growth = "Growth Potential"; s_risk = "Key Risks"
-                    s_amend = "Amendments"; s_valuation = "Price Fairness"; s_dilution = "Share Dilution"
-                    s_global = "Global Competitiveness"; s_foreign = "Foreign Risks"; s_ads = "ADS Structure"
-                    s_vision = "Core Vision"; s_strategy = "Strategy"; s_response = "Roadshow Response"
-                    s_final = "Final Price"; s_use = "Use of Proceeds"; s_outlook = "Post-IPO Outlook"
-                elif curr_lang == 'ja':
-                    s_points = "投資ポイント"; s_growth = "成長可能性"; s_risk = "主要リスク"
-                    s_amend = "修正事項"; s_valuation = "価格の妥당性"; s_dilution = "株主希薄化"
-                    s_global = "グローバル競争力"; s_foreign = "海外リスク"; s_ads = "ADS構造"
-                    s_vision = "核心ビジョン"; s_strategy = "差別化戦略"; s_response = "ロードショー反応"
-                    s_final = "最終公募価格"; s_use = "資金使途"; s_outlook = "上場後の展望"
-                else: # ko
-                    s_points = "투자포인트"; s_growth = "성장가능성"; s_risk = "핵심리스크"
-                    s_amend = "수정사항"; s_valuation = "가격적정성"; s_dilution = "주주희석"
-                    s_global = "글로벌경쟁력"; s_foreign = "해외리스크"; s_ads = "ADS구조"
-                    s_vision = "핵심비전"; s_strategy = "차별화전략"; s_response = "로드쇼반응"
-                    s_final = "최종공모가"; s_use = "자금활용"; s_outlook = "상장후 전망"
-
-                # 2. 메타데이터 정의 (구조 텍스트에 현지화된 변수 주입)
+                # 💡 [원본 보존] 요청하신 모든 상세 지침을 하나도 빠짐없이 정의합니다.
                 def_meta = {
                     "S-1": {
-                        "desc": get_text('desc_s1'),
-                        "points": "Risk Factors, Use of Proceeds, MD&A",
-                        "structure": f"1. **[{s_points}]**, 2. **[{s_growth}]**, 3. **[{s_risk}]**"
+                        "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
+                        "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
+                        "structure": """
+                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
+                        1. **[투자포인트]** : 해당 문서에서 발견된 가장 중요한 투자 포인트를 구체적인 수치나 근거와 함께 상세히 서술하세요.
+                        2. **[성장가능성]** : MD&A(경영진 분석)를 통해 본 기업의 실질적 성장 가능성과 재무적 함의를 깊이 있게 분석하세요.
+                        3. **[핵심리스크]** : 투자자가 반드시 경계해야 할 핵심 리스크 1가지와 그 파급 효과 및 대응책을 구체적으로 서술하세요.
+                        """
                     },
                     "S-1/A": {
-                        "desc": get_text('desc_s1a'),
-                        "points": "Pricing Terms, Dilution, Changes",
-                        "structure": f"1. **[{s_amend}]**, 2. **[{s_valuation}]**, 3. **[{s_dilution}]**"
+                        "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
+                        "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
+                        "structure": """
+                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
+                        1. **[수정사항]** : (이전 제출된 S-1 대비 변경된 핵심 사항(주식 수, 공모가 범위 등)을 중점적으로 서술하세요.)
+                        2. **[가격적정성]** : (제시된 공모가 범위가 동종 업계 대비 합리적인지, 또는 수요예측 분위기를 반영했는지 분석하세요.)
+                        3. **[주주희석]** : (신규 공모로 인한 기존 주주 가치 희석(Dilution) 정도와 이것이 투자 매력도에 미치는 영향을 서술하세요.)
+                        """
                     },
                     "F-1": {
-                        "desc": get_text('desc_f1'),
-                        "points": "Foreign Risk, Accounting, ADS Structure",
-                        "structure": f"1. **[{s_global}]**, 2. **[{s_foreign}]**, 3. **[{s_ads}]**"
+                        "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
+                        "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
+                        "structure": """
+                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
+                        1. **[글로벌경쟁력]** : (해당 기업이 본국 및 글로벌 시장에서 가진 독보적인 경쟁 우위를 서술하세요.)
+                        2. **[해외리스크]** : (환율, 정치적 이슈, 회계 기준 차이 등 해외 기업 특유의 리스크 요인을 상세히 분석하세요.)
+                        3. **[ADS구조]** : (미국 예탁 증서(ADS) 구조가 주주 권리 행사에 미치는 영향이나 특이사항을 서술하세요.)
+                        """
                     },
                     "FWP": {
-                        "desc": get_text('desc_fwp'),
-                        "points": "Graphics, Strategy, Highlights",
-                        "structure": f"1. **[{s_vision}]**, 2. **[{s_strategy}]**, 3. **[{s_response}]**"
+                        "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
+                        "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
+                        "structure": """
+                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
+                        1. **[핵심비전]** : (경영진이 로드쇼에서 가장 강조하고 있는 미래 성장 비전과 목표를 서술하세요.)
+                        2. **[차별화전략]** : (경쟁사 대비 부각시키고 있는 기술적/사업적 차별화 포인트를 시각 자료(Graphics) 기반으로 분석하세요.)
+                        3. **[로드쇼반응]** : (자료 톤앤매너를 통해 유추할 수 있는 경영진의 자신감이나 시장 공략 의지를 서술하세요.)
+                        """
                     },
                     "424B4": {
-                        "desc": get_text('desc_424b4'),
-                        "points": "Underwriting, Final Price, IPO Outcome",
-                        "structure": f"1. **[{s_final}]**, 2. **[{s_use}]**, 3. **[{s_outlook}]**"
+                        "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
+                        "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
+                        "structure": """
+                        [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
+                        1. **[최종공모가]** : (확정된 공모가가 희망 밴드 상단인지 하단인지 분석하고, 그 의미(시장 수요)를 해석하세요.)
+                        2. **[자금활용]** : (확정된 조달 자금이 구체적으로 어떤 우선순위 사업에 투입될 예정인지 최종 점검하세요.)
+                        3. **[상장후 전망]** : (주관사단 구성과 배정 물량을 바탕으로 상장 초기 유통 물량 부담이나 변동성을 예측하세요.)
+                        """
                     }
                 }
                 
                 curr_meta = def_meta.get(topic, def_meta["S-1"])
-                st.info(curr_meta['desc'])
                 
-                # 💡 [최적화] AI 분석 결과가 들어갈 자리를 미리 확보 (Skeleton UI)
+                # 💡 [로딩 최적화] AI 분석 결과가 들어갈 자리를 미리 확보
                 ai_result_container = st.container()
+                
+                # UI 출력: 설명문 (이미 다국어 처리됨)
+                st.info(get_text(f"desc_{topic.lower().replace('/','')}"))
+                
                 st.write("<br>", unsafe_allow_html=True)
                 
-                # 3. SEC 링크 및 공식 홈페이지 버튼 (AI 분석보다 먼저 렌더링)
+                # 버튼 섹션 (SEC 링크 및 홈페이지)
                 cik = profile.get('cik', '') if profile else ''
-                full_company_name = stock['name'].strip() 
-                
-                if cik:
-                    sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
-                else:
-                    sec_query = f'"{full_company_name}" {topic}'
-                    sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(sec_query)}&dateRange=all"
-    
-                real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
-                website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + full_company_name + ' Investor Relations')}"
+                full_name = stock['name'].strip()
+                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}" if cik else f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_name + ' ' + topic)}"
+                web_url = (profile.get('weburl') or profile.get('website', '')) if profile else f"https://duckduckgo.com/?q={urllib.parse.quote(full_name + ' Investor Relations')}"
     
                 st.markdown(f"""
-                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>
-                            {get_text('btn_sec_link')} ({topic})
-                        </button>
-                    </a>
-                    <a href="{website_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>
-                            {get_text('btn_official_web')}
-                        </button>
-                    </a>
+                    <a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({topic})</button></a>
+                    <a href="{web_url}" target="_blank" style="text-decoration:none;"><button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button></a>
                 """, unsafe_allow_html=True)
                 
-                # 4. 의사결정 박스 및 면책 조항 (AI 분석보다 먼저 렌더링)
                 draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
                 display_disclaimer()
                 
-                # 💡 [핵심 최적화] 화면의 뼈대가 다 그려진 후, 아까 비워둔 자리에 AI 분석을 실행합니다.
+                # 💡 [AI 실행] 확보된 컨테이너 안에 결과 렌더링
                 with ai_result_container:
                     with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
                         with st.spinner(get_text('msg_analyzing_filing')):
-                            # AI 호출 시 현지화된 structure 양식을 전달합니다.
-                            analysis_result = get_ai_analysis(
-                                stock['name'], 
-                                topic, 
-                                curr_meta['points'], 
-                                curr_meta['structure'], 
-                                curr_lang
-                            )
-                            # 💡 언어별 들여쓰기 최적화 및 줄바꿈 처리
+                            # 💡 원본 한국어 structure를 그대로 전달하되, lang_code를 넘겨 함수 내부에서 번역 지시함
+                            analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'], curr_lang)
+                            
+                            # 들여쓰기 및 가독성 스타일링
                             indent_size = "14px" if curr_lang == "ko" else "0px"
                             st.markdown(f"""
                                 <div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">
