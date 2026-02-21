@@ -1184,9 +1184,7 @@ def display_disclaimer():
     """
     st.markdown("<br>", unsafe_allow_html=True) # 약간의 여백
     st.divider()
-    st.caption("""
-        **이용 유의사항** 본 서비스는 자체 알고리즘과 AI 모델을 활용한 요약 정보를 제공하며, 원저작권자의 권리를 존중합니다. 요약본은 원문과 차이가 있을 수 있으므로 반드시 원문을 확인하시기 바랍니다. 모든 투자 결정의 최종 책임은 사용자 본인에게 있습니다.
-    """)
+    st.caption(get_text('msg_disclaimer'))
 
 # ---------------------------------------------------------
 # 3. 이후 메인 로직 시작 (탭 구성 등)
@@ -1982,6 +1980,11 @@ UI_TEXT = {
     # ==========================================
     # 13. 시스템 메시지 (Toast, Spinner, Error)
     # ==========================================
+    'msg_disclaimer': {
+        'ko': '**이용 유의사항** 본 서비스는 자체 알고리즘과 AI 모델을 활용한 요약 정보를 제공하며, 원저작권자의 권리를 존중합니다. 요약본은 원문과 차이가 있을 수 있으므로 반드시 원문을 확인하시기 바랍니다. 모든 투자 결정의 최종 책임은 사용자 본인에게 있습니다.',
+        'en': '**Disclaimer** This service provides summarized information using proprietary algorithms and AI models, and respects the rights of original copyright holders. Summaries may differ from the original text, so please ensure to verify the original sources. The final responsibility for all investment decisions lies with the user.',
+        'ja': '**ご利用上の注意** 本サービスは、独自アルゴリズムとAIモデルを活用した要約情報を提供しており、原著作者の権利を尊重します。要約内容は原文と異なる場合がありますので、必ず原文をご確認ください。すべての投資判断の最終的な責任はユーザーご自身にあります。'
+    },
     'msg_analyzing': {'ko': '분석 중...', 'en': 'Analyzing...', 'ja': '分析中...'},
     'msg_analyzing_filing': {'ko': '핵심 내용을 분석 중입니다...', 'en': 'Analyzing key content...', 'ja': '主要内容を分析中です...'},
     'msg_analyzing_tab1': {'ko': '최신 데이터를 정밀 분석 중입니다...', 'en': 'Analyzing latest data...', 'ja': '最新データを精密分析中です...'},
