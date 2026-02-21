@@ -548,24 +548,41 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
         response = model.generate_content(prompt)
         full_text = response.text
 
-        biz_analysis = full_text.split("<JSON_START>")[0].strip()
+        # 1. 🚀 [방어 로직] 정규식으로 JSON 배열 [ { ... } ] 만 완벽하게 적출
+        news_list = []
+        json_str = ""
+        # 괄호 [ ] 안에 있는 모든 내용을 찾습니다.
+        json_match = re.search(r'\[\s*\{.*?\}\s*\]', full_text, re.DOTALL)
+        
+        if json_match:
+            json_str = json_match.group(0)
+            try:
+                news_list = json.loads(json_str)
+            except:
+                pass
+
+        # 2. 🚀 [방어 로직] 전체 텍스트에서 JSON 부분과 태그 찌꺼기를 완전히 도려내어 본문만 남김
+        if json_str:
+            biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
+        else:
+            # 만약 JSON 추출에 실패했다면, '{' 가 시작되는 부분부터 잘라버려서 본문만 살립니다.
+            biz_analysis = full_text.split("{")[0].replace("<JSON_START>", "").strip()
+
+        # 본문 불순물 제거 (## 등 마크다운 기호)
         biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
         paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
         
         indent_size = "14px" if lang_code == "ko" else "0px"
         html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
 
-        news_list = []
-        if "<JSON_START>" in full_text:
-            try:
-                json_str = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
-                news_list = json.loads(json_str).get("news", [])
-                for n in news_list:
-                    if n.get('sentiment') == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                    elif n.get('sentiment') == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
-                    else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
-            except: pass
+        # 3. 뉴스 감성 배지 색상 처리
+        if news_list:
+            for n in news_list:
+                if n.get('sentiment') == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                elif n.get('sentiment') == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
+                else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
 
+        # DB 저장
         supabase.table("analysis_cache").upsert({
             "cache_key": cache_key,
             "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
