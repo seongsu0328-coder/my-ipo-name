@@ -3079,14 +3079,12 @@ with main_area.container():
             # --- Tab 1: 뉴스 & 심층 분석 (Gemini 통합형) ---
             with tab1:
                 # [1] 통합 분석 데이터 호출 (비즈니스 요약 + 뉴스 5개 통합)
-                # 💡 다국어 메시지 적용
                 with st.spinner(f"{stock['name']} {get_text('msg_analyzing_tab1')}"):
-                    # 파라미터 맨 끝에 st.session_state.lang 전달 유지
+                    # 파라미터로 현재 언어 코드를 넘겨 AI가 해당 언어로 번역하도록 함
                     biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'], st.session_state.lang)
 
                 # [2] 기업 심층 분석 섹션 (Expander)
                 st.write("<br>", unsafe_allow_html=True)
-                # 💡 다국어 타이틀 적용
                 with st.expander(get_text('expander_biz_summary'), expanded=False):
                     if biz_info:
                         st.markdown(f"""
@@ -3101,23 +3099,21 @@ with main_area.container():
                             line-height: 1.6;
                         ">{biz_info}</div>
                         """, unsafe_allow_html=True)
-                        
-                        # 💡 다국어 캡션 적용
                         st.caption(get_text('caption_google_search'))
                     else:
-                        # 💡 다국어 에러 메시지 적용
                         st.error(get_text('err_no_biz_info'))
     
                 st.write("<br>", unsafe_allow_html=True)
     
-                # [3] 뉴스 리스트 섹션
+                # [3] 뉴스 리스트 섹션 (언어별 조건부 제목 노출)
                 if final_display_news:
+                    curr_lang = st.session_state.lang # 현재 언어 상태 확인
+                    
                     for i, n in enumerate(final_display_news):
-                        # 뉴스 제목은 AI가 해당 언어로 번역해서 보냈으므로 그대로 사용
-                        ko_title = n.get('title_ko', 'Error')
                         en_title = n.get('title_en', 'No Title')
+                        trans_title = n.get('title_ko', '') # AI가 선택한 언어로 번역한 결과
                         
-                        # 💡 감성 라벨 다국어 매핑 (AI가 보낸 한국어 값을 사전 키로 변환)
+                        # 감성 라벨 다국어 매핑
                         raw_sentiment = n.get('sentiment', '일반')
                         if raw_sentiment == "긍정": sentiment_label = get_text('sentiment_positive')
                         elif raw_sentiment == "부정": sentiment_label = get_text('sentiment_negative')
@@ -3128,15 +3124,24 @@ with main_area.container():
                         news_link = n.get('link', '#')
                         news_date = n.get('date', 'Recent')
     
-                        # 특수 기호 처리 (원본 유지)
+                        # 특수 기호 처리
                         safe_en = en_title.replace("$", "\$")
-                        safe_ko = ko_title.replace("$", "\$")
+                        safe_trans = trans_title.replace("$", "\$")
                         
-                        # 배지 생성
+                        # 💡 [핵심] 언어별 서브 제목 HTML 구성 로직
+                        sub_title_html = ""
+                        if curr_lang == 'ko':
+                            # 한국어 모드: 영문 제목 + 한국어 번역
+                            sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_trans}</span>"
+                        elif curr_lang == 'ja':
+                            # 일본어 모드: 영문 제목 + 일본어 번역
+                            sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇯🇵 {safe_trans}</span>"
+                        # 'en' (영어) 모드일 경우 sub_title_html은 빈 문자열로 유지되어 영문 제목만 출력됨
+
+                        # 배지 및 카드 렌더링
                         s_badge = f'<span style="background:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{sentiment_label}</span>'
-                        
-                        # 뉴스 카드 렌더링 (라벨 다국어화)
                         label_gen = get_text('label_general')
+                        
                         st.markdown(f"""
                             <a href="{news_link}" target="_blank" style="text-decoration:none; color:inherit;">
                                 <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
@@ -3149,19 +3154,17 @@ with main_area.container():
                                         <small style="color:#bbb;">{news_date}</small>
                                     </div>
                                     <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">
-                                        {safe_en}
-                                        <br><span style='font-size:14px; color:#555; font-weight:400;'>{safe_ko}</span>
+                                        {safe_en}{sub_title_html}
                                     </div>
                                 </div>
                             </a>
                         """, unsafe_allow_html=True)
                 else:
-                    # 💡 다국어 경고 메시지 적용
                     st.warning(get_text('err_no_news'))
     
                 st.write("<br>", unsafe_allow_html=True)
     
-                # 💡 결정 박스 다국어 적용
+                # 결정 박스
                 draw_decision_box("news", get_text('decision_news_impression'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
     
                 # 면책 조항
