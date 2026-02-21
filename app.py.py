@@ -3288,11 +3288,25 @@ with main_area.container():
                 curr_lang = st.session_state.lang
                 is_ko = (curr_lang == 'ko')
 
+                # 💡 [핵심] Tab 2와 완벽하게 동일한 디자인을 적용하기 위해 CSS 카드를 선언합니다.
                 st.markdown("""
                 <style>
-                    .metric-value { font-size: 1.2rem !important; font-weight: 800 !important; white-space: nowrap; }
-                    .st-badge { font-size: 0.7rem !important; vertical-align: middle; margin-left: 5px; }
-                    .metric-value-row { display: flex; align-items: center; justify-content: flex-start; }
+                    /* Tab 2와 동일한 메인 카드 디자인 */
+                    .metric-card { background-color:#ffffff; padding:15px; border-radius:12px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.03); height: 100%; min-height: 220px; display: flex; flex-direction: column; justify-content: space-between; }
+                    .metric-header { font-weight:bold; font-size:16px; color:#111; margin-bottom:5px; }
+                    .metric-value-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; justify-content: flex-start; }
+                    .metric-value { font-size:20px; font-weight:800; color:#004e92; white-space: nowrap; }
+                    .metric-desc { font-size:13px; color:#555; line-height:1.5; margin-bottom:10px; flex-grow: 1; }
+                    .metric-footer { font-size:11px; color:#999; margin-top:5px; border-top:1px solid #f0f0f0; padding-top:8px; font-style: italic; }
+                    
+                    /* 상태별 배지(Badge) 색상 */
+                    .st-badge { font-size:12px; padding: 3px 8px; border-radius:6px; font-weight:bold; vertical-align: middle; margin-left: 5px; }
+                    .st-hot { background-color:#ffebee; color:#c62828; }
+                    .st-cold { background-color:#e3f2fd; color:#1565c0; }
+                    .st-good { background-color:#e8f5e9; color:#2e7d32; }
+                    .st-neutral { background-color:#f5f5f5; color:#616161; }
+                    
+                    /* Tab 3 하단 분석 텍스트용 */
                     .unified-text { font-size: 0.95rem !important; line-height: 1.6 !important; color: #222222; }
                 </style>
                 """, unsafe_allow_html=True)
@@ -3410,7 +3424,7 @@ with main_area.container():
                         st.info(ai_report)
                         st.caption("※ CFA algorithm analysis applied." if not is_ko else "※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
                     else: st.warning(get_text('err_no_biz_info'))
-    
+            
                 with st.expander(get_text('expander_references'), expanded=False):
                     st.markdown("""<style>.ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; } .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 0.95rem; } .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; } .ref-summary { font-size: 0.85rem; color: #666666; margin-top: 3px; } .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; color: #555; text-decoration: none; white-space: nowrap; }</style>""", unsafe_allow_html=True)
                     if curr_lang == 'ko': sum_vc = "VC 투자가 상장 시 갖는 공신력 분석"; sum_rock = "정보 비대칭성과 공모가 저평가 메커니즘"
@@ -3426,9 +3440,9 @@ with main_area.container():
                     st.info(f"💡 {get_text('caption_google_search')} (Source: **{data_source}**)")
                     for ref in references_tab3:
                         st.markdown(f"<div class='ref-item'><div style='flex:1; padding-right: 10px;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div class='ref-summary'>{ref['summary']}, {ref['author']}</div></div><div><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
-    
+            
                 draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", [get_text('opt_overvalued'), get_text('sentiment_neutral'), get_text('opt_undervalued')])
-                display_disclaimer()            
+                display_disclaimer()         
     
             # --- Tab 4: 기관평가 (UI 출력 부분 다국어 적용) ---
             elif selected_sub_menu == get_text('tab_4'):
