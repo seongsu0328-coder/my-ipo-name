@@ -2263,6 +2263,314 @@ if st.session_state.page == 'login':
             
           
 
+# ==========================================
+# [PAGE ROUTING] 세션 상태 안전 초기화
+# ==========================================
+
+# 필수 변수들이 세션에 없으면 초기값 설정
+if 'page' not in st.session_state:
+    st.session_state.page = 'login'
+if 'login_step' not in st.session_state:
+    st.session_state.login_step = 'choice'
+if 'signup_stage' not in st.session_state:
+    st.session_state.signup_stage = 1
+if 'auth_status' not in st.session_state:
+    st.session_state.auth_status = None
+if 'user_info' not in st.session_state:
+    st.session_state.user_info = {}
+
+# --- [1. 로그인 & 회원가입 페이지] ---
+if st.session_state.page == 'login':
+  
+    # 1. 스타일링
+    st.markdown("""
+    <style>
+        .login-title {
+            font-size: 2.5rem !important; font-weight: 800 !important;
+            background: linear-gradient(to right, #6a11cb 0%, #2575fc 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-align: center; margin-bottom: 5px;
+        }
+        .login-subtitle { text-align: center; color: #666; margin-bottom: 30px; }
+        .auth-card {
+            background-color: white; padding: 30px; border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #f0f0f0;
+        }
+        /* 입력창 라벨과 박스 간격 조정 */
+        .stTextInput { margin-bottom: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # 2. 화면 레이아웃 (중앙 정렬)
+    col_spacer1, col_center, col_spacer2 = st.columns([1, 4, 1])
+
+    with col_center:
+        st.write("<br>", unsafe_allow_html=True)
+        # 💡 타이틀 다국어 지원 (영문 고정 시 get_text('login_title') 활용)
+        st.markdown(f"<h1 class='login-title'>{get_text('login_title')}</h1>", unsafe_allow_html=True)
+        
+        # 상태 초기화
+        if 'login_step' not in st.session_state: st.session_state.login_step = 'choice'
+        
+        # 가상 DB 초기화 (없을 경우)
+        if 'db_users' not in st.session_state: st.session_state.db_users = ["admin"]
+
+        # ---------------------------------------------------------
+        # [통합 화면] 로그인 입력 + 버튼
+        # ---------------------------------------------------------
+        if st.session_state.login_step in ['choice', 'login_input']:
+            
+            st.write("<br>", unsafe_allow_html=True)
+            
+            # [1] 아이디/비번 입력창 (다국어 적용)
+            l_id = st.text_input(get_text('id_label'), key="login_id")
+            l_pw = st.text_input(get_text('pw_label'), type="password", key="login_pw")
+            
+            st.write("<br>", unsafe_allow_html=True)
+            
+            # [2] 버튼 섹션
+            # 버튼 1: 로그인 (다국어 적용)
+            if st.button(get_text('btn_login'), use_container_width=True, type="primary"):
+                if not l_id or not l_pw:
+                    st.error("아이디와 비밀번호를 입력해주세요." if st.session_state.lang == 'ko' else "Please enter your ID and password.")
+                else:
+                    with st.spinner("로그인 중..." if st.session_state.lang == 'ko' else "Logging in..."):
+                        user = db_load_user(l_id)
+                        
+                        if user and str(user.get('pw')) == str(l_pw):
+                            st.session_state.auth_status = 'user'
+                            st.session_state.user_info = user
+                            
+                            saved_watchlist, saved_preds = db_sync_watchlist(l_id)
+                            st.session_state.watchlist = saved_watchlist
+                            st.session_state.watchlist_predictions = saved_preds
+                            
+                            raw_status = user.get('status', 'pending')
+                            user_status = str(raw_status).strip().lower()
+                            
+                            if user_status == 'approved':
+                                st.session_state.page = 'calendar'
+                            else:
+                                st.session_state.page = 'setup'
+                                
+                            st.rerun()
+                        else:
+                            st.error("아이디 또는 비밀번호가 틀립니다." if st.session_state.lang == 'ko' else "Invalid ID or password.")
+            
+            # 버튼 2: 회원가입 (다국어 적용)
+            if st.button(get_text('btn_signup'), use_container_width=True):
+                st.session_state.login_step = 'signup_input' 
+                st.session_state.auth_code_sent = False       
+                st.rerun()
+                
+            # 버튼 3: 구경하기 (다국어 적용)
+            if st.button(get_text('btn_guest'), use_container_width=True):
+                st.session_state.auth_status = 'guest'
+                st.session_state.page = 'calendar'
+                st.rerun()
+
+            # =========================================================
+            # [NEW 위치] 3개 국어 언어 선택 버튼
+            # =========================================================
+            lang_cols = st.columns(3)
+            with lang_cols[0]:
+                if st.button("🇰🇷 한국어", use_container_width=True): 
+                    st.session_state.lang = 'ko'
+                    st.rerun()
+            with lang_cols[1]:
+                if st.button("🇺🇸 English", use_container_width=True): 
+                    st.session_state.lang = 'en'
+                    st.rerun()
+            with lang_cols[2]:
+                if st.button("🇯🇵 日本語", use_container_width=True): 
+                    st.session_state.lang = 'ja'
+                    st.rerun()
+
+            # ---------------------------------------------------------
+            # [3] 명언 섹션 (언어 선택에 따라 동적 번역)
+            # ---------------------------------------------------------
+            st.write("<br>", unsafe_allow_html=True) 
+            
+            # 선택된 언어 파라미터 전달
+            quote_data = get_daily_quote(st.session_state.lang) 
+            
+            # 영어를 선택했을 때는 원문만 표기, 다른 언어일 때는 번역본 + 원문(sub_text) 표기
+            if st.session_state.lang == 'en':
+                sub_text = ""
+            else:
+                sub_text = f"<div style='font-size: 0.8rem; color: #888; font-style: italic; margin-bottom: 8px;'>{quote_data['eng']}</div>"
+
+            html_content = f"""
+            <div style="background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #f0f0f0; text-align: center;">
+                <div style="font-size: 0.95rem; color: #333; font-weight: 600; line-height: 1.5; margin-bottom: 5px;">
+                    "{quote_data['translated']}"
+                </div>{sub_text}<div style="font-size: 0.85rem; color: #666;">- {quote_data['author']} -</div>
+            </div>
+            """
+            st.markdown(html_content, unsafe_allow_html=True)
+            
+        # ---------------------------------------------------------
+        # [Step 3] 회원가입 로직 (통합본)
+        # ---------------------------------------------------------
+        elif st.session_state.login_step == 'signup_input':
+            
+            # [A구역] 1단계(정보입력) 또는 2단계(인증번호확인)일 때만 실행
+            if st.session_state.signup_stage in [1, 2]:
+                # 스타일 정의
+                title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
+                label_style = "font-size: 1.0rem; font-weight: normal; margin-bottom: 5px; margin-top: 10px;"
+                status_style = "font-size: 0.85rem; margin-top: -10px; margin-bottom: 10px;"
+                
+                st.markdown(f"<p style='{title_style}'>{get_text('signup_title_step1')}</p>", unsafe_allow_html=True)
+                
+                # --- [상단 입력창 구역: 항상 유지됨] ---
+                st.markdown(f"<p style='{label_style}'>{get_text('id_label')}</p>", unsafe_allow_html=True)
+                new_id = st.text_input("id_input", value=st.session_state.get('temp_id', ''), label_visibility="collapsed")
+                st.session_state.temp_id = new_id
+                
+                st.markdown(f"<p style='{label_style}'>{get_text('pw_label')}</p>", unsafe_allow_html=True)
+                new_pw = st.text_input("pw_input", type="password", value=st.session_state.get('temp_pw', ''), label_visibility="collapsed")
+                st.session_state.temp_pw = new_pw
+                
+                st.markdown(f"<p style='{label_style}'>{get_text('pw_confirm_label')}</p>", unsafe_allow_html=True)
+                confirm_pw = st.text_input("confirm_pw_input", type="password", value=st.session_state.get('temp_cpw', ''), label_visibility="collapsed")
+                st.session_state.temp_cpw = confirm_pw
+                
+                # 실시간 비번 일치 체크
+                is_pw_match = False
+                if new_pw and confirm_pw:
+                    if new_pw == confirm_pw:
+                        st.markdown(f"<p style='{status_style} color: #2e7d32;'>✅ 일치합니다.</p>", unsafe_allow_html=True)
+                        is_pw_match = True
+                    else:
+                        st.markdown(f"<p style='{status_style} color: #d32f2f;'>❌ 일치하지 않습니다.</p>", unsafe_allow_html=True)
+                        
+                st.markdown(f"<p style='{label_style}'>{get_text('phone_label')}</p>", unsafe_allow_html=True)
+                new_phone = st.text_input("phone_input", value=st.session_state.get('temp_phone', ''), label_visibility="collapsed")
+                st.session_state.temp_phone = new_phone
+                
+                st.markdown(f"<p style='{label_style}'>{get_text('email_label')}</p>", unsafe_allow_html=True)
+                new_email = st.text_input("email_input", value=st.session_state.get('temp_email', ''), label_visibility="collapsed")
+                st.session_state.temp_email = new_email
+                
+                st.markdown(f"<p style='{label_style}'>{get_text('auth_method_label')}</p>", unsafe_allow_html=True)
+                auth_choice = st.radio("auth_input", [get_text('auth_phone'), get_text('auth_email')], horizontal=True, label_visibility="collapsed", key="auth_radio")
+                
+                # --- [하단 유동 구역: 버튼 혹은 인증창으로 교체] ---
+                st.write("---") 
+                
+                # st.empty()를 사용하여 이전 단계 위젯의 유령 박스를 물리적으로 제거
+                action_area = st.empty()
+            
+                with action_area.container():
+                    if st.session_state.signup_stage == 1:
+                        # 1단계 버튼 구역
+                        if st.button(get_text('btn_get_code'), use_container_width=True, type="primary", key="btn_send_auth_final"):
+                            if not (new_id and new_pw and confirm_pw and new_email):
+                                st.error("모든 정보를 입력해주세요." if st.session_state.lang == 'ko' else "Please fill in all fields.")
+                            elif not is_pw_match:
+                                st.error("비밀번호 일치 확인이 필요합니다." if st.session_state.lang == 'ko' else "Passwords do not match.")
+                            else:
+                                code = str(random.randint(100000, 999999))
+                                st.session_state.auth_code = code
+                                st.session_state.temp_user_data = {"id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email}
+                                
+                                if get_text('auth_email') in auth_choice:
+                                    if send_email_code(new_email, code):
+                                        st.session_state.signup_stage = 2
+                                        st.rerun()
+                                else:
+                                    st.toast(f"📱 인증번호: {code}", icon="✅")
+                                    st.session_state.signup_stage = 2
+                                    st.rerun()
+                        
+                        if st.button(get_text('btn_back_to_start'), use_container_width=True, key="btn_signup_back_final"):
+                            st.session_state.login_step = 'choice'
+                            st.rerun()
+            
+                    elif st.session_state.signup_stage == 2:
+                        # 2단계 인증창 구역
+                        st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
+                        st.markdown(f"<p style='{label_style} font-weight: bold;'>{get_text('auth_code_title')}</p>", unsafe_allow_html=True)
+                        
+                        in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder=get_text('placeholder_code'), key="input_verify_code_stage2")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button(get_text('btn_confirm_auth'), use_container_width=True, type="primary", key="btn_confirm_auth_stage2"):
+                                if in_code == st.session_state.auth_code:
+                                    st.success("인증 성공!" if st.session_state.lang == 'ko' else "Verified successfully!")
+                                    st.session_state.signup_stage = 3
+                                    st.rerun()
+                                else:
+                                    st.error("인증번호가 틀렸습니다." if st.session_state.lang == 'ko' else "Incorrect code.")
+                        with col2:
+                            if st.button(get_text('btn_resend_auth'), use_container_width=True, key="btn_resend_auth_stage2"):
+                                st.session_state.signup_stage = 1
+                                st.rerun()
+                        st.markdown("</div>", unsafe_allow_html=True)
+            
+            # [B구역] 3단계일 때 (서류 제출 화면)
+            elif st.session_state.signup_stage == 3:
+                st.subheader(get_text('signup_title_step3'))
+                st.info(get_text('signup_guide_step3'))
+                
+                # 입력창 (다국어 적용)
+                u_name = st.text_input(get_text('label_univ'), key="u_name_final")
+                u_file = st.file_uploader(get_text('label_univ_file'), type=['jpg','png','pdf'], key="u_file_final")
+                j_name = st.text_input(get_text('label_job'), key="j_name_final")
+                j_file = st.file_uploader(get_text('label_job_file'), type=['jpg','png','pdf'], key="j_file_final")
+                a_val = st.selectbox(get_text('label_asset'), [get_text('opt_asset_none'), "10억 미만", "10억~30억", "30억~80억", "80억 이상"], key="a_val_final")
+                a_file = st.file_uploader(get_text('label_asset_file'), type=['jpg','png','pdf'], key="a_file_final")
+                
+                st.write("")
+                
+                # [최종 가입 신청 버튼]
+                if st.button(get_text('btn_signup_complete'), type="primary", use_container_width=True):
+                    # 1. 세션 데이터 확인
+                    td = st.session_state.get('temp_user_data')
+                    if not td:
+                        st.error("⚠️ 세션이 만료되었습니다. 처음부터 다시 가입해주세요." if st.session_state.lang == 'ko' else "⚠️ Session expired. Please restart.")
+                        st.stop()
+
+                    with st.spinner("정보를 안전하게 저장 중입니다..." if st.session_state.lang == 'ko' else "Saving securely..."):
+                        try:
+                            # 2. 파일 업로드 실행
+                            l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
+                            l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
+                            l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
+                            
+                            # 3. 데이터 패키징
+                            has_cert = any([u_file, j_file, a_file])
+                            role = "user" if has_cert else "restricted"
+                            
+                            final_data = {
+                                **td, 
+                                "univ": u_name, "job": j_name, "asset": a_val,
+                                "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
+                                "role": role, "status": "pending",
+                                "display_name": f"{role} | {td['id'][:3]}***"
+                            }
+                            
+                            # 4. DB 저장 시도
+                            if db_signup_user(final_data):
+                                st.success("가입 신청이 완료되었습니다!" if st.session_state.lang == 'ko' else "Registration completed!")
+                                
+                                st.session_state.auth_status = 'user'
+                                st.session_state.user_info = final_data
+                                st.session_state.page = 'setup'
+                                
+                                st.session_state.login_step = 'choice'
+                                st.session_state.signup_stage = 1
+                                
+                                import time; time.sleep(1.5)
+                                st.rerun()
+                            else:
+                                st.error("❌ 가입 신청 저장에 실패했습니다." if st.session_state.lang == 'ko' else "❌ Failed to save. Try again.")
+                        
+                        except Exception as e:
+                            st.error(f"🚨 오류 발생: {e}")
+
 # ---------------------------------------------------------
 # [NEW] 가입 직후 설정 페이지 (Setup) - 멤버 리스트 & 관리자 기능 통합
 # ---------------------------------------------------------
@@ -2390,24 +2698,16 @@ elif st.session_state.page == 'setup':
             # -------------------------------------------------------
             # [1] 기능 함수 정의 (Supabase 전용)
             # -------------------------------------------------------
-
-            # [핵심] 승인 버튼 누르면 실행될 콜백 함수
             def callback_approve(target_id, target_email):
-                # 1. Supabase 상태 업데이트 (기존 만들어둔 db_approve_user 활용)
                 if db_approve_user(target_id):
-                    # 2. 이메일 발송 (이메일 기능이 살아있다면)
                     if target_email:
-                        try:
-                            send_approval_email(target_email, target_id)
+                        try: send_approval_email(target_email, target_id)
                         except: pass
-                    # 3. 알림 메시지
-                    st.toast(f"✅ {target_id}님 승인 처리 완료!", icon="🎉")
+                    st.toast(f"✅ {target_id} 승인 처리 완료!", icon="🎉")
                 else:
-                    st.toast(f"❌ {target_id} 처리 실패. DB 연결 확인 필요.", icon="⚠️")
+                    st.toast(f"❌ {target_id} 처리 실패.", icon="⚠️")
 
-            # [핵심] 보류 버튼 누르면 실행될 콜백 함수
             def callback_reject(target_id, target_email):
-                # 입력된 사유 가져오기
                 reason_key = f"rej_setup_{target_id}"
                 reason = st.session_state.get(reason_key, "")
 
@@ -2415,32 +2715,24 @@ elif st.session_state.page == 'setup':
                     st.toast("⚠️ 보류 사유를 입력해주세요!", icon="❗")
                     return 
 
-                # 1. Supabase 상태 업데이트 (rejected로 변경)
                 try:
                     res = supabase.table("users").update({"status": "rejected"}).eq("id", target_id).execute()
                     if res.data:
-                        # 2. 이메일 발송
                         if target_email:
-                            try:
-                                send_rejection_email(target_email, target_id, reason)
+                            try: send_rejection_email(target_email, target_id, reason)
                             except: pass
-                        st.toast(f"🛑 {target_id}님 보류 처리 완료.", icon="✅")
+                        st.toast(f"🛑 {target_id} 보류 처리 완료.", icon="✅")
                     else:
-                        st.toast("❌ 처리 실패 (데이터 없음).", icon="⚠️")
+                        st.toast("❌ 처리 실패.", icon="⚠️")
                 except Exception as e:
                     st.toast(f"❌ 오류: {e}", icon="⚠️")
 
             # -------------------------------------------------------
             # [2] 화면 그리기 (UI)
             # -------------------------------------------------------
-
-
-            # --- [추가] 📡 데이터 워커 상태 점검 배지 ---
-            # 이 섹션은 워커(GitHub Actions)가 정상인지 관리자가 즉시 확인하는 용도입니다.
             with st.container():
-                last_update = get_last_cache_update_time() # 아까 만든 함수 호출
+                last_update = get_last_cache_update_time() 
                 
-                # 한국 시간 표시를 위해 9시간 더하기
                 display_time = last_update + timedelta(hours=9)
                 now = datetime.now(last_update.tzinfo)
     
@@ -2452,34 +2744,29 @@ elif st.session_state.page == 'setup':
                         st.success(f"✅ 데이터 정상: {display_time.strftime('%m-%d %H:%M')}")
                 
                 with col_status2:
-                    if st.button("🔄 시스템 전체 새로고침", key="admin_refresh"):
-                        st.cache_data.clear() # 🚨 [핵심 추가] 쥐고 있던 예전 데이터를 강제로 버림
+                    if st.button(get_text('admin_system_refresh'), key="admin_refresh"):
+                        st.cache_data.clear() 
                         st.rerun()
             
             st.divider()
                 
-            
-            # 목록 불러오기 버튼
-            if st.button("가입신청회원 새로고침", key="btn_refresh_list"):
+            if st.button(get_text('admin_refresh_users'), key="btn_refresh_list"):
                 st.rerun()
 
-            # Supabase에서 전체 유저 로드
             all_users_adm = db_load_all_users()
-            # status가 pending인 유저만 필터링
             pending_users = [u for u in all_users_adm if u.get('status') == 'pending']
             
             if not pending_users:
-                st.info("현재 승인 대기 중인 유저가 없습니다.")
+                st.info(get_text('admin_no_pending'))
             else:
                 for pu in pending_users:
                     u_id = pu.get('id')
                     u_email = pu.get('email')
                     
-                    with st.expander(f"{u_id} ({pu.get('univ') or '미기재'})"):
+                    with st.expander(f"{u_id} ({pu.get('univ') or get_text('admin_not_provided')})"):
                         st.write(f"**이메일**: {u_email} | **연락처**: {pu.get('phone')}")
                         st.write(f"**직업**: {pu.get('job')} | **자산**: {pu.get('asset')}")
                         
-                        # 증빙 서류 링크 (Supabase Storage URL 또는 Drive URL)
                         c1, c2, c3 = st.columns(3)
                         with c1:
                             if pu.get('link_univ') not in ["미제출", None]: st.link_button("🎓 대학 증빙", pu.get('link_univ'))
@@ -2490,25 +2777,22 @@ elif st.session_state.page == 'setup':
                         
                         st.divider()
 
-                        # 보류 사유 입력창
-                        st.text_input("보류 사유", placeholder="예: 서류 식별 불가", key=f"rej_setup_{u_id}")
+                        st.text_input(get_text('admin_reason'), placeholder=get_text('admin_reason_ph'), key=f"rej_setup_{u_id}")
                         
                         btn_col1, btn_col2 = st.columns(2)
                         
-                        # [승인 버튼]
                         with btn_col1:
                             st.button(
-                                "✅ 승인", 
+                                get_text('admin_btn_approve'), 
                                 key=f"btn_app_{u_id}", 
                                 use_container_width=True,
                                 on_click=callback_approve, 
                                 args=(u_id, u_email)
                             )
 
-                        # [보류 버튼]
                         with btn_col2:
                             st.button(
-                                "❌ 보류", 
+                                get_text('admin_btn_reject'), 
                                 key=f"btn_rej_{u_id}", 
                                 use_container_width=True, 
                                 type="primary",
@@ -2516,13 +2800,16 @@ elif st.session_state.page == 'setup':
                                 args=(u_id, u_email)
                             )
 
-# [추가] 메인 화면 전용 컨테이너 생성
-# 이 컨테이너는 페이지가 바뀔 때 내부를 완전히 비우고 새로 그립니다.
+# =========================================================
+# [추가] 메인 화면 전용 컨테이너 생성 (구조 복원)
+# =========================================================
 main_area = st.empty()
 
 with main_area.container():
+
     # ---------------------------------------------------------
     # 4. 캘린더 페이지 (Calendar)
+    # ---------------------------------------------------------
     if st.session_state.page == 'calendar':
         # [CSS] 스타일 정의 (기존 스타일 100% 유지 + 상단 메뉴 스타일 추가)
         st.markdown("""
@@ -2531,7 +2818,7 @@ with main_area.container():
             * { box-sizing: border-box !important; }
             body { color: #333333; }
             
-            /* 2. 상단 여백 확보 (메인 페이지라 여백을 조금 줄임) */
+            /* 2. 상단 여백 확보 */
             .block-container { 
                 padding-top: 2rem !important; 
                 padding-left: 0.5rem !important; 
@@ -2539,15 +2826,14 @@ with main_area.container():
                 max-width: 100% !important; 
             }
     
-            /* [NEW] 상단 메뉴 버튼 스타일 (둥글고 크게) */
+            /* [NEW] 상단 메뉴 버튼 스타일 */
             div[data-testid="column"] button {
                 border-radius: 12px !important;
                 height: 50px !important;
                 font-weight: bold !important;
             }
     
-            /* 3. 리스트 전용 버튼 스타일 (범위를 리스트 컬럼으로 한정) */
-            /* [수정] 모든 버튼이 아니라, 데이터 리스트(7:3 컬럼) 내부에 있는 버튼만 투명하게 만듭니다. */
+            /* 3. 리스트 전용 버튼 스타일 */
             div[data-testid="column"] .stButton button {
                 background-color: transparent !important;
                 border: none !important;
@@ -2565,9 +2851,8 @@ with main_area.container():
                 line-height: 1.1 !important;
             }
     
-            /* [추가] 로그인/인증 버튼 등 일반적인 Primary 버튼은 원래 스타일을 유지하도록 강제 */
             div.stButton > button[kind="primary"] {
-                background-color: #FF4B4B !important; /* 스트림릿 기본 레드 혹은 원하는 색상 */
+                background-color: #FF4B4B !important; 
                 color: white !important;
                 border-radius: 8px !important;
                 padding: 0.25rem 0.75rem !important;
@@ -2576,200 +2861,87 @@ with main_area.container():
             
             .stButton button p { font-weight: bold; font-size: 14px; margin-bottom: 0px; }
     
-            /* 4. [모바일 레이아웃 핵심] */
+            /* 4. 모바일 레이아웃 핵심 */
             @media (max-width: 640px) {
-                
-                /* (A) 상단 필터: 줄바꿈 허용 */
                 div[data-testid="stHorizontalBlock"]:nth-of-type(1) {
-                    flex-wrap: wrap !important;
-                    gap: 10px !important;
-                    padding-bottom: 5px !important;
+                    flex-wrap: wrap !important; gap: 10px !important; padding-bottom: 5px !important;
                 }
                 div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div {
-                    min-width: 100% !important;
-                    max-width: 100% !important;
-                    flex: 1 1 100% !important;
+                    min-width: 100% !important; max-width: 100% !important; flex: 1 1 100% !important;
                 }
-    
-                /* (B) 리스트 구역: 가로 고정 & 수직 중앙 정렬 */
                 div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) {
-                    flex-direction: row !important;
-                    flex-wrap: nowrap !important;
-                    gap: 0px !important;
-                    width: 100% !important;
-                    align-items: center !important; 
+                    flex-direction: row !important; flex-wrap: nowrap !important; gap: 0px !important; width: 100% !important; align-items: center !important; 
                 }
-    
-                /* (C) 컬럼 내부 정렬 강제 */
                 div[data-testid="column"] {
-                    display: flex !important;
-                    flex-direction: column !important;
-                    justify-content: center !important; 
-                    min-width: 0px !important;
-                    padding: 0px 2px !important;
+                    display: flex !important; flex-direction: column !important; justify-content: center !important; min-width: 0px !important; padding: 0px 2px !important;
                 }
-    
-                /* (D) 리스트 컬럼 비율 (7:3) */
                 div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(1) {
-                    flex: 0 0 70% !important;
-                    max-width: 70% !important;
-                    overflow: hidden !important;
+                    flex: 0 0 70% !important; max-width: 70% !important; overflow: hidden !important;
                 }
                 div[data-testid="stHorizontalBlock"]:not(:nth-of-type(1)) > div[data-testid="column"]:nth-of-type(2) {
-                    flex: 0 0 30% !important;
-                    max-width: 30% !important;
+                    flex: 0 0 30% !important; max-width: 30% !important;
                 }
-    
-                /* (E) 폰트 및 간격 미세 조정 */
                 .mobile-sub { font-size: 10px !important; color: #888 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px; line-height: 1.1; }
                 .price-main { font-size: 13px !important; font-weight: bold; white-space: nowrap; line-height: 1.1; }
                 .price-sub { font-size: 10px !important; color: #666 !important; white-space: nowrap; line-height: 1.1; }
                 .date-text { font-size: 10px !important; color: #888 !important; margin-top: 1px; line-height: 1.1; }
-                .header-text { font-size: 12px !important; line-height: 1.0; }
             }
             </style>
         """, unsafe_allow_html=True)
     
-        # ---------------------------------------------------------
-        # [ANDROID-FIX] 안드로이드 셀렉트박스 닫힘 강제 패치
-        # ---------------------------------------------------------
-        st.markdown("""
-            <style>
-            /* 1. 선택 후 파란색 테두리(포커스) 제거 */
-            .stSelectbox div[data-baseweb="select"]:focus-within {
-                border-color: transparent !important;
-                box-shadow: none !important;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-    
-        # 2. 자바스크립트를 이용해 현재 활성화된(Focus) 입력창을 강제로 닫음
-        # 화면이 로드될 때마다 실행되어 모바일 키보드나 드롭다운을 숨깁니다.
-        st.components.v1.html("""
-            <script>
-                var mainDoc = window.parent.document;
-                var activeEl = mainDoc.activeElement;
-                if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.getAttribute('role') === 'combobox')) {
-                    activeEl.blur();
-                }
-            </script>
-        """, height=0)
-         
-    
-        # ---------------------------------------------------------
-        # 1. [STYLE] 블랙 배경 + 화이트 글씨 (테두리 없음)
-        # ---------------------------------------------------------
-        st.markdown("""
-            <style>
-            /* 기본 버튼: 검정 배경 / 흰 글씨 */
-            div[data-testid="stPills"] div[role="radiogroup"] button {
-                border: none !important;
-                outline: none !important;
-                background-color: #000000 !important;
-                color: #ffffff !important;
-                border-radius: 20px !important;
-                padding: 6px 15px !important;
-                margin-right: 5px !important;
-                box-shadow: none !important;
-            }
-    
-            /* 선택된 버튼: 진한 회색 배경 (구분용) */
-            div[data-testid="stPills"] button[aria-selected="true"] {
-                background-color: #444444 !important;
-                color: #ffffff !important;
-                font-weight: 800 !important;
-            }
-    
-            /* 스트림릿 기본 테두리 제거 */
-            div[data-testid="stPills"] div[data-baseweb="pill"] {
-                border: none !important;
-                background: transparent !important;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-    
-        # ---------------------------------------------------------
-        # 2. 메뉴 텍스트 및 현재 상태 정의 (권한설정 버튼 추가)
-        # ---------------------------------------------------------
-        is_logged_in = st.session_state.auth_status == 'user'
-        login_text = "로그아웃" if is_logged_in else "로그인"
-        settings_text = "권한설정"  # [NEW] 설정 버튼 텍스트
-        main_text = "메인"
-        watch_text = f"관심 ({len(st.session_state.watchlist)})"
-        board_text = "게시판"
+        # [ANDROID-FIX]
+        st.markdown("""<style>.stSelectbox div[data-baseweb="select"]:focus-within { border-color: transparent !important; box-shadow: none !important; }</style>""", unsafe_allow_html=True)
+        st.components.v1.html("<script>var mainDoc=window.parent.document; var activeEl=mainDoc.activeElement; if(activeEl && (activeEl.tagName==='INPUT' || activeEl.getAttribute('role')==='combobox')){ activeEl.blur(); }</script>", height=0)
         
-        # [수정] 로그인 상태면 '권한설정' 버튼 노출, 아니면 숨김
+        st.markdown("""
+            <style>
+            div[data-testid="stPills"] div[role="radiogroup"] button { border: none !important; outline: none !important; background-color: #000000 !important; color: #ffffff !important; border-radius: 20px !important; padding: 6px 15px !important; margin-right: 5px !important; box-shadow: none !important; }
+            div[data-testid="stPills"] button[aria-selected="true"] { background-color: #444444 !important; color: #ffffff !important; font-weight: 800 !important; }
+            div[data-testid="stPills"] div[data-baseweb="pill"] { border: none !important; background: transparent !important; }
+            </style>
+        """, unsafe_allow_html=True)
+    
+        # 2. 메뉴 텍스트 및 상태 (다국어)
+        is_logged_in = st.session_state.auth_status == 'user'
+        login_text = get_text('menu_logout') if is_logged_in else get_text('btn_login')
+        settings_text = get_text('menu_settings') 
+        main_text = get_text('menu_main')
+        watch_text = f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})"
+        board_text = get_text('menu_board')
+        
         if is_logged_in:
-            # 순서: 로그아웃 -> 권한설정 -> 메인 -> 관심 -> 게시판
             menu_options = [login_text, settings_text, main_text, watch_text, board_text]
         else:
             menu_options = [login_text, main_text, watch_text, board_text]
     
-        # 현재 어떤 페이지에 있는지 계산하여 기본 선택값(Default) 설정
-        default_sel = main_text # 기본값은 메인
-        if st.session_state.get('page') == 'login': 
-            default_sel = login_text
-        elif st.session_state.get('page') == 'setup': # setup 페이지일 때 (혹시나 해서 추가)
-            default_sel = settings_text
-        elif st.session_state.get('view_mode') == 'watchlist': 
-            default_sel = watch_text
-        elif st.session_state.get('page') == 'board': 
-            default_sel = board_text
+        default_sel = main_text
+        if st.session_state.get('page') == 'login': default_sel = login_text
+        elif st.session_state.get('page') == 'setup': default_sel = settings_text
+        elif st.session_state.get('view_mode') == 'watchlist': default_sel = watch_text
+        elif st.session_state.get('page') == 'board': default_sel = board_text
     
-        # ---------------------------------------------------------
-        # 3. 메뉴 표시 (st.pills)
-        # ---------------------------------------------------------
-        selected_menu = st.pills(
-            label="내비게이션",
-            options=menu_options,
-            selection_mode="single",
-            default=default_sel,
-            key="nav_pills_updated_v2", # 키값 충돌 방지용 변경
-            label_visibility="collapsed"
-        )
+        selected_menu = st.pills(label="내비게이션", options=menu_options, selection_mode="single", default=default_sel, key="nav_pills_updated_v2", label_visibility="collapsed")
     
-        # ---------------------------------------------------------
-        # 4. 클릭 감지 및 페이지 이동 로직 (설정 버튼 연결)
-        # ---------------------------------------------------------
         if selected_menu and selected_menu != default_sel:
             if selected_menu == login_text:
-                if is_logged_in: 
-                    st.session_state.auth_status = None # 로그아웃 처리
+                if is_logged_in: st.session_state.auth_status = None 
                 st.session_state.page = 'login'
-                
-            elif selected_menu == settings_text: # [NEW] 설정 페이지 이동
+            elif selected_menu == settings_text: 
                 st.session_state.page = 'setup'
-                
             elif selected_menu == main_text:
                 st.session_state.view_mode = 'all'
                 st.session_state.page = 'calendar' 
-                
             elif selected_menu == watch_text:
                 st.session_state.view_mode = 'watchlist'
                 st.session_state.page = 'calendar' 
-                
             elif selected_menu == board_text:
                 st.session_state.page = 'board'
-            
-            # 설정 변경 후 화면 즉시 갱신
             st.rerun()
     
-        
-        # ---------------------------------------------------------
-        # [기존 데이터 로직] - Batching 및 30분 캐싱 적용 버전
-        # ---------------------------------------------------------
         all_df_raw = get_extended_ipo_data(MY_API_KEY)
-        
-        # 데이터 수집 범위 확인
-        if not all_df_raw.empty:
-            min_date = all_df_raw['date'].min()
-            max_date = all_df_raw['date'].max()
-            st.sidebar.info(f"📊 수집된 데이터 범위:\n{min_date} ~ {max_date}")
-            
         view_mode = st.session_state.get('view_mode', 'all')
         
         if not all_df_raw.empty:
-            # 1. 데이터 전처리
             all_df = all_df_raw.copy()
             all_df['exchange'] = all_df['exchange'].fillna('-')
             all_df = all_df[all_df['symbol'].astype(str).str.strip() != ""]
@@ -2777,63 +2949,44 @@ with main_area.container():
             all_df = all_df.dropna(subset=['공모일_dt'])
             today_dt = pd.to_datetime(datetime.now().date())
             
-            # 2. 필터 로직 (관심종목 vs 일반)
-            
-            # 🚨 안전장치: 변수가 없어서 튕기는 현상을 원천 차단하기 위해 미리 기본값 선언
-            sort_option = "최신순"  
-            period = "상장 예정 (30일)"
+            sort_option = get_text('sort_latest')  
+            period = get_text('period_upcoming')
             display_df = pd.DataFrame() 
     
             if view_mode == 'watchlist':
-                if st.button("🔄 전체 목록 보기", use_container_width=True, key="btn_view_all_main_final"):
+                if st.button(get_text('btn_view_all'), use_container_width=True, key="btn_view_all_main_final"):
                     st.session_state.view_mode = 'all'
                     st.rerun()
                     
                 display_df = all_df[all_df['symbol'].isin(st.session_state.watchlist)]
                 if display_df.empty:
-                    st.info("아직 관심 종목에 담은 기업이 없습니다.")
+                    st.info("아직 관심 종목에 담은 기업이 없습니다." if st.session_state.lang == 'ko' else "No stocks in your watchlist.")
                     
             else:
                 col_f1, col_f2 = st.columns([1, 1]) 
                 with col_f1:
-                    period = st.selectbox("조회 기간", ["상장 예정 (30일)", "지난 6개월", "지난 12개월", "지난 18개월"], key="filter_period_final", label_visibility="collapsed")
+                    period = st.selectbox("조회 기간", [get_text('period_upcoming'), get_text('period_6m'), get_text('period_12m'), get_text('period_18m')], key="filter_period_final", label_visibility="collapsed")
                 with col_f2:
-                    sort_option = st.selectbox("정렬 순서", ["최신순", "수익률"], key="filter_sort_final", label_visibility="collapsed")
+                    sort_option = st.selectbox("정렬 순서", [get_text('sort_latest'), get_text('sort_return')], key="filter_sort_final", label_visibility="collapsed")
                 
-                # 🚨 [복구된 핵심 코드] 선택한 기간에 맞춰 display_df 데이터를 깎아냅니다.
-                if period == "상장 예정 (30일)":
+                if period == get_text('period_upcoming'):
                     display_df = all_df[(all_df['공모일_dt'] >= today_dt) & (all_df['공모일_dt'] <= today_dt + timedelta(days=30))]
                 else:
-                    if period == "지난 6개월": start_date = today_dt - timedelta(days=180)
-                    elif period == "지난 12개월": start_date = today_dt - timedelta(days=365)
-                    elif period == "지난 18개월": start_date = today_dt - timedelta(days=540)
+                    if period == get_text('period_6m'): start_date = today_dt - timedelta(days=180)
+                    elif period == get_text('period_12m'): start_date = today_dt - timedelta(days=365)
+                    elif period == get_text('period_18m'): start_date = today_dt - timedelta(days=540)
                     
                     display_df = all_df[(all_df['공모일_dt'] < today_dt) & (all_df['공모일_dt'] >= start_date)]
     
-            # ----------------------------------------------------------------
-            # 🚀 [최적화 수정본] Batch 주가 조회 및 안전한 상태 표시
-            # ----------------------------------------------------------------
             if not display_df.empty:
                 symbols_to_fetch = display_df['symbol'].dropna().unique().tolist()
                 
-                with st.spinner("실시간 주가 확인 중..."):
-                    # [수정] 이제 함수가 (가격맵, 상태맵) 두 개를 리턴합니다.
+                with st.spinner("실시간 주가 확인 중..." if st.session_state.lang == 'ko' else "Fetching prices..."):
                     all_prices_map, all_status_map = get_batch_prices(symbols_to_fetch)
                     
-                db_count = len(all_prices_map)
-                total_req = len(symbols_to_fetch)
-                missing_count = total_req - db_count
-    
-                if missing_count > 0:
-                    st.toast(f"🐢 속도 저하: DB({db_count}개) / ☁️ API 호출({missing_count}개)", icon="⚠️")
-                else:
-                    st.toast(f"⚡ 고속 로딩: {db_count}개 전량 DB 호출 성공!", icon="✅")
-    
-                # 데이터 매핑 (가격과 상태를 데이터프레임에 추가)
                 display_df['live_price'] = display_df['symbol'].map(all_prices_map).fillna(0.0)
                 display_df['live_status'] = display_df['symbol'].map(all_status_map).fillna("Active")
                 
-                # 수익률 계산 (Active인 경우만 계산)
                 def parse_price(x):
                     try: return float(str(x).replace('$','').split('-')[0])
                     except: return 0.0
@@ -2845,24 +2998,13 @@ with main_area.container():
                     -9999
                 )
     
-                # [수정] 5. 정렬 최종 적용 (구조 통합)
-                # 먼저 컬럼의 타입을 확실히 float으로 강제 변환합니다.
                 display_df['temp_return'] = pd.to_numeric(display_df['temp_return'], errors='coerce').fillna(-9999.0)
         
-                if sort_option == "수익률":
-                    # 수익률 정렬 (내림차순)
-                    # -9999인 데이터(Active가 아니거나 가격 없는 종목)를 마지막으로 보냅니다.
+                if sort_option == get_text('sort_return'):
                     display_df = display_df.sort_values(by='temp_return', ascending=False)
                 else:
-                    # 기본값: 최신순 정렬
                     display_df = display_df.sort_values(by='공모일_dt', ascending=False)
-        
-                # 만약 watchlist 모드에서만 추가적인 정렬 규칙이 필요하다면 여기에 별도로 작성 가능하지만, 
-                # 위 로직만으로도 '관심종목' 페이지 내에서의 수익률 정렬이 가능해집니다.
     
-            # ----------------------------------------------------------------
-            # [핵심] 리스트 레이아웃 (7 : 3 비율) - 상태값(Status) 반영 버전
-            # ----------------------------------------------------------------
             if not display_df.empty:
                 for i, row in display_df.iterrows():
                     p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
@@ -2871,15 +3013,14 @@ with main_area.container():
                     live_p = row.get('live_price', 0)
                     live_s = row.get('live_status', 'Active')
                     
-                    # [수정] 가격 표시 로직: 상태에 따라 텍스트 변경
                     if live_s == "상장연기":
                         price_html = f"""
-                            <div class='price-main' style='color:#1919e6 !important;'>상장연기</div>
+                            <div class='price-main' style='color:#1919e6 !important;'>{get_text('status_delayed')}</div>
                             <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
                         """
                     elif live_s == "상장폐지":
                         price_html = f"""
-                            <div class='price-main' style='color:#888888 !important;'>상장폐지</div>
+                            <div class='price-main' style='color:#888888 !important;'>{get_text('status_delisted')}</div>
                             <div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>
                         """
                     elif live_p > 0:
@@ -2900,7 +3041,7 @@ with main_area.container():
                     else:
                         price_html = f"""
                             <div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div>
-                            <div class='price-sub' style='color:#666666 !important;'>공모가</div>
+                            <div class='price-sub' style='color:#666666 !important;'>{get_text('label_ipo_price')}</div>
                         """
                     
                     date_html = f"<div class='date-text'>{row['date']}</div>"
@@ -2908,7 +3049,6 @@ with main_area.container():
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        # 기업명 버튼
                         if st.button(f"{row['name']}", key=f"btn_list_{i}"):
                             st.session_state.selected_stock = row.to_dict()
                             st.session_state.page = 'detail'
@@ -2926,7 +3066,7 @@ with main_area.container():
                     st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
     
             else:
-                st.info("조건에 맞는 종목이 없습니다.")
+                st.info("조건에 맞는 종목이 없습니다." if st.session_state.lang == 'ko' else "No results found.")
     
     
     
