@@ -3496,7 +3496,7 @@ with main_area.container():
                 draw_decision_box("ipo_report", get_text('decision_final_institutional'), [get_text('btn_buy'), get_text('sentiment_neutral'), get_text('btn_sell')])
                 display_disclaimer()
                 
-            # Tab 5 (의사결정 및 토론방)
+            # --- Tab 5: 투자결정 및 토론방 (수정 완료) ---
             elif selected_sub_menu == get_text('tab_5'):
                 # 💡 [핵심] 제목과 내용을 동시에 번역하는 주문형 번역 함수
                 def translate_post_on_demand(title, content, target_lang_code):
@@ -3718,7 +3718,7 @@ with main_area.container():
                             st.rerun()
                 else: st.info(get_text('msg_first_comment'))
                 
-                draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
+                draw_decision_box("ipo_report", get_text('decision_final_invest'), [get_text('opt_buy'), get_text('sentiment_neutral'), get_text('opt_sell')])
                 display_disclaimer()
                 
             # Tab 5 (의사결정 및 토론방)은 기존 코드가 완벽히 다국어화되어 있으므로 그대로 사용하시면 됩니다.
