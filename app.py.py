@@ -2814,14 +2814,13 @@ with main_area.container():
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        # 🚨 [최종 해결 코드]
-                        # 1. on_click 등 복잡한 콜백 제거 (스코프 문제 해결)
-                        # 2. 버튼 클릭 시 -> main_area(캘린더 화면)를 즉시 비우고(empty) -> 리런(rerun)
+                        # 💡 [최종 수정] 캘린더 화면을 즉시 폭파하고 리런합니다.
                         if st.button(f"{row['name']}", key=f"btn_list_{i}"):
-                            main_area.empty()  # 여기가 핵심입니다! 화면을 하얗게 날립니다.
+                            main_area.empty() # 화면 비우기
                             st.session_state.selected_stock = row.to_dict()
                             st.session_state.page = 'detail'
-                            st.rerun()         # 그리고 즉시 Detail 페이지로 넘어갑니다.
+                            st.session_state.detail_sub_menu = get_text('tab_0') # Detail 페이지 진입 시 첫 탭 강제 설정
+                            st.rerun()
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                         except: s_val = 0
@@ -2848,12 +2847,10 @@ with main_area.container():
             st.session_state.page = 'calendar'
             st.rerun()
 
-        # --- [데이터 복구 핵심 변수 추출] ---
         sid = stock['symbol']
         user_info = st.session_state.get('user_info') or {}
         user_id = user_info.get('id', 'guest_id')
     
-        # --- [신규] 재접속 유저를 위한 데이터 복구 로직 ---
         if sid not in st.session_state.user_decisions:
             saved_data = db_load_user_specific_decisions(user_id, sid)
             if saved_data:
@@ -2871,16 +2868,8 @@ with main_area.container():
         current_s = "Active"
     
         if stock:
-            # -------------------------------------------------------------------------
-            # [Step 1] 상단 메뉴바 (렌더링)
-            # -------------------------------------------------------------------------
-            st.markdown("""
-                <style>
-                div[data-testid="stPills"] div[role="radiogroup"] button { border: none !important; background-color: #000000 !important; color: #ffffff !important; border-radius: 20px !important; padding: 6px 15px !important; margin-right: 5px !important; box-shadow: none !important; }
-                div[data-testid="stPills"] button[aria-selected="true"] { background-color: #444444 !important; font-weight: 800 !important; }
-                </style>
-            """, unsafe_allow_html=True)
-    
+            # 상단 메뉴바
+            st.markdown("""<style>div[data-testid="stPills"] div[role="radiogroup"] button { border: none !important; background-color: #000000 !important; color: #ffffff !important; border-radius: 20px !important; padding: 6px 15px !important; margin-right: 5px !important; box-shadow: none !important; } div[data-testid="stPills"] button[aria-selected="true"] { background-color: #444444 !important; font-weight: 800 !important; }</style>""", unsafe_allow_html=True)
             is_logged_in = st.session_state.auth_status == 'user'
             login_text = get_text('menu_logout') if is_logged_in else get_text('btn_login')
             menu_options = [login_text, get_text('menu_settings'), get_text('menu_main'), f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})", get_text('menu_board')] if is_logged_in else [login_text, get_text('menu_main'), f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})", get_text('menu_board')]
@@ -2896,7 +2885,7 @@ with main_area.container():
                 elif selected_menu == get_text('menu_board'): st.session_state.page = 'board'
                 st.rerun()
 
-            # 💡 [임시 헤더] 스피너 없이 즉시 렌더링
+            # 임시 헤더
             header_placeholder = st.empty()
             today = datetime.now().date()
             ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
@@ -2904,18 +2893,31 @@ with main_area.container():
             header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> <span style='color:#888;'>데이터 로딩 중...</span></div>", unsafe_allow_html=True)
             st.write("")
     
-            st.markdown("""<style>.stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p { color: #333333 !important; font-weight: bold !important; } .stTabs [data-baseweb="tab-list"] button:hover [data-testid="stMarkdownContainer"] p { color: #004e92 !important; }</style>""", unsafe_allow_html=True)
+            # 💡 [핵심 변경] st.tabs를 제거하고 st.pills로 탭 기능을 대체합니다.
+            # 이렇게 하면 선택된 탭(Pill)의 코드만 실행되므로 초기 로딩 시 Tab 0 이외의 부하가 0이 됩니다.
             tab_labels = [get_text(f'tab_{i}') for i in range(6)]
-            tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_labels)
-    
+            
+            # 이전에 선택한 탭이 없으면 기본값으로 Tab 0 설정
+            if 'detail_sub_menu' not in st.session_state or st.session_state.detail_sub_menu not in tab_labels:
+                st.session_state.detail_sub_menu = tab_labels[0]
+
+            # 2단 메뉴 (탭 역할)
+            selected_sub_menu = st.pills(label="sub_nav", options=tab_labels, selection_mode="single", default=st.session_state.detail_sub_menu, key="detail_tabs_pills", label_visibility="collapsed")
+            
+            # 사용자가 탭을 클릭하면 상태 업데이트 후 리런 (해당 탭 내용만 로딩하기 위함)
+            if selected_sub_menu and selected_sub_menu != st.session_state.detail_sub_menu:
+                st.session_state.detail_sub_menu = selected_sub_menu
+                st.rerun()
+
+            # -------------------------------------------------------------------------
+            # 여기서부터는 선택된 탭의 내용만 그립니다! (초고속 로딩의 비결)
+            # -------------------------------------------------------------------------
+            
             # --- Tab 0: 핵심 정보 ---
-            with tab0:
+            if selected_sub_menu == get_text('tab_0'):
                 if 'core_topic' not in st.session_state: st.session_state.core_topic = "S-1"
                 st.markdown("""<style>div.stButton > button { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } div.stButton > button:hover { border-color: #6e8efb !important; color: #6e8efb !important; } div.stButton > button:active { background-color: #f0f2f6 !important; }</style>""", unsafe_allow_html=True)
     
-                # -------------------------------------------------------------------------
-                # [순서 1] 가장 가벼운 UI (버튼, 설명문) 즉시 렌더링
-                # -------------------------------------------------------------------------
                 r1_c1, r1_c2, r1_c3 = st.columns(3)
                 r2_c1, r2_c2 = st.columns(2)
                 if r1_c1.button(get_text('label_s1'), use_container_width=True): st.session_state.core_topic = "S-1"; st.rerun()
@@ -2928,9 +2930,6 @@ with main_area.container():
                 curr_lang = st.session_state.lang
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
 
-                # -------------------------------------------------------------------------
-                # [순서 2] API 연산 없이 주가/프로필 등 기본 데이터만 빠르게 확보 (0.1초)
-                # -------------------------------------------------------------------------
                 try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
                 except: off_val = 0
                 try:
@@ -2938,9 +2937,6 @@ with main_area.container():
                     profile = get_company_profile(sid, MY_API_KEY) 
                 except: pass
 
-                # -------------------------------------------------------------------------
-                # [순서 3] 헤더 실시간 업데이트
-                # -------------------------------------------------------------------------
                 date_str = ipo_dt.strftime('%Y-%m-%d')
                 label_ipo = get_text('label_ipo_price')
                 if current_s == "상장연기": p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
@@ -2954,15 +2950,6 @@ with main_area.container():
                 
                 header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
 
-                # -------------------------------------------------------------------------
-                # [순서 4] 나중에 AI가 그릴 상자 공간만 예약! (스피너 안 돔)
-                # -------------------------------------------------------------------------
-                ai_summary_ph = st.empty()
-
-                # -------------------------------------------------------------------------
-                # [순서 5] 하단 SEC 버튼, 홈페이지 버튼, 면책조항 즉시 그리기!
-                # 💡 핵심: 무거운 AI 분석이 시작되기 전에 여기까지 그려지므로 캘린더 잔상이 박살납니다.
-                # -------------------------------------------------------------------------
                 import urllib.parse
                 cik = profile.get('cik', '') if profile else ''
                 full_company_name = stock['name'].strip() 
@@ -2985,9 +2972,6 @@ with main_area.container():
                 
                 display_disclaimer()
 
-                # =========================================================================
-                # [순서 6] 가장 마지막 단계! 화면이 다 그려진 후 예약된 상자 안에서 AI 연산 시작!
-                # =========================================================================
                 def_meta = {
                     "S-1": {
                         "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
@@ -3043,7 +3027,6 @@ with main_area.container():
                 
                 curr_meta = def_meta.get(topic, def_meta["S-1"])
                 
-                # 💡 [초강력 포맷 지시] 한글 병기 금지 + 줄바꿈 금지
                 format_instruction = """
                 [출력 형식 및 번역 규칙 - 반드시 지킬 것]
                 - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
@@ -3054,23 +3037,21 @@ with main_area.container():
                 - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
                 """
 
-                # 예약된 공간(ai_summary_ph) 안에 expander와 spinner를 넣어서 그립니다.
-                with ai_summary_ph.container():
-                    with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
-                        with st.spinner(get_text('msg_analyzing_filing')):
-                            analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'] + format_instruction, curr_lang)
-                            
-                        if "ERROR_DETAILS" in analysis_result:
-                            st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
-                        else:
-                            import re
-                            formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
-                            indent_size = "14px" if curr_lang == "ko" else "0px"
-                            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">{formatted_result.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-                    st.caption(get_text('caption_algorithm'))
+                with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
+                    with st.spinner(get_text('msg_analyzing_filing')):
+                        analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'] + format_instruction, curr_lang)
+                        
+                    if "ERROR_DETAILS" in analysis_result:
+                        st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
+                    else:
+                        import re
+                        formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
+                        indent_size = "14px" if curr_lang == "ko" else "0px"
+                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">{formatted_result.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+                st.caption(get_text('caption_algorithm'))
                     
             # --- Tab 1: 뉴스 & 심층 분석 ---
-            with tab1:
+            elif selected_sub_menu == get_text('tab_1'):
                 with st.spinner(get_text('msg_analyzing_tab1')):
                     biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'], st.session_state.lang)
 
@@ -3107,7 +3088,6 @@ with main_area.container():
                         safe_en = str(en_title).replace("$", "\$")
                         safe_trans = str(trans_title).replace("$", "\$")
                         
-                        # 💡 [핵심 수정] 언어가 영어가 아닐 때만 번역 제목을 출력합니다.
                         sub_title_html = ""
                         if safe_trans and safe_trans != safe_en and curr_lang != 'en': 
                             if curr_lang == 'ko': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_trans}</span>"
@@ -3136,8 +3116,8 @@ with main_area.container():
                 draw_decision_box("news", get_text('decision_news_impression'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
                 display_disclaimer()
                 
-            # --- Tab 2: 실시간 시장 과열 진단 (Market Overheat Check) ---
-            with tab2:
+            # --- Tab 2: 실시간 시장 과열 진단 ---
+            elif selected_sub_menu == get_text('tab_2'):
                 def get_market_status_internal(df_calendar):
                     data = {"ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0, "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50}
                     if not df_calendar.empty:
@@ -3212,7 +3192,7 @@ with main_area.container():
                     "neutral": {"ko": "⚖️ 중립", "en": "⚖️ Neutral", "ja": "⚖️ 中立"},
                     "high": {"ko": "🚨 고평가", "en": "🚨 Overvalued", "ja": "🚨 割高"}
                 }
-                def get_stat(key): return stat_map[key].get(st.session_state.lang, stat_map[key]['ko'])
+                def get_stat(key): return stat_map[key].get(st.session_state.get('lang', 'ko'), stat_map[key]['ko'])
 
                 st.markdown(f'<p style="font-size: 15px; font-weight: 600; margin-bottom: 10px;">{get_text("ipo_overheat_title")}</p>', unsafe_allow_html=True)
                 c1, c2, c3, c4 = st.columns(4)
@@ -3291,7 +3271,7 @@ with main_area.container():
                 display_disclaimer()
     
             # --- Tab 3: 개별 기업 평가 ---
-            with tab3:
+            elif selected_sub_menu == get_text('tab_3'):
                 curr_lang = st.session_state.lang
                 is_ko = (curr_lang == 'ko')
 
@@ -3438,7 +3418,7 @@ with main_area.container():
                 display_disclaimer()            
     
             # --- Tab 4: 기관평가 (UI 출력 부분 다국어 적용) ---
-            with tab4:
+            elif selected_sub_menu == get_text('tab_4'):
                 curr_lang = st.session_state.lang
                 with st.spinner(get_text('msg_analyzing_institutional')):
                     result = get_unified_tab4_analysis(stock['name'], stock['symbol'], curr_lang)
@@ -3462,18 +3442,11 @@ with main_area.container():
             
                 with st.expander(get_text('expander_seeking_alpha'), expanded=False):
                     pro_con = pro_con_raw.replace('\\n', '\n').replace("###", "").strip()
-                    
-                    label_pro = get_text('sentiment_positive') # 다국어: 긍정적 / Positive / 肯定的
-                    label_con = get_text('sentiment_negative') # 다국어: 부정적 / Negative / 否定的
-                    
-                    # 💡 [핵심 수정] 새 프롬프트 형식에 맞춰 장단점 텍스트를 안전하게 치환
-                    pro_con = pro_con.replace("**Pros(장점)**:", f"**✅ {label_pro}**:")
-                    pro_con = pro_con.replace("**Cons(단점)**:", f"\n\n**🚨 {label_con}**:")
-                    pro_con = pro_con.replace("**Pros(長所)**:", f"**✅ {label_pro}**:")
-                    pro_con = pro_con.replace("**Cons(短所)**:", f"\n\n**🚨 {label_con}**:")
-                    pro_con = pro_con.replace("**Pros**:", f"**✅ {label_pro}**:")
-                    pro_con = pro_con.replace("**Cons**:", f"\n\n**🚨 {label_con}**:")
-                    
+                    label_pro = get_text('sentiment_positive'); label_con = get_text('sentiment_negative')
+                    pro_con = pro_con.replace("긍정:", f"**{label_pro}**:").replace("부정:", f"\n\n**{label_con}**:")
+                    pro_con = pro_con.replace("✅ 긍정", f"**{label_pro}**").replace("⚠️ 부정", f"\n\n**{label_con}**")
+                    pro_con = pro_con.replace("**Pros**:", f"**{label_pro}**:").replace("**Cons**:", f"\n\n**{label_con}**:")
+                    pro_con = pro_con.replace("Pros:", f"**{label_pro}**:").replace("Cons:", f"\n\n**{label_con}**:")
                     if "의견 수집 중" in pro_con or not pro_con: st.error(get_text('err_ai_analysis_failed'))
                     else: st.success(pro_con.replace('\n', '\n\n'))
             
@@ -3521,6 +3494,231 @@ with main_area.container():
                     st.markdown(f"- [Google Finance: {stock['name']} {get_text('label_market_trend')}](https://www.google.com/finance/quote/{q}:NASDAQ)")
             
                 draw_decision_box("ipo_report", get_text('decision_final_institutional'), [get_text('btn_buy'), get_text('sentiment_neutral'), get_text('btn_sell')])
+                display_disclaimer()
+                
+            # Tab 5 (의사결정 및 토론방)
+            elif selected_sub_menu == get_text('tab_5'):
+                # 💡 [핵심] 제목과 내용을 동시에 번역하는 주문형 번역 함수
+                def translate_post_on_demand(title, content, target_lang_code):
+                    if not title and not content: return {"title": "", "content": ""}
+                    target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語"
+                    
+                    prompt = f"""Please translate the following Title and Content to {target_lang_str}. 
+                    You MUST keep the exact string '|||SEP|||' between the translated Title and translated Content. 
+                    Do not add any quotes or extra explanations:
+                    
+                    {title}
+                    |||SEP|||
+                    {content}"""
+                    
+                    try:
+                        res_text = model.generate_content(prompt).text.strip()
+                        if "|||SEP|||" in res_text:
+                            t, c = res_text.split("|||SEP|||", 1)
+                            return {"title": t.strip(), "content": c.strip()}
+                        else:
+                            return {"title": title, "content": res_text}
+                    except: 
+                        return {"title": title, "content": content}
+
+                if 'translated_posts' not in st.session_state:
+                    st.session_state.translated_posts = {}
+
+                st.markdown("""
+                    <style>
+                    .stApp { background-color: #ffffff !important; color: #000000 !important; }
+                    p, h1, h2, h3, h4, h5, h6, span, li, div { color: #000000 !important; }
+                    .streamlit-expanderHeader { background-color: #f8f9fa !important; color: #000000 !important; border: 1px solid #ddd !important; }
+                    div[data-testid="stExpanderDetails"] { background-color: #ffffff !important; border: 1px solid #ddd !important; border-top: none !important; }
+                    </style>
+                """, unsafe_allow_html=True)
+                
+                sid = stock['symbol']
+                user_info = st.session_state.get('user_info') or {}
+                user_id = user_info.get('id', 'guest_id')
+                curr_lang = st.session_state.lang
+    
+                if 'user_decisions' not in st.session_state: st.session_state.user_decisions = {}
+                ud = st.session_state.user_decisions.get(sid, {})
+                
+                steps = [
+                    ('filing', 'Step 1'), ('news', 'Step 2'), 
+                    ('macro', 'Step 3'), ('company', 'Step 4'), 
+                    ('ipo_report', 'Step 5')
+                ]
+                
+                missing_steps = [label for step, label in steps if not ud.get(step)]
+                
+                if missing_steps:
+                    st.info(get_text('msg_need_all_steps'))
+                else:
+                    score_map = {"긍정적": 1, "수용적": 1, "안정적": 1, "저평가": 1, "매수": 1, "침체": 1, "중립적": 0, "중립": 0, "적정": 0, "부정적": -1, "회의적": -1, "버블": -1, "고평가": -1, "매도": -1}
+                    user_score = sum(score_map.get(ud.get(s[0], "중립적"), 0) for s in steps)
+                    if user_id != 'guest_id': db_save_user_decision(user_id, sid, user_score, ud)
+                    community_scores = db_load_community_scores(sid)
+                    if not community_scores: community_scores = [user_score]
+                    total_participants = len(community_scores)
+                    optimists = sum(1 for s in community_scores if s > 0)
+                    optimist_pct = (optimists / total_participants * 100) if total_participants > 0 else 0
+                    user_percentile = (sum(1 for s in community_scores if s <= user_score) / total_participants * 100) if total_participants > 0 else 100
+                    m1, m2 = st.columns(2)
+                    m1.metric(get_text('label_market_optimism'), f"{optimist_pct:.1f}%")
+                    m2.metric(get_text('label_my_position'), f"{get_text('label_top_pct')} {100-user_percentile:.1f}%", f"{user_score}{get_text('label_point')}")
+                    score_counts = pd.Series(community_scores).value_counts().sort_index()
+                    score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
+                    fig = go.Figure(go.Bar(x=score_counts.index, y=score_counts.values, marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index], hovertemplate="Score: %{x}<br>Users: %{y}<extra></extra>"))
+                    fig.update_layout(height=220, margin=dict(l=10, r=10, t=30, b=10), xaxis=dict(title="Total Score (-5 ~ +5)", tickmode='linear'), yaxis=dict(title="Participants", showticklabels=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(fig, use_container_width=True)
+    
+                st.write("<br>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>{get_text('label_community_forecast')}</div>", unsafe_allow_html=True)
+                up_voters, down_voters = db_load_sentiment_counts(sid)
+                total_votes = up_voters + down_voters
+                up_pct = (up_voters / total_votes * 100) if total_votes > 0 else 50
+                down_pct = (down_voters / total_votes * 100) if total_votes > 0 else 50
+                col_bull, col_bear = st.columns(2)
+                with col_bull: st.markdown(f"<div style='background-color: #ebfaef; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #c3e6cb;'><img src='https://img.icons8.com/color/96/bull.png' width='60' style='margin-bottom:10px;'><div style='color: #28a745; font-weight: 800; font-size: 1.2rem;'>BULLISH</div><div style='color: #333; font-size: 1.5rem; font-weight: 900;'>{up_pct:.1f}%</div></div>", unsafe_allow_html=True)
+                with col_bear: st.markdown(f"<div style='background-color: #fff5f5; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #feb2b2;'><img src='https://img.icons8.com/color/96/bear.png' width='60' style='margin-bottom:10px;'><div style='color: #dc3545; font-weight: 800; font-size: 1.2rem;'>BEARISH</div><div style='color: #333; font-size: 1.5rem; font-weight: 900;'>{down_pct:.1f}%</div></div>", unsafe_allow_html=True)
+    
+                if st.session_state.get('auth_status') == 'user':
+                    if sid not in st.session_state.watchlist:
+                        st.caption(get_text('msg_vote_guide'))
+                        c_up, c_down = st.columns(2)
+                        if c_up.button(get_text('btn_vote_up'), key=f"up_vote_{sid}", use_container_width=True, type="primary"):
+                            db_toggle_watchlist(user_id, sid, "UP", action='add')
+                            if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
+                            st.session_state.watchlist_predictions[sid] = "UP"
+                            st.rerun()
+                        if c_down.button(get_text('btn_vote_down'), key=f"dn_vote_{sid}", use_container_width=True):
+                            db_toggle_watchlist(user_id, sid, "DOWN", action='add')
+                            if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
+                            st.session_state.watchlist_predictions[sid] = "DOWN"
+                            st.rerun()
+                    else:
+                        pred = st.session_state.watchlist_predictions.get(sid, "N/A")
+                        color = "#28a745" if pred == "UP" else "#dc3545"
+                        pred_text = "BULLISH" if pred == "UP" else "BEARISH"
+                        st.markdown(f"<div style='padding: 15px; border-radius: 10px; border: 1px solid {color}; text-align: center; font-weight: bold; color: {color};'>{get_text('msg_my_choice')} {pred_text} </div>", unsafe_allow_html=True)
+                        if st.button(get_text('btn_cancel_vote'), key=f"rm_vote_{sid}", use_container_width=True):
+                            db_toggle_watchlist(user_id, sid, action='remove')
+                            if sid in st.session_state.watchlist: st.session_state.watchlist.remove(sid)
+                            if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
+                            st.rerun()
+                else: st.warning(get_text('msg_login_vote'))
+    
+                st.write("<br>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{sid} {get_text('label_discussion_board')}</div>", unsafe_allow_html=True)
+                with st.expander(get_text('expander_write')):
+                    if st.session_state.get('auth_status') == 'user':
+                        if check_permission('write'):
+                            with st.form(key=f"write_{sid}_form", clear_on_submit=True):
+                                new_title = st.text_input(get_text('label_title'))
+                                new_content = st.text_area(get_text('label_content'))
+                                if st.form_submit_button(get_text('btn_submit'), type="primary", use_container_width=True):
+                                    if new_title and new_content:
+                                        u_id = st.session_state.user_info.get('id')
+                                        try:
+                                            fresh_user = db_load_user(u_id)
+                                            d_name = fresh_user.get('display_name') or f"{u_id[:3]}***"
+                                            st.session_state.user_info = fresh_user
+                                        except: d_name = f"{u_id[:3]}***"
+                                        if db_save_post(sid, new_title, new_content, d_name, u_id):
+                                            st.success(get_text('msg_submitted'))
+                                            import time; time.sleep(0.5)
+                                            st.rerun()
+                    else: st.warning(get_text('msg_login_vote'))
+                
+                st.write("<br>", unsafe_allow_html=True)
+                sid_posts = db_load_posts(limit=100, category=sid)
+                if sid_posts:
+                    from datetime import datetime, timedelta
+                    three_days_ago = datetime.now() - timedelta(days=3)
+                    hot_candidates = []
+                    normal_posts = []
+                    for p in sid_posts:
+                        try:
+                            created_dt_str = str(p.get('created_at', '')).split('.')[0]
+                            created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
+                            if created_dt >= three_days_ago and p.get('likes', 0) > 0: hot_candidates.append(p)
+                            else: normal_posts.append(p)
+                        except: normal_posts.append(p)
+                    hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
+                    top_5_hot = hot_candidates[:5]
+                    normal_posts.extend(hot_candidates[5:])
+                    normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+                    page_key = f'detail_display_count_{sid}'
+                    if page_key not in st.session_state: st.session_state[page_key] = 5
+                    current_display = normal_posts[:st.session_state[page_key]]
+    
+                    def render_detail_post(p, is_hot=False):
+                        p_auth = p.get('author_name', 'Unknown')
+                        p_date = str(p.get('created_at', '')).split('T')[0]
+                        p_id = str(p.get('id'))
+                        p_uid = p.get('author_id')
+                        likes = p.get('likes') or 0
+                        dislikes = p.get('dislikes') or 0
+                        original_title = p.get('title', '')
+                        original_content = p.get('content', '')
+                        is_translated = p_id in st.session_state.translated_posts
+                        if is_translated:
+                            trans_data = st.session_state.translated_posts[p_id]
+                            if isinstance(trans_data, dict):
+                                display_title = trans_data.get('title', original_title)
+                                display_content = trans_data.get('content', original_content)
+                            else:
+                                display_title = original_title
+                                display_content = trans_data 
+                        else:
+                            display_title = original_title
+                            display_content = original_content
+                        prefix = "[HOT]" if is_hot else ""
+                        title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} (👍{likes}  👎{dislikes})"
+                        with st.expander(title_disp.strip()):
+                            st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-bottom:10px;'>{display_content}</div>", unsafe_allow_html=True)
+                            btn_c1, btn_c2, btn_c3, btn_c4 = st.columns([2.5, 1.5, 1.5, 1.5])
+                            with btn_c1:
+                                trans_label = get_text('btn_see_original') if is_translated else get_text('btn_see_translation')
+                                if st.button(trans_label, key=f"t_det_{p_id}", use_container_width=True):
+                                    if is_translated: del st.session_state.translated_posts[p_id]
+                                    else:
+                                        with st.spinner("Translating..."):
+                                            st.session_state.translated_posts[p_id] = translate_post_on_demand(original_title, original_content, curr_lang)
+                                    st.rerun()
+                            with btn_c2:
+                                if st.button(f"{get_text('btn_like')}{likes}", key=f"l_det_{p_id}", use_container_width=True):
+                                    if st.session_state.get('auth_status') == 'user': db_toggle_post_reaction(p_id, user_id, 'like'); st.rerun()
+                                    else: st.toast(get_text('msg_login_vote'))
+                            with btn_c3:
+                                if st.button(f"{get_text('btn_dislike')}{dislikes}", key=f"d_det_{p_id}", use_container_width=True):
+                                    if st.session_state.get('auth_status') == 'user': db_toggle_post_reaction(p_id, user_id, 'dislike'); st.rerun()
+                                    else: st.toast(get_text('msg_login_vote'))
+                            with btn_c4:
+                                raw_u_info = st.session_state.get('user_info')
+                                u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
+                                is_admin = u_info.get('role') == 'admin'
+                                if st.session_state.get('auth_status') == 'user':
+                                    if u_info.get('id') == p_uid or is_admin:
+                                        if st.button(get_text('btn_delete'), key=f"del_det_{p_id}", type="secondary", use_container_width=True):
+                                            if db_delete_post(p_id):
+                                                st.success(get_text('msg_deleted'))
+                                                import time; time.sleep(0.5)
+                                                st.rerun()
+                    if top_5_hot:
+                        st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>{get_text('label_hot_posts')}</div>", unsafe_allow_html=True)
+                        for p in top_5_hot: render_detail_post(p, is_hot=True)
+                        st.write("<br><br>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{get_text('label_recent_posts')}</div>", unsafe_allow_html=True)
+                    if current_display:
+                        for p in current_display: render_detail_post(p, is_hot=False)
+                    else: st.info(get_text('msg_no_recent_posts'))
+                    if len(normal_posts) > st.session_state[page_key]:
+                        st.write("<br>", unsafe_allow_html=True)
+                        if st.button(get_text('btn_load_more'), key=f"more_{sid}", use_container_width=True):
+                            st.session_state[page_key] += 10
+                            st.rerun()
+                else: st.info(get_text('msg_first_comment'))
+                
+                draw_decision_box("ipo_report", f"기관 분석을 참고한 나의 최종 판단은?", ["매수", "중립", "매도"])
                 display_disclaimer()
                 
             # Tab 5 (의사결정 및 토론방)은 기존 코드가 완벽히 다국어화되어 있으므로 그대로 사용하시면 됩니다.
