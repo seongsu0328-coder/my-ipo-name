@@ -1515,8 +1515,9 @@ def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
     if not model:
         return "AI 모델 설정 오류: API 키를 확인하세요."
     
-    # [Step 1] 언어별 캐시 분리 (중요: 언어가 다르면 새로 생성하게 함)
-    cache_key = f"{company_name}_{topic}_Tab0_{lang_code}"
+    # [Step 1] 언어별 캐시 분리 (언어가 다르면 새로 생성하여 혼용 방지)
+    # 💡 캐시 키 버전업(_v4_)을 통해 기존의 잘못된 한국어 캐시를 즉시 무효화합니다.
+    cache_key = f"{company_name}_{topic}_Tab0_v4_{lang_code}"
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
@@ -1534,35 +1535,39 @@ def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
 
     target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
 
-    # 💡 [개선] 대표님의 금지 문구를 포함하여 언어별로 최적화된 지시문 설정
+    # 💡 [핵심 개선] 프롬프트 뼈대와 페르소나 지시문을 해당 언어로 완전 번역
+    # AI에게 한국어 지시문을 아예 보여주지 않아야 외국어 버전에서 한국어가 섞이지 않습니다.
     if lang_code == 'en':
         labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
-        no_intro_prompt = 'CRITICAL: NEVER introduce yourself (e.g., "I am an analyst") or use greetings like "Okay, let\'s analyze". START IMMEDIATELY with the first [Heading].'
+        role_desc = "You are a professional senior analyst from Wall Street."
+        no_intro_prompt = 'CRITICAL: NEVER introduce yourself (e.g., "I am an analyst") or use filler greetings like "Okay, let\'s analyze". START IMMEDIATELY with the first localized **[Heading]**.'
     elif lang_code == 'ja':
         labels = ["分析対象", "指針", "内容構成および形式", "文体ガイド"]
-        no_intro_prompt = '【重要】「私はアナリストです」などの自己紹介や、「はい、分析します」などの挨拶・前置きは絶対に禁止です。1文字目からいきなり本論（**[見出し]**）で始めてください。'
+        role_desc = "あなたはウォール街出身の専門分析家です。"
+        no_intro_prompt = '【重要】「私はアナリストです」などの自己紹介や、「はい、分析します」などの挨拶・前置きは絶対に禁止です。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
     else:
         labels = ["분석 대상", "지침", "내용 구성 및 형식 - 반드시 아래 형식을 따를 것", "문체 가이드"]
-        no_intro_prompt = '단, "저는 분석가입니다", "네, 분석해드리겠습니다" 같은 자기소개나 인사말은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
+        role_desc = "당신은 월가 출신의 전문 분석가입니다."
+        no_intro_prompt = '단, "저는 분석가입니다", "네, 분석해드리겠습니다" 같은 자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
 
     max_retries = 3
     for i in range(max_retries):
         try:
-            # 💡 대표님이 요청하신 원본 프롬프트 내용을 그대로 유지하며 레이블만 현지화
+            # 💡 대표님의 원본 지침을 유지하되, 모든 레이블을 현지화하여 언어 혼동을 방지합니다.
             prompt = f"""
-            {labels[0]}: {company_name}의 {topic} 서류
+            {labels[0]}: {company_name} - {topic}
             {labels[1]} (Checkpoints): {points}
             
             [{labels[1]}]
-            당신은 월가 출신의 전문 분석가입니다. 
+            {role_desc}
             {no_intro_prompt}
             
             [{labels[2]}]
-            각 문단의 시작에 **[소제목]**을 붙여서 내용을 명확히 구분하고 굵은 글씨를 생략하지 마세요.
+            각 문단의 시작에 해당 언어로 번역된 **[소제목]**을 붙여서 내용을 명확히 구분하고 굵은 글씨를 생략하지 마세요.
             {structure_template}
 
             [{labels[3]}]
-            - 반드시 '{target_lang}'로 작성하세요.
+            - 반드시 '{target_lang}'로만 작성하세요. (절대 다른 언어를 섞지 마세요)
             - 문장 끝이 끊기지 않도록 매끄럽게 연결하세요.
             - 핵심 위주로 작성하되, 너무 짧은 요약보다는 풍부한 인사이트를 담아주세요.
             """
