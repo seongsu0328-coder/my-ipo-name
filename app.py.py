@@ -502,7 +502,19 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
     # [Step 2] 캐시 없으면 AI 분석 실행
     current_date = now.strftime("%Y-%m-%d")
     one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
-    target_lang = LANG_PROMPT_MAP.get(lang_code, '전문적인 한국어(Korean)')
+    
+    # 💡 [핵심] 언어 타겟팅 강화 (사전 정의 안되어 있어도 강제 매핑)
+    LANG_MAP = {
+        'ko': '전문적인 한국어 (Korean)',
+        'en': 'Professional English',
+        'ja': '専門的な日本語 (Japanese)'
+    }
+    target_lang = LANG_MAP.get(lang_code, '전문적인 한국어(Korean)')
+
+    # 언어 강제 지시문 추가
+    lang_instruction = f"All your responses (business analysis and translated titles) MUST be strictly in {target_lang}."
+    if lang_code == 'ja':
+        lang_instruction = "必ず日本語(Japanese)のみで作成してください。ビジネス分析も翻訳されたタイトルもすべて日本語です。"
 
     prompt = f"""
     당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다.
@@ -511,7 +523,7 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
 
     [작업 1: 비즈니스 모델 심층 분석]
     아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
-    1. 언어: 반드시 '{target_lang}'로만 작성하세요. (영어 고유명사 제외). 
+    1. 언어: {lang_instruction} (영어 고유명사 제외)
     2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
        - 1문단: 비즈니스 모델 및 경쟁 우위 (독점력, 시장 지배력 등)
        - 2문단: 재무 현황 및 공모 자금 활용 (매출 추이, 흑자 전환 여부, 자금 사용처)
@@ -3246,7 +3258,7 @@ with main_area.container():
                     
                     for i, n in enumerate(final_display_news):
                         en_title = n.get('title_en', 'No Title')
-                        trans_title = n.get('title_ko', '') # AI가 선택한 언어로 번역한 결과
+                        trans_title = n.get('translated_title', '') # 💡 다국어 대응 키로 변경!
                         
                         # 감성 라벨 다국어 매핑
                         raw_sentiment = n.get('sentiment', '일반')
