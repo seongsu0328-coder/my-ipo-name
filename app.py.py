@@ -2916,22 +2916,21 @@ with main_area.container():
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        # 💡 [최종 해결책] 2단 렌더링을 위한 상태 플래그(detail_init_render) 추가
+                        # 💡 [최종 해결책] 다른 종목을 클릭할 때마다 반드시 스위치를 꺼줍니다!
                         def go_detail(stock_data):
                             st.session_state.selected_stock = stock_data
                             st.session_state.page = 'detail'
-                            st.session_state.detail_init_render = False # 핵심!
+                            st.session_state.detail_init_render = False # 👈 핵심! 이 한 줄을 꼭 넣어주세요!
 
-                        # 불필요한 폭파 로직 삭제 (이벤트 콜백만 깔끔하게 남김)
                         if st.button(f"{row['name']}", key=f"btn_list_{i}", on_click=go_detail, args=(row.to_dict(),)):
-                            pass 
+                            pass # 👈 main_area.empty() 같은 폭파 코드는 이제 필요 없습니다. 비워두세요.
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                         except: s_val = 0
                         size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
                         
                         st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
-                        
+                    
                     with c2:
                         st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                     
