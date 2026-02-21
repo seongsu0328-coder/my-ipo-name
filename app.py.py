@@ -4269,7 +4269,7 @@ with main_area.container():
                 
                 st.write("<br>", unsafe_allow_html=True)
                 
-                # [2] DB에서 해당 종목 관련 글 넉넉히 로드
+                # [2] DB에서 해당 종목 관련 글 로드
                 sid_posts = db_load_posts(limit=100, category=sid)
                 
                 if sid_posts:
@@ -4300,7 +4300,7 @@ with main_area.container():
                         st.session_state[page_key] = 5
                     current_display = normal_posts[:st.session_state[page_key]]
     
-                    # 💡 종목 토론방 전용 UI 렌더러 (제목+내용 번역)
+                    # 💡 종목 토론방 전용 UI 렌더러 (에러 방지 적용)
                     def render_detail_post(p, is_hot=False):
                         p_auth = p.get('author_name', 'Unknown')
                         p_date = str(p.get('created_at', '')).split('T')[0]
@@ -4312,12 +4312,16 @@ with main_area.container():
                         original_title = p.get('title', '')
                         original_content = p.get('content', '')
                         
-                        # 번역 상태 확인 및 스와핑
+                        # 번역 상태 확인 및 스와핑 (구버전 캐시 방어코드 포함)
                         is_translated = p_id in st.session_state.translated_posts
                         if is_translated:
                             trans_data = st.session_state.translated_posts[p_id]
-                            display_title = trans_data.get('title', original_title)
-                            display_content = trans_data.get('content', original_content)
+                            if isinstance(trans_data, dict):
+                                display_title = trans_data.get('title', original_title)
+                                display_content = trans_data.get('content', original_content)
+                            else:
+                                display_title = original_title
+                                display_content = trans_data 
                         else:
                             display_title = original_title
                             display_content = original_content
@@ -4418,7 +4422,11 @@ with main_area.container():
         main_text = get_text('menu_main')
         watch_text = f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})"
         board_text = get_text('menu_board')
-        back_text = "🔙 Back" if st.session_state.lang == 'en' else "🔙 뒤로가기"
+        
+        # 언어별 뒤로가기 버튼 텍스트 설정
+        if st.session_state.lang == 'en': back_text = "🔙 Back"
+        elif st.session_state.lang == 'ja': back_text = "🔙 戻る"
+        else: back_text = "🔙 뒤로가기"
         
         menu_options = [login_text]
         if is_logged_in: menu_options.append(settings_text)
@@ -4485,12 +4493,33 @@ with main_area.container():
         
         current_display = normal_posts[:st.session_state.board_display_count]
     
-        # 💡 메인 게시판 전용 번역 상태 초기화
+        # 💡 [핵심] 게시판용 번역 함수 및 UI 렌더러
         curr_lang = st.session_state.lang
         if 'translated_posts' not in st.session_state:
             st.session_state.translated_posts = {}
 
-        # 💡 메인 게시판 UI 렌더러 (제목+내용 번역)
+        def translate_post_on_demand(title, content, target_lang_code):
+            if not title and not content: return {"title": "", "content": ""}
+            target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語"
+            
+            prompt = f"""Please translate the following Title and Content to {target_lang_str}. 
+            You MUST keep the exact string '|||SEP|||' between the translated Title and translated Content. 
+            Do not add any quotes or extra explanations:
+            
+            {title}
+            |||SEP|||
+            {content}"""
+            
+            try:
+                res_text = model.generate_content(prompt).text.strip()
+                if "|||SEP|||" in res_text:
+                    t, c = res_text.split("|||SEP|||", 1)
+                    return {"title": t.strip(), "content": c.strip()}
+                else:
+                    return {"title": title, "content": res_text}
+            except: 
+                return {"title": title, "content": content}
+
         def render_board_post(p, is_hot=False):
             p_auth = p.get('author_name', 'Unknown')
             p_date = str(p.get('created_at', '')).split('T')[0]
@@ -4503,12 +4532,16 @@ with main_area.container():
             original_title = p.get('title', '')
             original_content = p.get('content', '')
             
-            # 번역 상태 확인 및 제목/내용 스와핑
+            # 번역 상태 확인 및 스와핑 (에러 방지 적용)
             is_translated = p_id in st.session_state.translated_posts
             if is_translated:
                 trans_data = st.session_state.translated_posts[p_id]
-                display_title = trans_data.get('title', original_title)
-                display_content = trans_data.get('content', original_content)
+                if isinstance(trans_data, dict):
+                    display_title = trans_data.get('title', original_title)
+                    display_content = trans_data.get('content', original_content)
+                else:
+                    display_title = original_title
+                    display_content = trans_data
             else:
                 display_title = original_title
                 display_content = original_content
