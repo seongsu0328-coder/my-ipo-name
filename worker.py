@@ -285,57 +285,81 @@ def run_tab1_analysis(ticker, company_name):
 
 
 def run_tab4_analysis(ticker, company_name):
-    """Tab 4: 월가 기관 분석 (강력 파싱 버전 동기화)"""
+    """Tab 4: 월가 기관 분석 (강력 파싱 + 디테일 프롬프트 보존판 - Worker 용)"""
     if not model: return False
     
+    # worker.py는 지원하는 모든 언어(SUPPORTED_LANGS)를 순회하며 모두 캐싱합니다.
     for lang_code, _ in SUPPORTED_LANGS.items():
         cache_key = f"{ticker}_Tab4_{lang_code}"
         
-        # 💡 [핵심] JSON 포맷 내의 pro_con 항목까지 해당 언어로 강제
+        LANG_MAP = {
+            'ko': '한국어 (Korean)',
+            'en': '영어 (English)',
+            'ja': '일본어 (Japanese)'
+        }
+        target_lang = LANG_MAP.get(lang_code, '한국어 (Korean)')
+
+        # 💡 [핵심] 언어 혼용 방지 프롬프트 (app.py와 완벽히 동일한 구조)
         if lang_code == 'ja':
-            sys_prompt = "あなたはウォール街出身のIPO専門アナリストです。必ず日本語で作成してください。韓国語を混ぜないでください。"
-            json_format = """
-            "summary": "日本語での専門的な3行要約",
-            "pro_con": "**Pros(長所)**:\\n- 内容\\n\\n**Cons(短所)**:\\n- 内容 (必ず日本語で)",
-            """
+            lang_instruction = "必ず日本語(Japanese)のみで作成してください。すべての文章は日本語である必要があります。韓国語は絶対に混ぜないでください。"
+            json_summary = "日本語による専門的な3行要約"
+            json_pro_con = "**Pros(長所)**:\\n- 内容\\n\\n**Cons(短所)**:\\n- 内容 (必ず日本語で)"
         elif lang_code == 'en':
-            sys_prompt = "You are an IPO specialized analyst from Wall Street. Respond strictly in English. Do not mix Korean."
-            json_format = """
-            "summary": "Professional 3-line summary in English",
-            "pro_con": "**Pros**:\\n- Details\\n\\n**Cons**:\\n- Details (all in English)",
-            """
+            lang_instruction = "Respond strictly in English. Do not mix Korean or any other languages. All sentences must be in English."
+            json_summary = "Professional 3-line summary in English"
+            json_pro_con = "**Pros**:\\n- Details\\n\\n**Cons**:\\n- Details (All in English)"
         else:
-            sys_prompt = "당신은 월가 출신의 IPO 전문 분석가입니다. 반드시 한국어로 답변하세요."
-            json_format = """
-            "summary": "한국어 전문 3줄 요약",
-            "pro_con": "**Pros(장점)**:\\n- 내용\\n\\n**Cons(단점)**:\\n- 내용 (한국어)",
-            """
+            lang_instruction = "반드시 한국어로 작성하세요."
+            json_summary = "한국어 전문 3줄 요약"
+            json_pro_con = "**Pros(장점)**:\\n- 내용\\n\\n**Cons(단점)**:\\n- 내용 (한국어)"
 
         prompt = f"""
-        {sys_prompt}
-        구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 찾아 심층 분석하세요.
+        당신은 월가 출신의 IPO 전문 분석가입니다. 
+        구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
 
         [작성 지침]
-        1. 분석 깊이: 단순 사실 나열이 아닌 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
-        2. Rating: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
-        3. 링크 위치: 참조한 리포트의 실제 URL은 반드시 하단의 "links" 리스트 안에만 기입하세요.
-
+        1. **언어**: 반드시 '{target_lang}'로 답변하세요. {lang_instruction}
+        2. **분석 깊이**: 단순 사실 나열이 아닌, 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
+        3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
+        4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
+        5. **Summary**: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
+        6. **링크 위치 구분**: 
+           - 'summary'와 'pro_con' 본문 안에는 절대 URL(http...)을 넣지 마세요. 
+           - 대신, 참조한 리포트의 실제 URL은 반드시 하단의 **"links" 리스트 안에만** 정확히 기입하세요. AI의 거절 문구(links를 제공할 수 없다 등)를 리스트에 넣지 마세요.
+           
         <JSON_START>
         {{
             "rating": "Buy/Hold/Sell 중 하나",
-            {json_format}
-            "links": [ {{"title": "검색된 리포트 제목", "link": "URL"}} ]
+            "summary": "{json_summary}",
+            "pro_con": "{json_pro_con}",
+            "links": [
+                {{"title": "검색된 리포트 제목", "link": "URL"}}
+            ]
         }}
         <JSON_END>
         """
+        
         try:
             response = model.generate_content(prompt)
-            match = re.search(r'<JSON_START>(.*?)<JSON_END>', response.text, re.DOTALL)
-            if match:
-                clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', match.group(1).strip())
+            full_text = response.text
+            
+            json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
+            json_str = json_match.group(1).strip() if json_match else ""
+
+            if not json_str:
+                json_match = re.search(r'\{.*\}', full_text, re.DOTALL)
+                json_str = json_match.group(0).strip() if json_match else ""
+
+            if json_str:
+                clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
+                # worker.py는 batch_upsert를 사용하여 DB에 밀어 넣습니다.
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": clean_str, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+            
+            # API 제한(Rate Limit) 방지를 위한 휴식
             time.sleep(1)
-        except: pass
+        except Exception as e:
+            # worker.py는 에러가 나도 터지지 않고 다음 종목으로 넘어가도록 조용히 넘깁니다.
+            pass
 
 def run_tab3_analysis(ticker, company_name, metrics):
     """Tab 3: 재무 데이터 분석 리포트"""
