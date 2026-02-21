@@ -117,37 +117,73 @@ def get_target_stocks():
 # ==========================================
 
 def run_tab0_analysis(ticker, company_name):
-    """Tab 0: 공시 분석 (프롬프트 뼈대 및 v9 캐시키 동기화)"""
+    """Tab 0: 공시 5종 분석 (포맷팅 강제 예시 적용 + v10 캐시키)"""
     if not model: return
     
     def_meta = {
         "S-1": {
             "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
             "structure": """
-            [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-            1. **[투자포인트]** : 해당 문서에서 발견된 가장 중요한 투자 포인트를 구체적인 수치나 근거와 함께 상세히 서술하세요.
-            2. **[성장가능성]** : MD&A(경영진 분석)를 통해 본 기업의 실질적 성장 가능성과 재무적 함의를 깊이 있게 분석하세요.
-            3. **[핵심리스크]** : 투자자가 반드시 경계해야 할 핵심 리스크 1가지와 그 파급 효과 및 대응책을 구체적으로 서술하세요.
+            [문단 구성 지침]
+            1. 첫 번째 문단: 해당 문서에서 발견된 가장 중요한 투자 포인트 분석
+            2. 두 번째 문단: 실질적 성장 가능성과 재무적 의미 분석
+            3. 세 번째 문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책
+            """
+        },
+        "S-1/A": {
+            "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 이전 S-1 대비 변경된 핵심 사항 분석
+            2. 두 번째 문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기 분석
+            3. 세 번째 문단: 기존 주주 가치 희석 정도와 투자 매력도 분석
+            """
+        },
+        "F-1": {
+            "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위
+            2. 두 번째 문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크 분석
+            3. 세 번째 문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향
+            """
+        },
+        "FWP": {
+            "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전
+            2. 두 번째 문단: 경쟁사 대비 부각시키는 기술적/사업적 차별화 포인트
+            3. 세 번째 문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지
             """
         },
         "424B4": {
             "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
             "structure": """
-            [내용 구성 - 반드시 3문단으로 나누어 상세하고 풍성하게 작성할 것]
-            1. **[최종공모가]** : 확정된 공모가가 희망 밴드 상단인지 하단인지 분석하고, 그 의미(시장 수요)를 해석하세요.
-            2. **[자금활용]** : 확정된 조달 자금이 구체적으로 어떤 우선순위 사업에 투입될 예정인지 최종 점검하세요.
-            3. **[상장후 전망]** : 주관사단 구성과 배정 물량을 바탕으로 상장 초기 유통 물량 부담이나 변동성을 예측하세요.
+            [문단 구성 지침]
+            1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석
+            2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검
+            3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측
             """
         }
     }
 
-    # 워커에서는 핵심 서류 2가지만 우선 처리 (비용/시간 절약)
-    for topic in ["S-1", "424B4"]:
+    format_instruction = """
+    [출력 형식 및 번역 규칙 - 반드시 지킬 것]
+    - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
+    - 올바른 예시(영어): **[Investment Point]** The company's main advantage is...
+    - 올바른 예시(일본어): **[投資ポイント]** 同社の最大の強みは...
+    - 금지 예시(한국어 병기 절대 금지): **[Investment Point - 투자포인트]** (X)
+    - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
+    """
+
+    # 💡 워커에서도 5가지 주요 서류를 모두 캐싱하도록 확장
+    for topic in ["S-1", "S-1/A", "F-1", "FWP", "424B4"]:
         curr_meta = def_meta[topic]
         
         for lang_code, target_lang in SUPPORTED_LANGS.items():
-            # 🚨 [핵심] app.py와 동일한 캐시 키 적용 (v9)
-            cache_key = f"{company_name}_{topic}_Tab0_v9_{lang_code}"
+            # 🚨 [캐시키 동기화] v10
+            cache_key = f"{company_name}_{topic}_Tab0_v10_{lang_code}"
             
             if lang_code == 'en':
                 labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
@@ -157,8 +193,8 @@ def run_tab0_analysis(ticker, company_name):
             elif lang_code == 'ja':
                 labels = ["分析対象", "指針", "内容構成および形式", "文体ガイド"]
                 role_desc = "あなたはウォール街出身の専門分析家です。"
-                no_intro_prompt = '【重要】自己紹介や挨拶は絶対に禁止です。見出しに韓国語を併記しないでください。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
-                lang_directive = "構成 가이드는 참고용으로 한국어로 제공되나, 모든 제목과 내용은 반드시 일본어로만 작성하세요."
+                no_intro_prompt = '【重要】自己紹介は絶対に禁止です。見出しに韓国語を併記しないでください。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
+                lang_directive = "構成 가이드는 참고용으로 한국어로提供되나,すべての見出しと内容は必ず日本語(Japanese)のみで作成してください。"
             else:
                 labels = ["분석 대상", "지침", "내용 구성 및 형식 - 반드시 아래 형식을 따를 것", "문체 가이드"]
                 role_desc = "당신은 월가 출신의 전문 분석가입니다."
@@ -175,8 +211,8 @@ def run_tab0_analysis(ticker, company_name):
             {lang_directive}
             
             [{labels[2]}]
-            각 문단의 시작에 해당 언어로 번역된 **[소제목]**을 붙여서 내용을 명확히 구분하고 굵은 글씨를 생략하지 마세요.
             {curr_meta['structure']}
+            {format_instruction}
 
             [{labels[3]}]
             - 반드시 '{target_lang}'로만 작성하세요. (절대 다른 언어를 섞지 마세요)
@@ -185,7 +221,7 @@ def run_tab0_analysis(ticker, company_name):
             try:
                 response = model.generate_content(prompt)
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-                time.sleep(1)
+                time.sleep(1) # API 차단 방지 휴식
             except: pass
 
 def run_tab1_analysis(ticker, company_name):
