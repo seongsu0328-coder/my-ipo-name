@@ -3261,8 +3261,11 @@ with main_area.container():
                     curr_lang = st.session_state.lang # 현재 언어 상태 확인
                     
                     for i, n in enumerate(final_display_news):
+                        # 영어 원문 제목
                         en_title = n.get('title_en', 'No Title')
-                        trans_title = n.get('translated_title', '') # 💡 다국어 대응 키로 변경!
+                        
+                        # 💡 [핵심] AI가 키 이름을 마음대로 바꿨을 경우를 대비한 모든 경우의 수 방어
+                        trans_title = n.get('translated_title') or n.get('title_ko') or n.get('title_ja') or n.get('title_jp') or n.get('title', '')
                         
                         # 감성 라벨 다국어 매핑
                         raw_sentiment = n.get('sentiment', '일반')
@@ -3276,18 +3279,16 @@ with main_area.container():
                         news_date = n.get('date', 'Recent')
     
                         # 특수 기호 처리
-                        safe_en = en_title.replace("$", "\$")
-                        safe_trans = trans_title.replace("$", "\$")
+                        safe_en = str(en_title).replace("$", "\$")
+                        safe_trans = str(trans_title).replace("$", "\$")
                         
-                        # 💡 [핵심] 언어별 서브 제목 HTML 구성 로직
+                        # 💡 번역된 제목이 존재하고, 원문(영어)과 내용이 다를 때만 렌더링
                         sub_title_html = ""
-                        if curr_lang == 'ko':
-                            # 한국어 모드: 영문 제목 + 한국어 번역
-                            sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_trans}</span>"
-                        elif curr_lang == 'ja':
-                            # 일본어 모드: 영문 제목 + 일본어 번역
-                            sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇯🇵 {safe_trans}</span>"
-                        # 'en' (영어) 모드일 경우 sub_title_html은 빈 문자열로 유지되어 영문 제목만 출력됨
+                        if safe_trans and safe_trans != safe_en: 
+                            if curr_lang == 'ko':
+                                sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_trans}</span>"
+                            elif curr_lang == 'ja':
+                                sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇯🇵 {safe_trans}</span>"
 
                         # 배지 및 카드 렌더링
                         s_badge = f'<span style="background:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{sentiment_label}</span>'
