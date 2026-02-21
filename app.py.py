@@ -3386,42 +3386,71 @@ with main_area.container():
                     
                     if md.get('unprofitable_pct', 0) >= 80:
                         st.warning("🚨 **WARNING:** High risk IPO market." if st.session_state.lang != 'ko' else "🚨 **경고:** 적자 기업 비율이 매우 높습니다.")
-                # [4] 참고논문 (expander - 원본 리스트 100% 복구)
+                # [4] 참고논문 (expander - 다국어 적용 최종본)
                 with st.expander(get_text('expander_references'), expanded=False):
-                    st.markdown("""
-                    <style>
-                        .ref-container { margin-top: 5px; }
-                        .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
-                        .ref-item:hover { background-color: #fafafa; padding-left: 5px; padding-right: 5px; }
-                        .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
-                        .ref-author { font-size: 12px; color: #666; margin-top: 2px; }
-                        .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 10px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; white-space: nowrap; }
-                        .ref-btn:hover { border-color: #004e92; color: #004e92; background-color: #f0f7ff; }
-                        .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 10px; font-weight: bold; margin-bottom: 5px; }
-                    </style>
-                    """, unsafe_allow_html=True)
-    
-                    # 🚨 [복구 완]: 원본의 모든 참고 문헌 데이터 리스트
+                    # (기존 스타일 정의 CSS 코드는 그대로 유지하세요)
+                    
+                    # 🚨 [수정 완료]: 모든 라벨과 요약을 get_text()로 연결
                     references = [
-                        { "label": "IPO 데이터", "title": "Initial Public Offerings: Updated Statistics", "author": "Jay R. Ritter (Warrington College)", "summary": "미국 IPO 시장의 성적표와 공모가 저평가(Underpricing) 통계의 결정판", "link": "https://site.warrington.ufl.edu/ritter/ipo-data/" },
-                        { "label": "시장 과열", "title": "'Hot Issue' Markets (Ibbotson & Jaffe)", "author": "Ibbotson & Jaffe (1975)", "summary": "특정 시기에 IPO 수익률이 비정상적으로 높아지는 '시장 과열' 현상 규명", "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets" },
-                        { "label": "상장 철회", "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", "author": "Dunbar (1998)", "summary": "상장 방식 선택에 따른 기업 가치와 상장 철회 위험의 상관관계 분석", "link": "https://scholar.google.com/scholar?q=Dunbar+1995+The+Choice+Between+Firm-Commitment+and+Best-Efforts+IPOs" },
-                        { "label": "시장 변동성", "title": "VIX White Paper: CBOE Volatility Index", "author": "CBOE (Official)", "summary": "S&P 500 옵션을 기반으로 시장의 공포와 변동성을 측정하는 표준 지표", "link": "https://www.cboe.com/micro/vix/vixwhite.pdf" },
-                        { "label": "밸류에이션", "title": "Warren Buffett on the Stock Market (Fortune Classic)", "author": "Warren Buffett (2001)", "summary": "GDP 대비 시가총액 비율을 통해 시장의 고평가 여부를 판단하는 버핏 지표", "link": "https://www.gurufocus.com/news/122602/warren-buffett-on-the-stock-market-2001-article" },
-                        { "label": "기초 데이터", "title": "U.S. Stock Markets 1871-Present (CAPE Ratio)", "author": "Robert Shiller", "summary": "경기조정주가수익비율(CAPE)을 활용한 장기적 주식 시장 밸류에이션 데이터", "link": "http://www.econ.yale.edu/~shiller/data.htm" },
-                        { "label": "투자자 심리", "title": "Fear & Greed Index (Real-time)", "author": "CNN Business", "summary": "7가지 지표를 통합해 투자자의 탐욕과 공포 수준을 0~100으로 수치화", "link": "https://edition.cnn.com/markets/fear-and-greed" }
+                        { 
+                            "label": get_text('ref_label_ipo'), 
+                            "title": "Initial Public Offerings: Updated Statistics", 
+                            "author": "Jay R. Ritter (Warrington College)", 
+                            "summary": get_text('ref_sum_ipo'), 
+                            "link": "https://site.warrington.ufl.edu/ritter/ipo-data/" 
+                        },
+                        { 
+                            "label": get_text('ref_label_overheat'), 
+                            "title": "'Hot Issue' Markets (Ibbotson & Jaffe)", 
+                            "author": "Ibbotson & Jaffe (1975)", 
+                            "summary": get_text('ref_sum_overheat'), 
+                            "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets" 
+                        },
+                        { 
+                            "label": get_text('ref_label_withdrawal'), 
+                            "title": "The Choice Between Firm-Commitment and Best-Efforts IPOs", 
+                            "author": "Dunbar (1998)", 
+                            "summary": get_text('ref_sum_withdrawal'), 
+                            "link": "https://scholar.google.com/scholar?q=Dunbar+1995+The+Choice+Between+Firm-Commitment+and+Best-Efforts+IPOs" 
+                        },
+                        { 
+                            "label": get_text('ref_label_vix'), 
+                            "title": "VIX White Paper: CBOE Volatility Index", 
+                            "author": "CBOE (Official)", 
+                            "summary": get_text('ref_sum_vix'), 
+                            "link": "https://www.cboe.com/micro/vix/vixwhite.pdf" 
+                        },
+                        { 
+                            "label": get_text('ref_label_buffett'), 
+                            "title": "Warren Buffett on the Stock Market (Fortune Classic)", 
+                            "author": "Warren Buffett (2001)", 
+                            "summary": get_text('ref_sum_buffett'), 
+                            "link": "https://www.gurufocus.com/news/122602/warren-buffett-on-the-stock-market-2001-article" 
+                        },
+                        { 
+                            "label": get_text('ref_label_cape'), 
+                            "title": "U.S. Stock Markets 1871-Present (CAPE Ratio)", 
+                            "author": "Robert Shiller", 
+                            "summary": get_text('ref_sum_cape'), 
+                            "link": "http://www.econ.yale.edu/~shiller/data.htm" 
+                        },
+                        { 
+                            "label": get_text('ref_label_feargreed'), 
+                            "title": "Fear & Greed Index (Real-time)", 
+                            "author": "CNN Business", 
+                            "summary": get_text('ref_sum_feargreed'), 
+                            "link": "https://edition.cnn.com/markets/fear-and-greed" 
+                        }
                     ]
     
                     for ref in references:
-                        # 요약 및 라벨 다국어화 보조 (영어일 때만 영어로 자동 전환)
-                        disp_sum = ref['summary'] if st.session_state.lang == 'ko' else "Academic reference for market data."
                         st.markdown(f"""
                         <div class='ref-item'>
                             <div style='flex:1;'>
                                 <div class='ref-badge'>{ref['label']}</div><br>
                                 <a href='{ref['link']}' target='_blank' class='ref-title' style='display:block; margin-bottom:4px;'>📄 {ref['title']}</a>
                                 <div style='font-size: 13px; color: #666; line-height: 1.5;'>
-                                    <span>{disp_sum}, {ref['author']}</span>
+                                    <span>{ref['summary']}, {ref['author']}</span>
                                 </div>
                             </div>
                             <div style='margin-left: 15px; align-self: center;'>
