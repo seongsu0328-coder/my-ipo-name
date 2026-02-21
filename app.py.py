@@ -586,16 +586,27 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
     except Exception as e:
         print(f"Tab4 DB Error: {e}")
 
-    # 현재 언어 설정 가져오기 (없으면 한국어 기본)
-    target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
+    # 💡 [수정] 내부에서 언어 맵핑을 직접 확인하여 안전성 강화
+    # 만약 상단의 LANG_PROMPT_MAP에 ja가 없어도 여기서 강제로 잡아줍니다.
+    LANG_MAP = {
+        'ko': '한국어 (Korean)',
+        'en': '영어 (English)',
+        'ja': '일본어 (Japanese)'
+    }
+    target_lang = LANG_MAP.get(lang_code, '한국어 (Korean)')
 
     # [Step 2] 캐시 없으면 강력 프롬프트로 분석
+    # 💡 일본어일 경우 지시어에 일본어를 섞어주어 AI의 언어 고정력을 높입니다.
+    lang_instruction = f"Respond strictly in {target_lang}."
+    if lang_code == 'ja':
+        lang_instruction = "必ず日本語(Japanese)으로 작성하세요. 모든 문장은 일본어여야 합니다."
+
     prompt = f"""
     당신은 월가 출신의 IPO 전문 분석가입니다. 
     구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
 
     [작성 지침]
-    1. **언어**: 반드시 '{target_lang}'로 답변하세요.
+    1. **언어**: 반드시 '{target_lang}'로 답변하세요. {lang_instruction}
     2. **분석 깊이**: 단순 사실 나열이 아닌, 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
     3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
     4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
@@ -605,7 +616,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell 중 하나",
-        "summary": "전문적인 3줄 요약 내용 ({target_lang})",
+        "summary": "{target_lang}による専門적인 3줄 요약 내용",
         "pro_con": "**Pros**:\\n- 내용\\n\\n**Cons**:\\n- 내용 (언어: {target_lang})",
         "links": [
             {{"title": "검색된 리포트 제목", "link": "URL"}}
@@ -618,7 +629,6 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
         response = model.generate_content(prompt)
         full_text = response.text
         
-        # 기존의 강력 파싱 로직 적용
         json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
         if json_match:
             json_str = json_match.group(1).strip()
@@ -631,7 +641,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
                 clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
                 result_data = json.loads(clean_str, strict=False)
                 
-                # [Step 3] 파싱 성공 시 DB에 저장 (언어별 키로 저장)
+                # [Step 3] 파싱 성공 시 DB에 저장
                 supabase.table("analysis_cache").upsert({
                     "cache_key": cache_key,
                     "content": json.dumps(result_data, ensure_ascii=False),
@@ -641,7 +651,9 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
                 return result_data
             except: pass
 
-        return {"rating": "N/A", "summary": "분석 데이터를 정제하는 중입니다.", "pro_con": full_text[:300], "links": []}
+        # 실패 시 대비용 텍스트 (다국어 대응)
+        default_summary = "Analyzing data..." if lang_code == 'en' else ("分析データを精査 중입니다." if lang_code == 'ja' else "분석 데이터를 정제하는 중입니다.")
+        return {"rating": "N/A", "summary": default_summary, "pro_con": full_text[:300], "links": []}
     except Exception as e:
         return {"rating": "Error", "summary": f"오류 발생: {str(e)}", "pro_con": "", "links": []}
         
