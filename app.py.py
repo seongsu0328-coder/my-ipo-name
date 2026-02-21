@@ -2918,6 +2918,7 @@ with main_area.container():
                 if 'core_topic' not in st.session_state: st.session_state.core_topic = "S-1"
                 st.markdown("""<style>div.stButton > button { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } div.stButton > button:hover { border-color: #6e8efb !important; color: #6e8efb !important; } div.stButton > button:active { background-color: #f0f2f6 !important; }</style>""", unsafe_allow_html=True)
     
+                # 1. 문서 선택 탭 버튼
                 r1_c1, r1_c2, r1_c3 = st.columns(3)
                 r2_c1, r2_c2 = st.columns(2)
                 if r1_c1.button(get_text('label_s1'), use_container_width=True): st.session_state.core_topic = "S-1"; st.rerun()
@@ -2928,8 +2929,11 @@ with main_area.container():
 
                 topic = st.session_state.core_topic
                 curr_lang = st.session_state.lang
+                
+                # 2. 문서 설명 (Info Box)
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
 
+                # 3. 헤더 정보 계산
                 try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
                 except: off_val = 0
                 try:
@@ -2950,28 +2954,9 @@ with main_area.container():
                 
                 header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
 
-                import urllib.parse
-                cik = profile.get('cik', '') if profile else ''
-                full_company_name = stock['name'].strip() 
-                if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
-                else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_company_name)}&dateRange=all"
-                
-                real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
-                website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + full_company_name + ' Investor Relations')}"
-                
-                st.markdown(f"""
-                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({topic})</button>
-                    </a>
-                    <a href="{website_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button>
-                    </a>
-                """, unsafe_allow_html=True)
-
-                draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
-                
-                display_disclaimer()
-
+                # ---------------------------------------------------------------------
+                # [순서 변경] AI 요약 (Expander)을 버튼 위로 이동
+                # ---------------------------------------------------------------------
                 def_meta = {
                     "S-1": {
                         "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
@@ -3037,6 +3022,7 @@ with main_area.container():
                 - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
                 """
 
+                # 4. AI 요약 보기 (Expander) - 버튼 위로 이동 완료
                 with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
                     with st.spinner(get_text('msg_analyzing_filing')):
                         analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'] + format_instruction, curr_lang)
@@ -3048,7 +3034,34 @@ with main_area.container():
                         formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
                         indent_size = "14px" if curr_lang == "ko" else "0px"
                         st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">{formatted_result.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-                st.caption(get_text('caption_algorithm'))
+                    
+                    # 💡 [위치 수정] Expander 내부 맨 하단에 캡션 배치
+                    st.caption(get_text('caption_algorithm'))
+
+                # 5. 외부 링크 버튼 (AI 요약 밑으로 이동)
+                import urllib.parse
+                cik = profile.get('cik', '') if profile else ''
+                full_company_name = stock['name'].strip() 
+                if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
+                else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_company_name)}&dateRange=all"
+                
+                real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
+                website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + full_company_name + ' Investor Relations')}"
+                
+                st.markdown(f"""
+                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
+                        <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({topic})</button>
+                    </a>
+                    <a href="{website_url}" target="_blank" style="text-decoration:none;">
+                        <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button>
+                    </a>
+                """, unsafe_allow_html=True)
+
+                # 6. 의사결정 박스
+                draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
+                
+                # 7. 면책 조항
+                display_disclaimer()
                     
             # --- Tab 1: 뉴스 & 심층 분석 ---
             elif selected_sub_menu == get_text('tab_1'):
