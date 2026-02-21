@@ -3474,7 +3474,11 @@ with main_area.container():
     
             # --- Tab 3: 개별 기업 평가 (Real Data 연동 - Full Version) ---
             with tab3:
-                # 🎨 [추가 위치] 카드 내부의 수치 폰트 크기 통일 CSS
+                # 💡 [NameError 방지] 언어 판별 변수 최상단 선언
+                curr_lang = st.session_state.lang
+                is_ko = (curr_lang == 'ko')
+
+                # 🎨 카드 내부의 수치 폰트 크기 통일 CSS (원본 보존)
                 st.markdown("""
                 <style>
                     .metric-value {
@@ -3509,7 +3513,7 @@ with main_area.container():
                         else:
                             data_source = "Yahoo Finance (보조)"
             
-                # 🔥 [0.5] 데이터 보강 로직
+                # 🔥 [0.5] 데이터 보강 로직 (원본의 Yahoo Finance 연동 로직 100% 복구)
                 if not is_data_available or not fin_data.get('revenue'):
                     try:
                         ticker = yf.Ticker(stock['symbol'])
@@ -3575,7 +3579,7 @@ with main_area.container():
                     "discount_rate": 0.0
                 }
     
-                # 🔥 [1.5] 에러 방지용 안전 변수 가공 (가장 중요)
+                # 🔥 [1.5] 에러 방지용 안전 변수 가공
                 def clean_value(val):
                     """None, NaN, Inf 값을 0으로 정제하는 함수"""
                     try:
@@ -3585,9 +3589,7 @@ with main_area.container():
                     except:
                         return 0.0
     
-                # ⚠️ 중요: clean_value 함수 밖(같은 라인)에 위치해야 합니다.
-                if fin_data is None: 
-                    fin_data = {}
+                if fin_data is None: fin_data = {}
     
                 # 데이터 정제 추출
                 rev_val = clean_value(fin_data.get('revenue', 0))
@@ -3608,110 +3610,102 @@ with main_area.container():
                 r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
                 r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
     
-                # (1) 매출 성장성 - [수정됨: "산출 불가" -> "N/A"]
+                # (1) 매출 성장성
                 with r1_c1:
-                    display_val = growth_display if growth_display != "N/A" else "N/A"
+                    display_val = growth_display
                     if display_val != "N/A":
-                        status, st_cls = ("🔥 고성장", "st-hot") if growth > 20 else ("✅ 안정", "st-good") if growth > 5 else ("⚠️ 둔화", "st-neutral")
+                        status, st_cls = ("🔥 " + ("High-Growth" if not is_ko else "고성장"), "st-hot") if growth > 20 else ("✅ " + ("Stable" if not is_ko else "안정"), "st-good") if growth > 5 else ("⚠️ " + ("Slowdown" if not is_ko else "둔화"), "st-neutral")
                     else:
                         status, st_cls = ("🔍 N/A", "st-neutral")
                     
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>최근 연간 매출 성장률입니다.</div><div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_growth')}</div><div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
-                # (2) 수익성 - [수정됨: "산출 불가" -> "N/A"]
+                # (2) 수익성
                 with r1_c2:
-                    display_val = net_m_display if net_m_display != "N/A" else "N/A"
+                    display_val = net_m_display
                     if display_val != "N/A":
-                        status, st_cls = ("✅ 흑자", "st-good") if net_m_val > 0 else ("🚨 적자", "st-hot")
+                        status, st_cls = ("✅ " + ("Profit" if not is_ko else "흑자"), "st-good") if net_m_val > 0 else ("🚨 " + ("Loss" if not is_ko else "적자"), "st-hot")
                     else:
                         status, st_cls = ("🔍 N/A", "st-neutral")
     
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Net Margin (Profit)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>순이익률입니다.</div><div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Net Margin (Profit)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_net_margin')}</div><div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
-                # (3) 발생액 품질 (동일 유지)
+                # (3) 발생액 품질
                 with r1_c3:
                     val = md_stock['accruals']
-                    status = "✅ 건전" if val == "Low" else "🚨 주의" if val == "High" else "🔍 N/A"
+                    status = ("✅ " + ("Solid" if not is_ko else "건전")) if val == "Low" else ("🚨 " + ("Caution" if not is_ko else "주의")) if val == "High" else "🔍 N/A"
                     st_cls = "st-good" if val == "Low" else "st-hot" if val == "High" else "st-neutral"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>회계 장부의 투명성입니다.</div><div class='metric-footer'>Theory: Teoh et al. (1998)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_accruals')}</div><div class='metric-footer'>Theory: Teoh et al. (1998)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
-                # (4) 부채 비율 - [수정됨: "확인 필요" -> "N/A"]
+                # (4) 부채 비율
                 with r1_c4:
                     display_val = f"{de_ratio:.1f}%" if de_ratio > 0 else "N/A"
-                    status, st_cls = ("✅ 안정", "st-good") if (0 < de_ratio < 100) else ("🔍 N/A", "st-neutral")
+                    status, st_cls = ("✅ " + ("Stable" if not is_ko else "안정"), "st-good") if (0 < de_ratio < 100) else ("🔍 N/A", "st-neutral")
                     
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Debt / Equity</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>자본 대비 부채 비중입니다.</div><div class='metric-footer'>Ref: Standard Ratio<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Debt / Equity</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_debt_equity')}</div><div class='metric-footer'>Ref: Standard Ratio<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
-                # (5) 시장 성과 (r2_c1)
+                # (5) 시장 성과
                 with r2_c1:
                     if current_p > 0 and off_val > 0:
                         up_rate = ((current_p - off_val) / off_val) * 100
-                        display_val, status, st_cls = (f"{up_rate:+.1f}%", "🚀 급등" if up_rate > 20 else "⚖️ 적정", "st-hot" if up_rate > 20 else "st-good")
+                        display_val, status, st_cls = (f"{up_rate:+.1f}%", ("🚀 " + ("Surge" if not is_ko else "급등")) if up_rate > 20 else ("⚖️ " + ("Fair" if not is_ko else "적정")), "st-hot" if up_rate > 20 else "st-good")
                     else:
-                        display_val, status, st_cls = ("대기 중", "⏳ IPO 예정", "st-neutral")
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Market Performance</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>공모가 대비 수익률입니다.</div><div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div></div>", unsafe_allow_html=True)
+                        display_val, status, st_cls = (get_text('status_waiting'), ("⏳ " + ("IPO" if not is_ko else "예정")), "st-neutral")
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Market Performance</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_performance')}</div><div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div></div>", unsafe_allow_html=True)
     
                 st.write("<br>", unsafe_allow_html=True)
     
-                # [2.5] 논문기반 AI 종합 판정 리포트
-                with st.expander("논문기반 AI 분석 보기", expanded=False):
-                    # 1번 수정: 출처 표시 스타일 통일
+                # [2.5] 논문기반 AI 종합 판정 리포트 (원본 텍스트 100% 복구)
+                with st.expander(get_text('expander_academic_analysis'), expanded=False):
                     st.caption(f"Data Source: {data_source} / Currency: USD")
                     
                     if is_data_available:
-                        growth_status = "고성장(High-Growth)" if growth > 20 else "안정적(Stable)" if growth > 5 else "정체(Stagnant)"
-                        quality_status = "우수(High-Quality)" if roe_val > 15 else "보통(Average)"
+                        # 언어별 상태 텍스트
+                        growth_status = ("고성장(High-Growth)" if growth > 20 else "안정적(Stable)" if growth > 5 else "정체(Stagnant)") if is_ko else ("High-Growth" if growth > 20 else "Stable" if growth > 5 else "Stagnant")
+                        quality_status = ("우수(High-Quality)" if roe_val > 15 else "보통(Average)") if is_ko else ("High-Quality" if roe_val > 15 else "Average")
                         
-                        st.markdown(f"""
-                        **1. 성장성 및 생존 분석 (Jay Ritter, 1991)**
-                        * 현재 매출 성장률은 **{growth_status}** 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {"긍정적 시그널" if growth > 10 else "주의가 필요한 시그널"}로 해석됩니다.
+                        if is_ko:
+                            st.markdown(f"""
+                            **1. 성장성 및 생존 분석 (Jay Ritter, 1991)**
+                            * 현재 매출 성장률은 **{growth_status}** 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {"긍정적 시그널" if growth > 10 else "주의가 필요한 시그널"}로 해석됩니다.
         
-                        **2. 수익성 품질 및 자본 구조 (Fama & French, 2004)**
-                        * 수익성 지표(Net Margin/ROE)는 **{quality_status}** 등급입니다. 본 기업은 {"상대적으로 견고한 이익 체력" if roe_val > 10 else "영업 효율성 개선이 선행되어야 하는 체력"}을 보유하고 있습니다.
+                            **2. 수익성 품질 및 자본 구조 (Fama & French, 2004)**
+                            * 수익성 지표(Net Margin/ROE)는 **{quality_status}** 등급입니다. 본 기업은 {"상대적으로 견고한 이익 체력" if roe_val > 10 else "영업 효율성 개선이 선행되어야 하는 체력"}을 보유하고 있습니다.
         
-                        **3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)**
-                        * 발생액 품질(Accruals Quality)이 **{accruals_status}** 상태입니다. 이는 경영진의 이익 조정 가능성이 {"낮음" if accruals_status == "Low" else "존재함"}을 의미합니다.
-                        """)
-                        st.info(f"**AI 종합 판정:** 학술적 관점에서 본 기업은 **{growth_status}** 성격이 강하며, 정보 불확실성은 일정 부분 해소된 상태입니다.")
+                            **3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)**
+                            * 발생액 품질(Accruals Quality)이 **{accruals_status}** 상태입니다. 이는 경영진의 이익 조정 가능성이 {"낮음" if accruals_status == "Low" else "존재함"}을 의미합니다.
+                            """)
+                            st.info(f"**AI 종합 판정:** 학술적 관점에서 본 기업은 **{growth_status}** 성격이 강하며, 정보 불확실성은 일정 부분 해소된 상태입니다.")
+                        else:
+                            st.markdown(f"""
+                            **1. Growth & Survival Analysis (Jay Ritter, 1991)**
+                            * Current revenue growth is in the **{growth_status}** stage. According to Ritter's theory, high-growth firms should beware of the 'growth trap' in the next 3-5 years. Current metrics indicate a {"positive" if growth > 10 else "cautionary"} signal.
+        
+                            **2. Profitability & Capital Structure (Fama & French, 2004)**
+                            * Profitability (Net Margin/ROE) is rated as **{quality_status}**. This firm possesses {"relatively solid earnings power" if roe_val > 10 else "room for operational improvement"}.
+        
+                            **3. Information Asymmetry & Accounting Quality (Teoh et al., 1998)**
+                            * Accruals quality is **{accruals_status}**, implying the risk of earnings management by executives is {"low" if accruals_status == "Low" else "notable"}.
+                            """)
+                            st.info(f"**AI Verdict:** Academically, this firm exhibits **{growth_status}** characteristics with manageable information uncertainty.")
                     else:
-                        st.warning("재무 데이터 부재로 정성적 분석이 권장됩니다.")
+                        st.warning(get_text('err_no_biz_info') if not is_ko else "재무 데이터 부재로 정성적 분석이 권장됩니다.")
             
                 # [3] 재무자료 상세보기 (Summary Table)
-                with st.expander("재무분석", expanded=False):
+                with st.expander(get_text('expander_financial_analysis'), expanded=False):
                     if is_data_available:
                         st.caption(f"Data Source: {data_source} / Currency: USD")
                 
-                        # 스타일 수정: Label은 bold, Value는 normal(400)로 설정
                         st.markdown("""
                         <style>
-                            .custom-metric-container {
-                                display: flex;
-                                justify-content: space-between;
-                                text-align: center;
-                                padding: 10px 0;
-                            }
-                            .custom-metric-box {
-                                flex: 1;
-                                border-right: 1px solid #f0f0f0; /* 지표 간 구분선 추가 (선택사항) */
-                            }
-                            .custom-metric-box:last-child {
-                                border-right: none;
-                            }
-                            .custom-metric-label {
-                                font-size: 0.85rem; 
-                                font-weight: bold;    /* 지표명을 굵게 변경 */
-                                color: #333333;
-                                margin-bottom: 6px;
-                            }
-                            .custom-metric-value {
-                                font-size: 1.05rem; 
-                                font-weight: 400;    /* 수치를 일반 굵기로 변경 */
-                                color: #1f1f1f;
-                            }
+                            .custom-metric-container { display: flex; justify-content: space-between; text-align: center; padding: 10px 0; }
+                            .custom-metric-box { flex: 1; border-right: 1px solid #f0f0f0; }
+                            .custom-metric-box:last-child { border-right: none; }
+                            .custom-metric-label { font-size: 0.85rem; font-weight: bold; color: #333333; margin-bottom: 6px; }
+                            .custom-metric-value { font-size: 1.05rem; font-weight: 400; color: #1f1f1f; }
                         </style>
                         """, unsafe_allow_html=True)
                 
-                        # 지표 데이터 가공
                         metrics = [
                             ("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"),
                             ("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x"),
@@ -3721,70 +3715,50 @@ with main_area.container():
                             ("Growth (YoY)", f"{growth:.1f}%")
                         ]
                 
-                        # 커스텀 메트릭 렌더링
                         m_cols = st.columns(6)
                         for i, (label, value) in enumerate(metrics):
                             with m_cols[i]:
-                                st.markdown(f"""
-                                    <div class="custom-metric-box">
-                                        <div class="custom-metric-label">{label}</div>
-                                        <div class="custom-metric-value">{value}</div>
-                                    </div>
-                                """, unsafe_allow_html=True)
+                                st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
                 
                         st.markdown(" ")     
-                    
-                    # -------------------------------------------------------
-                        # [수정됨] 기존의 하드코딩된 opinion_text 대신 AI 함수 호출
-                        # -------------------------------------------------------
-                        
-                        # 1. AI에게 보낼 데이터 패키징
+                
+                        # AI 리포트 호출
                         ai_metrics = {
-                            "growth": growth_display,
-                            "net_margin": net_m_display,
-                            "op_margin": opm_display,
-                            "roe": f"{roe_val:.1f}%",
-                            "debt_equity": f"{de_ratio:.1f}%",
-                            "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A",
-                            "accruals": accruals_status
+                            "growth": growth_display, "net_margin": net_m_display, "op_margin": opm_display,
+                            "roe": f"{roe_val:.1f}%", "debt_equity": f"{de_ratio:.1f}%",
+                            "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A", "accruals": accruals_status
                         }
     
-                        # 2. Supabase 캐싱된 AI 리포트 호출
-                        with st.spinner("🤖 AI 애널리스트가 재무제표를 분석 중입니다..."):
-                            ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], ai_metrics)
+                        with st.spinner(get_text('msg_analyzing_financial')):
+                            ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], ai_metrics, curr_lang)
                         
-                        # 3. 결과 출력
                         st.info(ai_report)
-                        st.caption("※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
-    
+                        st.caption("※ CFA algorithm analysis applied." if not is_ko else "※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
+                
                     else:
-                        st.warning(f"재무 데이터 부재로 정성적 분석이 권장됩니다.")
+                        st.warning(get_text('err_no_biz_info') if not is_ko else "재무 데이터 부재로 정성적 분석이 권장됩니다.")
     
-                # [4] 학술적 근거 및 원문 링크 섹션
-                with st.expander("참고(References)", expanded=False):
-                    # 전용 CSS 스타일링
+                # [4] 학술적 근거 및 원문 링크 (원본 5대 논문 복구)
+                with st.expander(get_text('expander_references'), expanded=False):
                     st.markdown("""
                     <style>
                         .ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
                         .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 14px; }
                         .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 10px; font-weight: bold; margin-bottom: 5px; }
                         .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 11px; color: #555; text-decoration: none; }
-                        .ref-btn:hover { background: #f8f9fa; border-color: #bbb; }
                     </style>
                     """, unsafe_allow_html=True)
     
-                    # 참고문헌 데이터 리스트
                     references_tab3 = [
-                        {"label": "성장성 분석", "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "summary": "신규 상장 기업의 장기적 성과 저하 현상 분석", "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991"},
-                        {"label": "현금흐름", "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "summary": "신규 기업의 재무 건전성과 생존율 추적", "link": "https://scholar.google.com/scholar?q=Fama+French+2004"},
-                        {"label": "회계 품질", "title": "Earnings Management and the Long-Run Performance", "author": "Teoh, Welch, & Wong (1998)", "summary": "상장 전후 이익 조정이 주가에 미치는 영향", "link": "https://scholar.google.com/scholar?q=Teoh+Welch+Wong+1998"},
-                        {"label": "VC 인증", "title": "The Role of Venture Capital", "author": "Barry et al. (1990)", "summary": "VC 투자가 상장 시 갖는 공신력 분석", "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
-                        {"label": "저평가 이론", "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "summary": "정보 비대칭성과 공모가 저평가 메커니즘", "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
+                        {"label": get_text('ref_label_growth'), "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "summary": get_text('ref_sum_ipo'), "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991"},
+                        {"label": get_text('ref_label_fundamental'), "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "summary": get_text('ref_sum_withdrawal'), "link": "https://scholar.google.com/scholar?q=Fama+French+2004"},
+                        {"label": get_text('ref_label_accounting'), "title": "Earnings Management and the Long-Run Performance", "author": "Teoh, Welch, & Wong (1998)", "summary": get_text('ref_sum_overheat'), "link": "https://scholar.google.com/scholar?q=Teoh+Welch+Wong+1998"},
+                        {"label": get_text('ref_label_vc'), "title": "The Role of Venture Capital", "author": "Barry et al. (1990)", "summary": "Analyzing the credibility of VC certification.", "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
+                        {"label": get_text('ref_label_underpricing'), "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "summary": "Information asymmetry and pricing mechanism.", "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
                     ]
     
-                    st.info(f"💡 현재 분석에 사용된 데이터 출처: **{data_source}**")
+                    st.info(f"💡 {get_text('caption_google_search')} (Source: **{data_source}**)")
     
-                    # 반복문을 통한 리스트 렌더링
                     for ref in references_tab3:
                         st.markdown(f"""
                         <div class='ref-item'>
@@ -3794,17 +3768,12 @@ with main_area.container():
                                 <div style='font-size: 13px; color: #666;'>{ref['summary']}, {ref['author']}</div>
                             </div>
                             <div style='margin-left: 15px;'>
-                                <a href='{ref['link']}' target='_blank' class='ref-btn'>원문 보기 ↗</a>
+                                <a href='{ref['link']}' target='_blank' class='ref-btn'>View ↗</a>
                             </div>
                         </div>""", unsafe_allow_html=True)
-                    
-                    st.caption("※ 본 리포트는 SEC 공시 및 Finnhub API 데이터를 기반으로 위 학술적 모델을 적용했습니다.")
     
                 # [5] 사용자 최종 판단 박스 (Decision Box)
-               
-                draw_decision_box("company", f"{stock['name']} 가치평가(Valuation) 최종 판단", ["고평가", "중립", "저평가"])
-    
-                # 맨 마지막에 호출
+                draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", [get_text('opt_overvalued'), get_text('sentiment_neutral'), get_text('opt_undervalued')])
                 display_disclaimer()
     
             # --- 탭 글씨 크기 및 스타일 통일 (CSS) ---
