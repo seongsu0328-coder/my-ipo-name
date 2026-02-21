@@ -169,13 +169,14 @@ def run_tab0_analysis(ticker, company_name):
     }
 
     format_instruction = """
-    [출력 형식 및 번역 규칙 - 반드시 지킬 것]
-    - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
-    - 올바른 예시(영어): **[Investment Point]** The company's main advantage is...
-    - 올바른 예시(일본어): **[投資ポイント]** 同社の最大の強みは...
-    - 금지 예시(한국어 병기 절대 금지): **[Investment Point - 투자포인트]** (X)
-    - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
-    """
+                [출력 형식 및 번역 규칙 - 반드시 지킬 것]
+                - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
+                - [분량 조건] 전체 요약이 아닙니다! **각 문단(1, 2, 3)마다 반드시 4~5문장(약 5줄 분량)씩** 내용을 상세하고 풍성하게 채워 넣으세요.
+                - 올바른 예시(영어): **[Investment Point]** The company's main advantage is...
+                - 올바른 예시(일본어): **[投資ポイント]** 同社の最大の強みは...
+                - 금지 예시(한국어 병기 절대 금지): **[Investment Point - 투자포인트]** (X)
+                - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
+                """
 
     # 💡 워커에서도 5가지 주요 서류를 모두 캐싱하도록 확장
     for topic in ["S-1", "S-1/A", "F-1", "FWP", "424B4"]:
@@ -183,7 +184,7 @@ def run_tab0_analysis(ticker, company_name):
         
         for lang_code, target_lang in SUPPORTED_LANGS.items():
             # 🚨 [캐시키 동기화] v10
-            cache_key = f"{company_name}_{topic}_Tab0_v10_{lang_code}"
+            cache_key = f"{company_name}_{topic}_Tab0_v11_{lang_code}"
             
             if lang_code == 'en':
                 labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
