@@ -3134,7 +3134,7 @@ with main_area.container():
                 # 2. 메타데이터 및 체크포인트 설정
                 topic = st.session_state.core_topic
                 
-                # 🚨 [복구 완]: 원본의 풍성한 AI 지시사항(Structure) 텍스트 전체 복구
+                # 메타데이터 딕셔너리
                 def_meta = {
                     "S-1": {
                         "desc": get_text('desc_s1'),
@@ -3191,20 +3191,13 @@ with main_area.container():
                 curr_meta = def_meta.get(topic, def_meta["S-1"])
                 st.info(curr_meta['desc'])
                 
-                # expander를 누르면 즉시 분석이 시작되도록 설정
-                with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
-                    with st.spinner(get_text('msg_analyzing_filing')):
-                        analysis_result = get_ai_analysis(
-                            stock['name'], 
-                            topic, 
-                            curr_meta['points'], 
-                            curr_meta.get('structure', ""), 
-                            st.session_state.lang
-                        )
-                        st.markdown(analysis_result)
-                    st.caption(get_text('caption_algorithm'))
-    
-                # 3. SEC URL 및 공식 홈페이지 버튼 생성 (원본 로직 100% 보존)
+                # 💡 [핵심 최적화 1] 화면 레이아웃(틀)을 먼저 그려둡니다.
+                # AI 분석 결과가 들어갈 자리를 빈 상자(container)로 미리 만들어둡니다.
+                ai_result_container = st.container()
+                
+                st.write("<br>", unsafe_allow_html=True)
+                
+                # 💡 [핵심 최적화 2] SEC 링크 버튼과 의사결정 박스를 AI 로딩과 상관없이 먼저 그려버립니다!
                 cik = profile.get('cik', '') if profile else ''
                 full_company_name = stock['name'].strip() 
                 
@@ -3217,7 +3210,6 @@ with main_area.container():
                 real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
                 website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + full_company_name + ' Investor Relations')}"
     
-                # 버튼 다국어 적용
                 st.markdown(f"""
                     <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                         <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>
@@ -3231,9 +3223,22 @@ with main_area.container():
                     </a>
                 """, unsafe_allow_html=True)
                 
-                # 4. 의사결정 박스 및 면책 조항
                 draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
                 display_disclaimer()
+                
+                # 💡 [핵심 최적화 3] 하단 UI가 다 그려진 후, 아까 만들어둔 빈 상자에 AI 분석을 시작합니다.
+                with ai_result_container:
+                    with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
+                        with st.spinner(get_text('msg_analyzing_filing')):
+                            analysis_result = get_ai_analysis(
+                                stock['name'], 
+                                topic, 
+                                curr_meta['points'], 
+                                curr_meta.get('structure', ""), 
+                                st.session_state.lang
+                            )
+                            st.markdown(analysis_result)
+                        st.caption(get_text('caption_algorithm'))
                 
             # --- Tab 1: 뉴스 & 심층 분석 (Gemini 통합형) ---
             with tab1:
