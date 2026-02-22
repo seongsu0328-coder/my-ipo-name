@@ -2061,29 +2061,27 @@ if st.query_params.get("warmup") == "true":
             # 2. 시장 거시 지표(Tab 2) 메모리에 올림
             get_cached_market_status(df_calendar, FINNHUB_API_KEY)
             
-            # 3. 💡 [대상 전면 확대] worker.py와 완벽 동기화 (최근 180일 ~ 향후 35일)
+            # 3. 타겟 종목 순회 (최근 180일 ~ 향후 35일)
             from datetime import datetime, timedelta
             import pandas as pd
             
             today = datetime.now()
             df_calendar['dt'] = pd.to_datetime(df_calendar['date'], errors='coerce')
             
-            # 워커가 분석한 핵심 타겟 조건과 동일하게 필터링
             target_stocks = df_calendar[
                 (df_calendar['dt'] >= today - timedelta(days=180)) & 
                 (df_calendar['dt'] <= today + timedelta(days=35))
-            ]
+            ].head(50) 
             
-            # Streamlit 서버 타임아웃(30초) 방지를 위해 가장 핫한 50개로 제한
-            target_stocks = target_stocks.head(50) 
-            
+            # 💡 [교체된 반복문 구간]
             for _, row in target_stocks.iterrows():
                 ticker = row['symbol']
                 name = row['name']
                 
-                # [Tab 0 로드] 
+                # [Tab 0 로드] get_us_ipo_analysis -> get_ai_analysis로 변경
                 try:
-                    get_us_ipo_analysis(ticker) 
+                    # S-1 공시 리포트를 미리 메모리에 로딩
+                    get_ai_analysis(name, "S-1", "points", "structure", "ko") 
                 except: 
                     pass
                 
@@ -2093,14 +2091,11 @@ if st.query_params.get("warmup") == "true":
                 except: 
                     pass
         
-        # 4. (선택) 게시판 데이터도 미리 올려두고 싶다면 활성화
-        # db_load_posts(limit=100)
-        
         st.write(f"✅ 봇 접속 확인: 메인 데이터 및 Tab0/Tab1 ({len(target_stocks)}개 핵심 종목) 서버 메모리 캐싱 완료!")
     except Exception as e:
         st.write(f"⚠️ 워밍업 에러 발생: {e}")
         
-    st.stop() # 💡 파이썬 실행을 멈춰서 아래쪽 페이지 라우팅(UI)을 타지 않게 함
+    st.stop() 
 # 🚀🚀🚀 [워밍업 코드 끝] 🚀🚀🚀
 
 # ==========================================
