@@ -475,7 +475,7 @@ def db_load_community_scores(ticker):
 # ---------------------------------------------------------
 @st.cache_resource
 def configure_genai():
-    genai_key = st.secrets.get("GENAI_API_KEY")
+    genai_key = os.environ.get("GENAI_API_KEY") or st.secrets.get("GENAI_API_KEY")
     if genai_key:
         genai.configure(api_key=genai_key)
         
