@@ -1537,7 +1537,7 @@ import plotly.graph_objects as go
 # 1. 자동 모델 선택 함수 (2026년형 완전판)
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_latest_stable_model():
-    genai_key = st.secrets.get("GENAI_API_KEY")
+    genai_key = os.environ.get("GENAI_API_KEY") or st.secrets.get("GENAI_API_KEY")
     # 키가 없을 때의 기본값도 2.0으로 상향
     if not genai_key: return 'gemini-2.0-flash' 
 
