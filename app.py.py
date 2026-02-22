@@ -1568,12 +1568,20 @@ else:
 
 @st.cache_data(show_spinner=False, ttl=600)
 def get_unified_tab4_analysis(company_name, ticker, lang_code):
-    if not model: return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
+    # 필요한 라이브러리 체크 (함수 내부 혹은 상단에 위치해야 함)
+    import re
+    import time
+    import json
+    from datetime import datetime, timedelta
 
-    cache_key = f"{ticker}_Tab4_{lang_code}"
+    if not model: 
+        return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
+
+    cache_key = f"{ticker}_Tab4_v2_{lang_code}" # 버전업하여 새 캐시 생성 유도
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
+    # 1. DB 캐시 확인
     try:
         res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", one_day_ago).execute()
         if res.data:
@@ -1581,6 +1589,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
     except Exception as e:
         print(f"Tab4 DB Error: {e}")
 
+    # 2. 언어별 설정 (일본어 지침 강화)
     LANG_MAP = {
         'ko': '한국어 (Korean)',
         'en': '영어 (English)',
@@ -1589,33 +1598,35 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
     }
     target_lang = LANG_MAP.get(lang_code, '한국어 (Korean)')
 
+    # 일본어/중국어일 경우 한국어 혼용을 더 강력하게 경고
     lang_instruction = f"Respond strictly in {target_lang}."
     if lang_code == 'ja':
-        lang_instruction = "必ず日本語(Japanese)で作成してください。すべての文章は日本語である必要があります。"
+        lang_instruction = "必ず日本語(Japanese)のみで回答してください。見出し, 本문, JSON의 값 모두에 한국어(Korean)를 절대 포함하지 마세요."
     elif lang_code == 'zh':  
-        lang_instruction = "必须只用简体中文(Simplified Chinese)编写。所有句子都必须是中文，绝对不能混用韩语。"
+        lang_instruction = "必须只用简体中文(Simplified Chinese)编写。严禁在回答 중 出现任何韩语。"
 
+    # 3. 프롬프트 (기존 내용 보존 + 안정성 강화)
     prompt = f"""
     당신은 월가 출신의 IPO 전문 분석가입니다. 
     구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
 
     [작성 지침]
     1. **언어**: 반드시 '{target_lang}'로 답변하세요. {lang_instruction}
-    2. **분석 깊이**: 단순 사실 나열이 아닌, 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
+    2. **분석 깊이**: 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
     3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
-    4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
-    5. **Summary**: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
-    6. **최종 검수(Self-Check)**: 답변을 최종 출력하기 전에 스스로 엄격하게 검토하세요. 인사말, 서론, 또는 {target_lang} 외의 언어(특히 한국어)가 단 한 글자라도 포함되어 있다면 해당 부분을 완전히 삭제하고 완벽한 {target_lang} 문장으로만 구성하여 답변하세요.
-    7. **링크 위치 구분**: 
-       - 'summary'와 'pro_con' 본문 안에는 절대 URL(http...)을 넣지 마세요. 
-       - 대신, 참조한 리포트의 실제 URL은 반드시 하단의 **"links" 리스트 안에만** 정확히 기입하세요. AI의 거절 문구(links를 제공할 수 없다 등)를 리스트에 넣지 마세요.
+    4. **Rating**: (Strong Buy/Buy/Hold/Sell) 중 하나를 영어로 선택하세요.
+    5. **Summary**: 전문적인 톤으로 3~5줄 내외로 핵심만 작성하세요.
+    6. **한국어 금지**: 인사말, 서론을 생략하고 {target_lang} 외의 언어(특히 한국어)를 단 한 글자도 포함하지 마세요.
+    7. **링크**: 'summary'와 'pro_con' 내부에는 URL을 넣지 말고 하단 "links" 리스트에만 넣으세요.
+
+    반드시 아래 JSON 형식으로만 출력하세요:
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell 중 하나",
-        "summary": "{target_lang}による専門적인 3줄 요약 내용",
-        "pro_con": "**Pros**:\\n- 내용\\n\\n**Cons**:\\n- 내용 (언어: {target_lang})",
+        "summary": "{target_lang}による要約",
+        "pro_con": "**Pros**:\\n- 내용\\n\\n**Cons**:\\n- 내용",
         "links": [
-            {{"title": "검색된 리포트 제목", "link": "URL"}}
+            {{"title": "Report Title", "link": "URL"}}
         ]
     }}
     <JSON_END>
@@ -1627,45 +1638,59 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
             response = model.generate_content(prompt)
             full_text = response.text
             
-            # 💡 [핵심 방어막] 에러 유발하던 내부 import 구문 제거
+            # 💡 [방어막 최적화] 한글이 포함되었는지 검사 (일본어/중국어/영어일 때만)
             if lang_code != 'ko':
+                # 한글 유니코드 범위 검사
                 if re.search(r'[가-힣]', full_text):
-                    print(f"⚠️ Tab4 한국어 혼용 감지됨 ({lang_code}). 재시도 {attempt+1}/{max_retries}")
-                    time.sleep(1)
-                    continue 
+                    # 만약 한글이 섞였다면, 단순히 skip하지 않고 재시도 횟수 소진 전에 로그만 남김
+                    if attempt < max_retries - 1:
+                        time.sleep(1)
+                        continue
 
+            # JSON 추출 로직 (더 견고하게 수정)
+            json_str = ""
             json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
             if json_match:
                 json_str = json_match.group(1).strip()
             else:
+                # 태그가 없을 경우 가장 바깥쪽 { } 를 찾음
                 json_match = re.search(r'\{.*\}', full_text, re.DOTALL)
                 json_str = json_match.group(0).strip() if json_match else ""
 
             if json_str:
+                # 제어 문자 제거 (파싱 에러 방지)
+                clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
+                result_data = json.loads(clean_str, strict=False)
+                
+                # DB 저장 (에러 나도 리턴은 되게끔 try-except)
                 try:
-                    clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
-                    result_data = json.loads(clean_str, strict=False)
-                    
                     supabase.table("analysis_cache").upsert({
                         "cache_key": cache_key,
                         "content": json.dumps(result_data, ensure_ascii=False),
                         "updated_at": now.isoformat()
                     }).execute()
-                    
-                    return result_data
-                except: 
-                    pass
-            
-            print(f"⚠️ Tab4 JSON 파싱 실패. 재시도 {attempt+1}/{max_retries}")
-            time.sleep(1)
+                except: pass
+                
+                return result_data
 
         except Exception as e:
-            if attempt == max_retries - 1:
-                break
+            print(f"⚠️ Tab4 Attempt {attempt+1} Error: {e}")
             time.sleep(1)
 
-    default_summary = "Analyzing data..." if lang_code == 'en' else ("分析データを精査中..." if lang_code == 'ja' else ("分析数据中..." if lang_code == 'zh' else "분석 데이터를 정제하는 중입니다."))
-    return {"rating": "N/A", "summary": default_summary, "pro_con": "잠시 후 다시 시도해주세요.", "links": []}
+    # 4. 최종 실패 시 (기본값 리턴)
+    # 일본어일 경우 실패 메시지도 일본어로 주어 유저 경험 유지
+    fail_msgs = {
+        'ko': "분석 데이터를 정제하는 중입니다. 잠시 후 다시 시도해주세요.",
+        'en': "Analyzing data... Please try again in a moment.",
+        'ja': "データを分析 중입니다. 잠시 후 다시 시도해주세요.", # 일본어 UI에 맞춰 수정 가능
+        'zh': "数据分析中... 请稍后再试。"
+    }
+    return {
+        "rating": "N/A", 
+        "summary": fail_msgs.get(lang_code, fail_msgs['ko']), 
+        "pro_con": "Check the connection or try another company.", 
+        "links": []
+    }
     
     
 
