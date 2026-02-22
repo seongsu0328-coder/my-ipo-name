@@ -50,7 +50,7 @@ if GENAI_API_KEY:
     except Exception as e:
         print(f"❌ AI 모델 로드 실패: {e}")
 
-SUPPORTED_LANGS = ['ko', 'en', 'ja']
+SUPPORTED_LANGS = ['ko', 'en', 'ja', 'zh']
 
 # ==========================================
 # [2] 헬퍼 함수
@@ -112,7 +112,10 @@ def get_current_prices():
 
 def translate_from_ko(korean_text, target_lang):
     if target_lang == 'ko': return korean_text
-    lang_str = "English" if target_lang == 'en' else "日本語(Japanese)"
+    
+    if target_lang == 'en': lang_str = "English"
+    elif target_lang == 'ja': lang_str = "日本語(Japanese)"
+    elif target_lang == 'zh': lang_str = "简体中文(Simplified Chinese)" # 💡 추가!
     
     prompt = f"""
     Translate the following Korean financial text into {lang_str}.
