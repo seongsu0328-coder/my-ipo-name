@@ -508,7 +508,7 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
         target_lang = "English"
         lang_instruction = "Your entire response MUST be in English only. Do not use any Korean."
         json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-    elif lang_code == 'zh':  # 💡 중국어 추가
+    elif lang_code == 'zh':  
         sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。绝对不要使用韩语。"
         task1_label = "[任务1: 商业模式深度分析]"
         task2_label = "[任务2: 收集最新新闻]"
@@ -552,32 +552,23 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
     <JSON_END>
     """
 
-    # 💡 [추가] 물리적 방어막 및 재시도 로직 적용 (최대 3회)
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            # Temperature는 기존대로 모델 기본값을 사용 (변경 안함)
             response = model.generate_content(prompt)
             full_text = response.text
 
-            # 💡 [핵심 방어막] 한국어 모드가 아닐 때, 본문에 한국어가 섞여 있는지 검사
+            # 💡 [핵심 방어막] 에러 유발하던 내부 import 구문 제거
             if lang_code != 'ko':
-                import re
-                # JSON을 위해 강제했던 긍정/부정/일반 단어는 검사에서 제외
                 check_text = full_text.replace("긍정", "").replace("부정", "").replace("일반", "")
-                
-                # 한글(가-힣)이 하나라도 감지되면 에러를 내지 않고 곧바로 다시 AI 호출
                 if re.search(r'[가-힣]', check_text):
                     print(f"⚠️ Tab1 한국어 혼용 감지됨 ({lang_code}). 재시도 {attempt+1}/{max_retries}")
-                    import time
                     time.sleep(1)
-                    continue # 위로 돌아가서 재생성
+                    continue 
 
-            # 무사히 방어막을 통과했거나 한국어 모드일 경우 아래 파싱 로직 진행
-            # 1. 🚀 [방어 로직] 정규식으로 JSON 배열 [ { ... } ] 만 완벽하게 적출
             news_list = []
             json_str = ""
-            # 괄호 [ ] 안에 있는 모든 내용을 찾습니다.
+            
             json_match = re.search(r'\[\s*\{.*?\}\s*\]', full_text, re.DOTALL)
             
             if json_match:
@@ -587,28 +578,23 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
                 except:
                     pass
 
-            # 2. 🚀 [방어 로직] 전체 텍스트에서 JSON 부분과 태그 찌꺼기를 완전히 도려내어 본문만 남김
             if json_str:
                 biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
             else:
-                # 만약 JSON 추출에 실패했다면, '{' 가 시작되는 부분부터 잘라버려서 본문만 살립니다.
                 biz_analysis = full_text.split("{")[0].replace("<JSON_START>", "").strip()
 
-            # 본문 불순물 제거 (## 등 마크다운 기호)
             biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
             paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
             
             indent_size = "14px" if lang_code == "ko" else "0px"
             html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
 
-            # 3. 뉴스 감성 배지 색상 처리
             if news_list:
                 for n in news_list:
                     if n.get('sentiment') == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
                     elif n.get('sentiment') == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
                     else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
 
-            # DB 저장
             supabase.table("analysis_cache").upsert({
                 "cache_key": cache_key,
                 "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
@@ -618,136 +604,11 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
             return html_output, news_list
             
         except Exception as e:
-            # 마지막 재시도까지 실패했을 때만 에러 반환
             if attempt == max_retries - 1:
                 return f"<p style='color:red;'>시스템 오류: {str(e)}</p>", []
-            import time
             time.sleep(1)
 
-    # 루프를 다 돌았음에도 올바른 결과가 안 나왔을 경우 안전 반환
     return f"<p style='color:red;'>시스템 오류: 언어 생성 지연이 발생했습니다.</p>", []
-
-
-# (B) Tab 4용: 기관 평가 분석 통합 (강력 파싱 버전)
-@st.cache_data(show_spinner=False, ttl=600)
-def get_unified_tab4_analysis(company_name, ticker, lang_code):
-    if not model: return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
-
-    # [Step 1] Supabase DB 조회 (24시간 캐시) - 언어별 캐시 키 분리
-    cache_key = f"{ticker}_Tab4_{lang_code}"
-    now = datetime.now()
-    one_day_ago = (now - timedelta(days=1)).isoformat()
-
-    try:
-        res = supabase.table("analysis_cache") \
-            .select("content") \
-            .eq("cache_key", cache_key) \
-            .gt("updated_at", one_day_ago) \
-            .execute()
-        
-        if res.data:
-            return json.loads(res.data[0]['content'])
-    except Exception as e:
-        print(f"Tab4 DB Error: {e}")
-
-    # 💡 [수정] 내부에서 언어 맵핑을 직접 확인하여 안전성 강화
-    LANG_MAP = {
-        'ko': '한국어 (Korean)',
-        'en': '영어 (English)',
-        'ja': '일본어 (Japanese)',
-        'zh': '简体中文 (Simplified Chinese)'  # 💡 중국어 추가
-    }
-    target_lang = LANG_MAP.get(lang_code, '한국어 (Korean)')
-
-    # [Step 2] 캐시 없으면 강력 프롬프트로 분석
-    lang_instruction = f"Respond strictly in {target_lang}."
-    if lang_code == 'ja':
-        lang_instruction = "必ず日本語(Japanese)で作成してください。すべての文章は日本語である必要があります。"
-    elif lang_code == 'zh':  # 💡 중국어 강력 지시어 추가
-        lang_instruction = "必须只用简体中文(Simplified Chinese)编写。所有句子都必须是中文，绝对不能混用韩语。"
-
-    prompt = f"""
-    당신은 월가 출신의 IPO 전문 분석가입니다. 
-    구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
-
-    [작성 지침]
-    1. **언어**: 반드시 '{target_lang}'로 답변하세요. {lang_instruction}
-    2. **분석 깊이**: 단순 사실 나열이 아닌, 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
-    3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
-    4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
-    5. **Summary**: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
-    6. **최종 검수(Self-Check)**: 답변을 최종 출력하기 전에 스스로 엄격하게 검토하세요. 인사말, 서론, 또는 {target_lang} 외의 언어(특히 한국어)가 단 한 글자라도 포함되어 있다면 해당 부분을 완전히 삭제하고 완벽한 {target_lang} 문장으로만 구성하여 답변하세요.
-    7. **링크 위치 구분**: 
-       - 'summary'와 'pro_con' 본문 안에는 절대 URL(http...)을 넣지 마세요. 
-       - 대신, 참조한 리포트의 실제 URL은 반드시 하단의 **"links" 리스트 안에만** 정확히 기입하세요. AI의 거절 문구(links를 제공할 수 없다 등)를 리스트에 넣지 마세요.
-    <JSON_START>
-    {{
-        "rating": "Buy/Hold/Sell 중 하나",
-        "summary": "{target_lang}による専門적인 3줄 요약 내용",
-        "pro_con": "**Pros**:\\n- 내용\\n\\n**Cons**:\\n- 내용 (언어: {target_lang})",
-        "links": [
-            {{"title": "검색된 리포트 제목", "link": "URL"}}
-        ]
-    }}
-    <JSON_END>
-    """
-
-    # 💡 [추가] 물리적 방어막 및 재시도 로직 적용 (최대 3회)
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            # Temperature는 수정하지 않고 기본값 유지
-            response = model.generate_content(prompt)
-            full_text = response.text
-            
-            # 💡 [핵심 방어막] 한국어 모드가 아닐 때, 본문에 한국어가 섞여 있는지 검사
-            if lang_code != 'ko':
-                import re
-                # Tab 4는 JSON 내부에 유지해야 할 한국어(긍정/부정 등)가 없으므로 텍스트 전체를 검사합니다.
-                if re.search(r'[가-힣]', full_text):
-                    print(f"⚠️ Tab4 한국어 혼용 감지됨 ({lang_code}). 재시도 {attempt+1}/{max_retries}")
-                    import time
-                    time.sleep(1)
-                    continue # 한글 감지 시 즉시 위로 돌아가서 재생성
-
-            json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1).strip()
-            else:
-                json_match = re.search(r'\{.*\}', full_text, re.DOTALL)
-                json_str = json_match.group(0).strip() if json_match else ""
-
-            if json_str:
-                try:
-                    clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
-                    result_data = json.loads(clean_str, strict=False)
-                    
-                    # [Step 3] 파싱 성공 시 DB에 저장
-                    supabase.table("analysis_cache").upsert({
-                        "cache_key": cache_key,
-                        "content": json.dumps(result_data, ensure_ascii=False),
-                        "updated_at": now.isoformat()
-                    }).execute()
-                    
-                    return result_data
-                except: 
-                    pass
-            
-            # JSON 파싱에 실패했을 경우에도 재시도를 위해 에러를 띄우지 않고 넘어감
-            print(f"⚠️ Tab4 JSON 파싱 실패. 재시도 {attempt+1}/{max_retries}")
-            import time
-            time.sleep(1)
-
-        except Exception as e:
-            # 마지막 시도에서만 에러를 남기고, 그 전에는 재시도
-            if attempt == max_retries - 1:
-                break
-            import time
-            time.sleep(1)
-
-    # 3번 모두 실패 시 기본값 반환
-    default_summary = "Analyzing data..." if lang_code == 'en' else ("分析データを精査中..." if lang_code == 'ja' else ("分析数据中..." if lang_code == 'zh' else "분석 데이터를 정제하는 중입니다."))
-    return {"rating": "N/A", "summary": default_summary, "pro_con": "잠시 후 다시 시도해주세요.", "links": []}
         
 @st.cache_data(show_spinner=False, ttl=600)
 def get_market_dashboard_analysis(metrics_data, lang_code):
@@ -1578,87 +1439,106 @@ else:
     st.error("⚠️ GENAI_API_KEY가 설정되지 않았습니다. Streamlit Secrets를 확인하세요.")
     model = None
 
-@st.cache_data(show_spinner=False, ttl=600) 
-def get_ai_analysis(company_name, topic, points, structure_template, lang_code):
-    if not model:
-        return "AI 모델 설정 오류: API 키를 확인하세요."
-    
-    # 💡 [핵심 수정] 캐시 버전 v10 (한글 섞임 및 줄바꿈 해결 버전)
-    cache_key = f"{company_name}_{topic}_Tab0_v11_{lang_code}"
+@st.cache_data(show_spinner=False, ttl=600)
+def get_unified_tab4_analysis(company_name, ticker, lang_code):
+    if not model: return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
+
+    cache_key = f"{ticker}_Tab4_{lang_code}"
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
     try:
-        res = supabase.table("analysis_cache") \
-            .select("content") \
-            .eq("cache_key", cache_key) \
-            .gt("updated_at", one_day_ago) \
-            .execute()
-        
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", one_day_ago).execute()
         if res.data:
-            return res.data[0]['content']
+            return json.loads(res.data[0]['content'])
     except Exception as e:
-        print(f"Tab0 DB Cache Error: {e}")
+        print(f"Tab4 DB Error: {e}")
 
-    target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
+    LANG_MAP = {
+        'ko': '한국어 (Korean)',
+        'en': '영어 (English)',
+        'ja': '일본어 (Japanese)',
+        'zh': '简体中文 (Simplified Chinese)' 
+    }
+    target_lang = LANG_MAP.get(lang_code, '한국어 (Korean)')
 
-    if lang_code == 'en':
-        labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
-        role_desc = "You are a professional senior analyst from Wall Street."
-        no_intro_prompt = 'CRITICAL: NEVER introduce yourself. DO NOT include Korean translations in headings. START IMMEDIATELY with the first English **[Heading]**.'
-        lang_directive = "The guide below is in Korean for reference, but you MUST translate all headings and content into English."
-    elif lang_code == 'ja':
-        labels = ["分析対象", "指針", "内容構成および形式", "文体ガイド"]
-        role_desc = "あなたはウォール街出身の専門分析家です。"
-        no_intro_prompt = '【重要】自己紹介は絶対に禁止です。見出しに韓国語を併記しないでください。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
-        lang_directive = "構成 가이드는 참고용으로 한국어로 제공되나,すべての見出しと内容は必ず日本語(Japanese)のみで作成してください。"
-    else:
-        labels = ["분석 대상", "지침", "내용 구성 및 형식 - 반드시 아래 형식을 따를 것", "문체 가이드"]
-        role_desc = "당신은 월가 출신의 전문 분석가입니다."
-        no_intro_prompt = '자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
-        lang_directive = ""
+    lang_instruction = f"Respond strictly in {target_lang}."
+    if lang_code == 'ja':
+        lang_instruction = "必ず日本語(Japanese)で作成してください。すべての文章は日本語である必要があります。"
+    elif lang_code == 'zh':  
+        lang_instruction = "必须只用简体中文(Simplified Chinese)编写。所有句子都必须是中文，绝对不能混用韩语。"
+
+    prompt = f"""
+    당신은 월가 출신의 IPO 전문 분석가입니다. 
+    구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
+
+    [작성 지침]
+    1. **언어**: 반드시 '{target_lang}'로 답변하세요. {lang_instruction}
+    2. **분석 깊이**: 단순 사실 나열이 아닌, 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
+    3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
+    4. **Rating**: 전반적인 월가 분위기를 종합하여 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
+    5. **Summary**: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
+    6. **최종 검수(Self-Check)**: 답변을 최종 출력하기 전에 스스로 엄격하게 검토하세요. 인사말, 서론, 또는 {target_lang} 외의 언어(특히 한국어)가 단 한 글자라도 포함되어 있다면 해당 부분을 완전히 삭제하고 완벽한 {target_lang} 문장으로만 구성하여 답변하세요.
+    7. **링크 위치 구분**: 
+       - 'summary'와 'pro_con' 본문 안에는 절대 URL(http...)을 넣지 마세요. 
+       - 대신, 참조한 리포트의 실제 URL은 반드시 하단의 **"links" 리스트 안에만** 정확히 기입하세요. AI의 거절 문구(links를 제공할 수 없다 등)를 리스트에 넣지 마세요.
+    <JSON_START>
+    {{
+        "rating": "Buy/Hold/Sell 중 하나",
+        "summary": "{target_lang}による専門적인 3줄 요약 내용",
+        "pro_con": "**Pros**:\\n- 내용\\n\\n**Cons**:\\n- 내용 (언어: {target_lang})",
+        "links": [
+            {{"title": "검색된 리포트 제목", "link": "URL"}}
+        ]
+    }}
+    <JSON_END>
+    """
 
     max_retries = 3
-    for i in range(max_retries):
+    for attempt in range(max_retries):
         try:
-            prompt = f"""
-            {labels[0]}: {company_name} - {topic}
-            {labels[1]} (Checkpoints): {points}
-            
-            [{labels[1]}]
-            {role_desc}
-            {no_intro_prompt}
-            {lang_directive}
-            
-            [{labels[2]}]
-            {structure_template}
-
-            [{labels[3]}]
-            - 반드시 '{target_lang}'로만 작성하세요. (절대 다른 언어를 섞지 마세요)
-            - 문장 끝이 끊기지 않도록 매끄럽게 연결하세요.
-            """
-            
             response = model.generate_content(prompt)
-            analysis_result = response.text
-
-            try:
-                supabase.table("analysis_cache").upsert({
-                    "cache_key": cache_key,
-                    "content": analysis_result,
-                    "updated_at": now.isoformat()
-                }).execute()
-            except: pass 
-
-            return analysis_result
+            full_text = response.text
             
-        except Exception as e:
-            if "429" in str(e) or "quota" in str(e).lower():
-                time.sleep(2 * (i + 1))
-                continue
+            # 💡 [핵심 방어막] 에러 유발하던 내부 import 구문 제거
+            if lang_code != 'ko':
+                if re.search(r'[가-힣]', full_text):
+                    print(f"⚠️ Tab4 한국어 혼용 감지됨 ({lang_code}). 재시도 {attempt+1}/{max_retries}")
+                    time.sleep(1)
+                    continue 
+
+            json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1).strip()
             else:
-                return f"현재 분석 엔진을 조율 중입니다. (상세: {str(e)})"
-    
-    return "⚠️ 사용량이 많아 분석이 지연되고 있습니다. 잠시 후 다시 시도해주세요."
+                json_match = re.search(r'\{.*\}', full_text, re.DOTALL)
+                json_str = json_match.group(0).strip() if json_match else ""
+
+            if json_str:
+                try:
+                    clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
+                    result_data = json.loads(clean_str, strict=False)
+                    
+                    supabase.table("analysis_cache").upsert({
+                        "cache_key": cache_key,
+                        "content": json.dumps(result_data, ensure_ascii=False),
+                        "updated_at": now.isoformat()
+                    }).execute()
+                    
+                    return result_data
+                except: 
+                    pass
+            
+            print(f"⚠️ Tab4 JSON 파싱 실패. 재시도 {attempt+1}/{max_retries}")
+            time.sleep(1)
+
+        except Exception as e:
+            if attempt == max_retries - 1:
+                break
+            time.sleep(1)
+
+    default_summary = "Analyzing data..." if lang_code == 'en' else ("分析データを精査中..." if lang_code == 'ja' else ("分析数据中..." if lang_code == 'zh' else "분석 데이터를 정제하는 중입니다."))
+    return {"rating": "N/A", "summary": default_summary, "pro_con": "잠시 후 다시 시도해주세요.", "links": []}
     
     
 
