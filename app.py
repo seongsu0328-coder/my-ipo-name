@@ -1,46 +1,68 @@
 import streamlit as st
-import requests
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-import os
-import time
-import uuid
-import random
-import math
-import html
-import re
-import json
-import urllib.parse
-import smtplib
-import gspread
-import io
-import xml.etree.ElementTree as ET
-import yfinance as yf 
-from oauth2client.service_account import ServiceAccountCredentials
-from email.mime.text import MIMEText
-from datetime import datetime, timedelta
+import traceback
+import sys
 
-# ==========================================
-# [신규] Supabase 라이브러리 및 초기화
-# ==========================================
-from supabase import create_client, Client
+# [중요] 에러를 잡기 위해 전체 코드를 try로 감쌉니다.
+try:
+    import requests
+    import pandas as pd
+    import numpy as np
+    import plotly.graph_objects as go
+    import os
+    import time
+    import uuid
+    import random
+    import math
+    import html
+    import re
+    import json
+    import urllib.parse
+    import smtplib
+    import gspread
+    import io
+    import xml.etree.ElementTree as ET
+    import yfinance as yf 
+    from oauth2client.service_account import ServiceAccountCredentials
+    from email.mime.text import MIMEText
+    from datetime import datetime, timedelta
 
-# 1. Supabase 연결 초기화 (리소스 캐싱)
-@st.cache_resource
-def init_supabase():
-    """Supabase 클라이언트를 초기화하고 연결을 유지합니다."""
-    try:
-        url = st.secrets["supabase"]["url"]
-        key = st.secrets["supabase"]["key"]
-        return create_client(url, key)
-    except Exception as e:
-        st.error(f"Supabase 연결 오류: {e}")
-        return None
+    # ==========================================
+    # [신규] Supabase 라이브러리 및 초기화
+    # ==========================================
+    from supabase import create_client, Client
 
-# 전역 Supabase 객체 생성
-supabase = init_supabase()
+    # 1. Supabase 연결 초기화 (리소스 캐싱)
+    @st.cache_resource
+    def init_supabase():
+        """Supabase 클라이언트를 초기화하고 연결을 유지합니다."""
+        try:
+            # Railway Variables에 넣은 이름과 일치해야 합니다.
+            # 만약 [supabase] url 로 넣으셨다면 아래 형식이 맞습니다.
+            url = st.secrets["supabase"]["url"]
+            key = st.secrets["supabase"]["key"]
+            return create_client(url, key)
+        except Exception as e:
+            # 여기서 에러가 나면 화면에 뿌려줍니다.
+            st.error(f"Supabase 설정 읽기 오류: {e}")
+            raise e # 상위 try문으로 에러 전달
 
+    # 전역 Supabase 객체 생성
+    supabase = init_supabase()
+
+    # --- 여기에 나머지 기존 app.py 코드들을 모두 붙여넣으세요 ---
+    # (기존의 페이지 구성, 데이터 로드, 화면 출력 코드들...)
+
+# [중요] 코드 맨 마지막에 아래 내용을 붙입니다.
+except Exception as e:
+    st.error("🚨 앱 실행 중 에러가 발생했습니다!")
+    st.warning("아래 에러 메시지를 복사해서 알려주시면 바로 해결해 드릴게요:")
+    
+    # 실제 에러 내용과 경로(Traceback)를 화면에 출력
+    error_msg = traceback.format_exc()
+    st.code(error_msg, language='python')
+    
+    # 앱이 꺼지지 않게 강제로 멈춤
+    st.stop()
 # [app.py 전용] 데이터 정제 및 범용 직송 함수
 def sanitize_value(v):
     if v is None or pd.isna(v): return None
