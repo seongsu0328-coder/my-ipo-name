@@ -86,6 +86,7 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
 def get_target_stocks():
     if not FINNHUB_API_KEY: return pd.DataFrame()
     now = datetime.now()
+    # 전체 모수 확보를 위해 과거 1.5년치 명단 수집 (수익률 상위 50개 추출을 위함)
     ranges = [
         (now - timedelta(days=200), now + timedelta(days=35)), 
         (now - timedelta(days=380), now - timedelta(days=170)), 
@@ -117,7 +118,6 @@ def translate_from_ko(korean_text, target_lang):
     elif target_lang == 'ja': lang_str = "日本語(Japanese)"
     elif target_lang == 'zh': lang_str = "简体中文(Simplified Chinese)"
     
-    # 💡 1. 네거티브 프롬프트 강력 추가 (자기소개 금지 포함)
     prompt = f"""
     Translate the following Korean financial text into {lang_str}.
     
@@ -129,42 +129,35 @@ def translate_from_ko(korean_text, target_lang):
     5. If there are <JSON_START> and <JSON_END> tags, keep them intact.
     6. DO NOT translate JSON keys.
     7. In JSON, the value for "sentiment" MUST remain exactly as "긍정", "부정", or "일반". (This is the ONLY exception where Korean is allowed).
-    8. NO INTRODUCTIONS/FILLERS: DO NOT include any self-introductions, greetings, or conversational transitions (e.g., "I am an analyst," "Here is the translation," "Let's look at the article"). START IMMEDIATELY with the translated content from the very first character.
+    8. NO INTRODUCTIONS/FILLERS: DO NOT include any self-introductions, greetings, or conversational transitions. START IMMEDIATELY with the translated content.
     
     [Korean Text to Translate]
     {korean_text}
     """
     
-    # 💡 2. 재시도(Retry) 로직 및 후처리 방어막
     max_retries = 3
     for i in range(max_retries):
         try:
-            # Temperature 0.0으로 고정하여 창의성(환각 및 쓸데없는 말) 억제
-            response = standard_model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(temperature=0.0)
-            ).text
+            # 💡 [요청 반영] temperature=0.0 제거 (기본값 사용)
+            response = standard_model.generate_content(prompt).text
             
-            # 💡 3. 파이썬 후처리 검증 (JSON 감성 값은 제외하고 검사)
             check_text = response.replace("긍정", "").replace("부정", "").replace("일반", "")
             if re.search(r'[가-힣]', check_text):
                 print(f"⚠️ [Worker] 한국어 감지됨 ({target_lang}). 재시도 {i+1}/{max_retries}")
                 time.sleep(1)
-                continue # 한국어가 발견되면 바로 다시 돌림
+                continue 
                 
             return response
         except Exception as e:
             time.sleep(1)
             pass
             
-    return korean_text # 3번 다 실패하면 원본 반환
-
+    return korean_text 
 
 # ==========================================
-# [3] AI 분석 함수들 (비용 최적화 & 기존 프롬프트 100% 보존 & 말투 교정)
+# [3] AI 분석 함수들
 # ==========================================
 
-# Tab 0: 공시 (일반 모델)
 def run_tab0_analysis(ticker, company_name):
     if not standard_model: return
     
@@ -176,7 +169,6 @@ def run_tab0_analysis(ticker, company_name):
         "424B4": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)"
     }
 
-    # 💡 말투 교정 추가
     format_instruction = """
     [출력 형식 및 번역 규칙 - 반드시 지킬 것]
     - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
@@ -211,23 +203,18 @@ def run_tab0_analysis(ticker, company_name):
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": final_text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
         except: pass
 
-# Tab 1: 비즈니스 및 뉴스 (검색 모델 -> 번역)
 def run_tab1_analysis(ticker, company_name):
     if not search_model or not standard_model: return
     
     source_text = ""
     try:
-        search_prompt = f"""
-        Find the detailed business model and 5 recent news articles (last 1 year) for {company_name} ({ticker}).
-        Output the news in JSON format inside <NEWS_JSON> tags, and business summary as plain text.
-        """
+        search_prompt = f"Find the detailed business model and 5 recent news articles (last 1 year) for {company_name} ({ticker}). Output the news in JSON format inside <NEWS_JSON> tags, and business summary as plain text."
         source_resp = search_model.generate_content(search_prompt)
         source_text = source_resp.text
     except: return 
 
     json_format = f"""{{ "news": [ {{ "title_en": "Original Title", "translated_title": "한국어 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
     
-    # 💡 말투 교정 추가
     prompt_ko = f"""
     Based on the provided source info below, create a report for {company_name} ({ticker}).
     Source Info: {source_text[:10000]} 
@@ -270,11 +257,9 @@ def run_tab1_analysis(ticker, company_name):
             batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
     except: pass
 
-# Tab 3: 재무 분석 (일반 모델)
 def run_tab3_analysis(ticker, company_name, metrics):
     if not standard_model: return
     
-    # 💡 말투 교정 추가
     prompt_ko = f"""
     Role: CFA Analyst.
     Task: Write a financial report for {company_name} based on: {metrics}.
@@ -293,7 +278,6 @@ def run_tab3_analysis(ticker, company_name, metrics):
             batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": final_text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
     except: pass
 
-# Tab 4: 기관 평가 분석 (검색 모델 -> 번역)
 def run_tab4_analysis(ticker, company_name):
     if not search_model or not standard_model: return
 
@@ -306,7 +290,6 @@ def run_tab4_analysis(ticker, company_name):
 
     json_format = '"summary": "3줄 요약 (반드시 경어체 사용)", "pro_con": "**Pros(장점)**... **Cons(단점)**..."'
     
-    # 💡 말투 교정 추가
     prompt_ko = f"""
     Using the source info below, create an institutional report summary for {company_name} ({ticker}).
     Source Info: {source_text[:8000]}
@@ -335,13 +318,11 @@ def run_tab4_analysis(ticker, company_name):
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": clean_str, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
     except: pass
 
-# Tab 2: 거시 지표 (단 1회 실행)
 def update_macro_data(df):
     if not standard_model: return
     print("🌍 거시 지표(Tab 2) 1회 업데이트 중...")
     data = {"ipo_return": 15.2, "ipo_volume": len(df), "vix": 14.5, "fear_greed": 60} 
     
-    # 💡 말투 교정 추가
     prompt_ko = f"Market Data: {data}. Write a 3-line daily market briefing in 전문적인 한국어(Korean). No headers. 모든 문장은 반드시 '~합니다', '~입니다' 형태의 정중한 경어체로 작성하세요. ('~이다' 절대 금지)"
     try:
         ko_text = standard_model.generate_content(prompt_ko).text
@@ -372,21 +353,27 @@ def main():
 
     update_macro_data(df)
     
-    print("🔥 Hot 종목 선별 중...")
+    print("🔥 타겟 종목 선별 중 (35일 상장예정 + 6개월 신규상장 + 수익률 상위 50위)...")
     price_map = get_current_prices() 
     
     today = datetime.now()
-    hot_symbols = set()
+    df['dt'] = pd.to_datetime(df['date'])
     
-    try:
-        df['dt'] = pd.to_datetime(df['date'])
-        upcoming = df[(df['dt'] > today) & (df['dt'] <= today + timedelta(days=35))]
-        hot_symbols.update(upcoming['symbol'].tolist())
-        print(f"   -> 상장 예정: {len(upcoming)}개")
-    except: pass
+    target_symbols = set()
     
+    # 1. 향후 35일 이내 상장 예정
+    upcoming = df[(df['dt'] > today) & (df['dt'] <= today + timedelta(days=35))]
+    target_symbols.update(upcoming['symbol'].tolist())
+    print(f"   -> 상장 예정(35일): {len(upcoming)}개")
+    
+    # 2. 과거 6개월(180일) 이내 상장 종목
+    past_6m = df[(df['dt'] >= today - timedelta(days=180)) & (df['dt'] <= today)]
+    target_symbols.update(past_6m['symbol'].tolist())
+    print(f"   -> 최근 상장(6개월): {len(past_6m)}개")
+    
+    # 3. 전체 기간 중 수익률 상위 50개
     try:
-        past_12m = df[(df['dt'] >= today - timedelta(days=365)) & (df['dt'] <= today)].copy()
+        past_all = df[df['dt'] <= today].copy()
         def calc_return(row):
             try:
                 ipo_p = float(str(row.get('price', '0')).replace('$','').split('-')[0])
@@ -394,41 +381,39 @@ def main():
                 if ipo_p > 0 and curr_p > 0: return (curr_p - ipo_p) / ipo_p * 100
                 return -9999.0
             except: return -9999.0
-        past_12m['return'] = past_12m.apply(calc_return, axis=1)
-        top_30 = past_12m.sort_values(by='return', ascending=False).head(30)
-        hot_symbols.update(top_30['symbol'].tolist())
-        print(f"   -> 수익률 상위: 30개 (1위: {top_30.iloc[0]['symbol']} {top_30.iloc[0]['return']:.1f}%)")
+        past_all['return'] = past_all.apply(calc_return, axis=1)
+        top_50 = past_all.sort_values(by='return', ascending=False).head(50)
+        target_symbols.update(top_50['symbol'].tolist())
+        print(f"   -> 수익률 상위(전체 중): 50개 (1위: {top_50.iloc[0]['symbol']} {top_50.iloc[0]['return']:.1f}%)")
     except Exception as e:
         print(f"   ⚠️ 수익률 계산 에러: {e}")
 
-    print(f"✅ 최종 Hot 종목: 총 {len(hot_symbols)}개")
+    print(f"✅ 최종 분석 대상: 총 {len(target_symbols)}개 종목 (중복 제거)")
 
-    total = len(df)
-    print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 중 Hot 종목 위주 실행)...")
+    # 💡 [핵심] 수천 개를 다 도는 것이 아니라, 선별된 target_symbols 에 대해서만 분석 실행
+    target_df = df[df['symbol'].isin(target_symbols)]
+    total = len(target_df)
     
-    for idx, row in df.iterrows():
+    print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 실행)...")
+    
+    for idx, row in target_df.iterrows():
         symbol = row.get('symbol')
         name = row.get('name')
         
-        is_hot = symbol in hot_symbols
-        is_full_update = (today.weekday() == 0 or is_hot)
-        
-        print(f"[{idx+1}/{total}] {symbol} (Hot:{is_hot}) 처리 중...", flush=True)
+        print(f"[{idx+1}/{total}] {symbol} 처리 중...", flush=True)
         
         try:
-            if is_hot:
-                run_tab1_analysis(symbol, name)
-                if is_full_update:
-                    run_tab4_analysis(symbol, name)
+            # 타겟 종목은 100% Full 업데이트 수행
+            run_tab1_analysis(symbol, name)
+            run_tab4_analysis(symbol, name)
+            run_tab0_analysis(symbol, name)
             
-            if is_full_update:
-                run_tab0_analysis(symbol, name)
-                try:
-                    tk = yf.Ticker(symbol)
-                    run_tab3_analysis(symbol, name, {"pe": tk.info.get('forwardPE', 0)})
-                except: pass
+            try:
+                tk = yf.Ticker(symbol)
+                run_tab3_analysis(symbol, name, {"pe": tk.info.get('forwardPE', 0)})
+            except: pass
             
-            time.sleep(0.5) 
+            time.sleep(1) # API 부하 방지용 휴식
             
         except Exception as e:
             print(f"⚠️ {symbol} 건너뜀: {e}")
