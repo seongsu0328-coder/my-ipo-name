@@ -2051,6 +2051,58 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# 🚀🚀🚀 [바로 여기입니다! 워밍업 봇 전용 비밀 뒷문] 🚀🚀🚀
+if st.query_params.get("warmup") == "true":
+    try:
+        # 1. 캘린더 전체 데이터를 불러와 서버 RAM(메모리)에 올림
+        df_calendar = get_extended_ipo_data(FINNHUB_API_KEY)
+        
+        if not df_calendar.empty:
+            # 2. 시장 거시 지표(Tab 2) 메모리에 올림
+            get_cached_market_status(df_calendar, FINNHUB_API_KEY)
+            
+            # 3. 💡 [대상 전면 확대] worker.py와 완벽 동기화 (최근 180일 ~ 향후 35일)
+            from datetime import datetime, timedelta
+            import pandas as pd
+            
+            today = datetime.now()
+            df_calendar['dt'] = pd.to_datetime(df_calendar['date'], errors='coerce')
+            
+            # 워커가 분석한 핵심 타겟 조건과 동일하게 필터링
+            target_stocks = df_calendar[
+                (df_calendar['dt'] >= today - timedelta(days=180)) & 
+                (df_calendar['dt'] <= today + timedelta(days=35))
+            ]
+            
+            # Streamlit 서버 타임아웃(30초) 방지를 위해 가장 핫한 50개로 제한
+            target_stocks = target_stocks.head(50) 
+            
+            for _, row in target_stocks.iterrows():
+                ticker = row['symbol']
+                name = row['name']
+                
+                # [Tab 0 로드] 
+                try:
+                    get_us_ipo_analysis(ticker) 
+                except: 
+                    pass
+                
+                # [Tab 1 로드]
+                try:
+                    get_unified_tab1_analysis(name, ticker, 'ko')
+                except: 
+                    pass
+        
+        # 4. (선택) 게시판 데이터도 미리 올려두고 싶다면 활성화
+        # db_load_posts(limit=100)
+        
+        st.write(f"✅ 봇 접속 확인: 메인 데이터 및 Tab0/Tab1 ({len(target_stocks)}개 핵심 종목) 서버 메모리 캐싱 완료!")
+    except Exception as e:
+        st.write(f"⚠️ 워밍업 에러 발생: {e}")
+        
+    st.stop() # 💡 파이썬 실행을 멈춰서 아래쪽 페이지 라우팅(UI)을 타지 않게 함
+# 🚀🚀🚀 [워밍업 코드 끝] 🚀🚀🚀
+
 # ==========================================
 # [PAGE ROUTING] 세션 상태 안전 초기화
 # ==========================================
