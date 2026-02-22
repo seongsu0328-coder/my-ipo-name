@@ -609,6 +609,133 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
             time.sleep(1)
 
     return f"<p style='color:red;'>시스템 오류: 언어 생성 지연이 발생했습니다.</p>", []
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_ai_analysis(company_name, topic, lang_code):
+    """
+    대표님의 5종 공시 메타데이터와 엄격한 포맷 지침을 내부에서 처리하는 통합 분석 함수
+    """
+    if not model:
+        return "⚠️ AI 모델 설정 오류가 발생했습니다."
+
+    # 1. 공시 종류별 상세 메타데이터 (def_meta)
+    def_meta = {
+        "S-1": {
+            "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 해당 문서에서 발견된 가장 중요한 투자 포인트 분석
+            2. 두 번째 문단: 실질적 성장 가능성과 재무적 의미 분석
+            3. 세 번째 문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책
+            """
+        },
+        "S-1/A": {
+            "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 이전 S-1 대비 변경된 핵심 사항 분석
+            2. 두 번째 문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기 분석
+            3. 세 번째 문단: 기존 주주 가치 희석 정도와 투자 매력도 분석
+            """
+        },
+        "F-1": {
+            "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위
+            2. 두 번째 문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크 분석
+            3. 세 번째 문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향
+            """
+        },
+        "FWP": {
+            "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전
+            2. 두 번째 문단: 경쟁사 대비 부각시키는 기술적/사업적 차별화 포인트
+            3. 세 번째 문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지
+            """
+        },
+        "424B4": {
+            "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석
+            2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검
+            3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측
+            """
+        }
+    }
+
+    # 해당 토픽이 없을 경우 기본값으로 S-1 사용
+    curr_meta = def_meta.get(topic, def_meta["S-1"])
+
+    # 2. 대표님의 엄격한 출력 형식 지침 (format_instruction)
+    format_instruction = """
+    [출력 형식 및 번역 규칙 - 반드시 지킬 것]
+    - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
+    - [분량 조건] 전체 요약이 아닙니다! **각 문단(1, 2, 3)마다 반드시 4~5문장(약 5줄 분량)씩** 내용을 상세하고 풍성하게 채워 넣으세요.
+    - 올바른 예시(영어): **[Investment Point]** The company's main advantage is...
+    - 올바른 예시(일본어): **[投資ポイント]** 同社の最大の強みは...
+    - 금지 예시(한국어 병기 절대 금지): **[Investment Point - 투자포인트]** (X)
+    - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \\n 同社は... (X)
+    """
+
+    # 3. 언어별 레이블 및 페르소나 설정
+    if lang_code == 'en':
+        labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
+        role_desc = "You are a professional senior analyst from Wall Street."
+        no_intro_prompt = 'CRITICAL: NEVER introduce yourself. DO NOT include Korean translations in headings. START IMMEDIATELY with the first English **[Heading]**.'
+        target_lang_str = "English"
+    elif lang_code == 'ja':
+        labels = ["分析対象", "指針", "内容構成および形式", "文体ガイド"]
+        role_desc = "あなたはウォール街出身の専門分析家です。"
+        no_intro_prompt = '【重要】自己紹介は禁止です。見出しに韓国語를 병기하지 마세요. 1글자부터 일본어의 **[見出し]**로 시작하세요.'
+        target_lang_str = "日本語(Japanese)"
+    elif lang_code == 'zh':
+        labels = ["分析目标", "指南", "内容结构和格式", "文体指南"]
+        role_desc = "您是华尔街的专业高级分析师。"
+        no_intro_prompt = '【重要】绝对不要自我介绍。绝对不要在标题中包含韩语。请直接以中文的**[标题]**开始正文。'
+        target_lang_str = "简体中文(Simplified Chinese)"
+    else:
+        labels = ["분석 대상", "지침", "내용 구성 및 형식", "문체 가이드"]
+        role_desc = "당신은 월가 출신의 전문 분석가입니다."
+        no_intro_prompt = '자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
+        target_lang_str = "한국어(Korean)"
+
+    # 4. 최종 프롬프트 조립
+    prompt = f"""
+    {labels[0]}: {company_name} - {topic}
+    {labels[1]} (Checkpoints): {curr_meta['points']}
+    
+    [{labels[1]}]
+    {role_desc}
+    {no_intro_prompt}
+    
+    [{labels[2]}]
+    {curr_meta['structure']}
+    {format_instruction}
+
+    [{labels[3]}]
+    - 반드시 '{target_lang_str}'로만 작성하세요. (절대 다른 언어를 섞지 마세요)
+    - 모든 문장은 반드시 '~합니다', '~입니다' 형태의 정중한 경어체로 작성하세요.
+    - 문장 끝이 끊기지 않도록 매끄럽게 연결하세요.
+    """
+
+    try:
+        for attempt in range(2):
+            response = model.generate_content(prompt)
+            res_text = response.text
+            
+            if lang_code != 'ko':
+                import re
+                if re.search(r'[가-힣]', res_text):
+                    continue 
+            return res_text
+        return response.text
+    except Exception as e:
+        return f"분석 중 오류 발생: {str(e)}"
+
         
 @st.cache_data(show_spinner=False, ttl=600)
 def get_market_dashboard_analysis(metrics_data, lang_code):
