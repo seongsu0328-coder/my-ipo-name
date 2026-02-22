@@ -9,7 +9,8 @@ beautifulsoup4
 gspread
 oauth2client
 google-api-python-client
-google-generativeai>=0.8.0  # 0.7.0에서 0.8.0으로 상향 권장
+google-generativeai>=0.8.0
 supabase
 openai
 numpy
+pytz
