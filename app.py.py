@@ -3155,8 +3155,8 @@ with main_area.container():
                 # 4. AI 요약 보기 (Expander) - 버튼 위로 이동 완료
                 with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
                     with st.spinner(get_text('msg_analyzing_filing')):
-                        analysis_result = get_ai_analysis(stock['name'], topic, curr_meta['points'], curr_meta['structure'] + format_instruction, curr_lang)
-                        
+                        # 함수 내부에서 포인트와 구조를 알아서 처리하므로 3개만 보내면 됩니다!
+                        analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
                     if "ERROR_DETAILS" in analysis_result:
                         st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
                     else:
