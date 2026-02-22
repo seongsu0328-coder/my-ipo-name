@@ -115,24 +115,49 @@ def translate_from_ko(korean_text, target_lang):
     
     if target_lang == 'en': lang_str = "English"
     elif target_lang == 'ja': lang_str = "日本語(Japanese)"
-    elif target_lang == 'zh': lang_str = "简体中文(Simplified Chinese)" # 💡 추가!
+    elif target_lang == 'zh': lang_str = "简体中文(Simplified Chinese)"
     
+    # 💡 1. 네거티브 프롬프트 강력 추가 (자기소개 금지 포함)
     prompt = f"""
     Translate the following Korean financial text into {lang_str}.
     
-    [CRITICAL RULES]
-    1. Maintain a professional Wall Street analyst tone.
-    2. Keep ALL HTML tags (<p>, <br>, <b>, etc.) and line breaks exactly as they are.
-    3. If there are <JSON_START> and <JSON_END> tags, keep them intact.
-    4. DO NOT translate JSON keys (e.g., "news", "title_en", "translated_title", "link", "sentiment", "date", "rating", "summary", "pro_con", "links").
-    5. In JSON, the value for "sentiment" MUST remain exactly as "긍정", "부정", or "일반". Do not translate these three words.
+    [CRITICAL STRICT RULES - PENALTY APPLIED IF VIOLATED]
+    1. Target Language ONLY: You MUST write STRICTLY in {lang_str}. 
+    2. NO KOREAN ALLOWED: DO NOT use ANY Korean characters (가-힣) in your translated output. If you output even one Korean character, the system will crash.
+    3. Maintain a professional Wall Street analyst tone.
+    4. Keep ALL HTML tags (<p>, <br>, <b>, etc.) and line breaks exactly as they are.
+    5. If there are <JSON_START> and <JSON_END> tags, keep them intact.
+    6. DO NOT translate JSON keys.
+    7. In JSON, the value for "sentiment" MUST remain exactly as "긍정", "부정", or "일반". (This is the ONLY exception where Korean is allowed).
+    8. NO INTRODUCTIONS/FILLERS: DO NOT include any self-introductions, greetings, or conversational transitions (e.g., "I am an analyst," "Here is the translation," "Let's look at the article"). START IMMEDIATELY with the translated content from the very first character.
     
     [Korean Text to Translate]
     {korean_text}
     """
-    try:
-        return standard_model.generate_content(prompt).text
-    except: return korean_text
+    
+    # 💡 2. 재시도(Retry) 로직 및 후처리 방어막
+    max_retries = 3
+    for i in range(max_retries):
+        try:
+            # Temperature 0.0으로 고정하여 창의성(환각 및 쓸데없는 말) 억제
+            response = standard_model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(temperature=0.0)
+            ).text
+            
+            # 💡 3. 파이썬 후처리 검증 (JSON 감성 값은 제외하고 검사)
+            check_text = response.replace("긍정", "").replace("부정", "").replace("일반", "")
+            if re.search(r'[가-힣]', check_text):
+                print(f"⚠️ [Worker] 한국어 감지됨 ({target_lang}). 재시도 {i+1}/{max_retries}")
+                time.sleep(1)
+                continue # 한국어가 발견되면 바로 다시 돌림
+                
+            return response
+        except Exception as e:
+            time.sleep(1)
+            pass
+            
+    return korean_text # 3번 다 실패하면 원본 반환
 
 
 # ==========================================
