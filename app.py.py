@@ -2368,10 +2368,16 @@ if st.session_state.page == 'login':
                 new_email = st.text_input("email_input", value=st.session_state.get('temp_email', ''), key="reg_email", label_visibility="collapsed")
                 st.session_state.temp_email = new_email
                 
-                # 🚨 [수정 완]: 파이썬 내부 로직 안정을 위해 옵션 값은 한글 고정 유지
+                # 💡 [수정 완료]: format_func를 이용해 화면 표시는 다국어로, 파이썬 내부 변수(auth_choice)는 영어(phone, email)로 안전하게 분리
                 st.markdown(f"<p style='{label_style}'>{get_text('auth_method_label')}</p>", unsafe_allow_html=True)
-                auth_choice = st.radio("auth_input", ["휴대폰(가상)", "이메일(실제)"], horizontal=True, label_visibility="collapsed", key="reg_auth_radio")
                 
+                auth_keys = ["phone", "email"]
+                auth_display = {
+                    "phone": get_text('auth_phone'),
+                    "email": get_text('auth_email')
+                }
+                
+                auth_choice = st.radio("auth_input", auth_keys, format_func=lambda x: auth_display[x], horizontal=True, label_visibility="collapsed", key="reg_auth_radio")
                 # --- [하단 유동 구역: 버튼 혹은 인증창으로 교체] ---
                 st.write("---") 
                 
