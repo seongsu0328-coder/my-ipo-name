@@ -160,7 +160,7 @@ from openai import OpenAI
 # [설정] 전역 변수
 # ==========================================
 DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
-MY_API_KEY = st.secrets.get("FINNHUB_API_KEY", "")
+MY_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 # ==========================================
 
 # ==========================================
