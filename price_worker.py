@@ -20,6 +20,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("❌ 에러: 환경변수 누락", flush=True); exit(1)
 
+# 💡 [수정] on_conflict가 여러 컬럼(ticker, target_date)일 경우를 위해 파라미터 유연성 확보
 def batch_upsert_raw(table_name, data_list, on_conflict="ticker"):
     if not data_list: return False
     endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
@@ -51,16 +52,18 @@ def fetch_and_update_prices():
     print(f"📦 대상: {len(tickers)}개 주가 다운로드 시작...", flush=True)
 
     now_iso = datetime.now(pytz.timezone('Asia/Seoul')).isoformat()
-    upsert_list = []
+    # 💡 [핵심] 미국 증시 기준 오늘의 '날짜' 추출 (예: 2026-02-22)
+    us_today_str = datetime.now(pytz.timezone('US/Eastern')).strftime('%Y-%m-%d')
     
-    # 🚨 [해결책] 다운로드도 50개 단위로 쪼개서 진행 상태를 중계합니다!
+    upsert_list = []
+    history_list = [] # 💡 과거 기록을 저장할 새로운 리스트
+    
     chunk_size = 50
     for i in range(0, len(tickers), chunk_size):
         chunk_tickers = tickers[i : i + chunk_size]
         print(f"⏳ 야후 파이낸스 다운로드 중... ({i+1} ~ {min(i+chunk_size, len(tickers))}/{len(tickers)})", flush=True)
         
         try:
-            # 에러 숨김 없이 정상적으로 데이터 요청
             data = yf.download(chunk_tickers, period="1d", group_by='ticker', threads=True, progress=False)
             
             for symbol in chunk_tickers:
@@ -69,25 +72,44 @@ def fetch_and_update_prices():
                     if 'Close' in target:
                         valid = target['Close'].dropna()
                         if not valid.empty and float(valid.iloc[-1]) > 0:
+                            current_p = float(valid.iloc[-1])
+                            
+                            # 1. 실시간 가격 캐시용 데이터
                             upsert_list.append({
                                 "ticker": str(symbol),
-                                "price": float(valid.iloc[-1]),
+                                "price": current_p,
                                 "updated_at": now_iso
+                            })
+                            
+                            # 2. 💡 영구 저장 히스토리용 데이터
+                            history_list.append({
+                                "ticker": str(symbol),
+                                "target_date": us_today_str,
+                                "close_price": current_p
                             })
                 except: continue
         except Exception as e:
             print(f"🚨 다운로드 에러 발생 ({i+1}~구간): {e}", flush=True)
             
-        # 야후 서버 차단 방지 (1.5초 휴식)
         time.sleep(1.5)
 
-    # 4. 50개 단위 청크 DB 업로드
+    # DB 전송 로직
     if upsert_list:
         print(f"\n📊 {len(upsert_list)}개 데이터 추출 완료. DB 전송 시작...", flush=True)
+        
+        # 1. 기존 price_cache (실시간 가격) 덮어쓰기
         for i in range(0, len(upsert_list), chunk_size):
             chunk = upsert_list[i : i + chunk_size]
-            if batch_upsert_raw("price_cache", chunk, on_conflict="ticker"):
-                print(f"  -> DB 전송 {min(i+chunk_size, len(upsert_list))}/{len(upsert_list)}개 성공", flush=True)
+            batch_upsert_raw("price_cache", chunk, on_conflict="ticker")
+            time.sleep(0.5)
+            
+        # 2. 💡 신규 price_history (과거 기록용 종가) 덮어쓰기
+        # target_date가 동일하면 계속 덮어쓰다가 장이 마감되면 최종 가격으로 고정됩니다.
+        print(f"📚 히스토리 DB 누적 저장 진행 중...", flush=True)
+        for i in range(0, len(history_list), chunk_size):
+            chunk = history_list[i : i + chunk_size]
+            # on_conflict를 'ticker,target_date' 복합키로 설정
+            batch_upsert_raw("price_history", chunk, on_conflict="ticker,target_date")
             time.sleep(0.5)
 
         batch_upsert_raw("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": now_iso}], on_conflict="cache_key")
