@@ -38,8 +38,8 @@ try:
         try:
             # Railway Variables에 넣은 이름과 일치해야 합니다.
             # 만약 [supabase] url 로 넣으셨다면 아래 형식이 맞습니다.
-            url = st.secrets["supabase"]["url"]
-            key = st.secrets["supabase"]["key"]
+            url = os.environ.get("SUPABASE_URL") or st.secrets["supabase"]["url"]
+            key = os.environ.get("SUPABASE_KEY") or st.secrets["supabase"]["key"]
             return create_client(url, key)
         except Exception as e:
             # 여기서 에러가 나면 화면에 뿌려줍니다.
