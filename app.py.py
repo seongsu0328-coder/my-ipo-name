@@ -2208,7 +2208,7 @@ if st.query_params.get("warmup") == "true":
                 # [Tab 0 로드] get_us_ipo_analysis -> get_ai_analysis로 변경
                 try:
                     # S-1 공시 리포트를 미리 메모리에 로딩
-                    get_ai_analysis(name, "S-1", "points", "structure", "ko") 
+                    get_ai_analysis(name, "S-1", "ko")
                 except: 
                     pass
                 
