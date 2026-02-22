@@ -3853,9 +3853,6 @@ with main_area.container():
         main_area.empty() 
         
         with main_area.container():
-            # 🚨 [해결] 하얀 화면 멈춤 현상의 주범이었던 <div min-height: 100vh> HTML 코드를 삭제했습니다.
-            # 게시판은 AI 스피너가 없어서 화면 잔상이 발생하지 않으므로 이 코드가 필요 없습니다.
-            
             st.markdown("""
                 <style>
                 div[data-testid="stPills"] div[role="radiogroup"] button {
@@ -3880,7 +3877,7 @@ with main_area.container():
             main_text = get_text('menu_main')
             watch_text = f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})"
             board_text = get_text('menu_board')
-            back_text = get_text('menu_back') if get_text('menu_back') else "뒤로가기"
+            back_text = get_text('menu_back') if get_text('menu_back') else "Back"
             
             menu_options = [login_text]
             if is_logged_in: menu_options.append(settings_text)
@@ -3902,9 +3899,8 @@ with main_area.container():
         
             # [2] 게시판 데이터 로드 및 검색 필터링 적용
             s_keyword = ""
-            s_type = "제목"
+            s_type = "title" # 💡 다국어 대응을 위해 내부 코드는 영어(키값)로 통일
             
-            # 세션에서 검색 상태를 기억하도록 하여 검색 후 페이지 새로고침 시에도 유지되도록 함.
             if 'b_s_type' in st.session_state:
                 s_type = st.session_state.b_s_type
             if 'b_s_keyword' in st.session_state:
@@ -3915,10 +3911,11 @@ with main_area.container():
             posts = all_posts
             if s_keyword:
                 k = s_keyword.lower()
-                if s_type == "제목": posts = [p for p in posts if k in p.get('title','').lower()]
-                elif s_type == "제목+내용": posts = [p for p in posts if k in p.get('title','').lower() or k in p.get('content','').lower()]
-                elif s_type == "카테고리": posts = [p for p in posts if k in p.get('category','').lower()]
-                elif s_type == "작성자": posts = [p for p in posts if k in p.get('author_name','').lower()]
+                # 💡 내부 키값으로 비교해야 언어가 바뀌어도 검색 기능이 정상 작동함
+                if s_type == "title": posts = [p for p in posts if k in p.get('title','').lower()]
+                elif s_type == "title_content": posts = [p for p in posts if k in p.get('title','').lower() or k in p.get('content','').lower()]
+                elif s_type == "category": posts = [p for p in posts if k in p.get('category','').lower()]
+                elif s_type == "author": posts = [p for p in posts if k in p.get('author_name','').lower()]
         
             # [3] 정렬 및 분리 로직 (HOT 5개 / 나머지 최신순 페이징)
             hot_candidates = []
@@ -3939,21 +3936,17 @@ with main_area.container():
                     except:
                         normal_posts.append(p)
                         
-                # HOT 정렬 및 최대 5개 추출
                 hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
                 top_5_hot = hot_candidates[:5]
                 
-                # 나머지 병합 및 최신순 정렬
                 normal_posts.extend(hot_candidates[5:])
                 normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
 
-            # 💡 [추가] 번역 상태 관리 및 번역 함수 (메인 게시판용)
             if 'translated_posts' not in st.session_state:
                 st.session_state.translated_posts = {}
 
             def translate_post_on_demand(title, content, target_lang_code):
                 if not title and not content: return {"title": "", "content": ""}
-                # 💡 중국어(zh) 타겟 언어 분기 추가
                 target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語" if target_lang_code == 'ja' else "简体中文(Simplified Chinese)"
                 
                 prompt = f"""Please translate the following Title and Content to {target_lang_str}. 
@@ -3974,19 +3967,18 @@ with main_area.container():
                 except: 
                     return {"title": title, "content": content}
 
-            # 게시판에 들어올 때 무조건 5개로 시작하도록 강제 설정
             if 'board_display_count' not in st.session_state:
                 st.session_state.board_display_count = 5
             
             current_display = normal_posts[:st.session_state.board_display_count]
         
-            # 💡 [수정] 번역 기능이 완벽하게 추가된 UI 출력 함수
+            # 💡 UI 렌더링 함수 다국어 적용 완료
             def render_post(p, is_hot=False):
                 p_auth = p.get('author_name', 'Unknown')
                 p_date = str(p.get('created_at', '')).split('T')[0]
                 p_id = str(p.get('id'))
                 p_uid = p.get('author_id')
-                p_cat = p.get('category', '자유')
+                p_cat = p.get('category') or get_text('placeholder_free') # 카테고리 없으면 '자유' 다국어
                 likes = p.get('likes') or 0
                 dislikes = p.get('dislikes') or 0
                 
@@ -3994,7 +3986,6 @@ with main_area.container():
                 original_content = p.get('content', '')
                 curr_lang = st.session_state.get('lang', 'ko')
                 
-                # 번역 상태 체크 로직
                 is_translated = p_id in st.session_state.translated_posts
                 if is_translated:
                     trans_data = st.session_state.translated_posts[p_id]
@@ -4009,13 +4000,13 @@ with main_area.container():
                     display_content = original_content
                 
                 prefix = "[HOT]" if is_hot else f"[{p_cat}]"
-                title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} (추천{likes}  비추천{dislikes})"
+                # 다국어 적용: "추천", "비추천"
+                title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} ({get_text('btn_recommend')}{likes}  {get_text('btn_dislike')}{dislikes})"
                 
                 with st.expander(title_disp.strip()):
                     st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{display_content}</div>", unsafe_allow_html=True)
                     st.write("<br>", unsafe_allow_html=True)
                     
-                    # 버튼 레이아웃 4분할 (번역버튼 추가)
                     action_c1, action_c2, action_c3, action_c4 = st.columns([2.5, 1.5, 1.5, 1.5])
                     
                     with action_c1:
@@ -4028,26 +4019,26 @@ with main_area.container():
                             st.rerun()
 
                     with action_c2:
-                        if st.button(f"추천{likes}", key=f"l_main_{p_id}", use_container_width=True):
+                        if st.button(f"{get_text('btn_recommend')}{likes}", key=f"l_main_{p_id}", use_container_width=True):
                             if is_logged_in:
                                 db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'like')
                                 st.rerun()
-                            else: st.toast("🔒 로그인이 필요합니다.")
+                            else: st.toast(get_text('msg_login_vote'))
                     with action_c3:
-                        if st.button(f"비추천{dislikes}", key=f"d_main_{p_id}", use_container_width=True):
+                        if st.button(f"{get_text('btn_dislike')}{dislikes}", key=f"d_main_{p_id}", use_container_width=True):
                             if is_logged_in:
                                 db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'dislike')
                                 st.rerun()
-                            else: st.toast("🔒 로그인이 필요합니다.")
+                            else: st.toast(get_text('msg_login_vote'))
                     with action_c4:
                         raw_u_info = st.session_state.get('user_info')
                         u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
                         is_admin = u_info.get('role') == 'admin'
                         
                         if is_logged_in and (u_info.get('id') == p_uid or is_admin):
-                            if st.button("삭제", key=f"del_main_{p_id}", type="secondary", use_container_width=True):
+                            if st.button(get_text('btn_delete'), key=f"del_main_{p_id}", type="secondary", use_container_width=True):
                                 if db_delete_post(p_id):
-                                    st.success("삭제됨")
+                                    st.success(get_text('msg_deleted'))
                                     import time; time.sleep(0.5)
                                     st.rerun()
         
@@ -4059,25 +4050,34 @@ with main_area.container():
                 # 1. 검색 및 글쓰기 영역
                 f_col1, f_col2 = st.columns(2)
                 with f_col1:
-                    with st.expander("검색하기"):
-                        # 🚨 [안전장치] index 에러 방지 처리 완료
-                        s_opts = ["제목", "제목+내용", "카테고리", "작성자"]
-                        s_idx = s_opts.index(s_type) if s_type in s_opts else 0
-                        s_type_new = st.selectbox("범위", s_opts, key="b_s_type_temp", index=s_idx)
-                        s_keyword_new = st.text_input("키워드", value=s_keyword, key="b_s_keyword_temp")
-                        if st.button("검색", key="search_btn", use_container_width=True):
+                    with st.expander(get_text('expander_search')):
+                        # 💡 다국어 맵핑 로직 (내부 키값과 외부 표시 텍스트를 분리)
+                        s_opts_keys = ["title", "title_content", "category", "author"]
+                        s_opts_display = {
+                            "title": get_text('opt_search_title'),
+                            "title_content": get_text('opt_search_title_content'),
+                            "category": get_text('opt_search_category'),
+                            "author": get_text('opt_search_author')
+                        }
+                        
+                        s_idx = s_opts_keys.index(s_type) if s_type in s_opts_keys else 0
+                        # format_func를 통해 보여주는 글자만 다국어 적용
+                        s_type_new = st.selectbox(get_text('search_scope'), s_opts_keys, format_func=lambda x: s_opts_display[x], key="b_s_type_temp", index=s_idx)
+                        s_keyword_new = st.text_input(get_text('search_keyword'), value=s_keyword, key="b_s_keyword_temp")
+                        
+                        if st.button(get_text('btn_search'), key="search_btn", use_container_width=True):
                             st.session_state.b_s_type = s_type_new
                             st.session_state.b_s_keyword = s_keyword_new
                             st.rerun()
                 
                 with f_col2:
-                    with st.expander("글쓰기"):
+                    with st.expander(get_text('expander_write')):
                         if is_logged_in and check_permission('write'):
                             with st.form(key="board_main_form", clear_on_submit=True):
-                                b_cat = st.text_input("종목/말머리", placeholder="자유", key="main_b_cat")
-                                b_tit = st.text_input("제목", key="main_b_tit")
-                                b_cont = st.text_area("내용", key="main_b_cont")
-                                if st.form_submit_button("등록", type="primary", use_container_width=True):
+                                b_cat = st.text_input(get_text('label_category'), placeholder=get_text('placeholder_free'), key="main_b_cat")
+                                b_tit = st.text_input(get_text('label_title'), key="main_b_tit")
+                                b_cont = st.text_area(get_text('label_content'), key="main_b_cont")
+                                if st.form_submit_button(get_text('btn_submit'), type="primary", use_container_width=True):
                                     if b_tit and b_cont:
                                         u_id = st.session_state.user_info['id']
                                         try:
@@ -4086,43 +4086,41 @@ with main_area.container():
                                         except: d_name = f"{u_id[:3]}***"
                                         
                                         if db_save_post(b_cat, b_tit, b_cont, d_name, u_id):
-                                            st.success("등록 완료!")
+                                            st.success(get_text('msg_submit_success'))
                                             import time; time.sleep(0.5)
                                             if 'b_s_type' in st.session_state: del st.session_state.b_s_type
                                             if 'b_s_keyword' in st.session_state: del st.session_state.b_s_keyword
                                             st.rerun()
                         else:
-                            st.warning("🔒 로그인 및 권한 인증이 필요합니다.")
+                            st.warning(get_text('msg_login_auth_needed'))
         
                 st.write("<br>", unsafe_allow_html=True)
                 
                 # 2. 인기글 영역
                 if hot_candidates and top_5_hot:
-                    st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>인기글</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>{get_text('label_hot_posts')}</div>", unsafe_allow_html=True)
                     for p in top_5_hot:
                         render_post(p, is_hot=True)
                     st.write("<br><br>", unsafe_allow_html=True)
                 
                 # 3. 최신글 영역
-                st.markdown("<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>최신글</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{get_text('label_recent_posts')}</div>", unsafe_allow_html=True)
                 
                 if posts:
                     if current_display:
                         for p in current_display:
                             render_post(p, is_hot=False)
                     else:
-                        st.info("조건에 맞는 최신 글이 없습니다.")
+                        st.info(get_text('msg_no_recent_posts'))
                         
                     # 더보기 버튼
                     if len(normal_posts) > st.session_state.board_display_count:
                         st.write("<br>", unsafe_allow_html=True)
-                        if st.button("🔽 더보기", key="more_board_posts", use_container_width=True):
+                        if st.button(get_text('btn_load_more'), key="more_board_posts", use_container_width=True):
                             st.session_state.board_display_count += 10
                             st.rerun()
                 else:
-                    st.info("게시글이 없습니다.")
-            
-            # (삭제됨) st.markdown("</div>", ...) 하얀 화면 원인 제거 완료
+                    st.info(get_text('msg_no_posts'))
                 
                         
         
