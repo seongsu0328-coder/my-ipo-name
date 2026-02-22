@@ -508,6 +508,13 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
         target_lang = "English"
         lang_instruction = "Your entire response MUST be in English only. Do not use any Korean."
         json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+    elif lang_code == 'zh':  # 💡 중국어 추가
+        sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。绝对不要使用韩语。"
+        task1_label = "[任务1: 商业模式深度分析]"
+        task2_label = "[任务2: 收集最新新闻]"
+        target_lang = "简体中文(Simplified Chinese)"
+        lang_instruction = "必须只用自然流畅的简体中文编写。所有句子都必须是中文，绝对不能混用韩语（仅企业名称可用英语）。"
+        json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "中文标题", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
     else:
         sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
         task1_label = "[작업 1: 비즈니스 모델 심층 분석]"
@@ -618,19 +625,20 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
         print(f"Tab4 DB Error: {e}")
 
     # 💡 [수정] 내부에서 언어 맵핑을 직접 확인하여 안전성 강화
-    # 만약 상단의 LANG_PROMPT_MAP에 ja가 없어도 여기서 강제로 잡아줍니다.
     LANG_MAP = {
         'ko': '한국어 (Korean)',
         'en': '영어 (English)',
-        'ja': '일본어 (Japanese)'
+        'ja': '일본어 (Japanese)',
+        'zh': '简体中文 (Simplified Chinese)'  # 💡 중국어 추가
     }
     target_lang = LANG_MAP.get(lang_code, '한국어 (Korean)')
 
     # [Step 2] 캐시 없으면 강력 프롬프트로 분석
-    # 💡 일본어일 경우 지시어에 일본어를 섞어주어 AI의 언어 고정력을 높입니다.
     lang_instruction = f"Respond strictly in {target_lang}."
     if lang_code == 'ja':
-        lang_instruction = "必ず日本語(Japanese)으로 작성하세요. 모든 문장은 일본어여야 합니다."
+        lang_instruction = "必ず日本語(Japanese)で作成してください。すべての文章は日本語である必要があります。"
+    elif lang_code == 'zh':  # 💡 중국어 강력 지시어 추가
+        lang_instruction = "必须只用简体中文(Simplified Chinese)编写。所有句子都必须是中文，绝对不能混用韩语。"
 
     prompt = f"""
     당신은 월가 출신의 IPO 전문 분석가입니다. 
@@ -2052,10 +2060,12 @@ def get_text(key):
     return UI_TEXT.get(key, {}).get(lang, UI_TEXT.get(key, {}).get('ko', key))
 
 # 현재 AI 프롬프트에 주입할 언어명 문자열 매핑
+# 현재 AI 프롬프트에 주입할 언어명 문자열 매핑
 LANG_PROMPT_MAP = {
     'ko': '전문적인 한국어(Korean)',
     'en': 'Professional English',
-    'ja': '専門的な日本語(Japanese)'
+    'ja': '専門的な日本語(Japanese)',
+    'zh': '简体中文(Simplified Chinese)'  # 💡 추가됨
 }
 
 # 3. 공통 UI 함수 정의 (전역)
@@ -3536,7 +3546,8 @@ with main_area.container():
                 # 1. 주문형 번역 함수
                 def translate_post_on_demand(title, content, target_lang_code):
                     if not title and not content: return {"title": "", "content": ""}
-                    target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語"
+                    # 💡 중국어(zh) 타겟 언어 분기 추가
+                    target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語" if target_lang_code == 'ja' else "简体中文(Simplified Chinese)"
                     
                     prompt = f"""Please translate the following Title and Content to {target_lang_str}. 
                     You MUST keep the exact string '|||SEP|||' between the translated Title and translated Content. 
@@ -3890,7 +3901,8 @@ with main_area.container():
 
             def translate_post_on_demand(title, content, target_lang_code):
                 if not title and not content: return {"title": "", "content": ""}
-                target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語"
+                # 💡 중국어(zh) 타겟 언어 분기 추가
+                target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語" if target_lang_code == 'ja' else "简体中文(Simplified Chinese)"
                 
                 prompt = f"""Please translate the following Title and Content to {target_lang_str}. 
                 You MUST keep the exact string '|||SEP|||' between the translated Title and translated Content. 
