@@ -824,19 +824,26 @@ def get_market_dashboard_analysis(metrics_data, lang_code):
 @st.cache_resource
 def get_gcp_clients():
     try:
-        # 이 함수가 실행될 때 위에서 import한 'build'를 사용합니다.
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        creds_dict = st.secrets["gcp_service_account"]
+        
+        # --- 🚀 핵심 수정 부분 시작 ---
+        gcp_raw = os.environ.get("GCP_SERVICE_ACCOUNT")
+        
+        if gcp_raw:
+            # Railway 서버: 환경 변수에서 가져온 문자열을 파이썬 딕셔너리로 변환
+            creds_dict = json.loads(gcp_raw)
+        else:
+            # 대표님 로컬 PC: 기존처럼 secrets.toml에서 가져옴
+            creds_dict = st.secrets["gcp_service_account"]
+        # --- 🚀 핵심 수정 부분 끝 ---
+
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         
         gspread_client = gspread.authorize(creds)
-        # 여기서 build가 정의되어 있어야 에러가 안 납니다.
         drive_service = build('drive', 'v3', credentials=creds)
         
         return gspread_client, drive_service
     except Exception as e:
-        # 만약 여기서 'name build is not defined'가 뜬다면 
-        # 위쪽의 import build 줄이 지워졌는지 확인해야 합니다.
         st.error(f"구글 연결 초기화 실패: {e}")
         return None, None
 
