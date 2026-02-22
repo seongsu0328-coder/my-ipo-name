@@ -1582,7 +1582,7 @@ def get_latest_stable_model():
 # 함수를 호출하는 대신, 2026년 표준인 2.0 모델명을 직접 지정합니다.
 SELECTED_MODEL_NAME = 'gemini-2.0-flash' 
 
-if st.secrets.get("GENAI_API_KEY"):
+if os.environ.get("GENAI_API_KEY") or st.secrets.get("GENAI_API_KEY"):
     try:
         # model_name을 명시적으로 선언하여 가상 환경 오류를 방지합니다.
         model = genai.GenerativeModel(model_name=SELECTED_MODEL_NAME)
