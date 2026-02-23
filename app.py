@@ -2903,8 +2903,8 @@ elif st.session_state.page == 'setup':
                             
                             function requestPay() {{
                                 var requestData = {{
-                                    pg: "html5_inicis", // 👈 KG이니시스 (일반결제)
-                                    pay_method: "card",
+                                    pg: "html5_inicis", // 👈 정확한 PG사 코드 (KG이니시스)
+                                    pay_method: "card", // 👈 결제 수단 (카드)
                                     merchant_uid: "order_" + new Date().getTime(),
                                     name: "유니콘 파인더 프리미엄 (1개월)",
                                     amount: 6500, 
@@ -2916,10 +2916,7 @@ elif st.session_state.page == 'setup':
                                     if (rsp.success) {{
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }} else {{
-                                        alert("❌ 결제창 호출 실패!\\n\\n" +
-                                              "에러 코드: " + rsp.error_code + "\\n" +
-                                              "상세 메시지: " + rsp.error_msg + "\\n\\n" +
-                                              "💡 포트원 관리자에서 'KG이니시스(일반결제)' 채널이 정상 등록되었는지 확인해주세요.");
+                                        alert("❌ 결제 실패: " + rsp.error_msg);
                                     }}
                                 }});
                             }}
