@@ -1890,44 +1890,41 @@ for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view
 # =========================================================
 # 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (앱 최상단 문지기)
 # =========================================================
-# 이 코드는 페이지 라우팅 전에 실행되어 절대 놓치지 않습니다.
 q_params = st.query_params
 
 if q_params.get("success") == "true":
-    # 1. 로그인된 유저인지 확인
-    if st.session_state.get('auth_status') == 'user' and st.session_state.get('user_info'):
-        u_id = st.session_state.user_info.get('id')
-        
-        # 2. 이미 프리미엄이 아닐 때만 업데이트 진행
-        if not st.session_state.user_info.get('is_premium'):
-            with st.spinner("결제 승인을 확인하고 권한을 부여 중입니다..."):
-                try:
-                    from datetime import datetime, timedelta
-                    expire_date = (datetime.now() + timedelta(days=30)).isoformat()
-                    
-                    # 💡 [핵심] Supabase DB에 실제로 값을 전송하는 부분!
-                    update_payload = {
-                        "is_premium": True,
-                        "premium_until": expire_date
-                    }
-                    supabase.table("users").update(update_payload).eq("id", u_id).execute()
-                    
-                    # 로컬 세션 정보 갱신
+    # 💡 URL에서 유저 ID를 직접 가져옵니다. (세션 초기화 대비)
+    target_uid = q_params.get("uid")
+    
+    if target_uid:
+        with st.spinner("결제 승인을 확인하고 권한을 부여 중입니다..."):
+            try:
+                from datetime import datetime, timedelta
+                expire_date = (datetime.now() + timedelta(days=30)).isoformat()
+                
+                # 1. [핵심] URL에 적힌 아이디로 Supabase DB 즉시 업데이트!
+                update_payload = {
+                    "is_premium": True,
+                    "premium_until": expire_date
+                }
+                supabase.table("users").update(update_payload).eq("id", target_uid).execute()
+                
+                # 2. 로컬 세션 정보 갱신 (만약 로그인 상태가 유지되어 있다면)
+                if st.session_state.get('user_info') and st.session_state.user_info.get('id') == target_uid:
                     st.session_state.user_info['is_premium'] = True
                     st.session_state.user_info['premium_until'] = expire_date
-                    
-                    st.success("🎉 결제가 확인되었습니다! 프리미엄 권한이 활성화되었습니다.")
-                    
-                    # 주소창에서 ?success=true를 지우고 새로고침 (중복 실행 방지)
-                    st.query_params.clear()
-                    import time
-                    time.sleep(2)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"DB 업데이트 중 오류가 발생했습니다: {e}")
+                
+                st.success("🎉 결제가 성공적으로 완료되었습니다! DB 업데이트 완료!")
+                
+                # 3. 주소창 정리 및 새로고침
+                st.query_params.clear()
+                import time
+                time.sleep(2)
+                st.rerun()
+            except Exception as e:
+                st.error(f"DB 업데이트 중 오류: {e}")
     else:
-        # 혹시 결제창을 다녀오는 동안 세션이 끊겼을 경우
-        st.warning("결제는 성공했으나 로그인 정보가 만료되었습니다. 다시 로그인해주세요.")
+        st.warning("결제는 성공했으나 유저 식별자가 누락되었습니다.")
         st.query_params.clear()
 
 # ==========================================
@@ -2878,6 +2875,8 @@ elif st.session_state.page == 'setup':
                 if portone_id:
                     u_email = user.get('email', 'test@unicornfinder.app')
                     u_name = user.get('display_name', '유니콘 유저')
+                    # 💡 현재 유저의 고유 ID를 가져옵니다.
+                    current_uid = user.get('id', '') 
                     
                     import streamlit.components.v1 as components
                     
@@ -2896,7 +2895,6 @@ elif st.session_state.page == 'setup':
                         
                         <script>
                             function openPayWindow() {{
-                                // 1. Streamlit 밖으로 탈출하는 진짜 브라우저 새 창 열기
                                 const payWindow = window.open("", "_blank", "width=600,height=800");
                                 
                                 if (!payWindow) {{
@@ -2904,7 +2902,6 @@ elif st.session_state.page == 'setup':
                                     return;
                                 }}
                                 
-                                // 2. 새 창의 넓은 공간에 포트원 결제 전용 코드를 씁니다.
                                 const htmlContent = `
                                     <!DOCTYPE html>
                                     <html>
@@ -2932,18 +2929,19 @@ elif st.session_state.page == 'setup':
                                                         phoneNumber: "010-0000-0000"
                                                     }},
                                                     windowType: {{
-                                                        pc: "IFRAME",       // KG이니시스가 요구하는 IFRAME 방식 (이제 넓은 새 창이므로 안 깨짐!)
-                                                        smartPhone: "REDIRECTION" // 모바일은 전체 화면 전환
+                                                        pc: "IFRAME",       
+                                                        smartPhone: "REDIRECTION" 
                                                     }},
-                                                    redirectUrl: "https://unicornfinder.app/?success=true"
+                                                    // 🚀 [수정됨] 돌아올 때 유저 ID(uid)를 무조건 달고 오게 합니다!
+                                                    redirectUrl: "https://unicornfinder.app/?success=true&uid={current_uid}"
                                                 }}).then(function(response) {{
                                                     if (response && response.code != null) {{
                                                         alert("결제 실패: " + response.message);
                                                         window.close();
                                                     }} else if (response) {{
-                                                        // 결제 성공 시, 뒤에 있는 본래 앱 화면을 success로 보내고 팝업은 닫습니다.
                                                         if (window.opener && !window.opener.closed) {{
-                                                            window.opener.parent.location.href = "https://unicornfinder.app/?success=true";
+                                                            // 🚀 [수정됨] PC 팝업에서도 돌아올 때 uid를 달고 앱을 새로고침합니다!
+                                                            window.opener.parent.location.href = "https://unicornfinder.app/?success=true&uid={current_uid}";
                                                         }}
                                                         window.close();
                                                     }}
@@ -2957,7 +2955,6 @@ elif st.session_state.page == 'setup':
                                     </html>
                                 `;
                                 
-                                // 3. 새 창에 HTML을 밀어넣고 실행!
                                 payWindow.document.write(htmlContent);
                                 payWindow.document.close();
                             }}
@@ -2965,18 +2962,18 @@ elif st.session_state.page == 'setup':
                     </body>
                     </html>
                     """
-                    # 앱 화면은 버튼 크기(45px)를 그대로 예쁘게 유지합니다!
                     components.html(portone_html, height=45)
                 else:
                     st.button(get_text('btn_premium'), disabled=True)
 
             # -------------------------------------------------------------
-            # [Case 2] 해외 사용자 (EN, JA, ZH): Stripe 연동 (기존 코드 유지)
+            # [Case 2] 해외 사용자 (EN, JA, ZH): Stripe 연동
             # -------------------------------------------------------------
             else:
                 if st.button(get_text('btn_premium'), use_container_width=True):
                     stripe_sk = os.environ.get("STRIPE_SECRET_KEY")
                     stripe_price = os.environ.get("STRIPE_PRICE_ID")
+                    current_uid = user.get('id', '') # 💡 현재 유저 ID
                     
                     if user.get('role') == 'admin':
                         if not stripe_sk or not stripe_price:
@@ -2996,7 +2993,8 @@ elif st.session_state.page == 'setup':
                                     line_items=[{'price': stripe_price, 'quantity': 1}],
                                     mode='subscription',
                                     locale=curr_lang if curr_lang in ['en', 'ja', 'zh'] else 'auto',
-                                    success_url='https://unicornfinder.app/?success=true&session_id={CHECKOUT_SESSION_ID}',
+                                    # 🚀 [수정됨] Stripe 결제 후 돌아올 때도 uid를 추가합니다!
+                                    success_url=f'https://unicornfinder.app/?success=true&uid={current_uid}&session_id={{CHECKOUT_SESSION_ID}}',
                                     cancel_url='https://unicornfinder.app/?canceled=true',
                                 )
                                 st.success(get_text('msg_checkout_complete'))
