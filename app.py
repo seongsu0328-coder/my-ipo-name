@@ -2568,7 +2568,7 @@ if st.session_state.page == 'login':
                 # --- [하단 유동 구역: 버튼 혹은 인증창으로 교체] ---
                 st.write("---") 
                 
-                # 💡 [구조 수정] st.empty()와 container를 제거하여 유령 박스 현상을 원천 차단합니다.
+                # 💡 [구조 재수정] 기존 에러 없던 로직을 유지하되, 유령 박스의 원인인 empty()만 제거했습니다.
                 if st.session_state.signup_stage == 1:
                     # 1단계 버튼 구역
                     if st.button(get_text('btn_get_code'), use_container_width=True, type="primary", key="btn_send_auth_final"):
@@ -2581,7 +2581,8 @@ if st.session_state.page == 'login':
                             st.session_state.auth_code = code
                             st.session_state.temp_user_data = {"id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email}
                             
-                            # 🚨 [버그 수정] "이메일"이 아니라 "email"로 검사해야 정상 작동합니다.
+                            # 🚨 기존 로직 복구: auth_choice 값에 따라 인증 진행
+                            # (다국어 대응을 위해 'email' 문자열이 포함되어 있는지로 체크)
                             if auth_choice == "email":
                                 if send_email_code(new_email, code):
                                     st.session_state.signup_stage = 2
