@@ -2903,7 +2903,7 @@ elif st.session_state.page == 'setup':
                             
                             function requestPay() {{
                                 var requestData = {{
-                                    pg: "html5_inicis", // 👈 정확한 PG사 코드 (KG이니시스)
+                                    pg: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4", // 👈 정확한 PG사 코드 (KG이니시스)
                                     pay_method: "card", // 👈 결제 수단 (카드)
                                     merchant_uid: "order_" + new Date().getTime(),
                                     name: "유니콘 파인더 프리미엄 (1개월)",
