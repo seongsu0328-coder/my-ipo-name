@@ -2857,37 +2857,111 @@ elif st.session_state.page == 'setup':
                 st.session_state.clear()
                 st.rerun()
 
-        # [D] 🔥 프리미엄 구독 버튼
+        # [D] 🔥 프리미엄 구독 버튼 (국내 PortOne / 해외 Stripe 분기)
         with col_premium:
-            if st.button(get_text('btn_premium'), use_container_width=True):
-                stripe_sk = os.environ.get("STRIPE_SECRET_KEY")
-                stripe_price = os.environ.get("STRIPE_PRICE_ID")
-                
-                # 관리자 전용 디버깅
-                if user.get('role') == 'admin':
-                    if not stripe_sk or not stripe_price:
-                        st.divider()
-                        st.warning("🛠️ [관리자 디버깅 모드]")
-                        st.write(f"- STRIPE_SECRET_KEY 존재 여부: {'✅ 확인됨' if stripe_sk else '❌ 누락됨'}")
-                        st.write(f"- STRIPE_PRICE_ID 존재 여부: {'✅ 확인됨' if stripe_price else '❌ 누락됨'}")
+            curr_lang = st.session_state.get('lang', 'ko')
 
-                if not stripe_sk or not stripe_price:
-                    st.error("❌ 결제 설정(환경 변수)이 누락되었습니다. 관리자에게 문의하세요.")
+            # -------------------------------------------------------------
+            # [Case 1] 한국어 사용자: PortOne (국내 카드, 카카오페이 등)
+            # -------------------------------------------------------------
+            if curr_lang == 'ko':
+                portone_id = os.environ.get("PORTONE_STORE_ID")
+                
+                # [관리자 전용 디버깅]
+                if user.get('role') == 'admin' and not portone_id:
+                    st.error("🛠️ [관리자] Railway에 PORTONE_STORE_ID가 누락되었습니다.")
+                
+                if portone_id:
+                    # 결제창에 넘겨줄 유저 정보
+                    u_email = user.get('email', 'test@unicornfinder.app')
+                    u_name = user.get('display_name', '유니콘 유저')
+                    
+                    import streamlit.components.v1 as components
+                    
+                    # 💡 Streamlit 안에 쏙 들어가는 포트원 결제 전용 미니 웹페이지 (Iframe)
+                    portone_html = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+                        <script src="https://cdn.iamport.kr/js/iamport.payment-1.2.0.js"></script>
+                        <style>
+                            body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background-color: transparent; }}
+                            .pay-btn {{
+                                background-color: #FEE500; color: #000000; border: none; border-radius: 8px;
+                                padding: 8px 15px; font-size: 15px; font-weight: bold; cursor: pointer; 
+                                width: 100%; height: 42px; transition: 0.2s; font-family: sans-serif;
+                            }}
+                            .pay-btn:hover {{ background-color: #e5ce00; }}
+                        </style>
+                    </head>
+                    <body>
+                        <button class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제</button>
+                        <script>
+                            var IMP = window.IMP; 
+                            IMP.init("{portone_id}"); // Railway에서 가져온 식별코드
+                            
+                            function requestPay() {{
+                                IMP.request_pay({{
+                                    pg: "html5_inicis", // 채널 추가 시 설정한 PG사
+                                    pay_method: "card",
+                                    merchant_uid: "order_" + new Date().getTime(),
+                                    name: "유니콘 파인더 프리미엄 (1개월)",
+                                    amount: 6500, // 한화 6,500원
+                                    buyer_email: "{u_email}",
+                                    buyer_name: "{u_name}"
+                                }}, function (rsp) {{
+                                    if (rsp.success) {{
+                                        // ✅ 결제 성공 시! 마법의 코드 (Stripe 성공 처리 로직으로 연결)
+                                        window.parent.location.href = "https://unicornfinder.app/?success=true";
+                                    }} else {{
+                                        // 결제 실패 또는 창 닫음
+                                        alert("결제 실패 또는 취소: " + rsp.error_msg);
+                                    }}
+                                }});
+                            }}
+                        </script>
+                    </body>
+                    </html>
+                    """
+                    # 버튼 높이를 45px로 맞춰서 Streamlit 기본 버튼들과 이질감 없이 삽입합니다.
+                    components.html(portone_html, height=45)
                 else:
-                    with st.spinner(get_text('msg_checkout_ready')):
-                        try:
-                            import stripe
-                            stripe.api_key = stripe_sk
-                            checkout_session = stripe.checkout.Session.create(
-                                line_items=[{'price': stripe_price, 'quantity': 1}],
-                                mode='subscription',
-                                success_url='https://unicornfinder.app/?success=true&session_id={CHECKOUT_SESSION_ID}',
-                                cancel_url='https://unicornfinder.app/?canceled=true',
-                            )
-                            st.success(get_text('msg_checkout_complete'))
-                            st.link_button(get_text('btn_pay_now'), checkout_session.url, use_container_width=True)
-                        except Exception as e:
-                            st.error(f"결제창 생성 중 오류 발생: {e}")
+                    st.button(get_text('btn_premium'), disabled=True)
+
+            # -------------------------------------------------------------
+            # [Case 2] 해외 사용자 (EN, JA, ZH): Stripe 연동 (기존 코드 유지)
+            # -------------------------------------------------------------
+            else:
+                if st.button(get_text('btn_premium'), use_container_width=True):
+                    stripe_sk = os.environ.get("STRIPE_SECRET_KEY")
+                    stripe_price = os.environ.get("STRIPE_PRICE_ID")
+                    
+                    if user.get('role') == 'admin':
+                        if not stripe_sk or not stripe_price:
+                            st.divider()
+                            st.warning("🛠️ [관리자 디버깅 모드]")
+                            st.write(f"- STRIPE_SECRET_KEY: {'✅' if stripe_sk else '❌'}")
+                            st.write(f"- STRIPE_PRICE_ID: {'✅' if stripe_price else '❌'}")
+
+                    if not stripe_sk or not stripe_price:
+                        st.error("❌ 결제 설정(환경 변수)이 누락되었습니다.")
+                    else:
+                        with st.spinner(get_text('msg_checkout_ready')):
+                            try:
+                                import stripe
+                                stripe.api_key = stripe_sk
+                                checkout_session = stripe.checkout.Session.create(
+                                    line_items=[{'price': stripe_price, 'quantity': 1}],
+                                    mode='subscription',
+                                    locale=curr_lang if curr_lang in ['en', 'ja', 'zh'] else 'auto',
+                                    success_url='https://unicornfinder.app/?success=true&session_id={CHECKOUT_SESSION_ID}',
+                                    cancel_url='https://unicornfinder.app/?canceled=true',
+                                )
+                                st.success(get_text('msg_checkout_complete'))
+                                st.link_button(get_text('btn_pay_now'), checkout_session.url, use_container_width=True)
+                            except Exception as e:
+                                st.error(f"결제창 생성 중 오류 발생: {e}")
         
         # ===========================================================
         # 👇 [수정 완료] 관리자 승인 기능 (Supabase 연동 버전)
