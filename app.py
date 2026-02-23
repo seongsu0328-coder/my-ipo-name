@@ -2879,7 +2879,7 @@ elif st.session_state.page == 'setup':
                     <head>
                         <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
                         <style>
-                            body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background-color: transparent; }}
+                            body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background-color: transparent; overflow: hidden; }}
                             .pay-btn {{
                                 background-color: #FEE500; color: #000000; border: none; border-radius: 8px;
                                 padding: 8px 15px; font-size: 15px; font-weight: bold; cursor: pointer; 
@@ -2889,11 +2889,15 @@ elif st.session_state.page == 'setup':
                         </style>
                     </head>
                     <body>
-                        <button class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제 (테스트)</button>
+                        <button id="pay-button" class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제 (테스트)</button>
                         
                         <script>
                             async function requestPay() {{
                                 try {{
+                                    // 1. 버튼 클릭 시 부모(Streamlit)에게 Iframe 높이를 키워달라고 요청 (선택 사항)
+                                    // 하지만 Streamlit에서는 components.html의 height를 동적으로 바꾸기 어려우므로,
+                                    // 아래 response 대기 중에 결제창이 Iframe 내부에서 풀화면으로 뜨게 설정합니다.
+
                                     const response = await PortOne.requestPayment({{
                                         storeId: "{portone_id}",
                                         channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
@@ -2908,26 +2912,27 @@ elif st.session_state.page == 'setup':
                                             phoneNumber: "010-0000-0000"
                                         }},
                                         windowType: {{
-                                            pc: "IFRAME", // 👈 POPUP에서 IFRAME으로 변경 (이니시스 V2 필수)
-                                            smartPhone: "POPUP"
+                                            pc: "IFRAME", 
+                                            smartPhone: "POPUP" // 모바일은 팝업이 편합니다.
                                         }}
                                     }});
 
                                     if (response.code != null) {{
                                         alert("❌ 결제 실패: " + response.message);
                                     }} else {{
-                                        // 결제 성공 시 부모 창(Streamlit) 주소 변경
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }}
                                 }} catch (e) {{
-                                    alert("🚨 결제 모듈 실행 오류: " + e.message);
+                                    alert("🚨 오류: " + e.message);
                                 }}
                             }}
                         </script>
                     </body>
                     </html>
                     """
-                    components.html(portone_html, height=45)
+                    # [핵심] height를 700 정도로 넉넉히 줍니다. 
+                    # 평소에는 버튼(45px)만 보이고, 결제창이 뜨면 이 700px 공간 안에서 자유롭게 움직입니다.
+                    components.html(portone_html, height=700)
                 else:
                     st.button(get_text('btn_premium'), disabled=True)
 
