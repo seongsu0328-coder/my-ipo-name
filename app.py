@@ -1166,16 +1166,29 @@ def send_email_code(to_email, code):
     import os
     import smtplib
     from email.mime.text import MIMEText
+    import streamlit as st
+    
     try:
-        # 💡 대표님의 Railway 변수명에 맞춰 수정 완료!
+        # 1. 현재 서버의 모든 환경변수 키(이름)들을 가져옵니다.
+        all_keys = list(os.environ.keys())
+        
+        # 2. 우리가 찾는 변수들이 있는지 확인합니다.
+        # Railway 대시보드에 입력하신 이름과 정확히 일치해야 합니다.
         sender_email = os.environ.get("SMTP_EMAIL_ADDRESS")
         sender_pw = os.environ.get("SMTP_APP_PASSWORD")
 
+        # [디버깅 영역] 변수를 못 찾았을 때 상세 정보를 출력합니다.
         if not sender_email or not sender_pw:
-            st.error("❌ 서버 설정 오류: Railway Variables에서 SMTP_EMAIL_ADDRESS 이름을 확인해주세요.")
+            # 이메일이나 패스워드라는 단어가 포함된 키들만 필터링해서 보여줍니다.
+            hint_keys = [k for k in all_keys if any(x in k.upper() for x in ["SMTP", "MAIL", "PASS"])]
+            
+            st.error("🚨 [디버깅] 환경변수 로드 실패")
+            st.info(f"💡 현재 서버에서 감지된 관련 변수 이름들: {hint_keys}")
+            st.warning("⚠️ Railway Variables에 'SMTP_EMAIL_ADDRESS'와 'SMTP_APP_PASSWORD'가 정확히 등록되어 있는지 확인해 주세요.")
             return False
 
-        msg = MIMEText(f"안녕하세요. 인증번호는 [{code}] 입니다.")
+        # 3. 메일 발송 로직 (변수를 찾았을 때만 실행)
+        msg = MIMEText(f"안녕하세요. Unicorn Finder 인증번호는 [{code}] 입니다.")
         msg['Subject'] = "[Unicorn Finder] 본인 인증번호"
         msg['From'] = sender_email
         msg['To'] = to_email
@@ -1187,8 +1200,14 @@ def send_email_code(to_email, code):
             
         st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
         return True
+        
     except Exception as e:
-        st.error(f"❌ 이메일 전송 실패: {e}")
+        # 인증 오류(비밀번호 틀림)인지, 네트워크 오류인지 구분해서 알려줍니다.
+        error_msg = str(e)
+        if "authentication failed" in error_msg.lower():
+            st.error("❌ 구글 인증 실패: '앱 비밀번호' 16자리가 틀렸거나 지메일 설정이 잘못되었습니다.")
+        else:
+            st.error(f"❌ 이메일 전송 실패 상세에러: {error_msg}")
         return False
 
 # 📍 승인 알림 메일 함수 추가
