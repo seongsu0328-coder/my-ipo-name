@@ -796,6 +796,25 @@ def get_ai_analysis(company_name, topic, lang_code):
 
     except Exception as e:
         return f"분석 중 오류 발생: {str(e)}"
+
+@st.cache_data(ttl=86400) # 하루 동안 재무제표 기억
+def get_cached_raw_financials(symbol):
+    fin_data = {}
+    try:
+        ticker = yf.Ticker(symbol)
+        yf_fin = ticker.financials; yf_info = ticker.info; yf_bal = ticker.balance_sheet
+        if not yf_fin.empty:
+            rev = yf_fin.loc['Total Revenue'].iloc[0]
+            net_inc = yf_fin.loc['Net Income'].iloc[0]
+            prev_rev = yf_fin.loc['Total Revenue'].iloc[1] if len(yf_fin.columns) > 1 else rev
+            fin_data['revenue'] = rev / 1e6
+            fin_data['net_margin'] = (net_inc / rev) * 100
+            fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100
+            fin_data['forward_pe'] = yf_info.get('forwardPE', 0)
+            # ... (나머지 지표들 추출 로직)
+    except: 
+        pass
+    return fin_data
         
 @st.cache_data(show_spinner=False, ttl=600)
 def get_market_dashboard_analysis(metrics_data, lang_code):
@@ -1644,7 +1663,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
     if not model: 
         return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
 
-    cache_key = f"{ticker}_Tab4_v2_{lang_code}" # 버전업하여 새 캐시 생성 유도
+    cache_key = f"{ticker}_Tab4_{lang_code}" # 버전업하여 새 캐시 생성 유도
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
