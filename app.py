@@ -2795,33 +2795,40 @@ elif st.session_state.page == 'setup':
                 st.session_state.clear()
                 st.rerun()
 
-        # [D] 🔥 프리미엄 구독 버튼 (보안 강화 버전)
+       # [D] 🔥 프리미엄 구독 버튼 (디버깅 기능 추가)
         with col_premium:
             if st.button(get_text('btn_premium'), use_container_width=True):
-                # 1. 환경 변수에서 안전하게 키 가져오기
+                # 1. 환경 변수 읽기
                 stripe_sk = os.environ.get("STRIPE_SECRET_KEY")
                 stripe_price = os.environ.get("STRIPE_PRICE_ID")
                 
+                # [관리자 전용 디버깅] 변수가 누락되었다면 관리자에게만 상세 내용을 보여줍니다.
+                if user.get('role') == 'admin':
+                    if not stripe_sk or not stripe_price:
+                        st.divider()
+                        st.warning("🛠️ [관리자 디버깅 모드]")
+                        st.write(f"- STRIPE_SECRET_KEY 존재 여부: {'✅ 확인됨' if stripe_sk else '❌ 누락됨'}")
+                        st.write(f"- STRIPE_PRICE_ID 존재 여부: {'✅ 확인됨' if stripe_price else '❌ 누락됨'}")
+                        st.info("💡 위 항목이 ❌라면 Railway -> Variables 탭에서 이름을 정확히 입력했는지 확인해주세요.")
+
                 if not stripe_sk or not stripe_price:
                     st.error("❌ 결제 설정(환경 변수)이 누락되었습니다. 관리자에게 문의하세요.")
                 else:
                     with st.spinner(get_text('msg_checkout_ready')):
                         try:
                             import stripe
-                            # 가져온 비밀 키 설정
                             stripe.api_key = stripe_sk
                             
                             checkout_session = stripe.checkout.Session.create(
                                 line_items=[{
-                                    'price': stripe_price, # 가져온 상품 ID 설정
+                                    'price': stripe_price,
                                     'quantity': 1,
                                 }],
                                 mode='subscription',
-                                # 성공/취소 시 돌아올 주소
-                                success_url='https://unicornfinder.app/?success=true',
+                                # 💡 결제 후 돌아올 때 세션 ID를 들고 오도록 URL 수정
+                                success_url='https://unicornfinder.app/?success=true&session_id={CHECKOUT_SESSION_ID}',
                                 cancel_url='https://unicornfinder.app/?canceled=true',
                             )
-                            # 2. 결제 링크 표시
                             st.success(get_text('msg_checkout_complete'))
                             st.link_button(get_text('btn_pay_now'), checkout_session.url, use_container_width=True)
                         except Exception as e:
