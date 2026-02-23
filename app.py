@@ -2904,8 +2904,8 @@ elif st.session_state.page == 'setup':
                             function requestPay() {{ // 👈 JS 함수이므로 괄호 2개
                                 // 디버깅용 요청 데이터 세팅
                                 var requestData = {{ // 👈 JS 객체이므로 괄호 2개
-                                    pg: "kakaopay.TC0ONETIME", // 👈 카카오페이 테스트 전용 마법의 키워드
-                                    pay_method: "kakaopay",
+                                    pg: "html5_inicis", // 👈 이니시스 일반결제 호출 마법의 단어
+                                    pay_method: "card", // 👈 카드 결제
                                     merchant_uid: "order_" + new Date().getTime(),
                                     name: "유니콘 파인더 프리미엄 (1개월)",
                                     amount: 6500, // 한화 6,500원
