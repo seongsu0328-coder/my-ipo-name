@@ -2901,16 +2901,15 @@ elif st.session_state.page == 'setup':
                             var IMP = window.IMP; 
                             IMP.init("{portone_id}"); // Railway에서 가져온 식별코드
                             
-                            function requestPay() {{
-                                IMP.request_pay({{
-                                    pg: "kakaopay", // 채널 추가 시 설정한 PG사
+                            function requestPay() {
+                                IMP.request_pay({
                                     pay_method: "card",
                                     merchant_uid: "order_" + new Date().getTime(),
                                     name: "유니콘 파인더 프리미엄 (1개월)",
                                     amount: 6500, // 한화 6,500원
                                     buyer_email: "{u_email}",
                                     buyer_name: "{u_name}"
-                                }}, function (rsp) {{
+                                }, function (rsp) {
                                     if (rsp.success) {{
                                         // ✅ 결제 성공 시! 마법의 코드 (Stripe 성공 처리 로직으로 연결)
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
