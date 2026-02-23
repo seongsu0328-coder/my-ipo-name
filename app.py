@@ -1888,24 +1888,32 @@ for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view
         else: st.session_state[key] = None
 
 # =========================================================
-# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (추적 모드)
+# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (호환성 패치 버전)
 # =========================================================
 try:
-    # Streamlit 버전 호환성 체크
+    success_val = ""
+    uid_val = ""
+    
+    # 버전 상관없이 파라미터 강제 추출
     try:
-        q_params = st.query_params
+        if "success" in st.query_params:
+            success_val = st.query_params["success"]
+        if "uid" in st.query_params:
+            uid_val = st.query_params["uid"]
     except:
-        q_params = st.experimental_get_query_params()
+        raw_params = st.experimental_get_query_params()
+        if "success" in raw_params:
+            success_val = raw_params["success"][0]
+        if "uid" in raw_params:
+            uid_val = raw_params["uid"][0]
 
-    # success 값 안전하게 추출
-    success_val = q_params.get("success", "")
-    if isinstance(success_val, list): success_val = success_val[0]
-
-    if str(success_val).lower() == "true":
-        st.warning("👀 [디버그] 결제 성공 신호를 포착했습니다! 로직 실행 시작...")
+    # 문자열 정제
+    success_val = str(success_val).strip().lower()
+    
+    # 🎯 여기서부터 디버그 시작
+    if success_val == "true":
+        st.warning(f"👀 [디버그] 결제 성공 신호 포착! (uid_val: {uid_val})")
         
-        uid_val = q_params.get("uid", "")
-        if isinstance(uid_val, list): uid_val = uid_val[0]
         target_uid = str(uid_val).strip()
 
         # URL에 uid가 없다면 세션에서 강제 탐색
@@ -1925,12 +1933,10 @@ try:
                     "premium_until": expire_date
                 }
                 
-                # 💡 execute() 결과를 받아서 확인합니다
                 res = supabase.table("users").update(update_payload).eq("id", target_uid).execute()
                 
                 if res.data:
-                    st.success("🎉 [디버그] DB 업데이트 성공! 3초 뒤 메인 화면으로 이동합니다.")
-                    
+                    st.success("🎉 [디버그] DB 업데이트 성공! 3초 뒤 이동합니다.")
                     if st.session_state.get('user_info'):
                         st.session_state.user_info['is_premium'] = True
                         st.session_state.user_info['premium_until'] = expire_date
@@ -1944,9 +1950,8 @@ try:
                         st.experimental_set_query_params()
                     st.rerun()
                 else:
-                    st.error(f"❌ [디버그] DB 응답 없음: '{target_uid}' 유저가 없거나, 컬럼이 틀렸습니다.")
-                    st.code(str(res)) # 에러 상세 내용 출력
-                    st.stop() # 화면을 멈춰서 에러를 읽게 함
+                    st.error(f"❌ [디버그] DB 응답 없음: '{target_uid}' 유저가 없거나 컬럼명 오류.")
+                    st.stop()
         else:
             st.error("❌ [디버그] 아이디(uid)를 찾을 수 없습니다.")
             st.stop()
