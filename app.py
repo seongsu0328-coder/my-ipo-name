@@ -2899,18 +2899,18 @@ elif st.session_state.page == 'setup':
                         <button class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제 (테스트)</button>
                         <script>
                             var IMP = window.IMP; 
-                            IMP.init("{portone_id}"); // Railway에서 가져온 식별코드
+                            IMP.init("{portone_id}"); // 👈 파이썬 변수이므로 괄호 1개
                             
-                            function requestPay() {{
+                            function requestPay() {{ // 👈 JS 함수이므로 괄호 2개
                                 // 디버깅용 요청 데이터 세팅
-                                var requestData = {{
-                                    pg: "kakaopay.TC0ONETIME", // 👈 카카오페이 테스트 전용 마법의 키워드입니다!
-                                    pay_method: "kakaopay", // 간편결제로 명시
+                                var requestData = {{ // 👈 JS 객체이므로 괄호 2개
+                                    pg: "kakaopay.TC0ONETIME", // 👈 카카오페이 테스트 전용 마법의 키워드
+                                    pay_method: "kakaopay",
                                     merchant_uid: "order_" + new Date().getTime(),
                                     name: "유니콘 파인더 프리미엄 (1개월)",
                                     amount: 6500, // 한화 6,500원
-                                    buyer_email: "{u_email}",
-                                    buyer_name: "{u_name}"
+                                    buyer_email: "{u_email}", // 👈 파이썬 변수이므로 괄호 1개
+                                    buyer_name: "{u_name}"    // 👈 파이썬 변수이므로 괄호 1개
                                 }};
                                 
                                 console.log("요청 데이터:", requestData);
@@ -2920,7 +2920,7 @@ elif st.session_state.page == 'setup':
                                         // ✅ 결제 성공 시
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }} else {{
-                                        // 🚨 디버깅: 결제 실패 시 아주 상세한 원인을 화면에 띄웁니다.
+                                        // 🚨 디버깅: 결제 실패 시
                                         alert("❌ 결제창 호출 실패!\\n\\n" +
                                               "식별코드: {portone_id}\\n" +
                                               "에러 코드: " + rsp.error_code + "\\n" +
