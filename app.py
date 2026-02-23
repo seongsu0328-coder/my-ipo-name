@@ -3372,50 +3372,20 @@ with main_area.container():
                 
             # --- Tab 2: 실시간 시장 과열 진단 ---
             elif selected_sub_menu == get_text('tab_2'):
-                def get_market_status_internal(df_calendar):
-                    data = {"ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0, "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50}
-                    if not df_calendar.empty:
-                        today = datetime.now().date()
-                        traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < today].sort_values(by='공모일_dt', ascending=False).head(30)
-                        ret_sum = 0; ret_cnt = 0; unp_cnt = 0
-                        for _, row in traded_ipos.iterrows():
-                            try:
-                                p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
-                                p_curr, _ = get_current_stock_price(row['symbol'], MY_API_KEY)
-                                if p_ipo > 0 and p_curr > 0:
-                                    ret_sum += ((p_curr - p_ipo) / p_ipo) * 100; ret_cnt += 1
-                                fin = get_financial_metrics(row['symbol'], MY_API_KEY)
-                                if fin and fin.get('net_margin') and fin['net_margin'] < 0: unp_cnt += 1
-                            except: pass
-                        if ret_cnt > 0: data["ipo_return"] = ret_sum / ret_cnt
-                        if len(traded_ipos) > 0: data["unprofitable_pct"] = (unp_cnt / len(traded_ipos)) * 100
-                        future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= today) & (df_calendar['공모일_dt'].dt.date <= today + timedelta(days=30))]
-                        data["ipo_volume"] = len(future_ipos)
-                        recent_history = df_calendar[df_calendar['공모일_dt'].dt.date >= (today - timedelta(days=540))]
-                        if not recent_history.empty:
-                            wd = recent_history[recent_history['status'].str.lower() == 'withdrawn']
-                            data["withdrawal_rate"] = (len(wd) / len(recent_history)) * 100
-                    try:
-                        vix_obj = yf.Ticker("^VIX"); data["vix"] = vix_obj.history(period="1d")['Close'].iloc[-1]
-                        w5000 = yf.Ticker("^W5000").history(period="1d")['Close'].iloc[-1]
-                        data["buffett_val"] = ((w5000 / 1000 * 0.93) / 28.0) * 100
-                        try: spy = yf.Ticker("SPY"); data["pe_ratio"] = spy.info.get('trailingPE', 24.5) 
-                        except: data["pe_ratio"] = 24.5
-                        spx = yf.Ticker("^GSPC").history(period="1y"); curr_spx = spx['Close'].iloc[-1]; ma200 = spx['Close'].rolling(200).mean().iloc[-1]
-                        mom_score = ((curr_spx - ma200) / ma200) * 100
-                        s_vix = max(0, min(100, (35 - data["vix"]) * (100/23))); s_mom = max(0, min(100, (mom_score + 10) * 5))
-                        data["fear_greed"] = (s_vix + s_mom) / 2
-                    except: pass
-                    return data
-            
+                
+                # 💡 [수정됨] 기존에 있던 느린 내부 함수(get_market_status_internal)를 통째로 삭제하고, 
+                # 상단에 만들어둔 캐싱 함수를 바로 호출합니다!
                 with st.spinner(get_text('msg_analyzing_macro')):
                     if 'all_df' not in locals(): 
                         all_df_tab2 = get_extended_ipo_data(MY_API_KEY)
                         if not all_df_tab2.empty:
                             all_df_tab2 = all_df_tab2.dropna(subset=['exchange'])
                             all_df_tab2['공모일_dt'] = pd.to_datetime(all_df_tab2['date'])
-                    else: all_df_tab2 = all_df
-                    md = get_market_status_internal(all_df_tab2)
+                    else: 
+                        all_df_tab2 = all_df
+                    
+                    # 🚀 [핵심] 여기서 Supabase에 캐싱된 데이터를 0.1초 만에 가져옵니다.
+                    md = get_cached_market_status(all_df_tab2, MY_API_KEY)
             
                 st.markdown("""
                 <style>
