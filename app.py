@@ -20,6 +20,7 @@ try:
     import smtplib
     import gspread
     import io
+    import resend
     import xml.etree.ElementTree as ET
     import yfinance as yf 
     from oauth2client.service_account import ServiceAccountCredentials
@@ -1162,33 +1163,35 @@ def upload_photo_to_drive(file_obj, filename_prefix):
         st.error(f"📂 업로드 실패 (네트워크 확인 필요): {e}")
         return "업로드 실패"
         
+import resend
+
 def send_email_code(to_email, code):
     import os
-    import smtplib
-    from email.mime.text import MIMEText
-    
     try:
-        sender_email = os.environ.get("SMTP_EMAIL_ADDRESS")
-        sender_pw = os.environ.get("SMTP_APP_PASSWORD")
+        # Railway에 저장한 API 키 로드
+        resend.api_key = os.environ.get("RESEND_API_KEY")
 
-        if not sender_email or not sender_pw:
+        if not resend.api_key:
+            st.error("❌ RESEND_API_KEY 설정이 누락되었습니다.")
             return False
 
-        msg = MIMEText(f"안녕하세요. 인증번호는 [{code}] 입니다.")
-        msg['Subject'] = "[Unicorn Finder] 본인 인증번호"
-        msg['From'] = sender_email
-        msg['To'] = to_email
-        
-        # 💡 수정된 부분: 587번 대신 465번(SMTP_SSL)을 사용합니다.
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
-            s.login(sender_email, sender_pw)
-            s.sendmail(sender_email, to_email, msg.as_string())
-            
+        # 메일 발송 (보내는 사람은 일단 'onboarding@resend.dev'로 테스트)
+        # 나중에 본인 도메인이 생기면 바꿀 수 있습니다.
+        params = {
+            "from": "Unicorn Finder <onboarding@resend.dev>",
+            "to": [to_email],
+            "subject": "[Unicorn Finder] 본인 인증번호",
+            "html": f"<strong>안녕하세요. 인증번호는 [{code}] 입니다.</strong>",
+        }
+
+        resend.Emails.send(params)
         st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
         return True
+
     except Exception as e:
-        st.error(f"❌ 이메일 전송 실패 상세에러: {e}")
+        st.error(f"❌ API 메일 전송 실패: {e}")
         return False
+        
 # 📍 승인 알림 메일 함수 추가
 def send_approval_email(to_email, user_id):
     try:
