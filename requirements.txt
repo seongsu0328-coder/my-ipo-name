@@ -14,3 +14,4 @@ supabase
 openai
 numpy
 pytz
+resend
