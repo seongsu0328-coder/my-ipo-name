@@ -2292,12 +2292,12 @@ st.markdown("""
 # 🚀🚀🚀 [바로 여기입니다! 워밍업 봇 전용 비밀 뒷문] 🚀🚀🚀
 if st.query_params.get("warmup") == "true":
     try:
-        # 1. 캘린더 전체 데이터를 불러와 서버 RAM(메모리)에 올림
-        df_calendar = get_extended_ipo_data(FINNHUB_API_KEY)
+        # 1. 캘린더 전체 데이터를 불러와 서버 RAM(메모리)에 올림 (변수명 수정 완료)
+        df_calendar = get_extended_ipo_data(MY_API_KEY)
         
         if not df_calendar.empty:
-            # 2. 시장 거시 지표(Tab 2) 메모리에 올림
-            get_cached_market_status(df_calendar, FINNHUB_API_KEY)
+            # 2. 시장 거시 지표(Tab 2) 메모리에 올림 (변수명 수정 완료)
+            get_cached_market_status(df_calendar, MY_API_KEY)
             
             # 3. 타겟 종목 순회 (최근 180일 ~ 향후 35일)
             from datetime import datetime, timedelta
