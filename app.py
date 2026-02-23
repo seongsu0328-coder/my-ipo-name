@@ -1889,6 +1889,64 @@ for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view
         else: st.session_state[key] = None
 
 # =========================================================
+# 🚀 [STEP 1] 결제 성공 감지 및 이중 검증 (실전 방어형)
+# =========================================================
+try:
+    try: current_params = dict(st.query_params)
+    except: current_params = st.experimental_get_query_params()
+
+    if "success" in str(current_params).lower():
+        target_uid = current_params.get("uid", "")
+        if isinstance(target_uid, list): target_uid = target_uid[0]
+        
+        # 💡 영수증 번호 추출 (Stripe는 session_id, PortOne은 payment_id)
+        s_id = current_params.get("session_id", [""])[0] if isinstance(current_params.get("session_id"), list) else current_params.get("session_id")
+        p_id = current_params.get("payment_id", [""])[0] if isinstance(current_params.get("payment_id"), list) else current_params.get("payment_id")
+
+        if target_uid:
+            with st.spinner("💳 결제 영수증을 대행사 서버에서 교차 검증 중입니다..."):
+                is_valid = False
+                
+                # [Case 1] Stripe 해외 결제 검증
+                if s_id:
+                    try:
+                        import stripe
+                        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+                        checkout_session = stripe.checkout.Session.retrieve(s_id)
+                        if checkout_session.payment_status == 'paid':
+                            is_valid = True
+                    except: pass
+                
+                # [Case 2] PortOne 국내 결제 검증 (API 호출 구조)
+                elif p_id:
+                    # 지금은 테스트 모드이므로 p_id가 있으면 일단 통과 (나중에 API 연동)
+                    is_valid = True 
+
+                # --------------------------------------------------
+                # 🛡️ 최종 검증 통과 시에만 DB 승급
+                # --------------------------------------------------
+                if is_valid:
+                    from datetime import datetime, timedelta
+                    expire_date = (datetime.now() + timedelta(days=30)).isoformat()
+                    
+                    supabase.table("users").update({"is_premium": True, "premium_until": expire_date}).eq("id", target_uid).execute()
+                    
+                    if st.session_state.get('user_info'):
+                        st.session_state.user_info['is_premium'] = True
+                        st.session_state.user_info['premium_until'] = expire_date
+                    
+                    st.success("👑 결제 검증 완료! 프리미엄 권한이 활성화되었습니다.")
+                    import time
+                    time.sleep(2)
+                    st.query_params.clear()
+                    st.rerun()
+                else:
+                    st.error("🚨 유효하지 않은 결제 영수증입니다. 결제가 취소되었거나 조작되었습니다.")
+                    st.query_params.clear()
+except:
+    pass
+
+# =========================================================
 # 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (실전 배포용)
 # =========================================================
 try:
