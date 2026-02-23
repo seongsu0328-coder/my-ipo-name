@@ -1867,14 +1867,26 @@ def get_us_ipo_analysis(ticker_symbol):
         return {"status": "Error"}
 
 # ==========================================
-# [4] 메인 실행부 (Main Logic) - 여기서부터 끝까지 교체하세요
+# [4] 메인 실행부 (Main Logic)
 # ==========================================
 
-# 1. 페이지 설정 (반드시 가장 먼저 실행되어야 함)
+# 1. 페이지 설정 (무조건 1번!)
 try:
     st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 except:
     pass 
+
+# 2. 세션 상태 안전 초기화 (무조건 2번!)
+# 💡 여기서 'lang'이 생성되므로 이후 코드에서 에러가 나지 않습니다.
+for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view_mode', 'user_info', 'selected_stock', 'lang']:
+    if key not in st.session_state:
+        if key == 'page': st.session_state[key] = 'login'
+        elif key == 'watchlist': st.session_state[key] = []
+        elif key == 'posts': st.session_state[key] = []
+        elif key == 'user_decisions': st.session_state[key] = {}
+        elif key == 'view_mode': st.session_state[key] = 'all'
+        elif key == 'lang': st.session_state[key] = 'ko' 
+        else: st.session_state[key] = None
 
 # =========================================================
 # 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (실전 배포용)
