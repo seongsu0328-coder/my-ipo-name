@@ -1897,7 +1897,7 @@ UI_TEXT = {
     # ==========================================
     'menu_main': {'ko': '메인', 'en': 'Main', 'ja': 'メイン', 'zh': '主页'},
     'menu_watch': {'ko': '관심', 'en': 'Watchlist', 'ja': 'お気に入り', 'zh': '关注'},
-    'menu_board': {'ko': '게시판', 'en': 'Board', 'ja': '掲示板', 'zh': '论坛'},
+    'menu_board': {'ko': '게시판', 'en': 'Board', 'ja': '掲시판', 'zh': '论坛'},
     'menu_settings': {'ko': '권한설정', 'en': 'Settings', 'ja': '設定', 'zh': '权限设置'},
     'menu_logout': {'ko': '로그아웃', 'en': 'Logout', 'ja': '로그아웃', 'zh': '退出登录'},
     'menu_back': {'ko': '뒤로가기', 'en': 'Back', 'ja': '戻る', 'zh': '返回'},
@@ -1907,7 +1907,7 @@ UI_TEXT = {
     'disclaimer_text': {
         'ko': '본 서비스는 자체 알고리즘과 AI 모델을 활용한 요약 정보를 제공하며, 원저작권자의 권리를 존중합니다. 요약본은 원문과 차이가 있을 수 있으므로 반드시 원문을 확인하시기 바랍니다. 모든 투자 결정의 최종 책임은 사용자 본인에게 있습니다.', 
         'en': 'This service provides summaries using its own algorithms and AI models. Summaries may differ from the original; please check the source. All investment decisions are the sole responsibility of the user.', 
-        'ja': '본 서비스는独自の알고리즘과 AI모델을 활용한 요약 정보를 제공합니다. 요약은 원문과 다를 수 있으므로 반드시 원문을 확인하십시오. 모든 투자 결정의 최종 책임은 사용자 본인이 집니다.', 
+        'ja': '本サービスは独自のアルゴリズムとAIモデルを活用した要約情報を提供します。要約は原文と異なる場合があるため、必ず原文を確認してください。すべての投資決定의 最終責任은 利用者本人이負うものとします。', 
         'zh': '本服务利用自有算法和AI模型提供摘要信息，并尊重原版权者的权利。摘要内容可能与原文存在差异，请务必核实原文。所有投资决定的最终责任由用户本人承担。'
     },
     'btn_premium': {'ko': '👑 프리미엄 구독', 'en': '👑 Go Premium', 'ja': '👑 プレミアム購読', 'zh': '👑 订阅会员'},
@@ -1923,7 +1923,7 @@ UI_TEXT = {
     'msg_payment_complete_approval': {
         'ko': '결제가 완료되었습니다. 승인 후 모든 프리미엄 기능을 사용하실 수 있습니다.',
         'en': 'Payment completed. You can use all premium features after approval.',
-        'ja': '決済が完了しました。承認後、すべてのプレミアム機能をご利用いただけます.',
+        'ja': '決済が完了しました。承認後、すべてのプレミアム機能をご利用いただけます。',
         'zh': '支付已完成。批准后即可使用所有高级功能。'
     },
     'msg_portone_guide': {
@@ -1931,9 +1931,8 @@ UI_TEXT = {
         'en': 'Pay with Korean domestic cards.',
         'ja': '韓国の国内カードで決済してください。',
         'zh': '请使用韩国国内卡支付。'
-    }
-}
-    
+    },
+
     # ==========================================
     # 2. 로그인 및 회원가입 (Auth)
     # ==========================================
