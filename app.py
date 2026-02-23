@@ -1176,9 +1176,9 @@ def send_email_code(to_email, code):
             return False
 
         # 메일 발송 (보내는 사람은 일단 'onboarding@resend.dev'로 테스트)
-        # 나중에 본인 도메인이 생기면 바꿀 수 있습니다.
+        # ✅ 변경 후 (대표님의 진짜 도메인 적용!)
         params = {
-            "from": "Unicorn Finder <onboarding@resend.dev>",
+            "from": "Unicorn Finder <noreply@unicornfinder.app>", 
             "to": [to_email],
             "subject": "[Unicorn Finder] 본인 인증번호",
             "html": f"<strong>안녕하세요. 인증번호는 [{code}] 입니다.</strong>",
