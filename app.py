@@ -1888,58 +1888,71 @@ for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view
         else: st.session_state[key] = None
 
 # =========================================================
-# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (이중 안전장치 문지기)
+# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (추적 모드)
 # =========================================================
-q_params = st.query_params
+try:
+    # Streamlit 버전 호환성 체크
+    try:
+        q_params = st.query_params
+    except:
+        q_params = st.experimental_get_query_params()
 
-if q_params.get("success") == "true":
-    # 💡 [핵심 강화] 1순위: URL에서 아이디 찾기 -> 2순위: 현재 로그인된 세션에서 아이디 찾기
-    target_uid = q_params.get("uid")
-    
-    if not target_uid and st.session_state.get('auth_status') == 'user':
-        if st.session_state.get('user_info'):
+    # success 값 안전하게 추출
+    success_val = q_params.get("success", "")
+    if isinstance(success_val, list): success_val = success_val[0]
+
+    if str(success_val).lower() == "true":
+        st.warning("👀 [디버그] 결제 성공 신호를 포착했습니다! 로직 실행 시작...")
+        
+        uid_val = q_params.get("uid", "")
+        if isinstance(uid_val, list): uid_val = uid_val[0]
+        target_uid = str(uid_val).strip()
+
+        # URL에 uid가 없다면 세션에서 강제 탐색
+        if not target_uid and st.session_state.get('user_info'):
             target_uid = st.session_state.user_info.get('id')
             
-    if target_uid:
-        # 혹시 이미 프리미엄인지 한 번 더 확인 (무한 새로고침 방지)
-        is_already_premium = False
-        if st.session_state.get('user_info') and st.session_state.user_info.get('is_premium'):
-            is_already_premium = True
+        if target_uid:
+            st.info(f"✅ [디버그] 타겟 유저 ID 확인됨: {target_uid}")
             
-        if not is_already_premium:
-            with st.spinner("결제 승인을 확인하고 프리미엄 권한을 부여 중입니다..."):
-                try:
-                    from datetime import datetime, timedelta
-                    expire_date = (datetime.now() + timedelta(days=30)).isoformat()
+            with st.spinner("DB 업데이트 시도 중..."):
+                from datetime import datetime, timedelta
+                expire_date = (datetime.now() + timedelta(days=30)).isoformat()
+                
+                # Supabase 업데이트 페이로드
+                update_payload = {
+                    "is_premium": True,
+                    "premium_until": expire_date
+                }
+                
+                # 💡 execute() 결과를 받아서 확인합니다
+                res = supabase.table("users").update(update_payload).eq("id", target_uid).execute()
+                
+                if res.data:
+                    st.success("🎉 [디버그] DB 업데이트 성공! 3초 뒤 메인 화면으로 이동합니다.")
                     
-                    # 1. Supabase DB 업데이트
-                    update_payload = {
-                        "is_premium": True,
-                        "premium_until": expire_date
-                    }
-                    supabase.table("users").update(update_payload).eq("id", target_uid).execute()
-                    
-                    # 2. 현재 로그인된 세션이 있다면 세션에도 반영
                     if st.session_state.get('user_info'):
                         st.session_state.user_info['is_premium'] = True
                         st.session_state.user_info['premium_until'] = expire_date
                     
-                    st.success("🎉 결제가 성공적으로 완료되었습니다! 👑 Premium 권한이 활성화되었습니다.")
-                    
-                    # 3. 주소창 깔끔하게 지우고 새로고침
-                    st.query_params.clear()
                     import time
-                    time.sleep(2)
+                    time.sleep(3)
+                    
+                    try:
+                        st.query_params.clear()
+                    except:
+                        st.experimental_set_query_params()
                     st.rerun()
-                except Exception as e:
-                    st.error(f"DB 업데이트 중 오류 발생: {e}")
+                else:
+                    st.error(f"❌ [디버그] DB 응답 없음: '{target_uid}' 유저가 없거나, 컬럼이 틀렸습니다.")
+                    st.code(str(res)) # 에러 상세 내용 출력
+                    st.stop() # 화면을 멈춰서 에러를 읽게 함
         else:
-            # 이미 프리미엄인 경우 주소창만 정리
-            st.query_params.clear()
-            st.rerun()
-    else:
-        st.warning("결제는 확인되었으나 로그인 정보가 만료되었습니다. 다시 로그인해주세요.")
-        st.query_params.clear()
+            st.error("❌ [디버그] 아이디(uid)를 찾을 수 없습니다.")
+            st.stop()
+except Exception as e:
+    st.error(f"🚨 [디버그] 문지기 로직 에러: {e}")
+    st.stop()
 
 # ==========================================
 # [추가] 다국어(i18n) 지원 설정 및 사전(Dictionary)
