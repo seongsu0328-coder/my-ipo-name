@@ -2865,76 +2865,65 @@ elif st.session_state.page == 'setup':
             # [Case 1] 한국어 사용자: PortOne (국내 카드, 카카오페이 등)
             # -------------------------------------------------------------
             if curr_lang == 'ko':
-                portone_id = os.environ.get("PORTONE_STORE_ID")
+                portone_id = os.environ.get("PORTONE_STORE_ID", "MISSING")
                 
-                # [관리자 전용 디버깅]
-                if user.get('role') == 'admin' and not portone_id:
-                    st.error("🛠️ [관리자] Railway에 PORTONE_STORE_ID가 누락되었습니다.")
+                # 🔍 [가설 1 & 3 검증] Railway 설정값 실시간 모니터링
+                st.info(f"🛠️ [디버깅 모드] ID: {portone_id} | 키타입: {'✅ V2(store-)' if portone_id.startswith('store-') else '❌ V1(imp-)'}")
                 
                 if portone_id:
-                    # 결제창에 넘겨줄 유저 정보
                     u_email = user.get('email', 'test@unicornfinder.app')
                     u_name = user.get('display_name', '유니콘 유저')
                     
                     import streamlit.components.v1 as components
                     
-                    # 💡 Streamlit 안에 쏙 들어가는 포트원 V2 전용 결제 모듈
+                    # 🔍 [가설 2 검증] 이 HTML 내부 주소가 바뀌었는지 눈으로 확인하는 버튼
                     portone_html = f"""
                     <!DOCTYPE html>
                     <html>
                     <head>
                         <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
                         <style>
-                            body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background-color: transparent; }}
+                            body {{ margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; background-color: transparent; }}
                             .pay-btn {{
                                 background-color: #FEE500; color: #000000; border: none; border-radius: 8px;
                                 padding: 8px 15px; font-size: 15px; font-weight: bold; cursor: pointer; 
-                                width: 100%; height: 42px; transition: 0.2s; font-family: sans-serif;
+                                width: 100%; height: 42px; font-family: sans-serif;
                             }}
-                            .pay-btn:hover {{ background-color: #e5ce00; }}
                         </style>
                     </head>
                     <body>
-                        <button class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제 (테스트)</button>
+                        <button class="pay-btn" onclick="requestPay()">💳 국내 결제 시도 (V2 모드)</button>
+                        
                         <script>
                             async function requestPay() {{
+                                console.log("V2 결제 함수 호출됨");
                                 try {{
-                                    // 2. V2 방식의 결제 요청 (PortOne.requestPayment)
+                                    // 만약 여기서 pg 파라미터 에러가 난다면, 브라우저가 이 스크립트를 무시하고 옛날 것을 돌리는 겁니다.
                                     const response = await PortOne.requestPayment({{
-                                        storeId: "{portone_id}", // Railway에 등록한 store-로 시작하는 ID
+                                        storeId: "{portone_id}",
                                         channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
-                                        paymentId: "payment-" + new Date().getTime(),
+                                        paymentId: "pay-" + new Date().getTime(),
                                         orderName: "테스트용",
                                         totalAmount: 6500,
                                         currency: "KRW",
                                         payMethod: "CARD",
-                                        customer: {{
-                                            fullName: "{u_name}",
-                                            email: "{u_email}",
-                                        }},
-                                        windowType: {{
-                                            pc: "POPUP",
-                                            smartPhone: "POPUP"
-                                        }}
+                                        customer: {{ fullName: "{u_name}", email: "{u_email}" }}
                                     }});
 
-                                    // 3. 결과 처리
                                     if (response.code != null) {{
-                                        // 오류 발생 시
-                                        alert("❌ 결제 실패: " + response.message);
+                                        alert("❌ V2 에러: " + response.message);
                                     }} else {{
-                                        // 결제 성공 시
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }}
                                 }} catch (e) {{
-                                    alert("❌ 오류가 발생했습니다: " + e.message);
+                                    alert("🚨 브라우저 실행 차단: " + e.message + "\\n(V1 라이브러리가 간섭 중일 수 있습니다)");
                                 }}
                             }}
                         </script>
                     </body>
                     </html>
                     """
-                    components.html(portone_html, height=45)
+                    components.html(portone_html, height=100) # 디버깅 메시지를 위해 높이를 100으로 늘림
                 else:
                     st.button(get_text('btn_premium'), disabled=True)
 
