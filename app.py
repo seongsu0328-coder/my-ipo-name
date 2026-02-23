@@ -1905,7 +1905,11 @@ UI_TEXT = {
     'btn_verify': {'ko': '인증', 'en': 'Verify', 'ja': '認証', 'zh': '认证'},
     'disclaimer_title': {'ko': '이용 유의사항', 'en': 'Disclaimer', 'ja': '免責事項', 'zh': '免责声明'},
     'disclaimer_text': {'ko': '본 서비스는 자체 알고리즘과 AI 모델을 활용한 요약 정보를 제공하며, 원저작권자의 권리를 존중합니다. 요약본은 원문과 차이가 있을 수 있으므로 반드시 원문을 확인하시기 바랍니다. 모든 투자 결정의 최종 책임은 사용자 본인에게 있습니다.', 'en': 'This service provides summaries using its own algorithms and AI models. Summaries may differ from the original; please check the source. All investment decisions are the sole responsibility of the user.', 'ja': '本サービスは独自のアルゴリズムとAIモデルを活用した要約情報を提供します。要約は原文と異なる場合があるため、必ず原文を確認してください。すべての投資決定の最終責任は利用者本人が負うものとします。', 'zh': '本服务利用自有算法和AI模型提供摘要信息，并尊重原版权者的权利。摘要内容可能与原文存在差异，请务必核实原文。所有投资决定的最终责任由用户本人承担。'},
-
+    'btn_premium': {'ko': '👑 프리미엄 구독', 'en': '👑 Go Premium', 'ja': '👑 プレミアム購読', 'zh': '👑 订阅会员'},
+    'msg_checkout_ready': {'ko': '안전한 결제창을 준비하고 있습니다...', 'en': 'Preparing secure checkout...', 'ja': '安全な決済画面を準備しています...', 'zh': '正在准备安全支付页面...'},
+    'msg_checkout_complete': {'ko': '결제 준비 완료! 아래 버튼을 클릭하세요.', 'en': 'Ready! Click the button below.', 'ja': '準備完了！下のボタンをクリックしてください。', 'zh': '准备就绪！请点击下方按钮。'},
+    'btn_pay_now': {'ko': '💳 지금 결제하기', 'en': '💳 Pay Now', 'ja': '💳 今すぐ決済', 'zh': '💳 立即支付'},
+    
     # ==========================================
     # 2. 로그인 및 회원가입 (Auth)
     # ==========================================
@@ -2748,9 +2752,9 @@ elif st.session_state.page == 'setup':
         st.write("<br>", unsafe_allow_html=True)
 
         # -----------------------------------------------------------
-        # 3. [메인 기능] 인증 / 저장 / 로그아웃
-        # -----------------------------------------------------------
-        col_cert, col_save, col_logout = st.columns([1, 1, 1])
+        # 3. [메인 기능] 인증 / 저장 / 로그아웃/ 프리미엄 (4컬럼으로 확장)
+        # 기존 3개 컬럼에서 4개 컬럼으로 늘립니다.
+        col_cert, col_save, col_logout, col_premium = st.columns([1, 1, 1, 1.2])
 
         # [A] 인증하기 버튼 (비인증 상태일 때만 표시)
         with col_cert:
@@ -2791,6 +2795,37 @@ elif st.session_state.page == 'setup':
                 st.session_state.clear()
                 st.rerun()
 
+        # [D] 🔥 프리미엄 구독 버튼 (보안 강화 버전)
+        with col_premium:
+            if st.button(get_text('btn_premium'), use_container_width=True):
+                # 1. 환경 변수에서 안전하게 키 가져오기
+                stripe_sk = os.environ.get("STRIPE_SECRET_KEY")
+                stripe_price = os.environ.get("STRIPE_PRICE_ID")
+                
+                if not stripe_sk or not stripe_price:
+                    st.error("❌ 결제 설정(환경 변수)이 누락되었습니다. 관리자에게 문의하세요.")
+                else:
+                    with st.spinner(get_text('msg_checkout_ready')):
+                        try:
+                            import stripe
+                            # 가져온 비밀 키 설정
+                            stripe.api_key = stripe_sk
+                            
+                            checkout_session = stripe.checkout.Session.create(
+                                line_items=[{
+                                    'price': stripe_price, # 가져온 상품 ID 설정
+                                    'quantity': 1,
+                                }],
+                                mode='subscription',
+                                # 성공/취소 시 돌아올 주소
+                                success_url='https://unicornfinder.app/?success=true',
+                                cancel_url='https://unicornfinder.app/?canceled=true',
+                            )
+                            # 2. 결제 링크 표시
+                            st.success(get_text('msg_checkout_complete'))
+                            st.link_button(get_text('btn_pay_now'), checkout_session.url, use_container_width=True)
+                        except Exception as e:
+                            st.error(f"결제창 생성 중 오류 발생: {e}")
         
         # ===========================================================
         # 👇 [수정 완료] 관리자 승인 기능 (Supabase 연동 버전)
