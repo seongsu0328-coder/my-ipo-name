@@ -2736,54 +2736,70 @@ if st.session_state.page == 'login':
             
             # [B구역] 3단계일 때 (서류 제출 화면)
             elif st.session_state.signup_stage == 3:
-                # 💡 1단계와 동일한 타이틀 스타일 적용
+                # 1단계와 동일한 타이틀 스타일 적용
                 title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
                 st.markdown(f"<p style='{title_style}'>{get_text('signup_title_step3')}</p>", unsafe_allow_html=True)
                 
-                st.info(get_text('signup_guide_step3'))
+                st.info(get_text('signup_guide_step3') + " (해제를 원하시면 내용을 지우고 제출하세요.)")
                 
-                # 입력창
-                u_name = st.text_input(get_text('label_univ'), key="u_name_final")
-                u_file = st.file_uploader(get_text('label_univ_file'), type=['jpg','png','pdf'], key="u_file_final")
-                j_name = st.text_input(get_text('label_job'), key="j_name_final")
-                j_file = st.file_uploader(get_text('label_job_file'), type=['jpg','png','pdf'], key="j_file_final")
+                # 💡 [추가] 세션에 기존 인증 정보가 있다면 불러오기 (정보 수정 목적)
+                existing_user = st.session_state.get('user_info', {})
+                cur_u_name = existing_user.get('univ', '')
+                cur_j_name = existing_user.get('job', '')
+                cur_a_val = existing_user.get('asset', '선택 안 함')
+
+                # 입력창 (기존 값 pre-fill)
+                u_name = st.text_input(get_text('label_univ'), value=cur_u_name, key="u_name_final")
+                u_file = st.file_uploader(get_text('label_univ_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="u_file_final")
                 
-                # 🚨 [수정 완]: DB 저장 오류 방지를 위해 리스트 값은 한국어 원본 유지
-                a_val = st.selectbox(get_text('label_asset'), ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"], key="a_val_final")
-                a_file = st.file_uploader(get_text('label_asset_file'), type=['jpg','png','pdf'], key="a_file_final")
+                j_name = st.text_input(get_text('label_job'), value=cur_j_name, key="j_name_final")
+                j_file = st.file_uploader(get_text('label_job_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="j_file_final")
+                
+                asset_options = ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"]
+                asset_idx = asset_options.index(cur_a_val) if cur_a_val in asset_options else 0
+                a_val = st.selectbox(get_text('label_asset'), asset_options, index=asset_idx, key="a_val_final")
+                a_file = st.file_uploader(get_text('label_asset_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="a_file_final")
                 
                 st.write("")
                 
-                # [최종 가입 신청 버튼]
-                if st.button(get_text('btn_signup_complete'), type="primary", use_container_width=True):
+                # [최종 가입/수정 신청 버튼]
+                if st.button("제출 및 저장하기", type="primary", use_container_width=True):
                     # 1. 세션 데이터 확인
                     td = st.session_state.get('temp_user_data')
                     if not td:
-                        st.error("⚠️ 세션이 만료되었습니다. 처음부터 다시 가입해주세요." if st.session_state.lang == 'ko' else "⚠️ Session expired. Please restart.")
+                        st.error("⚠️ 세션이 만료되었습니다. 처음부터 다시 진행해주세요." if st.session_state.lang == 'ko' else "⚠️ Session expired.")
                         st.stop()
 
                     with st.spinner("정보를 안전하게 저장 중입니다..." if st.session_state.lang == 'ko' else "Saving securely..."):
                         try:
-                            # 2. 파일 업로드 실행
-                            l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else "미제출"
-                            l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else "미제출"
-                            l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else "미제출"
+                            # 💡 [추가] 기존에 제출했던 파일 링크 백업
+                            old_l_u = existing_user.get('link_univ', '미제출')
+                            old_l_j = existing_user.get('link_job', '미제출')
+                            old_l_a = existing_user.get('link_asset', '미제출')
+
+                            # 2. 파일 업로드 실행 (새 파일이 없으면 기존 링크 유지. 단, 내용을 지우면 '미제출'로 초기화)
+                            l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else (old_l_u if u_name else "미제출")
+                            l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else (old_l_j if j_name else "미제출")
+                            l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else (old_l_a if a_val != "선택 안 함" else "미제출")
                             
                             # 3. 데이터 패키징
-                            has_cert = any([u_file, j_file, a_file])
+                            has_cert = any([l_u != "미제출", l_j != "미제출", l_a != "미제출"])
                             role = "user" if has_cert else "restricted"
+                            
+                            # 기존 승인 유저가 추가 정보를 냈을 경우 재심사(pending)를 받게 함
+                            status = "pending" if has_cert else "pending"
                             
                             final_data = {
                                 **td, 
                                 "univ": u_name, "job": j_name, "asset": a_val,
                                 "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
-                                "role": role, "status": "pending",
+                                "role": role, "status": status,
                                 "display_name": f"{role} | {td['id'][:3]}***"
                             }
                             
-                            # 4. DB 저장 시도
+                            # 4. DB 저장(Upsert) 시도
                             if db_signup_user(final_data):
-                                st.success("가입 신청이 완료되었습니다!" if st.session_state.lang == 'ko' else "Registration completed!")
+                                st.success("인증 정보가 성공적으로 제출되었습니다!" if st.session_state.lang == 'ko' else "Successfully submitted!")
                                 
                                 st.session_state.auth_status = 'user'
                                 st.session_state.user_info = final_data
@@ -2795,8 +2811,7 @@ if st.session_state.page == 'login':
                                 import time; time.sleep(1.5)
                                 st.rerun()
                             else:
-                                # 💡 실패 시 원인 안내 보강
-                                st.error("❌ 가입 신청 저장에 실패했습니다. (이미 존재하는 아이디일 수 있습니다.)" if st.session_state.lang == 'ko' else "❌ Failed to save. (ID might already exist)")
+                                st.error("❌ 저장에 실패했습니다." if st.session_state.lang == 'ko' else "❌ Failed to save.")
                         
                         except Exception as e:
                             st.error(f"🚨 오류 발생: {e}")
@@ -2834,14 +2849,22 @@ elif st.session_state.page == 'setup':
         # 1. 내 정보 노출 설정 (체크박스 - 다국어 적용)
         # -----------------------------------------------------------
         saved_vis = user.get('visibility', 'True,True,True').split(',')
-        def_univ = saved_vis[0] == 'True' if len(saved_vis) > 0 else True
-        def_job = saved_vis[1] == 'True' if len(saved_vis) > 2 else True
-        def_asset = saved_vis[2] == 'True' if len(saved_vis) > 2 else True
+        
+        # 💡 [추가] DB에 제출된 서류 링크가 존재하는지 판별 (미제출이 아니면 True)
+        has_univ = bool(user.get('link_univ') and user.get('link_univ') != "미제출")
+        has_job = bool(user.get('link_job') and user.get('link_job') != "미제출")
+        has_asset = bool(user.get('link_asset') and user.get('link_asset') != "미제출")
+
+        # 💡 [수정] 서류를 제출한 항목만 기존 저장값을 따르고, 미제출 항목은 무조건 False
+        def_univ = (saved_vis[0] == 'True') if (len(saved_vis) > 0 and has_univ) else False
+        def_job = (saved_vis[1] == 'True') if (len(saved_vis) > 1 and has_job) else False
+        def_asset = (saved_vis[2] == 'True') if (len(saved_vis) > 2 and has_asset) else False
 
         c1, c2, c3 = st.columns(3)
-        show_univ = c1.checkbox(get_text('show_univ'), value=def_univ)
-        show_job = c2.checkbox(get_text('show_job'), value=def_job)
-        show_asset = c3.checkbox(get_text('show_asset'), value=def_asset)
+        # 💡 [수정] disabled 속성을 추가하여 서류가 없으면 클릭 자체를 못하게 막음
+        show_univ = c1.checkbox(get_text('show_univ'), value=def_univ, disabled=not has_univ)
+        show_job = c2.checkbox(get_text('show_job'), value=def_job, disabled=not has_job)
+        show_asset = c3.checkbox(get_text('show_asset'), value=def_asset, disabled=not has_asset)
 
         # -----------------------------------------------------------
         # 2. 닉네임 미리보기
@@ -2888,16 +2911,17 @@ elif st.session_state.page == 'setup':
 
         # [A] 인증하기 버튼
         with col_cert:
-            if db_role == 'restricted' or db_status == 'rejected':
-                if st.button(get_text('btn_verify'), use_container_width=True):
-                    st.session_state.page = 'login' 
-                    st.session_state.login_step = 'signup_input'
-                    st.session_state.signup_stage = 3 
-                    st.session_state.temp_user_data = {
-                        "id": user.get('id'), "pw": user.get('pw'), 
-                        "phone": user.get('phone'), "email": user.get('email')
-                    }
-                    st.rerun()
+            # 💡 [수정] 기존 if db_role == 'restricted' 조건문 삭제. 모든 유저에게 노출
+            btn_label = "추가/변경 인증" if db_status == 'approved' else get_text('btn_verify')
+            if st.button(btn_label, use_container_width=True):
+                st.session_state.page = 'login' 
+                st.session_state.login_step = 'signup_input'
+                st.session_state.signup_stage = 3 
+                st.session_state.temp_user_data = {
+                    "id": user.get('id'), "pw": user.get('pw'), 
+                    "phone": user.get('phone'), "email": user.get('email')
+                }
+                st.rerun()
 
         # [B] 저장 버튼
         with col_save:
