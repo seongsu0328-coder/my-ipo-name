@@ -1164,25 +1164,20 @@ def upload_photo_to_drive(file_obj, filename_prefix):
         
 def send_email_code(to_email, code):
     try:
-        # 1. 다양한 환경 변수 이름표를 모두 뒤져봅니다.
-        sender_email = (os.environ.get("EMAIL_ADDRESS") or 
-                        os.environ.get("email_address") or 
-                        os.environ.get("Email_Address"))
-        
-        sender_pw = (os.environ.get("APP_PASSWORD") or 
-                     os.environ.get("app_password") or 
-                     os.environ.get("App_Password"))
+        # 1. 파일이 있으면 secrets에서 가져오고, 없으면 환경변수에서 가져옵니다.
+        # 이 구조가 기존에 에러 없이 작동하던 방식입니다.
+        if "smtp" in st.secrets:
+            sender_email = st.secrets["smtp"]["email_address"]
+            sender_pw = st.secrets["smtp"]["app_password"]
+        else:
+            # Railway 환경변수는 os.environ으로도 잡히지만 st.secrets로도 잡힙니다.
+            sender_email = st.secrets.get("email_address") or os.environ.get("EMAIL_ADDRESS")
+            sender_pw = st.secrets.get("app_password") or os.environ.get("APP_PASSWORD")
 
-        # [디버깅] 값이 비어있는지 확인하여 사용자에게 힌트 제공
         if not sender_email or not sender_pw:
-            missing = []
-            if not sender_email: missing.append("EMAIL_ADDRESS")
-            if not sender_pw: missing.append("APP_PASSWORD")
-            st.error(f"❌ 설정 누락: {', '.join(missing)} 변수를 찾을 수 없습니다.")
-            # Railway 대시보드에서 변수 이름이 정확히 일치하는지 확인용
+            st.error("❌ 이메일 설정 정보가 없습니다.")
             return False
 
-        # 2. 메일 발송 로직
         msg = MIMEText(f"안녕하세요. 인증번호는 [{code}] 입니다.")
         msg['Subject'] = "[Unicorn Finder] 본인 인증번호"
         msg['From'] = sender_email
@@ -1195,14 +1190,8 @@ def send_email_code(to_email, code):
             
         st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
         return True
-        
     except Exception as e:
-        # 상세 에러 메시지를 출력하여 무엇이 잘못되었는지 파악 (비밀번호 노출 방지 처리)
-        error_str = str(e)
-        if "authentication failed" in error_str.lower():
-            st.error("❌ 구글 인증 실패: '앱 비밀번호'가 틀렸거나 지메일 설정이 잘못되었습니다.")
-        else:
-            st.error(f"❌ 이메일 전송 실패: {error_str}")
+        st.error(f"❌ 이메일 전송 실패: {e}")
         return False
 
 # 📍 승인 알림 메일 함수 추가
