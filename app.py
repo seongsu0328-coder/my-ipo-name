@@ -1163,19 +1163,24 @@ def upload_photo_to_drive(file_obj, filename_prefix):
         return "업로드 실패"
         
 def send_email_code(to_email, code):
+    import os
+    import smtplib
+    from email.mime.text import MIMEText
+    
     try:
-        # 1. 파일이 있으면 secrets에서 가져오고, 없으면 환경변수에서 가져옵니다.
-        # 이 구조가 기존에 에러 없이 작동하던 방식입니다.
-        if "smtp" in st.secrets:
-            sender_email = st.secrets["smtp"]["email_address"]
-            sender_pw = st.secrets["smtp"]["app_password"]
-        else:
-            # Railway 환경변수는 os.environ으로도 잡히지만 st.secrets로도 잡힙니다.
-            sender_email = st.secrets.get("email_address") or os.environ.get("EMAIL_ADDRESS")
-            sender_pw = st.secrets.get("app_password") or os.environ.get("APP_PASSWORD")
+        # 💡 st.secrets를 거치지 않고 Railway 시스템 환경변수에서 직접 가져옵니다.
+        # 이렇게 하면 'No secrets found' 에러가 절대 발생하지 않습니다.
+        sender_email = os.environ.get("EMAIL_ADDRESS")
+        sender_pw = os.environ.get("APP_PASSWORD")
+
+        # 만약 위 이름으로 등록되어 있지 않다면, 소문자 버전도 확인합니다.
+        if not sender_email:
+            sender_email = os.environ.get("email_address")
+        if not sender_pw:
+            sender_pw = os.environ.get("app_password")
 
         if not sender_email or not sender_pw:
-            st.error("❌ 이메일 설정 정보가 없습니다.")
+            st.error("❌ 서버 설정 오류: EMAIL_ADDRESS 또는 APP_PASSWORD 환경변수가 없습니다.")
             return False
 
         msg = MIMEText(f"안녕하세요. 인증번호는 [{code}] 입니다.")
@@ -1191,7 +1196,8 @@ def send_email_code(to_email, code):
         st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
         return True
     except Exception as e:
-        st.error(f"❌ 이메일 전송 실패: {e}")
+        # 에러 메시지에 secrets 경로가 포함되지 않도록 깔끔하게 출력합니다.
+        st.error(f"❌ 전송 실패: {str(e)}")
         return False
 
 # 📍 승인 알림 메일 함수 추가
