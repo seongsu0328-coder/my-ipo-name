@@ -2903,19 +2903,23 @@ elif st.session_state.page == 'setup':
                             
                             function requestPay() {{
                                 var requestData = {{
-                                    pg: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4", // 👈 정확한 PG사 코드 (KG이니시스)
-                                    pay_method: "card", // 👈 결제 수단 (카드)
+                                    // ⚠️ V2 채널키를 쓸 때는 pg 대신 channelKey라고 써야 합니다!
+                                    channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
+                                    pay_method: "card",
                                     merchant_uid: "order_" + new Date().getTime(),
-                                    name: "유니콘 파인더 프리미엄 (1개월)",
+                                    name: "테스트용", // 대표님이 설정하신 채널 이름과 맞춰보았습니다.
                                     amount: 6500, 
                                     buyer_email: "{u_email}",
                                     buyer_name: "{u_name}"
                                 }};
                                 
+                                console.log("결제 시도 데이터:", requestData);
+
                                 IMP.request_pay(requestData, function (rsp) {{
                                     if (rsp.success) {{
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }} else {{
+                                        // 상세 에러 내용을 alert로 띄워 어떤 파라미터가 문제인지 확인
                                         alert("❌ 결제 실패: " + rsp.error_msg);
                                     }}
                                 }});
