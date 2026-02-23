@@ -2878,13 +2878,12 @@ elif st.session_state.page == 'setup':
                     
                     import streamlit.components.v1 as components
                     
-                    # 💡 Streamlit 안에 쏙 들어가는 포트원 결제 전용 미니 웹페이지
+                    # 💡 Streamlit 안에 쏙 들어가는 포트원 V2 전용 결제 모듈
                     portone_html = f"""
                     <!DOCTYPE html>
                     <html>
                     <head>
-                        <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
-                        <script src="https://cdn.iamport.kr/js/iamport.payment-1.2.0.js"></script>
+                        <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
                         <style>
                             body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background-color: transparent; }}
                             .pay-btn {{
@@ -2898,37 +2897,43 @@ elif st.session_state.page == 'setup':
                     <body>
                         <button class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제 (테스트)</button>
                         <script>
-                            var IMP = window.IMP; 
-                            IMP.init("{portone_id}");
-                            
-                            function requestPay() {{
-                                var requestData = {{
-                                    // ⚠️ V2 채널키를 쓸 때는 pg 대신 channelKey라고 써야 합니다!
-                                    channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
-                                    pay_method: "card",
-                                    merchant_uid: "order_" + new Date().getTime(),
-                                    name: "테스트용", // 대표님이 설정하신 채널 이름과 맞춰보았습니다.
-                                    amount: 6500, 
-                                    buyer_email: "{u_email}",
-                                    buyer_name: "{u_name}"
-                                }};
-                                
-                                console.log("결제 시도 데이터:", requestData);
+                            async function requestPay() {{
+                                try {{
+                                    // 2. V2 방식의 결제 요청 (PortOne.requestPayment)
+                                    const response = await PortOne.requestPayment({{
+                                        storeId: "{portone_id}", // Railway에 등록한 store-로 시작하는 ID
+                                        channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
+                                        paymentId: "payment-" + new Date().getTime(),
+                                        orderName: "테스트용",
+                                        totalAmount: 6500,
+                                        currency: "KRW",
+                                        payMethod: "CARD",
+                                        customer: {{
+                                            fullName: "{u_name}",
+                                            email: "{u_email}",
+                                        }},
+                                        windowType: {{
+                                            pc: "POPUP",
+                                            smartPhone: "POPUP"
+                                        }}
+                                    }});
 
-                                IMP.request_pay(requestData, function (rsp) {{
-                                    if (rsp.success) {{
-                                        window.parent.location.href = "https://unicornfinder.app/?success=true";
+                                    // 3. 결과 처리
+                                    if (response.code != null) {{
+                                        // 오류 발생 시
+                                        alert("❌ 결제 실패: " + response.message);
                                     }} else {{
-                                        // 상세 에러 내용을 alert로 띄워 어떤 파라미터가 문제인지 확인
-                                        alert("❌ 결제 실패: " + rsp.error_msg);
+                                        // 결제 성공 시
+                                        window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }}
-                                }});
+                                }} catch (e) {{
+                                    alert("❌ 오류가 발생했습니다: " + e.message);
+                                }}
                             }}
                         </script>
                     </body>
                     </html>
                     """
-                    # 버튼 높이를 45px로 맞춰서 Streamlit 기본 버튼들과 이질감 없이 삽입합니다.
                     components.html(portone_html, height=45)
                 else:
                     st.button(get_text('btn_premium'), disabled=True)
