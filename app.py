@@ -1164,20 +1164,37 @@ def upload_photo_to_drive(file_obj, filename_prefix):
         
 def send_email_code(to_email, code):
     try:
-        if "smtp" in st.secrets:
-            sender_email = st.secrets["smtp"]["email_address"]
-            sender_pw = st.secrets["smtp"]["app_password"]
-        else:
-            sender_email = st.secrets["email_address"]
-            sender_pw = st.secrets["app_password"]
+        # 💡 [핵심 수정] st.secrets에 직접 접근하기 전, 환경 변수(Railway Variables)를 먼저 확인합니다.
+        # 이렇게 하면 파일이 없어도 에러 없이 값을 가져옵니다.
+        sender_email = os.environ.get("EMAIL_ADDRESS")
+        sender_pw = os.environ.get("APP_PASSWORD")
+
+        # 만약 환경 변수에 없다면, 그때만 secrets 파일을 조심스럽게 확인합니다.
+        if not sender_email or not sender_pw:
+            try:
+                if "smtp" in st.secrets:
+                    sender_email = st.secrets["smtp"]["email_address"]
+                    sender_pw = st.secrets["smtp"]["app_password"]
+                else:
+                    sender_email = st.secrets["email_address"]
+                    sender_pw = st.secrets["app_password"]
+            except:
+                pass # 파일이 아예 없으면 에러를 내지 않고 그냥 넘어갑니다.
+
+        if not sender_email or not sender_pw:
+            st.error("❌ 이메일 설정 정보가 없습니다. Railway Variables를 확인해주세요.")
+            return False
+
         msg = MIMEText(f"안녕하세요. 인증번호는 [{code}] 입니다.")
         msg['Subject'] = "[Unicorn Finder] 본인 인증번호"
         msg['From'] = sender_email
         msg['To'] = to_email
+        
         with smtplib.SMTP('smtp.gmail.com', 587) as s:
             s.starttls()
             s.login(sender_email, sender_pw)
             s.sendmail(sender_email, to_email, msg.as_string())
+            
         st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
         return True
     except Exception as e:
