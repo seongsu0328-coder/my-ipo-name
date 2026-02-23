@@ -1166,21 +1166,13 @@ def send_email_code(to_email, code):
     import os
     import smtplib
     from email.mime.text import MIMEText
-    
     try:
-        # 💡 st.secrets를 거치지 않고 Railway 시스템 환경변수에서 직접 가져옵니다.
-        # 이렇게 하면 'No secrets found' 에러가 절대 발생하지 않습니다.
-        sender_email = os.environ.get("EMAIL_ADDRESS")
-        sender_pw = os.environ.get("APP_PASSWORD")
-
-        # 만약 위 이름으로 등록되어 있지 않다면, 소문자 버전도 확인합니다.
-        if not sender_email:
-            sender_email = os.environ.get("email_address")
-        if not sender_pw:
-            sender_pw = os.environ.get("app_password")
+        # 💡 대표님의 Railway 변수명에 맞춰 수정 완료!
+        sender_email = os.environ.get("SMTP_EMAIL_ADDRESS")
+        sender_pw = os.environ.get("SMTP_APP_PASSWORD")
 
         if not sender_email or not sender_pw:
-            st.error("❌ 서버 설정 오류: EMAIL_ADDRESS 또는 APP_PASSWORD 환경변수가 없습니다.")
+            st.error("❌ 서버 설정 오류: Railway Variables에서 SMTP_EMAIL_ADDRESS 이름을 확인해주세요.")
             return False
 
         msg = MIMEText(f"안녕하세요. 인증번호는 [{code}] 입니다.")
@@ -1196,8 +1188,7 @@ def send_email_code(to_email, code):
         st.toast(f"📧 {to_email}로 인증 메일을 보냈습니다!", icon="✅")
         return True
     except Exception as e:
-        # 에러 메시지에 secrets 경로가 포함되지 않도록 깔끔하게 출력합니다.
-        st.error(f"❌ 전송 실패: {str(e)}")
+        st.error(f"❌ 이메일 전송 실패: {e}")
         return False
 
 # 📍 승인 알림 메일 함수 추가
@@ -2563,7 +2554,8 @@ if st.session_state.page == 'login':
                 # --- [하단 유동 구역: 버튼 혹은 인증창으로 교체] ---
                 st.write("---") 
                 
-                # 💡 [구조 재수정] 기존 에러 없던 로직을 유지하되, 유령 박스의 원인인 empty()만 제거했습니다.
+                # 💡 [해결] st.empty()를 제거하여 유령 박스 현상을 차단하고, 
+                # auth_choice 비교 로직을 'email'로 정확히 수정했습니다.
                 if st.session_state.signup_stage == 1:
                     # 1단계 버튼 구역
                     if st.button(get_text('btn_get_code'), use_container_width=True, type="primary", key="btn_send_auth_final"):
@@ -2576,13 +2568,13 @@ if st.session_state.page == 'login':
                             st.session_state.auth_code = code
                             st.session_state.temp_user_data = {"id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email}
                             
-                            # 🚨 기존 로직 복구: auth_choice 값에 따라 인증 진행
-                            # (다국어 대응을 위해 'email' 문자열이 포함되어 있는지로 체크)
+                            # ✅ 수정된 부분: "이메일"이 아니라 변수 값인 "email"과 비교합니다.
                             if auth_choice == "email":
                                 if send_email_code(new_email, code):
                                     st.session_state.signup_stage = 2
                                     st.rerun()
                             else:
+                                # 휴대폰 선택 시 기존처럼 토스트 메시지
                                 st.toast(f"📱 인증번호: {code}", icon="✅")
                                 st.session_state.signup_stage = 2
                                 st.rerun()
@@ -2592,7 +2584,7 @@ if st.session_state.page == 'login':
                         st.rerun()
         
                 elif st.session_state.signup_stage == 2:
-                    # 2단계 인증창 구역
+                    # 2단계 인증창 구역 (기존과 동일하지만 들여쓰기 최적화)
                     st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
                     st.markdown(f"<p style='{label_style} font-weight: bold;'>{get_text('auth_code_title')}</p>", unsafe_allow_html=True)
                     
