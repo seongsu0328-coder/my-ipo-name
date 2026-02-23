@@ -1887,6 +1887,49 @@ for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view
         elif key == 'lang': st.session_state[key] = 'ko'  # 💡 [핵심] 언어 기본값 한국어 설정
         else: st.session_state[key] = None
 
+# =========================================================
+# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (앱 최상단 문지기)
+# =========================================================
+# 이 코드는 페이지 라우팅 전에 실행되어 절대 놓치지 않습니다.
+q_params = st.query_params
+
+if q_params.get("success") == "true":
+    # 1. 로그인된 유저인지 확인
+    if st.session_state.get('auth_status') == 'user' and st.session_state.get('user_info'):
+        u_id = st.session_state.user_info.get('id')
+        
+        # 2. 이미 프리미엄이 아닐 때만 업데이트 진행
+        if not st.session_state.user_info.get('is_premium'):
+            with st.spinner("결제 승인을 확인하고 권한을 부여 중입니다..."):
+                try:
+                    from datetime import datetime, timedelta
+                    expire_date = (datetime.now() + timedelta(days=30)).isoformat()
+                    
+                    # 💡 [핵심] Supabase DB에 실제로 값을 전송하는 부분!
+                    update_payload = {
+                        "is_premium": True,
+                        "premium_until": expire_date
+                    }
+                    supabase.table("users").update(update_payload).eq("id", u_id).execute()
+                    
+                    # 로컬 세션 정보 갱신
+                    st.session_state.user_info['is_premium'] = True
+                    st.session_state.user_info['premium_until'] = expire_date
+                    
+                    st.success("🎉 결제가 확인되었습니다! 프리미엄 권한이 활성화되었습니다.")
+                    
+                    # 주소창에서 ?success=true를 지우고 새로고침 (중복 실행 방지)
+                    st.query_params.clear()
+                    import time
+                    time.sleep(2)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"DB 업데이트 중 오류가 발생했습니다: {e}")
+    else:
+        # 혹시 결제창을 다녀오는 동안 세션이 끊겼을 경우
+        st.warning("결제는 성공했으나 로그인 정보가 만료되었습니다. 다시 로그인해주세요.")
+        st.query_params.clear()
+
 # ==========================================
 # [추가] 다국어(i18n) 지원 설정 및 사전(Dictionary)
 # ==========================================
@@ -2708,41 +2751,6 @@ elif st.session_state.page == 'setup':
 
     if user:
         # ==========================================
-        # [핵심 로직] 결제 성공 감지 및 DB 업데이트
-        # ==========================================
-        q_params = st.query_params
-        if q_params.get("success") == "true" and st.session_state.get('auth_status') == 'user':
-            u_id = st.session_state.user_info.get('id')
-            
-            # 중복 업데이트 방지
-            if not st.session_state.user_info.get('is_premium'):
-                try:
-                    with st.spinner(get_text('msg_updating_premium')):
-                        from datetime import datetime, timedelta
-                        expire_date = (datetime.now() + timedelta(days=30)).isoformat()
-                        
-                        # 1. Supabase 업데이트
-                        update_payload = {
-                            "is_premium": True,
-                            "premium_until": expire_date
-                        }
-                        supabase.table("users").update(update_payload).eq("id", u_id).execute()
-                        
-                        # 2. 로컬 세션 정보 갱신
-                        st.session_state.user_info['is_premium'] = True
-                        st.session_state.user_info['premium_until'] = expire_date
-                        
-                        # 3. 메시지 출력
-                        st.success(get_text('msg_payment_complete_approval'))
-                        
-                        # 4. URL 파라미터 제거 및 새로고침
-                        st.query_params.clear()
-                        time.sleep(2)
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
-
-        # ==========================================
         # [UI] 설정 페이지 화면 구성 시작
         # ==========================================
         # [1] 기본 정보 계산
@@ -2769,7 +2777,7 @@ elif st.session_state.page == 'setup':
         # -----------------------------------------------------------
         saved_vis = user.get('visibility', 'True,True,True').split(',')
         def_univ = saved_vis[0] == 'True' if len(saved_vis) > 0 else True
-        def_job = saved_vis[1] == 'True' if len(saved_vis) > 1 else True
+        def_job = saved_vis[1] == 'True' if len(saved_vis) > 2 else True
         def_asset = saved_vis[2] == 'True' if len(saved_vis) > 2 else True
 
         c1, c2, c3 = st.columns(3)
