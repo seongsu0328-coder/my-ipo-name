@@ -1874,71 +1874,49 @@ def get_us_ipo_analysis(ticker_symbol):
 try:
     st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 except:
-    pass # 이미 설정되어 있다면 패스
+    pass 
 
-# 🚨 [초강력 확인용] 무조건 화면 맨 위에 출력되는 시스템 알림!
-# (만약 배포 후 앱에 이 빨간 박스가 아예 안 보인다면, 100% Railway 배포 지연입니다)
+# =========================================================
+# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (실전 배포용)
+# =========================================================
 try:
     current_params = dict(st.query_params)
-    st.error(f"🔍 [시스템 추적] 현재 파이썬이 읽어들인 주소창 데이터: {current_params}")
-except Exception as e:
-    st.error(f"🔍 [시스템 추적] 파라미터 읽기 실패 (구버전 방식 시도): {e}")
+except:
     current_params = st.experimental_get_query_params()
-    st.error(f"🔍 [시스템 추적] 구버전 파라미터: {current_params}")
 
-# =========================================================
-# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (극강의 호환성 패치)
-# =========================================================
-try:
-    # 어떤 방식이든 'success'라는 단어가 주소창 데이터 안에 들어있기만 하면 무조건 강제 진입!
-    if "success" in str(current_params).lower():
-        st.warning("👀 [디버그] 결제 성공 신호를 포착했습니다! 로직 실행 시작...")
+if "success" in str(current_params).lower():
+    target_uid = current_params.get("uid", "")
+    if isinstance(target_uid, list): target_uid = target_uid[0]
+    target_uid = str(target_uid).strip()
+
+    if not target_uid and st.session_state.get('user_info'):
+        target_uid = st.session_state.user_info.get('id')
         
-        # uid 추출 (딕셔너리 안전 탐색)
-        target_uid = current_params.get("uid", "")
-        if isinstance(target_uid, list): target_uid = target_uid[0]
-        target_uid = str(target_uid).strip()
-
-        # URL에 uid가 없다면 세션에서 강제 탐색
-        if not target_uid and st.session_state.get('user_info'):
-            target_uid = st.session_state.user_info.get('id')
-            
-        if target_uid:
-            st.info(f"✅ [디버그] 타겟 유저 ID 확인됨: {target_uid}")
-            
-            with st.spinner("DB 업데이트 시도 중..."):
+    if target_uid:
+        with st.spinner("결제 내역을 확인하고 프리미엄 권한을 부여하고 있습니다..."):
+            try:
                 from datetime import datetime, timedelta
                 expire_date = (datetime.now() + timedelta(days=30)).isoformat()
                 
-                # Supabase 업데이트 페이로드
-                update_payload = {
-                    "is_premium": True,
-                    "premium_until": expire_date
-                }
+                update_payload = {"is_premium": True, "premium_until": expire_date}
+                supabase.table("users").update(update_payload).eq("id", target_uid).execute()
                 
-                # DB 업데이트 실행
-                res = supabase.table("users").update(update_payload).eq("id", target_uid).execute()
+                if st.session_state.get('user_info'):
+                    st.session_state.user_info['is_premium'] = True
+                    st.session_state.user_info['premium_until'] = expire_date
                 
-                if res.data:
-                    st.success("🎉 [디버그] DB 업데이트 성공! 3초 뒤 이동합니다.")
-                    if st.session_state.get('user_info'):
-                        st.session_state.user_info['is_premium'] = True
-                        st.session_state.user_info['premium_until'] = expire_date
-                    
-                    import time
-                    time.sleep(3)
-                    
+                st.success("👑 결제가 완료되었습니다! 프리미엄 회원이 되신 것을 환영합니다.")
+                
+                import time
+                time.sleep(2.5)
+                
+                try:
                     st.query_params.clear()
-                    st.rerun()
-                else:
-                    st.error(f"❌ [디버그] DB 응답 없음: '{target_uid}' 유저가 존재하지 않거나, is_premium 컬럼이 없습니다.")
-                    st.stop()
-        else:
-            st.error("❌ [디버그] 아이디(uid)를 찾을 수 없습니다. 결제는 되었으나 연동 실패.")
-            st.stop()
-except Exception as e:
-    st.error(f"🚨 [디버그] 문지기 로직 에러: {e}")
-    st.stop()
+                except:
+                    st.experimental_set_query_params()
+                st.rerun()
+            except Exception as e:
+                st.error("오류가 발생했습니다. 관리자에게 문의해주세요.")
 
 # ==========================================
 # [추가] 다국어(i18n) 지원 설정 및 사전(Dictionary)
@@ -2945,16 +2923,16 @@ elif st.session_state.page == 'setup':
                                                         pc: "IFRAME",       
                                                         smartPhone: "REDIRECTION" 
                                                     }},
-                                                    // 🚀 [수정됨] 돌아올 때 유저 ID(uid)를 무조건 달고 오게 합니다!
-                                                    redirectUrl: "https://unicornfinder.app/?success=true&uid={current_uid}"
+                                                    // 🚀 [수정] 모바일 결제 후 돌아올 때 Railway 주소로 바로 꽂아줍니다!
+                                                    redirectUrl: "https://my-ipo-name-production.up.railway.app/?success=true&uid={current_uid}"
                                                 }}).then(function(response) {{
                                                     if (response && response.code != null) {{
                                                         alert("결제 실패: " + response.message);
                                                         window.close();
                                                     }} else if (response) {{
                                                         if (window.opener && !window.opener.closed) {{
-                                                            // 🚀 [수정됨] PC 팝업에서도 돌아올 때 uid를 달고 앱을 새로고침합니다!
-                                                            window.opener.parent.location.href = "https://unicornfinder.app/?success=true&uid={current_uid}";
+                                                            // 🚀 [수정] PC 팝업 결제 후 돌아올 때도 Railway 주소로 새로고침!
+                                                            window.opener.parent.location.href = "https://my-ipo-name-production.up.railway.app/?success=true&uid={current_uid}";
                                                         }}
                                                         window.close();
                                                     }}
@@ -3006,9 +2984,9 @@ elif st.session_state.page == 'setup':
                                     line_items=[{'price': stripe_price, 'quantity': 1}],
                                     mode='subscription',
                                     locale=curr_lang if curr_lang in ['en', 'ja', 'zh'] else 'auto',
-                                    # 🚀 [수정됨] Stripe 결제 후 돌아올 때도 uid를 추가합니다!
-                                    success_url=f'https://unicornfinder.app/?success=true&uid={current_uid}&session_id={{CHECKOUT_SESSION_ID}}',
-                                    cancel_url='https://unicornfinder.app/?canceled=true',
+                                    # 🚀 [수정] Stripe 결제 성공 및 취소 주소도 모두 Railway로 변경!
+                                    success_url=f'https://my-ipo-name-production.up.railway.app/?success=true&uid={current_uid}&session_id={{CHECKOUT_SESSION_ID}}',
+                                    cancel_url='https://my-ipo-name-production.up.railway.app/?canceled=true',
                                 )
                                 st.success(get_text('msg_checkout_complete'))
                                 st.link_button(get_text('btn_pay_now'), checkout_session.url, use_container_width=True)
