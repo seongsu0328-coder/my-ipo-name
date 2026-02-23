@@ -1888,43 +1888,57 @@ for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view
         else: st.session_state[key] = None
 
 # =========================================================
-# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (앱 최상단 문지기)
+# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (이중 안전장치 문지기)
 # =========================================================
 q_params = st.query_params
 
 if q_params.get("success") == "true":
-    # 💡 URL에서 유저 ID를 직접 가져옵니다. (세션 초기화 대비)
+    # 💡 [핵심 강화] 1순위: URL에서 아이디 찾기 -> 2순위: 현재 로그인된 세션에서 아이디 찾기
     target_uid = q_params.get("uid")
     
+    if not target_uid and st.session_state.get('auth_status') == 'user':
+        if st.session_state.get('user_info'):
+            target_uid = st.session_state.user_info.get('id')
+            
     if target_uid:
-        with st.spinner("결제 승인을 확인하고 권한을 부여 중입니다..."):
-            try:
-                from datetime import datetime, timedelta
-                expire_date = (datetime.now() + timedelta(days=30)).isoformat()
-                
-                # 1. [핵심] URL에 적힌 아이디로 Supabase DB 즉시 업데이트!
-                update_payload = {
-                    "is_premium": True,
-                    "premium_until": expire_date
-                }
-                supabase.table("users").update(update_payload).eq("id", target_uid).execute()
-                
-                # 2. 로컬 세션 정보 갱신 (만약 로그인 상태가 유지되어 있다면)
-                if st.session_state.get('user_info') and st.session_state.user_info.get('id') == target_uid:
-                    st.session_state.user_info['is_premium'] = True
-                    st.session_state.user_info['premium_until'] = expire_date
-                
-                st.success("🎉 결제가 성공적으로 완료되었습니다! DB 업데이트 완료!")
-                
-                # 3. 주소창 정리 및 새로고침
-                st.query_params.clear()
-                import time
-                time.sleep(2)
-                st.rerun()
-            except Exception as e:
-                st.error(f"DB 업데이트 중 오류: {e}")
+        # 혹시 이미 프리미엄인지 한 번 더 확인 (무한 새로고침 방지)
+        is_already_premium = False
+        if st.session_state.get('user_info') and st.session_state.user_info.get('is_premium'):
+            is_already_premium = True
+            
+        if not is_already_premium:
+            with st.spinner("결제 승인을 확인하고 프리미엄 권한을 부여 중입니다..."):
+                try:
+                    from datetime import datetime, timedelta
+                    expire_date = (datetime.now() + timedelta(days=30)).isoformat()
+                    
+                    # 1. Supabase DB 업데이트
+                    update_payload = {
+                        "is_premium": True,
+                        "premium_until": expire_date
+                    }
+                    supabase.table("users").update(update_payload).eq("id", target_uid).execute()
+                    
+                    # 2. 현재 로그인된 세션이 있다면 세션에도 반영
+                    if st.session_state.get('user_info'):
+                        st.session_state.user_info['is_premium'] = True
+                        st.session_state.user_info['premium_until'] = expire_date
+                    
+                    st.success("🎉 결제가 성공적으로 완료되었습니다! 👑 Premium 권한이 활성화되었습니다.")
+                    
+                    # 3. 주소창 깔끔하게 지우고 새로고침
+                    st.query_params.clear()
+                    import time
+                    time.sleep(2)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"DB 업데이트 중 오류 발생: {e}")
+        else:
+            # 이미 프리미엄인 경우 주소창만 정리
+            st.query_params.clear()
+            st.rerun()
     else:
-        st.warning("결제는 성공했으나 유저 식별자가 누락되었습니다.")
+        st.warning("결제는 확인되었으나 로그인 정보가 만료되었습니다. 다시 로그인해주세요.")
         st.query_params.clear()
 
 # ==========================================
