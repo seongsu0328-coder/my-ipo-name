@@ -2877,63 +2877,87 @@ elif st.session_state.page == 'setup':
                     <!DOCTYPE html>
                     <html>
                     <head>
-                        <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
                         <style>
                             body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background-color: transparent; overflow: hidden; }}
-                            .pay-btn {{
-                                background-color: #FEE500; color: #000000; border: none; border-radius: 8px;
-                                padding: 8px 15px; font-size: 15px; font-weight: bold; cursor: pointer; 
-                                width: 100%; height: 42px; font-family: sans-serif; transition: 0.2s;
-                            }}
+                            .pay-btn {{ background-color: #FEE500; color: #000000; border: none; border-radius: 8px; padding: 8px 15px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%; height: 42px; font-family: sans-serif; transition: 0.2s; }}
                             .pay-btn:hover {{ background-color: #e5ce00; }}
                         </style>
                     </head>
                     <body>
-                        <button id="pay-button" class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제 (테스트)</button>
+                        <button id="pay-button" class="pay-btn" onclick="openPayWindow()">💳 국내 카드로 결제 (테스트)</button>
                         
                         <script>
-                            // 💡 1. async 키워드 제거 (모바일 멈춤 현상의 주범)
-                            function requestPay() {{
-                                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                            function openPayWindow() {{
+                                // 1. Streamlit 밖으로 탈출하는 진짜 브라우저 새 창 열기
+                                const payWindow = window.open("", "_blank", "width=600,height=800");
                                 
-                                const requestData = {{
-                                    storeId: "{portone_id}",
-                                    channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
-                                    paymentId: "pay-" + new Date().getTime(),
-                                    orderName: "테스트용",
-                                    totalAmount: 6500,
-                                    currency: "KRW",
-                                    payMethod: "CARD",
-                                    customer: {{ 
-                                        fullName: "{u_name}", 
-                                        email: "{u_email}",
-                                        phoneNumber: "010-0000-0000"
-                                    }},
-                                    windowType: {{
-                                        pc: "POPUP",              // 💡 2. PC: 대표님 요청대로 아예 별도의 새 팝업창으로 띄움
-                                        smartPhone: "REDIRECTION" // 💡 3. 모바일: Iframe 무시하고 전체 페이지 전환
-                                    }},
-                                    // 리다이렉션 시 돌아올 주소 (모바일 필수)
-                                    redirectUrl: "https://unicornfinder.app/?success=true"
-                                }};
-
-                                // 💡 4. await 대신 .then()을 사용하여 코드가 멈춰있지 않게 함
-                                PortOne.requestPayment(requestData).then(function(response) {{
-                                    // 이 부분은 PC에서 팝업 결제가 끝난 후 창이 닫힐 때만 실행됩니다.
-                                    if (response != null && response.code != null) {{
-                                        alert("❌ 결제 실패: " + response.message);
-                                    }} else if (response != null) {{
-                                        window.parent.location.href = "https://unicornfinder.app/?success=true";
-                                    }}
-                                }}).catch(function(e) {{
-                                    alert("🚨 오류: " + e.message);
-                                }});
+                                if (!payWindow) {{
+                                    alert("🚨 팝업 차단이 감지되었습니다. 브라우저 설정에서 팝업을 허용해주세요.");
+                                    return;
+                                }}
+                                
+                                // 2. 새 창의 넓은 공간에 포트원 결제 전용 코드를 씁니다.
+                                const htmlContent = `
+                                    <!DOCTYPE html>
+                                    <html>
+                                    <head>
+                                        <meta charset="utf-8">
+                                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                        <title>안전 결제 진행중</title>
+                                        <script src="https://cdn.portone.io/v2/browser-sdk.js"><\\/script>
+                                    </head>
+                                    <body style="display:flex; justify-content:center; align-items:center; height:100vh; margin:0; background-color:#f8f9fa; font-family:sans-serif;">
+                                        <h3>결제 모듈을 안전하게 불러오는 중입니다...</h3>
+                                        <script>
+                                            window.onload = function() {{
+                                                PortOne.requestPayment({{
+                                                    storeId: "{portone_id}",
+                                                    channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
+                                                    paymentId: "pay-" + new Date().getTime(),
+                                                    orderName: "테스트용",
+                                                    totalAmount: 6500,
+                                                    currency: "KRW",
+                                                    payMethod: "CARD",
+                                                    customer: {{ 
+                                                        fullName: "{u_name}", 
+                                                        email: "{u_email}",
+                                                        phoneNumber: "010-0000-0000"
+                                                    }},
+                                                    windowType: {{
+                                                        pc: "IFRAME",       // KG이니시스가 요구하는 IFRAME 방식 (이제 넓은 새 창이므로 안 깨짐!)
+                                                        smartPhone: "REDIRECTION" // 모바일은 전체 화면 전환
+                                                    }},
+                                                    redirectUrl: "https://unicornfinder.app/?success=true"
+                                                }}).then(function(response) {{
+                                                    if (response && response.code != null) {{
+                                                        alert("결제 실패: " + response.message);
+                                                        window.close();
+                                                    }} else if (response) {{
+                                                        // 결제 성공 시, 뒤에 있는 본래 앱 화면을 success로 보내고 팝업은 닫습니다.
+                                                        if (window.opener && !window.opener.closed) {{
+                                                            window.opener.parent.location.href = "https://unicornfinder.app/?success=true";
+                                                        }}
+                                                        window.close();
+                                                    }}
+                                                }}).catch(function(e) {{
+                                                    alert("오류: " + e.message);
+                                                    window.close();
+                                                }});
+                                            }};
+                                        <\\/script>
+                                    </body>
+                                    </html>
+                                `;
+                                
+                                // 3. 새 창에 HTML을 밀어넣고 실행!
+                                payWindow.document.write(htmlContent);
+                                payWindow.document.close();
                             }}
                         </script>
                     </body>
                     </html>
                     """
-                    # 💡 5. 이제 결제창이 밖으로 뜨므로, 쓸데없는 빈 공간(700)을 지우고 45로 딱 맞춤
+                    # 앱 화면은 버튼 크기(45px)를 그대로 예쁘게 유지합니다!
                     components.html(portone_html, height=45)
                 else:
                     st.button(get_text('btn_premium'), disabled=True)
