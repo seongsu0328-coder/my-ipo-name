@@ -1909,6 +1909,17 @@ UI_TEXT = {
     'msg_checkout_ready': {'ko': '안전한 결제창을 준비하고 있습니다...', 'en': 'Preparing secure checkout...', 'ja': '安全な決済画面を準備しています...', 'zh': '正在准备安全支付页面...'},
     'msg_checkout_complete': {'ko': '결제 준비 완료! 아래 버튼을 클릭하세요.', 'en': 'Ready! Click the button below.', 'ja': '準備完了！下のボタンをクリックしてください。', 'zh': '准备就绪！请点击下方按钮。'},
     'btn_pay_now': {'ko': '💳 지금 결제하기', 'en': '💳 Pay Now', 'ja': '💳 今すぐ決済', 'zh': '💳 立即支付'},
+    'msg_updating_premium': {
+        'ko': '프리미엄 권한을 활성화하고 있습니다...',
+        'en': 'Activating premium permissions...',
+        'ja': 'プレミアム権限を有効에하고 있습니다...',
+        'zh': '正在激活高级权限...'
+    },
+    'msg_payment_complete_approval': {
+        'ko': '결제가 완료되었습니다. 승인 후 모든 프리미엄 기능을 사용하실 수 있습니다.',
+        'en': 'Payment completed. You can use all premium features after approval.',
+        'ja': '決済が完了しました。承認後、すべてのプレミアム機能をご利用いただけます。',
+        'zh': '支付已完成。批准后即可 사용所有高级功能。'
     
     # ==========================================
     # 2. 로그인 및 회원가입 (Auth)
@@ -2684,6 +2695,44 @@ elif st.session_state.page == 'setup':
     user = st.session_state.user_info
 
     if user:
+        # ==========================================
+        # [핵심 로직] 결제 성공 감지 및 DB 업데이트
+        # ==========================================
+        q_params = st.query_params
+        if q_params.get("success") == "true" and st.session_state.get('auth_status') == 'user':
+            u_id = st.session_state.user_info.get('id')
+            
+            # 중복 업데이트 방지
+            if not st.session_state.user_info.get('is_premium'):
+                try:
+                    with st.spinner(get_text('msg_updating_premium')):
+                        from datetime import datetime, timedelta
+                        expire_date = (datetime.now() + timedelta(days=30)).isoformat()
+                        
+                        # 1. Supabase 업데이트
+                        update_payload = {
+                            "is_premium": True,
+                            "premium_until": expire_date
+                        }
+                        supabase.table("users").update(update_payload).eq("id", u_id).execute()
+                        
+                        # 2. 로컬 세션 정보 갱신
+                        st.session_state.user_info['is_premium'] = True
+                        st.session_state.user_info['premium_until'] = expire_date
+                        
+                        # 3. 메시지 출력
+                        st.success(get_text('msg_payment_complete_approval'))
+                        
+                        # 4. URL 파라미터 제거 및 새로고침
+                        st.query_params.clear()
+                        time.sleep(2)
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+        # ==========================================
+        # [UI] 설정 페이지 화면 구성 시작
+        # ==========================================
         # [1] 기본 정보 계산
         user_id = str(user.get('id', ''))
         full_masked_id = "*" * len(user_id) 
@@ -2738,8 +2787,11 @@ elif st.session_state.page == 'setup':
         with c_status:
             db_role = user.get('role', 'restricted')
             db_status = user.get('status', 'pending')
+            is_premium = user.get('is_premium', False)
             
-            if db_role == 'restricted':
+            if is_premium:
+                st.markdown("<span style='background-color:#FFD700; color:#000; padding:5px 10px; border-radius:5px; font-weight:bold;'>👑 Premium Member</span>", unsafe_allow_html=True)
+            elif db_role == 'restricted':
                 st.error(get_text('status_basic'))
             elif db_status == 'pending':
                 st.warning(get_text('status_pending'))
@@ -2752,35 +2804,33 @@ elif st.session_state.page == 'setup':
         st.write("<br>", unsafe_allow_html=True)
 
         # -----------------------------------------------------------
-        # 3. [메인 기능] 인증 / 저장 / 로그아웃/ 프리미엄 (4컬럼으로 확장)
-        # 기존 3개 컬럼에서 4개 컬럼으로 늘립니다.
+        # 3. [메인 기능] 인증 / 저장 / 로그아웃 / 프리미엄 (4컬럼)
+        # -----------------------------------------------------------
         col_cert, col_save, col_logout, col_premium = st.columns([1, 1, 1, 1.2])
 
-        # [A] 인증하기 버튼 (비인증 상태일 때만 표시)
+        # [A] 인증하기 버튼
         with col_cert:
             if db_role == 'restricted' or db_status == 'rejected':
                 if st.button(get_text('btn_verify'), use_container_width=True):
                     st.session_state.page = 'login' 
                     st.session_state.login_step = 'signup_input'
-                    st.session_state.signup_stage = 3 # 서류 제출로 점프
+                    st.session_state.signup_stage = 3 
                     st.session_state.temp_user_data = {
                         "id": user.get('id'), "pw": user.get('pw'), 
                         "phone": user.get('phone'), "email": user.get('email')
                     }
                     st.rerun()
 
-        # [B] 저장 버튼 (항상 표시)
+        # [B] 저장 버튼
         with col_save:
             if st.button(get_text('btn_save'), type="primary", use_container_width=True):
-                with st.spinner("Saving..." if st.session_state.lang != 'ko' else "저장 중..."):
+                with st.spinner("Saving..."):
                     current_settings = [show_univ, show_job, show_asset]
                     vis_str = ",".join([str(v) for v in current_settings])
-                    
                     update_data = {
                         "visibility": vis_str,
                         "display_name": final_nickname
                     }
-                    
                     if db_update_user_info(user.get('id'), update_data):
                         st.session_state.user_info['visibility'] = vis_str
                         st.session_state.user_info['display_name'] = final_nickname
@@ -2795,21 +2845,19 @@ elif st.session_state.page == 'setup':
                 st.session_state.clear()
                 st.rerun()
 
-       # [D] 🔥 프리미엄 구독 버튼 (디버깅 기능 추가)
+        # [D] 🔥 프리미엄 구독 버튼
         with col_premium:
             if st.button(get_text('btn_premium'), use_container_width=True):
-                # 1. 환경 변수 읽기
                 stripe_sk = os.environ.get("STRIPE_SECRET_KEY")
                 stripe_price = os.environ.get("STRIPE_PRICE_ID")
                 
-                # [관리자 전용 디버깅] 변수가 누락되었다면 관리자에게만 상세 내용을 보여줍니다.
+                # 관리자 전용 디버깅
                 if user.get('role') == 'admin':
                     if not stripe_sk or not stripe_price:
                         st.divider()
                         st.warning("🛠️ [관리자 디버깅 모드]")
                         st.write(f"- STRIPE_SECRET_KEY 존재 여부: {'✅ 확인됨' if stripe_sk else '❌ 누락됨'}")
                         st.write(f"- STRIPE_PRICE_ID 존재 여부: {'✅ 확인됨' if stripe_price else '❌ 누락됨'}")
-                        st.info("💡 위 항목이 ❌라면 Railway -> Variables 탭에서 이름을 정확히 입력했는지 확인해주세요.")
 
                 if not stripe_sk or not stripe_price:
                     st.error("❌ 결제 설정(환경 변수)이 누락되었습니다. 관리자에게 문의하세요.")
@@ -2818,14 +2866,9 @@ elif st.session_state.page == 'setup':
                         try:
                             import stripe
                             stripe.api_key = stripe_sk
-                            
                             checkout_session = stripe.checkout.Session.create(
-                                line_items=[{
-                                    'price': stripe_price,
-                                    'quantity': 1,
-                                }],
+                                line_items=[{'price': stripe_price, 'quantity': 1}],
                                 mode='subscription',
-                                # 💡 결제 후 돌아올 때 세션 ID를 들고 오도록 URL 수정
                                 success_url='https://unicornfinder.app/?success=true&session_id={CHECKOUT_SESSION_ID}',
                                 cancel_url='https://unicornfinder.app/?canceled=true',
                             )
