@@ -2878,7 +2878,7 @@ elif st.session_state.page == 'setup':
                     
                     import streamlit.components.v1 as components
                     
-                    # 💡 Streamlit 안에 쏙 들어가는 포트원 결제 전용 미니 웹페이지 (Iframe)
+                    # 💡 Streamlit 안에 쏙 들어가는 포트원 결제 전용 미니 웹페이지 (디버깅 모드)
                     portone_html = f"""
                     <!DOCTYPE html>
                     <html>
@@ -2896,26 +2896,36 @@ elif st.session_state.page == 'setup':
                         </style>
                     </head>
                     <body>
-                        <button class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제</button>
+                        <button class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제 (테스트)</button>
                         <script>
                             var IMP = window.IMP; 
                             IMP.init("{portone_id}"); // Railway에서 가져온 식별코드
                             
-                            function requestPay() {
-                                IMP.request_pay({
-                                    pay_method: "card",
+                            function requestPay() {{
+                                // 디버깅용 요청 데이터 세팅
+                                var requestData = {{
+                                    pg: "kakaopay.TC0ONETIME", // 👈 카카오페이 테스트 전용 마법의 키워드입니다!
+                                    pay_method: "kakaopay", // 간편결제로 명시
                                     merchant_uid: "order_" + new Date().getTime(),
                                     name: "유니콘 파인더 프리미엄 (1개월)",
                                     amount: 6500, // 한화 6,500원
                                     buyer_email: "{u_email}",
                                     buyer_name: "{u_name}"
-                                }, function (rsp) {
+                                }};
+                                
+                                console.log("요청 데이터:", requestData);
+
+                                IMP.request_pay(requestData, function (rsp) {{
                                     if (rsp.success) {{
-                                        // ✅ 결제 성공 시! 마법의 코드 (Stripe 성공 처리 로직으로 연결)
+                                        // ✅ 결제 성공 시
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }} else {{
-                                        // 결제 실패 또는 창 닫음
-                                        alert("결제 실패 또는 취소: " + rsp.error_msg);
+                                        // 🚨 디버깅: 결제 실패 시 아주 상세한 원인을 화면에 띄웁니다.
+                                        alert("❌ 결제창 호출 실패!\\n\\n" +
+                                              "식별코드: {portone_id}\\n" +
+                                              "에러 코드: " + rsp.error_code + "\\n" +
+                                              "상세 메시지: " + rsp.error_msg + "\\n\\n" +
+                                              "💡 포트원 관리자에서 '카카오페이' 테스트 채널이 정상 등록되었는지 확인해주세요.");
                                     }}
                                 }});
                             }}
