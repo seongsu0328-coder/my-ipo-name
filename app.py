@@ -2878,7 +2878,7 @@ elif st.session_state.page == 'setup':
                     
                     import streamlit.components.v1 as components
                     
-                    # 💡 Streamlit 안에 쏙 들어가는 포트원 결제 전용 미니 웹페이지 (디버깅 모드)
+                    # 💡 Streamlit 안에 쏙 들어가는 포트원 결제 전용 미니 웹페이지
                     portone_html = f"""
                     <!DOCTYPE html>
                     <html>
@@ -2899,33 +2899,27 @@ elif st.session_state.page == 'setup':
                         <button class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제 (테스트)</button>
                         <script>
                             var IMP = window.IMP; 
-                            IMP.init("{portone_id}"); // 👈 파이썬 변수이므로 괄호 1개
+                            IMP.init("{portone_id}");
                             
-                            function requestPay() {{ // 👈 JS 함수이므로 괄호 2개
-                                // 디버깅용 요청 데이터 세팅
-                                var requestData = {{ // 👈 JS 객체이므로 괄호 2개
-                                    pg: "html5_inicis", // 👈 이니시스 일반결제 호출 마법의 단어
-                                    pay_method: "card", // 👈 카드 결제
+                            function requestPay() {{
+                                var requestData = {{
+                                    pg: "html5_inicis", // 👈 KG이니시스 (일반결제)
+                                    pay_method: "card",
                                     merchant_uid: "order_" + new Date().getTime(),
                                     name: "유니콘 파인더 프리미엄 (1개월)",
-                                    amount: 6500, // 한화 6,500원
-                                    buyer_email: "{u_email}", // 👈 파이썬 변수이므로 괄호 1개
-                                    buyer_name: "{u_name}"    // 👈 파이썬 변수이므로 괄호 1개
+                                    amount: 6500, 
+                                    buyer_email: "{u_email}",
+                                    buyer_name: "{u_name}"
                                 }};
                                 
-                                console.log("요청 데이터:", requestData);
-
                                 IMP.request_pay(requestData, function (rsp) {{
                                     if (rsp.success) {{
-                                        // ✅ 결제 성공 시
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }} else {{
-                                        // 🚨 디버깅: 결제 실패 시
                                         alert("❌ 결제창 호출 실패!\\n\\n" +
-                                              "식별코드: {portone_id}\\n" +
                                               "에러 코드: " + rsp.error_code + "\\n" +
                                               "상세 메시지: " + rsp.error_msg + "\\n\\n" +
-                                              "💡 포트원 관리자에서 '카카오페이' 테스트 채널이 정상 등록되었는지 확인해주세요.");
+                                              "💡 포트원 관리자에서 'KG이니시스(일반결제)' 채널이 정상 등록되었는지 확인해주세요.");
                                     }}
                                 }});
                             }}
