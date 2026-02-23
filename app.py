@@ -2545,59 +2545,56 @@ if st.session_state.page == 'login':
                 auth_choice = st.radio("auth_input", auth_keys, format_func=lambda x: auth_display[x], horizontal=True, label_visibility="collapsed", key="reg_auth_radio")
                 
                 # --- [하단 유동 구역: 버튼 혹은 인증창으로 교체] ---
-                st.write("---")
+                st.write("---") 
                 
-                # st.empty()를 사용하여 이전 단계 위젯의 유령 박스를 물리적으로 제거
-                action_area = st.empty()
-            
-                with action_area.container():
-                    if st.session_state.signup_stage == 1:
-                        # 1단계 버튼 구역
-                        if st.button(get_text('btn_get_code'), use_container_width=True, type="primary", key="btn_send_auth_final"):
-                            if not (new_id and new_pw and confirm_pw and new_email):
-                                st.error("모든 정보를 입력해주세요." if st.session_state.lang == 'ko' else "Please fill in all fields.")
-                            elif not is_pw_match:
-                                st.error("비밀번호 일치 확인이 필요합니다." if st.session_state.lang == 'ko' else "Passwords do not match.")
-                            else:
-                                code = str(random.randint(100000, 999999))
-                                st.session_state.auth_code = code
-                                st.session_state.temp_user_data = {"id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email}
-                                
-                                # 🚨 [버그 수정] "이메일"이 아니라 "email"로 검사해야 정상 작동합니다.
-                                if auth_choice == "email":
-                                    if send_email_code(new_email, code):
-                                        st.session_state.signup_stage = 2
-                                        st.rerun()
-                                else:
-                                    st.toast(f"📱 인증번호: {code}", icon="✅")
+                # 💡 [구조 수정] st.empty()와 container를 제거하여 유령 박스 현상을 원천 차단합니다.
+                if st.session_state.signup_stage == 1:
+                    # 1단계 버튼 구역
+                    if st.button(get_text('btn_get_code'), use_container_width=True, type="primary", key="btn_send_auth_final"):
+                        if not (new_id and new_pw and confirm_pw and new_email):
+                            st.error("모든 정보를 입력해주세요." if st.session_state.lang == 'ko' else "Please fill in all fields.")
+                        elif not is_pw_match:
+                            st.error("비밀번호 일치 확인이 필요합니다." if st.session_state.lang == 'ko' else "Passwords do not match.")
+                        else:
+                            code = str(random.randint(100000, 999999))
+                            st.session_state.auth_code = code
+                            st.session_state.temp_user_data = {"id": new_id, "pw": new_pw, "phone": new_phone, "email": new_email}
+                            
+                            # 🚨 [버그 수정] "이메일"이 아니라 "email"로 검사해야 정상 작동합니다.
+                            if auth_choice == "email":
+                                if send_email_code(new_email, code):
                                     st.session_state.signup_stage = 2
                                     st.rerun()
-                    
-                        if st.button(get_text('btn_back_to_start'), use_container_width=True, key="btn_signup_back_final"):
-                            st.session_state.login_step = 'choice'
-                            st.rerun()
-            
-                    elif st.session_state.signup_stage == 2:
-                        # 2단계 인증창 구역
-                        st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
-                        st.markdown(f"<p style='{label_style} font-weight: bold;'>{get_text('auth_code_title')}</p>", unsafe_allow_html=True)
-                        
-                        in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder=get_text('placeholder_code'), key="input_verify_code_stage2")
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button(get_text('btn_confirm_auth'), use_container_width=True, type="primary", key="btn_confirm_auth_stage2"):
-                                if in_code == st.session_state.auth_code:
-                                    st.success("인증 성공!" if st.session_state.lang == 'ko' else "Verified successfully!")
-                                    st.session_state.signup_stage = 3
-                                    st.rerun()
-                                else:
-                                    st.error("인증번호가 틀렸습니다." if st.session_state.lang == 'ko' else "Incorrect code.")
-                        with col2:
-                            if st.button(get_text('btn_resend_auth'), use_container_width=True, key="btn_resend_auth_stage2"):
-                                st.session_state.signup_stage = 1
+                            else:
+                                st.toast(f"📱 인증번호: {code}", icon="✅")
+                                st.session_state.signup_stage = 2
                                 st.rerun()
-                        st.markdown("</div>", unsafe_allow_html=True)
+                
+                    if st.button(get_text('btn_back_to_start'), use_container_width=True, key="btn_signup_back_final"):
+                        st.session_state.login_step = 'choice'
+                        st.rerun()
+        
+                elif st.session_state.signup_stage == 2:
+                    # 2단계 인증창 구역
+                    st.markdown("<div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='{label_style} font-weight: bold;'>{get_text('auth_code_title')}</p>", unsafe_allow_html=True)
+                    
+                    in_code = st.text_input("verify_code_input", label_visibility="collapsed", placeholder=get_text('placeholder_code'), key="input_verify_code_stage2")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button(get_text('btn_confirm_auth'), use_container_width=True, type="primary", key="btn_confirm_auth_stage2"):
+                            if in_code == st.session_state.auth_code:
+                                st.success("인증 성공!" if st.session_state.lang == 'ko' else "Verified successfully!")
+                                st.session_state.signup_stage = 3
+                                st.rerun()
+                            else:
+                                st.error("인증번호가 틀렸습니다." if st.session_state.lang == 'ko' else "Incorrect code.")
+                    with col2:
+                        if st.button(get_text('btn_resend_auth'), use_container_width=True, key="btn_resend_auth_stage2"):
+                            st.session_state.signup_stage = 1
+                            st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
             
             # [B구역] 3단계일 때 (서류 제출 화면)
             elif st.session_state.signup_stage == 3:
