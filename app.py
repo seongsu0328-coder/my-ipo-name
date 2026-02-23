@@ -1876,45 +1876,28 @@ try:
 except:
     pass # 이미 설정되어 있다면 패스
 
-# 2. 세션 상태 안전 초기화 (lang 추가됨)
-for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view_mode', 'user_info', 'selected_stock', 'lang']:
-    if key not in st.session_state:
-        if key == 'page': st.session_state[key] = 'login'
-        elif key == 'watchlist': st.session_state[key] = []
-        elif key == 'posts': st.session_state[key] = []
-        elif key == 'user_decisions': st.session_state[key] = {}
-        elif key == 'view_mode': st.session_state[key] = 'all'
-        elif key == 'lang': st.session_state[key] = 'ko'  # 💡 [핵심] 언어 기본값 한국어 설정
-        else: st.session_state[key] = None
+# 🚨 [초강력 확인용] 무조건 화면 맨 위에 출력되는 시스템 알림!
+# (만약 배포 후 앱에 이 빨간 박스가 아예 안 보인다면, 100% Railway 배포 지연입니다)
+try:
+    current_params = dict(st.query_params)
+    st.error(f"🔍 [시스템 추적] 현재 파이썬이 읽어들인 주소창 데이터: {current_params}")
+except Exception as e:
+    st.error(f"🔍 [시스템 추적] 파라미터 읽기 실패 (구버전 방식 시도): {e}")
+    current_params = st.experimental_get_query_params()
+    st.error(f"🔍 [시스템 추적] 구버전 파라미터: {current_params}")
 
 # =========================================================
-# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (호환성 패치 버전)
+# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (극강의 호환성 패치)
 # =========================================================
 try:
-    success_val = ""
-    uid_val = ""
-    
-    # 버전 상관없이 파라미터 강제 추출
-    try:
-        if "success" in st.query_params:
-            success_val = st.query_params["success"]
-        if "uid" in st.query_params:
-            uid_val = st.query_params["uid"]
-    except:
-        raw_params = st.experimental_get_query_params()
-        if "success" in raw_params:
-            success_val = raw_params["success"][0]
-        if "uid" in raw_params:
-            uid_val = raw_params["uid"][0]
-
-    # 문자열 정제
-    success_val = str(success_val).strip().lower()
-    
-    # 🎯 여기서부터 디버그 시작
-    if success_val == "true":
-        st.warning(f"👀 [디버그] 결제 성공 신호 포착! (uid_val: {uid_val})")
+    # 어떤 방식이든 'success'라는 단어가 주소창 데이터 안에 들어있기만 하면 무조건 강제 진입!
+    if "success" in str(current_params).lower():
+        st.warning("👀 [디버그] 결제 성공 신호를 포착했습니다! 로직 실행 시작...")
         
-        target_uid = str(uid_val).strip()
+        # uid 추출 (딕셔너리 안전 탐색)
+        target_uid = current_params.get("uid", "")
+        if isinstance(target_uid, list): target_uid = target_uid[0]
+        target_uid = str(target_uid).strip()
 
         # URL에 uid가 없다면 세션에서 강제 탐색
         if not target_uid and st.session_state.get('user_info'):
@@ -1933,6 +1916,7 @@ try:
                     "premium_until": expire_date
                 }
                 
+                # DB 업데이트 실행
                 res = supabase.table("users").update(update_payload).eq("id", target_uid).execute()
                 
                 if res.data:
@@ -1944,16 +1928,13 @@ try:
                     import time
                     time.sleep(3)
                     
-                    try:
-                        st.query_params.clear()
-                    except:
-                        st.experimental_set_query_params()
+                    st.query_params.clear()
                     st.rerun()
                 else:
-                    st.error(f"❌ [디버그] DB 응답 없음: '{target_uid}' 유저가 없거나 컬럼명 오류.")
+                    st.error(f"❌ [디버그] DB 응답 없음: '{target_uid}' 유저가 존재하지 않거나, is_premium 컬럼이 없습니다.")
                     st.stop()
         else:
-            st.error("❌ [디버그] 아이디(uid)를 찾을 수 없습니다.")
+            st.error("❌ [디버그] 아이디(uid)를 찾을 수 없습니다. 결제는 되었으나 연동 실패.")
             st.stop()
 except Exception as e:
     st.error(f"🚨 [디버그] 문지기 로직 에러: {e}")
