@@ -2889,54 +2889,48 @@ elif st.session_state.page == 'setup':
                         </style>
                     </head>
                     <body>
-                        <button id="pay-button" class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제 (테스트)</button>
+                        <button class="pay-btn" onclick="requestPay()">💳 국내 카드로 결제 (테스트)</button>
                         
                         <script>
-                            async function requestPay() {{
-                                try {{
-                                    // 📱 현재 접속한 기기가 모바일인지 확인하는 마법의 코드
-                                    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                                    
-                                    const requestData = {{
-                                        storeId: "{portone_id}",
-                                        channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
-                                        paymentId: "pay-" + new Date().getTime(),
-                                        orderName: "테스트용",
-                                        totalAmount: 6500,
-                                        currency: "KRW",
-                                        payMethod: "CARD",
-                                        customer: {{ 
-                                            fullName: "{u_name}", 
-                                            email: "{u_email}",
-                                            phoneNumber: "010-0000-0000"
-                                        }},
-                                        windowType: {{
-                                            pc: "IFRAME", 
-                                            smartPhone: "REDIRECTION" // 👈 POPUP 대신 REDIRECTION으로 변경!
-                                        }},
-                                        // 리다이렉션 시 돌아올 주소 (모바일 필수)
-                                        redirectUrl: "https://unicornfinder.app/?success=true"
-                                    }};
-
-                                    const response = await PortOne.requestPayment(requestData);
-
-                                    // 리다이렉트 방식이 아닐 때(PC)만 아래 결과 처리가 실행됩니다.
-                                    if (response && response.code != null) {{
+                            function requestPay() {{
+                                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                                
+                                // PortOne V2 결제 호출
+                                PortOne.requestPayment({{
+                                    storeId: "{portone_id}",
+                                    channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
+                                    paymentId: "pay-" + new Date().getTime(),
+                                    orderName: "테스트용",
+                                    totalAmount: 6500,
+                                    currency: "KRW",
+                                    payMethod: "CARD",
+                                    customer: {{ 
+                                        fullName: "{u_name}", 
+                                        email: "{u_email}",
+                                        phoneNumber: "010-0000-0000"
+                                    }},
+                                    windowType: {{
+                                        pc: "POPUP",    // 👈 PC는 이제 깔끔한 팝업창!
+                                        smartPhone: "REDIRECTION" // 👈 모바일은 안전한 전체화면 전환!
+                                    }},
+                                    redirectUrl: "https://unicornfinder.app/?success=true"
+                                }}).then(function(response) {{
+                                    // PC(팝업) 결과 처리
+                                    if (response.code != null) {{
                                         alert("❌ 결제 실패: " + response.message);
-                                    }} else if (response) {{
+                                    }} else {{
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }}
-                                }} catch (e) {{
-                                    alert("🚨 오류: " + e.message);
-                                }}
+                                }}).catch(function(e) {{
+                                    if (!isMobile) alert("🚨 오류: " + e.message);
+                                }});
                             }}
                         </script>
                     </body>
                     </html>
                     """
-                    # [핵심] height를 700 정도로 넉넉히 줍니다. 
-                    # 평소에는 버튼(45px)만 보이고, 결제창이 뜨면 이 700px 공간 안에서 자유롭게 움직입니다.
-                    components.html(portone_html, height=700)
+                    # 높이를 다시 45로 줄입니다. PC는 팝업이라서 이제 큰 영역이 필요 없습니다!
+                    components.html(portone_html, height=45)
                 else:
                     st.button(get_text('btn_premium'), disabled=True)
 
