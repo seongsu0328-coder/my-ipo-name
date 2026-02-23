@@ -2894,11 +2894,10 @@ elif st.session_state.page == 'setup':
                         <script>
                             async function requestPay() {{
                                 try {{
-                                    // 1. 버튼 클릭 시 부모(Streamlit)에게 Iframe 높이를 키워달라고 요청 (선택 사항)
-                                    // 하지만 Streamlit에서는 components.html의 height를 동적으로 바꾸기 어려우므로,
-                                    // 아래 response 대기 중에 결제창이 Iframe 내부에서 풀화면으로 뜨게 설정합니다.
-
-                                    const response = await PortOne.requestPayment({{
+                                    // 📱 현재 접속한 기기가 모바일인지 확인하는 마법의 코드
+                                    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                                    
+                                    const requestData = {{
                                         storeId: "{portone_id}",
                                         channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
                                         paymentId: "pay-" + new Date().getTime(),
@@ -2913,13 +2912,18 @@ elif st.session_state.page == 'setup':
                                         }},
                                         windowType: {{
                                             pc: "IFRAME", 
-                                            smartPhone: "POPUP" // 모바일은 팝업이 편합니다.
-                                        }}
-                                    }});
+                                            smartPhone: "REDIRECTION" // 👈 POPUP 대신 REDIRECTION으로 변경!
+                                        }},
+                                        // 리다이렉션 시 돌아올 주소 (모바일 필수)
+                                        redirectUrl: "https://unicornfinder.app/?success=true"
+                                    }};
 
-                                    if (response.code != null) {{
+                                    const response = await PortOne.requestPayment(requestData);
+
+                                    // 리다이렉트 방식이 아닐 때(PC)만 아래 결과 처리가 실행됩니다.
+                                    if (response && response.code != null) {{
                                         alert("❌ 결제 실패: " + response.message);
-                                    }} else {{
+                                    }} else if (response) {{
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }}
                                 }} catch (e) {{
