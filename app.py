@@ -2905,10 +2905,10 @@ elif st.session_state.page == 'setup':
                                         customer: {{ 
                                             fullName: "{u_name}", 
                                             email: "{u_email}",
-                                            phoneNumber: "010-0000-0000" // 👈 이니시스 필수 항목 추가됨
+                                            phoneNumber: "010-0000-0000"
                                         }},
                                         windowType: {{
-                                            pc: "POPUP",
+                                            pc: "IFRAME", // 👈 POPUP에서 IFRAME으로 변경 (이니시스 V2 필수)
                                             smartPhone: "POPUP"
                                         }}
                                     }});
@@ -2916,7 +2916,7 @@ elif st.session_state.page == 'setup':
                                     if (response.code != null) {{
                                         alert("❌ 결제 실패: " + response.message);
                                     }} else {{
-                                        // 결제 성공 시 부모 창(Streamlit) 주소를 성공 파라미터와 함께 변경
+                                        // 결제 성공 시 부모 창(Streamlit) 주소 변경
                                         window.parent.location.href = "https://unicornfinder.app/?success=true";
                                     }}
                                 }} catch (e) {{
@@ -2927,7 +2927,6 @@ elif st.session_state.page == 'setup':
                     </body>
                     </html>
                     """
-                    # 이제 디버깅이 끝났으니 높이를 다시 45로 줄여서 버튼만 예쁘게 보이게 합니다.
                     components.html(portone_html, height=45)
                 else:
                     st.button(get_text('btn_premium'), disabled=True)
