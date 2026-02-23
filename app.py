@@ -3143,8 +3143,22 @@ with main_area.container():
                 st.session_state.detail_sub_menu = tab_labels[0]
 
             # 2단 메뉴 (탭 역할)
-            selected_sub_menu = st.pills(label="sub_nav", options=tab_labels, selection_mode="single", default=st.session_state.detail_sub_menu, key="detail_tabs_pills", label_visibility="collapsed")
+            selected_sub_menu = st.pills(
+                label="sub_nav", 
+                options=tab_labels, 
+                selection_mode="single", 
+                default=st.session_state.detail_sub_menu, 
+                key="detail_tabs_pills", 
+                label_visibility="collapsed"
+            )
             
+            # 💡 st.rerun()을 완전히 삭제합니다. (st.pills가 클릭 시 자동으로 화면을 리프레시함)
+            if selected_sub_menu:
+                st.session_state.detail_sub_menu = selected_sub_menu
+            else:
+                # 유저가 선택된 탭을 한 번 더 눌러서 선택이 해제된 경우, 기존 탭 유지
+                selected_sub_menu = st.session_state.detail_sub_menu
+                
             # 사용자가 탭을 클릭하면 상태 업데이트 후 리런 (해당 탭 내용만 로딩하기 위함)
             if selected_sub_menu and selected_sub_menu != st.session_state.detail_sub_menu:
                 st.session_state.detail_sub_menu = selected_sub_menu
