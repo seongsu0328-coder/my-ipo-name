@@ -635,12 +635,35 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_ai_analysis(company_name, topic, lang_code):
     """
-    대표님의 5종 공시 메타데이터와 엄격한 포맷 지침을 내부에서 처리하는 통합 분석 함수
+    Tab 0: 공시 5종 분석 (Supabase DB 캐싱 연동 완료)
     """
     if not model:
         return "⚠️ AI 모델 설정 오류가 발생했습니다."
 
-    # 1. 공시 종류별 상세 메타데이터 (def_meta)
+    # 💡 [방어막 추가] worker.py가 저장한 캐시 키와 동일하게 설정하여 DB를 먼저 찌릅니다.
+    cache_key = f"{company_name}_{topic}_Tab0_v11_{lang_code}"
+    now = datetime.now()
+    # 공시 문서는 자주 안 바뀌므로 일주일치 데이터를 유효한 것으로 봅니다.
+    seven_days_ago = (now - timedelta(days=7)).isoformat()
+
+    try:
+        # DB에서 먼저 데이터 찾기
+        res = supabase.table("analysis_cache") \
+            .select("content") \
+            .eq("cache_key", cache_key) \
+            .gt("updated_at", seven_days_ago) \
+            .execute()
+            
+        if res.data:
+            # 워커가 미리 분석해둔 데이터가 있다면 0.1초 만에 바로 반환! (API 요금 절약)
+            return res.data[0]['content']
+    except Exception as e:
+        print(f"Tab0 Cache Read Error: {e}")
+
+    # ========================================================
+    # DB에 데이터가 없을 경우에만 아래 로직(API 호출)을 탑니다.
+    # ========================================================
+    
     def_meta = {
         "S-1": {
             "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
@@ -689,10 +712,8 @@ def get_ai_analysis(company_name, topic, lang_code):
         }
     }
 
-    # 해당 토픽이 없을 경우 기본값으로 S-1 사용
     curr_meta = def_meta.get(topic, def_meta["S-1"])
 
-    # 2. 대표님의 엄격한 출력 형식 지침 (format_instruction)
     format_instruction = """
     [출력 형식 및 번역 규칙 - 반드시 지킬 것]
     - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
@@ -700,10 +721,9 @@ def get_ai_analysis(company_name, topic, lang_code):
     - 올바른 예시(영어): **[Investment Point]** The company's main advantage is...
     - 올바른 예시(일본어): **[投資ポイント]** 同社の最大の強みは...
     - 금지 예시(한국어 병기 절대 금지): **[Investment Point - 투자포인트]** (X)
-    - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \\n 同社は... (X)
+    - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
     """
 
-    # 3. 언어별 레이블 및 페르소나 설정
     if lang_code == 'en':
         labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
         role_desc = "You are a professional senior analyst from Wall Street."
@@ -712,7 +732,7 @@ def get_ai_analysis(company_name, topic, lang_code):
     elif lang_code == 'ja':
         labels = ["分析対象", "指針", "内容構成および形式", "文体ガイド"]
         role_desc = "あなたはウォール街出身の専門分析家です。"
-        no_intro_prompt = '【重要】自己紹介は禁止です。見出しに韓国語를 병기하지 마세요. 1글자부터 일본어의 **[見出し]**로 시작하세요.'
+        no_intro_prompt = '【重要】自己紹介は禁止です。見出しに韓国語を併記しないでください。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
         target_lang_str = "日本語(Japanese)"
     elif lang_code == 'zh':
         labels = ["分析目标", "指南", "内容结构和格式", "文体指南"]
@@ -725,7 +745,6 @@ def get_ai_analysis(company_name, topic, lang_code):
         no_intro_prompt = '자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
         target_lang_str = "한국어(Korean)"
 
-    # 4. 최종 프롬프트 조립
     prompt = f"""
     {labels[0]}: {company_name} - {topic}
     {labels[1]} (Checkpoints): {curr_meta['points']}
@@ -745,6 +764,8 @@ def get_ai_analysis(company_name, topic, lang_code):
     """
 
     try:
+        # 최대 2회 재시도 (한국어 혼용 방지)
+        final_text = ""
         for attempt in range(2):
             response = model.generate_content(prompt)
             res_text = response.text
@@ -752,12 +773,29 @@ def get_ai_analysis(company_name, topic, lang_code):
             if lang_code != 'ko':
                 import re
                 if re.search(r'[가-힣]', res_text):
+                    time.sleep(1)
                     continue 
-            return res_text
-        return response.text
+            
+            final_text = res_text
+            break
+            
+        if not final_text:
+            final_text = response.text
+
+        # 💡 [핵심] API를 호출해서 얻어낸 결과를 DB에 저장합니다. (다음 사람을 위해)
+        try:
+            supabase.table("analysis_cache").upsert({
+                "cache_key": cache_key,
+                "content": final_text,
+                "updated_at": now.isoformat()
+            }).execute()
+        except:
+            pass
+
+        return final_text
+
     except Exception as e:
         return f"분석 중 오류 발생: {str(e)}"
-
         
 @st.cache_data(show_spinner=False, ttl=600)
 def get_market_dashboard_analysis(metrics_data, lang_code):
