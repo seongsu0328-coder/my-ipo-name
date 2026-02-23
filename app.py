@@ -2903,7 +2903,7 @@ elif st.session_state.page == 'setup':
                             
                             function requestPay() {{
                                 IMP.request_pay({{
-                                    pg: "html5_inicis", // 채널 추가 시 설정한 PG사
+                                    pg: "kakaopay", // 채널 추가 시 설정한 PG사
                                     pay_method: "card",
                                     merchant_uid: "order_" + new Date().getTime(),
                                     name: "유니콘 파인더 프리미엄 (1개월)",
