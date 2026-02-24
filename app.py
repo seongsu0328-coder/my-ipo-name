@@ -1341,6 +1341,49 @@ def send_rejection_email(to_email, user_id, reason):
         st.error(f"📧 보류 메일 전송 실패: {e}")
         return False
 
+# [외주 개발자용 지시 코드] 글로벌 메세지 라우팅 함수
+def send_premium_notification(user_info, title, message):
+    """
+    유저가 선택한 알림 매체(noti_method)에 따라 분기하여 메시지를 발송하는 함수.
+    [외주 작업자 대상]: 아래의 각 조건문에 맞는 서드파티 통신사 API를 연동할 것.
+    """
+    noti_method = user_info.get('noti_method', 'Email')
+    phone = user_info.get('phone', '')
+    email = user_info.get('email', '')
+    
+    full_message = f"[{title}]\n{message}"
+
+    try:
+        if "Kakao" in noti_method or "카카오" in noti_method:
+            # 💡 [외주 요청] 알리고(Aligo), 솔라피, 비즈메시지 등의 '카카오 알림톡 API' 연동
+            print(f"[KakaoTalk] {phone} 로 알림톡 전송 완료: {title}")
+            
+        elif "LINE" in noti_method or "ライン" in noti_method:
+            # 💡 [외주 요청] LINE Messaging API 연동
+            print(f"[LINE] {phone} 로 라인 메세지 전송 완료: {title}")
+            
+        elif "WeChat" in noti_method or "微信" in noti_method:
+            # 💡 [외주 요청] WeChat Official Account API 연동
+            print(f"[WeChat] {phone} 로 위챗 메세지 전송 완료: {title}")
+            
+        elif "WhatsApp" in noti_method:
+            # 💡 [외주 요청] Twilio WhatsApp API 연동
+            print(f"[WhatsApp] {phone} 로 왓츠앱 전송 완료: {title}")
+            
+        elif "SMS" in noti_method:
+            # 💡 [외주 요청] AWS SNS 또는 Twilio SMS API 연동
+            print(f"[SMS] {phone} 로 문자 전송 완료: {title}")
+            
+        else:
+            # 기본값: 이메일 전송 (기존에 작성된 Resend API 또는 SMTP 활용)
+            print(f"[Email] {email} 로 이메일 전송 완료: {title}")
+            # send_approval_email(email, full_message) # 기존 함수 재활용 가능
+            
+        return True
+    except Exception as e:
+        print(f"Notification Error: {e}")
+        return False
+
 # --- [신규 추가: 권한 관리 로직] ---
 def check_permission(action):
     """
@@ -1421,6 +1464,55 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+def generate_alerts_from_db(supabase, df_calendar):
+    """
+    [API 호출 NO!] Supabase DB의 캐시된 가격만 읽어서 프리미엄 알림을 생성합니다.
+    """
+    today = datetime.now().date()
+    new_alerts = []
+
+    # 1. DB에서 가장 최신 주가 정보 전체를 한 번에 가져옴 (속도 0.1초)
+    res = supabase.table("price_cache").select("ticker, price").execute()
+    db_prices = {row['ticker']: float(row['price']) for row in res.data if row['price']}
+
+    # 2. 캘린더 데이터를 돌면서 분석
+    for _, row in df_calendar.iterrows():
+        ticker = row['symbol']
+        ipo_date_str = str(row['date'])
+        try:
+            ipo_date = pd.to_datetime(ipo_date_str).date()
+        except: continue
+
+        # [알림 1] 신규 상장 3일 전
+        if ipo_date == today + timedelta(days=3):
+            new_alerts.append({"ticker": ticker, "alert_type": "UPCOMING", "title": f"🚀 상장 D-3: {ticker}", "message": f"{row['name']}의 IPO가 3일 뒤 예정되어 있습니다."})
+
+        # [알림 2] 락업 해제 7일 전 (보통 상장 후 180일)
+        lockup_date = ipo_date + timedelta(days=180)
+        if lockup_date == today + timedelta(days=7):
+            new_alerts.append({"ticker": ticker, "alert_type": "LOCKUP", "title": f"🚨 락업 해제 D-7: {ticker}", "message": f"내부자 보호예수 물량이 해제될 예정입니다."})
+
+        # [알림 3] DB에 저장된 현재가 기반: 공모가 재돌파 (Golden Cross)
+        current_p = db_prices.get(ticker, 0.0)
+        try:
+            ipo_price = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
+        except: ipo_price = 0.0
+
+        if ipo_price > 0 and current_p > 0:
+            # 현재 가격이 공모가보다 20% 이상 급등했을 때
+            surge_pct = ((current_p - ipo_price) / ipo_price) * 100
+            if surge_pct >= 20.0:
+                new_alerts.append({
+                    "ticker": ticker, "alert_type": "SURGE",
+                    "title": f"🔥 공모가 대비 급등: {ticker} (+{surge_pct:.1f}%)",
+                    "message": f"현재가 ${current_p:.2f}로 공모가 대비 강력한 상승세를 보이고 있습니다."
+                })
+
+    # 3. 새로운 알림들을 DB(premium_alerts)에 저장
+    if new_alerts:
+        supabase.table("premium_alerts").insert(new_alerts).execute()
+        print(f"✅ {len(new_alerts)}개의 새로운 프리미엄 알림이 생성되었습니다.")
 
 # ---------------------------------------------------------
 # 2. 공통 유틸리티 함수
@@ -2957,6 +3049,26 @@ if st.session_state.page == 'login':
                 
                 valid_sectors = [s for s in cur_sector if s in sector_options]
                 val_sector = st.multiselect(get_text('label_survey_sector'), sector_options, default=valid_sectors, format_func=lambda x: get_text(x), key="surv_sector")
+                
+                # --- 3.5 [신규] 프리미엄 알림 수신 수단 선택 (국가별 맞춤형) ---
+                st.markdown("##### 🔔 프리미엄 알림 수신 설정")
+                st.caption("주요 상장 일정 및 급등 종목 알림을 받을 매체를 선택해 주세요.")
+                
+                cur_noti = existing_user.get('noti_method', 'Email')
+                
+                # 언어(국가)별로 노출되는 메신저 옵션을 다르게 설정합니다.
+                if st.session_state.lang == 'ko':
+                    noti_options = ["카카오톡 (KakaoTalk)", "이메일 (Email)", "SMS 문자"]
+                elif st.session_state.lang == 'ja':
+                    noti_options = ["LINE", "Eメール (Email)", "SMS"]
+                elif st.session_state.lang == 'zh':
+                    noti_options = ["微信 (WeChat)", "电子邮件 (Email)", "SMS"]
+                else:
+                    noti_options = ["Email", "WhatsApp", "SMS"]
+                    
+                # 기존 값이 리스트에 없으면 기본값(이메일) 선택
+                noti_idx = next((i for i, opt in enumerate(noti_options) if cur_noti in opt or opt in cur_noti), 0)
+                val_noti = st.selectbox("알림 수신 방법", noti_options, index=noti_idx, key="surv_noti")
                 
                 st.write("---")
                 
