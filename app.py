@@ -2553,6 +2553,21 @@ UI_TEXT = {
     '에너지 / 모빌리티': {'ko': '에너지 / 모빌리티', 'en': 'Energy / Mobility', 'ja': 'エネルギー・モビリティ', 'zh': '能源 / 出行'},
 
     # ==========================================
+    # 17. 알림 수신 설정 (Notification Settings)
+    # ==========================================
+    'header_noti_setting': {'ko': '🔔 프리미엄 알림 수신 설정', 'en': '🔔 Premium Alert Settings', 'ja': '🔔 プレミアム通知受信設定', 'zh': '🔔 高级通知接收设置'},
+    'desc_noti_setting': {'ko': '주요 상장 일정 및 급등 종목 알림을 받을 매체를 선택해 주세요.', 'en': 'Select the medium to receive alerts for major IPO schedules and surging stocks.', 'ja': '主要な上場日程や急騰銘柄の通知を受け取るメディアを選択してください。', 'zh': '请选择接收主要上市日程和暴涨股票通知的媒介。'},
+    'label_noti_method': {'ko': '알림 수신 방법', 'en': 'Notification Method', 'ja': '通知受信方法', 'zh': '通知接收方式'},
+    
+    # 알림 매체 옵션 (DB에는 영어 키값으로 저장됨)
+    'noti_kakaotalk': {'ko': '카카오톡 (KakaoTalk)', 'en': 'KakaoTalk', 'ja': 'カカオトーク (KakaoTalk)', 'zh': 'KakaoTalk'},
+    'noti_line': {'ko': '라인 (LINE)', 'en': 'LINE', 'ja': 'LINE', 'zh': 'LINE'},
+    'noti_wechat': {'ko': '위챗 (WeChat)', 'en': 'WeChat', 'ja': 'WeChat', 'zh': '微信 (WeChat)'},
+    'noti_whatsapp': {'ko': '왓츠앱 (WhatsApp)', 'en': 'WhatsApp', 'ja': 'WhatsApp', 'zh': 'WhatsApp'},
+    'noti_email': {'ko': '이메일 (Email)', 'en': 'Email', 'ja': 'Eメール (Email)', 'zh': '电子邮件 (Email)'},
+    'noti_sms': {'ko': 'SMS 문자', 'en': 'SMS Text', 'ja': 'SMS メッセージ', 'zh': 'SMS 短信'},
+
+    # ==========================================
     # 13. 시스템 메시지 (Toast, Spinner, Error)
     # ==========================================
     'msg_disclaimer': {
@@ -3051,24 +3066,33 @@ if st.session_state.page == 'login':
                 val_sector = st.multiselect(get_text('label_survey_sector'), sector_options, default=valid_sectors, format_func=lambda x: get_text(x), key="surv_sector")
                 
                 # --- 3.5 [신규] 프리미엄 알림 수신 수단 선택 (국가별 맞춤형) ---
-                st.markdown("##### 🔔 프리미엄 알림 수신 설정")
-                st.caption("주요 상장 일정 및 급등 종목 알림을 받을 매체를 선택해 주세요.")
+                st.markdown(f"##### {get_text('header_noti_setting')}")
+                st.caption(get_text('desc_noti_setting'))
                 
+                # DB에 저장되어 있는 기존 설정값 불러오기 (기본값: Email)
                 cur_noti = existing_user.get('noti_method', 'Email')
                 
-                # 언어(국가)별로 노출되는 메신저 옵션을 다르게 설정합니다.
+                # 접속한 언어(국가)별로 노출되는 메신저 옵션 리스트 분리
+                # (DB에는 이 리스트의 영문 이름 그대로 깔끔하게 저장됩니다)
                 if st.session_state.lang == 'ko':
-                    noti_options = ["카카오톡 (KakaoTalk)", "이메일 (Email)", "SMS 문자"]
+                    noti_options = ["KakaoTalk", "Email", "SMS"]
                 elif st.session_state.lang == 'ja':
-                    noti_options = ["LINE", "Eメール (Email)", "SMS"]
+                    noti_options = ["LINE", "Email", "SMS"]
                 elif st.session_state.lang == 'zh':
-                    noti_options = ["微信 (WeChat)", "电子邮件 (Email)", "SMS"]
+                    noti_options = ["WeChat", "Email", "SMS"]
                 else:
-                    noti_options = ["Email", "WhatsApp", "SMS"]
+                    noti_options = ["WhatsApp", "Email", "SMS"]
                     
-                # 기존 값이 리스트에 없으면 기본값(이메일) 선택
-                noti_idx = next((i for i, opt in enumerate(noti_options) if cur_noti in opt or opt in cur_noti), 0)
-                val_noti = st.selectbox("알림 수신 방법", noti_options, index=noti_idx, key="surv_noti")
+                noti_idx = noti_options.index(cur_noti) if cur_noti in noti_options else 0
+                
+                # format_func를 통해 유저 화면에는 각국 언어에 맞게 번역되어 출력됨
+                val_noti = st.selectbox(
+                    get_text('label_noti_method'), 
+                    noti_options, 
+                    index=noti_idx, 
+                    format_func=lambda x: get_text(f"noti_{x.lower()}"), 
+                    key="surv_noti"
+                )
                 
                 st.write("---")
                 
