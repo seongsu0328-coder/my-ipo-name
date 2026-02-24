@@ -3790,7 +3790,7 @@ with main_area.container():
                     st.warning(get_text('err_no_news'))
     
                 st.write("<br>", unsafe_allow_html=True)
-                draw_decision_box("news", get_text('decision_news_impression'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
+                draw_decision_box("news", get_text('decision_news_impression'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')], current_p)
                 display_disclaimer()
                 
             # --- Tab 2: 실시간 시장 과열 진단 ---
@@ -3914,8 +3914,7 @@ with main_area.container():
                     for ref in references:
                         st.markdown(f"<div class='ref-item'><div style='flex:1;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div style='font-size: 13px; color: #666;'>{ref['summary']}, {ref['author']}</div></div><div style='margin-left: 15px;'><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
             
-                draw_decision_box("macro", get_text('decision_macro_outlook'), [get_text('opt_bubble'), get_text('sentiment_neutral'), get_text('opt_recession')])
-                display_disclaimer()
+                draw_decision_box("macro", get_text('decision_macro_outlook'), [get_text('opt_bubble'), get_text('sentiment_neutral'), get_text('opt_recession')], current_p)
     
             # --- Tab 3: 개별 기업 평가 ---
             elif selected_sub_menu == get_text('tab_3'):
@@ -4075,7 +4074,7 @@ with main_area.container():
                     for ref in references_tab3:
                         st.markdown(f"<div class='ref-item'><div style='flex:1; padding-right: 10px;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div class='ref-summary'>{ref['summary']}, {ref['author']}</div></div><div><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
             
-                draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", [get_text('opt_overvalued'), get_text('sentiment_neutral'), get_text('opt_undervalued')])
+                draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", [get_text('opt_overvalued'), get_text('sentiment_neutral'), get_text('opt_undervalued')], current_p)
                 display_disclaimer()         
     
             # --- Tab 4: 기관평가 (UI 출력 부분 다국어 적용) ---
@@ -4154,7 +4153,7 @@ with main_area.container():
                     st.markdown(f"- [Morningstar: {stock['name']} {get_text('label_research_result')}](https://www.morningstar.com/search?query={q})")
                     st.markdown(f"- [Google Finance: {stock['name']} {get_text('label_market_trend')}](https://www.google.com/finance/quote/{q}:NASDAQ)")
             
-                draw_decision_box("ipo_report", get_text('decision_final_institutional'), [get_text('btn_buy'), get_text('sentiment_neutral'), get_text('btn_sell')])
+                draw_decision_box("ipo_report", get_text('decision_final_institutional'), [get_text('btn_buy'), get_text('sentiment_neutral'), get_text('btn_sell')], current_p)
                 display_disclaimer()
                 
             # --- Tab 5: 투자결정 및 토론방 ---
