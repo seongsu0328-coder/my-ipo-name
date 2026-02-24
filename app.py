@@ -4250,11 +4250,20 @@ with main_area.container():
                         c_up, c_down = st.columns(2)
                         if c_up.button(get_text('btn_vote_up'), key=f"up_vote_{sid}", use_container_width=True, type="primary"):
                             db_toggle_watchlist(user_id, sid, "UP", action='add')
+                            
+                            # 🔥 [신규 추가] 상승(UP) 투표 로그 남기기
+                            db_log_user_action(user_id, sid, "VOTE_UP", "Bullish 배팅")
+                            
                             if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
                             st.session_state.watchlist_predictions[sid] = "UP"
                             st.rerun()
+                            
                         if c_down.button(get_text('btn_vote_down'), key=f"dn_vote_{sid}", use_container_width=True):
                             db_toggle_watchlist(user_id, sid, "DOWN", action='add')
+                            
+                            # 🔥 [신규 추가] 하락(DOWN) 투표 로그 남기기
+                            db_log_user_action(user_id, sid, "VOTE_DOWN", "Bearish 배팅")
+                            
                             if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
                             st.session_state.watchlist_predictions[sid] = "DOWN"
                             st.rerun()
