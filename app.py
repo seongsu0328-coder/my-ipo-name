@@ -528,6 +528,23 @@ def db_load_community_scores(ticker):
         print(f"Community Load Error: {e}")
         return []
 
+# [신규] 유저의 모든 행동을 히스토리(Log)로 쌓는 함수
+def db_log_user_action(user_id, ticker, action_type, details=""):
+    if user_id == 'guest_id' or not user_id: 
+        return False
+    try:
+        log_data = {
+            "user_id": str(user_id),
+            "ticker": str(ticker),
+            "action_type": action_type,
+            "details": str(details)
+        }
+        supabase.table("action_logs").insert(log_data).execute()
+        return True
+    except Exception as e:
+        print(f"Action Log Error: {e}")
+        return False
+
 # ---------------------------------------------------------
 # [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
 # ---------------------------------------------------------
