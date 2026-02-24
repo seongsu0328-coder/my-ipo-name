@@ -2397,6 +2397,70 @@ UI_TEXT = {
     'msg_deleted': {'ko': '삭제되었습니다.', 'en': 'Deleted successfully.', 'ja': '削除されました。', 'zh': '已删除。'},
 
     # ==========================================
+    # 16. 프로필 및 설문조사 (Profile & Survey)
+    # ==========================================
+    'header_basic_profile': {'ko': '👤 기본 인증 프로필', 'en': '👤 Basic Profile', 'ja': '👤 基本認証プロフィール', 'zh': '👤 基本认证资料'},
+    'header_survey': {'ko': '📊 투자 성향 설문조사', 'en': '📊 Investment Profile Survey', 'ja': '📊 投資性向アンケート', 'zh': '📊 投资偏好问卷'},
+    'desc_survey': {'ko': '이 정보는 향후 프리미엄 투자 통계 자료를 생성하는 데 귀중하게 활용됩니다.', 'en': 'This information will be used to generate premium investment statistics.', 'ja': 'この情報は、今後のプレミアム投資統計データを作成するために活用されます。', 'zh': '此信息将用于生成高级投资统计数据。'},
+    'msg_submit_guide': {'ko': "💡 카테고리를 선택하고 증빙 서류를 첨부하면 '글쓰기/투표' 권한이 신청됩니다. (서류 제출은 선택사항)", 'en': "💡 Select categories and attach documents to apply for posting/voting rights. (Docs are optional)", 'ja': "💡 カテゴリを選択して書類を添付すると、投稿/投票権限が申請されます。(書類提出は任意)", 'zh': "💡 选择类别并附加证明文件即可申请发帖/投票权限。（文件提交为可选）"},
+    
+    'label_survey_exp': {'ko': '1. 투자 경력 (Investment Experience)', 'en': '1. Investment Experience', 'ja': '1. 投資経験', 'zh': '1. 投资经验'},
+    'label_survey_style': {'ko': '2. 주요 투자 스타일 (Primary Investment Style)', 'en': '2. Primary Investment Style', 'ja': '2. 主な投資スタイル', 'zh': '2. 主要投资风格'},
+    'label_survey_risk': {'ko': '3. 위험 감수 성향 (Risk Tolerance)', 'en': '3. Risk Tolerance', 'ja': '3. リスク許容度', 'zh': '3. 风险承受能力'},
+    'label_survey_sector': {'ko': '4. 가장 선호하는 관심 섹터 (다중 선택 가능)', 'en': '4. Top Sectors of Interest (Multiple choices)', 'ja': '4. 関心セクター (複数選択可)', 'zh': '4. 最关注的行业板块 (可多选)'},
+    
+    # [옵션] 학력
+    '고졸 이하': {'ko': '고졸 이하', 'en': 'High school or below', 'ja': '高卒以下', 'zh': '高中及以下'},
+    '대학(학사) - 상경/경제계열': {'ko': '대학(학사) - 상경/경제계열', 'en': 'Bachelor - Business/Econ', 'ja': '大学(学士) - 経商系', 'zh': '本科 - 经济/商科'},
+    '대학(학사) - 이공/기술계열': {'ko': '대학(학사) - 이공/기술계열', 'en': 'Bachelor - STEM', 'ja': '大学(学士) - 理工系', 'zh': '本科 - 理工科'},
+    '대학(학사) - 인문/사회/기타': {'ko': '대학(학사) - 인문/사회/기타', 'en': 'Bachelor - Humanities/Social/Other', 'ja': '大学(学士) - 人文社会・その他', 'zh': '本科 - 人文/社科/其他'},
+    '석박사 이상 - 상경/경제계열': {'ko': '석박사 이상 - 상경/경제계열', 'en': 'Master/PhD - Business/Econ', 'ja': '大学院以上 - 経商系', 'zh': '硕博 - 经济/商科'},
+    '석박사 이상 - 이공/기술계열': {'ko': '석박사 이상 - 이공/기술계열', 'en': 'Master/PhD - STEM', 'ja': '大学院以上 - 理工系', 'zh': '硕博 - 理工科'},
+    '석박사 이상 - 인문/사회/기타': {'ko': '석박사 이상 - 인문/사회/기타', 'en': 'Master/PhD - Humanities/Social/Other', 'ja': '大学院以上 - 人文社会・その他', 'zh': '硕博 - 人文/社科/其他'},
+    
+    # [옵션] 직업
+    '금융권 (증권/은행/VC 등)': {'ko': '금융권 (증권/은행/VC 등)', 'en': 'Finance (Securities/Bank/VC)', 'ja': '金融 (証券/銀行/VC等)', 'zh': '金融 (证券/银行/创投等)'},
+    'IT / 테크 / 스타트업': {'ko': 'IT / 테크 / 스타트업', 'en': 'IT / Tech / Startup', 'ja': 'IT・テクノロジー・スタートアップ', 'zh': 'IT / 科技 / 初创'},
+    '대기업 / 중견기업': {'ko': '대기업 / 중견기업', 'en': 'Large/Mid-size Corp', 'ja': '大企業・中堅企業', 'zh': '大型/中型企业'},
+    '공공기관 / 공무원': {'ko': '공공기관 / 공무원', 'en': 'Public/Gov', 'ja': '公共機関・公務員', 'zh': '政府机关/公务员'},
+    '전문직 (의사/변호사/회계사 등)': {'ko': '전문직 (의사/변호사/회계사 등)', 'en': 'Professional (Dr/Lawyer/CPA)', 'ja': '専門職 (医師/弁護士/会計士等)', 'zh': '专业人士 (医生/律师/会计师等)'},
+    '개인사업 / 자영업': {'ko': '개인사업 / 자영업', 'en': 'Self-employed/Business', 'ja': '個人事業・自営業', 'zh': '个体户/自雇'},
+    '학생 / 취업준비생': {'ko': '학생 / 취업준비생', 'en': 'Student/Job seeker', 'ja': '学生・就職活動中', 'zh': '学生/求职者'},
+    '기타': {'ko': '기타', 'en': 'Other', 'ja': 'その他', 'zh': '其他'},
+    
+    # [옵션] 자산
+    '10억 미만': {'ko': '10억 미만', 'en': 'Under 1B KRW', 'ja': '10億ウォン未満', 'zh': '10亿韩元以下'},
+    '10억~30억': {'ko': '10억~30억', 'en': '1B - 3B KRW', 'ja': '10億〜30億ウォン', 'zh': '10亿-30亿韩元'},
+    '30억~80억': {'ko': '30억~80억', 'en': '3B - 8B KRW', 'ja': '30億〜80億ウォン', 'zh': '30亿-80亿韩元'},
+    '80억 이상': {'ko': '80억 이상', 'en': 'Over 8B KRW', 'ja': '80億ウォン以上', 'zh': '80亿韩元以上'},
+
+    # [옵션] 경력
+    '1년 미만 (초보자)': {'ko': '1년 미만 (초보자)', 'en': '< 1 yr (Beginner)', 'ja': '1年未満 (初心者)', 'zh': '1年以下 (初学者)'},
+    '1년 ~ 3년 (중급자)': {'ko': '1년 ~ 3년 (중급자)', 'en': '1-3 yrs (Intermediate)', 'ja': '1年〜3年 (中級者)', 'zh': '1~3年 (中级)'},
+    '3년 ~ 7년 (숙련자)': {'ko': '3년 ~ 7년 (숙련자)', 'en': '3-7 yrs (Advanced)', 'ja': '3年〜7年 (熟練者)', 'zh': '3~7年 (高级)'},
+    '7년 이상 (베테랑)': {'ko': '7년 이상 (베테랑)', 'en': '7+ yrs (Veteran)', 'ja': '7年以上 (ベテラン)', 'zh': '7年以上 (资深)'},
+    '금융/투자업계 종사자 (전문가)': {'ko': '금융/투자업계 종사자 (전문가)', 'en': 'Finance/Investment Professional', 'ja': '金融・投資業界従事者', 'zh': '金融/投资行业从业者'},
+
+    # [옵션] 스타일
+    '가치 투자 (저평가 우량주)': {'ko': '가치 투자 (저평가 우량주)', 'en': 'Value (Undervalued blue chips)', 'ja': 'バリュー投資 (割安優良株)', 'zh': '价值投资 (被低估蓝筹股)'},
+    '성장주 / IPO 투자 (고성장/신규상장)': {'ko': '성장주 / IPO 투자 (고성장/신규상장)', 'en': 'Growth/IPO (High growth/New)', 'ja': 'グロース・IPO投資 (高成長・新規)', 'zh': '成长/IPO投资 (高成长/新股)'},
+    '배당 / 인컴 투자 (안정적 현금흐름)': {'ko': '배당 / 인컴 투자 (안정적 현금흐름)', 'en': 'Dividend/Income (Stable cash)', 'ja': '配当・インカム投資 (安定現金流)', 'zh': '股息/收益投资 (稳定现金流)'},
+    '모멘텀 / 단기 트레이딩 (추세 추종)': {'ko': '모멘텀 / 단기 트레이딩 (추세 추종)', 'en': 'Momentum/Active Trading', 'ja': 'モメンタム・短期トレード', 'zh': '动量/短线交易 (顺势操作)'},
+
+    # [옵션] 리스크
+    '안정 추구형 (원금 보존 최우선)': {'ko': '안정 추구형 (원금 보존 최우선)', 'en': 'Low Risk (Capital preservation)', 'ja': '安定追求型 (元本保全優先)', 'zh': '稳健型 (保本优先)'},
+    '위험 중립형 (시장 평균 수익률 지향)': {'ko': '위험 중립형 (시장 평균 수익률 지향)', 'en': 'Moderate Risk (Market average)', 'ja': 'リスク中立型 (市場平均収益狙い)', 'zh': '稳健进取型 (追求市场平均收益)'},
+    '위험 감수형 (높은 변동성 감수)': {'ko': '위험 감수형 (높은 변동성 감수)', 'en': 'High Risk (High volatility)', 'ja': 'リスク選好型 (高い変動性を許容)', 'zh': '积极型 (承受高波动)'},
+    '초고위험 선호형 (텐배거/초과 수익 노림)': {'ko': '초고위험 선호형 (텐배거/초과 수익 노림)', 'en': 'Speculative (Tenbagger/Excess)', 'ja': '超ハイリスク選好型 (テンバガー)', 'zh': '投机型 (追求十倍股/超额收益)'},
+
+    # [옵션] 섹터
+    '테크 / AI / 소프트웨어': {'ko': '테크 / AI / 소프트웨어', 'en': 'Tech / AI / Software', 'ja': 'テック・AI・ソフトウェア', 'zh': '科技 / AI / 软件'},
+    '바이오 / 헬스케어': {'ko': '바이오 / 헬스케어', 'en': 'Biotech / Healthcare', 'ja': 'バイオ・ヘルスケア', 'zh': '生物技术 / 医疗保健'},
+    '핀테크 / 암호화폐': {'ko': '핀테크 / 암호화폐', 'en': 'FinTech / Crypto', 'ja': 'フィンテック・暗号資産', 'zh': '金融科技 / 加密货币'},
+    '소비재 / 이커머스': {'ko': '소비재 / 이커머스', 'en': 'Consumer / E-commerce', 'ja': '消費財・Eコマース', 'zh': '消费品 / 电子商务'},
+    '에너지 / 모빌리티': {'ko': '에너지 / 모빌리티', 'en': 'Energy / Mobility', 'ja': 'エネルギー・モビリティ', 'zh': '能源 / 出行'},
+
+    # ==========================================
     # 13. 시스템 메시지 (Toast, Spinner, Error)
     # ==========================================
     'msg_disclaimer': {
@@ -2832,11 +2896,11 @@ if st.session_state.page == 'login':
             elif st.session_state.signup_stage == 3:
                 title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
                 st.markdown(f"<p style='{title_style}'>{get_text('signup_title_step3')}</p>", unsafe_allow_html=True)
-                st.info("💡 카테고리를 선택하고 증빙 서류를 첨부하면 '글쓰기/투표' 권한이 신청됩니다. (서류 제출은 선택사항)")
+                st.info(get_text('msg_submit_guide'))
                 
                 existing_user = st.session_state.get('user_info', {})
                 
-                # --- 1. 선택형 카테고리 옵션 정의 ---
+                # --- 1. 선택형 카테고리 옵션 정의 (DB에 저장되는 고정 키값) ---
                 univ_options = ["선택 안 함", "고졸 이하", "대학(학사) - 상경/경제계열", "대학(학사) - 이공/기술계열", "대학(학사) - 인문/사회/기타", "석박사 이상 - 상경/경제계열", "석박사 이상 - 이공/기술계열", "석박사 이상 - 인문/사회/기타"]
                 job_options = ["선택 안 함", "금융권 (증권/은행/VC 등)", "IT / 테크 / 스타트업", "대기업 / 중견기업", "공공기관 / 공무원", "전문직 (의사/변호사/회계사 등)", "개인사업 / 자영업", "학생 / 취업준비생", "기타"]
                 asset_options = ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"]
@@ -2856,44 +2920,45 @@ if st.session_state.page == 'login':
                 cur_sector_raw = existing_user.get('inv_sector', '')
                 cur_sector = cur_sector_raw.split(',') if cur_sector_raw else []
 
-                # --- 2. 기본 인증 정보 입력 (SelectBox + 파일 업로드) ---
-                st.markdown("##### 👤 기본 인증 프로필")
+                # --- 2. 기본 인증 정보 입력 (SelectBox + 다국어 format_func) ---
+                st.markdown(f"##### {get_text('header_basic_profile')}")
+                
                 u_idx = univ_options.index(cur_u_val) if cur_u_val in univ_options else 0
-                u_val = st.selectbox("학력 및 전공", univ_options, index=u_idx, key="u_val_final")
+                u_val = st.selectbox(get_text('label_univ'), univ_options, index=u_idx, format_func=lambda x: get_text(x), key="u_val_final")
                 u_file = st.file_uploader(get_text('label_univ_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="u_file_final")
                 st.write("")
                 
                 j_idx = job_options.index(cur_j_val) if cur_j_val in job_options else 0
-                j_val = st.selectbox("직장 및 직업", job_options, index=j_idx, key="j_val_final")
+                j_val = st.selectbox(get_text('label_job'), job_options, index=j_idx, format_func=lambda x: get_text(x), key="j_val_final")
                 j_file = st.file_uploader(get_text('label_job_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="j_file_final")
                 st.write("")
                 
                 a_idx = asset_options.index(cur_a_val) if cur_a_val in asset_options else 0
-                a_val = st.selectbox(get_text('label_asset'), asset_options, index=a_idx, key="a_val_final")
+                a_val = st.selectbox(get_text('label_asset'), asset_options, index=a_idx, format_func=lambda x: get_text(x), key="a_val_final")
                 a_file = st.file_uploader(get_text('label_asset_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="a_file_final")
                 
                 st.write("---")
                 
                 # --- 3. 투자자 성향 설문조사 ---
-                st.markdown("##### 📊 투자 성향 설문조사")
-                st.caption("이 정보는 향후 프리미엄 투자 통계 자료를 생성하는 데 귀중하게 활용됩니다.")
+                st.markdown(f"##### {get_text('header_survey')}")
+                st.caption(get_text('desc_survey'))
                 
                 exp_idx = exp_options.index(cur_exp) if cur_exp in exp_options else 0
-                val_exp = st.selectbox("1. 투자 경력 (Investment Experience)", exp_options, index=exp_idx, key="surv_exp")
+                val_exp = st.selectbox(get_text('label_survey_exp'), exp_options, index=exp_idx, format_func=lambda x: get_text(x), key="surv_exp")
                 
                 style_idx = style_options.index(cur_style) if cur_style in style_options else 0
-                val_style = st.selectbox("2. 주요 투자 스타일 (Primary Investment Style)", style_options, index=style_idx, key="surv_style")
+                val_style = st.selectbox(get_text('label_survey_style'), style_options, index=style_idx, format_func=lambda x: get_text(x), key="surv_style")
                 
                 risk_idx = risk_options.index(cur_risk) if cur_risk in risk_options else 0
-                val_risk = st.selectbox("3. 위험 감수 성향 (Risk Tolerance)", risk_options, index=risk_idx, key="surv_risk")
+                val_risk = st.selectbox(get_text('label_survey_risk'), risk_options, index=risk_idx, format_func=lambda x: get_text(x), key="surv_risk")
                 
                 valid_sectors = [s for s in cur_sector if s in sector_options]
-                val_sector = st.multiselect("4. 가장 선호하는 관심 섹터 (다중 선택 가능)", sector_options, default=valid_sectors, key="surv_sector")
+                val_sector = st.multiselect(get_text('label_survey_sector'), sector_options, default=valid_sectors, format_func=lambda x: get_text(x), key="surv_sector")
                 
                 st.write("---")
                 
                 # --- 4. 제출 로직 ---
-                if st.button("제출 및 저장하기", type="primary", use_container_width=True):
+                if st.button("제출 및 저장하기" if st.session_state.lang == 'ko' else "Submit & Save", type="primary", use_container_width=True):
                     td = st.session_state.get('temp_user_data')
                     if not td:
                         st.error("⚠️ 세션이 만료되었습니다. 처음부터 다시 진행해주세요." if st.session_state.lang == 'ko' else "⚠️ Session expired.")
@@ -2920,7 +2985,7 @@ if st.session_state.page == 'login':
                                 "inv_exp": val_exp,
                                 "inv_style": val_style,
                                 "inv_risk": val_risk,
-                                "inv_sector": ",".join(val_sector), # 리스트를 쉼표로 연결하여 텍스트로 저장
+                                "inv_sector": ",".join(val_sector),
                                 "role": role, "status": status,
                                 "display_name": f"{role} | {td['id'][:3]}***"
                             }
