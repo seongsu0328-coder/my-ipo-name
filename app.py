@@ -2034,6 +2034,11 @@ UI_TEXT = {
         'zh': '请使用韩国国内卡支付。'
     },
 
+    'btn_verify_edit': {'ko': '🔄 추가/변경 인증', 'en': '🔄 Add/Edit Verification', 'ja': '🔄 追加/変更認証', 'zh': '🔄 补充/修改认证'},
+    'btn_verify_pending': {'ko': '⏳ 인증 심사중 (수정)', 'en': '⏳ Pending (Edit)', 'ja': '⏳ 審査中 (修正)', 'zh': '⏳ 审批中 (修改)'},
+
+    
+
     # ==========================================
     # 2. 로그인 및 회원가입 (Auth)
     # ==========================================
@@ -2911,8 +2916,15 @@ elif st.session_state.page == 'setup':
 
         # [A] 인증하기 버튼
         with col_cert:
-            # 💡 [수정] 기존 if db_role == 'restricted' 조건문 삭제. 모든 유저에게 노출
-            btn_label = "추가/변경 인증" if db_status == 'approved' else get_text('btn_verify')
+            # 💡 다국어(UI_TEXT) 연동 완료
+            if db_status == 'approved':
+                btn_label = get_text('btn_verify_edit')
+            elif db_status == 'pending':
+                btn_label = get_text('btn_verify_pending')
+            else:
+                btn_label = get_text('btn_verify') # 기본 "인증" 텍스트
+                
+            # 조건문 없이 무조건 버튼을 생성합니다.
             if st.button(btn_label, use_container_width=True):
                 st.session_state.page = 'login' 
                 st.session_state.login_step = 'signup_input'
