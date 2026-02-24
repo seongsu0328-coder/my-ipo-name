@@ -2508,7 +2508,7 @@ LANG_PROMPT_MAP = {
 }
 
 # 3. 공통 UI 함수 정의 (전역)
-def draw_decision_box(step_key, title, options, current_p=0.0):
+def draw_decision_box(step_key, title, option_keys, current_p=0.0):
     """사용자 투표/판단 박스를 그리는 함수"""
     sid = st.session_state.get('selected_stock', {}).get('symbol', 'UNKNOWN')
     user_info = st.session_state.get('user_info') or {}
@@ -2521,9 +2521,11 @@ def draw_decision_box(step_key, title, options, current_p=0.0):
     st.write("---")
     st.markdown(f"##### {title}")
     
-    current_val = st.session_state.user_decisions[sid].get(step_key)
+    # 🔥 [핵심 수정] DB에 저장될 기준 한국어 값과, 화면에 보여줄 다국어 매핑 생성
+    base_options = [UI_TEXT.get(k, {}).get('ko', k) for k in option_keys]
+    display_map = {UI_TEXT.get(k, {}).get('ko', k): get_text(k) for k in option_keys}
     
-    # 🔥 [신규 핵심] 이미 평가한 기록이 있다면 잠금 모드 발동
+    current_val = st.session_state.user_decisions[sid].get(step_key)
     is_locked = True if current_val else False
     
     if is_locked:
@@ -2531,20 +2533,21 @@ def draw_decision_box(step_key, title, options, current_p=0.0):
         
     choice = st.radio(
         label=f"판단_{step_key}",
-        options=options,
-        index=options.index(current_val) if current_val in options else None,
+        options=base_options,                         # 시스템/DB에는 무조건 한국어로 들어감
+        format_func=lambda x: display_map.get(x, x),  # 화면에만 다국어로 번역해서 보여줌
+        index=base_options.index(current_val) if current_val in base_options else None,
         key=f"dec_{sid}_{step_key}",
         horizontal=True,
         label_visibility="collapsed",
-        disabled=is_locked  # 🔥 여기서 라디오 버튼을 물리적으로 잠급니다
+        disabled=is_locked
     )
     
-    # 새로운 투표 시 로그 기록 및 세션 저장
     if choice and choice != current_val:
         st.session_state.user_decisions[sid][step_key] = choice
         if user_id != 'guest_id':
+            # action_logs에 깔끔하게 한국어(choice)와 현재가 저장
             db_log_user_action(user_id, sid, f"DECISION_{step_key.upper()}", price=current_p, details=choice)
-            st.rerun() # 선택 즉시 화면을 새로고침하여 잠금(Lock) UI를 적용
+            st.rerun()
 
 def handle_post_reaction(post_id, reaction_type, user_id):
     """게시글 좋아요/싫어요 처리 함수"""
@@ -3825,7 +3828,7 @@ with main_area.container():
                 """, unsafe_allow_html=True)
 
                 # 6. 의사결정 박스
-                draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')], current_p)
+                draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 
                 # 7. 면책 조항
                 display_disclaimer()
@@ -3893,7 +3896,7 @@ with main_area.container():
                     st.warning(get_text('err_no_news'))
     
                 st.write("<br>", unsafe_allow_html=True)
-                draw_decision_box("news", get_text('decision_news_impression'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')], current_p)
+                draw_decision_box("news", get_text('decision_news_impression'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 display_disclaimer()
                 
             # --- Tab 2: 실시간 시장 과열 진단 ---
@@ -4017,8 +4020,8 @@ with main_area.container():
                     for ref in references:
                         st.markdown(f"<div class='ref-item'><div style='flex:1;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div style='font-size: 13px; color: #666;'>{ref['summary']}, {ref['author']}</div></div><div style='margin-left: 15px;'><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
             
-                draw_decision_box("macro", get_text('decision_macro_outlook'), [get_text('opt_bubble'), get_text('sentiment_neutral'), get_text('opt_recession')], current_p)
-    
+                draw_decision_box("macro", get_text('decision_macro_outlook'), ['opt_bubble', 'sentiment_neutral', 'opt_recession'], current_p)
+                display_disclaimer()  
             # --- Tab 3: 개별 기업 평가 ---
             elif selected_sub_menu == get_text('tab_3'):
                 curr_lang = st.session_state.lang
@@ -4177,7 +4180,7 @@ with main_area.container():
                     for ref in references_tab3:
                         st.markdown(f"<div class='ref-item'><div style='flex:1; padding-right: 10px;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div class='ref-summary'>{ref['summary']}, {ref['author']}</div></div><div><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
             
-                draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", [get_text('opt_overvalued'), get_text('sentiment_neutral'), get_text('opt_undervalued')], current_p)
+                draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", ['opt_overvalued', 'sentiment_neutral', 'opt_undervalued'], current_p)
                 display_disclaimer()         
     
             # --- Tab 4: 기관평가 (UI 출력 부분 다국어 적용) ---
@@ -4256,7 +4259,7 @@ with main_area.container():
                     st.markdown(f"- [Morningstar: {stock['name']} {get_text('label_research_result')}](https://www.morningstar.com/search?query={q})")
                     st.markdown(f"- [Google Finance: {stock['name']} {get_text('label_market_trend')}](https://www.google.com/finance/quote/{q}:NASDAQ)")
             
-                draw_decision_box("ipo_report", get_text('decision_final_institutional'), [get_text('btn_buy'), get_text('sentiment_neutral'), get_text('btn_sell')], current_p)
+                draw_decision_box("ipo_report", get_text('decision_final_institutional'), ['btn_buy', 'sentiment_neutral', 'btn_sell'], current_p)
                 display_disclaimer()
                 
             # --- Tab 5: 투자결정 및 토론방 ---
