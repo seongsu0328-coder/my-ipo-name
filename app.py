@@ -2828,37 +2828,72 @@ if st.session_state.page == 'login':
                             st.rerun()
                     st.markdown("</div>", unsafe_allow_html=True)
             
-            # [B구역] 3단계일 때 (서류 제출 화면)
+            # [B구역] 3단계일 때 (서류 제출 및 프로필/설문조사 화면)
             elif st.session_state.signup_stage == 3:
-                # 1단계와 동일한 타이틀 스타일 적용
                 title_style = "font-size: 1.0rem; font-weight: bold; margin-bottom: 15px;"
                 st.markdown(f"<p style='{title_style}'>{get_text('signup_title_step3')}</p>", unsafe_allow_html=True)
+                st.info("💡 카테고리를 선택하고 증빙 서류를 첨부하면 '글쓰기/투표' 권한이 신청됩니다. (서류 제출은 선택사항)")
                 
-                st.info(get_text('signup_guide_step3') + " (해제를 원하시면 내용을 지우고 제출하세요.)")
-                
-                # 💡 [추가] 세션에 기존 인증 정보가 있다면 불러오기 (정보 수정 목적)
                 existing_user = st.session_state.get('user_info', {})
-                cur_u_name = existing_user.get('univ', '')
-                cur_j_name = existing_user.get('job', '')
-                cur_a_val = existing_user.get('asset', '선택 안 함')
-
-                # 입력창 (기존 값 pre-fill)
-                u_name = st.text_input(get_text('label_univ'), value=cur_u_name, key="u_name_final")
-                u_file = st.file_uploader(get_text('label_univ_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="u_file_final")
                 
-                j_name = st.text_input(get_text('label_job'), value=cur_j_name, key="j_name_final")
-                j_file = st.file_uploader(get_text('label_job_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="j_file_final")
-                
+                # --- 1. 선택형 카테고리 옵션 정의 ---
+                univ_options = ["선택 안 함", "고졸 이하", "대학(학사) - 상경/경제계열", "대학(학사) - 이공/기술계열", "대학(학사) - 인문/사회/기타", "석박사 이상 - 상경/경제계열", "석박사 이상 - 이공/기술계열", "석박사 이상 - 인문/사회/기타"]
+                job_options = ["선택 안 함", "금융권 (증권/은행/VC 등)", "IT / 테크 / 스타트업", "대기업 / 중견기업", "공공기관 / 공무원", "전문직 (의사/변호사/회계사 등)", "개인사업 / 자영업", "학생 / 취업준비생", "기타"]
                 asset_options = ["선택 안 함", "10억 미만", "10억~30억", "30억~80억", "80억 이상"]
-                asset_idx = asset_options.index(cur_a_val) if cur_a_val in asset_options else 0
-                a_val = st.selectbox(get_text('label_asset'), asset_options, index=asset_idx, key="a_val_final")
-                a_file = st.file_uploader(get_text('label_asset_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="a_file_final")
                 
+                exp_options = ["선택 안 함", "1년 미만 (초보자)", "1년 ~ 3년 (중급자)", "3년 ~ 7년 (숙련자)", "7년 이상 (베테랑)", "금융/투자업계 종사자 (전문가)"]
+                style_options = ["선택 안 함", "가치 투자 (저평가 우량주)", "성장주 / IPO 투자 (고성장/신규상장)", "배당 / 인컴 투자 (안정적 현금흐름)", "모멘텀 / 단기 트레이딩 (추세 추종)"]
+                risk_options = ["선택 안 함", "안정 추구형 (원금 보존 최우선)", "위험 중립형 (시장 평균 수익률 지향)", "위험 감수형 (높은 변동성 감수)", "초고위험 선호형 (텐배거/초과 수익 노림)"]
+                sector_options = ["테크 / AI / 소프트웨어", "바이오 / 헬스케어", "핀테크 / 암호화폐", "소비재 / 이커머스", "에너지 / 모빌리티", "기타"]
+
+                # 기존 값 불러오기 (인덱스 매칭)
+                cur_u_val = existing_user.get('univ', '선택 안 함')
+                cur_j_val = existing_user.get('job', '선택 안 함')
+                cur_a_val = existing_user.get('asset', '선택 안 함')
+                cur_exp = existing_user.get('inv_exp', '선택 안 함')
+                cur_style = existing_user.get('inv_style', '선택 안 함')
+                cur_risk = existing_user.get('inv_risk', '선택 안 함')
+                cur_sector_raw = existing_user.get('inv_sector', '')
+                cur_sector = cur_sector_raw.split(',') if cur_sector_raw else []
+
+                # --- 2. 기본 인증 정보 입력 (SelectBox + 파일 업로드) ---
+                st.markdown("##### 👤 기본 인증 프로필")
+                u_idx = univ_options.index(cur_u_val) if cur_u_val in univ_options else 0
+                u_val = st.selectbox("학력 및 전공", univ_options, index=u_idx, key="u_val_final")
+                u_file = st.file_uploader(get_text('label_univ_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="u_file_final")
                 st.write("")
                 
-                # [최종 가입/수정 신청 버튼]
+                j_idx = job_options.index(cur_j_val) if cur_j_val in job_options else 0
+                j_val = st.selectbox("직장 및 직업", job_options, index=j_idx, key="j_val_final")
+                j_file = st.file_uploader(get_text('label_job_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="j_file_final")
+                st.write("")
+                
+                a_idx = asset_options.index(cur_a_val) if cur_a_val in asset_options else 0
+                a_val = st.selectbox(get_text('label_asset'), asset_options, index=a_idx, key="a_val_final")
+                a_file = st.file_uploader(get_text('label_asset_file') + " (기존 파일 유지시 미첨부)", type=['jpg','png','pdf'], key="a_file_final")
+                
+                st.write("---")
+                
+                # --- 3. 투자자 성향 설문조사 ---
+                st.markdown("##### 📊 투자 성향 설문조사")
+                st.caption("이 정보는 향후 프리미엄 투자 통계 자료를 생성하는 데 귀중하게 활용됩니다.")
+                
+                exp_idx = exp_options.index(cur_exp) if cur_exp in exp_options else 0
+                val_exp = st.selectbox("1. 투자 경력 (Investment Experience)", exp_options, index=exp_idx, key="surv_exp")
+                
+                style_idx = style_options.index(cur_style) if cur_style in style_options else 0
+                val_style = st.selectbox("2. 주요 투자 스타일 (Primary Investment Style)", style_options, index=style_idx, key="surv_style")
+                
+                risk_idx = risk_options.index(cur_risk) if cur_risk in risk_options else 0
+                val_risk = st.selectbox("3. 위험 감수 성향 (Risk Tolerance)", risk_options, index=risk_idx, key="surv_risk")
+                
+                valid_sectors = [s for s in cur_sector if s in sector_options]
+                val_sector = st.multiselect("4. 가장 선호하는 관심 섹터 (다중 선택 가능)", sector_options, default=valid_sectors, key="surv_sector")
+                
+                st.write("---")
+                
+                # --- 4. 제출 로직 ---
                 if st.button("제출 및 저장하기", type="primary", use_container_width=True):
-                    # 1. 세션 데이터 확인
                     td = st.session_state.get('temp_user_data')
                     if not td:
                         st.error("⚠️ 세션이 만료되었습니다. 처음부터 다시 진행해주세요." if st.session_state.lang == 'ko' else "⚠️ Session expired.")
@@ -2866,42 +2901,37 @@ if st.session_state.page == 'login':
 
                     with st.spinner("정보를 안전하게 저장 중입니다..." if st.session_state.lang == 'ko' else "Saving securely..."):
                         try:
-                            # 💡 [추가] 기존에 제출했던 파일 링크 백업
                             old_l_u = existing_user.get('link_univ', '미제출')
                             old_l_j = existing_user.get('link_job', '미제출')
                             old_l_a = existing_user.get('link_asset', '미제출')
 
-                            # 2. 파일 업로드 실행 (새 파일이 없으면 기존 링크 유지. 단, 내용을 지우면 '미제출'로 초기화)
-                            l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else (old_l_u if u_name else "미제출")
-                            l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else (old_l_j if j_name else "미제출")
+                            l_u = upload_photo_to_drive(u_file, f"{td['id']}_univ") if u_file else (old_l_u if u_val != "선택 안 함" else "미제출")
+                            l_j = upload_photo_to_drive(j_file, f"{td['id']}_job") if j_file else (old_l_j if j_val != "선택 안 함" else "미제출")
                             l_a = upload_photo_to_drive(a_file, f"{td['id']}_asset") if a_file else (old_l_a if a_val != "선택 안 함" else "미제출")
                             
-                            # 3. 데이터 패키징
                             has_cert = any([l_u != "미제출", l_j != "미제출", l_a != "미제출"])
                             role = "user" if has_cert else "restricted"
-                            
-                            # 기존 승인 유저가 추가 정보를 냈을 경우 재심사(pending)를 받게 함
                             status = "pending" if has_cert else "pending"
                             
                             final_data = {
                                 **td, 
-                                "univ": u_name, "job": j_name, "asset": a_val,
+                                "univ": u_val, "job": j_val, "asset": a_val,
                                 "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
+                                "inv_exp": val_exp,
+                                "inv_style": val_style,
+                                "inv_risk": val_risk,
+                                "inv_sector": ",".join(val_sector), # 리스트를 쉼표로 연결하여 텍스트로 저장
                                 "role": role, "status": status,
                                 "display_name": f"{role} | {td['id'][:3]}***"
                             }
                             
-                            # 4. DB 저장(Upsert) 시도
                             if db_signup_user(final_data):
                                 st.success("인증 정보가 성공적으로 제출되었습니다!" if st.session_state.lang == 'ko' else "Successfully submitted!")
-                                
                                 st.session_state.auth_status = 'user'
                                 st.session_state.user_info = final_data
                                 st.session_state.page = 'setup'
-                                
                                 st.session_state.login_step = 'choice'
                                 st.session_state.signup_stage = 1
-                                
                                 import time; time.sleep(1.5)
                                 st.rerun()
                             else:
