@@ -2419,6 +2419,11 @@ UI_TEXT = {
     'chart_y_axis': {'ko': '참여자 수', 'en': 'Number of Participants', 'ja': '参加者数', 'zh': '参与人数'},
     'chart_hover': {'ko': '점수: %{x}<br>인원: %{y}명<extra></extra>', 'en': 'Score: %{x}<br>People: %{y}<extra></extra>', 'ja': 'スコア: %{x}<br>人数: %{y}名<extra></extra>', 'zh': '得分: %{x}<br>人数: %{y}人<extra></extra>'},
     'label_my_choice': {'ko': '나의 선택: ', 'en': 'My Choice: ', 'ja': '私の選択: ', 'zh': '我的选择: '},
+    'label_gauge_neg': {'ko': '부정 (Bearish)', 'en': 'Negative (Bear)', 'ja': '否定的 (Bear)', 'zh': '消极 (Bear)'},
+    'label_gauge_neu': {'ko': '중립 (Neutral)', 'en': 'Neutral', 'ja': '中立 (Neutral)', 'zh': '中立 (Neutral)'},
+    'label_gauge_pos': {'ko': '긍정 (Bullish)', 'en': 'Positive (Bull)', 'ja': '肯定的 (Bull)', 'zh': '积极 (Bull)'},
+    'label_market_avg': {'ko': '시장 평균', 'en': 'Market Avg', 'ja': '市場平均', 'zh': '市场平均'},
+    'label_my_pos': {'ko': '나의 위치', 'en': 'My Position', 'ja': '私の位置', 'zh': '我的位置'},
 
     # ==========================================
     # 11. 게시판 (Board) - 리스트, 컨트롤, 상세
@@ -4511,25 +4516,48 @@ with main_area.container():
                     optimist_pct = (optimists / total_participants * 100) if total_participants > 0 else 0
                     user_percentile = (sum(1 for s in community_scores if s <= user_score) / total_participants * 100) if total_participants > 0 else 100
                     
-                    m1, m2 = st.columns(2)
-                    m1.metric(get_text('label_market_optimism'), f"{optimist_pct:.1f}%")
-                    m2.metric(get_text('label_my_position'), f"{get_text('label_top_pct')} {100-user_percentile:.1f}%", f"{user_score}{get_text('label_point')}")
+                    # ---------------------------------------------------------
+                    # 🔥 [새로운 그래프 포맷] 가로형 시장 낙관도 (Market Optimism Gauge)
+                    # ---------------------------------------------------------
+                    market_avg = sum(community_scores) / len(community_scores)
                     
-                    score_counts = pd.Series(community_scores).value_counts().sort_index()
-                    score_counts = (pd.Series(0, index=range(-5, 6)) + score_counts).fillna(0)
+                    # -5 ~ +5 점수를 0% ~ 100% 비율로 변환 (마커 위치 계산용)
+                    avg_pct = min(max(((market_avg + 5) / 10) * 100, 0), 100)
+                    user_pct = min(max(((user_score + 5) / 10) * 100, 0), 100)
                     
-                    fig = go.Figure(go.Bar(
-                        x=score_counts.index, 
-                        y=score_counts.values, 
-                        marker_color=['#ff4b4b' if x == user_score else '#6e8efb' for x in score_counts.index], 
-                        hovertemplate="Score: %{x}<br>Users: %{y}<extra></extra>"
-                    ))
-                    fig.update_layout(height=220, margin=dict(l=10, r=10, t=30, b=10), xaxis=dict(title="Total Score (-5 ~ +5)", tickmode='linear'), yaxis=dict(title="Participants", showticklabels=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                    st.plotly_chart(fig, use_container_width=True)
-    
-                st.write("<br>", unsafe_allow_html=True)
-                st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>{get_text('label_community_forecast')}</div>", unsafe_allow_html=True)
-                
+                    gauge_html = f"""
+                    <div style="background-color: #ffffff; padding: 35px 20px 65px 20px; border-radius: 15px; border: 1px solid #e0e0e0; box-shadow: 0 4px 10px rgba(0,0,0,0.03); margin-bottom: 30px;">
+                        <div style="text-align: center; font-size: 1.25rem; font-weight: 800; color: #222; margin-bottom: 45px;">
+                            📊 {get_text('chart_optimism')}
+                        </div>
+                        
+                        <div style="position: relative; width: 100%; height: 24px; background: linear-gradient(to right, #ff4b4b 0%, #f1f3f4 50%, #00ff41 100%); border-radius: 12px;">
+                            
+                            <div style="position: absolute; top: 35px; left: 0%; transform: translateX(0%); font-size: 13px; font-weight: 700; color: #d32f2f;">{get_text('label_gauge_neg')}</div>
+                            <div style="position: absolute; top: 35px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 700; color: #757575;">{get_text('label_gauge_neu')}</div>
+                            <div style="position: absolute; top: 35px; left: 100%; transform: translateX(-100%); font-size: 13px; font-weight: 700; color: #2e7d32;">{get_text('label_gauge_pos')}</div>
+                            
+                            <div style="position: absolute; top: -45px; left: {avg_pct}%; transform: translateX(-50%); text-align: center; z-index: 10;">
+                                <div style="font-size: 12px; font-weight: 800; color: #444; white-space: nowrap; background: #fff; padding: 2px 6px; border-radius: 4px; border: 1px solid #ccc;">
+                                    {get_text('label_market_avg')} : {market_avg:+.1f}
+                                </div>
+                                <div style="color: #444; font-size: 16px; margin-top: -6px;">▼</div>
+                            </div>
+                            
+                            <div style="position: absolute; top: -14px; left: {user_pct}%; transform: translateX(-50%); text-align: center; z-index: 20;">
+                                <div style="background-color: #004e92; color: #fff; border-radius: 50%; width: 28px; height: 28px; line-height: 28px; font-size: 13px; font-weight: bold; border: 3px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.3); margin: 0 auto;">나</div>
+                                <div style="font-size: 12px; font-weight: 800; color: #004e92; white-space: nowrap; margin-top: 5px;">
+                                    {get_text('label_my_pos')} ({user_score:+d})
+                                </div>
+                            </div>
+                            
+                        </div>
+                    </div>
+                    """
+                    st.markdown(gauge_html, unsafe_allow_html=True)
+                    
+                    # (기존 황소/곰 아이콘 요약 박스 유지)
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>{get_text('label_community_forecast')}</div>", unsafe_allow_html=True)
                 up_voters, down_voters = db_load_sentiment_counts(sid)
                 total_votes = up_voters + down_voters
                 up_pct = (up_voters / total_votes * 100) if total_votes > 0 else 50
