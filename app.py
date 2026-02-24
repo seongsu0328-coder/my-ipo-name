@@ -528,8 +528,8 @@ def db_load_community_scores(ticker):
         print(f"Community Load Error: {e}")
         return []
 
-# [신규] 유저의 모든 행동을 히스토리(Log)로 쌓는 함수
-def db_log_user_action(user_id, ticker, action_type, details=""):
+# [신규] 유저의 모든 행동과 '당시 가격'을 히스토리(Log)로 쌓는 함수
+def db_log_user_action(user_id, ticker, action_type, price=0.0, details=""):
     if user_id == 'guest_id' or not user_id: 
         return False
     try:
@@ -537,6 +537,7 @@ def db_log_user_action(user_id, ticker, action_type, details=""):
             "user_id": str(user_id),
             "ticker": str(ticker),
             "action_type": action_type,
+            "price": float(price),     # 🔥 가격 데이터 저장
             "details": str(details)
         }
         supabase.table("action_logs").insert(log_data).execute()
@@ -4248,32 +4249,41 @@ with main_area.container():
                     if sid not in st.session_state.watchlist:
                         st.caption(get_text('msg_vote_guide'))
                         c_up, c_down = st.columns(2)
+                        
+                        # 1. 상승(UP) 버튼
                         if c_up.button(get_text('btn_vote_up'), key=f"up_vote_{sid}", use_container_width=True, type="primary"):
                             db_toggle_watchlist(user_id, sid, "UP", action='add')
                             
-                            # 🔥 [신규 추가] 상승(UP) 투표 로그 남기기
-                            db_log_user_action(user_id, sid, "VOTE_UP", "Bullish 배팅")
+                            # 🔥 [핵심 추가] 투표 시점의 '현재가(current_p)'를 함께 저장
+                            db_log_user_action(user_id, sid, "VOTE_UP", price=current_p, details="Bullish 배팅")
                             
                             if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
                             st.session_state.watchlist_predictions[sid] = "UP"
                             st.rerun()
                             
+                        # 2. 하락(DOWN) 버튼
                         if c_down.button(get_text('btn_vote_down'), key=f"dn_vote_{sid}", use_container_width=True):
                             db_toggle_watchlist(user_id, sid, "DOWN", action='add')
                             
-                            # 🔥 [신규 추가] 하락(DOWN) 투표 로그 남기기
-                            db_log_user_action(user_id, sid, "VOTE_DOWN", "Bearish 배팅")
+                            # 🔥 [핵심 추가] 투표 시점의 '현재가(current_p)'를 함께 저장
+                            db_log_user_action(user_id, sid, "VOTE_DOWN", price=current_p, details="Bearish 배팅")
                             
                             if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
                             st.session_state.watchlist_predictions[sid] = "DOWN"
                             st.rerun()
+                            
                     else:
                         pred = st.session_state.watchlist_predictions.get(sid, "N/A")
                         color = "#28a745" if pred == "UP" else "#dc3545"
                         pred_text = "BULLISH" if pred == "UP" else "BEARISH"
                         st.markdown(f"<div style='padding: 15px; border-radius: 10px; border: 1px solid {color}; text-align: center; font-weight: bold; color: {color};'>{get_text('msg_my_choice')} {pred_text} </div>", unsafe_allow_html=True)
+                        
                         if st.button(get_text('btn_cancel_vote'), key=f"rm_vote_{sid}", use_container_width=True):
                             db_toggle_watchlist(user_id, sid, action='remove')
+                            
+                            # 🔥 [옵션] 투표 취소 기록도 남기고 싶다면 주석 해제
+                            # db_log_user_action(user_id, sid, "VOTE_CANCEL", price=current_p, details="투표 취소")
+                            
                             if sid in st.session_state.watchlist: st.session_state.watchlist.remove(sid)
                             if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
                             st.rerun()
