@@ -206,3 +206,106 @@ def run_premium_alert_engine(supabase, df_calendar):
                 supabase.table("premium_alerts").insert(alert).execute()
         
         print(f"✅ {datetime.now()}: {len(new_alerts)}개의 프리미엄 신호 분석 완료.")
+
+def run_premium_alert_engine(upsert_list):
+    """
+    [최종형] 기간별(1일~1년) 통계적 유의 상승 및 IPO 특화 신호를 감지하여 알림을 생성합니다.
+    """
+    print(f"🕵️ 프리미엄 알고리즘 엔진 가동 (기간별 통계 모드: 1일/1주/1달/3달/6달/1년)...", flush=True)
+    today = datetime.now(pytz.timezone('US/Eastern')).date()
+    
+    # [Step 1] 캘린더/캐시 정보 로드
+    try:
+        cal_url = f"{SUPABASE_URL}/rest/v1/stock_cache?select=symbol,name,date,price"
+        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+        resp = requests.get(cal_url, headers=headers, timeout=15)
+        calendar_data = resp.json()
+    except:
+        print("⚠️ 캘린더 데이터 로드 실패로 분석을 건너뜁니다.", flush=True); return
+
+    new_alerts = []
+    # 워커가 방금 업데이트한 최신 주가 딕셔너리
+    db_prices = {item['ticker']: item['price'] for item in upsert_list}
+
+    for row in calendar_data:
+        ticker = row['symbol']
+        name = row['name']
+        current_p = db_prices.get(ticker, 0.0)
+        
+        try: ipo_date = pd.to_datetime(row['date']).date()
+        except: continue
+        try: ipo_p = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
+        except: ipo_p = 0.0
+
+        if current_p <= 0: continue
+
+        # ---------------------------------------------------------
+        # 1. 일정 기반 알림 (상장예정, 락업해제)
+        # ---------------------------------------------------------
+        # 상장 D-3
+        if ipo_date == today + timedelta(days=3):
+            new_alerts.append({"ticker": ticker, "alert_type": "UPCOMING", "title": f"🚀 상장 D-3: {name}", "message": f"{ticker} 종목 상장이 3일 앞으로 다가왔습니다. 월가 기관 평가를 확인하세요."})
+        
+        # 락업 해제 D-7 (180일 기준)
+        if ipo_date + timedelta(days=180) == today + timedelta(days=7):
+            new_alerts.append({"ticker": ticker, "alert_type": "LOCKUP", "title": f"🚨 락업 해제 주의: {ticker}", "message": "7일 뒤 내부자 보호예수 물량이 해제됩니다. 오버행 이슈에 대비하세요."})
+
+        # ---------------------------------------------------------
+        # 2. 기간별 통계적 유의 상승 로직 (3달, 6달, 1년 포함)
+        # ---------------------------------------------------------
+        try:
+            # 장기 추세 확인을 위해 1년치 데이터를 가져옵니다.
+            tk_yf = yf.Ticker(ticker)
+            hist = tk_yf.history(period="1y")
+            if len(hist) < 2: continue
+
+            # (1) 1일 급등 (+12% 이상)
+            day_chg = ((current_p - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100
+            if day_chg >= 12.0:
+                new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1D", "title": f"⚡ 1일 급등: {ticker}", "message": f"전일 대비 {day_chg:.1f}% 상승하며 강력한 수급이 유입되었습니다."})
+            
+            # (2) 1주일 상승 (+25% 이상)
+            if len(hist) >= 5:
+                p_1w = hist['Close'].iloc[-5]
+                chg_1w = ((current_p - p_1w) / p_1w) * 100
+                if chg_1w >= 25.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1W", "title": f"📈 주간 추세 돌파: {ticker}", "message": f"최근 1주일간 {chg_1w:.1f}% 상승하며 추세적인 반등을 시작했습니다."})
+
+            # (3) 3개월/6개월/1년 장기 통계 상승 (전고점 돌파 또는 바닥권 탈출 신호)
+            # - 3개월 수익률 +50% 이상
+            if len(hist) >= 60:
+                p_3m = hist['Close'].iloc[-60]
+                chg_3m = ((current_p - p_3m) / p_3m) * 100
+                if chg_3m >= 50.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_3M", "title": f"💎 3개월 중기 폭등: {ticker}", "message": f"3개월 전 대비 {chg_3m:.1f}% 상승하며 장기 우상향 궤도에 진입했습니다."})
+
+            # - 6개월 수익률 +80% 이상
+            if len(hist) >= 120:
+                p_6m = hist['Close'].iloc[-120]
+                chg_6m = ((current_p - p_6m) / p_6m) * 100
+                if chg_6m >= 80.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_6M", "title": f"🦄 6개월 퀀텀점프: {ticker}", "message": f"6개월 전 대비 {chg_6m:.1f}% 상승하며 시장의 핵심 주도주로 확인되었습니다."})
+
+            # - 1년 수익률 +150% 이상 (유니콘 탄생 신호)
+            if len(hist) >= 240:
+                p_1y = hist['Close'].iloc[0]
+                chg_1y = ((current_p - p_1y) / p_1y) * 100
+                if chg_1y >= 150.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1Y", "title": f"👑 연간 유니콘 포착: {ticker}", "message": f"지난 1년간 {chg_1y:.1f}% 수익률을 기록 중입니다. 진정한 슈퍼 그로스 기업입니다."})
+
+        except: pass
+
+        # ---------------------------------------------------------
+        # 3. 공모가 관련 시그널 (바닥 탈출)
+        # ---------------------------------------------------------
+        if ipo_p > 0:
+            # 공모가 재탈환 (공모가 대비 0~3% 구간 진입 시)
+            if 0 <= (current_p - ipo_p) / ipo_p < 0.03:
+                new_alerts.append({"ticker": ticker, "alert_type": "REBOUND", "title": f"🔥 공모가 회복: {ticker}", "message": f"침체기를 끝내고 주가가 다시 공모가(${ipo_p}) 위로 올라섰습니다. 바닥 확인 신호입니다."})
+
+    # [Step 3] DB 전송 및 중복 방지 (Upsert)
+    if new_alerts:
+        # ticker와 alert_type이 같은 경우, 오늘 날짜 기록이 있으면 넘어가도록 처리
+        batch_upsert_raw("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
+        print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 분석되어 DB에 적재되었습니다.", flush=True)
+        
