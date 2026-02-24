@@ -2615,8 +2615,9 @@ LANG_PROMPT_MAP = {
 }
 
 # 3. 공통 UI 함수 정의 (전역)
+# 3. 공통 UI 함수 정의 (전역) - 무한 수정 및 로그 누적 버전
 def draw_decision_box(step_key, title, option_keys, current_p=0.0):
-    """사용자 투표/판단 박스를 그리는 함수"""
+    """사용자 투표/판단 박스를 그리는 함수 (수정 허용)"""
     sid = st.session_state.get('selected_stock', {}).get('symbol', 'UNKNOWN')
     user_info = st.session_state.get('user_info') or {}
     user_id = user_info.get('id', 'guest_id')
@@ -2628,15 +2629,15 @@ def draw_decision_box(step_key, title, option_keys, current_p=0.0):
     st.write("---")
     st.markdown(f"##### {title}")
     
-    # 🔥 [핵심 수정] DB에 저장될 기준 한국어 값과, 화면에 보여줄 다국어 매핑 생성
+    # DB에 저장될 기준 한국어 값과, 화면에 보여줄 다국어 매핑 생성
     base_options = [UI_TEXT.get(k, {}).get('ko', k) for k in option_keys]
     display_map = {UI_TEXT.get(k, {}).get('ko', k): get_text(k) for k in option_keys}
     
     current_val = st.session_state.user_decisions[sid].get(step_key)
-    is_locked = True if current_val else False
     
-    if is_locked:
-        st.caption("🔒 이미 평가를 완료하여 의견을 수정할 수 없습니다.")
+    # 💡 [핵심 수정] is_locked를 없애고 자유롭게 선택 가능하도록 변경!
+    if current_val:
+        st.caption("🔄 새로운 정보가 있다면 언제든 의견을 변경할 수 있습니다.")
         
     choice = st.radio(
         label=f"판단_{step_key}",
@@ -2646,14 +2647,18 @@ def draw_decision_box(step_key, title, option_keys, current_p=0.0):
         key=f"dec_{sid}_{step_key}",
         horizontal=True,
         label_visibility="collapsed",
-        disabled=is_locked
+        # disabled 속성 완전히 제거
     )
     
+    # 값이 기존과 다르게 '변경'되었을 때만 DB에 로그를 쌓고 UI 업데이트
     if choice and choice != current_val:
         st.session_state.user_decisions[sid][step_key] = choice
         if user_id != 'guest_id':
-            # action_logs에 깔끔하게 한국어(choice)와 현재가 저장
-            db_log_user_action(user_id, sid, f"DECISION_{step_key.upper()}", price=current_p, details=choice)
+            # action_logs에 가격과 함께 변경된 의견이 누적 저장됨!
+            db_log_user_action(user_id, sid, f"DECISION_{step_key.upper()}_UPDATED", price=current_p, details=choice)
+            # user_decisions 테이블에도 최종 상태 덮어쓰기
+            db_save_user_decision(user_id, sid, sum([1 if "긍정" in v else -1 if "부정" in v else 0 for v in st.session_state.user_decisions[sid].values()]), st.session_state.user_decisions[sid])
+            st.toast("✅ 의견이 새롭게 업데이트 되었습니다!", icon="📈")
             st.rerun()
 
 def handle_post_reaction(post_id, reaction_type, user_id):
@@ -3159,6 +3164,34 @@ elif st.session_state.page == 'setup':
         user_id = str(user.get('id', ''))
         full_masked_id = "*" * len(user_id) 
         
+        # 💡 [핵심 추가] 가입일 기반 투자 경력 자동 갱신 로직
+        current_exp = user.get('inv_exp', '선택 안 함')
+        join_date_str = user.get('created_at')
+        
+        if join_date_str and current_exp != '선택 안 함':
+            try:
+                from datetime import datetime
+                # 가입 후 몇 년이 지났는지 계산
+                join_date = datetime.fromisoformat(str(join_date_str).split('.')[0].replace('Z', ''))
+                years_passed = (datetime.now() - join_date).days // 365
+                
+                if years_passed > 0:
+                    exp_levels = [
+                        "1년 미만 (초보자)", "1년 ~ 3년 (중급자)", 
+                        "3년 ~ 7년 (숙련자)", "7년 이상 (베테랑)", "금융/투자업계 종사자 (전문가)"
+                    ]
+                    if current_exp in exp_levels:
+                        current_idx = exp_levels.index(current_exp)
+                        # 가입 시점 대비 지난 연차만큼 레벨 업 (최대치는 3번 인덱스인 '베테랑'까지만. 전문가는 예외)
+                        if current_idx < 3: 
+                            new_idx = min(3, current_idx + years_passed)
+                            current_exp = exp_levels[new_idx]
+                            
+                            # 세션 데이터 업데이트 (나중에 '추가 인증/수정' 버튼을 눌렀을 때 갱신된 값이 뜨도록 함)
+                            st.session_state.user_info['inv_exp'] = current_exp
+            except Exception as e: 
+                pass
+
         # 상단 안내 문구 (다국어 적용)
         st.markdown(f"""
             <div style="
