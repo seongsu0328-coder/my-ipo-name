@@ -2273,6 +2273,19 @@ UI_TEXT = {
     'tab_5': {'ko': ' 투자결정', 'en': ' Decision', 'ja': ' 投資決定', 'zh': ' 投资决策'},
     'expander_references': {'ko': '참고(References)', 'en': 'References', 'ja': '参考(References)', 'zh': '参考 (References)'},
     'btn_view_original': {'ko': '원문 보기 ↗', 'en': 'View Original ↗', 'ja': '原文を見る ↗', 'zh': '查看原文 ↗'},
+    'msg_vote_changeable': {
+        'ko': '🔄 새로운 정보가 있다면 언제든 의견을 변경할 수 있습니다.', 
+        'en': '🔄 You can change your opinion anytime if there is new information.', 
+        'ja': '🔄 新しい情報があれば、いつでも意見を変更できます。', 
+        'zh': '🔄 如果有新信息，您可以随时更改您的意见。'
+    },
+    'msg_vote_updated': {
+        'ko': '의견이 새롭게 업데이트 되었습니다!', 
+        'en': 'Your opinion has been updated!', 
+        'ja': '意見が新しく更新されました！', 
+        'zh': '您的意见已更新！'
+    },
+    
 
     # ==========================================
     # 6. Tab 0: 주요공시
@@ -2614,8 +2627,7 @@ LANG_PROMPT_MAP = {
     'zh': '简体中文(Simplified Chinese)'  # 💡 추가됨
 }
 
-# 3. 공통 UI 함수 정의 (전역)
-# 3. 공통 UI 함수 정의 (전역) - 무한 수정 및 로그 누적 버전
+# 3. 공통 UI 함수 정의 (전역) - 무한 수정 및 다국어 완벽 적용 버전
 def draw_decision_box(step_key, title, option_keys, current_p=0.0):
     """사용자 투표/판단 박스를 그리는 함수 (수정 허용)"""
     sid = st.session_state.get('selected_stock', {}).get('symbol', 'UNKNOWN')
@@ -2635,9 +2647,9 @@ def draw_decision_box(step_key, title, option_keys, current_p=0.0):
     
     current_val = st.session_state.user_decisions[sid].get(step_key)
     
-    # 💡 [핵심 수정] is_locked를 없애고 자유롭게 선택 가능하도록 변경!
+    # 💡 [다국어 적용] 이미 투표한 적이 있다면 언제든 바꿀 수 있다는 안내 문구 노출
     if current_val:
-        st.caption("🔄 새로운 정보가 있다면 언제든 의견을 변경할 수 있습니다.")
+        st.caption(get_text('msg_vote_changeable'))
         
     choice = st.radio(
         label=f"판단_{step_key}",
@@ -2647,7 +2659,6 @@ def draw_decision_box(step_key, title, option_keys, current_p=0.0):
         key=f"dec_{sid}_{step_key}",
         horizontal=True,
         label_visibility="collapsed",
-        # disabled 속성 완전히 제거
     )
     
     # 값이 기존과 다르게 '변경'되었을 때만 DB에 로그를 쌓고 UI 업데이트
@@ -2656,9 +2667,14 @@ def draw_decision_box(step_key, title, option_keys, current_p=0.0):
         if user_id != 'guest_id':
             # action_logs에 가격과 함께 변경된 의견이 누적 저장됨!
             db_log_user_action(user_id, sid, f"DECISION_{step_key.upper()}_UPDATED", price=current_p, details=choice)
-            # user_decisions 테이블에도 최종 상태 덮어쓰기
-            db_save_user_decision(user_id, sid, sum([1 if "긍정" in v else -1 if "부정" in v else 0 for v in st.session_state.user_decisions[sid].values()]), st.session_state.user_decisions[sid])
-            st.toast("✅ 의견이 새롭게 업데이트 되었습니다!", icon="📈")
+            
+            # user_decisions 테이블에도 최종 상태 덮어쓰기 (종합 점수 재계산)
+            new_score = sum([1 if "긍정" in str(v) or "매수" in str(v) or "저평가" in str(v) else -1 if "부정" in str(v) or "매도" in str(v) or "버블" in str(v) or "고평가" in str(v) else 0 for v in st.session_state.user_decisions[sid].values()])
+            db_save_user_decision(user_id, sid, new_score, st.session_state.user_decisions[sid])
+            
+            # 💡 [다국어 적용] 토스트 메시지
+            st.toast(f"✅ {get_text('msg_vote_updated')}", icon="📈")
+            time.sleep(0.5)
             st.rerun()
 
 def handle_post_reaction(post_id, reaction_type, user_id):
