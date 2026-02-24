@@ -517,6 +517,102 @@ def update_macro_data(df):
                 time.sleep(1)
 
 # ==========================================
+# [추가] 프리미엄 유저 대상 통계적 급등 알림 엔진
+# ==========================================
+def run_premium_alert_engine(df_calendar):
+    print("🕵️ 프리미엄 알림 엔진 가동 (기간별 통계 모드: 1일~1년)...")
+    today = datetime.now().date()
+    new_alerts = []
+    
+    # DB에서 최신 가격 가져오기
+    price_map = get_current_prices()
+
+    for _, row in df_calendar.iterrows():
+        ticker = row['symbol']
+        name = row['name']
+        current_p = price_map.get(ticker, 0.0)
+        
+        try: ipo_date = pd.to_datetime(row['date']).date()
+        except: continue
+        
+        # --- 1. 일정 기반 알림 (상장예정, 락업해제) ---
+        if ipo_date == today + timedelta(days=3):
+            new_alerts.append({"ticker": ticker, "alert_type": "UPCOMING", "title": f"🚀 상장 D-3: {name}", "message": f"{ticker} 종목 상장이 3일 앞으로 다가왔습니다. 월가 기관 평가를 확인하세요."})
+        
+        if ipo_date + timedelta(days=180) == today + timedelta(days=7):
+            new_alerts.append({"ticker": ticker, "alert_type": "LOCKUP", "title": f"🚨 락업 해제 주의: {ticker}", "message": "7일 뒤 내부자 보호예수 물량이 해제됩니다. 오버행 이슈에 대비하세요."})
+
+        if current_p <= 0: continue
+
+        # --- 2. 기간별 통계적 유의 상승 로직 (1일~12개월 초정밀 세분화) ---
+        try:
+            tk_yf = yf.Ticker(ticker)
+            hist = tk_yf.history(period="1y")
+            if len(hist) < 2: continue
+
+            if len(hist) >= 2:
+                p_1d = hist['Close'].iloc[-2]
+                chg_1d = ((current_p - p_1d) / p_1d) * 100
+                if chg_1d >= 12.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1D", "title": f"⚡ 1일 단기 급등: {ticker}", "message": f"전일 대비 {chg_1d:.1f}% 상승하며 강력한 단기 수급이 유입되었습니다."})
+            
+            if len(hist) >= 5:
+                p_1w = hist['Close'].iloc[-5]
+                chg_1w = ((current_p - p_1w) / p_1w) * 100
+                if chg_1w >= 20.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1W", "title": f"📈 1주 추세 돌파: {ticker}", "message": f"최근 1주일간 {chg_1w:.1f}% 상승하며 단기 우상향 추세를 형성했습니다."})
+
+            if len(hist) >= 10:
+                p_2w = hist['Close'].iloc[-10]
+                chg_2w = ((current_p - p_2w) / p_2w) * 100
+                if chg_2w >= 30.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_2W", "title": f"🚀 2주 연속 상승: {ticker}", "message": f"최근 2주간 {chg_2w:.1f}% 상승하며 시장の 강한 주목을 받고 있습니다."})
+
+            if len(hist) >= 20:
+                p_4w = hist['Close'].iloc[-20]
+                chg_4w = ((current_p - p_4w) / p_4w) * 100
+                if chg_4w >= 40.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_4W", "title": f"🔥 4주 모멘텀 포착: {ticker}", "message": f"최근 4주간 {chg_4w:.1f}% 급등하며 견고한 상승 모멘텀을 증명했습니다."})
+
+            if len(hist) >= 22:
+                p_1mo = hist['Close'].iloc[-22]
+                chg_1mo = ((current_p - p_1mo) / p_1mo) * 100
+                if chg_1mo >= 45.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1M", "title": f"🌟 1개월 랠리: {ticker}", "message": f"최근 1개월간 {chg_1mo:.1f}% 상승하며 월간 최고 주도주로 부상했습니다."})
+
+            if len(hist) >= 63:
+                p_3m = hist['Close'].iloc[-63]
+                chg_3m = ((current_p - p_3m) / p_3m) * 100
+                if chg_3m >= 60.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_3M", "title": f"💎 3개월 중기 폭등: {ticker}", "message": f"3개월 전 대비 {chg_3m:.1f}% 상승하며 완벽한 장기 우상향 궤도에 진입했습니다."})
+
+            if len(hist) >= 126:
+                p_6m = hist['Close'].iloc[-126]
+                chg_6m = ((current_p - p_6m) / p_6m) * 100
+                if chg_6m >= 80.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_6M", "title": f"🦄 6개월 퀀텀점프: {ticker}", "message": f"6개월 전 대비 {chg_6m:.1f}% 상승하며 하반기 섹터 대장주로 확인되었습니다."})
+
+            if len(hist) >= 250:
+                p_1y = hist['Close'].iloc[0]
+                chg_1y = ((current_p - p_1y) / p_1y) * 100
+                if chg_1y >= 150.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1Y", "title": f"👑 연간 슈퍼 유니콘: {ticker}", "message": f"지난 1년간 {chg_1y:.1f}%라는 압도적인 수익률을 기록 중입니다. 진정한 텐배거 후보입니다."})
+        except: pass
+
+        # --- 3. 공모가 돌파 시그널 ---
+        try: ipo_p = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
+        except: ipo_p = 0.0
+
+        if ipo_p > 0 and 0 <= (current_p - ipo_p) / ipo_p < 0.03:
+            new_alerts.append({"ticker": ticker, "alert_type": "REBOUND", "title": f"🔥 공모가 회복: {ticker}", "message": f"침체기를 끝내고 주가가 다시 공모가(${ipo_p}) 위로 올라섰습니다. 바닥 확인 신호입니다."})
+
+    # [Step 3] DB 전송 및 중복 방지
+    if new_alerts:
+        batch_upsert("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
+        print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 DB에 적재되었습니다.")
+
+
+# ==========================================
 # [4] 메인 실행 루프
 # ==========================================
 def main():
@@ -539,10 +635,8 @@ def main():
         })
     
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
-
     update_macro_data(df)
     
-    # 💡 [핵심 최적화] 타겟 종목 선별 (35일 예정 + 6개월 신규 + 수익률 50위)
     print("🔥 타겟 종목 선별 중 (35일 상장예정 + 6개월 신규상장 + 수익률 상위 50위)...")
     price_map = get_current_prices() 
     
@@ -551,17 +645,14 @@ def main():
     
     target_symbols = set()
     
-    # 1. 향후 35일 이내 상장 예정
     upcoming = df[(df['dt'] > today) & (df['dt'] <= today + timedelta(days=35))]
     target_symbols.update(upcoming['symbol'].tolist())
     print(f"   -> 상장 예정(35일): {len(upcoming)}개")
     
-    # 2. 과거 6개월(180일) 이내 상장 종목
     past_6m = df[(df['dt'] >= today - timedelta(days=180)) & (df['dt'] <= today)]
     target_symbols.update(past_6m['symbol'].tolist())
     print(f"   -> 최근 상장(6개월): {len(past_6m)}개")
     
-    # 3. 전체 기간 중 수익률 상위 50개
     try:
         past_all = df[df['dt'] <= today].copy()
         def calc_return(row):
@@ -580,7 +671,6 @@ def main():
 
     print(f"✅ 최종 분석 대상: 총 {len(target_symbols)}개 종목 (중복 제거)")
 
-    # 선별된 target_symbols 만 데이터프레임으로 압축
     target_df = df[df['symbol'].isin(target_symbols)]
     total = len(target_df)
     
@@ -593,7 +683,6 @@ def main():
         print(f"[{idx+1}/{total}] {symbol} 분석 중...", flush=True)
         
         try:
-            # 타겟으로 선정된 핵심 종목은 Tab 0~4 전체를 완벽하게 돌려서 캐싱합니다.
             run_tab1_analysis(symbol, name)
             run_tab0_analysis(symbol, name)
             run_tab4_analysis(symbol, name)
@@ -603,11 +692,14 @@ def main():
                 run_tab3_analysis(symbol, name, {"pe": tk.info.get('forwardPE', 0)})
             except: pass
             
-            time.sleep(1.2) # API 부하 방지용 휴식
+            time.sleep(1.2)
             
         except Exception as e:
             print(f"⚠️ {symbol} 분석 건너뜀: {e}")
             continue
+
+    # 💡 [핵심 추가] 모든 AI 분석이 완료된 후, 전체 캘린더를 대상으로 알림 엔진 가동
+    run_premium_alert_engine(df)
             
     print(f"\n🏁 모든 작업 종료: {datetime.now()}")
 
