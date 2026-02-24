@@ -2034,7 +2034,7 @@ UI_TEXT = {
         'zh': '请使用韩国国内卡支付。'
     },
 
-    'btn_verify_edit': {'ko': '🔄 추가/변경 인증', 'en': '🔄 Add/Edit Verification', 'ja': '🔄 追加/変更認証', 'zh': '🔄 补充/修改认证'},
+    'btn_verify_edit': {'ko': '추가/변경 인증', 'en': 'Add/Edit Verification', 'ja': '追加/変更認証', 'zh': '补充/修改认证'},
     'btn_verify_pending': {'ko': '⏳ 인증 심사중 (수정)', 'en': '⏳ Pending (Edit)', 'ja': '⏳ 審査中 (修正)', 'zh': '⏳ 审批中 (修改)'},
 
     
