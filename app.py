@@ -2321,6 +2321,11 @@ UI_TEXT = {
     'btn_recommend': {'ko': '추천', 'en': 'Like', 'ja': 'おすすめ', 'zh': '推荐'},
     'btn_dislike': {'ko': '비추천', 'en': 'Dislike', 'ja': '低評価', 'zh': '踩'},
     'btn_delete': {'ko': '삭제', 'en': 'Delete', 'ja': '削除', 'zh': '删除'},
+    'tab_analysis_board': {'ko': '📈 분석게시판', 'en': '📈 Analysis Board', 'ja': '📈 分析掲示板', 'zh': '📈 分析论坛'},
+    'tab_free_board': {'ko': '💬 자유게시판', 'en': '💬 Free Board', 'ja': '💬 自由掲示板', 'zh': '💬 自由论坛'},
+    'write_type_analysis': {'ko': '종목 분석글', 'en': 'Stock Analysis', 'ja': '銘柄分析', 'zh': '股票分析'},
+    'write_type_free': {'ko': '일반 자유글', 'en': 'General Post', 'ja': '一般自由文', 'zh': '一般帖子'},
+
 
     # ==========================================
     # 12. 참고 문헌 (References Content)
@@ -4384,7 +4389,7 @@ with main_area.container():
                 display_disclaimer()
 
     # ---------------------------------------------------------
-    # [NEW] 6. 게시판 페이지 (Board)
+    # [NEW] 6. 게시판 페이지 (Board) - 분석/자유 분리형
     # ---------------------------------------------------------
     elif st.session_state.page == 'board':
         
@@ -4400,11 +4405,14 @@ with main_area.container():
                     border-radius: 20px !important;
                     padding: 6px 15px !important;
                     margin-right: 5px !important;
+                    box-shadow: none !important;
                 }
                 div[data-testid="stPills"] button[aria-selected="true"] {
                     background-color: #444444 !important;
                     font-weight: 800 !important;
                 }
+                /* 탭 UI 스타일 강화 */
+                button[data-baseweb="tab"] p { font-size: 1.15rem !important; font-weight: 700 !important; }
                 </style>
             """, unsafe_allow_html=True)
         
@@ -4435,152 +4443,32 @@ with main_area.container():
                 elif selected_menu == main_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'all'; st.rerun()
                 elif selected_menu == watch_text: st.session_state.page = 'calendar'; st.session_state.view_mode = 'watchlist'; st.rerun()
         
-            # [2] 게시판 데이터 로드 및 검색 필터링 적용
+            # [2] 게시판 전체 데이터 로드 및 검색 적용
             s_keyword = ""
-            s_type = "title" # 💡 다국어 대응을 위해 내부 코드는 영어(키값)로 통일
+            s_type = "title" 
             
-            if 'b_s_type' in st.session_state:
-                s_type = st.session_state.b_s_type
-            if 'b_s_keyword' in st.session_state:
-                s_keyword = st.session_state.b_s_keyword
+            if 'b_s_type' in st.session_state: s_type = st.session_state.b_s_type
+            if 'b_s_keyword' in st.session_state: s_keyword = st.session_state.b_s_keyword
                 
-            all_posts = db_load_posts(limit=100) 
-            
+            all_posts = db_load_posts(limit=200) 
             posts = all_posts
+            
             if s_keyword:
                 k = s_keyword.lower()
-                # 💡 내부 키값으로 비교해야 언어가 바뀌어도 검색 기능이 정상 작동함
                 if s_type == "title": posts = [p for p in posts if k in p.get('title','').lower()]
                 elif s_type == "title_content": posts = [p for p in posts if k in p.get('title','').lower() or k in p.get('content','').lower()]
                 elif s_type == "category": posts = [p for p in posts if k in p.get('category','').lower()]
                 elif s_type == "author": posts = [p for p in posts if k in p.get('author_name','').lower()]
         
-            # [3] 정렬 및 분리 로직 (HOT 5개 / 나머지 최신순 페이징)
-            hot_candidates = []
-            normal_posts = []
-        
-            if posts:
-                from datetime import datetime, timedelta
-                three_days_ago = datetime.now() - timedelta(days=3)
-        
-                for p in posts:
-                    try:
-                        created_dt_str = str(p.get('created_at', '')).split('.')[0]
-                        created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
-                        if created_dt >= three_days_ago and p.get('likes', 0) > 0:
-                            hot_candidates.append(p)
-                        else:
-                            normal_posts.append(p)
-                    except:
-                        normal_posts.append(p)
-                        
-                hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
-                top_5_hot = hot_candidates[:5]
+            # 💡 [핵심 분리 1] 전체 글을 '분석글'과 '자유글'로 나누기
+            def is_free_post(cat_str):
+                c = cat_str.strip().lower() if cat_str else ""
+                return not c or c in ['자유', 'general', '自由']
                 
-                normal_posts.extend(hot_candidates[5:])
-                normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+            analysis_posts = [p for p in posts if not is_free_post(p.get('category'))]
+            free_posts = [p for p in posts if is_free_post(p.get('category'))]
 
-            if 'translated_posts' not in st.session_state:
-                st.session_state.translated_posts = {}
-
-            def translate_post_on_demand(title, content, target_lang_code):
-                if not title and not content: return {"title": "", "content": ""}
-                target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語" if target_lang_code == 'ja' else "简体中文(Simplified Chinese)"
-                
-                prompt = f"""Please translate the following Title and Content to {target_lang_str}. 
-                You MUST keep the exact string '|||SEP|||' between the translated Title and translated Content. 
-                Do not add any quotes or extra explanations:
-                
-                {title}
-                |||SEP|||
-                {content}"""
-                
-                try:
-                    res_text = model.generate_content(prompt).text.strip()
-                    if "|||SEP|||" in res_text:
-                        t, c = res_text.split("|||SEP|||", 1)
-                        return {"title": t.strip(), "content": c.strip()}
-                    else:
-                        return {"title": title, "content": res_text}
-                except: 
-                    return {"title": title, "content": content}
-
-            if 'board_display_count' not in st.session_state:
-                st.session_state.board_display_count = 5
-            
-            current_display = normal_posts[:st.session_state.board_display_count]
-        
-            # 💡 UI 렌더링 함수 다국어 적용 완료
-            def render_post(p, is_hot=False):
-                p_auth = p.get('author_name', 'Unknown')
-                p_date = str(p.get('created_at', '')).split('T')[0]
-                p_id = str(p.get('id'))
-                p_uid = p.get('author_id')
-                p_cat = p.get('category') or get_text('placeholder_free') # 카테고리 없으면 '자유' 다국어
-                likes = p.get('likes') or 0
-                dislikes = p.get('dislikes') or 0
-                
-                original_title = p.get('title', '')
-                original_content = p.get('content', '')
-                curr_lang = st.session_state.get('lang', 'ko')
-                
-                is_translated = p_id in st.session_state.translated_posts
-                if is_translated:
-                    trans_data = st.session_state.translated_posts[p_id]
-                    if isinstance(trans_data, dict):
-                        display_title = trans_data.get('title', original_title)
-                        display_content = trans_data.get('content', original_content)
-                    else:
-                        display_title = original_title
-                        display_content = trans_data 
-                else:
-                    display_title = original_title
-                    display_content = original_content
-                
-                prefix = "[HOT]" if is_hot else f"[{p_cat}]"
-                # 다국어 적용: "추천", "비추천"
-                title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} ({get_text('btn_recommend')}{likes}  {get_text('btn_dislike')}{dislikes})"
-                
-                with st.expander(title_disp.strip()):
-                    st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{display_content}</div>", unsafe_allow_html=True)
-                    st.write("<br>", unsafe_allow_html=True)
-                    
-                    action_c1, action_c2, action_c3, action_c4 = st.columns([2.5, 1.5, 1.5, 1.5])
-                    
-                    with action_c1:
-                        trans_label = get_text('btn_see_original') if is_translated else get_text('btn_see_translation')
-                        if st.button(trans_label, key=f"t_main_{p_id}", use_container_width=True):
-                            if is_translated: del st.session_state.translated_posts[p_id]
-                            else:
-                                with st.spinner("Translating..."):
-                                    st.session_state.translated_posts[p_id] = translate_post_on_demand(original_title, original_content, curr_lang)
-                            st.rerun()
-
-                    with action_c2:
-                        if st.button(f"{get_text('btn_recommend')}{likes}", key=f"l_main_{p_id}", use_container_width=True):
-                            if is_logged_in:
-                                db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'like')
-                                st.rerun()
-                            else: st.toast(get_text('msg_login_vote'))
-                    with action_c3:
-                        if st.button(f"{get_text('btn_dislike')}{dislikes}", key=f"d_main_{p_id}", use_container_width=True):
-                            if is_logged_in:
-                                db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'dislike')
-                                st.rerun()
-                            else: st.toast(get_text('msg_login_vote'))
-                    with action_c4:
-                        raw_u_info = st.session_state.get('user_info')
-                        u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
-                        is_admin = u_info.get('role') == 'admin'
-                        
-                        if is_logged_in and (u_info.get('id') == p_uid or is_admin):
-                            if st.button(get_text('btn_delete'), key=f"del_main_{p_id}", type="secondary", use_container_width=True):
-                                if db_delete_post(p_id):
-                                    st.success(get_text('msg_deleted'))
-                                    import time; time.sleep(0.5)
-                                    st.rerun()
-        
-            # [4] 리스트 및 컨트롤 UI 렌더링
+            # [3] 리스트 및 컨트롤 UI 렌더링
             post_list_area = st.container()
             
             with post_list_area:
@@ -4589,17 +4477,12 @@ with main_area.container():
                 f_col1, f_col2 = st.columns(2)
                 with f_col1:
                     with st.expander(get_text('expander_search')):
-                        # 💡 다국어 맵핑 로직 (내부 키값과 외부 표시 텍스트를 분리)
                         s_opts_keys = ["title", "title_content", "category", "author"]
                         s_opts_display = {
-                            "title": get_text('opt_search_title'),
-                            "title_content": get_text('opt_search_title_content'),
-                            "category": get_text('opt_search_category'),
-                            "author": get_text('opt_search_author')
+                            "title": get_text('opt_search_title'), "title_content": get_text('opt_search_title_content'),
+                            "category": get_text('opt_search_category'), "author": get_text('opt_search_author')
                         }
-                        
                         s_idx = s_opts_keys.index(s_type) if s_type in s_opts_keys else 0
-                        # format_func를 통해 보여주는 글자만 다국어 적용
                         s_type_new = st.selectbox(get_text('search_scope'), s_opts_keys, format_func=lambda x: s_opts_display[x], key="b_s_type_temp", index=s_idx)
                         s_keyword_new = st.text_input(get_text('search_keyword'), value=s_keyword, key="b_s_keyword_temp")
                         
@@ -4612,11 +4495,21 @@ with main_area.container():
                     with st.expander(get_text('expander_write')):
                         if is_logged_in and check_permission('write'):
                             with st.form(key="board_main_form", clear_on_submit=True):
-                                b_cat = st.text_input(get_text('label_category'), placeholder=get_text('placeholder_free'), key="main_b_cat")
+                                # 💡 [핵심 분리 2] 글쓰기 시 분석/자유 직관적 선택
+                                write_type = st.radio("글 종류", ["Analysis", "Free"], format_func=lambda x: get_text('write_type_analysis') if x=="Analysis" else get_text('write_type_free'), horizontal=True, label_visibility="collapsed")
+                                
+                                if write_type == "Analysis":
+                                    b_cat = st.text_input(get_text('label_category'), placeholder="예: AAPL, TSLA 등 종목명", key="main_b_cat")
+                                else:
+                                    b_cat = "자유" # 내부적으로 자동 통일
+                                    
                                 b_tit = st.text_input(get_text('label_title'), key="main_b_tit")
                                 b_cont = st.text_area(get_text('label_content'), key="main_b_cont")
+                                
                                 if st.form_submit_button(get_text('btn_submit'), type="primary", use_container_width=True):
                                     if b_tit and b_cont:
+                                        if write_type == "Analysis" and not b_cat.strip(): b_cat = "자유"
+                                        
                                         u_id = st.session_state.user_info['id']
                                         try:
                                             fresh_user = db_load_user(u_id)
@@ -4634,31 +4527,148 @@ with main_area.container():
         
                 st.write("<br>", unsafe_allow_html=True)
                 
-                # 2. 인기글 영역
-                if hot_candidates and top_5_hot:
-                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>{get_text('label_hot_posts')}</div>", unsafe_allow_html=True)
-                    for p in top_5_hot:
-                        render_post(p, is_hot=True)
-                    st.write("<br><br>", unsafe_allow_html=True)
-                
-                # 3. 최신글 영역
-                st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{get_text('label_recent_posts')}</div>", unsafe_allow_html=True)
-                
-                if posts:
-                    if current_display:
-                        for p in current_display:
-                            render_post(p, is_hot=False)
-                    else:
-                        st.info(get_text('msg_no_recent_posts'))
+                # -----------------------------------------------------
+                # [공통 로직] 번역 및 렌더링 함수
+                # -----------------------------------------------------
+                if 'translated_posts' not in st.session_state:
+                    st.session_state.translated_posts = {}
+
+                def translate_post_on_demand(title, content, target_lang_code):
+                    if not title and not content: return {"title": "", "content": ""}
+                    target_lang_str = "한국어" if target_lang_code == 'ko' else "English" if target_lang_code == 'en' else "日本語" if target_lang_code == 'ja' else "简体中文(Simplified Chinese)"
+                    prompt = f"Please translate the following Title and Content to {target_lang_str}. You MUST keep the exact string '|||SEP|||' between the translated Title and translated Content. Do not add any quotes or extra explanations:\n{title}\n|||SEP|||\n{content}"
+                    try:
+                        res_text = model.generate_content(prompt).text.strip()
+                        if "|||SEP|||" in res_text:
+                            t, c = res_text.split("|||SEP|||", 1)
+                            return {"title": t.strip(), "content": c.strip()}
+                        else: return {"title": title, "content": res_text}
+                    except: return {"title": title, "content": content}
+
+                def render_post(p, is_hot=False):
+                    p_auth = p.get('author_name', 'Unknown')
+                    p_date = str(p.get('created_at', '')).split('T')[0]
+                    p_id = str(p.get('id'))
+                    p_uid = p.get('author_id')
+                    
+                    # 카테고리 표시 처리
+                    raw_cat = p.get('category', '').strip()
+                    p_cat = get_text('placeholder_free') if not raw_cat or raw_cat == '자유' else raw_cat
                         
-                    # 더보기 버튼
-                    if len(normal_posts) > st.session_state.board_display_count:
+                    likes = p.get('likes') or 0
+                    dislikes = p.get('dislikes') or 0
+                    
+                    original_title = p.get('title', '')
+                    original_content = p.get('content', '')
+                    curr_lang = st.session_state.get('lang', 'ko')
+                    
+                    is_translated = p_id in st.session_state.translated_posts
+                    if is_translated:
+                        trans_data = st.session_state.translated_posts[p_id]
+                        if isinstance(trans_data, dict):
+                            display_title = trans_data.get('title', original_title)
+                            display_content = trans_data.get('content', original_content)
+                        else:
+                            display_title = original_title
+                            display_content = trans_data 
+                    else:
+                        display_title = original_title
+                        display_content = original_content
+                    
+                    prefix = "[HOT]" if is_hot else f"[{p_cat}]"
+                    title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} ({get_text('btn_recommend')}{likes}  {get_text('btn_dislike')}{dislikes})"
+                    
+                    with st.expander(title_disp.strip()):
+                        st.markdown(f"<div style='font-size:0.95rem; color:#333;'>{display_content}</div>", unsafe_allow_html=True)
                         st.write("<br>", unsafe_allow_html=True)
-                        if st.button(get_text('btn_load_more'), key="more_board_posts", use_container_width=True):
-                            st.session_state.board_display_count += 10
-                            st.rerun()
-                else:
-                    st.info(get_text('msg_no_posts'))
+                        
+                        action_c1, action_c2, action_c3, action_c4 = st.columns([2.5, 1.5, 1.5, 1.5])
+                        
+                        with action_c1:
+                            trans_label = get_text('btn_see_original') if is_translated else get_text('btn_see_translation')
+                            if st.button(trans_label, key=f"t_main_{p_id}", use_container_width=True):
+                                if is_translated: del st.session_state.translated_posts[p_id]
+                                else:
+                                    with st.spinner("Translating..."):
+                                        st.session_state.translated_posts[p_id] = translate_post_on_demand(original_title, original_content, curr_lang)
+                                st.rerun()
+
+                        with action_c2:
+                            if st.button(f"{get_text('btn_recommend')}{likes}", key=f"l_main_{p_id}", use_container_width=True):
+                                if is_logged_in:
+                                    db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'like')
+                                    st.rerun()
+                                else: st.toast(get_text('msg_login_vote'))
+                        with action_c3:
+                            if st.button(f"{get_text('btn_dislike')}{dislikes}", key=f"d_main_{p_id}", use_container_width=True):
+                                if is_logged_in:
+                                    db_toggle_post_reaction(p_id, st.session_state.user_info.get('id', ''), 'dislike')
+                                    st.rerun()
+                                else: st.toast(get_text('msg_login_vote'))
+                        with action_c4:
+                            raw_u_info = st.session_state.get('user_info')
+                            u_info = raw_u_info if isinstance(raw_u_info, dict) else {}
+                            is_admin = u_info.get('role') == 'admin'
+                            if is_logged_in and (u_info.get('id') == p_uid or is_admin):
+                                if st.button(get_text('btn_delete'), key=f"del_main_{p_id}", type="secondary", use_container_width=True):
+                                    if db_delete_post(p_id):
+                                        st.success(get_text('msg_deleted'))
+                                        import time; time.sleep(0.5)
+                                        st.rerun()
+
+                # 💡 [핵심 분리 3] 탭 렌더링 헬퍼 함수
+                def render_board_tab(tab_posts, display_count_key, btn_prefix):
+                    hot_candidates = []
+                    normal_posts = []
+                    three_days_ago = datetime.now() - timedelta(days=3)
+            
+                    for p in tab_posts:
+                        try:
+                            created_dt_str = str(p.get('created_at', '')).split('.')[0]
+                            created_dt = datetime.strptime(created_dt_str.replace('T', ' '), '%Y-%m-%d %H:%M:%S')
+                            if created_dt >= three_days_ago and p.get('likes', 0) > 0:
+                                hot_candidates.append(p)
+                            else: normal_posts.append(p)
+                        except: normal_posts.append(p)
+                            
+                    hot_candidates.sort(key=lambda x: (x.get('likes', 0), x.get('created_at', '')), reverse=True)
+                    top_5_hot = hot_candidates[:5]
+                    normal_posts.extend(hot_candidates[5:])
+                    normal_posts.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+
+                    if display_count_key not in st.session_state:
+                        st.session_state[display_count_key] = 5
+                    current_display = normal_posts[:st.session_state[display_count_key]]
+
+                    if top_5_hot:
+                        st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; margin-top: 10px;'>{get_text('label_hot_posts')}</div>", unsafe_allow_html=True)
+                        for p in top_5_hot: render_post(p, is_hot=True)
+                        st.write("<br><br>", unsafe_allow_html=True)
+                    
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{get_text('label_recent_posts')}</div>", unsafe_allow_html=True)
+                    
+                    if tab_posts:
+                        if current_display:
+                            for p in current_display: render_post(p, is_hot=False)
+                        else:
+                            st.info(get_text('msg_no_recent_posts'))
+                            
+                        if len(normal_posts) > st.session_state[display_count_key]:
+                            st.write("<br>", unsafe_allow_html=True)
+                            if st.button(get_text('btn_load_more'), key=f"more_{btn_prefix}", use_container_width=True):
+                                st.session_state[display_count_key] += 10
+                                st.rerun()
+                    else:
+                        st.info(get_text('msg_no_posts'))
+
+                # 💡 [핵심 분리 4] 탭 UI 배치 (좌측: 분석 / 우측: 자유)
+                tab_analysis, tab_free = st.tabs([get_text('tab_analysis_board'), get_text('tab_free_board')])
+                
+                with tab_analysis:
+                    render_board_tab(analysis_posts, 'board_ana_count', 'ana')
+                    
+                with tab_free:
+                    render_board_tab(free_posts, 'board_free_count', 'free')
                 
                         
         
