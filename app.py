@@ -168,12 +168,43 @@ MY_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 # [Supabase DB] 데이터 관리 함수 모음 (NEW)
 # ==========================================
 
-# 1. 유저 로그인 정보 불러오기
+# 1. 유저 로그인 정보 불러오기 (구독 만료 체크 기능 추가)
 def db_load_user(user_id):
     try:
         res = supabase.table("users").select("*").eq("id", user_id).execute()
-        return res.data[0] if res.data else None
-    except: return None
+        
+        if res.data:
+            user = res.data[0]
+            
+            # 💡 [핵심 추가]: 프리미엄 유저라면 접속 시 만료일이 지났는지 검사합니다.
+            if user.get('is_premium') and user.get('premium_until'):
+                from datetime import datetime
+                
+                try:
+                    # DB의 시간 문자열을 파이썬 시간 객체로 변환 (뒤에 붙는 'Z' 등의 포맷 에러 방지)
+                    expire_str = str(user['premium_until']).split('.')[0].replace('Z', '')
+                    expire_dt = datetime.fromisoformat(expire_str)
+                    
+                    # 만약 현재 시간이 만료일을 넘었다면? -> 권한 자동 해제!
+                    if datetime.now() > expire_dt:
+                        # 1. DB에서 프리미엄 권한 False로 업데이트
+                        supabase.table("users").update({
+                            "is_premium": False
+                        }).eq("id", user_id).execute()
+                        
+                        # 2. 현재 메모리에 불러온 정보도 False로 변경
+                        user['is_premium'] = False
+                        user['premium_until'] = None # (선택사항) 날짜 초기화
+                        print(f"[{user_id}] 구독 만료로 프리미엄 권한이 자동 해제되었습니다.")
+                        
+                except Exception as parse_e:
+                    print(f"날짜 변환 에러: {parse_e}")
+                    
+            return user
+        return None
+    except Exception as e:
+        print(f"DB Load Error: {e}")
+        return None
 
 # 2. 회원가입 정보 저장 (구글 시트 대체)
 def db_signup_user(user_data):
@@ -1904,8 +1935,9 @@ try:
         p_id = current_params.get("payment_id", [""])[0] if isinstance(current_params.get("payment_id"), list) else current_params.get("payment_id")
 
         if target_uid:
-            with st.spinner("💳 결제 영수증을 대행사 서버에서 교차 검증 중입니다..."):
+            with st.spinner("💳 결제 내역을 서버에서 안전하게 확인 중입니다..."):
                 is_valid = False
+                sub_id = None # 초기화
                 
                 # [Case 1] Stripe 해외 결제 검증
                 if s_id:
@@ -1915,22 +1947,34 @@ try:
                         checkout_session = stripe.checkout.Session.retrieve(s_id)
                         if checkout_session.payment_status == 'paid':
                             is_valid = True
+                            sub_id = checkout_session.subscription # 💡 Stripe 구독 ID 가져오기
                     except: pass
                 
                 # [Case 2] PortOne 국내 결제 검증 (API 호출 구조)
                 elif p_id:
-                    # 지금은 테스트 모드이므로 p_id가 있으면 일단 통과 (나중에 API 연동)
+                    # 지금은 테스트 모드이므로 p_id가 있으면 일단 통과
                     is_valid = True 
 
                 # --------------------------------------------------
-                # 🛡️ 최종 검증 통과 시에만 DB 승급
+                # 🛡️ 최종 검증 통과 시에만 DB 승급 및 ID 저장
                 # --------------------------------------------------
                 if is_valid:
                     from datetime import datetime, timedelta
+                    # 30일 뒤 만료 설정
                     expire_date = (datetime.now() + timedelta(days=30)).isoformat()
                     
-                    supabase.table("users").update({"is_premium": True, "premium_until": expire_date}).eq("id", target_uid).execute()
+                    # 💡 구독 ID(또는 결제ID)도 함께 저장할 준비
+                    update_data = {"is_premium": True, "premium_until": expire_date}
                     
+                    if sub_id:
+                        update_data["subscription_id"] = sub_id
+                    elif p_id:
+                        update_data["subscription_id"] = f"portone_{p_id}"
+                        
+                    # 1. DB 업데이트 실행
+                    supabase.table("users").update(update_data).eq("id", target_uid).execute()
+                    
+                    # 2. 현재 로그인된 세션(메모리) 상태도 바로 업데이트 (새로고침 없이 뱃지 노출)
                     if st.session_state.get('user_info'):
                         st.session_state.user_info['is_premium'] = True
                         st.session_state.user_info['premium_until'] = expire_date
@@ -1943,50 +1987,91 @@ try:
                 else:
                     st.error("🚨 유효하지 않은 결제 영수증입니다. 결제가 취소되었거나 조작되었습니다.")
                     st.query_params.clear()
-except:
+except Exception as e:
     pass
 
 # =========================================================
-# 🚀 [STEP 1] 결제 성공 감지 및 DB 업데이트 (실전 배포용)
+# 🚀 [STEP 1] 결제 성공 감지 및 이중 검증 (실전 통합본)
 # =========================================================
 try:
-    current_params = dict(st.query_params)
-except:
-    current_params = st.experimental_get_query_params()
+    try: current_params = dict(st.query_params)
+    except: current_params = st.experimental_get_query_params()
 
-if "success" in str(current_params).lower():
-    target_uid = current_params.get("uid", "")
-    if isinstance(target_uid, list): target_uid = target_uid[0]
-    target_uid = str(target_uid).strip()
+    if "success" in str(current_params).lower():
+        # 1. 대상 유저 ID 확보
+        target_uid = current_params.get("uid", "")
+        if isinstance(target_uid, list): target_uid = target_uid[0]
+        target_uid = str(target_uid).strip()
 
-    if not target_uid and st.session_state.get('user_info'):
-        target_uid = st.session_state.user_info.get('id')
-        
-    if target_uid:
-        with st.spinner("결제 내역을 확인하고 프리미엄 권한을 부여하고 있습니다..."):
-            try:
-                from datetime import datetime, timedelta
-                expire_date = (datetime.now() + timedelta(days=30)).isoformat()
+        if not target_uid and st.session_state.get('user_info'):
+            target_uid = st.session_state.user_info.get('id')
+            
+        # 2. 영수증 번호 추출 (Stripe는 session_id, PortOne은 payment_id)
+        s_id = current_params.get("session_id", [""])[0] if isinstance(current_params.get("session_id"), list) else current_params.get("session_id")
+        p_id = current_params.get("payment_id", [""])[0] if isinstance(current_params.get("payment_id"), list) else current_params.get("payment_id")
+
+        if target_uid:
+            with st.spinner("💳 결제 내역을 서버에서 안전하게 확인 중입니다..."):
+                is_valid = False
+                sub_id = None
                 
-                update_payload = {"is_premium": True, "premium_until": expire_date}
-                supabase.table("users").update(update_payload).eq("id", target_uid).execute()
+                # [Case 1] Stripe 해외 결제 검증 (정기 구독)
+                if s_id:
+                    try:
+                        import stripe
+                        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+                        checkout_session = stripe.checkout.Session.retrieve(s_id)
+                        
+                        if checkout_session.payment_status == 'paid':
+                            is_valid = True
+                            sub_id = checkout_session.subscription # 💡 Stripe 정기 구독 ID
+                    except: pass
                 
-                if st.session_state.get('user_info'):
-                    st.session_state.user_info['is_premium'] = True
-                    st.session_state.user_info['premium_until'] = expire_date
-                
-                st.success("👑 결제가 완료되었습니다! 프리미엄 회원이 되신 것을 환영합니다.")
-                
-                import time
-                time.sleep(2.5)
-                
-                try:
-                    st.query_params.clear()
-                except:
-                    st.experimental_set_query_params()
-                st.rerun()
-            except Exception as e:
-                st.error("오류가 발생했습니다. 관리자에게 문의해주세요.")
+                # [Case 2] PortOne 국내 결제 검증 (단건)
+                elif p_id:
+                    is_valid = True 
+
+                # --------------------------------------------------
+                # 🛡️ 최종 검증 통과 시에만 DB 승급 및 ID 저장
+                # --------------------------------------------------
+                if is_valid:
+                    try:
+                        from datetime import datetime, timedelta
+                        expire_date = (datetime.now() + timedelta(days=30)).isoformat()
+                        
+                        update_data = {"is_premium": True, "premium_until": expire_date}
+                        
+                        # 구독 ID 또는 영수증 번호 추가
+                        if sub_id:
+                            update_data["subscription_id"] = sub_id
+                        elif p_id:
+                            update_data["subscription_id"] = f"portone_{p_id}"
+                            
+                        # 1. DB 업데이트 실행
+                        supabase.table("users").update(update_data).eq("id", target_uid).execute()
+                        
+                        # 2. 현재 로그인된 화면(메모리) 상태도 업데이트
+                        if st.session_state.get('user_info'):
+                            st.session_state.user_info['is_premium'] = True
+                            st.session_state.user_info['premium_until'] = expire_date
+                        
+                        st.success("👑 결제 및 검증이 완료되었습니다! 프리미엄 회원이 되신 것을 환영합니다.")
+                        
+                        import time; time.sleep(2.5)
+                        
+                        # URL 초기화 및 새로고침
+                        try: st.query_params.clear()
+                        except: st.experimental_set_query_params()
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"오류가 발생했습니다: {e}")
+                else:
+                    st.error("🚨 유효하지 않은 결제 영수증입니다.")
+                    try: st.query_params.clear()
+                    except: st.experimental_set_query_params()
+except Exception as e:
+    pass
 
 # ==========================================
 # [추가] 다국어(i18n) 지원 설정 및 사전(Dictionary)
