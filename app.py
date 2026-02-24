@@ -2458,21 +2458,29 @@ def draw_decision_box(step_key, title, options, current_p=0.0):
     st.markdown(f"##### {title}")
     
     current_val = st.session_state.user_decisions[sid].get(step_key)
+    
+    # 🔥 [신규 핵심] 이미 평가한 기록이 있다면 잠금 모드 발동
+    is_locked = True if current_val else False
+    
+    if is_locked:
+        st.caption("🔒 이미 평가를 완료하여 의견을 수정할 수 없습니다.")
+        
     choice = st.radio(
         label=f"판단_{step_key}",
         options=options,
         index=options.index(current_val) if current_val in options else None,
         key=f"dec_{sid}_{step_key}",
         horizontal=True,
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        disabled=is_locked  # 🔥 여기서 라디오 버튼을 물리적으로 잠급니다
     )
     
-    # 🔥 [신규] 유저가 새로운 항목을 선택했을 때만 DB에 로그 저장
+    # 새로운 투표 시 로그 기록 및 세션 저장
     if choice and choice != current_val:
         st.session_state.user_decisions[sid][step_key] = choice
         if user_id != 'guest_id':
-            # 행동 이름: DECISION_FILING, DECISION_NEWS 등으로 기록됨
             db_log_user_action(user_id, sid, f"DECISION_{step_key.upper()}", price=current_p, details=choice)
+            st.rerun() # 선택 즉시 화면을 새로고침하여 잠금(Lock) UI를 적용
 
 def handle_post_reaction(post_id, reaction_type, user_id):
     """게시글 좋아요/싫어요 처리 함수"""
