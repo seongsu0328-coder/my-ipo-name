@@ -2444,9 +2444,11 @@ LANG_PROMPT_MAP = {
 }
 
 # 3. 공통 UI 함수 정의 (전역)
-def draw_decision_box(step_key, title, options):
+def draw_decision_box(step_key, title, options, current_p=0.0):
     """사용자 투표/판단 박스를 그리는 함수"""
     sid = st.session_state.get('selected_stock', {}).get('symbol', 'UNKNOWN')
+    user_info = st.session_state.get('user_info') or {}
+    user_id = user_info.get('id', 'guest_id')
     
     # 결정 데이터 공간 확보
     if sid not in st.session_state.user_decisions:
@@ -2464,8 +2466,13 @@ def draw_decision_box(step_key, title, options):
         horizontal=True,
         label_visibility="collapsed"
     )
-    if choice:
+    
+    # 🔥 [신규] 유저가 새로운 항목을 선택했을 때만 DB에 로그 저장
+    if choice and choice != current_val:
         st.session_state.user_decisions[sid][step_key] = choice
+        if user_id != 'guest_id':
+            # 행동 이름: DECISION_FILING, DECISION_NEWS 등으로 기록됨
+            db_log_user_action(user_id, sid, f"DECISION_{step_key.upper()}", price=current_p, details=choice)
 
 def handle_post_reaction(post_id, reaction_type, user_id):
     """게시글 좋아요/싫어요 처리 함수"""
@@ -3517,12 +3524,23 @@ with main_area.container():
                 }
             else:
                 st.session_state.user_decisions[sid] = {}
-    
+
+        # 🔥 [핵심 수정] 탭(Tab)이 바뀌기 전에 무조건 실시간 가격부터 가져옵니다! (Null 에러 방지)
         profile = None
         fin_data = {}
-        current_p = 0
-        off_val = 0
+        current_p = 0.0
+        off_val = 0.0
         current_s = "Active"
+        
+        try: 
+            off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
+        except: 
+            off_val = 0.0
+            
+        try:
+            current_p, current_s = get_current_stock_price(sid, MY_API_KEY)
+            profile = get_company_profile(sid, MY_API_KEY) 
+        except: pass
     
         if stock:
             # 상단 메뉴바
@@ -3542,29 +3560,33 @@ with main_area.container():
                 elif selected_menu == get_text('menu_board'): st.session_state.page = 'board'
                 st.rerun()
 
-            # 임시 헤더
-            header_placeholder = st.empty()
+            # 🔥 [핵심 수정] 위에서 가져온 가격으로 즉시 헤더를 그립니다!
             today = datetime.now().date()
             ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
             status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
+            date_str = ipo_dt.strftime('%Y-%m-%d')
+            label_ipo = get_text('label_ipo_price')
             
-            # 👇 "데이터 로딩 중..." 부분을 완전히 제거했습니다.
-            header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span></div>", unsafe_allow_html=True)
+            if current_s == "상장연기": p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
+            elif current_s == "상장폐지": p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
+            elif current_p > 0 and off_val > 0:
+                pct = ((current_p - off_val) / off_val) * 100
+                color = "#00ff41" if pct >= 0 else "#ff4b4b"
+                icon = "▲" if pct >= 0 else "▼"
+                p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
+            else: p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_waiting')})</span>"
             
+            # 여기서 화면에 한 번만 그려줍니다.
+            st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
             st.write("")
     
-            # 💡 [핵심 변경] st.tabs를 제거하고 st.pills로 탭 기능을 대체합니다.
-            # 이렇게 하면 선택된 탭(Pill)의 코드만 실행되므로 초기 로딩 시 Tab 0 이외의 부하가 0이 됩니다.
             tab_labels = [get_text(f'tab_{i}') for i in range(6)]
             
-            # 이전에 선택한 탭이 없으면 기본값으로 Tab 0 설정
             if 'detail_sub_menu' not in st.session_state or st.session_state.detail_sub_menu not in tab_labels:
                 st.session_state.detail_sub_menu = tab_labels[0]
 
-            # 2단 메뉴 (탭 역할)
             selected_sub_menu = st.pills(label="sub_nav", options=tab_labels, selection_mode="single", default=st.session_state.detail_sub_menu, key="detail_tabs_pills", label_visibility="collapsed")
             
-            # 사용자가 탭을 클릭하면 상태 업데이트 후 리런 (해당 탭 내용만 로딩하기 위함)
             if selected_sub_menu and selected_sub_menu != st.session_state.detail_sub_menu:
                 st.session_state.detail_sub_menu = selected_sub_menu
                 st.rerun()
@@ -3593,26 +3615,7 @@ with main_area.container():
                 # 2. 문서 설명 (Info Box)
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','')}"))
 
-                # 3. 헤더 정보 계산
-                try: off_val = float(str(stock.get('price', '0')).replace('$', '').split('-')[0].strip())
-                except: off_val = 0
-                try:
-                    current_p, current_s = get_current_stock_price(sid, MY_API_KEY)
-                    profile = get_company_profile(sid, MY_API_KEY) 
-                except: pass
-
-                date_str = ipo_dt.strftime('%Y-%m-%d')
-                label_ipo = get_text('label_ipo_price')
-                if current_s == "상장연기": p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
-                elif current_s == "상장폐지": p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
-                elif current_p > 0 and off_val > 0:
-                    pct = ((current_p - off_val) / off_val) * 100
-                    color = "#00ff41" if pct >= 0 else "#ff4b4b"
-                    icon = "▲" if pct >= 0 else "▼"
-                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
-                else: p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_waiting')})</span>"
                 
-                header_placeholder.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
 
                 # ---------------------------------------------------------------------
                 # [순서 변경] AI 요약 (Expander)을 버튼 위로 이동
@@ -3719,7 +3722,7 @@ with main_area.container():
                 """, unsafe_allow_html=True)
 
                 # 6. 의사결정 박스
-                draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')])
+                draw_decision_box("filing", get_text('decision_question_filing'), [get_text('sentiment_positive'), get_text('sentiment_neutral'), get_text('sentiment_negative')], current_p)
                 
                 # 7. 면책 조항
                 display_disclaimer()
