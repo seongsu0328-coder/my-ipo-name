@@ -119,6 +119,35 @@ def get_current_prices():
     except: return {}
 
 # ==========================================
+# [추가] 프리미엄 유저 대상 통계적 급등 알림 엔진
+# ==========================================
+def run_premium_alert_engine(df_calendar):
+    print("🕵️ 프리미엄 알림 엔진 가동 (기간별 통계 모드)...")
+    today = datetime.now().date()
+    new_alerts = []
+    
+    # DB에서 최신 가격 가져오기 (worker.py에 이미 있는 함수 활용)
+    price_map = get_current_prices()
+
+    for _, row in df_calendar.iterrows():
+        ticker = row['symbol']
+        name = row['name']
+        current_p = price_map.get(ticker, 0.0)
+        
+        try: ipo_date = pd.to_datetime(row['date']).date()
+        except: continue
+        
+        if current_p <= 0: continue
+
+        # (여기에 방금 작성해주신 1일~1년 세분화 로직 전체를 그대로 붙여넣습니다)
+        # ... [코드 생략: 1. 일정 기반 알림 ~ 3. 공모가 관련 시그널 등] ...
+
+    # 분석된 알림을 DB에 저장 (중복 방지 적용)
+    if new_alerts:
+        batch_upsert("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
+        print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 DB에 적재되었습니다.")
+
+# ==========================================
 # [3] AI 분석 함수들 (프롬프트 100% 보존 + 방어막 추가)
 # ==========================================
 
