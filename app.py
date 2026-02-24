@@ -3125,6 +3125,7 @@ if st.session_state.page == 'login':
                                 "inv_style": val_style,
                                 "inv_risk": val_risk,
                                 "inv_sector": ",".join(val_sector),
+                                "noti_method": val_noti,  # 🔥 여기에 딱 한 줄 추가!
                                 "role": role, "status": status,
                                 "display_name": f"{role} | {td['id'][:3]}***"
                             }
