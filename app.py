@@ -2430,6 +2430,12 @@ UI_TEXT = {
         'ja': '意見が新しく更新されました！', 
         'zh': '您的意见已更新！'
     },
+    'status_otc_delayed': {
+        'ko': '⚠️ 데이터 지연/OTC', 
+        'en': '⚠️ Data Delayed/OTC', 
+        'ja': '⚠️ データ遅延/OTC', 
+        'zh': '⚠️ 数据延迟/OTC'
+    },
     
 
     # ==========================================
@@ -4049,14 +4055,21 @@ with main_area.container():
             date_str = ipo_dt.strftime('%Y-%m-%d')
             label_ipo = get_text('label_ipo_price')
             
-            if current_s == "상장연기": p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
-            elif current_s == "상장폐지": p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
+            if current_s == "상장연기": 
+                p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
+            elif current_s == "상장폐지": 
+                p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
             elif current_p > 0 and off_val > 0:
                 pct = ((current_p - off_val) / off_val) * 100
                 color = "#00ff41" if pct >= 0 else "#ff4b4b"
                 icon = "▲" if pct >= 0 else "▼"
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
-            else: p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_waiting')})</span>"
+            else: 
+                # 💡 [핵심 교정] 가격이 없는데 날짜가 지났다면 OTC/지연 문구 노출
+                if ipo_dt < today:
+                    p_info = f"<span style='font-size: 0.9rem; color: #f57c00;'>({date_str} / {label_ipo} ${off_val} / ⚠️ {get_text('status_otc_delayed')})</span>"
+                else:
+                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_waiting')})</span>"
             
             # 여기서 화면에 한 번만 그려줍니다.
             st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
@@ -4478,8 +4491,18 @@ with main_area.container():
                     if current_p > 0 and off_val > 0:
                         up_rate = ((current_p - off_val) / off_val) * 100
                         display_val, status, st_cls = (f"{up_rate:+.1f}%", ("🚀 Surge" if not is_ko else "🚀 급등") if up_rate > 20 else ("⚖️ Fair" if not is_ko else "⚖️ 적정"), "st-hot" if up_rate > 20 else "st-good")
-                    else: display_val, status, st_cls = (get_text('status_waiting'), ("⏳ IPO" if not is_ko else "⏳ 예정"), "st-neutral")
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Market Performance</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_performance')}</div><div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div></div>", unsafe_allow_html=True)
+                    else: 
+                        # 💡 [핵심 교정] 날짜 기반으로 배지와 텍스트 분기
+                        if ipo_dt < today:
+                            display_val = get_text('status_otc_delayed')
+                            status = ("⚠️ OTC" if not is_ko else "⚠️ 지연")
+                            st_cls = "st-neutral" # 주황색 계열 스타일이 있다면 교체 가능
+                        else:
+                            display_val = get_text('status_waiting')
+                            status = ("⏳ IPO" if not is_ko else "⏳ 예정")
+                            st_cls = "st-neutral"
+
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Market Performance</div><div class='metric-value-row'><span class='metric-value' style='font-size:1.1rem;'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_performance')}</div><div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div></div>", unsafe_allow_html=True)
     
                 st.write("<br>", unsafe_allow_html=True)
     
