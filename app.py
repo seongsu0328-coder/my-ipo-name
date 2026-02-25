@@ -4688,7 +4688,8 @@ with main_area.container():
                             display_content = original_content
                             
                         prefix = "[HOT]" if is_hot else ""
-                        title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} (👍{likes}  👎{dislikes})"
+                        # 💡 [수정됨] 이모지 제거 및 다국어 텍스트(추천/비추천) 적용
+                        title_disp = f"{prefix} {display_title} | {p_auth} | {p_date} ({get_text('btn_recommend')} {likes}  {get_text('btn_dislike')} {dislikes})"
                         
                         with st.expander(title_disp.strip()):
                             st.markdown(f"<div style='font-size:0.95rem; color:#333; margin-bottom:10px;'>{display_content}</div>", unsafe_allow_html=True)
@@ -4742,8 +4743,7 @@ with main_area.container():
                 else: 
                     st.info(get_text('msg_first_comment'))
                     
-                draw_decision_box("ipo_report", get_text('decision_final_invest'), ['opt_buy', 'sentiment_neutral', 'opt_sell'], current_p)
-                display_disclaimer()
+                
 
     # ---------------------------------------------------------
     # [NEW] 6. 게시판 페이지 (Board) - 분석/자유 분리형
