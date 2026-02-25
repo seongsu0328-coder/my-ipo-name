@@ -2239,7 +2239,7 @@ UI_TEXT = {
     },
 
     'btn_verify_edit': {'ko': '추가/변경 인증', 'en': 'Add/Edit Verification', 'ja': '追加/変更認証', 'zh': '补充/修改认证'},
-    'btn_verify_pending': {'ko': '⏳ 인증 심사중 (수정)', 'en': '⏳ Pending (Edit)', 'ja': '⏳ 審査中 (修正)', 'zh': '⏳ 审批中 (修改)'},
+    'btn_verify_pending': {'ko': '인증심사중', 'en': 'Pending', 'ja': '審査中', 'zh': '审批中'},
     'btn_cancel_sub': {'ko': '프리미엄 구독취소', 'en': 'Cancel Subscription', 'ja': 'プレミアム購読取消', 'zh': '取消高级订阅'},
 
     
