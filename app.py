@@ -3983,12 +3983,12 @@ with main_area.container():
                     p_val = p_val if p_val and p_val > 0 else 0
                     
                     live_p = row.get('live_price', 0)
-                    
-                    # --- [여기서부터 새로 붙여넣기] ---
-                    # 💡 [핵심 교정] 핀허브 원본 상태와 DB 상태를 합쳐서 완벽히 검사
+                    live_s = row.get('live_status', 'Active')
+
+                    # 💡 [핵심 교정 1] 핀허브 원본 상태와 DB 상태를 합쳐서 완벽히 검사
                     raw_status = str(row.get('status', '')).lower()
-                    live_s = str(row.get('live_status', '')).lower()
-                    combined_status = f"{raw_status} {live_s}"
+                    status_lower = str(live_s).lower()
+                    combined_status = f"{raw_status} {status_lower}"
                     
                     import re
                     # \b는 단어의 경계입니다. 'rw'라는 독립된 단어만 잡고 'forward'는 무시합니다.
@@ -4007,22 +4007,32 @@ with main_area.container():
                     elif is_delisted:
                         price_html = f"<div class='price-main' style='color:#888888 !important;'>{get_text('status_delisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
+                    # 2. 가격이 잡히는 정상 거래 종목
                     elif live_p > 0:
                         pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
                         change_color = "#e61919" if pct > 0 else "#1919e6" if pct < 0 else "#333333"
                         arrow = "▲" if pct > 0 else "▼" if pct < 0 else ""
                         price_html = f"<div class='price-main' style='color:{change_color} !important;'>${live_p:,.2f} ({arrow}{pct:+.1f}%)</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
+                    # 3. 💡 [핵심 교정 2] 가격이 0원일 때 ➡️ 시간에 따른 스마트 분기
                     else: 
                         item_date = row['공모일_dt'].date()
-                        if item_date < today_dt.date():
+                        days_passed = (today_dt.date() - item_date).days
+                        
+                        if item_date > today_dt.date():
+                            # 완전 미래 (아직 상장 안함)
+                            price_html = f"<div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div><div class='price-sub' style='color:#666666 !important;'>{get_text('status_waiting')}</div>"
+                        
+                        elif 0 <= days_passed <= 14:
+                            # 상장 직후 ~ 2주 이내 (야후 데이터 지연을 기다려주는 기간)
                             if is_expected:
-                                # 🚨 [안전장치] 원래 '정상 예정'인 기업이 야후 API 오류로 가격만 0원일 때
-                                price_html = f"<div class='price-main' style='color:#333333 !important; font-size:12px;'>가격 확인중</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                                price_html = f"<div class='price-main' style='color:#333333 !important; font-size:12px;'>가격 확인중 ⏳</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                             else:
                                 price_html = f"<div class='price-main' style='color:#f57c00 !important; font-size: 11.5px !important;'>{get_text('status_delayed_unlisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                        
                         else:
-                            price_html = f"<div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div><div class='price-sub' style='color:#666666 !important;'>{get_text('status_waiting')}</div>"
+                            # 상장 후 2주가 지났는데도 0원인 경우 (UHP 같은 장기 OTC 케이스)
+                            price_html = f"<div class='price-main' style='color:#888888 !important; font-size:11.5px !important;'>⚠️ OTC / 야후미지원</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
                     # --- [UI 렌더링 시작] ---
                     date_html = f"<div class='date-text'>{row['date']}</div>"
