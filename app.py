@@ -4114,7 +4114,7 @@ with main_area.container():
                         arrow = "▲" if pct > 0 else "▼" if pct < 0 else ""
                         price_html = f"<div class='price-main' style='color:{change_color} !important;'>${live_p:,.2f} ({arrow}{pct:+.1f}%)</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
-                    # 3. 💡 [핵심 교정 2] 다국어(get_text) 지원 시간 기반 3단 방어막
+                    # 3. 💡 [핵심 교정 2] 다국어 지원 시간 기반 3단 방어막 + 툴팁(마우스 오버) 완벽 적용
                     else: 
                         item_date = row['공모일_dt'].date()
                         days_passed = (today_dt.date() - item_date).days
@@ -4133,7 +4133,6 @@ with main_area.container():
                         else:
                             tooltip = get_text('tooltip_otc_unsupported')
                             price_html = f"<div title='{tooltip}' class='price-main' style='color:#888888 !important; font-size:11.5px !important; cursor:help;'>{get_text('status_otc_unsupported')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
-                    
                     # --- [UI 렌더링 시작] ---
                     date_html = f"<div class='date-text'>{row['date']}</div>"
                     c1, c2 = st.columns([7, 3])
