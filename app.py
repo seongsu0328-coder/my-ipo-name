@@ -1138,7 +1138,33 @@ def get_company_profile(symbol, api_key):
         return res if res and 'name' in res else None
     except: return None
 
-@st.cache_data(ttl=3600) # 1시간 동안 Finnhub API 재호출 방지
+# 💡 [신규 추가] 앱단 SEC 티커 교정 헬퍼
+@st.cache_data(ttl=86400)
+def get_sec_ticker_mapping_for_app():
+    try:
+        import requests, re
+        headers = {'User-Agent': 'UnicornFinder App admin@unicornfinder.com'}
+        res = requests.get("https://www.sec.gov/files/company_tickers.json", headers=headers, timeout=10)
+        data = res.json()
+        mapping = {}
+        for k, v in data.items():
+            name = str(v['title']).lower()
+            name = re.sub(r'\b(inc|corp|corporation|co|ltd|plc|group|company|holdings)\b\.?', '', name)
+            name = re.sub(r'[^a-z0-9]', '', name)
+            if name: mapping[name] = v['ticker']
+        return mapping
+    except:
+        return {}
+
+def normalize_name_for_app(name):
+    import re, pandas as pd
+    if not name or pd.isna(name): return ""
+    name = str(name).lower()
+    name = re.sub(r'\b(inc|corp|corporation|co|ltd|plc|group|company|holdings)\b\.?', '', name)
+    return re.sub(r'[^a-z0-9]', '', name)    
+
+# 💡 [기존 함수 교체] 캘린더를 부를 때 티커를 일괄 교정합니다!
+@st.cache_data(ttl=3600) 
 def get_extended_ipo_data(api_key):
     now = datetime.now()
     ranges = [
@@ -1154,7 +1180,7 @@ def get_extended_ipo_data(api_key):
         url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
         
         try:
-            time.sleep(0.2) # 속도를 조금 더 올렸습니다.
+            time.sleep(0.2)
             res = requests.get(url, timeout=5).json()
             ipo_list = res.get('ipoCalendar', [])
             if ipo_list:
@@ -1166,11 +1192,17 @@ def get_extended_ipo_data(api_key):
     
     df = pd.DataFrame(all_data)
     df = df.drop_duplicates(subset=['symbol', 'date'])
+    
+    # 🚀 [핵심 교정 로직] 앱에서도 SEC 공식 티커로 스와핑!
+    sec_map = get_sec_ticker_mapping_for_app()
+    if sec_map:
+        df['clean_name'] = df['name'].apply(normalize_name_for_app)
+        df['symbol'] = df.apply(lambda r: sec_map.get(r['clean_name'], r['symbol']), axis=1)
+
     df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
     df = df.dropna(subset=['공모일_dt'])
     
     return df
-
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_batch_prices(ticker_list):
@@ -3951,41 +3983,45 @@ with main_area.container():
                     p_val = p_val if p_val and p_val > 0 else 0
                     
                     live_p = row.get('live_price', 0)
-                    live_s = row.get('live_status', 'Active')
-
-                    # 💡 [핵심 수정] 상태값을 소문자로 변환하여 키워드 매칭 (철회/연기/폐지 분류)
-                    status_lower = str(live_s).lower()
-                    is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn', 'rw'])
-                    is_delayed = any(x in status_lower for x in ['연기', 'delayed'])
-                    is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
                     
-                    # 1. 상장 철회 (RW 서류가 등록된 기업들 우선 처리)
+                    # --- [여기서부터 새로 붙여넣기] ---
+                    # 💡 [핵심 교정] 핀허브 원본 상태와 DB 상태를 합쳐서 완벽히 검사
+                    raw_status = str(row.get('status', '')).lower()
+                    live_s = str(row.get('live_status', '')).lower()
+                    combined_status = f"{raw_status} {live_s}"
+                    
+                    import re
+                    # \b는 단어의 경계입니다. 'rw'라는 독립된 단어만 잡고 'forward'는 무시합니다.
+                    is_withdrawn = bool(re.search(r'\b(withdrawn|rw|철회|취소)\b', combined_status))
+                    is_delayed = bool(re.search(r'\b(delayed|연기)\b', combined_status))
+                    is_delisted = bool(re.search(r'\b(delisted|폐지)\b', combined_status))
+                    is_expected = bool(re.search(r'\b(expected|filed|active|priced)\b', combined_status))
+                    
+                    # 1. 상장 철회 (정확한 매칭)
                     if is_withdrawn:
                         price_html = f"<div class='price-main' style='color:#888888 !important;'>{get_text('label_rw')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
-                    # 2. 공식적인 상장 연기 상태
                     elif is_delayed:
                         price_html = f"<div class='price-main' style='color:#1919e6 !important;'>{get_text('status_delayed')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
-                    # 3. 상장 폐지 상태
                     elif is_delisted:
                         price_html = f"<div class='price-main' style='color:#888888 !important;'>{get_text('status_delisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
-                    # 4. 정상 거래 중 (주가가 잡히는 경우)
                     elif live_p > 0:
                         pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
                         change_color = "#e61919" if pct > 0 else "#1919e6" if pct < 0 else "#333333"
                         arrow = "▲" if pct > 0 else "▼" if pct < 0 else ""
                         price_html = f"<div class='price-main' style='color:{change_color} !important;'>${live_p:,.2f} ({arrow}{pct:+.1f}%)</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
-                    # 5. 그 외 주가가 0인 경우 (날짜 기반 판별)
                     else: 
                         item_date = row['공모일_dt'].date()
                         if item_date < today_dt.date():
-                            # 날짜는 지났는데 위 상태(철회 등)도 아니고 가격도 없는 경우
-                            price_html = f"<div class='price-main' style='color:#f57c00 !important; font-size: 11.5px !important;'>{get_text('status_delayed_unlisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                            if is_expected:
+                                # 🚨 [안전장치] 원래 '정상 예정'인 기업이 야후 API 오류로 가격만 0원일 때
+                                price_html = f"<div class='price-main' style='color:#333333 !important; font-size:12px;'>가격 확인중</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                            else:
+                                price_html = f"<div class='price-main' style='color:#f57c00 !important; font-size: 11.5px !important;'>{get_text('status_delayed_unlisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                         else:
-                            # 미래 상장 예정인 경우
                             price_html = f"<div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div><div class='price-sub' style='color:#666666 !important;'>{get_text('status_waiting')}</div>"
                     
                     # --- [UI 렌더링 시작] ---
