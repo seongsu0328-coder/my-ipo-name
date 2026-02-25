@@ -3952,38 +3952,52 @@ with main_area.container():
                     
                     live_p = row.get('live_price', 0)
                     live_s = row.get('live_status', 'Active')
+
+                    # 💡 [핵심 수정] 상태값을 소문자로 변환하여 키워드 매칭 (철회/연기/폐지 분류)
+                    status_lower = str(live_s).lower()
+                    is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn', 'rw'])
+                    is_delayed = any(x in status_lower for x in ['연기', 'delayed'])
+                    is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
                     
-                    if live_s == "상장연기": 
+                    # 1. 상장 철회 (RW 서류가 등록된 기업들 우선 처리)
+                    if is_withdrawn:
+                        price_html = f"<div class='price-main' style='color:#888888 !important;'>{get_text('label_rw')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                    
+                    # 2. 공식적인 상장 연기 상태
+                    elif is_delayed:
                         price_html = f"<div class='price-main' style='color:#1919e6 !important;'>{get_text('status_delayed')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
-                    elif live_s == "상장폐지": 
+                    
+                    # 3. 상장 폐지 상태
+                    elif is_delisted:
                         price_html = f"<div class='price-main' style='color:#888888 !important;'>{get_text('status_delisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                    
+                    # 4. 정상 거래 중 (주가가 잡히는 경우)
                     elif live_p > 0:
                         pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
                         change_color = "#e61919" if pct > 0 else "#1919e6" if pct < 0 else "#333333"
                         arrow = "▲" if pct > 0 else "▼" if pct < 0 else ""
                         price_html = f"<div class='price-main' style='color:{change_color} !important;'>${live_p:,.2f} ({arrow}{pct:+.1f}%)</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                    
+                    # 5. 그 외 주가가 0인 경우 (날짜 기반 판별)
                     else: 
-                        # 💡 [핵심 교정] 주가가 0일 때 상장일이 지났는지 체크합니다.
-                        # row['공모일_dt']는 위쪽 로직에서 이미 pd.to_datetime 처리가 되어 있습니다.
                         item_date = row['공모일_dt'].date()
-                        
                         if item_date < today_dt.date():
-                            # 상장일이 지났는데 주가가 없는 경우 (지연 또는 비상장)
+                            # 날짜는 지났는데 위 상태(철회 등)도 아니고 가격도 없는 경우
                             price_html = f"<div class='price-main' style='color:#f57c00 !important; font-size: 11.5px !important;'>{get_text('status_delayed_unlisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                         else:
-                            # 상장일이 오늘이거나 미래인 경우 (정상 대기)
+                            # 미래 상장 예정인 경우
                             price_html = f"<div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div><div class='price-sub' style='color:#666666 !important;'>{get_text('status_waiting')}</div>"
                     
+                    # --- [UI 렌더링 시작] ---
                     date_html = f"<div class='date-text'>{row['date']}</div>"
                     c1, c2 = st.columns([7, 3])
                     
                     with c1:
-                        # 💡 [최종 수정] 캘린더 화면을 즉시 폭파하고 리런합니다.
                         if st.button(f"{row['name']}", key=f"btn_list_{i}"):
-                            main_area.empty() # 화면 비우기
+                            main_area.empty()
                             st.session_state.selected_stock = row.to_dict()
                             st.session_state.page = 'detail'
-                            st.session_state.detail_sub_menu = get_text('tab_0') # Detail 페이지 진입 시 첫 탭 강제 설정
+                            st.session_state.detail_sub_menu = get_text('tab_0')
                             st.rerun()
                         
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
@@ -3995,8 +4009,6 @@ with main_area.container():
                         st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                     
                     st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
-            else:
-                st.info(get_text('err_no_results') if 'err_no_results' in UI_TEXT[st.session_state.lang] else "No results found.")
     
     
     
@@ -4067,25 +4079,41 @@ with main_area.container():
             date_str = ipo_dt.strftime('%Y-%m-%d')
             label_ipo = get_text('label_ipo_price')
             
-            if current_s == "상장연기": 
+            # 💡 [상세 페이지 헤더 로직 강화] 상태값 키워드 판별 및 다국어 대응
+            status_lower = str(current_s).lower()
+            is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn', 'rw'])
+            is_delayed = any(x in status_lower for x in ['연기', 'delayed'])
+            is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
+
+            # 1. 상장 철회 (RW 서류 등록 기업 우선 처리)
+            if is_withdrawn:
+                p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('label_rw')})</span>"
+            
+            # 2. 공식 상장 연기
+            elif is_delayed:
                 p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
-            elif current_s == "상장폐지": 
+            
+            # 3. 상장 폐지
+            elif is_delisted:
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
+            
+            # 4. 정상 거래 중 (주가가 있는 경우)
             elif current_p > 0 and off_val > 0:
                 pct = ((current_p - off_val) / off_val) * 100
                 color = "#00ff41" if pct >= 0 else "#ff4b4b"
                 icon = "▲" if pct >= 0 else "▼"
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
+            
+            # 5. 그 외 주가가 0인 경우 (날짜 기반 판별)
             else: 
-                # 💡 [교정] 상세 페이지 헤더 문구 수정
                 if ipo_dt < today:
-                    # 상장일이 지났음 (지연 또는 비상장 상태)
+                    # 상장일이 지났는데 위 상태(철회 등)도 아니고 가격도 없는 경우
                     p_info = f"<span style='font-size: 0.9rem; color: #f57c00;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_delayed_unlisted')})</span>"
                 else:
-                    # 상장 대기 중
+                    # 미래 상장 예정
                     p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / ⏳ {get_text('status_waiting')})</span>"
             
-            # 여기서 화면에 한 번만 그려줍니다.
+            # 여기서 화면에 헤더를 그려줍니다.
             st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
             st.write("")
     
