@@ -3953,14 +3953,26 @@ with main_area.container():
                     live_p = row.get('live_price', 0)
                     live_s = row.get('live_status', 'Active')
                     
-                    if live_s == "상장연기": price_html = f"<div class='price-main' style='color:#1919e6 !important;'>{get_text('status_delayed')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
-                    elif live_s == "상장폐지": price_html = f"<div class='price-main' style='color:#888888 !important;'>{get_text('status_delisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                    if live_s == "상장연기": 
+                        price_html = f"<div class='price-main' style='color:#1919e6 !important;'>{get_text('status_delayed')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                    elif live_s == "상장폐지": 
+                        price_html = f"<div class='price-main' style='color:#888888 !important;'>{get_text('status_delisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     elif live_p > 0:
                         pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
                         change_color = "#e61919" if pct > 0 else "#1919e6" if pct < 0 else "#333333"
                         arrow = "▲" if pct > 0 else "▼" if pct < 0 else ""
                         price_html = f"<div class='price-main' style='color:{change_color} !important;'>${live_p:,.2f} ({arrow}{pct:+.1f}%)</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
-                    else: price_html = f"<div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div><div class='price-sub' style='color:#666666 !important;'>{get_text('label_ipo_price')}</div>"
+                    else: 
+                        # 💡 [핵심 교정] 주가가 0일 때 상장일이 지났는지 체크합니다.
+                        # row['공모일_dt']는 위쪽 로직에서 이미 pd.to_datetime 처리가 되어 있습니다.
+                        item_date = row['공모일_dt'].date()
+                        
+                        if item_date < today_dt.date():
+                            # 상장일이 지났는데 주가가 없는 경우 (지연 또는 비상장)
+                            price_html = f"<div class='price-main' style='color:#f57c00 !important; font-size: 11.5px !important;'>{get_text('status_delayed_unlisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                        else:
+                            # 상장일이 오늘이거나 미래인 경우 (정상 대기)
+                            price_html = f"<div class='price-main' style='color:#333333 !important;'>${p_val:,.2f}</div><div class='price-sub' style='color:#666666 !important;'>{get_text('status_waiting')}</div>"
                     
                     date_html = f"<div class='date-text'>{row['date']}</div>"
                     c1, c2 = st.columns([7, 3])
@@ -3984,7 +3996,7 @@ with main_area.container():
                     
                     st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
             else:
-                st.info("조건에 맞는 종목이 없습니다." if st.session_state.lang == 'ko' else "No results found.")
+                st.info(get_text('err_no_results') if 'err_no_results' in UI_TEXT[st.session_state.lang] else "No results found.")
     
     
     
@@ -4065,11 +4077,13 @@ with main_area.container():
                 icon = "▲" if pct >= 0 else "▼"
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
             else: 
-                # 💡 [핵심 교정] 가격이 없는데 날짜가 지났다면 OTC/지연 문구 노출
+                # 💡 [교정] 상세 페이지 헤더 문구 수정
                 if ipo_dt < today:
-                    p_info = f"<span style='font-size: 0.9rem; color: #f57c00;'>({date_str} / {label_ipo} ${off_val} / ⚠️ {get_text('status_otc_delayed')})</span>"
+                    # 상장일이 지났음 (지연 또는 비상장 상태)
+                    p_info = f"<span style='font-size: 0.9rem; color: #f57c00;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_delayed_unlisted')})</span>"
                 else:
-                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_waiting')})</span>"
+                    # 상장 대기 중
+                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / ⏳ {get_text('status_waiting')})</span>"
             
             # 여기서 화면에 한 번만 그려줍니다.
             st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
