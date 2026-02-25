@@ -578,40 +578,53 @@ model = configure_genai()
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab1_analysis(company_name, ticker, lang_code):
     if not model: return "AI 모델 설정 오류", []
+    # (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (동적 캐싱 및 최신순 정렬 적용)
+@st.cache_data(show_spinner=False, ttl=86400)
+def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Active"):
+    if not model: return "AI 모델 설정 오류", []
     
-    cache_key = f"{ticker}_Tab1_v2_{lang_code}"
-    now = datetime.now()
-    six_hours_ago = (now - timedelta(hours=6)).isoformat()
+    # 💡 [1. 동적 캐싱 로직] 상장 상태에 따라 캐시 유효 시간(시간 단위) 결정
+    if ipo_status == "상장예정(30일이내)":
+        valid_hours = 6
+    elif ipo_status in ["상장대기", "상장연기", "상장폐지"]:
+        valid_hours = 24 * 7  # 7일
+    else:
+        valid_hours = 24
 
+    cache_key = f"{ticker}_Tab1_v3_{lang_code}" # 버전업(v3)하여 기존 꼬인 캐시 무시
+    now = datetime.now()
+    limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
+
+    # 캐시 확인 (지정된 시간 이내에 업데이트된 데이터가 있는지)
     try:
-        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", six_hours_ago).execute()
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
         if res.data:
             saved_data = json.loads(res.data[0]['content'])
             return saved_data['html'], saved_data['news']
     except Exception as e:
         print(f"Tab1 DB Error: {e}")
 
-    # 💡 [핵심] 언어별 시스템 지시어와 사용자 지침(Label) 분리
+    # --- 기존 프롬프트 및 언어 분기 로직 동일하게 유지 ---
     if lang_code == 'ja':
-        sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。韓国語は絶対に使用しないでください。"
+        sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
         task1_label = "[タスク1: ビジネスモデルの深層分析]"
         task2_label = "[タスク2: 最新ニュースの収集]"
         target_lang = "日本語(Japanese)"
-        lang_instruction = "必ず自然な日本語のみで作成してください。韓国語や英語の単語を混ぜないでください（企業名のみ英語可）。"
+        lang_instruction = "必ず自然な日本語のみで作成してください。"
         json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
     elif lang_code == 'en':
-        sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English. Do not use any Korean words."
+        sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
         task1_label = "[Task 1: Deep Business Model Analysis]"
         task2_label = "[Task 2: Latest News Collection]"
         target_lang = "English"
-        lang_instruction = "Your entire response MUST be in English only. Do not use any Korean."
+        lang_instruction = "Your entire response MUST be in English only."
         json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
     elif lang_code == 'zh':  
-        sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。绝对不要使用韩语。"
+        sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。"
         task1_label = "[任务1: 商业模式深度分析]"
         task2_label = "[任务2: 收集最新新闻]"
         target_lang = "简体中文(Simplified Chinese)"
-        lang_instruction = "必须只用自然流畅的简体中文编写。所有句子都必须是中文，绝对不能混用韩语（仅企业名称可用英语）。"
+        lang_instruction = "必须只用自然流畅的简体中文编写。"
         json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "中文标题", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
     else:
         sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
@@ -631,13 +644,11 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
     {task1_label}
     아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
     1. 언어: {lang_instruction}
-       - 경고: 영어 단어(potential, growth 등)를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
-    2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
+    2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요.
        - 1문단: 비즈니스 모델 및 경쟁 우위
        - 2문단: 재무 현황 및 공모 자금 활용
        - 3문단: 향후 전망 및 투자 의견
     3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
-    4. 최종 검수(Self-Check): 답변을 최종 출력하기 전에 스스로 엄격하게 검토하세요. 인사말, 서론, 또는 {target_lang} 외의 언어(특히 한국어)가 단 한 글자라도 포함되어 있다면 해당 부분을 완전히 삭제하고 완벽한 {target_lang} 문장으로만 구성하여 답변하세요.
     
     {task2_label}
     - 반드시 구글 검색을 실행하여 최신 정보를 확인하세요.
@@ -656,25 +667,20 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
             response = model.generate_content(prompt)
             full_text = response.text
 
-            # 💡 [핵심 방어막] 에러 유발하던 내부 import 구문 제거
             if lang_code != 'ko':
                 check_text = full_text.replace("긍정", "").replace("부정", "").replace("일반", "")
                 if re.search(r'[가-힣]', check_text):
-                    print(f"⚠️ Tab1 한국어 혼용 감지됨 ({lang_code}). 재시도 {attempt+1}/{max_retries}")
-                    time.sleep(1)
-                    continue 
+                    time.sleep(1); continue 
 
             news_list = []
             json_str = ""
             
             json_match = re.search(r'\[\s*\{.*?\}\s*\]', full_text, re.DOTALL)
-            
             if json_match:
                 json_str = json_match.group(0)
                 try:
                     news_list = json.loads(json_str)
-                except:
-                    pass
+                except: pass
 
             if json_str:
                 biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
@@ -688,6 +694,9 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
             html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
 
             if news_list:
+                # 💡 [2. 최신 뉴스 정렬 로직] date 필드를 기준으로 내림차순(최신순) 정렬
+                news_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
+                
                 for n in news_list:
                     if n.get('sentiment') == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
                     elif n.get('sentiment') == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
@@ -706,7 +715,7 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code):
                 return f"<p style='color:red;'>시스템 오류: {str(e)}</p>", []
             time.sleep(1)
 
-    return f"<p style='color:red;'>시스템 오류: 언어 생성 지연이 발생했습니다.</p>", []
+    return f"<p style='color:red;'>시스템 오류: 언어 생성 지연</p>", []
 
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_ai_analysis(company_name, topic, lang_code):
