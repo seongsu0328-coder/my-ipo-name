@@ -954,24 +954,19 @@ def get_market_dashboard_analysis(metrics_data, lang_code):
 # ==========================================
 # [기능] 1. 구글 연결 핵심 함수 (최우선 순위)
 # ==========================================
-@st.cache_resource
+# 💡 [핵심 수정] 1시간(3600초)마다 연결을 리셋하여 '네트워크 끊김 현상'을 원천 차단합니다.
+@st.cache_resource(ttl=3600)
 def get_gcp_clients():
     try:
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         
-        # --- 🚀 핵심 수정 부분 시작 ---
         gcp_raw = os.environ.get("GCP_SERVICE_ACCOUNT")
-        
         if gcp_raw:
-            # Railway 서버: 환경 변수에서 가져온 문자열을 파이썬 딕셔너리로 변환
             creds_dict = json.loads(gcp_raw)
         else:
-            # 대표님 로컬 PC: 기존처럼 secrets.toml에서 가져옴
             creds_dict = st.secrets["gcp_service_account"]
-        # --- 🚀 핵심 수정 부분 끝 ---
 
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        
         gspread_client = gspread.authorize(creds)
         drive_service = build('drive', 'v3', credentials=creds)
         
