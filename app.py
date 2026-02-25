@@ -1208,7 +1208,7 @@ def get_extended_ipo_data(api_key):
 def get_batch_prices(ticker_list):
     """
     DB에서 가격과 상태를 가져오고, 부족한 정보만 API로 채운 뒤 
-    다시 DB에 '직송 모드'로 저장합니다.
+    다시 DB에 '직송 모드'로 저장합니다. (야후 실패 시 OTC 백업 포함)
     """
     if not ticker_list: return {}, {}
     clean_tickers = [str(t).strip() for t in ticker_list if t and str(t).strip().lower() != 'nan']
@@ -1256,8 +1256,15 @@ def get_batch_prices(ticker_list):
                     else:
                         target_data = data['Close'].dropna()
 
-                    if not target_data.empty:
+                    current_p = 0.0
+                    if not target_data.empty and float(target_data.iloc[-1]) > 0:
                         current_p = float(round(target_data.iloc[-1], 4))
+                    else:
+                        # 💡 [핵심 파이프라인] 야후에서 실패(0원)하면 예비 OTC 함수를 찌른다!
+                        current_p = fetch_otc_price_for_app(t)
+
+                    # 최종 가격이 0보다 클 때만 캐시 및 DB 업데이트
+                    if current_p > 0:
                         cached_prices[t] = current_p
                         db_status_map[t] = "Active"
                         
@@ -1269,20 +1276,40 @@ def get_batch_prices(ticker_list):
                         })
                 except: continue
             
-            # [수정 핵심] 라이브러리 upsert 대신 우리가 만든 batch_upsert를 사용합니다.
             if upsert_payload:
                 batch_upsert("price_cache", upsert_payload, on_conflict="ticker")
 
         except Exception as e:
             print(f"API Fetch Error: {e}")
 
-    # [핵심] 호출부(app.py)에서 두 개를 받기로 했으므로 반드시 두 개를 리턴합니다.
     return cached_prices, db_status_map
+
+# =====================================================================
+# 💡 [외주 개발자 지시용] 향후 유료 API(Polygon.io 등) 연동을 위한 예비 공간
+# =====================================================================
+def fetch_otc_price_for_app(ticker):
+    """
+    TODO: 상세 페이지 진입 시 야후 무료 API가 실패할 경우 호출되는 백업 함수입니다.
+    추후 Polygon 연동 전까지는 0.0을 반환합니다. 구조를 절대 삭제하지 마세요.
+    """
+    # --------------------------------------------------
+    # [미래에 대표님이 삽입할 코드 예시]
+    # import requests
+    # POLYGON_KEY = st.secrets.get("POLYGON_API_KEY", "")
+    # url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?adjusted=true&apiKey={POLYGON_KEY}"
+    # try:
+    #     res = requests.get(url, timeout=3).json()
+    #     return float(res['results'][0]['c'])
+    # except:
+    #     return 0.0
+    # --------------------------------------------------
+    return 0.0
+
 
 def get_current_stock_price(ticker, api_key=None):
     """
     단일 종목의 현재가를 조회하되, DB에 '상장연기/폐지' 기록이 있다면 
-    야후 API 호출을 건너뛰는 똑똑한 안전장치입니다.
+    야후 API 호출을 건너뛰는 똑똑한 안전장치 + OTC 백업 기능이 포함된 함수입니다.
     """
     try:
         # [Step 1] DB에서 먼저 상태와 가격 확인
@@ -1303,17 +1330,24 @@ def get_current_stock_price(ticker, api_key=None):
 
         # [Step 2] DB에 없거나 업데이트가 필요할 때만 야후 호출
         stock = yf.Ticker(ticker)
-        # 주말 대응을 위해 interval="1m"은 제거한 상태로 조회
         df = stock.history(period='1d')
         
-        if not df.empty:
+        if not df.empty and float(df['Close'].iloc[-1]) > 0:
             current_p = float(round(df['Close'].iloc[-1], 4))
             return current_p, "Active"
         else:
-            # 야후에서도 데이터가 없다면? (이 종목은 문제가 있는 것)
-            return 0.0, "데이터없음"
+            # 💡 [핵심 파이프라인] 야후에서 실패하면 예비 OTC 함수를 찌른다!
+            otc_price = fetch_otc_price_for_app(ticker)
+            if otc_price > 0:
+                return otc_price, "Active"
+            else:
+                return 0.0, "데이터없음"
             
     except Exception:
+        # 💡 에러가 나도 한 번 더 OTC 백업 함수를 찔러봄
+        otc_price = fetch_otc_price_for_app(ticker)
+        if otc_price > 0:
+            return otc_price, "Active"
         return 0.0, "에러"
 
 
