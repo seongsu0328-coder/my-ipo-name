@@ -4511,13 +4511,9 @@ with main_area.container():
                     
                     community_scores = db_load_community_scores(sid)
                     if not community_scores: community_scores = [user_score]
-                    total_participants = len(community_scores)
-                    optimists = sum(1 for s in community_scores if s > 0)
-                    optimist_pct = (optimists / total_participants * 100) if total_participants > 0 else 0
-                    user_percentile = (sum(1 for s in community_scores if s <= user_score) / total_participants * 100) if total_participants > 0 else 100
                     
                     # ---------------------------------------------------------
-                    # 🔥 [새로운 그래프 포맷] 가로형 시장 낙관도 (Market Optimism Gauge)
+                    # 🔥 [새로운 그래프 포맷] 1. 가로형 시장 낙관도 (Gauge Bar)
                     # ---------------------------------------------------------
                     market_avg = sum(community_scores) / len(community_scores)
                     
@@ -4525,91 +4521,94 @@ with main_area.container():
                     avg_pct = min(max(((market_avg + 5) / 10) * 100, 0), 100)
                     user_pct = min(max(((user_score + 5) / 10) * 100, 0), 100)
                     
-                    gauge_html = f"""
-                    <div style="background-color: #ffffff; padding: 35px 20px 65px 20px; border-radius: 15px; border: 1px solid #e0e0e0; box-shadow: 0 4px 10px rgba(0,0,0,0.03); margin-bottom: 30px;">
-                        <div style="text-align: center; font-size: 1.25rem; font-weight: 800; color: #222; margin-bottom: 45px;">
-                            📊 {get_text('chart_optimism')}
-                        </div>
-                        
-                        <div style="position: relative; width: 100%; height: 24px; background: linear-gradient(to right, #ff4b4b 0%, #f1f3f4 50%, #00ff41 100%); border-radius: 12px;">
-                            
-                            <div style="position: absolute; top: 35px; left: 0%; transform: translateX(0%); font-size: 13px; font-weight: 700; color: #d32f2f;">{get_text('label_gauge_neg')}</div>
-                            <div style="position: absolute; top: 35px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 700; color: #757575;">{get_text('label_gauge_neu')}</div>
-                            <div style="position: absolute; top: 35px; left: 100%; transform: translateX(-100%); font-size: 13px; font-weight: 700; color: #2e7d32;">{get_text('label_gauge_pos')}</div>
-                            
-                            <div style="position: absolute; top: -45px; left: {avg_pct}%; transform: translateX(-50%); text-align: center; z-index: 10;">
-                                <div style="font-size: 12px; font-weight: 800; color: #444; white-space: nowrap; background: #fff; padding: 2px 6px; border-radius: 4px; border: 1px solid #ccc;">
-                                    {get_text('label_market_avg')} : {market_avg:+.1f}
-                                </div>
-                                <div style="color: #444; font-size: 16px; margin-top: -6px;">▼</div>
-                            </div>
-                            
-                            <div style="position: absolute; top: -14px; left: {user_pct}%; transform: translateX(-50%); text-align: center; z-index: 20;">
-                                <div style="background-color: #004e92; color: #fff; border-radius: 50%; width: 28px; height: 28px; line-height: 28px; font-size: 13px; font-weight: bold; border: 3px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.3); margin: 0 auto;">나</div>
-                                <div style="font-size: 12px; font-weight: 800; color: #004e92; white-space: nowrap; margin-top: 5px;">
-                                    {get_text('label_my_pos')} ({user_score:+d})
-                                </div>
-                            </div>
-                            
-                        </div>
-                    </div>
-                    """
+                    # 제목을 박스 밖으로 빼고 왼쪽 정렬
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>{get_text('chart_optimism')}</div>", unsafe_allow_html=True)
+                    
+                    # HTML 들여쓰기 완벽 제거 (화면 깨짐 방지)
+                    gauge_html = f"""<div style="background-color: #ffffff; padding: 45px 20px 75px 20px; border-radius: 15px; border: 1px solid #e0e0e0; box-shadow: 0 4px 10px rgba(0,0,0,0.03); margin-bottom: 30px;">
+<div style="position: relative; width: 100%; height: 20px; background: linear-gradient(to right, #ff4b4b 0%, #f1f3f4 50%, #00ff41 100%); border-radius: 10px;">
+    <div style="position: absolute; top: 30px; left: 0%; transform: translateX(0%); font-size: 13px; font-weight: 700; color: #d32f2f;">{get_text('label_gauge_neg')}</div>
+    <div style="position: absolute; top: 30px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 700; color: #757575;">{get_text('label_gauge_neu')}</div>
+    <div style="position: absolute; top: 30px; left: 100%; transform: translateX(-100%); font-size: 13px; font-weight: 700; color: #2e7d32;">{get_text('label_gauge_pos')}</div>
+    <div style="position: absolute; top: -40px; left: {avg_pct}%; transform: translateX(-50%); text-align: center; z-index: 10;">
+        <div style="font-size: 12px; font-weight: 800; color: #444; white-space: nowrap; background: #fff; padding: 3px 8px; border-radius: 6px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">{get_text('label_market_avg')} : {market_avg:+.1f}</div>
+        <div style="color: #444; font-size: 14px; margin-top: -4px;">▼</div>
+    </div>
+    <div style="position: absolute; top: -4px; left: {user_pct}%; transform: translateX(-50%); text-align: center; z-index: 20;">
+        <div style="background-color: #004e92; color: #fff; border-radius: 50%; width: 28px; height: 28px; line-height: 22px; font-size: 13px; font-weight: bold; border: 3px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.3); margin: 0 auto;">나</div>
+        <div style="font-size: 12px; font-weight: 800; color: #004e92; white-space: nowrap; margin-top: 32px;">{get_text('label_my_pos')} ({user_score:+d})</div>
+    </div>
+</div>
+</div>"""
                     st.markdown(gauge_html, unsafe_allow_html=True)
                     
-                    # (기존 황소/곰 아이콘 요약 박스 유지)
+                    # ---------------------------------------------------------
+                    # 🔥 [새로운 그래프 포맷] 2. 실시간 커뮤니티 전망 (Stacked Bar)
+                    # ---------------------------------------------------------
+                    st.write("<br>", unsafe_allow_html=True)
                     st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>{get_text('label_community_forecast')}</div>", unsafe_allow_html=True)
-                up_voters, down_voters = db_load_sentiment_counts(sid)
-                total_votes = up_voters + down_voters
-                up_pct = (up_voters / total_votes * 100) if total_votes > 0 else 50
-                down_pct = (down_voters / total_votes * 100) if total_votes > 0 else 50
-                
-                col_bull, col_bear = st.columns(2)
-                with col_bull: st.markdown(f"<div style='background-color: #ebfaef; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #c3e6cb;'><img src='https://img.icons8.com/color/96/bull.png' width='60' style='margin-bottom:10px;'><div style='color: #28a745; font-weight: 800; font-size: 1.2rem;'>BULLISH</div><div style='color: #333; font-size: 1.5rem; font-weight: 900;'>{up_pct:.1f}%</div></div>", unsafe_allow_html=True)
-                with col_bear: st.markdown(f"<div style='background-color: #fff5f5; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #feb2b2;'><img src='https://img.icons8.com/color/96/bear.png' width='60' style='margin-bottom:10px;'><div style='color: #dc3545; font-weight: 800; font-size: 1.2rem;'>BEARISH</div><div style='color: #333; font-size: 1.5rem; font-weight: 900;'>{down_pct:.1f}%</div></div>", unsafe_allow_html=True)
-    
-                if st.session_state.get('auth_status') == 'user':
-                    if sid not in st.session_state.watchlist:
-                        st.caption(get_text('msg_vote_guide'))
-                        c_up, c_down = st.columns(2)
-                        
-                        # 1. 상승(UP) 버튼
-                        if c_up.button(get_text('btn_vote_up'), key=f"up_vote_{sid}", use_container_width=True, type="primary"):
-                            db_toggle_watchlist(user_id, sid, "UP", action='add')
-                            
-                            # 🔥 [핵심 추가] 투표 시점의 '현재가(current_p)'를 함께 저장
-                            db_log_user_action(user_id, sid, "VOTE_UP", price=current_p, details="Bullish 배팅")
-                            
-                            if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
-                            st.session_state.watchlist_predictions[sid] = "UP"
-                            st.rerun()
-                            
-                        # 2. 하락(DOWN) 버튼
-                        if c_down.button(get_text('btn_vote_down'), key=f"dn_vote_{sid}", use_container_width=True):
-                            db_toggle_watchlist(user_id, sid, "DOWN", action='add')
-                            
-                            # 🔥 [핵심 추가] 투표 시점의 '현재가(current_p)'를 함께 저장
-                            db_log_user_action(user_id, sid, "VOTE_DOWN", price=current_p, details="Bearish 배팅")
-                            
-                            if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
-                            st.session_state.watchlist_predictions[sid] = "DOWN"
-                            st.rerun()
-                            
+                    
+                    up_voters, down_voters = db_load_sentiment_counts(sid)
+                    total_votes = up_voters + down_voters
+                    
+                    if total_votes > 0:
+                        up_pct = (up_voters / total_votes) * 100
+                        down_pct = (down_voters / total_votes) * 100
                     else:
-                        pred = st.session_state.watchlist_predictions.get(sid, "N/A")
-                        color = "#28a745" if pred == "UP" else "#dc3545"
-                        pred_text = "BULLISH" if pred == "UP" else "BEARISH"
-                        st.markdown(f"<div style='padding: 15px; border-radius: 10px; border: 1px solid {color}; text-align: center; font-weight: bold; color: {color};'>{get_text('msg_my_choice')} {pred_text} </div>", unsafe_allow_html=True)
-                        
-                        if st.button(get_text('btn_cancel_vote'), key=f"rm_vote_{sid}", use_container_width=True):
-                            db_toggle_watchlist(user_id, sid, action='remove')
+                        up_pct = 50.0
+                        down_pct = 50.0
+
+                    # HTML 들여쓰기 완벽 제거
+                    sentiment_html = f"""<div style="margin-bottom: 20px; padding: 0 5px;">
+<div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 800; font-family: sans-serif;">
+    <span style="color: #2e7d32; font-size: 1.2rem;">🐂 Bullish {up_pct:.0f}%</span>
+    <span style="color: #d32f2f; font-size: 1.2rem;">{down_pct:.0f}% Bearish 🐻</span>
+</div>
+<div style="display: flex; width: 100%; height: 16px; border-radius: 8px; overflow: hidden; background-color: #f1f3f4; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="width: {up_pct}%; background-color: #00ff41; transition: width 0.5s ease;"></div>
+    <div style="width: {down_pct}%; background-color: #ff4b4b; transition: width 0.5s ease;"></div>
+</div>
+<div style="text-align: center; color: #888; font-size: 0.85rem; margin-top: 8px; font-weight: 600;">
+    Total Votes: {total_votes:,}
+</div>
+</div>"""
+                    st.markdown(sentiment_html, unsafe_allow_html=True)
+                    
+                    # 투표 버튼 영역 (🐂 🐻 이모지 추가)
+                    if st.session_state.get('auth_status') == 'user':
+                        if sid not in st.session_state.watchlist:
+                            st.caption(get_text('msg_vote_guide'))
+                            c_up, c_down = st.columns(2)
                             
-                            # 🔥 [옵션] 투표 취소 기록도 남기고 싶다면 주석 해제
-                            # db_log_user_action(user_id, sid, "VOTE_CANCEL", price=current_p, details="투표 취소")
+                            if c_up.button("🐂 " + get_text('btn_vote_up'), key=f"up_vote_{sid}", use_container_width=True, type="primary"):
+                                db_toggle_watchlist(user_id, sid, "UP", action='add')
+                                db_log_user_action(user_id, sid, "VOTE_UP", price=current_p, details="Bullish 배팅")
+                                if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
+                                st.session_state.watchlist_predictions[sid] = "UP"
+                                st.rerun()
+                                
+                            if c_down.button("🐻 " + get_text('btn_vote_down'), key=f"dn_vote_{sid}", use_container_width=True):
+                                db_toggle_watchlist(user_id, sid, "DOWN", action='add')
+                                db_log_user_action(user_id, sid, "VOTE_DOWN", price=current_p, details="Bearish 배팅")
+                                if sid not in st.session_state.watchlist: st.session_state.watchlist.append(sid)
+                                st.session_state.watchlist_predictions[sid] = "DOWN"
+                                st.rerun()
+                                
+                        else:
+                            pred = st.session_state.watchlist_predictions.get(sid, "N/A")
+                            color = "#28a745" if pred == "UP" else "#dc3545"
+                            pred_text = "🐂 BULLISH" if pred == "UP" else "🐻 BEARISH"
                             
-                            if sid in st.session_state.watchlist: st.session_state.watchlist.remove(sid)
-                            if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
-                            st.rerun()
-                else: st.warning(get_text('msg_login_vote'))
+                            st.markdown(f"<div style='padding: 12px; border-radius: 10px; border: 2px solid {color}; text-align: center; font-weight: 800; color: {color}; font-size: 1.1rem; background-color: #f8f9fa;'>{get_text('msg_my_choice')} {pred_text} </div>", unsafe_allow_html=True)
+                            
+                            st.write("")
+                            if st.button("🔄 " + get_text('btn_cancel_vote'), key=f"rm_vote_{sid}", use_container_width=True):
+                                db_toggle_watchlist(user_id, sid, action='remove')
+                                if sid in st.session_state.watchlist: st.session_state.watchlist.remove(sid)
+                                if sid in st.session_state.watchlist_predictions: del st.session_state.watchlist_predictions[sid]
+                                st.rerun()
+                    else: 
+                        st.warning(get_text('msg_login_vote'))
     
                 st.write("<br>", unsafe_allow_html=True)
                 st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 10px;'>{sid} {get_text('label_discussion_board')}</div>", unsafe_allow_html=True)
@@ -4743,7 +4742,7 @@ with main_area.container():
                 else: 
                     st.info(get_text('msg_first_comment'))
                     
-                draw_decision_box("ipo_report", get_text('decision_final_invest'), [get_text('opt_buy'), get_text('sentiment_neutral'), get_text('opt_sell')])
+                draw_decision_box("ipo_report", get_text('decision_final_invest'), ['opt_buy', 'sentiment_neutral', 'opt_sell'], current_p)
                 display_disclaimer()
 
     # ---------------------------------------------------------
