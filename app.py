@@ -2512,9 +2512,14 @@ UI_TEXT = {
     # ==========================================
     # 16. 프로필 및 설문조사 (Profile & Survey)
     # ==========================================
-    'header_basic_profile': {'ko': '👤 기본 인증 프로필', 'en': '👤 Basic Profile', 'ja': '👤 基本認証プロフィール', 'zh': '👤 基本认证资料'},
-    'header_survey': {'ko': '📊 투자 성향 설문조사', 'en': '📊 Investment Profile Survey', 'ja': '📊 投資性向アンケート', 'zh': '📊 投资偏好问卷'},
-    'desc_survey': {'ko': '이 정보는 향후 프리미엄 투자 통계 자료를 생성하는 데 귀중하게 활용됩니다.', 'en': 'This information will be used to generate premium investment statistics.', 'ja': 'この情報は、今後のプレミアム投資統計データを作成するために活用されます。', 'zh': '此信息将用于生成高级投资统计数据。'},
+    'header_basic_profile': {'ko': ' 기본 인증프로필', 'en': 'Basic Profile', 'ja': '基本認証プロフィール', 'zh': '基本认证资料'},
+    'header_survey': {'ko': ' 투자성향 설문조사', 'en': 'Investment Profile Survey', 'ja': '投資性向アンケート', 'zh': '投资偏好问卷'},
+    'desc_survey': {
+        'ko': '개인별 맞춤투자전략 및 시장상황평가를 위해 활용됩니다.', 
+        'en': 'This information is used for personalized investment strategies and market condition assessments.', 
+        'ja': '個人別のカスタマイ즈投資戦略および市場状況評価のために活用されます。', 
+        'zh': '此信息用于个人定制投资策略和市场状况评估。'
+    },
     'msg_submit_guide': {'ko': "💡 카테고리를 선택하고 증빙 서류를 첨부하면 '글쓰기/투표' 권한이 신청됩니다. (서류 제출은 선택사항)", 'en': "💡 Select categories and attach documents to apply for posting/voting rights. (Docs are optional)", 'ja': "💡 カテゴリを選択して書類を添付すると、投稿/投票権限が申請されます。(書類提出は任意)", 'zh': "💡 选择类别并附加证明文件即可申请发帖/投票权限。（文件提交为可选）"},
     
     'label_survey_exp': {'ko': '1. 투자 경력 (Investment Experience)', 'en': '1. Investment Experience', 'ja': '1. 投資経験', 'zh': '1. 投资经验'},
@@ -2576,7 +2581,7 @@ UI_TEXT = {
     # ==========================================
     # 17. 알림 수신 설정 (Notification Settings)
     # ==========================================
-    'header_noti_setting': {'ko': '🔔 프리미엄 알림 수신 설정', 'en': '🔔 Premium Alert Settings', 'ja': '🔔 プレミアム通知受信設定', 'zh': '🔔 高级通知接收设置'},
+    'header_noti_setting': {'ko': '프리미엄 알림 수신설정', 'en': 'Premium Alert Settings', 'ja': 'プレミアム通知受信設定', 'zh': '高级通知接收设置'},
     'desc_noti_setting': {'ko': '주요 상장 일정 및 급등 종목 알림을 받을 매체를 선택해 주세요.', 'en': 'Select the medium to receive alerts for major IPO schedules and surging stocks.', 'ja': '主要な上場日程や急騰銘柄の通知を受け取るメディアを選択してください。', 'zh': '请选择接收主要上市日程和暴涨股票通知的媒介。'},
     'label_noti_method': {'ko': '알림 수신 방법', 'en': 'Notification Method', 'ja': '通知受信方法', 'zh': '通知接收方式'},
     
