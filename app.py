@@ -4075,16 +4075,21 @@ with main_area.container():
                     div.stButton > button[kind="primary"]:hover { background-color: #b71c1c !important; border-color: #b71c1c !important; }
                 </style>""", unsafe_allow_html=True)
     
-                # 기업 상태 및 상장일 경과 확인
-                final_status = stock.get('status', current_s).lower()
+                # 1. 기업 상태 확인
+                final_status = str(stock.get('status', current_s)).lower()
                 is_withdrawn = any(x in final_status for x in ['철회', '취소', 'withdrawn'])
                 is_delisted = any(x in final_status for x in ['폐지', 'delisted'])
                 
-                ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
-                today_date = datetime.now().date()
-                is_over_1y = (today_date - ipo_dt).days > 365 
+                # 💡 [핵심 수정] 날짜 안전장치: 데이터가 이상하면 1년 이하(S-1 모드)로 기본 처리
+                is_over_1y = False
+                try:
+                    ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
+                    if (datetime.now().date() - ipo_dt).days > 365:
+                        is_over_1y = True
+                except:
+                    pass 
 
-                # 💡 [핵심 수정] 상태별로 렌더링할 버튼 목록과 속성(순서, 디자인)을 배열로 정의
+                # 💡 상태별로 렌더링할 버튼 목록과 속성(순서, 디자인)을 배열로 정의
                 if is_withdrawn:
                     btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("RW", "primary")]
                     default_topic = "RW"
