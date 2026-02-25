@@ -4409,7 +4409,13 @@ with main_area.container():
             # --- Tab 1: 뉴스 & 심층 분석 ---
             elif selected_sub_menu == get_text('tab_1'):
                 with st.spinner(get_text('msg_analyzing_tab1')):
-                    biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'], st.session_state.lang)
+                    biz_info, final_display_news = get_unified_tab1_analysis(
+                        stock['name'], 
+                        stock['symbol'], 
+                        st.session_state.lang, 
+                        stock.get('status', current_s), 
+                        stock.get('date')  # 💡 이 줄이 추가되어야 1년 초과 여부를 알 수 있습니다.
+                    )
 
                 st.write("<br>", unsafe_allow_html=True)
                 with st.expander(get_text('expander_biz_summary'), expanded=False):
