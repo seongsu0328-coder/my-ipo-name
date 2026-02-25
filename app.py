@@ -574,28 +574,40 @@ model = configure_genai()
 # [1] 통합 분석 함수 (Tab 1 & Tab 4 대체용) - 프롬프트 강화판
 # ---------------------------------------------------------
 
-# (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 - 디테일 프롬프트 보존판
+# (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (동적 캐싱 및 맞춤형 프롬프트 적용)
 @st.cache_data(show_spinner=False, ttl=86400)
-def get_unified_tab1_analysis(company_name, ticker, lang_code):
-    if not model: return "AI 모델 설정 오류", []
-    # (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (동적 캐싱 및 최신순 정렬 적용)
-@st.cache_data(show_spinner=False, ttl=86400)
-def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Active"):
+def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Active", ipo_date_str=None):
     if not model: return "AI 모델 설정 오류", []
     
-    # 💡 [1. 동적 캐싱 로직] 상장 상태에 따라 캐시 유효 시간(시간 단위) 결정
-    if ipo_status == "상장예정(30일이내)":
-        valid_hours = 6
-    elif ipo_status in ["상장대기", "상장연기", "상장폐지"]:
-        valid_hours = 24 * 7  # 7일
-    else:
-        valid_hours = 24
-
-    cache_key = f"{ticker}_Tab1_v4_{lang_code}" # 버전업(v4)하여 기존 꼬인 캐시 무시
     now = datetime.now()
+    
+    # 💡 [1. 기업 생애주기 및 상태 정밀 판별]
+    status_lower = str(ipo_status).lower()
+    
+    import re
+    is_withdrawn = bool(re.search(r'\b(withdrawn|rw|철회|취소)\b', status_lower))
+    is_delisted_or_otc = bool(re.search(r'\b(delisted|폐지|otc)\b', status_lower))
+    
+    is_over_1y = False
+    try:
+        if ipo_date_str:
+            days_passed = (now.date() - pd.to_datetime(ipo_date_str).date()).days
+            if days_passed > 365:
+                is_over_1y = True
+    except: pass
+
+    # 💡 [2. 동적 캐싱 로직] 상태에 따라 캐시 유효 시간 결정
+    if is_withdrawn or is_delisted_or_otc or is_over_1y:
+        valid_hours = 24 * 7  # 7일 (정보 변동이 적음)
+    elif "상장예정" in ipo_status or "30일" in ipo_status:
+        valid_hours = 6       # 6시간 (임박한 기업은 자주 갱신)
+    else:
+        valid_hours = 24      # 일반 기업은 하루 1번 갱신
+
+    # v5로 캐시 키 업데이트 (프롬프트가 완전히 바뀌었으므로 기존 캐시 초기화)
+    cache_key = f"{ticker}_Tab1_v5_{lang_code}" 
     limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
 
-    # 캐시 확인 (지정된 시간 이내에 업데이트된 데이터가 있는지)
     try:
         res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
         if res.data:
@@ -604,42 +616,70 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Activ
     except Exception as e:
         print(f"Tab1 DB Error: {e}")
 
-    # --- 기존 프롬프트 및 언어 분기 로직 동일하게 유지 ---
+    # 💡 [3. 언어별 기본 세팅 유지]
     if lang_code == 'ja':
         sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
-        task1_label = "[タスク1: ビジネスモデルの深層分析]"
         task2_label = "[タスク2: 最新ニュースの収集]"
         target_lang = "日本語(Japanese)"
         lang_instruction = "必ず自然な日本語のみで作成してください。"
         json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
     elif lang_code == 'en':
         sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
-        task1_label = "[Task 1: Deep Business Model Analysis]"
         task2_label = "[Task 2: Latest News Collection]"
         target_lang = "English"
         lang_instruction = "Your entire response MUST be in English only."
         json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
     elif lang_code == 'zh':  
         sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。"
-        task1_label = "[任务1: 商业模式深度分析]"
         task2_label = "[任务2: 收集最新新闻]"
         target_lang = "简体中文(Simplified Chinese)"
         lang_instruction = "必须只用自然流畅的简体中文编写。"
         json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "中文标题", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
     else:
         sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
-        task1_label = "[작업 1: 비즈니스 모델 심층 분석]"
         task2_label = "[작업 2: 최신 뉴스 수집]"
         target_lang = "한국어(Korean)"
         lang_instruction = "반드시 자연스러운 한국어만 사용하세요."
         json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국어로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
 
+    # 💡 [4. 생애주기별 프롬프트 구조 분기 (핵심 로직)]
+    if is_withdrawn:
+        task1_label = f"[{'작업 1: 상장 철회(Withdrawn) 심층 진단' if lang_code == 'ko' else 'Task 1: Withdrawn IPO Diagnosis'}]"
+        task1_structure = """
+        - 1문단: [철회 배경 진단] 시장 환경 악화 여부 및 내부 펀더멘털/규제 이슈 분석
+        - 2문단: [재무적 타격] 자본 조달 실패가 기업의 단기 유동성에 미치는 영향
+        - 3문단: [생존 전략] M&A 피인수, 우회 상장, 추가 사모 펀딩 등 대안 시나리오
+        """
+    elif is_delisted_or_otc:
+        task1_label = f"[{'작업 1: OTC/장외시장 거래 리스크 진단' if lang_code == 'ko' else 'Task 1: OTC Market Risk Analysis'}]"
+        task1_structure = """
+        - 1문단: [장외 편입 배경] 비즈니스 모델 요약 및 정규 시장 미진입(또는 강등) 사유
+        - 2문단: [투자 리스크] 거래량 부족에 따른 유동성 위험(Liquidity Risk) 및 정보 비대칭성 진단
+        - 3문단: [장기 전망] 사업 지속 가능성(Going Concern) 및 정규 시장 재진입 가능성
+        """
+    elif is_over_1y:
+        task1_label = f"[{'작업 1: 상장 1년 차 펀더멘털 점검' if lang_code == 'ko' else 'Task 1: Post-IPO Fundamental Check'}]"
+        task1_structure = """
+        - 1문단: [목표 달성도] IPO 당시 제시했던 비전 대비 현재 핵심 펀더멘털 달성 여부
+        - 2문단: [수익성 평가] 흑자 전환(Path to Profitability) 현황 및 잉여현금흐름(FCF)
+        - 3문단: [자본 효율성] 투자(CAPEX/R&D) 성과 및 장기적 주주 가치 환원 전략
+        """
+    else:
+        # 일반 신규 상장 / 상장 대기 기업
+        task1_label = f"[{'작업 1: 신규 IPO 비즈니스 심층 분석' if lang_code == 'ko' else 'Task 1: Deep Business Model Analysis'}]"
+        task1_structure = """
+        - 1문단: 비즈니스 모델 및 시장 내 핵심 경쟁 우위 (Competitive Advantage)
+        - 2문단: 재무 현황 및 공모 자금 활용 계획 (Use of Proceeds)
+        - 3문단: 향후 산업 전망 및 종합 투자 의견 (Outlook & Valuation)
+        """
+
     current_date = now.strftime("%Y-%m-%d")
-    current_year = now.strftime("%Y")   # 💡 [여기에 딱 한 줄 추가!]
+    current_year = now.strftime("%Y")
 
     prompt = f"""
     {sys_prompt}
     분석 대상: {company_name} ({ticker})
+    기업 상태: {ipo_status}
     오늘 날짜: {current_date}
 
     {task1_label}
@@ -647,9 +687,7 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Activ
     1. 언어: {lang_instruction}
        - 경고: 영어 단어(potential, growth 등)를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
     2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
-       - 1문단: 비즈니스 모델 및 경쟁 우위
-       - 2문단: 재무 현황 및 공모 자금 활용
-       - 3문단: 향후 전망 및 투자 의견
+       {task1_structure}
     3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
     4. 최종 검수(Self-Check): 답변을 최종 출력하기 전에 스스로 엄격하게 검토하세요. 인사말, 서론, 또는 {target_lang} 외의 언어(특히 한국어)가 단 한 글자라도 포함되어 있다면 해당 부분을 완전히 삭제하고 완벽한 {target_lang} 문장으로만 구성하여 답변하세요.
     
@@ -697,9 +735,7 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Activ
             html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
 
             if news_list:
-                # 💡 [2. 최신 뉴스 정렬 로직] date 필드를 기준으로 내림차순(최신순) 정렬
                 news_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
-                
                 for n in news_list:
                     if n.get('sentiment') == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
                     elif n.get('sentiment') == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
@@ -2490,6 +2526,19 @@ UI_TEXT = {
         'ja': '上場延期または非上場', 
         'zh': '上市延期或未上市'
     },
+    'tooltip_price_checking': {
+        'ko': '상장 직후 데이터 동기화 중이거나, 실시간 호가 제공이 일시 지연되고 있는 상태입니다. (최대 14일 소요)',
+        'en': 'Price data is synchronizing post-IPO, or real-time quotes are temporarily delayed.',
+        'ja': '上場直後のデータ同期中、またはリアルタイム気配値の提供が一時的に遅延しています。',
+        'zh': '上市后数据正在同步中，或实时报价提供暂时延迟。'
+    },
+    'tooltip_otc_unsupported': {
+        'ko': '비상장기업이나 장외거래 주식으로 VC, Angel fund나 Broker-dealer 네트워크를 통한 사적 거래만 가능합니다.',
+        'en': 'Unlisted or OTC stock. Trading is only possible through VC, Angel funds, or Broker-dealer networks.',
+        'ja': '非上場企業または店頭取引（OTC）株式であり、VC、エンジェルファンドなどのネットワークを通じた取引のみ可能です。',
+        'zh': '未上市企业或场外交易(OTC)股票，仅能通过VC、天使基金或经纪商网络进行交易。'
+    },
+    
 
     # ==========================================
     # 5. 상세 페이지 공통 (Detail Shared)
@@ -4075,12 +4124,15 @@ with main_area.container():
                         
                         elif 0 <= days_passed <= 14:
                             if is_expected:
-                                price_html = f"<div class='price-main' style='color:#333333 !important; font-size:12px;'>{get_text('status_price_checking')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                                tooltip = get_text('tooltip_price_checking')
+                                price_html = f"<div title='{tooltip}' class='price-main' style='color:#333333 !important; font-size:12px; cursor:help;'>{get_text('status_price_checking')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                             else:
-                                price_html = f"<div class='price-main' style='color:#f57c00 !important; font-size: 11.5px !important;'>{get_text('status_delayed_unlisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                                tooltip = get_text('tooltip_otc_unsupported')
+                                price_html = f"<div title='{tooltip}' class='price-main' style='color:#f57c00 !important; font-size:11.5px !important; cursor:help;'>{get_text('status_delayed_unlisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                         
                         else:
-                            price_html = f"<div class='price-main' style='color:#888888 !important; font-size:11.5px !important;'>{get_text('status_otc_unsupported')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                            tooltip = get_text('tooltip_otc_unsupported')
+                            price_html = f"<div title='{tooltip}' class='price-main' style='color:#888888 !important; font-size:11.5px !important; cursor:help;'>{get_text('status_otc_unsupported')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
                     # --- [UI 렌더링 시작] ---
                     date_html = f"<div class='date-text'>{row['date']}</div>"
@@ -4203,19 +4255,25 @@ with main_area.container():
                 icon = "▲" if pct >= 0 else "▼"
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
             
-            # 5. 💡 [핵심 교정 2] 다국어(get_text) 지원 시간 기반 3단 방어막
+            # 5. 그 외 주가가 0인 경우 (날짜 기반 판별 + 툴팁 추가)
             else: 
                 if ipo_dt > today:
                     p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / ⏳ {get_text('status_waiting')})</span>"
                 
                 elif 0 <= (today - ipo_dt).days <= 14:
                     if is_expected:
-                        p_info = f"<span style='font-size: 0.9rem; color: #333333;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_price_checking')})</span>"
+                        # 💡 가격 확인중 툴팁 추가
+                        tooltip = get_text('tooltip_price_checking')
+                        p_info = f"<span style='font-size: 0.9rem; color: #333333; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / {get_text('status_price_checking')})</span>"
                     else:
-                        p_info = f"<span style='font-size: 0.9rem; color: #f57c00;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_delayed_unlisted')})</span>"
+                        # 💡 지연/비상장 툴팁 추가
+                        tooltip = get_text('tooltip_otc_unsupported')
+                        p_info = f"<span style='font-size: 0.9rem; color: #f57c00; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / {get_text('status_delayed_unlisted')})</span>"
                 
                 else:
-                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_otc_unsupported')})</span>"
+                    # 💡 OTC 미지원 툴팁 추가
+                    tooltip = get_text('tooltip_otc_unsupported')
+                    p_info = f"<span style='font-size: 0.9rem; color: #888888; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / {get_text('status_otc_unsupported')})</span>"
 
             # 여기서 화면에 헤더를 그려줍니다.
             st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
