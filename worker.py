@@ -273,35 +273,49 @@ def run_tab0_analysis(ticker, company_name):
                 except:
                     time.sleep(1)
 
-def run_tab1_analysis(ticker, company_name):
-    """Tab 1: 비즈니스 요약 및 뉴스"""
+def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
+    """Tab 1: 비즈니스 요약 및 뉴스 (워커용)"""
     if not model: return False
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     
-    for lang_code, _ in SUPPORTED_LANGS.items():
-        cache_key = f"{ticker}_Tab1_v2_{lang_code}"
+    # 💡 [1. 동적 캐싱 로직] 
+    if ipo_status == "상장예정(30일이내)": valid_hours = 6
+    elif ipo_status in ["상장대기", "상장연기", "상장폐지"]: valid_hours = 24 * 7
+    else: valid_hours = 24
         
+    limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
+    
+    for lang_code, target_lang_str in SUPPORTED_LANGS.items():
+        cache_key = f"{ticker}_Tab1_v3_{lang_code}"
+        
+        # 💡 [캐시 검증] 아직 유효 시간이 안 지났다면 생성 스킵! (API 비용 절약)
+        try:
+            res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+            if res.data:
+                continue # 캐시가 살아있으면 다음 언어로 넘어감
+        except: pass
+
         if lang_code == 'ja':
-            sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。韓国語は絶対に使用しないでください。"
+            sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
             task1_label = "[タスク1: ビジネスモデルの深層分析]"
             task2_label = "[タスク2: 最新ニュースの収集]"
             target_lang = "日本語(Japanese)"
-            lang_instruction = "必ず自然な日本語のみで作成してください。韓国語や英語の単語を混ぜないでください（企業名のみ英語可）。"
+            lang_instruction = "必ず自然な日本語のみで作成してください。"
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
         elif lang_code == 'en':
-            sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English. Do not use any Korean words."
+            sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
             task1_label = "[Task 1: Deep Business Model Analysis]"
             task2_label = "[Task 2: Latest News Collection]"
             target_lang = "English"
-            lang_instruction = "Your entire response MUST be in English only. Do not use any Korean."
+            lang_instruction = "Your entire response MUST be in English only."
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
         elif lang_code == 'zh':
-            sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。绝对不要使用韩语。"
+            sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。"
             task1_label = "[任务1: 商业模式深度分析]"
             task2_label = "[任务2: 收集最新新闻]"
             target_lang = "简体中文(Simplified Chinese)"
-            lang_instruction = "必须只用自然流畅的简体中文编写。所有句子都必须是中文，绝对不能混用韩语（仅企业名称可用英语）。"
+            lang_instruction = "必须只用自然流畅的简体中文编写。"
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "中文标题", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
         else:
             sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
@@ -337,7 +351,6 @@ def run_tab1_analysis(ticker, company_name):
         <JSON_END>
         """
         
-        # 💡 [방어막 추가] 최대 3회 재시도 루프
         for attempt in range(3):
             try:
                 response = model.generate_content(prompt)
@@ -346,7 +359,7 @@ def run_tab1_analysis(ticker, company_name):
                 if lang_code != 'ko':
                     check_text = full_text.replace("긍정", "").replace("부정", "").replace("일반", "")
                     if re.search(r'[가-힣]', check_text):
-                        time.sleep(1); continue # 한글 감지 시 재시도
+                        time.sleep(1); continue 
                 
                 biz_analysis = full_text.split("<JSON_START>")[0].strip()
                 biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
@@ -360,10 +373,12 @@ def run_tab1_analysis(ticker, company_name):
                     try: 
                         json_part = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
                         news_list = json.loads(json_part).get("news", [])
+                        # 💡 [2. 최신 뉴스 정렬 로직] 워커에서도 저장 전에 최신순 정렬
+                        news_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
                     except: pass
                     
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-                break # 성공 시 루프 탈출
+                break
             except:
                 time.sleep(1)
 
