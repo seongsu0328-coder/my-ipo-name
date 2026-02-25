@@ -4128,10 +4128,6 @@ with main_area.container():
                 # 2. 문서 설명 (Info Box)
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
-                # (이후 4. AI 요약 보기 Expander 코드 그대로 유지)
-                
-                # 2. 문서 설명 (Info Box)
-                st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
                 # 4. AI 요약 보기 (Expander)
                 with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
