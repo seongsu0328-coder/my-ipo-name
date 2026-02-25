@@ -943,7 +943,7 @@ def main():
             c_date = row.get('date', None)
             
             # AI 분석(Tab 0, 1, 4)은 app.py가 찾을 수 있게 무조건 'original_symbol'로 캐싱!
-            run_tab1_analysis(original_symbol, name, c_status)
+            run_tab1_analysis(original_symbol, name, c_status, c_date)  # 💡 여기 c_date 추가!
             run_tab0_analysis(original_symbol, name, c_status, c_date, cik_mapping)
             run_tab4_analysis(original_symbol, name)
             
