@@ -954,8 +954,8 @@ def get_market_dashboard_analysis(metrics_data, lang_code):
 # ==========================================
 # [기능] 1. 구글 연결 핵심 함수 (최우선 순위)
 # ==========================================
-# 💡 [핵심 수정] 1시간(3600초)마다 연결을 리셋하여 '네트워크 끊김 현상'을 원천 차단합니다.
-@st.cache_resource(ttl=3600)
+# 💡 [핵심 해결] 캐시(@st.cache_resource)를 완전히 제거하여, 
+# 끊어진 옛날 연결을 재사용하다 튕기는 에러를 원천 차단합니다.
 def get_gcp_clients():
     try:
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
@@ -972,7 +972,8 @@ def get_gcp_clients():
         
         return gspread_client, drive_service
     except Exception as e:
-        st.error(f"구글 연결 초기화 실패: {e}")
+        # 터미널(로그)에 강력하게 에러를 찍어줍니다.
+        print(f"🚨 구글 드라이브 연결 초기화 실패: {e}", flush=True)
         return None, None
 
 @st.cache_data(ttl=43200) # 12시간마다 갱신
