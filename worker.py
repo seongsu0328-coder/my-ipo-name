@@ -151,12 +151,37 @@ def run_premium_alert_engine(df_calendar):
 # [3] AI 분석 함수들 (프롬프트 100% 보존 + 방어막 추가)
 # ==========================================
 
-def run_tab0_analysis(ticker, company_name):
-    """Tab 0: 공시 5종 분석"""
+def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
+    """Tab 0: 공시 문서 분석 (상태 및 상장일 경과에 따른 스마트 타겟팅 적용)"""
     if not model: return
     
+    # 💡 [핵심] 기업 상태와 상장일 경과 여부 파악
+    status_lower = str(ipo_status).lower()
+    is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn'])
+    is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
+    
+    is_over_1y = False
+    if ipo_date_str:
+        try:
+            ipo_dt = pd.to_datetime(ipo_date_str).date()
+            if (datetime.now().date() - ipo_dt).days > 365:
+                is_over_1y = True
+        except: pass
+
+    # 💡 [핵심 비용 절감 & 과거 기록 보존] 상태에 따라 분석할 문서 리스트(target_topics)를 동적으로 생성
+    if is_withdrawn: 
+        target_topics = ["S-1", "S-1/A", "F-1", "FWP", "RW"]
+    elif is_delisted: 
+        target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4", "Form 25"]
+    elif is_over_1y: 
+        target_topics = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
+    else: 
+        target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
+
     def_meta = {
+        # --- [IPO 상장 진행 서류] ---
         "S-1": {
+            "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
             "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
             "structure": """
             [문단 구성 지침]
@@ -166,6 +191,7 @@ def run_tab0_analysis(ticker, company_name):
             """
         },
         "S-1/A": {
+            "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
             "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
             "structure": """
             [문단 구성 지침]
@@ -175,6 +201,7 @@ def run_tab0_analysis(ticker, company_name):
             """
         },
         "F-1": {
+            "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
             "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
             "structure": """
             [문단 구성 지침]
@@ -184,6 +211,7 @@ def run_tab0_analysis(ticker, company_name):
             """
         },
         "FWP": {
+            "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
             "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
             "structure": """
             [문단 구성 지침]
@@ -193,12 +221,85 @@ def run_tab0_analysis(ticker, company_name):
             """
         },
         "424B4": {
+            "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
             "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
             "structure": """
             [문단 구성 지침]
             1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석
             2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검
             3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측
+            """
+        },
+        # --- [상장 철회 및 폐지 서류] ---
+        "RW": {
+            "desc": "RW(Registration Withdrawal)는 기업이 상장 절차를 공식적으로 중단하고 증권신고서를 철회할 때 제출하는 문서입니다. 주로 시장 환경 악화나 내부 사정으로 인한 철회 사유가 담깁니다.",
+            "points": "Withdrawal Reason(철회 사유), Market Condition(시장 환경 악화 여부), Future Plans(향후 계획)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 해당 기업의 상장 철회(Withdrawal) 결정적 사유 및 배경
+            2. 두 번째 문단: 상장 철회가 기업 재무 및 기존 투자자에게 미치는 영향
+            3. 세 번째 문단: 향후 재상장 또는 M&A 등 향후 계획
+            """
+        },
+        "Form 25": {
+            "desc": "Form 25는 거래소에서 상장 폐지되거나 등록이 취소될 때 제출하는 공식 통지서입니다. 인수합병(M&A)이나 상장 유지 규정 위반 등의 사유를 확인할 수 있습니다.",
+            "points": "Delisting Reason(상장폐지 사유), M&A(인수합병 여부), Shareholder Impact(주주 영향)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 상장 폐지(Delisting)의 정확한 사유 (인수합병, 자진 상폐, 규정 위반 등)
+            2. 두 번째 문단: 상장 폐지 후 기존 주주의 권리 및 주식 처리 방안
+            3. 세 번째 문단: 장외시장(OTC) 거래 가능성 및 향후 기업 상태
+            """
+        },
+        # --- [상장 후 1년 이상 정식 재무 서류] ---
+        "10-K": {
+            "desc": "10-K는 미국의 상장기업이 매년 SEC에 제출하는 연간 사업보고서입니다. 한 해의 전반적인 사업 성과와 위험 요소를 포괄적으로 다룹니다.",
+            "points": "Business Overview(사업 개요), Risk Factors(위험 요소), MD&A(경영진 분석)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 지난 1년간의 핵심 사업 성과 및 비즈니스 모델 변화
+            2. 두 번째 문단: 경영진이 강조하는(MD&A) 주요 재무 실적과 당면 과제
+            3. 세 번째 문단: 새롭게 부각된 위험 요소(Risk Factors) 및 장기 전망
+            """
+        },
+        "10-Q": {
+            "desc": "10-Q는 분기별로 제출되는 실적 보고서입니다. 최근 3개월간의 재무 상태 변화와 단기적인 사업 현황을 파악할 수 있습니다.",
+            "points": "Quarterly Earnings(분기 실적), Short-term Guidance(단기 가이던스), Recent Changes(최근 변동사항)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 해당 분기의 매출 및 이익 달성 현황 요약
+            2. 두 번째 문단: 전년 동기 대비 주요 변화와 그 원인
+            3. 세 번째 문단: 다음 분기 가이던스 및 단기 리스크 요인
+            """
+        },
+        "BS": {
+            "desc": "재무상태표(Balance Sheet)는 기업의 자산, 부채, 자본의 현재 상태를 보여줍니다. 기업의 재무 건전성과 지급 능력을 분석합니다.",
+            "points": "Assets(자산 구성), Liabilities(부채 및 상환 능력), Equity(자본 건전성)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 유동 자산과 비유동 자산의 핵심 구성비 및 특징
+            2. 두 번째 문단: 부채 비율, 이자 발생 부채 등 재무 리스크 진단
+            3. 세 번째 문단: 자본 충실도 및 종합적인 재무 건전성(Solvency) 평가
+            """
+        },
+        "IS": {
+            "desc": "손익계산서(Income Statement)는 일정 기간 동안의 매출과 비용, 순이익을 나타냅니다. 기업의 수익 창출 능력을 분석합니다.",
+            "points": "Revenue Growth(매출 성장), Margins(이익률), EPS(주당순이익)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 탑라인(매출) 성장 추이와 주요 견인 사업부 분석
+            2. 두 번째 문단: 매출원가 및 판관비 통제에 따른 영업이익률/순이익률 평가
+            3. 세 번째 문단: 최종 수익성(EPS 등) 및 이익의 질(Quality of Earnings) 요약
+            """
+        },
+        "CF": {
+            "desc": "현금흐름표(Cash Flow)는 기업에 실제 현금이 어떻게 들어오고 나갔는지를 보여줍니다. 흑자 도산 위험 등을 판별하는 핵심 지표입니다.",
+            "points": "Operating CF(영업현금), Investing CF(투자현금), Financing CF(재무현금)",
+            "structure": """
+            [문단 구성 지침]
+            1. 첫 번째 문단: 영업활동을 통한 순수 현금 창출 능력 평가
+            2. 두 번째 문단: CAPEX 등 투자활동 현금흐름의 공격성 및 방향성
+            3. 세 번째 문단: 차입/상환 및 배당 등 재무활동과 최종 잉여현금흐름(FCF) 상태
             """
         }
     }
@@ -213,11 +314,13 @@ def run_tab0_analysis(ticker, company_name):
                 - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
                 """
 
-    for topic in ["S-1", "S-1/A", "F-1", "FWP", "424B4"]:
+    # 💡 [핵심 최적화] 고정된 5개가 아니라, 위에서 골라낸 target_topics(2~7개)만 순회합니다!
+    for topic in target_topics:
         curr_meta = def_meta[topic]
         
         for lang_code, target_lang in SUPPORTED_LANGS.items():
-            cache_key = f"{company_name}_{topic}_Tab0_v11_{lang_code}"
+            # 💡 [버전 업데이트] v12로 올려서 과거 S-1 양식으로 쓰인 RW/Form25 캐시를 덮어씁니다.
+            cache_key = f"{company_name}_{topic}_Tab0_v12_{lang_code}"
             
             if lang_code == 'en':
                 labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
