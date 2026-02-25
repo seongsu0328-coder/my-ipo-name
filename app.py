@@ -752,52 +752,130 @@ def get_ai_analysis(company_name, topic, lang_code):
     # ========================================================
     
     def_meta = {
-        "S-1": {
-            "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
-            "structure": """
-            [문단 구성 지침]
-            1. 첫 번째 문단: 해당 문서에서 발견된 가장 중요한 투자 포인트 분석
-            2. 두 번째 문단: 실질적 성장 가능성과 재무적 의미 분석
-            3. 세 번째 문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책
-            """
-        },
-        "S-1/A": {
-            "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
-            "structure": """
-            [문단 구성 지침]
-            1. 첫 번째 문단: 이전 S-1 대비 변경된 핵심 사항 분석
-            2. 두 번째 문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기 분석
-            3. 세 번째 문단: 기존 주주 가치 희석 정도와 투자 매력도 분석
-            """
-        },
-        "F-1": {
-            "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
-            "structure": """
-            [문단 구성 지침]
-            1. 첫 번째 문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위
-            2. 두 번째 문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크 분석
-            3. 세 번째 문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향
-            """
-        },
-        "FWP": {
-            "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
-            "structure": """
-            [문단 구성 지침]
-            1. 첫 번째 문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전
-            2. 두 번째 문단: 경쟁사 대비 부각시키는 기술적/사업적 차별화 포인트
-            3. 세 번째 문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지
-            """
-        },
-        "424B4": {
-            "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
-            "structure": """
-            [문단 구성 지침]
-            1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석
-            2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검
-            3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측
-            """
-        }
-    }
+                    # --- [IPO 상장 진행 서류] ---
+                    "S-1": {
+                        "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
+                        "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 해당 문서에서 발견된 가장 중요한 투자 포인트 분석
+                        2. 두 번째 문단: 실질적 성장 가능성과 재무적 의미 분석
+                        3. 세 번째 문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책
+                        """
+                    },
+                    "S-1/A": {
+                        "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
+                        "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 이전 S-1 대비 변경된 핵심 사항 분석
+                        2. 두 번째 문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기 분석
+                        3. 세 번째 문단: 기존 주주 가치 희석 정도와 투자 매력도 분석
+                        """
+                    },
+                    "F-1": {
+                        "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
+                        "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위
+                        2. 두 번째 문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크 분석
+                        3. 세 번째 문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향
+                        """
+                    },
+                    "FWP": {
+                        "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
+                        "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전
+                        2. 두 번째 문단: 경쟁사 대비 부각시키는 기술적/사업적 차별화 포인트
+                        3. 세 번째 문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지
+                        """
+                    },
+                    "424B4": {
+                        "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
+                        "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석
+                        2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검
+                        3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측
+                        """
+                    },
+                    # --- [상장 철회 및 폐지 서류] ---
+                    "RW": {
+                        "desc": "RW(Registration Withdrawal)는 기업이 상장 절차를 공식적으로 중단하고 증권신고서를 철회할 때 제출하는 문서입니다. 주로 시장 환경 악화나 내부 사정으로 인한 철회 사유가 담깁니다.",
+                        "points": "Withdrawal Reason(철회 사유), Market Condition(시장 환경 악화 여부), Future Plans(향후 계획)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 해당 기업의 상장 철회(Withdrawal) 결정적 사유 및 배경
+                        2. 두 번째 문단: 상장 철회가 기업 재무 및 기존 투자자에게 미치는 영향
+                        3. 세 번째 문단: 향후 재상장 또는 M&A 등 향후 계획
+                        """
+                    },
+                    "Form 25": {
+                        "desc": "Form 25는 거래소에서 상장 폐지되거나 등록이 취소될 때 제출하는 공식 통지서입니다. 인수합병(M&A)이나 상장 유지 규정 위반 등의 사유를 확인할 수 있습니다.",
+                        "points": "Delisting Reason(상장폐지 사유), M&A(인수합병 여부), Shareholder Impact(주주 영향)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 상장 폐지(Delisting)의 정확한 사유 (인수합병, 자진 상폐, 규정 위반 등)
+                        2. 두 번째 문단: 상장 폐지 후 기존 주주의 권리 및 주식 처리 방안
+                        3. 세 번째 문단: 장외시장(OTC) 거래 가능성 및 향후 기업 상태
+                        """
+                    },
+                    # --- [상장 후 1년 이상 정식 재무 서류] ---
+                    "10-K": {
+                        "desc": "10-K는 미국의 상장기업이 매년 SEC에 제출하는 연간 사업보고서입니다. 한 해의 전반적인 사업 성과와 위험 요소를 포괄적으로 다룹니다.",
+                        "points": "Business Overview(사업 개요), Risk Factors(위험 요소), MD&A(경영진 분석)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 지난 1년간의 핵심 사업 성과 및 비즈니스 모델 변화
+                        2. 두 번째 문단: 경영진이 강조하는(MD&A) 주요 재무 실적과 당면 과제
+                        3. 세 번째 문단: 새롭게 부각된 위험 요소(Risk Factors) 및 장기 전망
+                        """
+                    },
+                    "10-Q": {
+                        "desc": "10-Q는 분기별로 제출되는 실적 보고서입니다. 최근 3개월간의 재무 상태 변화와 단기적인 사업 현황을 파악할 수 있습니다.",
+                        "points": "Quarterly Earnings(분기 실적), Short-term Guidance(단기 가이던스), Recent Changes(최근 변동사항)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 해당 분기의 매출 및 이익 달성 현황 요약
+                        2. 두 번째 문단: 전년 동기 대비 주요 변화와 그 원인
+                        3. 세 번째 문단: 다음 분기 가이던스 및 단기 리스크 요인
+                        """
+                    },
+                    "BS": {
+                        "desc": "재무상태표(Balance Sheet)는 기업의 자산, 부채, 자본의 현재 상태를 보여줍니다. 기업의 재무 건전성과 지급 능력을 분석합니다.",
+                        "points": "Assets(자산 구성), Liabilities(부채 및 상환 능력), Equity(자본 건전성)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 유동 자산과 비유동 자산의 핵심 구성비 및 특징
+                        2. 두 번째 문단: 부채 비율, 이자 발생 부채 등 재무 리스크 진단
+                        3. 세 번째 문단: 자본 충실도 및 종합적인 재무 건전성(Solvency) 평가
+                        """
+                    },
+                    "IS": {
+                        "desc": "손익계산서(Income Statement)는 일정 기간 동안의 매출과 비용, 순이익을 나타냅니다. 기업의 수익 창출 능력을 분석합니다.",
+                        "points": "Revenue Growth(매출 성장), Margins(이익률), EPS(주당순이익)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 탑라인(매출) 성장 추이와 주요 견인 사업부 분석
+                        2. 두 번째 문단: 매출원가 및 판관비 통제에 따른 영업이익률/순이익률 평가
+                        3. 세 번째 문단: 최종 수익성(EPS 등) 및 이익의 질(Quality of Earnings) 요약
+                        """
+                    },
+                    "CF": {
+                        "desc": "현금흐름표(Cash Flow)는 기업에 실제 현금이 어떻게 들어오고 나갔는지를 보여줍니다. 흑자 도산 위험 등을 판별하는 핵심 지표입니다.",
+                        "points": "Operating CF(영업현금), Investing CF(투자현금), Financing CF(재무현금)",
+                        "structure": """
+                        [문단 구성 지침]
+                        1. 첫 번째 문단: 영업활동을 통한 순수 현금 창출 능력 평가
+                        2. 두 번째 문단: CAPEX 등 투자활동 현금흐름의 공격성 및 방향성
+                        3. 세 번째 문단: 차입/상환 및 배당 등 재무활동과 최종 잉여현금흐름(FCF) 상태
+                        """
+                    }
+                }
 
     curr_meta = def_meta.get(topic, def_meta["S-1"])
 
@@ -883,6 +961,7 @@ def get_ai_analysis(company_name, topic, lang_code):
 
     except Exception as e:
         return f"분석 중 오류 발생: {str(e)}"
+
 
 @st.cache_data(ttl=86400) # 하루 동안 재무제표 기억
 def get_cached_raw_financials(symbol):
@@ -4094,190 +4173,6 @@ with main_area.container():
                 draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 display_disclaimer()
 
-                
-
-                # ---------------------------------------------------------------------
-                # [순서 변경] AI 요약 (Expander)을 버튼 위로 이동
-                # ---------------------------------------------------------------------
-                def_meta = {
-                    # --- [IPO 상장 진행 서류] ---
-                    "S-1": {
-                        "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
-                        "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 해당 문서에서 발견된 가장 중요한 투자 포인트 분석
-                        2. 두 번째 문단: 실질적 성장 가능성과 재무적 의미 분석
-                        3. 세 번째 문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책
-                        """
-                    },
-                    "S-1/A": {
-                        "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
-                        "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 이전 S-1 대비 변경된 핵심 사항 분석
-                        2. 두 번째 문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기 분석
-                        3. 세 번째 문단: 기존 주주 가치 희석 정도와 투자 매력도 분석
-                        """
-                    },
-                    "F-1": {
-                        "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
-                        "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위
-                        2. 두 번째 문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크 분석
-                        3. 세 번째 문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향
-                        """
-                    },
-                    "FWP": {
-                        "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
-                        "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전
-                        2. 두 번째 문단: 경쟁사 대비 부각시키는 기술적/사업적 차별화 포인트
-                        3. 세 번째 문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지
-                        """
-                    },
-                    "424B4": {
-                        "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
-                        "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석
-                        2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검
-                        3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측
-                        """
-                    },
-                    # --- [상장 철회 및 폐지 서류] ---
-                    "RW": {
-                        "desc": "RW(Registration Withdrawal)는 기업이 상장 절차를 공식적으로 중단하고 증권신고서를 철회할 때 제출하는 문서입니다. 주로 시장 환경 악화나 내부 사정으로 인한 철회 사유가 담깁니다.",
-                        "points": "Withdrawal Reason(철회 사유), Market Condition(시장 환경 악화 여부), Future Plans(향후 계획)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 해당 기업의 상장 철회(Withdrawal) 결정적 사유 및 배경
-                        2. 두 번째 문단: 상장 철회가 기업 재무 및 기존 투자자에게 미치는 영향
-                        3. 세 번째 문단: 향후 재상장 또는 M&A 등 향후 계획
-                        """
-                    },
-                    "Form 25": {
-                        "desc": "Form 25는 거래소에서 상장 폐지되거나 등록이 취소될 때 제출하는 공식 통지서입니다. 인수합병(M&A)이나 상장 유지 규정 위반 등의 사유를 확인할 수 있습니다.",
-                        "points": "Delisting Reason(상장폐지 사유), M&A(인수합병 여부), Shareholder Impact(주주 영향)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 상장 폐지(Delisting)의 정확한 사유 (인수합병, 자진 상폐, 규정 위반 등)
-                        2. 두 번째 문단: 상장 폐지 후 기존 주주의 권리 및 주식 처리 방안
-                        3. 세 번째 문단: 장외시장(OTC) 거래 가능성 및 향후 기업 상태
-                        """
-                    },
-                    # --- [상장 후 1년 이상 정식 재무 서류] ---
-                    "10-K": {
-                        "desc": "10-K는 미국의 상장기업이 매년 SEC에 제출하는 연간 사업보고서입니다. 한 해의 전반적인 사업 성과와 위험 요소를 포괄적으로 다룹니다.",
-                        "points": "Business Overview(사업 개요), Risk Factors(위험 요소), MD&A(경영진 분석)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 지난 1년간의 핵심 사업 성과 및 비즈니스 모델 변화
-                        2. 두 번째 문단: 경영진이 강조하는(MD&A) 주요 재무 실적과 당면 과제
-                        3. 세 번째 문단: 새롭게 부각된 위험 요소(Risk Factors) 및 장기 전망
-                        """
-                    },
-                    "10-Q": {
-                        "desc": "10-Q는 분기별로 제출되는 실적 보고서입니다. 최근 3개월간의 재무 상태 변화와 단기적인 사업 현황을 파악할 수 있습니다.",
-                        "points": "Quarterly Earnings(분기 실적), Short-term Guidance(단기 가이던스), Recent Changes(최근 변동사항)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 해당 분기의 매출 및 이익 달성 현황 요약
-                        2. 두 번째 문단: 전년 동기 대비 주요 변화와 그 원인
-                        3. 세 번째 문단: 다음 분기 가이던스 및 단기 리스크 요인
-                        """
-                    },
-                    "BS": {
-                        "desc": "재무상태표(Balance Sheet)는 기업의 자산, 부채, 자본의 현재 상태를 보여줍니다. 기업의 재무 건전성과 지급 능력을 분석합니다.",
-                        "points": "Assets(자산 구성), Liabilities(부채 및 상환 능력), Equity(자본 건전성)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 유동 자산과 비유동 자산의 핵심 구성비 및 특징
-                        2. 두 번째 문단: 부채 비율, 이자 발생 부채 등 재무 리스크 진단
-                        3. 세 번째 문단: 자본 충실도 및 종합적인 재무 건전성(Solvency) 평가
-                        """
-                    },
-                    "IS": {
-                        "desc": "손익계산서(Income Statement)는 일정 기간 동안의 매출과 비용, 순이익을 나타냅니다. 기업의 수익 창출 능력을 분석합니다.",
-                        "points": "Revenue Growth(매출 성장), Margins(이익률), EPS(주당순이익)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 탑라인(매출) 성장 추이와 주요 견인 사업부 분석
-                        2. 두 번째 문단: 매출원가 및 판관비 통제에 따른 영업이익률/순이익률 평가
-                        3. 세 번째 문단: 최종 수익성(EPS 등) 및 이익의 질(Quality of Earnings) 요약
-                        """
-                    },
-                    "CF": {
-                        "desc": "현금흐름표(Cash Flow)는 기업에 실제 현금이 어떻게 들어오고 나갔는지를 보여줍니다. 흑자 도산 위험 등을 판별하는 핵심 지표입니다.",
-                        "points": "Operating CF(영업현금), Investing CF(투자현금), Financing CF(재무현금)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 영업활동을 통한 순수 현금 창출 능력 평가
-                        2. 두 번째 문단: CAPEX 등 투자활동 현금흐름의 공격성 및 방향성
-                        3. 세 번째 문단: 차입/상환 및 배당 등 재무활동과 최종 잉여현금흐름(FCF) 상태
-                        """
-                    }
-                }
-                
-                curr_meta = def_meta.get(topic, def_meta["S-1"])
-                
-                format_instruction = """
-                [출력 형식 및 번역 규칙 - 반드시 지킬 것]
-                - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
-                - [분량 조건] 전체 요약이 아닙니다! **각 문단(1, 2, 3)마다 반드시 4~5문장(약 5줄 분량)씩** 내용을 상세하고 풍성하게 채워 넣으세요.
-                - 올바른 예시(영어): **[Investment Point]** The company's main advantage is...
-                - 올바른 예시(일본어): **[投資ポイント]** 同社の最大の強みは...
-                - 금지 예시(한국어 병기 절대 금지): **[Investment Point - 투자포인트]** (X)
-                - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
-                """
-
-                # 4. AI 요약 보기 (Expander) - 버튼 위로 이동 완료
-                with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
-                    with st.spinner(get_text('msg_analyzing_filing')):
-                        # 함수 내부에서 포인트와 구조를 알아서 처리하므로 3개만 보내면 됩니다!
-                        analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
-                    if "ERROR_DETAILS" in analysis_result:
-                        st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
-                    else:
-                        import re
-                        formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
-                        indent_size = "14px" if curr_lang == "ko" else "0px"
-                        # 💡 [수정] </div> 뒤에 <br>을 추가하여 캡션과 한 줄 띄우기
-                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">{formatted_result.replace(chr(10), "<br>")}</div><br>', unsafe_allow_html=True)
-                    
-                    # 💡 [위치 수정] Expander 내부 맨 하단에 캡션 배치
-                    st.caption(get_text('caption_algorithm'))
-
-                # 5. 외부 링크 버튼 (AI 요약 밑으로 이동)
-                import urllib.parse
-                cik = profile.get('cik', '') if profile else ''
-                full_company_name = stock['name'].strip() 
-                if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(topic)}&owner=include&count=40"
-                else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_company_name)}&dateRange=all"
-                
-                real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
-                website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + full_company_name + ' Investor Relations')}"
-                
-                st.markdown(f"""
-                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({topic})</button>
-                    </a>
-                    <a href="{website_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button>
-                    </a>
-                """, unsafe_allow_html=True)
-
-                # 6. 의사결정 박스
-                draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
-                
-                # 7. 면책 조항
-                display_disclaimer()
                     
             # --- Tab 1: 뉴스 & 심층 분석 ---
             elif selected_sub_menu == get_text('tab_1'):
