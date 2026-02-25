@@ -2520,7 +2520,7 @@ UI_TEXT = {
         'ja': '個人別のカスタマイ즈投資戦略および市場状況評価のために活用されます。', 
         'zh': '此信息用于个人定制投资策略和市场状况评估。'
     },
-    'msg_submit_guide': {'ko': "💡 카테고리를 선택하고 증빙 서류를 첨부하면 '글쓰기/투표' 권한이 신청됩니다. (서류 제출은 선택사항)", 'en': "💡 Select categories and attach documents to apply for posting/voting rights. (Docs are optional)", 'ja': "💡 カテゴリを選択して書類を添付すると、投稿/投票権限が申請されます。(書類提出は任意)", 'zh': "💡 选择类别并附加证明文件即可申请发帖/投票权限。（文件提交为可选）"},
+    'msg_submit_guide': {'ko': "카테고리를 선택하고 증빙 서류를 첨부하면 '글쓰기/투표' 권한이 신청됩니다. (서류 제출은 선택사항)", 'en': "Select categories and attach documents to apply for posting/voting rights. (Docs are optional)", 'ja': "カテゴリを選択して書類を添付すると、投稿/投票権限が申請されます。(書類提出は任意)", 'zh': "选择类别并附加证明文件即可申请发帖/投票权限。（文件提交为可选）"},
     
     'label_survey_exp': {'ko': '1. 투자 경력 (Investment Experience)', 'en': '1. Investment Experience', 'ja': '1. 投資経験', 'zh': '1. 投资经验'},
     'label_survey_style': {'ko': '2. 주요 투자 스타일 (Primary Investment Style)', 'en': '2. Primary Investment Style', 'ja': '2. 主な投資スタイル', 'zh': '2. 主要投资风格'},
