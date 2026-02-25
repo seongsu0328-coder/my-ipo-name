@@ -2036,6 +2036,51 @@ def get_us_ipo_analysis(ticker_symbol):
     except Exception as e:
         return {"status": "Error"}
 
+        # =========================================================
+# 👑 [Premium Plus 전용] 스마트머니 퀀트 분석 엔진 (API 역할)
+# (추후 앱/웹 외주 개발 시, 이 블록은 백엔드 API로 그대로 이관됩니다)
+# =========================================================
+
+def get_smart_money_market_eval(sid):
+    """
+    [기능 1] 고자산가(최상위 자산 등급) 유저들의 평가만 필터링하여 평균을 냅니다.
+    """
+    try:
+        # TODO: 실제 DB 연결 시, user_info 테이블과 조인하여 
+        # 자산 규모(asset_size)가 특정 기준(예: Gold/Diamond 등급 등) 이상인 
+        # 유저들의 user_decision 점수만 필터링하여 가져오는 SQL 쿼리를 작성합니다.
+        
+        # 지금은 UI 테스트를 위한 가상(Mock) 데이터를 반환합니다.
+        market_avg = 2.8 
+        total_votes = 42
+        
+        return {"market_avg": market_avg, "total_votes": total_votes}
+    except Exception as e:
+        print(f"스마트머니 시장평가 연동 에러: {e}")
+        return {"market_avg": 0.0, "total_votes": 0}
+
+
+def get_pro_fund_manager_eval(sid):
+    """
+    [기능 2] 펀드매니저/기관투자자(Pro) 인증을 받은 유저들의 투표 비율을 계산합니다.
+    """
+    try:
+        # TODO: 실제 DB 연결 시, role이 'pro_manager'인 유저들이 
+        # 해당 종목(sid)에 투표한 UP/DOWN 개수를 카운트합니다.
+        
+        # 지금은 UI 테스트를 위한 가상(Mock) 데이터를 반환합니다.
+        up_pct = 78.0
+        down_pct = 22.0
+        total_votes = 15
+        
+        return {"up_pct": up_pct, "down_pct": down_pct, "total_votes": total_votes}
+    except Exception as e:
+        print(f"펀드매니저 평가 연동 에러: {e}")
+        return {"up_pct": 50.0, "down_pct": 50.0, "total_votes": 0}
+
+# 추후 여기에 get_insider_trading_trend(sid) 등 
+# 프리미엄 전용 함수들을 계속 추가해 나가시면 됩니다!
+
 # ==========================================
 # [4] 메인 실행부 (Main Logic)
 # ==========================================
@@ -4788,11 +4833,15 @@ with main_area.container():
                 corp_name = stock.get('corp_name', sid)
                 
                 if user_level == 'premium_plus':
+                    # 💡 [핵심 연동] 분리해둔 프리미엄 전용 함수 호출 (API 역할)
+                    smart_eval_data = get_smart_money_market_eval(sid)
+                    pro_eval_data = get_pro_fund_manager_eval(sid)
+
                     # [A] 80억 이상 자산가 시장평가 (Gauge Bar)
                     st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>📊 {get_text('label_market_eval_80b')}</div>", unsafe_allow_html=True)
                     
-                    # (임시 점수 - 추후 DB 연동 필터링 값 반영)
-                    m_avg = 2.5 
+                    # (함수에서 받아온 값 반영)
+                    m_avg = smart_eval_data.get('market_avg', 0.0)
                     avg_pct = min(max(((m_avg + 5) / 10) * 100, 0), 100)
                     
                     # Tab 5에 있는 나의 위치 재호출 (예외 방지용)
@@ -4827,9 +4876,10 @@ with main_area.container():
                     st.write("<br>", unsafe_allow_html=True)
                     st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>👔 펀드매니저의 '{corp_name}' 평가</div>", unsafe_allow_html=True)
                     
-                    # (임시 비율 - 추후 DB 연동)
-                    up_pct, down_pct = 75.0, 25.0
-                    total_votes = 120
+                    # (함수에서 받아온 값 반영)
+                    up_pct = pro_eval_data.get('up_pct', 50.0)
+                    down_pct = pro_eval_data.get('down_pct', 50.0)
+                    total_votes = pro_eval_data.get('total_votes', 0)
                     
                     sentiment_html_smart = f"""<div style="margin-bottom: 20px; padding: 0 5px;">
 <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 800; font-family: sans-serif;">
