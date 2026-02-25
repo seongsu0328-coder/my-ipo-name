@@ -1110,47 +1110,56 @@ def get_gcp_clients():
     
     return gspread_client, drive_service
 
-@st.cache_data(ttl=43200) # 12시간마다 갱신
+@st.cache_data(ttl=604800) # 1주일(604,800초) 캐싱
 def get_daily_quote(lang='ko'):
-    # 1. 예비용 명언 리스트 (다국어 지원)
+    from datetime import datetime
+    import random
+    
+    # 1. 투자, 경영, 성장을 위한 고품질 명언 리스트 (30개)
     backup_quotes = [
-        {"eng": "Opportunities don't happen. You create them.", "ko": "기회는 찾아오는 것이 아닙니다. 당신이 만드는 것입니다.", "ja": "機会は起こるものではありません。あなたが創り出すものです。", "author": "Chris Grosser"},
-        {"eng": "The best way to predict the future is to create it.", "ko": "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것입니다.", "ja": "未来を予測する最良の方法は、それを創り出すことです。", "author": "Peter Drucker"},
-        {"eng": "Innovation distinguishes between a leader and a follower.", "ko": "혁신이 리더와 추종자를 구분합니다.", "ja": "イノベーションがリーダーとフォロワーを区別します。", "author": "Steve Jobs"},
-        {"eng": "Risk comes from not knowing what you're doing.", "ko": "위험은 자신이 무엇을 하는지 모르는 데서 옵니다.", "ja": "リスクは、自分が何をしているかを知らないことから来ます。", "author": "Warren Buffett"}
+        {"eng": "Opportunities don't happen. You create them.", "ko": "기회는 찾아오는 것이 아닙니다. 당신이 만드는 것입니다.", "ja": "機会は起こるものではありません。あなたが創り出すものです。", "zh": "机会不是偶然发生的。它们是你创造的。", "author": "Chris Grosser"},
+        {"eng": "The best way to predict the future is to create it.", "ko": "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것입니다.", "ja": "未来を予測する最良の方法は、それを創り出すことです。", "zh": "预测未来最好的方法就是创造未来。", "author": "Peter Drucker"},
+        {"eng": "Innovation distinguishes between a leader and a follower.", "ko": "혁신이 리더와 추종자를 구분합니다.", "ja": "イノベーションがリーダーとフォロワーを区別します。", "zh": "创新是将领导者和追随者区分开来的标准。", "author": "Steve Jobs"},
+        {"eng": "Risk comes from not knowing what you're doing.", "ko": "위험은 자신이 무엇을 하는지 모르는 데서 옵니다.", "ja": "リスクは、自分が何をしているかを知らないことから来ます。", "zh": "风险来自于你不知道自己在做什么。", "author": "Warren Buffett"},
+        {"eng": "Price is what you pay. Value is what you get.", "ko": "가격은 당신이 지불하는 것이고, 가치는 당신이 얻는 것입니다.", "ja": "価格とは支払うもの。価値とは得るもの。", "zh": "价格是你支付的，价值是你得到的。", "author": "Warren Buffett"},
+        {"eng": "The only way to do great work is to love what you do.", "ko": "위대한 일을 하는 유일한 방법은 당신이 하는 일을 사랑하는 것입니다.", "ja": "偉大な仕事をする唯一の方法は、自分のしていることを愛することだ。", "zh": "做伟大工作的唯一方法是热爱你所做的事。", "author": "Steve Jobs"},
+        {"eng": "Success is not final; failure is not fatal: It is the courage to continue that counts.", "ko": "성공은 최종적인 것이 아니며, 실패는 치명적인 것이 아닙니다. 중요한 것은 지속하는 용기입니다.", "ja": "成功は最終的なものではなく、失敗は致命的なものではない。大切なのは続ける勇気だ。", "zh": "成功不是终点，失败也不是终结：唯有继续前进的勇气才是最重要的。", "author": "Winston Churchill"},
+        {"eng": "The stock market is filled with individuals who know the price of everything, but the value of nothing.", "ko": "주식 시장은 모든 것의 가격은 알지만 가치는 아무것도 모르는 사람들로 가득 차 있습니다.", "ja": "株式市場はあらゆるものの価格を知っているが、価値については何も知らない人々で溢れている。", "zh": "股票市场充满了知道所有东西的价格，却不知道任何东西的价值的人。", "author": "Philip Fisher"},
+        {"eng": "In the short run, the market is a voting machine but in the long run, it is a weighing machine.", "ko": "단기적으로 시장은 투표기계지만 장기적으로는 체중계와 같습니다.", "ja": "短期的には市場は投票機だが、長期的には計量機である。", "zh": "股市短期看是投票机，长期看是称重机。", "author": "Benjamin Graham"},
+        {"eng": "Be fearful when others are greedy and greedy when others are fearful.", "ko": "남들이 탐욕스러울 때 두려워하고, 남들이 두려워할 때 탐욕스러워지십시오.", "ja": "他人が強欲な時は恐れ、他人が恐れている時は強欲になれ。", "zh": "在他人贪婪时恐惧，在他人恐惧时贪婪。", "author": "Warren Buffett"},
+        {"eng": "Do not save what is left after spending, but spend what is left after saving.", "ko": "쓰고 남은 돈을 저축하지 말고, 저축하고 남은 돈을 쓰십시오.", "ja": "使った後に残った分を貯金するのではなく、貯金した後に残った分を使いなさい。", "zh": "不要存花剩的钱，要花存剩的钱。", "author": "Warren Buffett"},
+        {"eng": "The goal of a successful investor is to purchase securities at prices that are significantly below their intrinsic value.", "ko": "성공한 투자자의 목표는 내재 가치보다 훨씬 낮은 가격에 증권을 사는 것입니다.", "ja": "成功する投資家の目標は、本質的な価値を大幅に下回る価格で証券を購入することだ。", "zh": "成功的投资者的目标是以显著低于其内在价值的价格购买证券。", "author": "Seth Klarman"},
+        {"eng": "If you are not willing to own a stock for 10 years, do not even think about owning it for 10 minutes.", "ko": "주식을 10년 동안 보유할 생각이 없다면, 10분도 보유할 생각을 하지 마십시오.", "ja": "10年間株を保有するつもりがなければ、10分間保有することさえ考えてはいけない。", "zh": "如果你不想拥有一只股票十年，那就连十分钟也不要拥有它。", "author": "Warren Buffett"},
+        {"eng": "The big money is not in the buying and the selling, but in the waiting.", "ko": "큰 돈은 사고파는 것이 아니라 기다림 속에 있습니다.", "ja": "大きな利益は売買ではなく、待機の中にこそある。", "zh": "赚大钱不在于买进卖出，而在于等待。", "author": "Charlie Munger"},
+        {"eng": "The four most dangerous words in investing are: 'This time it's different.'", "ko": "투자에서 가장 위험한 네 마디는 '이번에는 다르다'입니다.", "ja": "投資において最も危険な言葉は「今回は違う」だ。", "zh": "投资中最危险的四个字是：这次不同。", "author": "Sir John Templeton"},
+        {"eng": "An investment in knowledge pays the best interest.", "ko": "지식에 대한 투자가 가장 높은 이자를 지급합니다.", "ja": "知識への投資が、最高の利息を支払う。", "zh": "投资知识所得的利息最高。", "author": "Benjamin Franklin"},
+        {"eng": "Formal education will make you a living; self-education will make you a fortune.", "ko": "정규 교육은 당신에게 생계를 보장해주지만, 독학은 당신에게 부를 가져다줍니다.", "ja": "学校教育は生活の糧になるが、自己教育は富をもたらす。", "zh": "正规教育能让你维持生计，自我教育能让你发财。", "author": "Jim Rohn"},
+        {"eng": "Quality is not an act, it is a habit.", "ko": "품질은 행동이 아니라 습관입니다.", "ja": "品質とは行為ではなく、習慣である。", "zh": "质量不是一种行为，而是一种习惯。", "author": "Aristotle"},
+        {"eng": "I find that the harder I work, the more luck I seem to have.", "ko": "열심히 일할수록 더 많은 행운이 찾아온다는 사실을 발견했습니다.", "ja": "懸命に働けば働くほど、運が向いてくるように思える。", "zh": "我发现，我工作越努力，运气就越好。", "author": "Thomas Jefferson"},
+        {"eng": "Vision without execution is hallucination.", "ko": "실행 없는 비전은 환상일 뿐입니다.", "ja": "実行のないビジョンは、ただの妄想だ。", "zh": "没有执行力的愿景只是幻觉。", "author": "Thomas Edison"},
+        {"eng": "A person who never made a mistake never tried anything new.", "ko": "한 번도 실수하지 않은 사람은 한 번도 새로운 시도를 하지 않은 사람입니다.", "ja": "一度も失敗をしたことがない人は、一度も新しいことに挑戦したことがない人だ。", "zh": "一个从不犯错误的人，也从未尝试过任何新鲜事物。", "author": "Albert Einstein"},
+        {"eng": "It's not whether you're right or wrong that's important, but how much money you make when you're right and how much you lose when you're wrong.", "ko": "맞느냐 틀리느냐가 중요한 게 아니라, 맞았을 때 얼마나 벌고 틀렸을 때 얼마나 잃느냐가 중요합니다.", "ja": "重要なのは正しいか間違っているかではなく、正しい時にどれだけ稼ぎ、間違っている時にどれだけ失うかだ。", "zh": "重要的不是你判断对还是错，而是当你判断正确时赚了多少钱，判断错误时赔了多少钱。", "author": "George Soros"},
+        {"eng": "The most important quality for an investor is temperament, not intellect.", "ko": "투자자에게 가장 중요한 자질은 지성이 아니라 기질입니다.", "ja": "投資家に最も重要な資質は知性ではなく、気質だ。", "zh": "对于投资者来说，最重要的品质是性格，而不是头脑。", "author": "Warren Buffett"},
+        {"eng": "Investing should be more like watching paint dry or watching grass grow. If you want excitement, take $800 and go to Las Vegas.", "ko": "투자는 페인트가 마르는 것을 지켜보거나 풀이 자라는 것을 지켜보는 것과 같아야 합니다. 자극을 원한다면 800달러를 들고 라스베이거스로 가십시오.", "ja": "投資はペンキが乾くのを見たり、草が伸びるのを見たりするようなものであるべきだ。刺激が欲しいならラスベガスへ行け。", "zh": "投资应该更像是看着油漆变干或看着草生长。如果你想要刺激，拿上800美元去拉斯维加斯吧。", "author": "Paul Samuelson"},
+        {"eng": "Knowing what you don't know is more useful than being brilliant.", "ko": "자신이 무엇을 모르는지 아는 것이 똑똑한 것보다 더 유용합니다.", "ja": "自分が何を知らないかを知ることは、優秀であることよりも役に立つ。", "zh": "了解自己不知道什么是比聪明更有用的。", "author": "Charlie Munger"},
+        {"eng": "The individual investor should act consistently as an investor and not as a speculator.", "ko": "개인 투자자는 투기꾼이 아니라 철저히 투자자로서 행동해야 합니다.", "ja": "個人投資家は投機家としてではなく、常に投資家として行動すべきである。", "zh": "个人投资者应始终作为投资者而非投机者行事。", "author": "Benjamin Graham"},
+        {"eng": "Don't look for the needle in the haystack. Just buy the haystack!", "ko": "건초더미에서 바늘을 찾지 마십시오. 그냥 건초더미를 통째로 사십시오!", "ja": "干し草の山から針を探すな。干し草の山を丸ごと買え！", "zh": "不要在草堆里找针。把整个草堆买下来就行了！", "author": "John Bogle"},
+        {"eng": "Compound interest is the eighth wonder of the world. He who understands it, earns it; he who doesn't, pays it.", "ko": "복리는 세계 8대 불가사의입니다. 이를 이해하는 사람은 돈을 벌고, 이해하지 못하는 사람은 대가를 치릅니다.", "ja": "複利は世界で8番目の不思議だ。理解する者はそれを手に入れ、理解しない者はそれを支払う。", "zh": "复利是世界第八大奇迹。理解它的人赚取它，不理解它的人支付它。", "author": "Albert Einstein"},
+        {"eng": "Rule No. 1: Never lose money. Rule No. 2: Never forget rule No. 1.", "ko": "제1원칙: 절대 돈을 잃지 마라. 제2원칙: 제1원칙을 절대 잊지 마라.", "ja": "ルール1：絶対にお金を失うな。ルール2：ルール1を忘れるな。", "zh": "第一条规则：永远不要赔钱。第二条规则：永远不要忘记第一条规则。", "author": "Warren Buffett"},
+        {"eng": "Your most unhappy customers are your greatest source of learning.", "ko": "가장 불만족스러워하는 고객이 당신에게 가장 큰 배움의 원천입니다.", "ja": "最も不満を持っている顧客こそが、最大の学習源である。", "zh": "你最不满意的客户是你最大的学习来源。", "author": "Bill Gates"}
     ]
 
-    try:
-        # 1. API로 영어 명언 가져오기
-        res = requests.get("https://api.quotable.io/random?tags=business", timeout=2).json()
-        eng_text = res['content']
-        author = res['author']
-        
-        # 영어를 선택한 경우 원문만 반환
-        if lang == 'en':
-            return {"eng": eng_text, "translated": eng_text, "author": author}
-        
-        # 2. 번역 API 시도 (선택된 언어로)
-        translated_text = ""
-        try:
-            trans_url = "https://api.mymemory.translated.net/get"
-            trans_res = requests.get(trans_url, params={'q': eng_text, 'langpair': f'en|{lang}'}, timeout=2).json()
-            if trans_res['responseStatus'] == 200:
-                translated_text = trans_res['responseData']['translatedText'].replace("&quot;", "'").replace("&amp;", "&")
-        except:
-            pass 
-
-        # 번역 실패 시 영어 원문 유지
-        if not translated_text: 
-            translated_text = eng_text
-
-        return {"eng": eng_text, "translated": translated_text, "author": author}
-
-    except:
-        # API 실패 시, 예비 리스트에서 랜덤 선택
-        choice = random.choice(backup_quotes)
-        trans = choice.get(lang, choice['eng'])
-        return {"eng": choice['eng'], "translated": trans, "author": choice['author']}
+    # 💡 [핵심 수정] '연도'와 '주차(ISO Week)'를 조합하여 시드 생성
+    # 예: 2026년 9주차일 경우 202609라는 숫자가 생성되어 일주일 내내 고정됩니다.
+    now = datetime.now()
+    year_week_seed = int(now.strftime("%Y%V")) 
+    random.seed(year_week_seed)
+    
+    # 시드가 고정되었으므로 리스트에서 항상 같은 항목이 선택됩니다.
+    choice = random.choice(backup_quotes)
+    trans = choice.get(lang, choice['eng'])
+    
+    return {"eng": choice['eng'], "translated": trans, "author": choice['author']}
         
 @st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
 def get_financial_metrics(symbol, api_key):
