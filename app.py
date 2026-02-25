@@ -4115,11 +4115,18 @@ with main_area.container():
             date_str = ipo_dt.strftime('%Y-%m-%d')
             label_ipo = get_text('label_ipo_price')
             
-            # 💡 [상세 페이지 헤더 로직 강화] 상태값 키워드 판별 및 다국어 대응
-            status_lower = str(current_s).lower()
-            is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn', 'rw'])
-            is_delayed = any(x in status_lower for x in ['연기', 'delayed'])
-            is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
+            # --- [여기서부터 새로 붙여넣기] ---
+            # 💡 [핵심 교정] 핀허브 원본 상태와 DB 상태를 합쳐서 완벽히 검사
+            raw_status = str(stock.get('status', '')).lower()
+            live_s = str(current_s).lower()
+            combined_status = f"{raw_status} {live_s}"
+            
+            import re
+            # \b는 단어의 경계입니다. 'rw'라는 독립된 단어만 잡고 'forward'는 무시합니다.
+            is_withdrawn = bool(re.search(r'\b(withdrawn|rw|철회|취소)\b', combined_status))
+            is_delayed = bool(re.search(r'\b(delayed|연기)\b', combined_status))
+            is_delisted = bool(re.search(r'\b(delisted|폐지)\b', combined_status))
+            is_expected = bool(re.search(r'\b(expected|filed|active|priced)\b', combined_status))
 
             # 1. 상장 철회 (RW 서류 등록 기업 우선 처리)
             if is_withdrawn:
@@ -4140,14 +4147,22 @@ with main_area.container():
                 icon = "▲" if pct >= 0 else "▼"
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
             
-            # 5. 그 외 주가가 0인 경우 (날짜 기반 판별)
+            # 5. 그 외 주가가 0인 경우 (날짜 기반 판별 + 이중 방어막)
             else: 
                 if ipo_dt < today:
-                    # 상장일이 지났는데 위 상태(철회 등)도 아니고 가격도 없는 경우
-                    p_info = f"<span style='font-size: 0.9rem; color: #f57c00;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_delayed_unlisted')})</span>"
+                    if is_expected:
+                        # 🚨 [안전장치] 원래 '정상 예정'인 기업이 야후 API 오류로 가격만 0원일 때
+                        p_info = f"<span style='font-size: 0.9rem; color: #333333;'>({date_str} / {label_ipo} ${off_val} / 가격 확인중)</span>"
+                    else:
+                        p_info = f"<span style='font-size: 0.9rem; color: #f57c00;'>({date_str} / {label_ipo} ${off_val} / {get_text('status_delayed_unlisted')})</span>"
                 else:
                     # 미래 상장 예정
                     p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / ⏳ {get_text('status_waiting')})</span>"
+            # --- [여기까지 붙여넣기 완료] ---
+
+            # 여기서 화면에 헤더를 그려줍니다.
+            st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
+            st.write("")
             
             # 여기서 화면에 헤더를 그려줍니다.
             st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
