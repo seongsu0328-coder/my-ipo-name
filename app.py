@@ -2429,6 +2429,31 @@ UI_TEXT = {
     'label_my_pos': {'ko': '나의 위치', 'en': 'My Position', 'ja': '私の位置', 'zh': '我的位置'},
 
     # ==========================================
+    # 11. Tab 6: 스마트머니
+    # ==========================================
+    'tab_6': {
+        'ko': '스마트머니', 
+        'en': 'Smart Money', 
+        'ja': 'スマートマネー', 
+        'zh': '聪明钱'
+    },
+    'label_market_eval_high_asset': {
+        'ko': '시장평가(80억이상 자산가)', 
+        'en': 'Market Eval (High Net Worth)', 
+        'ja': '市場評価(80億以上の資産家)', 
+        'zh': '市场评估(80亿以上资产家)'
+    },
+    'label_pro_eval': {
+        'ko': '펀드매니저의 기업 평가', 
+        'en': 'Fund Manager Evaluation', 
+        'ja': 'ファンドマネージャーの企業評価', 
+        'zh': '基金经理的企业评估'
+    },
+    'label_gauge_recession': {'ko': '침체', 'en': 'Recession', 'ja': '沈滞', 'zh': '衰退'},
+    'label_gauge_bubble': {'ko': '버블', 'en': 'Bubble', 'ja': 'バブル', 'zh': '泡沫'},
+    
+
+    # ==========================================
     # 11. 게시판 (Board) - 리스트, 컨트롤, 상세
     # ==========================================
     'board_discussion': {'ko': '토론방', 'en': 'Discussion', 'ja': '討論部屋', 'zh': '讨论区'},
