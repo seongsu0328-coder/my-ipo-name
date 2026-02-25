@@ -635,6 +635,7 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Activ
         json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국어로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
 
     current_date = now.strftime("%Y-%m-%d")
+    current_year = now.strftime("%Y")   # 💡 [여기에 딱 한 줄 추가!]
 
     prompt = f"""
     {sys_prompt}
