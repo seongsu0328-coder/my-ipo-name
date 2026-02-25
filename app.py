@@ -4164,9 +4164,6 @@ with main_area.container():
             st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
             st.write("")
             
-            # 여기서 화면에 헤더를 그려줍니다.
-            st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
-            st.write("")
     
             # 💡 [핵심 수정] Tab 6(스마트머니)를 포함하기 위해 range(7)로 변경!
             tab_labels = [get_text(f'tab_{i}') for i in range(7)] 
