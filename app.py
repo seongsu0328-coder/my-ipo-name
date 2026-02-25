@@ -653,8 +653,8 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Activ
     4. 최종 검수(Self-Check): 답변을 최종 출력하기 전에 스스로 엄격하게 검토하세요. 인사말, 서론, 또는 {target_lang} 외의 언어(특히 한국어)가 단 한 글자라도 포함되어 있다면 해당 부분을 완전히 삭제하고 완벽한 {target_lang} 문장으로만 구성하여 답변하세요.
     
     {task2_label}
-    - 반드시 구글 검색을 실행하여 최신 정보를 확인하세요.
-    - {current_date} 기준, 최근 1년 이내의 뉴스 5개를 선정하세요.
+    - 🚨 [강제 명령] 반드시 구글 검색 도구(google_search_retrieval)를 지금 즉시 사용하여 "{company_name} {ticker} news {current_year}"를 검색하십시오.
+    - 과거 지식을 바탕으로 지어내지 말고, 검색 결과 중 오늘({current_date}) 기준 가장 최신 기사 5개를 선정하십시오.
     - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
     - [중요] sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
 
