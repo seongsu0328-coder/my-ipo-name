@@ -879,6 +879,11 @@ def main():
     target_df = df[df['symbol'].isin(target_symbols)]
     total = len(target_df)
     
+    # 💡 [신규 추가] 반복문 시작 전, SEC CIK 매핑 데이터를 딱 한 번만 로드합니다.
+    print("\n🏛️ SEC EDGAR CIK 매핑 데이터 로드 중 (API 최적화)...")
+    cik_mapping = get_sec_cik_mapping()
+    print(f"✅ 총 {len(cik_mapping)}개의 SEC 식별번호 확보 완료.")
+    
     print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 종목 다국어 캐싱)...")
     
     for idx, row in target_df.iterrows():
@@ -894,7 +899,10 @@ def main():
             
             # Tab1 도 아까 수정한 대로 상태를 넘겨받을 수 있게 맞춰줍니다.
             run_tab1_analysis(symbol, name, c_status)
-            run_tab0_analysis(symbol, name, c_status, c_date)
+            
+            # 💡 [수정 완료] Tab0 분석 시 SEC 검증을 위해 cik_mapping 사전을 함께 넘깁니다.
+            run_tab0_analysis(symbol, name, c_status, c_date, cik_mapping)
+            
             run_tab4_analysis(symbol, name)
             
             try:
@@ -908,7 +916,7 @@ def main():
             print(f"⚠️ {symbol} 분석 건너뜀: {e}")
             continue
 
-    # 💡 [핵심 추가] 모든 AI 분석이 완료된 후, 전체 캘린더를 대상으로 알림 엔진 가동
+    # 모든 AI 분석이 완료된 후, 전체 캘린더를 대상으로 알림 엔진 가동
     run_premium_alert_engine(df)
             
     print(f"\n🏁 모든 작업 종료: {datetime.now()}")
