@@ -2652,9 +2652,7 @@ def draw_decision_box(step_key, title, option_keys, current_p=0.0):
     
     current_val = st.session_state.user_decisions[sid].get(step_key)
     
-    # 💡 [다국어 적용] 이미 투표한 적이 있다면 언제든 바꿀 수 있다는 안내 문구 노출
-    if current_val:
-        st.caption(get_text('msg_vote_changeable'))
+    
         
     choice = st.radio(
         label=f"판단_{step_key}",
