@@ -3908,7 +3908,8 @@ with main_area.container():
             st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
             st.write("")
     
-            tab_labels = [get_text(f'tab_{i}') for i in range(6)]
+            # 💡 [핵심 수정] Tab 6(스마트머니)를 포함하기 위해 range(7)로 변경!
+            tab_labels = [get_text(f'tab_{i}') for i in range(7)] 
             
             if 'detail_sub_menu' not in st.session_state or st.session_state.detail_sub_menu not in tab_labels:
                 st.session_state.detail_sub_menu = tab_labels[0]
@@ -4776,8 +4777,83 @@ with main_area.container():
                 
                 # 💡 [요청 사항 반영] 의사결정 박스(draw_decision_box) 제거. 면책조항만 출력!
                 display_disclaimer()
-                    
+
+
+            # ---------------------------------------------------------
+            # 🔥 [NEW] Tab 6: 스마트머니 (Smart Money)
+            # ---------------------------------------------------------
+            elif selected_sub_menu == get_text('tab_6'):
+                user_info = st.session_state.get('user_info') or {}
+                user_level = user_info.get('membership_level', 'free')
+                corp_name = stock.get('corp_name', sid)
                 
+                if user_level == 'premium_plus':
+                    # [A] 80억 이상 자산가 시장평가 (Gauge Bar)
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>📊 {get_text('label_market_eval_80b')}</div>", unsafe_allow_html=True)
+                    
+                    # (임시 점수 - 추후 DB 연동 필터링 값 반영)
+                    m_avg = 2.5 
+                    avg_pct = min(max(((m_avg + 5) / 10) * 100, 0), 100)
+                    
+                    # Tab 5에 있는 나의 위치 재호출 (예외 방지용)
+                    user_score = 0
+                    if 'user_decisions' in st.session_state and sid in st.session_state.user_decisions:
+                        ud = st.session_state.user_decisions[sid]
+                        score_map = {"긍정적": 1, "수용적": 1, "안정적": 1, "저평가": 1, "매수": 1, "침체": 1, "중립적": 0, "중립": 0, "적정": 0, "부정적": -1, "회의적": -1, "버블": -1, "고평가": -1, "매도": -1}
+                        steps = ['filing', 'news', 'macro', 'company', 'ipo_report']
+                        user_score = sum(score_map.get(ud.get(s, "중립적"), 0) for s in steps)
+                    
+                    user_pct = min(max(((user_score + 5) / 10) * 100, 0), 100)
+
+                    # HTML 들여쓰기 제거
+                    gauge_html_smart = f"""<div style="background-color: #ffffff; padding: 45px 20px 75px 20px; border-radius: 15px; border: 1px solid #e0e0e0; box-shadow: 0 4px 10px rgba(0,0,0,0.03); margin-bottom: 30px;">
+<div style="position: relative; width: 100%; height: 20px; background: linear-gradient(to right, #ff4b4b 0%, #f1f3f4 50%, #00ff41 100%); border-radius: 10px;">
+    <div style="position: absolute; top: 30px; left: 0%; transform: translateX(0%); font-size: 13px; font-weight: 700; color: #d32f2f;">{get_text('label_gauge_recession')}</div>
+    <div style="position: absolute; top: 30px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 700; color: #757575;">중립</div>
+    <div style="position: absolute; top: 30px; left: 100%; transform: translateX(-100%); font-size: 13px; font-weight: 700; color: #2e7d32;">{get_text('label_gauge_bubble')}</div>
+    <div style="position: absolute; top: -40px; left: {avg_pct}%; transform: translateX(-50%); text-align: center; z-index: 10;">
+        <div style="font-size: 12px; font-weight: 800; color: #444; white-space: nowrap; background: #fff; padding: 3px 8px; border-radius: 6px; border: 1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">{get_text('label_market_avg')} : {m_avg:+.1f}</div>
+        <div style="color: #444; font-size: 14px; margin-top: -4px;">▼</div>
+    </div>
+    <div style="position: absolute; top: -4px; left: {user_pct}%; transform: translateX(-50%); text-align: center; z-index: 20;">
+        <div style="background-color: #004e92; color: #fff; border-radius: 50%; width: 28px; height: 28px; line-height: 22px; font-size: 13px; font-weight: bold; border: 3px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.3); margin: 0 auto;">나</div>
+        <div style="font-size: 12px; font-weight: 800; color: #004e92; white-space: nowrap; margin-top: 32px;">나의 위치 ({user_score:+d})</div>
+    </div>
+</div>
+</div>"""
+                    st.markdown(gauge_html_smart, unsafe_allow_html=True)
+
+                    # [B] 펀드매니저 평가 (Stacked Bar)
+                    st.write("<br>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>👔 펀드매니저의 '{corp_name}' 평가</div>", unsafe_allow_html=True)
+                    
+                    # (임시 비율 - 추후 DB 연동)
+                    up_pct, down_pct = 75.0, 25.0
+                    total_votes = 120
+                    
+                    sentiment_html_smart = f"""<div style="margin-bottom: 20px; padding: 0 5px;">
+<div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 800; font-family: sans-serif;">
+    <span style="color: #2e7d32; font-size: 1.2rem;">🐂 Bullish {up_pct:.0f}%</span>
+    <span style="color: #d32f2f; font-size: 1.2rem;">{down_pct:.0f}% Bearish 🐻</span>
+</div>
+<div style="display: flex; width: 100%; height: 16px; border-radius: 8px; overflow: hidden; background-color: #f1f3f4; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="width: {up_pct}%; background-color: #00ff41;"></div>
+    <div style="width: {down_pct}%; background-color: #ff4b4b;"></div>
+</div>
+<div style="text-align: center; color: #888; font-size: 0.85rem; margin-top: 8px; font-weight: 600;">
+    Total Votes: {total_votes:,}
+</div>
+</div>"""
+                    st.markdown(sentiment_html_smart, unsafe_allow_html=True)
+
+                else:
+                    st.markdown("""
+                        <div style="background-color: rgba(255,255,255,0.7); padding: 50px; text-align: center; backdrop-filter: blur(5px); border: 1px dashed #ccc; border-radius: 10px;">
+                            <h3 style="color: #333;">🔒 SmartMoney Only</h3>
+                            <p style="color: #666; font-size: 1.05rem;">정량 분석 데이터는 <b>프리미엄 플러스</b> 등급부터 열람 가능합니다.</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
 
     # ---------------------------------------------------------
     # [NEW] 6. 게시판 페이지 (Board) - 분석/자유 분리형
