@@ -916,39 +916,48 @@ def main():
     
     # 💡 [신규 추가] 반복문 시작 전, SEC CIK 매핑 데이터를 딱 한 번만 로드합니다.
     print("\n🏛️ SEC EDGAR CIK 매핑 데이터 로드 중 (API 최적화)...")
-    cik_mapping = get_sec_cik_mapping()
+    # 방금 수정한 새로운 함수 호출 (두 가지 사전 반환)
+    cik_mapping, name_to_ticker_map = get_sec_master_mapping()
     print(f"✅ 총 {len(cik_mapping)}개의 SEC 식별번호 확보 완료.")
     
     print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 종목 다국어 캐싱)...")
     
     for idx, row in target_df.iterrows():
-        symbol = row.get('symbol')
+        original_symbol = row.get('symbol')
         name = row.get('name')
         
-        print(f"[{idx+1}/{total}] {symbol} 분석 중...", flush=True)
+        # 💡 [핵심 교정] 이름 정규화를 통해 공식 티커를 찾아냅니다.
+        clean_name = normalize_company_name(name)
+        official_symbol = name_to_ticker_map.get(clean_name, original_symbol)
+        
+        # 💡 [캐시 불일치 방어막] app.py를 위해 옛날 티커도 진짜 CIK 번호와 연결해 줍니다.
+        if original_symbol != official_symbol:
+            print(f"🔧 [티커 교정 작동] {name}: {original_symbol} ➡️ {official_symbol}")
+            if official_symbol in cik_mapping:
+                cik_mapping[original_symbol] = cik_mapping[official_symbol]
+        
+        print(f"[{idx+1}/{total}] {original_symbol} 분석 중...", flush=True)
         
         try:
-            # 💡 [핵심] 캘린더 row에서 상태(status)와 날짜(date)를 꺼내서 워커에게 전달합니다.
             c_status = row.get('status', 'Active')
             c_date = row.get('date', None)
             
-            # Tab1 도 아까 수정한 대로 상태를 넘겨받을 수 있게 맞춰줍니다.
-            run_tab1_analysis(symbol, name, c_status)
+            # AI 분석(Tab 0, 1, 4)은 app.py가 찾을 수 있게 무조건 'original_symbol'로 캐싱!
+            run_tab1_analysis(original_symbol, name, c_status)
+            run_tab0_analysis(original_symbol, name, c_status, c_date, cik_mapping)
+            run_tab4_analysis(original_symbol, name)
             
-            # 💡 [수정 완료] Tab0 분석 시 SEC 검증을 위해 cik_mapping 사전을 함께 넘깁니다.
-            run_tab0_analysis(symbol, name, c_status, c_date, cik_mapping)
-            
-            run_tab4_analysis(symbol, name)
-            
+            # 💡 [핵심] 단, 주가(Tab 3)를 가져오는 야후 파이낸스는 무조건 교정된 'official_symbol'을 찔러야 합니다!
             try:
-                tk = yf.Ticker(symbol)
-                run_tab3_analysis(symbol, name, {"pe": tk.info.get('forwardPE', 0)})
+                tk = yf.Ticker(official_symbol)
+                # 저장할 때의 키값은 original_symbol로 유지하여 app.py와 동기화
+                run_tab3_analysis(original_symbol, name, {"pe": tk.info.get('forwardPE', 0)})
             except: pass
             
             time.sleep(1.2)
             
         except Exception as e:
-            print(f"⚠️ {symbol} 분석 건너뜀: {e}")
+            print(f"⚠️ {original_symbol} 분석 건너뜀: {e}")
             continue
 
     # 모든 AI 분석이 완료된 후, 전체 캘린더를 대상으로 알림 엔진 가동
