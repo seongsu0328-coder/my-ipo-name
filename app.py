@@ -728,7 +728,7 @@ def get_ai_analysis(company_name, topic, lang_code):
         return "⚠️ AI 모델 설정 오류가 발생했습니다."
 
     # 💡 [방어막 추가] worker.py가 저장한 캐시 키와 동일하게 설정하여 DB를 먼저 찌릅니다.
-    cache_key = f"{company_name}_{topic}_Tab0_v11_{lang_code}"
+    cache_key = f"{company_name}_{topic}_Tab0_v12_{lang_code}"
     now = datetime.now()
     # 공시 문서는 자주 안 바뀌므로 일주일치 데이터를 유효한 것으로 봅니다.
     seven_days_ago = (now - timedelta(days=7)).isoformat()
@@ -4003,58 +4003,53 @@ with main_area.container():
                 
                 ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
                 today_date = datetime.now().date()
-                is_over_1y = (today_date - ipo_dt).days > 365 # 💡 365일 초과 여부 확인
+                is_over_1y = (today_date - ipo_dt).days > 365 
 
-                # 1. 문서 선택 탭 버튼 (상태별 분기)
-                r1_c1, r1_c2, r1_c3 = st.columns(3)
-                r2_c1, r2_c2 = st.columns(2)
-
-                # [Case A] 철회된 기업
+                # 💡 [핵심 수정] 상태별로 렌더링할 버튼 목록과 속성(순서, 디자인)을 배열로 정의
                 if is_withdrawn:
-                    if 'core_topic' not in st.session_state or st.session_state.core_topic not in ["RW", "S-1", "S-1/A", "F-1", "FWP"]: 
-                        st.session_state.core_topic = "RW"
-                        
-                    if r1_c1.button(get_text('label_rw'), type="primary", use_container_width=True): st.session_state.core_topic = "RW"; st.rerun()
-                    if r1_c2.button(get_text('label_s1'), type="secondary", use_container_width=True): st.session_state.core_topic = "S-1"; st.rerun()
-                    if r1_c3.button(get_text('label_s1a'), type="secondary", use_container_width=True): st.session_state.core_topic = "S-1/A"; st.rerun()
-                    if r2_c1.button(get_text('label_f1'), type="secondary", use_container_width=True): st.session_state.core_topic = "F-1"; st.rerun()
-                    if r2_c2.button(get_text('label_fwp'), type="secondary", use_container_width=True): st.session_state.core_topic = "FWP"; st.rerun()
-                
-                # [Case B] 상장 폐지된 기업
+                    btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("RW", "primary")]
+                    default_topic = "RW"
                 elif is_delisted:
-                    if 'core_topic' not in st.session_state or st.session_state.core_topic not in ["Form 25", "S-1", "424B4", "F-1", "FWP"]: 
-                        st.session_state.core_topic = "Form 25"
-                        
-                    if r1_c1.button(get_text('label_form25'), type="primary", use_container_width=True): st.session_state.core_topic = "Form 25"; st.rerun()
-                    if r1_c2.button(get_text('label_s1'), type="secondary", use_container_width=True): st.session_state.core_topic = "S-1"; st.rerun()
-                    if r1_c3.button(get_text('label_424b4'), type="secondary", use_container_width=True): st.session_state.core_topic = "424B4"; st.rerun()
-                    if r2_c1.button(get_text('label_f1'), type="secondary", use_container_width=True): st.session_state.core_topic = "F-1"; st.rerun()
-                    if r2_c2.button(get_text('label_fwp'), type="secondary", use_container_width=True): st.session_state.core_topic = "FWP"; st.rerun()
-                
-                # [Case C] 상장 1년 이상된 일반 기업 💡
+                    btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("424B4", "secondary"), ("Form 25", "primary")]
+                    default_topic = "Form 25"
                 elif is_over_1y:
-                    if 'core_topic' not in st.session_state or st.session_state.core_topic not in ["10-K", "10-Q", "BS", "IS", "CF"]: 
-                        st.session_state.core_topic = "10-K"
-                        
-                    if r1_c1.button(get_text('label_10k'), type="secondary", use_container_width=True): st.session_state.core_topic = "10-K"; st.rerun()
-                    if r1_c2.button(get_text('label_10q'), type="secondary", use_container_width=True): st.session_state.core_topic = "10-Q"; st.rerun()
-                    if r1_c3.button(get_text('label_bs'), type="secondary", use_container_width=True): st.session_state.core_topic = "BS"; st.rerun()
-                    if r2_c1.button(get_text('label_is'), type="secondary", use_container_width=True): st.session_state.core_topic = "IS"; st.rerun()
-                    if r2_c2.button(get_text('label_cf'), type="secondary", use_container_width=True): st.session_state.core_topic = "CF"; st.rerun()
+                    btn_layout = [("S-1", "secondary"), ("FWP", "secondary"), ("10-K", "secondary"), ("10-Q", "secondary"), ("BS", "secondary"), ("IS", "secondary"), ("CF", "secondary")]
+                    default_topic = "10-K"
+                else:
+                    btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("424B4", "secondary")]
+                    default_topic = "S-1"
 
-                # [Case D] 상장 1년 이하 신규 기업 (기존 동일)
-                else: 
-                    if 'core_topic' not in st.session_state or st.session_state.core_topic in ["RW", "Form 25", "10-K", "10-Q", "BS", "IS", "CF"]: 
-                        st.session_state.core_topic = "S-1"
-                        
-                    if r1_c1.button(get_text('label_s1'), type="secondary", use_container_width=True): st.session_state.core_topic = "S-1"; st.rerun()
-                    if r1_c2.button(get_text('label_s1a'), type="secondary", use_container_width=True): st.session_state.core_topic = "S-1/A"; st.rerun()
-                    if r1_c3.button(get_text('label_f1'), type="secondary", use_container_width=True): st.session_state.core_topic = "F-1"; st.rerun()
-                    if r2_c1.button(get_text('label_fwp'), type="secondary", use_container_width=True): st.session_state.core_topic = "FWP"; st.rerun()
-                    if r2_c2.button(get_text('label_424b4'), type="secondary", use_container_width=True): st.session_state.core_topic = "424B4"; st.rerun()
+                # 현재 선택된 토픽이 유효한 버튼 리스트에 없다면 기본값으로 자동 전환
+                valid_topics = [b[0] for b in btn_layout]
+                if 'core_topic' not in st.session_state or st.session_state.core_topic not in valid_topics:
+                    st.session_state.core_topic = default_topic
+
+                # 라벨 매핑 사전
+                label_map = {
+                    "S-1": get_text('label_s1'), "S-1/A": get_text('label_s1a'), "F-1": get_text('label_f1'), 
+                    "FWP": get_text('label_fwp'), "424B4": get_text('label_424b4'), "RW": get_text('label_rw'), 
+                    "Form 25": get_text('label_form25'), "10-K": get_text('label_10k'), "10-Q": get_text('label_10q'), 
+                    "BS": get_text('label_bs'), "IS": get_text('label_is'), "CF": get_text('label_cf')
+                }
+
+                # 💡 동적 버튼 렌더링 (한 줄에 4개씩 깔끔하게 자동 줄바꿈 배치)
+                chunk_size = 4
+                for i in range(0, len(btn_layout), chunk_size):
+                    cols = st.columns(chunk_size)
+                    for j in range(chunk_size):
+                        if i + j < len(btn_layout):
+                            t_name, t_style = btn_layout[i + j]
+                            if cols[j].button(label_map[t_name], type=t_style, use_container_width=True, key=f"btn_tab0_{t_name}"):
+                                st.session_state.core_topic = t_name
+                                st.rerun()
 
                 topic = st.session_state.core_topic
                 curr_lang = st.session_state.lang
+                
+                # 2. 문서 설명 (Info Box)
+                st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
+
+                # (이후 4. AI 요약 보기 Expander 코드 그대로 유지)
                 
                 # 2. 문서 설명 (Info Box)
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
