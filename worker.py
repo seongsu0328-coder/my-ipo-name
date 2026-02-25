@@ -188,10 +188,9 @@ def check_sec_specific_filing(cik, target_form):
         return None
 
 def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None):
-    """Tab 0: 공시 문서 분석 (상태 및 상장일 경과에 따른 스마트 타겟팅 + SEC 직접 검증 적용)"""
+    """Tab 0: 공시 문서 분석 (캐싱 방어막 및 SEC 직접 검증 적용)"""
     if not model: return
     
-    # 💡 [핵심] 기업 상태와 상장일 경과 여부 파악
     status_lower = str(ipo_status).lower()
     is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn'])
     is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
@@ -204,15 +203,19 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 is_over_1y = True
         except: pass
 
-    # 💡 [핵심 비용 절감 & 과거 기록 보존] 상태에 따라 분석할 문서 리스트 동적 생성
-    if is_withdrawn: 
-        target_topics = ["S-1", "S-1/A", "F-1", "FWP", "RW"]
-    elif is_delisted: 
-        target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4", "Form 25"]
-    elif is_over_1y: 
-        target_topics = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
-    else: 
-        target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
+    # 💡 [핵심 추가] 상태별 캐시 유효 시간 설정 (1년 이상/철회/폐지는 1주일(168시간), 나머지는 24시간)
+    if is_withdrawn or is_delisted or is_over_1y:
+        valid_hours = 24 * 7  
+    else:
+        valid_hours = 24      
+        
+    limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
+
+    # 타겟 문서 선정
+    if is_withdrawn: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "RW"]
+    elif is_delisted: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4", "Form 25"]
+    elif is_over_1y: target_topics = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
+    else: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
 
     def_meta = {
         # --- [IPO 상장 진행 서류] ---
@@ -341,25 +344,20 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     }
 
     format_instruction = """
-                [출력 형식 및 번역 규칙 - 반드시 지킬 것]
-                - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
-                - [분량 조건] 전체 요약이 아닙니다! **각 문단(1, 2, 3)마다 반드시 4~5문장(약 5줄 분량)씩** 내용을 상세하고 풍성하게 채워 넣으세요.
-                - 올바른 예시(영어): **[Investment Point]** The company's main advantage is...
-                - 올바른 예시(일본어): **[投資ポイント]** 同社の最大の強みは...
-                - 금지 예시(한국어 병기 절대 금지): **[Investment Point - 투자포인트]** (X)
-                - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
-                """
+    [출력 형식 및 번역 규칙 - 반드시 지킬 것]
+    - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
+    - [분량 조건] 전체 요약이 아닙니다! **각 문단(1, 2, 3)마다 반드시 4~5문장(약 5줄 분량)씩** 내용을 상세하고 풍성하게 채워 넣으세요.
+    - 올바른 예시(영어): **[Investment Point]** The company's main advantage is...
+    - 올바른 예시(일본어): **[投資ポイント]** 同社の最大の強みは...
+    - 금지 예시(한국어 병기 절대 금지): **[Investment Point - 투자포인트]** (X)
+    - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
+    """
 
-    # 💡 [핵심] CIK 조회를 위한 변수 세팅
     cik = cik_mapping.get(ticker) if cik_mapping else None
 
-    # 💡 [핵심 최적화] 타겟 토픽 순회
     for topic in target_topics:
         curr_meta = def_meta[topic]
-        
-        # 💡 [신규 추가] SEC EDGAR 서류 검증 로직
         sec_fact_prompt = ""
-        # 재무제표(BS, IS, CF)는 10-K 서류 안에 포함되어 있으므로 10-K 제출 여부로 통합 확인
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
         
         if cik:
@@ -367,12 +365,18 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             if filed_date:
                 sec_fact_prompt = f"\n[💡 SEC FACT CHECK] 해당 기업은 {filed_date}에 공식적으로 '{sec_search_target}' 서류를 SEC에 제출했습니다. 이 사실과 구글 검색을 기반으로 아래 지침에 맞게 분석하십시오."
             else:
-                sec_fact_prompt = f"\n[💡 SEC FACT CHECK] 현재 SEC EDGAR 시스템에 공식 '{sec_search_target}' 서류가 제출되지 않았거나 조회되지 않습니다. 구글 뉴스나 외부 기사를 검색하여 왜 서류 제출이 지연되고 있는지, 또는 해당 정보의 대체 요약을 작성하십시오."
+                sec_fact_prompt = f"\n[💡 SEC FACT CHECK] 현재 SEC EDGAR 시스템에 공식 '{sec_search_target}' 서류가 조회되지 않습니다. 구글 뉴스 등을 검색하여 지연 사유나 현재 상황을 대체 요약하십시오."
         
         for lang_code, target_lang in SUPPORTED_LANGS.items():
-            # 💡 [버전 업데이트] v13으로 올려서 SEC 팩트체크가 포함된 새로운 캐시 생성 유도!
             cache_key = f"{company_name}_{topic}_Tab0_v13_{lang_code}"
             
+            # 💡 [핵심 추가] API 호출 전 DB 캐시 검증! (이 부분이 있어야 1주일 캐싱이 작동합니다)
+            try:
+                res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+                if res.data:
+                    continue # 캐시가 살아있으면 이 언어는 스킵하고 다음으로 넘어감 (API 요금 $0)
+            except: pass
+
             if lang_code == 'en':
                 labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
                 role_desc = "You are a professional senior analyst from Wall Street."
@@ -394,7 +398,6 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 no_intro_prompt = '자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
                 lang_directive = ""
 
-            # 💡 기존 프롬프트 유지 + sec_fact_prompt 주입
             prompt = f"""
             {labels[0]}: {company_name} - {topic}
             {labels[1]} (Checkpoints): {curr_meta['points']}
@@ -414,7 +417,6 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             - 문장 끝이 끊기지 않도록 매끄럽게 연결하세요.
             """
             
-            # 💡 [방어막 추가] 최대 3회 재시도 루프
             for attempt in range(3):
                 try:
                     response = model.generate_content(prompt)
@@ -422,18 +424,19 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     
                     if lang_code != 'ko':
                         if re.search(r'[가-힣]', res_text):
-                            time.sleep(1); continue # 한글 감지 시 재시도
+                            time.sleep(1); continue 
                             
                     batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": res_text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-                    break # 성공 시 루프 탈출
+                    break 
                 except:
                     time.sleep(1)
 
 def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
-    """Tab 1: 비즈니스 요약 및 뉴스 (워커용 - 상태별 프롬프트 자동 분기)"""
+    """Tab 1: 비즈니스 요약 및 뉴스 (구글 검색 강제 지시어 + v4 캐시 적용)"""
     if not model: return False
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
+    current_year = now.strftime("%Y") # 💡 [추가] 2026년 최신 뉴스 강제 검색용
     
     # 💡 [1. 동적 캐싱 로직] 
     if ipo_status == "상장예정(30일이내)": valid_hours = 6
@@ -447,8 +450,8 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
     is_cancelled = any(x in status_lower for x in ['연기', '폐지', '철회', '취소', 'delayed', 'delisted', 'withdrawn'])
     
     for lang_code, target_lang_str in SUPPORTED_LANGS.items():
-        # app.py와 캐시 키를 완벽히 동기화 (상태값 포함)
-        cache_key = f"{ticker}_Tab1_v3_{lang_code}_{ipo_status}"
+        # 💡 [버전 업데이트] v3 -> v4로 올려서 기존의 환각(옛날 뉴스) 캐시를 무시하고 새로 분석합니다!
+        cache_key = f"{ticker}_Tab1_v4_{lang_code}_{ipo_status}"
         
         # 💡 [캐시 검증] 아직 유효 시간이 안 지났다면 생성 스킵! (API 비용 절약)
         try:
@@ -516,6 +519,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
                 task1_label = "[작업 1: 비즈니스 모델 심층 분석]"
                 task1_structure = "1문단: 비즈니스 모델 및 경쟁 우위\n2문단: 재무 현황 및 공모 자금 활용\n3문단: 향후 전망 및 투자 의견"
 
+        # 💡 [핵심 수정] AI가 게으름 피우지 못하게 강력한 검색 지시어 추가
         prompt = f"""
         {sys_prompt}
         분석 대상: {company_name} ({ticker})
@@ -531,8 +535,10 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
         3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
 
         {task2_label}
-        - 반드시 구글 검색을 실행하여 최신 정보를 확인하세요.
-        - {current_date} 기준, 최근 1년 이내의 뉴스 5개를 선정하세요.
+        - 🚨 [강제 명령] 당신의 과거 지식에 의존하지 마십시오! 반드시 내장된 구글 검색 도구(google_search_retrieval)를 지금 즉시 작동시켜야 합니다.
+        - 검색 키워드: "{company_name} {ticker} news {current_year}"
+        - 위 키워드로 검색하여 오늘 날짜({current_date}) 기준 가장 최신 기사(최대 1~3개월 이내) 5개를 찾아내십시오. 
+        - 검색 결과가 없다면 지어내지 말고 뉴스 리스트를 비워두십시오. 환각(Hallucination)을 엄격히 금지합니다.
         - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
         - [중요] sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
 
@@ -563,7 +569,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
                     try: 
                         json_part = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
                         news_list = json.loads(json_part).get("news", [])
-                        # 💡 [최신 뉴스 정렬 로직] 워커에서도 DB 저장 전에 최신순으로 정렬!
+                        # [최신 뉴스 정렬 로직] 
                         news_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
                     except: pass
                     
