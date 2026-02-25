@@ -2477,6 +2477,18 @@ UI_TEXT = {
     'sentiment_negative': {'ko': '부정적', 'en': 'Negative', 'ja': '否定的', 'zh': '消极'},
     'decision_news_impression': {'ko': '신규기업에 대해 어떤 인상인가요?', 'en': 'What is your impression of this company?', 'ja': '新規企業についてどのような印象をお持ちですか？', 'zh': '您对这家新公司的印象如何？'},
     'label_general': {'ko': '일반', 'en': 'General', 'ja': '一般', 'zh': '一般'},
+    'err_try_again': {
+        'ko': '잠시 후 다시 시도해주세요.', 
+        'en': 'Please try again later.', 
+        'ja': 'しばらくしてからもう一度お試しください。', 
+        'zh': '请稍后再试。'
+    },
+    'err_ai_generation': {
+        'ko': '분석 데이터를 정제하는 중입니다. 잠시 후 다시 시도해주세요.', 
+        'en': 'Refining analysis data. Please try again in a moment.', 
+        'ja': '分析データを精製中です。しばらくしてからもう一度お試しください。', 
+        'zh': '正在整理分析数据。请稍后再试。'
+    },
     
 
     
@@ -4139,7 +4151,7 @@ with main_area.container():
                     with st.spinner(get_text('msg_analyzing_filing')):
                         analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
                     if "ERROR_DETAILS" in analysis_result:
-                        st.error("잠시 후 다시 시도해주세요. (할당량 초과 가능성)")
+                        st.error(get_text('err_try_again'))  # 👈 다국어 함수로 교체!
                     else:
                         import re
                         formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
