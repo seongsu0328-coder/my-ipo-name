@@ -3,12 +3,12 @@ import requests
 import pandas as pd
 import numpy as np
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 import time
 import logging
+import re
 
-# 🚨 불필요한 스팸 로그(상장폐지 등)만 살짝 끄고, 진짜 에러는 다 출력되게 설정
 logging.getLogger('yfinance').setLevel(logging.CRITICAL)
 
 # [1] 환경 설정
@@ -20,15 +20,12 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("❌ 에러: 환경변수 누락", flush=True); exit(1)
 
-# 💡 [수정] on_conflict가 여러 컬럼(ticker, target_date)일 경우를 위해 파라미터 유연성 확보
 def batch_upsert_raw(table_name, data_list, on_conflict="ticker"):
     if not data_list: return False
     endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
     headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal,resolution=merge-duplicates"
+        "apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json", "Prefer": "return=minimal,resolution=merge-duplicates"
     }
     try:
         resp = requests.post(endpoint, json=data_list, headers=headers, timeout=20)
@@ -38,60 +35,86 @@ def batch_upsert_raw(table_name, data_list, on_conflict="ticker"):
         return False
 
 # =====================================================================
-# 💡 [외주 개발자 지시용] 향후 유료 API(Polygon.io 등) 연동을 위한 예비 공간
+# 💡 [추가] SEC 티커 교정 헬퍼 (app.py와 완벽 동기화)
 # =====================================================================
-def fetch_otc_price_premium(ticker):
-    """
-    TODO: 야후 파이낸스에서 가격을 찾지 못하는 OTC/장외 주식의 가격을 가져오는 함수입니다.
-    현재는 0.0을 반환하지만, 향후 여기에 Polygon.io API 호출 코드가 삽입될 예정입니다.
-    이 구조(파이프라인)를 절대 삭제하지 마세요.
-    """
-    # --------------------------------------------------
-    # [미래에 대표님이 삽입할 코드 예시]
-    # import requests
-    # POLYGON_KEY = os.environ.get("POLYGON_API_KEY", "")
-    # url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?adjusted=true&apiKey={POLYGON_KEY}"
-    # try:
-    #     res = requests.get(url, timeout=5).json()
-    #     return float(res['results'][0]['c'])
-    # except:
-    #     return 0.0
-    # --------------------------------------------------
-    return 0.0 # 지금은 작동하지 않도록 0.0 고정
+def get_sec_ticker_mapping():
+    try:
+        headers = {'User-Agent': 'UnicornFinder App admin@unicornfinder.com'}
+        res = requests.get("https://www.sec.gov/files/company_tickers.json", headers=headers, timeout=10)
+        data = res.json()
+        mapping = {}
+        for k, v in data.items():
+            name = str(v['title']).lower()
+            name = re.sub(r'\b(inc|corp|corporation|co|ltd|plc|group|company|holdings)\b\.?', '', name)
+            name = re.sub(r'[^a-z0-9]', '', name)
+            if name: mapping[name] = v['ticker']
+        return mapping
+    except:
+        return {}
 
+def normalize_name(name):
+    if not name or pd.isna(name): return ""
+    name = str(name).lower()
+    name = re.sub(r'\b(inc|corp|corporation|co|ltd|plc|group|company|holdings)\b\.?', '', name)
+    return re.sub(r'[^a-z0-9]', '', name) 
+
+def fetch_otc_price_premium(ticker):
+    """향후 Polygon.io API 연동 예비 공간"""
+    return 0.0
 
 def fetch_and_update_prices():
-    print(f"🚀 15분 주기 주가 업데이트 시작 (KST: {datetime.now(pytz.timezone('Asia/Seoul')).strftime('%H:%M')})", flush=True)
+    # 💡 [핵심 최적화] 미국 증시 운영 시간 체크 (API 낭비 및 밴 방지)
+    # 미국 동부시간 기준 (장전/장후 포함) 월~금 04:00 ~ 20:00 에만 수집
+    now_est = datetime.now(pytz.timezone('US/Eastern'))
+    if now_est.weekday() >= 5: # 토(5), 일(6)
+        print(f"💤 주말 휴식 중 (미국장 닫힘) - {now_est.strftime('%Y-%m-%d %H:%M')}", flush=True)
+        return
+    if not (4 <= now_est.hour <= 20):
+        print(f"💤 야간 휴식 중 (미국장 닫힘) - {now_est.strftime('%Y-%m-%d %H:%M')}", flush=True)
+        return
+
+    print(f"🚀 15분 주기 실시간 주가 업데이트 시작 (EST: {now_est.strftime('%H:%M')})", flush=True)
     
     try:
-        get_url = f"{SUPABASE_URL}/rest/v1/stock_cache?select=symbol"
+        # DB에서 심볼과 '이름'을 함께 가져옴 (티커 교정을 위해)
+        get_url = f"{SUPABASE_URL}/rest/v1/stock_cache?select=symbol,name"
         headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
         resp = requests.get(get_url, headers=headers, timeout=15)
-        tickers = [item['symbol'] for item in resp.json()]
+        stock_data = resp.json()
     except Exception as e:
-        print(f"❌ 티커 로드 실패: {e}", flush=True); return []
+        print(f"❌ 데이터 로드 실패: {e}", flush=True); return
 
-    if not tickers: return []
-    print(f"📦 대상: {len(tickers)}개 주가 다운로드 시작...", flush=True)
+    if not stock_data: return
+
+    # 💡 [핵심 파이프라인] SEC 공식 티커 매핑 적용
+    sec_map = get_sec_ticker_mapping()
+    query_map = {} # { "공식티커": "원래티커(DB용)" }
+    
+    for item in stock_data:
+        orig_sym = item['symbol']
+        clean_n = normalize_name(item.get('name', ''))
+        official_sym = sec_map.get(clean_n, orig_sym)
+        query_map[official_sym] = orig_sym # 야후는 official로 찌르고, DB 저장은 orig로!
+
+    official_tickers = list(query_map.keys())
+    print(f"📦 대상: {len(official_tickers)}개 주가 다운로드 시작 (SEC 동기화 완료)...", flush=True)
 
     now_iso = datetime.now(pytz.timezone('Asia/Seoul')).isoformat()
-    # 💡 [핵심] 미국 증시 기준 오늘의 '날짜' 추출 (예: 2026-02-22)
-    us_today_str = datetime.now(pytz.timezone('US/Eastern')).strftime('%Y-%m-%d')
+    us_today_str = now_est.strftime('%Y-%m-%d')
     
     upsert_list = []
-    history_list = [] # 💡 과거 기록을 저장할 새로운 리스트
+    history_list = [] 
     
     chunk_size = 50
-    for i in range(0, len(tickers), chunk_size):
-        chunk_tickers = tickers[i : i + chunk_size]
-        print(f"⏳ 야후 파이낸스 다운로드 중... ({i+1} ~ {min(i+chunk_size, len(tickers))}/{len(tickers)})", flush=True)
+    for i in range(0, len(official_tickers), chunk_size):
+        chunk = official_tickers[i : i + chunk_size]
         
         try:
-            data = yf.download(chunk_tickers, period="1d", group_by='ticker', threads=True, progress=False)
+            data = yf.download(chunk, period="1d", group_by='ticker', threads=True, progress=False)
             
-            for symbol in chunk_tickers:
+            for official_sym in chunk:
                 try:
-                    target = data[symbol] if len(chunk_tickers) > 1 else data
+                    target = data[official_sym] if len(chunk) > 1 else data
                     current_p = 0.0
                     
                     if 'Close' in target:
@@ -99,24 +122,18 @@ def fetch_and_update_prices():
                         if not valid.empty and float(valid.iloc[-1]) > 0:
                             current_p = float(valid.iloc[-1])
                             
-                    # 💡 [핵심 파이프라인] 야후에서 0원이 나왔다? -> OTC 백업 함수를 찌른다!
                     if current_p <= 0:
-                        current_p = fetch_otc_price_premium(symbol)
+                        current_p = fetch_otc_price_premium(official_sym)
 
-                    # 최종적으로 가격이 0보다 클 때만 저장
                     if current_p > 0:
-                        # 1. 실시간 가격 캐시용 데이터
-                        upsert_list.append({
-                            "ticker": str(symbol),
-                            "price": current_p,
-                            "updated_at": now_iso
-                        })
+                        # DB에 저장할 때는 앱이 찾을 수 있게 다시 original symbol로 변환
+                        db_sym = query_map[official_sym] 
                         
-                        # 2. 💡 영구 저장 히스토리용 데이터
+                        upsert_list.append({
+                            "ticker": str(db_sym), "price": current_p, "updated_at": now_iso
+                        })
                         history_list.append({
-                            "ticker": str(symbol),
-                            "target_date": us_today_str,
-                            "close_price": current_p
+                            "ticker": str(db_sym), "target_date": us_today_str, "close_price": current_p
                         })
                 except: continue
         except Exception as e:
@@ -127,139 +144,20 @@ def fetch_and_update_prices():
     # DB 전송 로직
     if upsert_list:
         print(f"\n📊 {len(upsert_list)}개 데이터 추출 완료. DB 전송 시작...", flush=True)
-        
-        # 1. 기존 price_cache (실시간 가격) 덮어쓰기
         for i in range(0, len(upsert_list), chunk_size):
-            chunk = upsert_list[i : i + chunk_size]
-            batch_upsert_raw("price_cache", chunk, on_conflict="ticker")
+            batch_upsert_raw("price_cache", upsert_list[i : i + chunk_size], on_conflict="ticker")
             time.sleep(0.5)
             
-        # 2. 💡 신규 price_history (과거 기록용 종가) 덮어쓰기
-        print(f"📚 히스토리 DB 누적 저장 진행 중...", flush=True)
         for i in range(0, len(history_list), chunk_size):
-            chunk = history_list[i : i + chunk_size]
-            batch_upsert_raw("price_history", chunk, on_conflict="ticker,target_date")
+            batch_upsert_raw("price_history", history_list[i : i + chunk_size], on_conflict="ticker,target_date")
             time.sleep(0.5)
 
+        # 생존 신고 업데이트
         batch_upsert_raw("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": now_iso}], on_conflict="cache_key")
-        print(f"✅ 워커 작업 완료", flush=True)
-        
-        return upsert_list # 알림 엔진으로 넘기기 위해 반환
+        print(f"✅ 워커 작업 완벽 종료", flush=True)
     else:
         print("⚠️ 업데이트할 가격 데이터가 없습니다.", flush=True)
-        return []
 
-
-def run_premium_alert_engine(upsert_list):
-    """
-    [최종형] 기간별(1일~1년) 통계적 유의 상승 및 IPO 특화 신호를 감지하여 알림을 생성합니다.
-    """
-    print(f"🕵️ 프리미엄 알고리즘 엔진 가동 (기간별 통계 모드: 1일/1주/1달/3달/6달/1년)...", flush=True)
-    today = datetime.now(pytz.timezone('US/Eastern')).date()
-    
-    # [Step 1] 캘린더/캐시 정보 로드
-    try:
-        cal_url = f"{SUPABASE_URL}/rest/v1/stock_cache?select=symbol,name,date,price"
-        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
-        resp = requests.get(cal_url, headers=headers, timeout=15)
-        calendar_data = resp.json()
-    except:
-        print("⚠️ 캘린더 데이터 로드 실패로 분석을 건너뜁니다.", flush=True); return
-
-    new_alerts = []
-    # 워커가 방금 업데이트한 최신 주가 딕셔너리
-    db_prices = {item['ticker']: item['price'] for item in upsert_list}
-
-    for row in calendar_data:
-        ticker = row['symbol']
-        name = row['name']
-        current_p = db_prices.get(ticker, 0.0)
-        
-        try: ipo_date = pd.to_datetime(row['date']).date()
-        except: continue
-        try: ipo_p = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
-        except: ipo_p = 0.0
-
-        if current_p <= 0: continue
-
-        # ---------------------------------------------------------
-        # 1. 일정 기반 알림 (상장예정, 락업해제)
-        # ---------------------------------------------------------
-        # 상장 D-3
-        if ipo_date == today + timedelta(days=3):
-            new_alerts.append({"ticker": ticker, "alert_type": "UPCOMING", "title": f"🚀 상장 D-3: {name}", "message": f"{ticker} 종목 상장이 3일 앞으로 다가왔습니다. 월가 기관 평가를 확인하세요."})
-        
-        # 락업 해제 D-7 (180일 기준)
-        if ipo_date + timedelta(days=180) == today + timedelta(days=7):
-            new_alerts.append({"ticker": ticker, "alert_type": "LOCKUP", "title": f"🚨 락업 해제 주의: {ticker}", "message": "7일 뒤 내부자 보호예수 물량이 해제됩니다. 오버행 이슈에 대비하세요."})
-
-        # ---------------------------------------------------------
-        # 2. 기간별 통계적 유의 상승 로직 (3달, 6달, 1년 포함)
-        # ---------------------------------------------------------
-        try:
-            # 장기 추세 확인을 위해 1년치 데이터를 가져옵니다.
-            tk_yf = yf.Ticker(ticker)
-            hist = tk_yf.history(period="1y")
-            if len(hist) < 2: continue
-
-            # (1) 1일 급등 (+12% 이상)
-            day_chg = ((current_p - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100
-            if day_chg >= 12.0:
-                new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1D", "title": f"⚡ 1일 급등: {ticker}", "message": f"전일 대비 {day_chg:.1f}% 상승하며 강력한 수급이 유입되었습니다."})
-            
-            # (2) 1주일 상승 (+25% 이상)
-            if len(hist) >= 5:
-                p_1w = hist['Close'].iloc[-5]
-                chg_1w = ((current_p - p_1w) / p_1w) * 100
-                if chg_1w >= 25.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1W", "title": f"📈 주간 추세 돌파: {ticker}", "message": f"최근 1주일간 {chg_1w:.1f}% 상승하며 추세적인 반등을 시작했습니다."})
-
-            # (3) 3개월/6개월/1년 장기 통계 상승 (전고점 돌파 또는 바닥권 탈출 신호)
-            # - 3개월 수익률 +50% 이상
-            if len(hist) >= 60:
-                p_3m = hist['Close'].iloc[-60]
-                chg_3m = ((current_p - p_3m) / p_3m) * 100
-                if chg_3m >= 50.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_3M", "title": f"💎 3개월 중기 폭등: {ticker}", "message": f"3개월 전 대비 {chg_3m:.1f}% 상승하며 장기 우상향 궤도에 진입했습니다."})
-
-            # - 6개월 수익률 +80% 이상
-            if len(hist) >= 120:
-                p_6m = hist['Close'].iloc[-120]
-                chg_6m = ((current_p - p_6m) / p_6m) * 100
-                if chg_6m >= 80.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_6M", "title": f"🦄 6개월 퀀텀점프: {ticker}", "message": f"6개월 전 대비 {chg_6m:.1f}% 상승하며 시장の 핵심 주도주로 확인되었습니다."})
-
-            # - 1년 수익률 +150% 이상 (유니콘 탄생 신호)
-            if len(hist) >= 240:
-                p_1y = hist['Close'].iloc[0]
-                chg_1y = ((current_p - p_1y) / p_1y) * 100
-                if chg_1y >= 150.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1Y", "title": f"👑 연간 유니콘 포착: {ticker}", "message": f"지난 1년간 {chg_1y:.1f}% 수익률을 기록 중입니다. 진정한 슈퍼 그로스 기업입니다."})
-
-        except: pass
-
-        # ---------------------------------------------------------
-        # 3. 공모가 관련 시그널 (바닥 탈출)
-        # ---------------------------------------------------------
-        if ipo_p > 0:
-            # 공모가 재탈환 (공모가 대비 0~3% 구간 진입 시)
-            if 0 <= (current_p - ipo_p) / ipo_p < 0.03:
-                new_alerts.append({"ticker": ticker, "alert_type": "REBOUND", "title": f"🔥 공모가 회복: {ticker}", "message": f"침체기를 끝내고 주가가 다시 공모가(${ipo_p}) 위로 올라섰습니다. 바닥 확인 신호입니다."})
-
-    # [Step 3] DB 전송 및 중복 방지 (Upsert)
-    if new_alerts:
-        # ticker와 alert_type이 같은 경우, 오늘 날짜 기록이 있으면 넘어가도록 처리
-        batch_upsert_raw("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
-        print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 분석되어 DB에 적재되었습니다.", flush=True)
-
-
-# =====================================================================
-# 🚀 메인 실행부 (버그 수정: 엔진 실행 연결)
-# =====================================================================
 if __name__ == "__main__":
-    # 1. 주가 수집 및 저장 (결과 리스트 받아오기)
-    updated_prices = fetch_and_update_prices()
-    
-    # 2. 업데이트된 주가가 있다면 알림 엔진 즉시 가동!
-    if updated_prices:
-        run_premium_alert_engine(updated_prices)
+    # 🚨 [알림 엔진 분리 완수] 무거운 알림 엔진은 여기서 제거하고 순수 주가만 수집합니다.
+    fetch_and_update_prices()
