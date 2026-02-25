@@ -151,8 +151,44 @@ def run_premium_alert_engine(df_calendar):
 # [3] AI 분석 함수들 (프롬프트 100% 보존 + 방어막 추가)
 # ==========================================
 
-def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
-    """Tab 0: 공시 문서 분석 (상태 및 상장일 경과에 따른 스마트 타겟팅 적용)"""
+# ==========================================
+# [SEC EDGAR API 헬퍼 함수] - 무료, 주 1회 호출용
+# ==========================================
+# SEC API는 User-Agent 헤더(이름+이메일)가 없으면 접속을 차단하므로 필수로 넣어야 합니다.
+SEC_HEADERS = {'User-Agent': 'UnicornFinder App admin@unicornfinder.com'}
+
+def get_sec_cik_mapping():
+    """Ticker를 SEC 고유번호(CIK)로 변환하는 사전을 가져옵니다."""
+    try:
+        res = requests.get("https://www.sec.gov/files/company_tickers.json", headers=SEC_HEADERS, timeout=10)
+        mapping = {}
+        for k, v in res.json().items():
+            mapping[v['ticker']] = str(v['cik_str']).zfill(10) # CIK는 10자리 문자열
+        return mapping
+    except Exception as e:
+        print(f"SEC CIK Mapping Error: {e}")
+        return {}
+
+def check_sec_specific_filing(cik, target_form):
+    """특정 CIK 기업이 10-K, RW, S-1 등의 서류를 제출했는지 확인하고 가장 최근 날짜를 반환합니다."""
+    try:
+        time.sleep(0.5) # SEC 초당 10회 제한 방어
+        res = requests.get(f"https://data.sec.gov/submissions/CIK{cik}.json", headers=SEC_HEADERS, timeout=10)
+        filings = res.json().get('filings', {}).get('recent', {})
+        
+        forms = filings.get('form', [])
+        dates = filings.get('filingDate', [])
+        
+        # 최신 제출본부터 검사
+        for i, form in enumerate(forms):
+            if target_form.upper() in str(form).upper():
+                return dates[i] # 서류가 있으면 제출 날짜 반환 (예: '2025-10-12')
+        return None # 서류가 없으면 None
+    except:
+        return None
+
+def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None):
+    """Tab 0: 공시 문서 분석 (상태 및 상장일 경과에 따른 스마트 타겟팅 + SEC 직접 검증 적용)"""
     if not model: return
     
     # 💡 [핵심] 기업 상태와 상장일 경과 여부 파악
@@ -168,7 +204,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 is_over_1y = True
         except: pass
 
-    # 💡 [핵심 비용 절감 & 과거 기록 보존] 상태에 따라 분석할 문서 리스트(target_topics)를 동적으로 생성
+    # 💡 [핵심 비용 절감 & 과거 기록 보존] 상태에 따라 분석할 문서 리스트 동적 생성
     if is_withdrawn: 
         target_topics = ["S-1", "S-1/A", "F-1", "FWP", "RW"]
     elif is_delisted: 
@@ -314,13 +350,28 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
                 """
 
-    # 💡 [핵심 최적화] 고정된 5개가 아니라, 위에서 골라낸 target_topics(2~7개)만 순회합니다!
+    # 💡 [핵심] CIK 조회를 위한 변수 세팅
+    cik = cik_mapping.get(ticker) if cik_mapping else None
+
+    # 💡 [핵심 최적화] 타겟 토픽 순회
     for topic in target_topics:
         curr_meta = def_meta[topic]
         
+        # 💡 [신규 추가] SEC EDGAR 서류 검증 로직
+        sec_fact_prompt = ""
+        # 재무제표(BS, IS, CF)는 10-K 서류 안에 포함되어 있으므로 10-K 제출 여부로 통합 확인
+        sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
+        
+        if cik:
+            filed_date = check_sec_specific_filing(cik, sec_search_target)
+            if filed_date:
+                sec_fact_prompt = f"\n[💡 SEC FACT CHECK] 해당 기업은 {filed_date}에 공식적으로 '{sec_search_target}' 서류를 SEC에 제출했습니다. 이 사실과 구글 검색을 기반으로 아래 지침에 맞게 분석하십시오."
+            else:
+                sec_fact_prompt = f"\n[💡 SEC FACT CHECK] 현재 SEC EDGAR 시스템에 공식 '{sec_search_target}' 서류가 제출되지 않았거나 조회되지 않습니다. 구글 뉴스나 외부 기사를 검색하여 왜 서류 제출이 지연되고 있는지, 또는 해당 정보의 대체 요약을 작성하십시오."
+        
         for lang_code, target_lang in SUPPORTED_LANGS.items():
-            # 💡 [버전 업데이트] v12로 올려서 과거 S-1 양식으로 쓰인 RW/Form25 캐시를 덮어씁니다.
-            cache_key = f"{company_name}_{topic}_Tab0_v12_{lang_code}"
+            # 💡 [버전 업데이트] v13으로 올려서 SEC 팩트체크가 포함된 새로운 캐시 생성 유도!
+            cache_key = f"{company_name}_{topic}_Tab0_v13_{lang_code}"
             
             if lang_code == 'en':
                 labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
@@ -343,9 +394,11 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 no_intro_prompt = '자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
                 lang_directive = ""
 
+            # 💡 기존 프롬프트 유지 + sec_fact_prompt 주입
             prompt = f"""
             {labels[0]}: {company_name} - {topic}
             {labels[1]} (Checkpoints): {curr_meta['points']}
+            {sec_fact_prompt}
             
             [{labels[1]}]
             {role_desc}
