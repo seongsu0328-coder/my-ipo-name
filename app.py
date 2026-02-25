@@ -4370,12 +4370,13 @@ with main_area.container():
                     with st.spinner(get_text('msg_analyzing_filing')):
                         analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
                     if "ERROR_DETAILS" in analysis_result:
-                        st.error(get_text('err_try_again'))  # 👈 다국어 함수로 교체!
+                        st.error(get_text('err_try_again'))  
                     else:
                         import re
                         formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
-                        indent_size = "14px" if curr_lang == "ko" else "0px"
-                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; text-indent:{indent_size};">{formatted_result.replace(chr(10), "<br>")}</div><br>', unsafe_allow_html=True)
+                        
+                        # 💡 들여쓰기(text-indent)를 완전히 제거하여 모든 언어 0px 좌측 정렬 통일
+                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_result.replace(chr(10), "<br>")}</div><br>', unsafe_allow_html=True)
                     st.caption(get_text('caption_algorithm'))
 
                 # 5. 외부 링크 버튼 (재무제표는 10-K 링크로 매핑)
