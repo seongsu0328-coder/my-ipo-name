@@ -274,7 +274,7 @@ def run_tab0_analysis(ticker, company_name):
                     time.sleep(1)
 
 def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
-    """Tab 1: 비즈니스 요약 및 뉴스 (워커용)"""
+    """Tab 1: 비즈니스 요약 및 뉴스 (워커용 - 상태별 프롬프트 자동 분기)"""
     if not model: return False
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
@@ -286,8 +286,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
         
     limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
     
+    # 💡 [상태 판별] 상장 철회/취소/폐지/연기 여부 확인
+    status_lower = str(ipo_status).lower()
+    is_cancelled = any(x in status_lower for x in ['연기', '폐지', '철회', '취소', 'delayed', 'delisted', 'withdrawn'])
+    
     for lang_code, target_lang_str in SUPPORTED_LANGS.items():
-        cache_key = f"{ticker}_Tab1_v3_{lang_code}"
+        # app.py와 캐시 키를 완벽히 동기화 (상태값 포함)
+        cache_key = f"{ticker}_Tab1_v3_{lang_code}_{ipo_status}"
         
         # 💡 [캐시 검증] 아직 유효 시간이 안 지났다면 생성 스킵! (API 비용 절약)
         try:
@@ -296,38 +301,69 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
                 continue # 캐시가 살아있으면 다음 언어로 넘어감
         except: pass
 
+        # ---------------------------------------------------------
+        # 💡 언어별 & 상태별 프롬프트 세팅
+        # ---------------------------------------------------------
         if lang_code == 'ja':
             sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
-            task1_label = "[タスク1: ビジネスモデルの深層分析]"
             task2_label = "[タスク2: 最新ニュースの収集]"
             target_lang = "日本語(Japanese)"
             lang_instruction = "必ず自然な日本語のみで作成してください。"
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+            
+            if is_cancelled:
+                task1_label = "[タスク1: 上場延期/撤回/廃止の事由分析]"
+                task1_structure = "1文段: 簡単なビジネスモデル概要\n2文段: Google検索を通じた上場延期・撤回・廃止の決定的な理由 (※検索で明確な理由が見つからない場合は、既存の一般的なビジネスモデル要約で代替すること)\n3文段: 該当企業の今後の見通し"
+            else:
+                task1_label = "[タスク1: ビジネスモデルの深層分析]"
+                task1_structure = "1文段: ビジネスモデルおよび競争優位性\n2文段: 財務状況および公募資金の使途\n3文段: 今後の見通しおよび投資意見"
+
         elif lang_code == 'en':
             sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
-            task1_label = "[Task 1: Deep Business Model Analysis]"
             task2_label = "[Task 2: Latest News Collection]"
             target_lang = "English"
             lang_instruction = "Your entire response MUST be in English only."
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+            
+            if is_cancelled:
+                task1_label = "[Task 1: Analysis of IPO Delay/Withdrawal Reasons]"
+                task1_structure = "Paragraph 1: Brief business model overview.\nParagraph 2: The exact reasons and background for the IPO delay, withdrawal, or delisting based on search. (*If a clear reason cannot be found, fallback to the standard business model summary*)\nParagraph 3: Future outlook and current status."
+            else:
+                task1_label = "[Task 1: Deep Business Model Analysis]"
+                task1_structure = "Paragraph 1: Business model and competitive advantage.\nParagraph 2: Financial status and use of proceeds.\nParagraph 3: Future outlook and investment opinion."
+
         elif lang_code == 'zh':
             sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。"
-            task1_label = "[任务1: 商业模式深度分析]"
             task2_label = "[任务2: 收集最新新闻]"
             target_lang = "简体中文(Simplified Chinese)"
             lang_instruction = "必须只用自然流畅的简体中文编写。"
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "中文标题", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+            
+            if is_cancelled:
+                task1_label = "[任务1: 上市推迟/撤回原因深度分析]"
+                task1_structure = "第一段：企业简要商业模式概述\n第二段：通过搜索找出的上市推迟、撤回或退市的确切原因 (※如果搜索不到明确原因，请使用常规商业模式摘要代替)\n第三段：企业未来展望及后续计划"
+            else:
+                task1_label = "[任务1: 商业模式深度分析]"
+                task1_structure = "第一段：商业模式及竞争优势\n第二段：财务状况及募资用途\n第三段：未来展望及投资意见"
+
         else:
             sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
-            task1_label = "[작업 1: 비즈니스 모델 심층 분석]"
             task2_label = "[작업 2: 최신 뉴스 수집]"
             target_lang = "한국어(Korean)"
             lang_instruction = "반드시 자연스러운 한국어만 사용하세요."
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국어로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+            
+            if is_cancelled:
+                task1_label = "[작업 1: 상장 연기/철회/폐지 사유 집중 분석]"
+                task1_structure = "1문단: 기업의 간략한 비즈니스 모델 요약\n2문단: 구글 검색을 통한 상장 연기/철회/폐지의 결정적 사유 및 배경 (※ 만약 명확한 철회/폐지 사유가 검색되지 않으면, 기존의 일반적인 비즈니스 모델 요약으로 대체할 것)\n3문단: 해당 기업의 향후 전망 및 현재 상태"
+            else:
+                task1_label = "[작업 1: 비즈니스 모델 심층 분석]"
+                task1_structure = "1문단: 비즈니스 모델 및 경쟁 우위\n2문단: 재무 현황 및 공모 자금 활용\n3문단: 향후 전망 및 투자 의견"
 
         prompt = f"""
         {sys_prompt}
         분석 대상: {company_name} ({ticker})
+        기업 상태: {ipo_status}
         오늘 날짜: {current_date}
 
         {task1_label}
@@ -335,9 +371,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
         1. 언어: {lang_instruction}
            - 경고: 영어 단어(potential, growth 등)를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
         2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
-           - 1문단: 비즈니스 모델 및 경쟁 우위
-           - 2문단: 재무 현황 및 공모 자금 활용
-           - 3문단: 향후 전망 및 투자 의견
+           {task1_structure}
         3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
 
         {task2_label}
@@ -373,7 +407,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
                     try: 
                         json_part = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
                         news_list = json.loads(json_part).get("news", [])
-                        # 💡 [2. 최신 뉴스 정렬 로직] 워커에서도 저장 전에 최신순 정렬
+                        # 💡 [최신 뉴스 정렬 로직] 워커에서도 DB 저장 전에 최신순으로 정렬!
                         news_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
                     except: pass
                     
@@ -698,8 +732,13 @@ def main():
         print(f"[{idx+1}/{total}] {symbol} 분석 중...", flush=True)
         
         try:
-            run_tab1_analysis(symbol, name)
-            run_tab0_analysis(symbol, name)
+            # 💡 [핵심] 캘린더 row에서 상태(status)와 날짜(date)를 꺼내서 워커에게 전달합니다.
+            c_status = row.get('status', 'Active')
+            c_date = row.get('date', None)
+            
+            # Tab1 도 아까 수정한 대로 상태를 넘겨받을 수 있게 맞춰줍니다.
+            run_tab1_analysis(symbol, name, c_status)
+            run_tab0_analysis(symbol, name, c_status, c_date)
             run_tab4_analysis(symbol, name)
             
             try:
