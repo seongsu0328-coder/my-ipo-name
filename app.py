@@ -954,27 +954,34 @@ def get_market_dashboard_analysis(metrics_data, lang_code):
 # ==========================================
 # [기능] 1. 구글 연결 핵심 함수 (최우선 순위)
 # ==========================================
-# 💡 [핵심 해결] 캐시(@st.cache_resource)를 완전히 제거하여, 
-# 끊어진 옛날 연결을 재사용하다 튕기는 에러를 원천 차단합니다.
 def get_gcp_clients():
-    try:
-        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        
-        gcp_raw = os.environ.get("GCP_SERVICE_ACCOUNT")
-        if gcp_raw:
-            creds_dict = json.loads(gcp_raw)
-        else:
-            creds_dict = st.secrets["gcp_service_account"]
+    # 💡 에러를 숨기지 않고 그대로 노출시켜 진짜 원인을 찾습니다.
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    
+    gcp_raw = os.environ.get("GCP_SERVICE_ACCOUNT")
+    
+    if gcp_raw:
+        try:
+            # Railway 등 환경변수 문자열 파싱
+            import json
+            creds_dict = json.loads(gcp_raw, strict=False)
+        except:
+            # JSON 규격이 살짝 깨졌을 때를 대비한 2차 파싱
+            import ast
+            creds_dict = ast.literal_eval(gcp_raw)
+    else:
+        # 로컬(PC) 환경
+        creds_dict = st.secrets["gcp_service_account"]
 
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        gspread_client = gspread.authorize(creds)
-        drive_service = build('drive', 'v3', credentials=creds)
-        
-        return gspread_client, drive_service
-    except Exception as e:
-        # 터미널(로그)에 강력하게 에러를 찍어줍니다.
-        print(f"🚨 구글 드라이브 연결 초기화 실패: {e}", flush=True)
-        return None, None
+    from oauth2client.service_account import ServiceAccountCredentials
+    import gspread
+    from googleapiclient.discovery import build
+
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    gspread_client = gspread.authorize(creds)
+    drive_service = build('drive', 'v3', credentials=creds)
+    
+    return gspread_client, drive_service
 
 @st.cache_data(ttl=43200) # 12시간마다 갱신
 def get_daily_quote(lang='ko'):
