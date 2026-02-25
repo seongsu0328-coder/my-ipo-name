@@ -4742,6 +4742,9 @@ with main_area.container():
                             st.rerun()
                 else: 
                     st.info(get_text('msg_first_comment'))
+                
+                # 💡 [요청 사항 반영] 의사결정 박스(draw_decision_box) 제거. 면책조항만 출력!
+                display_disclaimer()
                     
                 
 
