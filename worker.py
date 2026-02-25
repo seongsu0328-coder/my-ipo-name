@@ -460,27 +460,40 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 except:
                     time.sleep(1)
 
-def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
-    """Tab 1: 비즈니스 요약 및 뉴스 (구글 검색 강제 지시어 + v4 캐시 적용)"""
+def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
+    """Tab 1: 비즈니스 요약 및 뉴스 (생애주기 맞춤형 프롬프트 + 구글 검색 강제 지시어 + v5 캐시 적용)"""
     if not model: return False
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     current_year = now.strftime("%Y") # 💡 [추가] 2026년 최신 뉴스 강제 검색용
     
-    # 💡 [1. 동적 캐싱 로직] 
-    if ipo_status == "상장예정(30일이내)": valid_hours = 6
-    elif ipo_status in ["상장대기", "상장연기", "상장폐지"]: valid_hours = 24 * 7
-    else: valid_hours = 24
+    import re
+    # 💡 [1. 기업 생애주기 정밀 판별 (정규식 도입)]
+    status_lower = str(ipo_status).lower()
+    is_withdrawn = bool(re.search(r'\b(withdrawn|rw|철회|취소)\b', status_lower))
+    is_delisted_or_otc = bool(re.search(r'\b(delisted|폐지|otc)\b', status_lower))
+    
+    is_over_1y = False
+    try:
+        if ipo_date_str:
+            days_passed = (now.date() - pd.to_datetime(ipo_date_str).date()).days
+            if days_passed > 365:
+                is_over_1y = True
+    except: pass
+
+    # 💡 [2. 동적 캐싱 로직] 
+    if is_withdrawn or is_delisted_or_otc or is_over_1y:
+        valid_hours = 24 * 7  # 7일
+    elif "상장예정" in ipo_status or "30일" in ipo_status:
+        valid_hours = 6
+    else:
+        valid_hours = 24
         
     limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
     
-    # 💡 [상태 판별] 상장 철회/취소/폐지/연기 여부 확인
-    status_lower = str(ipo_status).lower()
-    is_cancelled = any(x in status_lower for x in ['연기', '폐지', '철회', '취소', 'delayed', 'delisted', 'withdrawn'])
-    
     for lang_code, target_lang_str in SUPPORTED_LANGS.items():
-        # 💡 [버전 업데이트] v3 -> v4로 올려서 기존의 환각(옛날 뉴스) 캐시를 무시하고 새로 분석합니다!
-        cache_key = f"{ticker}_Tab1_v4_{lang_code}_{ipo_status}"
+        # 💡 [버전 업데이트] v4 -> v5 로 올려서 기존 캐시 무시하고 새로운 생애주기 분석 적용
+        cache_key = f"{ticker}_Tab1_v5_{lang_code}"
         
         # 💡 [캐시 검증] 아직 유효 시간이 안 지났다면 생성 스킵! (API 비용 절약)
         try:
@@ -490,7 +503,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
         except: pass
 
         # ---------------------------------------------------------
-        # 💡 언어별 & 상태별 프롬프트 세팅
+        # 💡 3. 언어별 프롬프트 세팅
         # ---------------------------------------------------------
         if lang_code == 'ja':
             sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
@@ -498,57 +511,42 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
             target_lang = "日本語(Japanese)"
             lang_instruction = "必ず自然な日本語のみで作成してください。"
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-            
-            if is_cancelled:
-                task1_label = "[タスク1: 上場延期/撤回/廃止の事由分析]"
-                task1_structure = "1文段: 簡単なビジネスモデル概要\n2文段: Google検索を通じた上場延期・撤回・廃止の決定的な理由 (※検索で明確な理由が見つからない場合は、既存の一般的なビジネスモデル要約で代替すること)\n3文段: 該当企業の今後の見通し"
-            else:
-                task1_label = "[タスク1: ビジネスモデルの深層分析]"
-                task1_structure = "1文段: ビジネスモデルおよび競争優位性\n2文段: 財務状況および公募資金の使途\n3文段: 今後の見通しおよび投資意見"
-
         elif lang_code == 'en':
             sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
             task2_label = "[Task 2: Latest News Collection]"
             target_lang = "English"
             lang_instruction = "Your entire response MUST be in English only."
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-            
-            if is_cancelled:
-                task1_label = "[Task 1: Analysis of IPO Delay/Withdrawal Reasons]"
-                task1_structure = "Paragraph 1: Brief business model overview.\nParagraph 2: The exact reasons and background for the IPO delay, withdrawal, or delisting based on search. (*If a clear reason cannot be found, fallback to the standard business model summary*)\nParagraph 3: Future outlook and current status."
-            else:
-                task1_label = "[Task 1: Deep Business Model Analysis]"
-                task1_structure = "Paragraph 1: Business model and competitive advantage.\nParagraph 2: Financial status and use of proceeds.\nParagraph 3: Future outlook and investment opinion."
-
         elif lang_code == 'zh':
             sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。"
             task2_label = "[任务2: 收集最新新闻]"
             target_lang = "简体中文(Simplified Chinese)"
             lang_instruction = "必须只用自然流畅的简体中文编写。"
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "中文标题", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-            
-            if is_cancelled:
-                task1_label = "[任务1: 上市推迟/撤回原因深度分析]"
-                task1_structure = "第一段：企业简要商业模式概述\n第二段：通过搜索找出的上市推迟、撤回或退市的确切原因 (※如果搜索不到明确原因，请使用常规商业模式摘要代替)\n第三段：企业未来展望及后续计划"
-            else:
-                task1_label = "[任务1: 商业模式深度分析]"
-                task1_structure = "第一段：商业模式及竞争优势\n第二段：财务状况及募资用途\n第三段：未来展望及投资意见"
-
         else:
             sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
             task2_label = "[작업 2: 최신 뉴스 수집]"
             target_lang = "한국어(Korean)"
             lang_instruction = "반드시 자연스러운 한국어만 사용하세요."
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국어로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-            
-            if is_cancelled:
-                task1_label = "[작업 1: 상장 연기/철회/폐지 사유 집중 분석]"
-                task1_structure = "1문단: 기업의 간략한 비즈니스 모델 요약\n2문단: 구글 검색을 통한 상장 연기/철회/폐지의 결정적 사유 및 배경 (※ 만약 명확한 철회/폐지 사유가 검색되지 않으면, 기존의 일반적인 비즈니스 모델 요약으로 대체할 것)\n3문단: 해당 기업의 향후 전망 및 현재 상태"
-            else:
-                task1_label = "[작업 1: 비즈니스 모델 심층 분석]"
-                task1_structure = "1문단: 비즈니스 모델 및 경쟁 우위\n2문단: 재무 현황 및 공모 자금 활용\n3문단: 향후 전망 및 투자 의견"
 
-        # 💡 [핵심 수정] AI가 게으름 피우지 못하게 강력한 검색 지시어 추가
+        # ---------------------------------------------------------
+        # 💡 4. 생애 주기별 맞춤형 프롬프트 구조 분기
+        # ---------------------------------------------------------
+        if is_withdrawn:
+            task1_label = f"[{'작업 1: 상장 철회(Withdrawn) 심층 진단' if lang_code == 'ko' else 'Task 1: Withdrawn IPO Diagnosis'}]"
+            task1_structure = "1문단: [철회 배경 진단] 시장 환경 악화 여부 및 내부 펀더멘털/규제 이슈 분석\n2문단: [재무적 타격] 자본 조달 실패가 기업의 단기 유동성에 미치는 영향\n3문단: [생존 전략] M&A 피인수, 우회 상장, 추가 사모 펀딩 등 향후 대안 시나리오"
+        elif is_delisted_or_otc:
+            task1_label = f"[{'작업 1: OTC/장외시장 거래 리스크 진단' if lang_code == 'ko' else 'Task 1: OTC Market Risk Analysis'}]"
+            task1_structure = "1문단: [장외 편입 배경] 비즈니스 모델 요약 및 정규 시장 미진입(또는 강등) 사유\n2문단: [투자 리스크] 거래량 부족에 따른 유동성 위험(Liquidity Risk) 및 정보 비대칭성 진단\n3문단: [장기 전망] 사업 지속 가능성(Going Concern) 및 향후 정규 시장 재진입 가능성"
+        elif is_over_1y:
+            task1_label = f"[{'작업 1: 상장 1년 차 펀더멘털 점검' if lang_code == 'ko' else 'Task 1: Post-IPO Fundamental Check'}]"
+            task1_structure = "1문단: [목표 달성도] IPO 당시 제시했던 비전 대비 현재 핵심 펀더멘털 달성 여부\n2문단: [수익성 평가] 흑자 전환(Path to Profitability) 달성 현황 및 현금흐름 상태\n3문단: [자본 효율성] 투자(CAPEX/R&D) 성과 및 장기적 주주 가치 환원 전략"
+        else:
+            task1_label = f"[{'작업 1: 비즈니스 모델 심층 분석' if lang_code == 'ko' else 'Task 1: Deep Business Model Analysis'}]"
+            task1_structure = "1문단: 비즈니스 모델 및 시장 내 핵심 경쟁 우위\n2문단: 재무 현황 및 공모 자금 활용 계획\n3문단: 향후 전망 및 투자 의견"
+
+        # 💡 [대표님 원본 유지] 강력한 구글 검색 강제 지시어
         prompt = f"""
         {sys_prompt}
         분석 대상: {company_name} ({ticker})
@@ -598,7 +596,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active"):
                     try: 
                         json_part = full_text.split("<JSON_START>")[1].split("<JSON_END>")[0].strip()
                         news_list = json.loads(json_part).get("news", [])
-                        # [최신 뉴스 정렬 로직] 
+                        # 💡 [대표님 원본 유지] 최신 뉴스 정렬 로직
                         news_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
                     except: pass
                     
