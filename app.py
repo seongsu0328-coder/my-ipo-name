@@ -2445,16 +2445,16 @@ UI_TEXT = {
         'zh': '价格确认中 ⏳'
     },
     'status_otc_unsupported': {
-        'ko': '⚠️ OTC / 야후미지원', 
-        'en': '⚠️ OTC / Unsupported', 
-        'ja': '⚠️ OTC / 未対応', 
-        'zh': '⚠️ OTC / 不支持'
+        'ko': 'OTC / 야후미지원', 
+        'en': 'OTC / Unsupported', 
+        'ja': 'OTC / 未対応', 
+        'zh': 'OTC / 不支持'
     },
     'status_delayed_unlisted': {
-        'ko': '⚠️ 상장지연 혹은 비상장', 
-        'en': '⚠️ Delayed or Unlisted', 
-        'ja': '⚠️ 上場延期または非上場', 
-        'zh': '⚠️ 上市延期或未上市'
+        'ko': '상장지연 혹은 비상장', 
+        'en': 'Delayed or Unlisted', 
+        'ja': '上場延期または非上場', 
+        'zh': '上市延期或未上市'
     },
 
     # ==========================================
@@ -2481,10 +2481,10 @@ UI_TEXT = {
         'zh': '您的意见已更新！'
     },
     'status_otc_delayed': {
-        'ko': '⚠️ 데이터 지연/OTC', 
-        'en': '⚠️ Data Delayed/OTC', 
-        'ja': '⚠️ データ遅延/OTC', 
-        'zh': '⚠️ 数据延迟/OTC'
+        'ko': '데이터 지연/OTC', 
+        'en': 'Data Delayed/OTC', 
+        'ja': 'データ遅延/OTC', 
+        'zh': '数据延迟/OTC'
     },
     
 
