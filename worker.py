@@ -157,17 +157,46 @@ def run_premium_alert_engine(df_calendar):
 # SEC API는 User-Agent 헤더(이름+이메일)가 없으면 접속을 차단하므로 필수로 넣어야 합니다.
 SEC_HEADERS = {'User-Agent': 'UnicornFinder App admin@unicornfinder.com'}
 
-def get_sec_cik_mapping():
-    """Ticker를 SEC 고유번호(CIK)로 변환하는 사전을 가져옵니다."""
+# ==========================================
+# [SEC EDGAR API 헬퍼 함수] 
+# ==========================================
+SEC_HEADERS = {'User-Agent': 'UnicornFinder App admin@unicornfinder.com'}
+
+def normalize_company_name(name):
+    """회사 이름에서 특수문자, 대소문자, Inc/Corp 등을 제거하여 순수 텍스트만 추출합니다."""
+    if not name or pd.isna(name): return ""
+    name = str(name).lower()
+    # Inc, Corp, Co, Ltd, Plc, Group 등의 흔한 법인 형태소 제거
+    name = re.sub(r'\b(inc|corp|corporation|co|ltd|plc|group|company|holdings)\b\.?', '', name)
+    # 영문자와 숫자만 남기고 모두 제거 (띄어쓰기 포함)
+    name = re.sub(r'[^a-z0-9]', '', name)
+    return name
+
+def get_sec_master_mapping():
+    """SEC에서 공식 데이터를 받아와 CIK 매핑과 '공식 티커' 매핑 두 가지 사전을 반환합니다."""
     try:
         res = requests.get("https://www.sec.gov/files/company_tickers.json", headers=SEC_HEADERS, timeout=10)
-        mapping = {}
-        for k, v in res.json().items():
-            mapping[v['ticker']] = str(v['cik_str']).zfill(10) # CIK는 10자리 문자열
-        return mapping
+        data = res.json()
+        
+        cik_mapping = {}         # { "AAPL": "0000320193" } (기존용도)
+        name_to_ticker_map = {}  # { "apple": "AAPL" } (티커 교정용도)
+        
+        for k, v in data.items():
+            official_ticker = v['ticker']
+            cik_str = str(v['cik_str']).zfill(10)
+            raw_title = v['title']
+            
+            cik_mapping[official_ticker] = cik_str
+            
+            # 회사 이름을 정규화해서 딕셔너리에 저장
+            clean_name = normalize_company_name(raw_title)
+            if clean_name:
+                name_to_ticker_map[clean_name] = official_ticker
+                
+        return cik_mapping, name_to_ticker_map
     except Exception as e:
-        print(f"SEC CIK Mapping Error: {e}")
-        return {}
+        print(f"SEC Mapping Error: {e}")
+        return {}, {}
 
 def check_sec_specific_filing(cik, target_form):
     """특정 CIK 기업이 10-K, RW, S-1 등의 서류를 제출했는지 확인하고 가장 최근 날짜를 반환합니다."""
