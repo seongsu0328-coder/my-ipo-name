@@ -37,6 +37,29 @@ def batch_upsert_raw(table_name, data_list, on_conflict="ticker"):
         print(f"❌ DB 전송 에러: {e}", flush=True)
         return False
 
+# =====================================================================
+# 💡 [외주 개발자 지시용] 향후 유료 API(Polygon.io 등) 연동을 위한 예비 공간
+# =====================================================================
+def fetch_otc_price_premium(ticker):
+    """
+    TODO: 야후 파이낸스에서 가격을 찾지 못하는 OTC/장외 주식의 가격을 가져오는 함수입니다.
+    현재는 0.0을 반환하지만, 향후 여기에 Polygon.io API 호출 코드가 삽입될 예정입니다.
+    이 구조(파이프라인)를 절대 삭제하지 마세요.
+    """
+    # --------------------------------------------------
+    # [미래에 대표님이 삽입할 코드 예시]
+    # import requests
+    # POLYGON_KEY = os.environ.get("POLYGON_API_KEY", "")
+    # url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?adjusted=true&apiKey={POLYGON_KEY}"
+    # try:
+    #     res = requests.get(url, timeout=5).json()
+    #     return float(res['results'][0]['c'])
+    # except:
+    #     return 0.0
+    # --------------------------------------------------
+    return 0.0 # 지금은 작동하지 않도록 0.0 고정
+
+
 def fetch_and_update_prices():
     print(f"🚀 15분 주기 주가 업데이트 시작 (KST: {datetime.now(pytz.timezone('Asia/Seoul')).strftime('%H:%M')})", flush=True)
     
@@ -46,9 +69,9 @@ def fetch_and_update_prices():
         resp = requests.get(get_url, headers=headers, timeout=15)
         tickers = [item['symbol'] for item in resp.json()]
     except Exception as e:
-        print(f"❌ 티커 로드 실패: {e}", flush=True); return
+        print(f"❌ 티커 로드 실패: {e}", flush=True); return []
 
-    if not tickers: return
+    if not tickers: return []
     print(f"📦 대상: {len(tickers)}개 주가 다운로드 시작...", flush=True)
 
     now_iso = datetime.now(pytz.timezone('Asia/Seoul')).isoformat()
@@ -69,24 +92,32 @@ def fetch_and_update_prices():
             for symbol in chunk_tickers:
                 try:
                     target = data[symbol] if len(chunk_tickers) > 1 else data
+                    current_p = 0.0
+                    
                     if 'Close' in target:
                         valid = target['Close'].dropna()
                         if not valid.empty and float(valid.iloc[-1]) > 0:
                             current_p = float(valid.iloc[-1])
                             
-                            # 1. 실시간 가격 캐시용 데이터
-                            upsert_list.append({
-                                "ticker": str(symbol),
-                                "price": current_p,
-                                "updated_at": now_iso
-                            })
-                            
-                            # 2. 💡 영구 저장 히스토리용 데이터
-                            history_list.append({
-                                "ticker": str(symbol),
-                                "target_date": us_today_str,
-                                "close_price": current_p
-                            })
+                    # 💡 [핵심 파이프라인] 야후에서 0원이 나왔다? -> OTC 백업 함수를 찌른다!
+                    if current_p <= 0:
+                        current_p = fetch_otc_price_premium(symbol)
+
+                    # 최종적으로 가격이 0보다 클 때만 저장
+                    if current_p > 0:
+                        # 1. 실시간 가격 캐시용 데이터
+                        upsert_list.append({
+                            "ticker": str(symbol),
+                            "price": current_p,
+                            "updated_at": now_iso
+                        })
+                        
+                        # 2. 💡 영구 저장 히스토리용 데이터
+                        history_list.append({
+                            "ticker": str(symbol),
+                            "target_date": us_today_str,
+                            "close_price": current_p
+                        })
                 except: continue
         except Exception as e:
             print(f"🚨 다운로드 에러 발생 ({i+1}~구간): {e}", flush=True)
@@ -104,21 +135,19 @@ def fetch_and_update_prices():
             time.sleep(0.5)
             
         # 2. 💡 신규 price_history (과거 기록용 종가) 덮어쓰기
-        # target_date가 동일하면 계속 덮어쓰다가 장이 마감되면 최종 가격으로 고정됩니다.
         print(f"📚 히스토리 DB 누적 저장 진행 중...", flush=True)
         for i in range(0, len(history_list), chunk_size):
             chunk = history_list[i : i + chunk_size]
-            # on_conflict를 'ticker,target_date' 복합키로 설정
             batch_upsert_raw("price_history", chunk, on_conflict="ticker,target_date")
             time.sleep(0.5)
 
         batch_upsert_raw("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": now_iso}], on_conflict="cache_key")
         print(f"✅ 워커 작업 완료", flush=True)
+        
+        return upsert_list # 알림 엔진으로 넘기기 위해 반환
     else:
         print("⚠️ 업데이트할 가격 데이터가 없습니다.", flush=True)
-
-if __name__ == "__main__":
-    fetch_and_update_prices()
+        return []
 
 
 def run_premium_alert_engine(upsert_list):
@@ -198,7 +227,7 @@ def run_premium_alert_engine(upsert_list):
                 p_6m = hist['Close'].iloc[-120]
                 chg_6m = ((current_p - p_6m) / p_6m) * 100
                 if chg_6m >= 80.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_6M", "title": f"🦄 6개월 퀀텀점프: {ticker}", "message": f"6개월 전 대비 {chg_6m:.1f}% 상승하며 시장의 핵심 주도주로 확인되었습니다."})
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_6M", "title": f"🦄 6개월 퀀텀점프: {ticker}", "message": f"6개월 전 대비 {chg_6m:.1f}% 상승하며 시장の 핵심 주도주로 확인되었습니다."})
 
             # - 1년 수익률 +150% 이상 (유니콘 탄생 신호)
             if len(hist) >= 240:
@@ -222,4 +251,15 @@ def run_premium_alert_engine(upsert_list):
         # ticker와 alert_type이 같은 경우, 오늘 날짜 기록이 있으면 넘어가도록 처리
         batch_upsert_raw("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
         print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 분석되어 DB에 적재되었습니다.", flush=True)
-        
+
+
+# =====================================================================
+# 🚀 메인 실행부 (버그 수정: 엔진 실행 연결)
+# =====================================================================
+if __name__ == "__main__":
+    # 1. 주가 수집 및 저장 (결과 리스트 받아오기)
+    updated_prices = fetch_and_update_prices()
+    
+    # 2. 업데이트된 주가가 있다면 알림 엔진 즉시 가동!
+    if updated_prices:
+        run_premium_alert_engine(updated_prices)
