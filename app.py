@@ -2104,7 +2104,7 @@ for key in ['page', 'auth_status', 'watchlist', 'posts', 'user_decisions', 'view
         else: st.session_state[key] = None
 
 # =========================================================
-# 🚀 [STEP 1] 결제 성공 감지 및 이중 검증 (실전 통합본)
+# 🚀 [STEP 1] 결제 성공 감지 및 이중 검증 (실전 통합본 - 등급 구분 추가)
 # =========================================================
 try:
     try: current_params = dict(st.query_params)
@@ -2119,9 +2119,12 @@ try:
         if not target_uid and st.session_state.get('user_info'):
             target_uid = st.session_state.user_info.get('id')
             
-        # 2. 영수증 번호 추출 (Stripe는 session_id, PortOne은 payment_id)
+        # 2. 영수증 번호 및 💡[신규] 결제 등급(Tier) 추출
         s_id = current_params.get("session_id", [""])[0] if isinstance(current_params.get("session_id"), list) else current_params.get("session_id")
         p_id = current_params.get("payment_id", [""])[0] if isinstance(current_params.get("payment_id"), list) else current_params.get("payment_id")
+        
+        # URL에서 tier 값을 추출 (기본값은 premium)
+        purchased_tier = current_params.get("tier", ["premium"])[0] if isinstance(current_params.get("tier"), list) else current_params.get("tier", "premium")
 
         if target_uid:
             with st.spinner("💳 결제 내역을 서버에서 안전하게 확인 중입니다..."):
@@ -2137,7 +2140,7 @@ try:
                         
                         if checkout_session.payment_status == 'paid':
                             is_valid = True
-                            sub_id = checkout_session.subscription # 💡 Stripe 정기 구독 ID
+                            sub_id = checkout_session.subscription 
                     except: pass
                 
                 # [Case 2] PortOne 국내 결제 검증 (단건)
@@ -2152,13 +2155,16 @@ try:
                         from datetime import datetime, timedelta
                         expire_date = (datetime.now() + timedelta(days=30)).isoformat()
                         
-                        update_data = {"is_premium": True, "premium_until": expire_date}
+                        # 💡 [핵심] is_premium뿐만 아니라 membership_level도 업데이트!
+                        update_data = {
+                            "is_premium": True, 
+                            "premium_until": expire_date,
+                            "membership_level": purchased_tier
+                        }
                         
                         # 구독 ID 또는 영수증 번호 추가
-                        if sub_id:
-                            update_data["subscription_id"] = sub_id
-                        elif p_id:
-                            update_data["subscription_id"] = f"portone_{p_id}"
+                        if sub_id: update_data["subscription_id"] = sub_id
+                        elif p_id: update_data["subscription_id"] = f"portone_{p_id}"
                             
                         # 1. DB 업데이트 실행
                         supabase.table("users").update(update_data).eq("id", target_uid).execute()
@@ -2167,8 +2173,9 @@ try:
                         if st.session_state.get('user_info'):
                             st.session_state.user_info['is_premium'] = True
                             st.session_state.user_info['premium_until'] = expire_date
+                            st.session_state.user_info['membership_level'] = purchased_tier
                         
-                        st.success("👑 결제 및 검증이 완료되었습니다! 프리미엄 회원이 되신 것을 환영합니다.")
+                        st.success(f"👑 결제 완료! [{purchased_tier.upper()}] 회원이 되신 것을 환영합니다.")
                         
                         import time; time.sleep(2.5)
                         
@@ -2185,7 +2192,6 @@ try:
                     except: st.experimental_set_query_params()
 except Exception as e:
     pass
-
 # ==========================================
 # [추가] 다국어(i18n) 지원 설정 및 사전(Dictionary)
 # ==========================================
@@ -3364,21 +3370,19 @@ elif st.session_state.page == 'setup':
         st.write("<br>", unsafe_allow_html=True)
 
         # -----------------------------------------------------------
-        # 3. [메인 기능] 인증 / 저장 / 로그아웃 / 프리미엄 (4컬럼)
+        # 3. [메인 기능] 인증 / 저장 / 로그아웃 / 프리미엄 / 스마트머니 (5컬럼)
         # -----------------------------------------------------------
-        col_cert, col_save, col_logout, col_premium = st.columns([1, 1, 1, 1.2])
+        col_cert, col_save, col_logout, col_prem, col_prem_plus = st.columns([1, 1, 1, 1.2, 1.3])
 
         # [A] 인증하기 버튼
         with col_cert:
-            # 💡 다국어(UI_TEXT) 연동 완료
             if db_status == 'approved':
                 btn_label = get_text('btn_verify_edit')
             elif db_status == 'pending':
                 btn_label = get_text('btn_verify_pending')
             else:
-                btn_label = get_text('btn_verify') # 기본 "인증" 텍스트
+                btn_label = get_text('btn_verify')
                 
-            # 조건문 없이 무조건 버튼을 생성합니다.
             if st.button(btn_label, use_container_width=True):
                 st.session_state.page = 'login' 
                 st.session_state.login_step = 'signup_input'
@@ -3413,174 +3417,156 @@ elif st.session_state.page == 'setup':
                 st.session_state.clear()
                 st.rerun()
 
-        # [D] 🔥 프리미엄 구독 버튼 / 취소 버튼
-        with col_premium:
-            curr_lang = st.session_state.get('lang', 'ko')
-            is_premium = user.get('is_premium', False)
-            sub_id = user.get('subscription_id', '')
+        # [D & E] 🔥 결제 버튼 영역 (실제 결제 로직 유지 + 2개 버튼 분리)
+        curr_lang = st.session_state.get('lang', 'ko')
+        is_premium = user.get('is_premium', False)
+        user_level = user.get('membership_level', 'free')
+        current_uid = user.get('id', '')
 
-            # ==========================================
-            # 💡 [신규] 이미 프리미엄 유저인 경우 -> 취소 버튼 노출
-            # ==========================================
-            if is_premium:
+        # 이미 유료 회원인 경우 (취소 버튼 및 현재 등급 표시)
+        if is_premium:
+            with col_prem:
                 if st.button(get_text('btn_cancel_sub'), use_container_width=True):
                     with st.spinner("구독 정보를 확인 중입니다..."):
+                        sub_id = user.get('subscription_id', '')
                         # 1. Stripe 해외 정기 구독인 경우
                         if sub_id and str(sub_id).startswith("sub_"):
                             try:
                                 import stripe
                                 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or st.secrets.get("STRIPE_SECRET_KEY")
-                                # cancel_at_period_end=True 설정: 남은 기간(한 달) 동안은 프리미엄 유지, 다음 달부터 연장 X
                                 stripe.Subscription.modify(sub_id, cancel_at_period_end=True)
                                 
-                                # DB 기록: 취소되었다는 표시를 남김
-                                supabase.table("users").update({"subscription_id": "canceled_" + sub_id}).eq("id", user_id).execute()
+                                supabase.table("users").update({"subscription_id": "canceled_" + sub_id}).eq("id", current_uid).execute()
                                 st.session_state.user_info['subscription_id'] = "canceled_" + sub_id
                                 
-                                st.success("정기 결제가 취소되었습니다. 이번 달 결제일까지는 혜택이 유지됩니다." if curr_lang == 'ko' else "Subscription canceled. Benefits remain until the end of the billing period.")
+                                st.success("정기 결제가 취소되었습니다. 이번 달 결제일까지는 혜택이 유지됩니다." if curr_lang == 'ko' else "Subscription canceled.")
                                 import time; time.sleep(2)
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"오류가 발생했습니다: {e}")
-                                
                         # 2. PortOne 국내 단건 결제인 경우
                         elif sub_id and str(sub_id).startswith("portone_"):
-                            st.info("국내 결제는 자동 연장(정기 결제)이 아니므로 별도로 해지하실 필요가 없습니다. 30일 후 자동으로 권한이 만료됩니다." if curr_lang == 'ko' else "Domestic payments do not auto-renew. It will automatically expire in 30 days.")
-                        
-                        # 3. 기타 (관리자 부여 등)
+                            st.info("국내 결제는 자동 연장(정기 결제)이 아니므로 별도로 해지하실 필요가 없습니다." if curr_lang == 'ko' else "Domestic payments do not auto-renew.")
                         else:
                             st.info("자동 연장되는 구독 내역이 없습니다." if curr_lang == 'ko' else "No active auto-renewing subscription found.")
-
-            # ==========================================
-            # 💡 기존 로직: 프리미엄이 아닌 경우 -> 결제 버튼 노출
-            # ==========================================
-            else:
-                # [Case 1] 한국어 사용자: PortOne (국내 카드, 카카오페이 등)
+                            
+            with col_prem_plus:
+                display_level = "스마트머니" if user_level == "premium_plus" else "프리미엄"
+                st.markdown(f"<div style='padding: 6px; text-align: center; border: 1px solid #ddd; border-radius: 8px; color: #5c6bc0; font-weight: bold;'>현재 등급: {display_level}</div>", unsafe_allow_html=True)
+        
+        # 일반(무료) 회원인 경우 (2가지 플랜 버튼 노출 - 실제 결제 연동)
+        else:
+            import streamlit.components.v1 as components
+            u_email = user.get('email', 'test@unicornfinder.app')
+            u_name = user.get('display_name', '유니콘 유저')
+            
+            # 👑 [D] 프리미엄 구독 (월 1.9만)
+            with col_prem:
                 if curr_lang == 'ko':
                     portone_id = os.environ.get("PORTONE_STORE_ID")
                     if portone_id:
-                        u_email = user.get('email', 'test@unicornfinder.app')
-                        u_name = user.get('display_name', '유니콘 유저')
-                        current_uid = user.get('id', '') 
-                        
-                        import streamlit.components.v1 as components
-                        
-                        portone_html = f"""
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <style>
-                                body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background-color: transparent; overflow: hidden; }}
-                                .pay-btn {{ background-color: #FEE500; color: #000000; border: none; border-radius: 8px; padding: 8px 15px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%; height: 42px; font-family: sans-serif; transition: 0.2s; }}
-                                .pay-btn:hover {{ background-color: #e5ce00; }}
-                            </style>
-                        </head>
-                        <body>
-                            <button id="pay-button" class="pay-btn" onclick="openPayWindow()">💳 국내 카드로 결제 (테스트)</button>
-                            
+                        redirect_premium = f"https://my-ipo-name-production.up.railway.app/?success=true&uid={current_uid}&tier=premium"
+                        portone_html_prem = f"""
+                        <!DOCTYPE html><html><head><style>
+                            body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background-color: transparent; overflow: hidden; }}
+                            .pay-btn {{ background-color: #ffffff; color: #333; border: 1px solid #ccc; border-radius: 8px; padding: 8px 10px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; height: 42px; transition: 0.2s; }}
+                            .pay-btn:hover {{ background-color: #f0f0f0; }}
+                        </style></head><body>
+                            <button class="pay-btn" onclick="openPay()">👑 프리미엄 (1.9만)</button>
                             <script>
-                                function openPayWindow() {{
-                                    const payWindow = window.open("", "_blank", "width=600,height=800");
-                                    
-                                    if (!payWindow) {{
-                                        alert("🚨 팝업 차단이 감지되었습니다. 브라우저 설정에서 팝업을 허용해주세요.");
-                                        return;
-                                    }}
-                                    
-                                    const htmlContent = `
-                                        <!DOCTYPE html>
-                                        <html>
-                                        <head>
-                                            <meta charset="utf-8">
-                                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                                            <title>안전 결제 진행중</title>
-                                            <script src="https://cdn.portone.io/v2/browser-sdk.js"><\\/script>
-                                        </head>
-                                        <body style="display:flex; justify-content:center; align-items:center; height:100vh; margin:0; background-color:#f8f9fa; font-family:sans-serif;">
-                                            <h3>결제 모듈을 안전하게 불러오는 중입니다...</h3>
-                                            <script>
-                                                window.onload = function() {{
-                                                    PortOne.requestPayment({{
-                                                        storeId: "{portone_id}",
-                                                        channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4",
-                                                        paymentId: "pay-" + new Date().getTime(),
-                                                        orderName: "테스트용",
-                                                        totalAmount: 6500,
-                                                        currency: "KRW",
-                                                        payMethod: "CARD",
-                                                        customer: {{ 
-                                                            fullName: "{u_name}", 
-                                                            email: "{u_email}",
-                                                            phoneNumber: "010-0000-0000"
-                                                        }},
-                                                        windowType: {{
-                                                            pc: "IFRAME",        
-                                                            smartPhone: "REDIRECTION" 
-                                                        }},
-                                                        redirectUrl: "https://my-ipo-name-production.up.railway.app/?success=true&uid={current_uid}"
-                                                    }}).then(function(response) {{
-                                                        if (response && response.code != null) {{
-                                                            alert("결제 실패: " + response.message);
-                                                            window.close();
-                                                        }} else if (response) {{
-                                                            if (window.opener && !window.opener.closed) {{
-                                                                window.opener.parent.location.href = "https://my-ipo-name-production.up.railway.app/?success=true&uid={current_uid}";
-                                                            }}
-                                                            window.close();
-                                                        }}
-                                                    }}).catch(function(e) {{
-                                                        alert("오류: " + e.message);
-                                                        window.close();
-                                                    }});
-                                                }};
-                                            <\\/script>
-                                        </body>
-                                        </html>
-                                    `;
-                                    
-                                    payWindow.document.write(htmlContent);
-                                    payWindow.document.close();
+                                function openPay() {{
+                                    const pw = window.open("", "_blank", "width=600,height=800");
+                                    if (!pw) {{ alert("팝업을 허용해주세요."); return; }}
+                                    pw.document.write(`
+                                        <script src="https://cdn.portone.io/v2/browser-sdk.js"><\\/script>
+                                        <body><script>
+                                            window.onload = function() {{
+                                                PortOne.requestPayment({{
+                                                    storeId: "{portone_id}", channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4", paymentId: "pay-" + new Date().getTime(),
+                                                    orderName: "Premium Subscription", totalAmount: 19000, currency: "KRW", payMethod: "CARD",
+                                                    customer: {{ fullName: "{u_name}", email: "{u_email}", phoneNumber: "010-0000-0000" }},
+                                                    windowType: {{ pc: "IFRAME", smartPhone: "REDIRECTION" }}, redirectUrl: "{redirect_premium}"
+                                                }}).then(function(res) {{
+                                                    if (res && res.code != null) {{ alert("실패: " + res.message); window.close(); }}
+                                                    else if (res) {{ if (window.opener) window.opener.parent.location.href = "{redirect_premium}"; window.close(); }}
+                                                }});
+                                            }};
+                                        <\\/script></body>
+                                    `); pw.document.close();
                                 }}
                             </script>
-                        </body>
-                        </html>
+                        </body></html>
                         """
-                        components.html(portone_html, height=45)
-                    else:
-                        st.button(get_text('btn_premium'), disabled=True)
-
-                # [Case 2] 해외 사용자 (EN, JA, ZH): Stripe 연동
+                        components.html(portone_html_prem, height=45)
                 else:
-                    if st.button(get_text('btn_premium'), use_container_width=True):
+                    if st.button("👑 Premium ($19)", use_container_width=True):
                         stripe_sk = os.environ.get("STRIPE_SECRET_KEY")
-                        stripe_price = os.environ.get("STRIPE_PRICE_ID")
-                        current_uid = user.get('id', '') 
-                        
-                        if user.get('role') == 'admin':
-                            if not stripe_sk or not stripe_price:
-                                st.divider()
-                                st.warning("🛠️ [관리자 디버깅 모드]")
-                                st.write(f"- STRIPE_SECRET_KEY: {'✅' if stripe_sk else '❌'}")
-                                st.write(f"- STRIPE_PRICE_ID: {'✅' if stripe_price else '❌'}")
-
-                        if not stripe_sk or not stripe_price:
-                            st.error("❌ 결제 설정(환경 변수)이 누락되었습니다.")
+                        stripe_price = os.environ.get("STRIPE_PRICE_ID") 
+                        if not stripe_sk or not stripe_price: st.error("❌ Stripe API Key/Price ID missing.")
                         else:
-                            with st.spinner(get_text('msg_checkout_ready')):
-                                try:
-                                    import stripe
-                                    stripe.api_key = stripe_sk
-                                    checkout_session = stripe.checkout.Session.create(
-                                        line_items=[{'price': stripe_price, 'quantity': 1}],
-                                        mode='subscription',
-                                        locale=curr_lang if curr_lang in ['en', 'ja', 'zh'] else 'auto',
-                                        success_url=f'https://my-ipo-name-production.up.railway.app/?success=true&uid={current_uid}&session_id={{CHECKOUT_SESSION_ID}}',
-                                        cancel_url='https://my-ipo-name-production.up.railway.app/?canceled=true',
-                                    )
-                                    st.success(get_text('msg_checkout_complete'))
-                                    st.link_button(get_text('btn_pay_now'), checkout_session.url, use_container_width=True)
-                                except Exception as e:
-                                    st.error(f"결제창 생성 중 오류 발생: {e}")
+                            try:
+                                import stripe; stripe.api_key = stripe_sk
+                                session = stripe.checkout.Session.create(
+                                    line_items=[{'price': stripe_price, 'quantity': 1}], mode='subscription',
+                                    success_url=f'https://my-ipo-name-production.up.railway.app/?success=true&uid={current_uid}&tier=premium&session_id={{CHECKOUT_SESSION_ID}}',
+                                    cancel_url='https://my-ipo-name-production.up.railway.app/?canceled=true',
+                                )
+                                st.link_button("🌐 Pay via Stripe", session.url, use_container_width=True)
+                            except Exception as e: st.error(f"Error: {e}")
+
+            # 💎 [E] 스마트머니 구독 (월 4.9만)
+            with col_prem_plus:
+                if curr_lang == 'ko':
+                    portone_id = os.environ.get("PORTONE_STORE_ID")
+                    if portone_id:
+                        redirect_plus = f"https://my-ipo-name-production.up.railway.app/?success=true&uid={current_uid}&tier=premium_plus"
+                        portone_html_plus = f"""
+                        <!DOCTYPE html><html><head><style>
+                            body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background-color: transparent; overflow: hidden; }}
+                            .pay-btn {{ background-color: #ff4b4b; color: #fff; border: none; border-radius: 8px; padding: 8px 10px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; height: 42px; transition: 0.2s; }}
+                            .pay-btn:hover {{ background-color: #d32f2f; }}
+                        </style></head><body>
+                            <button class="pay-btn" onclick="openPayPlus()">💎 스마트머니 (4.9만)</button>
+                            <script>
+                                function openPayPlus() {{
+                                    const pw = window.open("", "_blank", "width=600,height=800");
+                                    if (!pw) {{ alert("팝업을 허용해주세요."); return; }}
+                                    pw.document.write(`
+                                        <script src="https://cdn.portone.io/v2/browser-sdk.js"><\\/script>
+                                        <body><script>
+                                            window.onload = function() {{
+                                                PortOne.requestPayment({{
+                                                    storeId: "{portone_id}", channelKey: "channel-key-52a64d79-396d-4c62-8513-aad2946e17f4", paymentId: "pay-" + new Date().getTime(),
+                                                    orderName: "SmartMoney Subscription", totalAmount: 49000, currency: "KRW", payMethod: "CARD",
+                                                    customer: {{ fullName: "{u_name}", email: "{u_email}", phoneNumber: "010-0000-0000" }},
+                                                    windowType: {{ pc: "IFRAME", smartPhone: "REDIRECTION" }}, redirectUrl: "{redirect_plus}"
+                                                }}).then(function(res) {{
+                                                    if (res && res.code != null) {{ alert("실패: " + res.message); window.close(); }}
+                                                    else if (res) {{ if (window.opener) window.opener.parent.location.href = "{redirect_plus}"; window.close(); }}
+                                                }});
+                                            }};
+                                        <\\/script></body>
+                                    `); pw.document.close();
+                                }}
+                            </script>
+                        </body></html>
+                        """
+                        components.html(portone_html_plus, height=45)
+                else:
+                    if st.button("💎 SmartMoney ($49)", use_container_width=True, type="primary"):
+                        stripe_sk = os.environ.get("STRIPE_SECRET_KEY")
+                        stripe_price = os.environ.get("STRIPE_PRICE_ID_PLUS") # 💡 Plus용 환경변수 (Railway에 추가 필요!)
+                        if not stripe_sk or not stripe_price: st.error("❌ Stripe API Key/Price ID missing.")
+                        else:
+                            try:
+                                import stripe; stripe.api_key = stripe_sk
+                                session = stripe.checkout.Session.create(
+                                    line_items=[{'price': stripe_price, 'quantity': 1}], mode='subscription',
+                                    success_url=f'https://my-ipo-name-production.up.railway.app/?success=true&uid={current_uid}&tier=premium_plus&session_id={{CHECKOUT_SESSION_ID}}',
+                                    cancel_url='https://my-ipo-name-production.up.railway.app/?canceled=true',
+                                )
+                                st.link_button("🌐 Pay via Stripe", session.url, use_container_width=True)
+                            except Exception as e: st.error(f"Error: {e}")
         
         # ===========================================================
         # 👇 [수정 완료] 관리자 승인 기능 (Supabase 연동 버전)
