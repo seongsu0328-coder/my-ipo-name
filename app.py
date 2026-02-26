@@ -2033,23 +2033,39 @@ else:
     model = None
 
 @st.cache_data(show_spinner=False, ttl=86400)
-def get_unified_tab4_analysis(company_name, ticker, lang_code):
+def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Active", ipo_date_str=None):
     # 필요한 라이브러리 체크 (함수 내부 혹은 상단에 위치해야 함)
     import re
     import time
     import json
+    import pandas as pd
     from datetime import datetime, timedelta
 
     if not model: 
         return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
 
-    cache_key = f"{ticker}_Tab4_{lang_code}" # 버전업하여 새 캐시 생성 유도
     now = datetime.now()
-    one_day_ago = (now - timedelta(days=1)).isoformat()
 
-    # 1. DB 캐시 확인
+    # 💡 [핵심 추가 1] 기업 상태 및 상장일 기준 안정기(7일 캐시 대상) 판별
+    status_lower = str(ipo_status).lower()
+    is_stable = bool(re.search(r'\b(withdrawn|rw|철회|취소|delisted|폐지)\b', status_lower))
+    
+    if not is_stable and ipo_date_str:
+        try:
+            ipo_dt = pd.to_datetime(ipo_date_str).date()
+            if (now.date() - ipo_dt).days > 365:
+                is_stable = True
+        except: 
+            pass
+
+    # 💡 [핵심 추가 2] 안정기면 7일, 아니면 1일 전으로 조회 제한 시간(limit_time) 설정
+    valid_days = 7 if is_stable else 1
+    cache_key = f"{ticker}_Tab4_{lang_code}" # 버전업하여 새 캐시 생성 유도
+    limit_time = (now - timedelta(days=valid_days)).isoformat()
+
+    # 1. DB 캐시 확인 (limit_time 적용)
     try:
-        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", one_day_ago).execute()
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", limit_time).execute()
         if res.data:
             return json.loads(res.data[0]['content'])
     except Exception as e:
@@ -2067,9 +2083,9 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
     # 일본어/중국어일 경우 한국어 혼용을 더 강력하게 경고
     lang_instruction = f"Respond strictly in {target_lang}."
     if lang_code == 'ja':
-        lang_instruction = "必ず日本語(Japanese)のみで回答してください。見出し, 本문, JSON의 값 모두에 한국어(Korean)를 절대 포함하지 마세요."
+        lang_instruction = "必ず日本語(Japanese)のみで回答してください。見出し, 本문, JSONの値すべてに韓国語(Korean)を絶対に含まないでください。"
     elif lang_code == 'zh':  
-        lang_instruction = "必须只用简体中文(Simplified Chinese)编写。严禁在回答 중 出现任何韩语。"
+        lang_instruction = "必须只用简体中文(Simplified Chinese)编写。严禁在回答中出现任何韩语。"
 
     # 3. 프롬프트 (기존 내용 보존 + 안정성 강화)
     prompt = f"""
@@ -2081,14 +2097,16 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
     2. **분석 깊이**: 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
     3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
     4. **Rating**: (Strong Buy/Buy/Hold/Sell) 중 하나를 영어로 선택하세요.
-    5. **Summary**: 전문적인 톤으로 3~5줄 내외로 핵심만 작성하세요.
-    6. **한국어 금지**: 인사말, 서론을 생략하고 {target_lang} 외의 언어(특히 한국어)를 단 한 글자도 포함하지 마세요.
-    7. **링크**: 'summary'와 'pro_con' 내부에는 URL을 넣지 말고 하단 "links" 리스트에만 넣으세요.
+    5. **Score**: 월가 리포트의 종합적인 긍정/기대 수준을 1점(최악)부터 5점(대박) 사이의 정수로 평가하세요.
+    6. **Summary**: 전문적인 톤으로 3~5줄 내외로 핵심만 작성하세요.
+    7. **한국어 금지**: 인사말, 서론을 생략하고 {target_lang} 외의 언어(특히 한국어)를 단 한 글자도 포함하지 마세요.
+    8. **링크**: 'summary'와 'pro_con' 내부에는 URL을 넣지 말고 하단 "links" 리스트에만 넣으세요.
 
     반드시 아래 JSON 형식으로만 출력하세요:
     <JSON_START>
     {{
         "rating": "Buy/Hold/Sell 중 하나",
+        "score": "1~5 사이의 정수 (예: 4)",
         "summary": "{target_lang}による要約",
         "pro_con": "**Pros**:\\n- 내용\\n\\n**Cons**:\\n- 내용",
         "links": [
@@ -2108,7 +2126,6 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
             if lang_code != 'ko':
                 # 한글 유니코드 범위 검사
                 if re.search(r'[가-힣]', full_text):
-                    # 만약 한글이 섞였다면, 단순히 skip하지 않고 재시도 횟수 소진 전에 로그만 남김
                     if attempt < max_retries - 1:
                         time.sleep(1)
                         continue
@@ -2144,11 +2161,10 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code):
             time.sleep(1)
 
     # 4. 최종 실패 시 (기본값 리턴)
-    # 일본어일 경우 실패 메시지도 일본어로 주어 유저 경험 유지
     fail_msgs = {
         'ko': "분석 데이터를 정제하는 중입니다. 잠시 후 다시 시도해주세요.",
         'en': "Analyzing data... Please try again in a moment.",
-        'ja': "データを分析 중입니다. 잠시 후 다시 시도해주세요.", # 일본어 UI에 맞춰 수정 가능
+        'ja': "データを分析中です。しばらくしてからもう一度お試しください。", 
         'zh': "数据分析中... 请稍后再试。"
     }
     return {
@@ -4785,7 +4801,13 @@ with main_area.container():
             elif selected_sub_menu == get_text('tab_4'):
                 curr_lang = st.session_state.lang
                 with st.spinner(get_text('msg_analyzing_institutional')):
-                    result = get_unified_tab4_analysis(stock['name'], stock['symbol'], curr_lang)
+                    result = get_unified_tab4_analysis(
+                        stock['name'], 
+                        stock['symbol'], 
+                        curr_lang, 
+                        ipo_status=stock.get('status', 'Active'), 
+                        ipo_date_str=stock.get('date')
+                    )
                 
                 summary_raw = result.get('summary', '')
                 pro_con_raw = result.get('pro_con', '')
