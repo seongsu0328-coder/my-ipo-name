@@ -605,13 +605,35 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             except:
                 time.sleep(1)
 
-def run_tab4_analysis(ticker, company_name):
-    """Tab 4: 월가 기관 분석"""
+def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
+    """Tab 4: 월가 기관 분석 (생애주기별 7일/1일 캐싱 최적화 적용)"""
     if not model: return False
     
+    # 💡 [핵심 1] 상태 판별 및 캐시 유효기간 설정
+    status_lower = str(ipo_status).lower()
+    is_stable = bool(re.search(r'\b(withdrawn|rw|철회|취소|delisted|폐지)\b', status_lower))
+    
+    if not is_stable and ipo_date_str:
+        try:
+            ipo_dt = pd.to_datetime(ipo_date_str).date()
+            if (datetime.now().date() - ipo_dt).days > 365:
+                is_stable = True
+        except: pass
+
+    # 안정기(철회/1년경과)는 168시간(7일), 그 외는 24시간
+    valid_hours = 168 if is_stable else 24
+    limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
+
     for lang_code, _ in SUPPORTED_LANGS.items():
         cache_key = f"{ticker}_Tab4_{lang_code}"
         
+        # 💡 [핵심 2] DB 캐시 확인 (유효기간 내면 AI 호출 스킵!)
+        try:
+            res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+            if res.data:
+                continue # 캐시가 살아있으면 다음 언어로 조용히 넘어갑니다 (API 요금 $0)
+        except: pass
+
         LANG_MAP = {
             'ko': '한국어 (Korean)',
             'en': '영어 (English)',
@@ -654,21 +676,20 @@ def run_tab4_analysis(ticker, company_name):
         2. 분석 깊이: 단순 사실 나열이 아닌 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
         3. Pros & Cons: 긍정적 요소(Pros) 2가지와 부정적 요소(Cons) 2가지를 명확히 구분하여 서술하세요.
         4. Rating: 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
-        5. Score: 월가 리포트의 종합적인 긍정/기대 수준을 1점(최악)부터 5점(대박) 사이의 정수로 평가하세요. # 💡 이거 추가!
+        5. Score: 월가 리포트의 종합적인 긍정/기대 수준을 1점(최악)부터 5점(대박) 사이의 정수로 평가하세요.
         6. Summary: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
         7. 링크 위치 구분: 본문 안에는 절대 URL을 넣지 말고, 반드시 "links" 리스트 안에만 정확히 기입하세요.
 
         <JSON_START>
         {{
             "rating": "Buy/Hold/Sell 중 하나",
-            "score": "1~5 사이의 정수 (예: 4)",  # 💡 이거 추가!
+            "score": "1~5 사이의 정수 (예: 4)", 
             {json_format}
             "links": [ {{"title": "검색된 리포트 제목", "link": "URL"}} ]
         }}
         <JSON_END>
         """
         
-        # 💡 [방어막 추가] 최대 3회 재시도 루프
         for attempt in range(3):
             try:
                 response = model.generate_content(prompt)
@@ -676,13 +697,13 @@ def run_tab4_analysis(ticker, company_name):
                 
                 if lang_code != 'ko':
                     if re.search(r'[가-힣]', full_text):
-                        time.sleep(1); continue # 한글 감지 시 재시도
+                        time.sleep(1); continue 
                 
                 match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
                 if match:
                     clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', match.group(1).strip())
                     batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": clean_str, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-                break # 성공 시 루프 탈출
+                break 
             except:
                 time.sleep(1)
 
@@ -981,9 +1002,10 @@ def main():
             c_date = row.get('date', None)
             
             # AI 분석(Tab 0, 1, 4)은 app.py가 찾을 수 있게 무조건 'original_symbol'로 캐싱!
-            run_tab1_analysis(original_symbol, name, c_status, c_date)  # 💡 여기 c_date 추가!
+            run_tab1_analysis(original_symbol, name, c_status, c_date)
             run_tab0_analysis(original_symbol, name, c_status, c_date, cik_mapping)
-            run_tab4_analysis(original_symbol, name)
+            # 💡 [핵심] Tab 4에도 똑같이 상태(c_status)와 날짜(c_date)를 넘겨줍니다!
+            run_tab4_analysis(original_symbol, name, c_status, c_date)
             
             # 💡 [핵심] 단, 주가(Tab 3)를 가져오는 야후 파이낸스는 무조건 교정된 'official_symbol'을 찔러야 합니다!
             try:
