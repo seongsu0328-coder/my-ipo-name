@@ -3922,83 +3922,92 @@ elif st.session_state.page == 'setup':
                             )
                             
             # ===========================================================
-            # 🔎 [업그레이드] 관리자 전용: 캐시 헬스체크(Health Check) 대시보드
+            # 🔎 [풀버전] 관리자 전용: 캐시 헬스체크(Health Check) 대시보드
             # ===========================================================
             st.write("<br>", unsafe_allow_html=True)
             st.markdown("### 📊 시스템 캐시 & API 방어막 상태 점검")
-            st.caption("워커(Worker)들이 백그라운드에서 데이터를 얼마나 잘 캐싱해두고 있는지 모니터링합니다.")
+            st.caption("워커(Worker)들이 백그라운드에서 데이터를 얼마나 잘 캐싱해두고 있는지 탭별로 모니터링합니다.")
             
             try:
                 now = datetime.now()
                 
                 # [1] 주가 캐시 (Price) 모니터링
-                # 전체 주가 DB 개수를 분모로 잡음
                 res_price_all = supabase.table("price_cache").select("ticker", count="exact").execute()
                 total_price_cnt = res_price_all.count if res_price_all and res_price_all.count else 1
                 
-                # 최근 30분 이내 업데이트된 개수를 분자로 잡음
                 thirty_mins_ago = (now - timedelta(minutes=30)).isoformat()
                 res_price_active = supabase.table("price_cache").select("ticker").gt("updated_at", thirty_mins_ago).execute()
                 active_price_cnt = len(res_price_active.data) if res_price_active.data else 0
                 
                 price_pct = int((active_price_cnt / total_price_cnt) * 100) if total_price_cnt > 0 else 0
                 
-                # [2] AI 리포트 캐시 (Tab 1, Tab 4) 모니터링
+                # [2] AI 리포트 전체 캐시 (Tab 0 ~ 4) 모니터링
                 res_analysis_all = supabase.table("analysis_cache").select("cache_key, updated_at").execute()
                 
+                tab0_total = 0; tab0_fresh = 0
                 tab1_total = 0; tab1_fresh = 0
+                tab2_total = 0; tab2_fresh = 0
+                tab3_total = 0; tab3_fresh = 0
                 tab4_total = 0; tab4_fresh = 0
                 
-                # 안정기(7일) 캐싱을 고려하여, 7일 이내 업데이트된 것은 모두 '정상(Fresh)'으로 판별
                 seven_days_ago = now - timedelta(days=7)
                 
                 if res_analysis_all.data:
                     for item in res_analysis_all.data:
                         key = item['cache_key']
                         try:
-                            # DB의 UTC 시간을 파이썬 datetime으로 변환
                             item_time_str = str(item['updated_at']).split('.')[0].replace('Z', '')
                             item_dt = datetime.fromisoformat(item_time_str)
                             is_fresh = item_dt > seven_days_ago
                         except:
                             is_fresh = False
 
-                        if "Tab1" in key:
+                        if "Tab0" in key:
+                            tab0_total += 1
+                            if is_fresh: tab0_fresh += 1
+                        elif "Tab1" in key:
                             tab1_total += 1
                             if is_fresh: tab1_fresh += 1
+                        elif "Tab2" in key:
+                            tab2_total += 1
+                            if is_fresh: tab2_fresh += 1
+                        elif "Tab3" in key:
+                            tab3_total += 1
+                            if is_fresh: tab3_fresh += 1
                         elif "Tab4" in key:
                             tab4_total += 1
                             if is_fresh: tab4_fresh += 1
 
+                tab0_pct = int((tab0_fresh / tab0_total) * 100) if tab0_total > 0 else 0
                 tab1_pct = int((tab1_fresh / tab1_total) * 100) if tab1_total > 0 else 0
+                tab2_pct = int((tab2_fresh / tab2_total) * 100) if tab2_total > 0 else 0
+                tab3_pct = int((tab3_fresh / tab3_total) * 100) if tab3_total > 0 else 0
                 tab4_pct = int((tab4_fresh / tab4_total) * 100) if tab4_total > 0 else 0
 
-                # [3] 대시보드 화면 렌더링
-                dash_c1, dash_c2, dash_c3 = st.columns(3)
+                # [3] 대시보드 화면 렌더링 (2줄 x 3칸 레이아웃)
+                dash_r1_c1, dash_r1_c2, dash_r1_c3 = st.columns(3)
+                dash_r2_c1, dash_r2_c2, dash_r2_c3 = st.columns(3)
                 
-                with dash_c1:
-                    st.metric(
-                        label="🟢 실시간 주가 (최근 30분)", 
-                        value=f"{price_pct}% 정상", 
-                        delta=f"{active_price_cnt} / {total_price_cnt} 종목",
-                        delta_color="normal" if price_pct >= 90 else "inverse"
-                    )
-                with dash_c2:
-                    st.metric(
-                        label="📰 주요 뉴스 캐시 (Tab 1)", 
-                        value=f"{tab1_pct}% 완료",
-                        delta=f"{tab1_fresh} / {tab1_total} 건 방어 중",
-                        delta_color="normal" if tab1_pct >= 90 else "inverse"
-                    )
-                with dash_c3:
-                    st.metric(
-                        label="👔 기관 평가 캐시 (Tab 4)", 
-                        value=f"{tab4_pct}% 완료",
-                        delta=f"{tab4_fresh} / {tab4_total} 건 방어 중",
-                        delta_color="normal" if tab4_pct >= 90 else "inverse"
-                    )
+                # 첫 번째 줄
+                with dash_r1_c1:
+                    st.metric(label="🟢 실시간 주가 (최근 30분)", value=f"{price_pct}% 정상", delta=f"{active_price_cnt} / {total_price_cnt} 종목", delta_color="normal" if price_pct >= 90 else "inverse")
+                with dash_r1_c2:
+                    st.metric(label="📄 공시 분석 캐시 (Tab 0)", value=f"{tab0_pct}% 완료", delta=f"{tab0_fresh} / {tab0_total} 건 방어 중", delta_color="normal" if tab0_pct >= 90 else "inverse")
+                with dash_r1_c3:
+                    st.metric(label="📰 뉴스 분석 캐시 (Tab 1)", value=f"{tab1_pct}% 완료", delta=f"{tab1_fresh} / {tab1_total} 건 방어 중", delta_color="normal" if tab1_pct >= 90 else "inverse")
+                
+                st.write("<br>", unsafe_allow_html=True) # 줄 간격 띄우기
+
+                # 두 번째 줄
+                with dash_r2_c1:
+                    # Tab 2는 시장 전체 공통 지표라 숫자가 작게 나옵니다 (예: 4/4건)
+                    st.metric(label="🌍 거시 지표 캐시 (Tab 2)", value=f"{tab2_pct}% 완료", delta=f"{tab2_fresh} / {tab2_total} 건 방어 중", delta_color="normal" if tab2_pct >= 90 else "inverse")
+                with dash_r2_c2:
+                    st.metric(label="📊 미시 재무 캐시 (Tab 3)", value=f"{tab3_pct}% 완료", delta=f"{tab3_fresh} / {tab3_total} 건 방어 중", delta_color="normal" if tab3_pct >= 90 else "inverse")
+                with dash_r2_c3:
+                    st.metric(label="👔 기관 평가 캐시 (Tab 4)", value=f"{tab4_pct}% 완료", delta=f"{tab4_fresh} / {tab4_total} 건 방어 중", delta_color="normal" if tab4_pct >= 90 else "inverse")
                     
-                st.info("💡 진척률이 100%에 가깝다면, 유저들이 상세 페이지에 진입할 때마다 발생하는 외부 API 과금을 완벽히 방어(0원)하고 있다는 뜻입니다.")
+                st.info("💡 진척률이 100%에 가깝다면, 각 탭에 유저가 진입할 때마다 발생하는 모든 API 과금을 완벽히 방어(0원)하고 있다는 뜻입니다.")
 
             except Exception as e:
                 st.error(f"상태 점검 중 데이터베이스 오류: {e}")
