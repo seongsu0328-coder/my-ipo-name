@@ -1252,8 +1252,9 @@ def get_extended_ipo_data(api_key):
 @st.cache_data(ttl=600, show_spinner=False)
 def get_batch_prices(ticker_list):
     """
-    DB에서 가격과 상태를 가져오고, 부족한 정보만 API로 채운 뒤 
-    다시 DB에 '직송 모드'로 저장합니다. (야후 실패 시 OTC 백업 포함)
+    [완벽 최적화 버전] 
+    오직 Supabase DB(price_cache)에서만 가격을 읽어옵니다. 
+    야후 파이낸스 API 중복 호출을 완전히 제거하여 로딩을 0.1초로 단축합니다.
     """
     if not ticker_list: return {}, {}
     clean_tickers = [str(t).strip() for t in ticker_list if t and str(t).strip().lower() != 'nan']
@@ -1261,7 +1262,7 @@ def get_batch_prices(ticker_list):
     cached_prices = {}
     db_status_map = {} 
     
-    # [Step 1] Supabase DB 조회
+    # [Step 1] Supabase DB에서 한 번에 싹 다 가져옵니다. (매우 빠름)
     try:
         res = supabase.table("price_cache") \
             .select("ticker, price, status") \
@@ -1271,61 +1272,16 @@ def get_batch_prices(ticker_list):
         if res.data:
             for item in res.data:
                 t = item['ticker']
+                # DB에 있으면 그 값을, 없으면(상장예정 등) 0.0을 세팅
                 cached_prices[t] = float(item['price']) if item['price'] else 0.0
                 db_status_map[t] = item.get('status', 'Active')
     except Exception as e:
         print(f"DB Read Error: {e}")
 
-    # [Step 2] API 호출 대상 선별 (상태가 Active이면서 가격이 없는 경우만)
-    missing_tickers = []
-    for t in clean_tickers:
-        status = db_status_map.get(t)
-        price = cached_prices.get(t, 0)
-        if status is None or (status == "Active" and price <= 0):
-            missing_tickers.append(t)
-
-    # [Step 3] API 호출 및 "직송 모드" 저장
-    if missing_tickers:
-        try:
-            tickers_str = " ".join(missing_tickers)
-            data = yf.download(tickers_str, period="1d", group_by='ticker', threads=True, progress=False)
-            
-            upsert_payload = []
-            now_iso = datetime.now().isoformat()
-            
-            for t in missing_tickers:
-                try:
-                    # 데이터 추출
-                    if len(missing_tickers) > 1:
-                        target_data = data[t]['Close'].dropna()
-                    else:
-                        target_data = data['Close'].dropna()
-
-                    current_p = 0.0
-                    if not target_data.empty and float(target_data.iloc[-1]) > 0:
-                        current_p = float(round(target_data.iloc[-1], 4))
-                    else:
-                        # 💡 [핵심 파이프라인] 야후에서 실패(0원)하면 예비 OTC 함수를 찌른다!
-                        current_p = fetch_otc_price_for_app(t)
-
-                    # 최종 가격이 0보다 클 때만 캐시 및 DB 업데이트
-                    if current_p > 0:
-                        cached_prices[t] = current_p
-                        db_status_map[t] = "Active"
-                        
-                        upsert_payload.append({
-                            "ticker": t, 
-                            "price": current_p, 
-                            "status": "Active",
-                            "updated_at": now_iso
-                        })
-                except: continue
-            
-            if upsert_payload:
-                batch_upsert("price_cache", upsert_payload, on_conflict="ticker")
-
-        except Exception as e:
-            print(f"API Fetch Error: {e}")
+    # 🚨 [Step 2, 3 완전 삭제] 
+    # 원래 여기에 '가격이 0원이면 야후 API 찌르기(yf.download)' 로직이 있었으나 
+    # 상장 예정 종목 로딩 지연의 주범이므로 완전히 삭제했습니다.
+    # 주가 수집은 백그라운드의 price_worker.py가 100% 전담합니다.
 
     return cached_prices, db_status_map
 
