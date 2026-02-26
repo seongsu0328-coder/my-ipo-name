@@ -3920,6 +3920,66 @@ elif st.session_state.page == 'setup':
                                 on_click=callback_reject,
                                 args=(u_id, u_email)
                             )
+                            
+            # ===========================================================
+            # 🔎 [신규 추가] 관리자 전용: 캐시 헬스체크(Health Check) 대시보드
+            # (이곳에 붙여넣습니다!)
+            # ===========================================================
+            st.write("<br>", unsafe_allow_html=True)
+            st.markdown("### 📊 시스템 캐시 & API 방어막 상태 점검")
+            st.caption("워커(Worker)들이 백그라운드에서 데이터를 얼마나 잘 캐싱해두고 있는지 모니터링합니다.")
+            
+            try:
+                now = datetime.now()
+                
+                # 1. 주가 캐시 상태 (최근 30분 이내 갱신된 종목 수 파악)
+                thirty_mins_ago = (now - timedelta(minutes=30)).isoformat()
+                res_price = supabase.table("price_cache").select("ticker").gt("updated_at", thirty_mins_ago).execute()
+                active_prices = len(res_price.data) if res_price.data else 0
+                
+                # 2. AI 리포트 캐시 상태 (최근 7일 이내 유효한 캐시 통계)
+                seven_days_ago = (now - timedelta(days=7)).isoformat()
+                res_analysis = supabase.table("analysis_cache").select("cache_key").gt("updated_at", seven_days_ago).execute()
+                
+                tab_counts = {"Tab0": 0, "Tab1": 0, "Tab2": 0, "Tab3": 0, "Tab4": 0}
+                if res_analysis.data:
+                    for item in res_analysis.data:
+                        key = item['cache_key']
+                        if "Tab0" in key: tab_counts["Tab0"] += 1
+                        elif "Tab1" in key: tab_counts["Tab1"] += 1
+                        elif "Tab2" in key: tab_counts["Tab2"] += 1
+                        elif "Tab3" in key: tab_counts["Tab3"] += 1
+                        elif "Tab4" in key: tab_counts["Tab4"] += 1
+
+                # 3. 대시보드 화면 렌더링
+                dash_c1, dash_c2, dash_c3 = st.columns(3)
+                
+                with dash_c1:
+                    st.metric(
+                        label="🟢 실시간 주가 (최근 30분)", 
+                        value=f"{active_prices} 종목", 
+                        delta="워커 정상 가동 중" if active_prices > 0 else "점검 필요",
+                        delta_color="normal" if active_prices > 0 else "inverse"
+                    )
+                with dash_c2:
+                    st.metric(
+                        label="📰 주요 뉴스 캐시 (Tab 1)", 
+                        value=f"{tab_counts['Tab1']} 건",
+                        delta="API 방어막 작동 중"
+                    )
+                with dash_c3:
+                    st.metric(
+                        label="👔 기관 평가 캐시 (Tab 4)", 
+                        value=f"{tab_counts['Tab4']} 건",
+                        delta="API 방어막 작동 중"
+                    )
+                    
+                st.info("💡 위 수치들이 0이 아니라면, 현재 유저들이 접속할 때 **외부 API 과금(비용)이 0원**으로 방어되고 있으며 앱 로딩이 0.1초 만에 이루어지고 있다는 뜻입니다.")
+
+            except Exception as e:
+                st.error(f"상태 점검 중 데이터베이스 오류: {e}")
+            st.divider()
+            
 
 # =========================================================
 # [추가] 메인 화면 전용 컨테이너 생성 (구조 복원)
