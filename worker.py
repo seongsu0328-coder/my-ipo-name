@@ -798,10 +798,20 @@ def run_premium_alert_engine(df_calendar):
         
         # --- 1. 일정 기반 알림 (상장예정, 락업해제) ---
         if ipo_date == today + timedelta(days=3):
-            new_alerts.append({"ticker": ticker, "alert_type": "UPCOMING", "title": f"🚀 상장 D-3: {name}", "message": f"{ticker} 종목 상장이 3일 앞으로 다가왔습니다. 월가 기관 평가를 확인하세요."})
+            new_alerts.append({
+                "ticker": ticker, 
+                "alert_type": "UPCOMING", 
+                "title": f"{ticker} 상장 D-3", 
+                "message": "상장전 월가 기관의 평가를 미리 확인하세요."
+            })
         
         if ipo_date + timedelta(days=180) == today + timedelta(days=7):
-            new_alerts.append({"ticker": ticker, "alert_type": "LOCKUP", "title": f"🚨 락업 해제 주의: {ticker}", "message": "7일 뒤 내부자 보호예수 물량이 해제됩니다. 오버행 이슈에 대비하세요."})
+            new_alerts.append({
+                "ticker": ticker, 
+                "alert_type": "LOCKUP", 
+                "title": f"{ticker} 락업해제 D-7", 
+                "message": "내부자 보호예수 물량이 해제될 예정으로 주가 변동성이 올라갈 수 있습니다."
+            })
 
         if current_p <= 0: continue
 
@@ -815,63 +825,79 @@ def run_premium_alert_engine(df_calendar):
                 p_1d = hist['Close'].iloc[-2]
                 chg_1d = ((current_p - p_1d) / p_1d) * 100
                 if chg_1d >= 12.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1D", "title": f"⚡ 1일 단기 급등: {ticker}", "message": f"전일 대비 {chg_1d:.1f}% 상승하며 강력한 단기 수급이 유입되었습니다."})
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1D", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1일 동안 {chg_1d:.1f}% 상승"})
             
             if len(hist) >= 5:
                 p_1w = hist['Close'].iloc[-5]
                 chg_1w = ((current_p - p_1w) / p_1w) * 100
                 if chg_1w >= 20.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1W", "title": f"📈 1주 추세 돌파: {ticker}", "message": f"최근 1주일간 {chg_1w:.1f}% 상승하며 단기 우상향 추세를 형성했습니다."})
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1주 동안 {chg_1w:.1f}% 상승"})
 
             if len(hist) >= 10:
                 p_2w = hist['Close'].iloc[-10]
                 chg_2w = ((current_p - p_2w) / p_2w) * 100
                 if chg_2w >= 30.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_2W", "title": f"🚀 2주 연속 상승: {ticker}", "message": f"최근 2주간 {chg_2w:.1f}% 상승하며 시장の 강한 주목을 받고 있습니다."})
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_2W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 2주 동안 {chg_2w:.1f}% 상승"})
 
             if len(hist) >= 20:
                 p_4w = hist['Close'].iloc[-20]
                 chg_4w = ((current_p - p_4w) / p_4w) * 100
                 if chg_4w >= 40.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_4W", "title": f"🔥 4주 모멘텀 포착: {ticker}", "message": f"최근 4주간 {chg_4w:.1f}% 급등하며 견고한 상승 모멘텀을 증명했습니다."})
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_4W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 4주 동안 {chg_4w:.1f}% 상승"})
 
             if len(hist) >= 22:
                 p_1mo = hist['Close'].iloc[-22]
                 chg_1mo = ((current_p - p_1mo) / p_1mo) * 100
                 if chg_1mo >= 45.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1M", "title": f"🌟 1개월 랠리: {ticker}", "message": f"최근 1개월간 {chg_1mo:.1f}% 상승하며 월간 최고 주도주로 부상했습니다."})
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1M", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1개월 동안 {chg_1mo:.1f}% 상승"})
 
             if len(hist) >= 63:
                 p_3m = hist['Close'].iloc[-63]
                 chg_3m = ((current_p - p_3m) / p_3m) * 100
                 if chg_3m >= 60.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_3M", "title": f"💎 3개월 중기 폭등: {ticker}", "message": f"3개월 전 대비 {chg_3m:.1f}% 상승하며 완벽한 장기 우상향 궤도에 진입했습니다."})
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_3M", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 3개월 동안 {chg_3m:.1f}% 상승"})
 
             if len(hist) >= 126:
                 p_6m = hist['Close'].iloc[-126]
                 chg_6m = ((current_p - p_6m) / p_6m) * 100
                 if chg_6m >= 80.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_6M", "title": f"🦄 6개월 퀀텀점프: {ticker}", "message": f"6개월 전 대비 {chg_6m:.1f}% 상승하며 하반기 섹터 대장주로 확인되었습니다."})
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_6M", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 6개월 동안 {chg_6m:.1f}% 상승"})
 
             if len(hist) >= 250:
                 p_1y = hist['Close'].iloc[0]
                 chg_1y = ((current_p - p_1y) / p_1y) * 100
                 if chg_1y >= 150.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1Y", "title": f"👑 연간 슈퍼 유니콘: {ticker}", "message": f"지난 1년간 {chg_1y:.1f}%라는 압도적인 수익률을 기록 중입니다. 진정한 텐배거 후보입니다."})
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1Y", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1년 동안 {chg_1y:.1f}% 상승"})
         except: pass
 
-        # --- 3. 공모가 돌파 시그널 ---
+        # --- 3. 공모가 돌파 및 회복 시그널 ---
         try: ipo_p = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
         except: ipo_p = 0.0
 
-        if ipo_p > 0 and 0 <= (current_p - ipo_p) / ipo_p < 0.03:
-            new_alerts.append({"ticker": ticker, "alert_type": "REBOUND", "title": f"🔥 공모가 회복: {ticker}", "message": f"침체기를 끝내고 주가가 다시 공모가(${ipo_p}) 위로 올라섰습니다. 바닥 확인 신호입니다."})
+        if ipo_p > 0:
+            surge_pct_ipo = ((current_p - ipo_p) / ipo_p) * 100
+            
+            # [신규 추가] 공모가 대비 20% 이상 급등 시
+            if surge_pct_ipo >= 20.0:
+                new_alerts.append({
+                    "ticker": ticker, 
+                    "alert_type": "SURGE_IPO", 
+                    "title": f"{ticker} (+{surge_pct_ipo:.1f}%)", 
+                    "message": f"현재가 ${current_p:.2f}로 공모가 대비 강력한 상승세"
+                })
+            # [유지] 공모가 0~3% 회복 (바닥 확인)
+            elif 0 <= surge_pct_ipo < 3.0:
+                new_alerts.append({
+                    "ticker": ticker, 
+                    "alert_type": "REBOUND", 
+                    "title": f"🔥 공모가 회복: {ticker}", 
+                    "message": f"침체기를 끝내고 주가가 다시 공모가(${ipo_p}) 위로 올라섰습니다. 바닥 확인 신호입니다."
+                })
 
         # =========================================================
-        # 💡 [여기서부터 신규 추가] 4. 월가 기관 투자심리 호조 (Upgrade) 시그널
+        # 💡 4. 월가 기관 투자심리 호조 (Upgrade) 시그널
         # =========================================================
         try:
-            # DB에서 해당 종목의 최신 Tab 4 (기관 평가) 캐시 데이터를 불러옵니다.
             tab4_key = f"{ticker}_Tab4_ko"
             res_tab4 = supabase.table("analysis_cache").select("content").eq("cache_key", tab4_key).execute()
             
@@ -879,33 +905,24 @@ def run_premium_alert_engine(df_calendar):
                 import json
                 tab4_data = json.loads(res_tab4.data[0]['content'])
                 
-                # AI가 분석한 데이터에서 Rating과 Score 추출
                 rating_val = str(tab4_data.get('rating', '')).upper()
                 score_val = str(tab4_data.get('score', '0')).strip()
                 
-                # 조건 1: Rating이 Buy 또는 Strong Buy 인가?
                 is_buy = "BUY" in rating_val or "STRONG BUY" in rating_val
-                # 조건 2: IPO Scoop Score가 4점(강력한 수익) 또는 5점(대박) 인가?
                 is_high_score = score_val in ["4", "5"]
                 
-                # 둘 중 하나라도 만족하면 프리미엄 알림 발생!
                 if is_buy or is_high_score:
                     new_alerts.append({
                         "ticker": ticker, 
                         "alert_type": "INST_UPGRADE", 
-                        "title": f"월가 투자심리 강세: {ticker}", 
-                        "message": f"월가 기관 평가에서 강력한 긍정 시그널(의견: {tab4_data.get('rating')}, 스코어: {score_val}점)이 포착되었습니다."
+                        "title": f"{ticker} 기관투자자평가상향조정(Buy grade)", 
+                        "message": f"월가 분석 결과, 투자 의견이 '{tab4_data.get('rating')}'(으)로 평가되었습니다."
                     })
         except Exception as e:
             print(f"Tab 4 Alert Error for {ticker}: {e}")
             pass
             
-    # [Step 3] DB 전송 및 중복 방지 (기존 코드)
-    if new_alerts:
-        batch_upsert("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
-        print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 DB에 적재되었습니다.")
-
-    # [Step 3] DB 전송 및 중복 방지
+    # [Step 3] DB 전송 및 중복 방지 (기존 중복 코드 정리 완료)
     if new_alerts:
         batch_upsert("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
         print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 DB에 적재되었습니다.")
