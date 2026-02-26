@@ -654,12 +654,14 @@ def run_tab4_analysis(ticker, company_name):
         2. 분석 깊이: 단순 사실 나열이 아닌 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
         3. Pros & Cons: 긍정적 요소(Pros) 2가지와 부정적 요소(Cons) 2가지를 명확히 구분하여 서술하세요.
         4. Rating: 반드시 (Strong Buy/Buy/Hold/Sell) 중 하나로 선택하세요. (이 값은 영어로 유지)
-        5. Summary: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
-        6. 링크 위치 구분: 본문 안에는 절대 URL을 넣지 말고, 반드시 "links" 리스트 안에만 정확히 기입하세요.
+        5. Score: 월가 리포트의 종합적인 긍정/기대 수준을 1점(최악)부터 5점(대박) 사이의 정수로 평가하세요. # 💡 이거 추가!
+        6. Summary: 전문적인 톤으로 5줄 이내로 핵심만 간결하게 작성하세요.
+        7. 링크 위치 구분: 본문 안에는 절대 URL을 넣지 말고, 반드시 "links" 리스트 안에만 정확히 기입하세요.
 
         <JSON_START>
         {{
             "rating": "Buy/Hold/Sell 중 하나",
+            "score": "1~5 사이의 정수 (예: 4)",  # 💡 이거 추가!
             {json_format}
             "links": [ {{"title": "검색된 리포트 제목", "link": "URL"}} ]
         }}
@@ -843,6 +845,44 @@ def run_premium_alert_engine(df_calendar):
 
         if ipo_p > 0 and 0 <= (current_p - ipo_p) / ipo_p < 0.03:
             new_alerts.append({"ticker": ticker, "alert_type": "REBOUND", "title": f"🔥 공모가 회복: {ticker}", "message": f"침체기를 끝내고 주가가 다시 공모가(${ipo_p}) 위로 올라섰습니다. 바닥 확인 신호입니다."})
+
+        # =========================================================
+        # 💡 [여기서부터 신규 추가] 4. 월가 기관 투자심리 호조 (Upgrade) 시그널
+        # =========================================================
+        try:
+            # DB에서 해당 종목의 최신 Tab 4 (기관 평가) 캐시 데이터를 불러옵니다.
+            tab4_key = f"{ticker}_Tab4_ko"
+            res_tab4 = supabase.table("analysis_cache").select("content").eq("cache_key", tab4_key).execute()
+            
+            if res_tab4.data:
+                import json
+                tab4_data = json.loads(res_tab4.data[0]['content'])
+                
+                # AI가 분석한 데이터에서 Rating과 Score 추출
+                rating_val = str(tab4_data.get('rating', '')).upper()
+                score_val = str(tab4_data.get('score', '0')).strip()
+                
+                # 조건 1: Rating이 Buy 또는 Strong Buy 인가?
+                is_buy = "BUY" in rating_val or "STRONG BUY" in rating_val
+                # 조건 2: IPO Scoop Score가 4점(강력한 수익) 또는 5점(대박) 인가?
+                is_high_score = score_val in ["4", "5"]
+                
+                # 둘 중 하나라도 만족하면 프리미엄 알림 발생!
+                if is_buy or is_high_score:
+                    new_alerts.append({
+                        "ticker": ticker, 
+                        "alert_type": "INST_UPGRADE", 
+                        "title": f"월가 투자심리 강세: {ticker}", 
+                        "message": f"월가 기관 평가에서 강력한 긍정 시그널(의견: {tab4_data.get('rating')}, 스코어: {score_val}점)이 포착되었습니다."
+                    })
+        except Exception as e:
+            print(f"Tab 4 Alert Error for {ticker}: {e}")
+            pass
+            
+    # [Step 3] DB 전송 및 중복 방지 (기존 코드)
+    if new_alerts:
+        batch_upsert("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
+        print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 DB에 적재되었습니다.")
 
     # [Step 3] DB 전송 및 중복 방지
     if new_alerts:
