@@ -890,8 +890,8 @@ def run_premium_alert_engine(df_calendar):
                 new_alerts.append({
                     "ticker": ticker, 
                     "alert_type": "REBOUND", 
-                    "title": f"🔥 공모가 회복: {ticker}", 
-                    "message": f"침체기를 끝내고 주가가 다시 공모가(${ipo_p}) 위로 올라섰습니다. 바닥 확인 신호입니다."
+                    "title": f"{ticker} 공모가 회복", 
+                    "message": f"주가가 다시 공모가(${ipo_p}) 위로 올라섰습니다. 바닥 확인 신호입니다."
                 })
 
         # =========================================================
