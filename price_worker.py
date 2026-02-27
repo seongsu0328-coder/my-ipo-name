@@ -126,14 +126,13 @@ def fetch_and_update_prices():
                         current_p = fetch_otc_price_premium(official_sym)
 
                     if current_p > 0:
-                        # DB에 저장할 때는 앱이 찾을 수 있게 다시 original symbol로 변환
-                        db_sym = query_map[official_sym] 
-                        
+                        # 💡 [핵심 수정 완료] 앱(app.py)에서도 SEC 공식 티커로 데이터를 찾으므로, 
+                        # DB에 저장할 때도 원래 티커로 되돌리지 않고 '공식 티커' 이름 그대로 저장합니다.
                         upsert_list.append({
-                            "ticker": str(db_sym), "price": current_p, "updated_at": now_iso
+                            "ticker": str(official_sym), "price": current_p, "updated_at": now_iso
                         })
                         history_list.append({
-                            "ticker": str(db_sym), "target_date": us_today_str, "close_price": current_p
+                            "ticker": str(official_sym), "target_date": us_today_str, "close_price": current_p
                         })
                 except: continue
         except Exception as e:
