@@ -169,7 +169,8 @@ LANG_PROMPT_MAP = {
     'ko': '전문적인 한국어(Korean)',
     'en': 'Professional English',
     'ja': '専門的な日本語(Japanese)',
-    'zh': '简体中文(Simplified Chinese)'  # 💡 추가됨
+    'zh': '简体中文(Simplified Chinese)'
+}
 
 # ==========================================
 # [Supabase DB] 데이터 관리 함수 모음 (NEW)
