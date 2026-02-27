@@ -2562,6 +2562,18 @@ UI_TEXT = {
         'ja': 'データ遅延/OTC', 
         'zh': '数据延迟/OTC'
     },
+    'badge_sudden_addition': {
+        'ko': '🚀 신규 편입', 
+        'en': '🚀 New Addition', 
+        'ja': '🚀 新規編入', 
+        'zh': '🚀 新增编入'
+    },
+    'tooltip_sudden_addition': {
+        'ko': '이 기업들은 상장 일정이 당일 확정되는 특수 목적 회사(SPAC)나 직상장 케이스로, 상장 직후 리스트에 안전하게 추가되었습니다.',
+        'en': 'These are SPACs or direct listings whose schedules are confirmed on the day. They were added safely right after listing.',
+        'ja': 'これらの企業は上場日程が当日に確定する特別買収目的会社(SPAC)や直接上場であり、上場直後にリストへ追加されました。',
+        'zh': '这些是上市日程在当天确定的特殊目的收购公司(SPAC)或直接上市企业，因此在上市后立即安全地添加到了列表中。'
+    },
     
 
     # ==========================================
