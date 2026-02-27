@@ -1876,6 +1876,18 @@ def get_financial_report_analysis(company_name, ticker, metrics, lang_code):
     except Exception as e:
         return f"분석 리포트 생성 중 오류: {str(e)}"
 
+# 💡 [신규 추가] 스팩/직상장 등 갑자기 편입된 Ticker 리스트 불러오기 (캐싱)
+@st.cache_data(ttl=3600) 
+def get_sudden_additions():
+    try:
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", "SUDDEN_ADDITIONS_LIST").execute()
+        if res.data:
+            import json
+            return set(json.loads(res.data[0]['content']))
+    except:
+        pass
+    return set()
+
 
 # ---------------------------------------------------------
 # ✅ [메인] Supabase 연동 캐싱 함수 (이걸 호출하세요)
@@ -4153,6 +4165,9 @@ with main_area.container():
                 else: display_df = display_df.sort_values(by='공모일_dt', ascending=False)
     
             if not display_df.empty:
+                # 💡 [핵심 추가] 화면을 그리기 전에 미리 신규 편입 기업 명단을 가져옵니다.
+                sudden_tickers = get_sudden_additions()
+                
                 for i, row in display_df.iterrows():
                     p_val = pd.to_numeric(str(row.get('price','')).replace('$','').split('-')[0], errors='coerce')
                     p_val = p_val if p_val and p_val > 0 else 0
@@ -4160,7 +4175,6 @@ with main_area.container():
                     live_p = row.get('live_price', 0)
                     live_s = row.get('live_status', 'Active')
 
-                    # 💡 [핵심 교정 1] 핀허브 원본 상태와 DB 상태를 합쳐서 완벽히 검사
                     raw_status = str(row.get('status', '')).lower()
                     status_lower = str(live_s).lower()
                     combined_status = f"{raw_status} {status_lower}"
@@ -4175,20 +4189,22 @@ with main_area.container():
                     if is_withdrawn:
                         price_html = f"<div class='price-main' style='color:#888888 !important;'>{get_text('label_rw')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
+                    # 2. 공식 상장 연기
                     elif is_delayed:
                         price_html = f"<div class='price-main' style='color:#1919e6 !important;'>{get_text('status_delayed')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
+                    # 3. 상장 폐지
                     elif is_delisted:
                         price_html = f"<div class='price-main' style='color:#888888 !important;'>{get_text('status_delisted')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
-                    # 2. 가격이 잡히는 정상 거래 종목
+                    # 4. 가격이 잡히는 정상 거래 종목
                     elif live_p > 0:
                         pct = ((live_p - p_val) / p_val) * 100 if p_val > 0 else 0
                         change_color = "#e61919" if pct > 0 else "#1919e6" if pct < 0 else "#333333"
                         arrow = "▲" if pct > 0 else "▼" if pct < 0 else ""
                         price_html = f"<div class='price-main' style='color:{change_color} !important;'>${live_p:,.2f} ({arrow}{pct:+.1f}%)</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
                     
-                    # 3. 💡 [핵심 교정 2] 다국어 지원 시간 기반 3단 방어막 + 툴팁(마우스 오버) 완벽 적용
+                    # 5. 다국어 지원 시간 기반 3단 방어막 + 툴팁 적용
                     else: 
                         item_date = row['공모일_dt'].date()
                         days_passed = (today_dt.date() - item_date).days
@@ -4207,6 +4223,7 @@ with main_area.container():
                         else:
                             tooltip = get_text('tooltip_otc_unsupported')
                             price_html = f"<div title='{tooltip}' class='price-main' style='color:#888888 !important; font-size:11.5px !important; cursor:help;'>{get_text('status_otc_unsupported')}</div><div class='price-sub' style='color:#666666 !important;'>IPO: ${p_val:,.2f}</div>"
+                    
                     # --- [UI 렌더링 시작] ---
                     date_html = f"<div class='date-text'>{row['date']}</div>"
                     c1, c2 = st.columns([7, 3])
@@ -4222,13 +4239,21 @@ with main_area.container():
                         try: s_val = int(row.get('numberOfShares',0)) * p_val / 1000000
                         except: s_val = 0
                         size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
-                        st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}</div>", unsafe_allow_html=True)
+                        
+                        # 💡 [핵심 추가] Ticker 목록에 있으면 HTML 뱃지를 생성합니다.
+                        badge_html = ""
+                        if str(row['symbol']) in sudden_tickers:
+                            # 작성해주신 툴팁 적용
+                            tooltip_text = "이 기업들은 상장 일정이 당일 확정되는 특수 목적 회사(SPAC)나 직상장 케이스로, 상장 직후에 리스트에 안전하게 추가되었습니다."
+                            badge_html = f" <span title='{tooltip_text}' style='background-color: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: bold; cursor: help;'>🚀 신규 편입</span>"
+
+                        # 원래 있던 렌더링 문구 끝에 {badge_html}을 붙여줍니다.
+                        st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}{badge_html}</div>", unsafe_allow_html=True)
                     
                     with c2:
                         st.markdown(f"<div style='text-align:right;'>{price_html}{date_html}</div>", unsafe_allow_html=True)
                     
                     st.markdown("<div style='border-bottom:1px solid #f0f2f6; margin: 4px 0;'></div>", unsafe_allow_html=True)
-    
     
     
     
