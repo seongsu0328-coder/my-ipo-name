@@ -606,7 +606,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 time.sleep(1)
 
 def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
-    """Tab 4: 월가 기관 분석 (생애주기별 7일/1일 캐싱 최적화 적용)"""
+    """Tab 4: 월가 기관 분석 (생애주기별 7일/1일 캐싱 최적화 적용 및 다국어 완벽 분리)"""
     if not model: return False
     
     # 💡 [핵심 1] 상태 판별 및 캐시 유효기간 설정
@@ -634,6 +634,7 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 continue # 캐시가 살아있으면 다음 언어로 조용히 넘어갑니다 (API 요금 $0)
         except: pass
 
+        # 💡 [핵심 교정] 언어별 지시어와 JSON 포맷을 100% 해당 국가 언어로 분리
         LANG_MAP = {
             'ko': '한국어 (Korean)',
             'en': '영어 (English)',
@@ -643,33 +644,41 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         target_lang = LANG_MAP.get(lang_code, '한국어 (Korean)')
 
         if lang_code == 'ja':
-            lang_instruction = "必ず日本語(Japanese)のみで作成してください。すべての文章は日本語である必要があります。韓国語は絶対に混ぜないでください。"
+            lang_instruction = "必ず日本語(Japanese)のみで作成してください。見出し, 本文, JSONの値すべてにおいて韓国語(Korean)を絶対に混ぜないでください。"
             json_format = """
+            "rating": "Strong Buy / Buy / Hold / Neutral / Sell (この項目のみ英語を維持)",
+            "score": "1から5までの整数",
             "summary": "日本語での専門的な3行要約",
-            "pro_con": "**Pros(長所)**:\\n- 内容\\n\\n**Cons(短所)**:\\n- 内容 (必ず日本語で)",
+            "pro_con": "**Pros(長所)**:\\n- 詳細内容\\n\\n**Cons(短所)**:\\n- 詳細内容 (必ず日本語で)",
             """
         elif lang_code == 'en':
-            lang_instruction = "Respond strictly in English. Do not mix Korean. All sentences must be in English."
+            lang_instruction = "Respond strictly and entirely in English. Do not mix Korean anywhere."
             json_format = """
+            "rating": "Strong Buy / Buy / Hold / Neutral / Sell",
+            "score": "Integer from 1 to 5",
             "summary": "Professional 3-line summary in English",
-            "pro_con": "**Pros**:\\n- Details\\n\\n**Cons**:\\n- Details (all in English)",
+            "pro_con": "**Pros**:\\n- details\\n\\n**Cons**:\\n- details",
             """
         elif lang_code == 'zh':
-            lang_instruction = "必须只用简体中文(Simplified Chinese)编写。绝对不能混用韩语。"
+            lang_instruction = "必须只用简体中文(Simplified Chinese)编写。严禁在回答中出现任何韩语(Korean)。"
             json_format = """
+            "rating": "Strong Buy / Buy / Hold / Neutral / Sell (保留英文)",
+            "score": "1到5的整数",
             "summary": "专业中文三行摘要",
-            "pro_con": "**Pros(优点)**:\\n- 内容\\n\\n**Cons(缺点)**:\\n- 内容 (必须用中文)",
+            "pro_con": "**Pros(优点)**:\\n- 详细内容\\n\\n**Cons(缺点)**:\\n- 详细内容 (必须用中文)",
             """
-        else:
-            lang_instruction = "반드시 한국어로 작성하세요."
+        else: # ko
+            lang_instruction = "검색된 영문 리포트 내용을 반드시 자연스러운 한국어로 번역하여 작성하세요."
             json_format = """
+            "rating": "Strong Buy / Buy / Hold / Neutral / Sell 중 택 1 (영어 유지)",
+            "score": "1~5 사이의 정수 (예: 4)",
             "summary": "한국어 전문 3줄 요약",
-            "pro_con": "**Pros(장점)**:\\n- 내용\\n\\n**Cons(단점)**:\\n- 내용 (한국어)",
+            "pro_con": "**Pros(장점)**:\\n- 구체적 내용\\n\\n**Cons(단점)**:\\n- 구체적 내용",
             """
 
         prompt = f"""
         당신은 월가 출신의 IPO 전문 분석가입니다. 
-        구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 찾아 심층 분석하세요.
+        구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
 
         [작성 지침]
         1. 언어: 반드시 '{target_lang}'로 답변하세요. {lang_instruction}
@@ -682,10 +691,8 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
         <JSON_START>
         {{
-            "rating": "Buy/Hold/Sell 중 하나",
-            "score": "1~5 사이의 정수 (예: 4)", 
             {json_format}
-            "links": [ {{"title": "검색된 리포트 제목", "link": "URL"}} ]
+            "links": [ {{"title": "Report Title", "link": "URL"}} ]
         }}
         <JSON_END>
         """
@@ -695,14 +702,33 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 response = model.generate_content(prompt)
                 full_text = response.text
                 
+                # 💡 [방어막 최적화] 한글이 포함되었는지 검사 (일본어/중국어/영어일 때만)
                 if lang_code != 'ko':
+                    # 한글 유니코드 범위 검사
                     if re.search(r'[가-힣]', full_text):
-                        time.sleep(1); continue 
+                        time.sleep(1)
+                        continue 
                 
-                match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
-                if match:
-                    clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', match.group(1).strip())
-                    batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": clean_str, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+                # JSON 추출 로직 (더 견고하게 수정)
+                json_str = ""
+                json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(1).strip()
+                else:
+                    # 태그가 없을 경우 가장 바깥쪽 { } 를 찾음
+                    json_match = re.search(r'\{.*\}', full_text, re.DOTALL)
+                    json_str = json_match.group(0).strip() if json_match else ""
+
+                if json_str:
+                    clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
+                    
+                    # 💡 JSON 파싱이 정상적으로 되는지 검증 후 DB 저장
+                    try:
+                        parsed_json = json.loads(clean_str, strict=False)
+                        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps(parsed_json, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+                    except Exception as json_e:
+                        print(f"JSON Parse Error for {ticker} ({lang_code}): {json_e}")
+                        
                 break 
             except:
                 time.sleep(1)
