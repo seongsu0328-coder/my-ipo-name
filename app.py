@@ -2002,7 +2002,7 @@ else:
 
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Active", ipo_date_str=None):
-    # 필요한 라이브러리 체크 (함수 내부 혹은 상단에 위치해야 함)
+    # 필요한 라이브러리 체크
     import re
     import time
     import json
@@ -2026,9 +2026,9 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
         except: 
             pass
 
-    # 💡 [핵심 추가 2] 안정기면 7일, 아니면 1일 전으로 조회 제한 시간(limit_time) 설정
+    # 💡 [핵심 추가 2] 캐시 키 버전업 (v3 적용하여 오염된 기존 캐시 강제 무시)
     valid_days = 7 if is_stable else 1
-    cache_key = f"{ticker}_Tab4_v2_{lang_code}" # 💡 v2를 슬쩍 끼워넣습니다.
+    cache_key = f"{ticker}_Tab4_v3_{lang_code}" 
     limit_time = (now - timedelta(days=valid_days)).isoformat()
 
     # 1. DB 캐시 확인 (limit_time 적용)
@@ -2039,7 +2039,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
     except Exception as e:
         print(f"Tab4 DB Error: {e}")
 
-    # 2. 언어별 설정 및 프롬프트 포맷 (💡 한국어 혼용 원천 차단)
+    # 2. 💡 [Target Language 중심 설계] 언어별 지시어와 JSON 포맷을 100% 분리
     LANG_MAP = {
         'ko': '한국어 (Korean)',
         'en': '영어 (English)',
@@ -2054,7 +2054,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
         "rating": "Strong Buy / Buy / Hold / Neutral / Sell (この項目のみ英語を維持)",
         "score": "1から5までの整数",
         "summary": "日本語での専門的な3行要約",
-        "pro_con": "**Pros(長所)**:\\n- 詳細内容\\n\\n**Cons(短所)**:\\n- 詳細内容 (必ず日本語で)",
+        "pro_con": "**Pros(長所)**:\\n- 詳細な分析内容\\n\\n**Cons(短所)**:\\n- 詳細なリスク要因 (必ず日本語で記述)",
         """
     elif lang_code == 'en':
         lang_instruction = "Respond strictly and entirely in English. Do not mix Korean anywhere."
@@ -2062,7 +2062,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
         "rating": "Strong Buy / Buy / Hold / Neutral / Sell",
         "score": "Integer from 1 to 5",
         "summary": "Professional 3-line summary in English",
-        "pro_con": "**Pros**:\\n- details\\n\\n**Cons**:\\n- details",
+        "pro_con": "**Pros**:\\n- Detailed analysis\\n\\n**Cons**:\\n- Detailed risk factors (all in English)",
         """
     elif lang_code == 'zh':  
         lang_instruction = "必须只用简体中文(Simplified Chinese)编写。严禁在回答中出现任何韩语(Korean)。"
@@ -2070,7 +2070,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
         "rating": "Strong Buy / Buy / Hold / Neutral / Sell (保留英文)",
         "score": "1到5的整数",
         "summary": "专业中文三行摘要",
-        "pro_con": "**Pros(优点)**:\\n- 详细内容\\n\\n**Cons(缺点)**:\\n- 详细内容 (必须用中文)",
+        "pro_con": "**Pros(优点)**:\\n- 详细分析内容\\n\\n**Cons(缺点)**:\\n- 详细风险因素 (必须用中文填写)",
         """
     else: # ko
         lang_instruction = "검색된 영문 리포트 내용을 반드시 자연스러운 한국어로 번역하여 작성하세요."
@@ -2078,22 +2078,22 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
         "rating": "Strong Buy / Buy / Hold / Neutral / Sell 중 택 1 (영어 유지)",
         "score": "1~5 사이의 정수 (예: 4)",
         "summary": "한국어 전문 3줄 요약",
-        "pro_con": "**Pros(장점)**:\\n- 구체적 내용\\n\\n**Cons(단점)**:\\n- 구체적 내용",
+        "pro_con": "**Pros(장점)**:\\n- 구체적 분석 내용\\n\\n**Cons(단점)**:\\n- 구체적 리스크 요인",
         """
 
-    # 3. 프롬프트 (안정성 강화 및 json_format 주입)
+    # 3. 프롬프트 (세부 지시사항을 json_format 안으로 이관하여 충돌 방지)
     prompt = f"""
     당신은 월가 출신의 IPO 전문 분석가입니다. 
-    구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
+    구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 찾아 심층 분석하세요.
 
     [작성 지침]
-    1. **언어**: 반드시 '{target_lang}'로 답변하세요. {lang_instruction}
-    2. **분석 깊이**: 단순 사실 나열이 아닌 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
-    3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적 요소(Cons) 2가지를 명확히 구분하여 서술하세요.
+    1. **언어 규칙**: 반드시 '{target_lang}'로만 답변하세요. {lang_instruction}
+    2. **분석 깊이**: 구체적인 수치나 근거를 포함하여 전문적으로 분석하세요.
+    3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적 요소(Cons) 2가지를 명확히 도출하여 반영하세요.
     4. **Score**: 월가 리포트의 종합적인 긍정/기대 수준을 1점(최악)부터 5점(대박) 사이의 정수로 평가하세요.
-    5. **링크 위치**: 본문 안에는 절대 URL을 넣지 말고, 반드시 "links" 리스트 안에만 기입하세요.
+    5. **출력 형식**: 아래 제공된 <JSON_START> 양식의 '값(Value)' 부분에 적힌 언어와 지시사항을 100% 준수하여 채워 넣으세요.
+    6. **링크 위치**: 본문 안에는 절대 URL을 넣지 말고, 반드시 "links" 배열 안에만 기입하세요.
 
-    반드시 아래 JSON 형식으로만 출력하세요:
     <JSON_START>
     {{
         {json_format}
@@ -2108,21 +2108,23 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
             response = model.generate_content(prompt)
             full_text = response.text
             
-            # 💡 [방어막 최적화] 한글이 포함되었는지 검사 (일본어/중국어/영어일 때만)
+            # 💡 [방어막 최적화] 한글이 포함되었는지 검사 (Target Language가 한국어가 아닐 때)
             if lang_code != 'ko':
                 # 한글 유니코드 범위 검사
                 if re.search(r'[가-힣]', full_text):
                     if attempt < max_retries - 1:
                         time.sleep(1)
                         continue
+                    else:
+                        # 3번 시도해도 한글이 섞여 나오면, DB 오염 방지를 위해 강제 에러 발생!
+                        raise Exception(f"Language mixing detected: Korean found in {lang_code} response.")
 
-            # JSON 추출 로직 (더 견고하게 수정)
+            # JSON 추출 로직 
             json_str = ""
             json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
             if json_match:
                 json_str = json_match.group(1).strip()
             else:
-                # 태그가 없을 경우 가장 바깥쪽 { } 를 찾음
                 json_match = re.search(r'\{.*\}', full_text, re.DOTALL)
                 json_str = json_match.group(0).strip() if json_match else ""
 
@@ -2131,7 +2133,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
                 clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
                 result_data = json.loads(clean_str, strict=False)
                 
-                # DB 저장 (에러 나도 리턴은 되게끔 try-except)
+                # 정상적으로 파싱 및 언어 검열을 통과했을 때만 DB 저장
                 try:
                     supabase.table("analysis_cache").upsert({
                         "cache_key": cache_key,
@@ -2143,8 +2145,22 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
                 return result_data
 
         except Exception as e:
-            print(f"⚠️ Tab4 Attempt {attempt+1} Error: {e}")
+            print(f"⚠️ Tab4 Attempt {attempt+1} Error for {ticker}: {e}")
             time.sleep(1)
+
+    # 4. 최종 실패 시 (기본값 리턴)
+    fail_msgs = {
+        'ko': "분석 데이터를 정제하는 중입니다. 잠시 후 다시 시도해주세요.",
+        'en': "Analyzing data... Please try again in a moment.",
+        'ja': "データを分析中です。しばらくしてからもう一度お試しください。", 
+        'zh': "数据分析中... 请稍后再试。"
+    }
+    return {
+        "rating": "N/A", 
+        "summary": fail_msgs.get(lang_code, fail_msgs['ko']), 
+        "pro_con": "Check the connection or try another company.", 
+        "links": []
+    }
 
     # 4. 최종 실패 시 (기본값 리턴)
     fail_msgs = {
