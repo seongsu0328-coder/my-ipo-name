@@ -3981,6 +3981,11 @@ elif st.session_state.page == 'setup':
                 
                 price_pct = int((active_price_cnt / total_price_cnt) * 100) if total_price_cnt > 0 else 0
                 
+                # 💡 [핵심 추가] 미국 동부 시간 기준으로 장이 열려있는지 판단 (워커 휴식 시간 동기화)
+                import pytz
+                now_est = datetime.now(pytz.timezone('US/Eastern'))
+                is_market_open = (now_est.weekday() < 5) and (4 <= now_est.hour <= 20)
+                
                 # [2] AI 리포트 전체 캐시 (Tab 0 ~ 4) 모니터링
                 res_analysis_all = supabase.table("analysis_cache").select("cache_key, updated_at").execute()
                 
@@ -4030,7 +4035,11 @@ elif st.session_state.page == 'setup':
                 
                 # 첫 번째 줄
                 with dash_r1_c1:
-                    st.metric(label="🟢 실시간 주가 (최근 30분)", value=f"{price_pct}% 정상", delta=f"{active_price_cnt} / {total_price_cnt} 종목", delta_color="normal" if price_pct >= 90 else "inverse")
+                    # 💡 장이 열려있을 때만 %, 닫혀있으면 장 마감 표시
+                    if is_market_open:
+                        st.metric(label="🟢 실시간 주가 (최근 30분)", value=f"{price_pct}% 정상", delta=f"{active_price_cnt} / {total_price_cnt} 종목", delta_color="normal" if price_pct >= 90 else "inverse")
+                    else:
+                        st.metric(label="💤 실시간 주가 (최근 30분)", value="장 마감 (종가 유지)", delta=f"DB 조회로 API 100% 방어 중", delta_color="normal")
                 with dash_r1_c2:
                     st.metric(label="📄 공시 분석 캐시 (Tab 0)", value=f"{tab0_pct}% 완료", delta=f"{tab0_fresh} / {tab0_total} 건 방어 중", delta_color="normal" if tab0_pct >= 90 else "inverse")
                 with dash_r1_c3:
