@@ -162,14 +162,13 @@ from openai import OpenAI
 # ==========================================
 DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 MY_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
-# ==========================================
 
 # 현재 AI 프롬프트에 주입할 언어명 문자열 매핑
 LANG_PROMPT_MAP = {
-    'ko': '전문적인 한국어(Korean)',
-    'en': 'Professional English',
-    'ja': '専門的な日本語(Japanese)',
-    'zh': '简体中文(Simplified Chinese)'
+    "ko": "전문적인 한국어(Korean)",
+    "en": "Professional English",
+    "ja": "専門的な日本語(Japanese)",
+    "zh": "简体中文(Simplified Chinese)"
 }
 
 # ==========================================
