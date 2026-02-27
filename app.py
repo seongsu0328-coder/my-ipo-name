@@ -766,19 +766,16 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Activ
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_ai_analysis(company_name, topic, lang_code):
     """
-    Tab 0: 공시 5종 분석 (Supabase DB 캐싱 연동 완료)
+    Tab 0: 공시 5종 분석 (Supabase DB 캐싱 연동 및 언어별 프롬프트 완벽 분리)
     """
     if not model:
         return "⚠️ AI 모델 설정 오류가 발생했습니다."
 
-    # 💡 [방어막 추가] worker.py가 저장한 캐시 키와 동일하게 설정하여 DB를 먼저 찌릅니다.
     cache_key = f"{company_name}_{topic}_Tab0_v13_{lang_code}"
     now = datetime.now()
-    # 공시 문서는 자주 안 바뀌므로 일주일치 데이터를 유효한 것으로 봅니다.
     seven_days_ago = (now - timedelta(days=7)).isoformat()
 
     try:
-        # DB에서 먼저 데이터 찾기
         res = supabase.table("analysis_cache") \
             .select("content") \
             .eq("cache_key", cache_key) \
@@ -786,203 +783,166 @@ def get_ai_analysis(company_name, topic, lang_code):
             .execute()
             
         if res.data:
-            # 워커가 미리 분석해둔 데이터가 있다면 0.1초 만에 바로 반환! (API 요금 절약)
             return res.data[0]['content']
     except Exception as e:
         print(f"Tab0 Cache Read Error: {e}")
 
-    # ========================================================
-    # DB에 데이터가 없을 경우에만 아래 로직(API 호출)을 탑니다.
-    # ========================================================
-    
-    def_meta = {
-                    # --- [IPO 상장 진행 서류] ---
-                    "S-1": {
-                        "desc": "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.",
-                        "points": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 해당 문서에서 발견된 가장 중요한 투자 포인트 분석
-                        2. 두 번째 문단: 실질적 성장 가능성과 재무적 의미 분석
-                        3. 세 번째 문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책
-                        """
-                    },
-                    "S-1/A": {
-                        "desc": "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.",
-                        "points": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 이전 S-1 대비 변경된 핵심 사항 분석
-                        2. 두 번째 문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기 분석
-                        3. 세 번째 문단: 기존 주주 가치 희석 정도와 투자 매력도 분석
-                        """
-                    },
-                    "F-1": {
-                        "desc": "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.",
-                        "points": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위
-                        2. 두 번째 문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크 분석
-                        3. 세 번째 문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향
-                        """
-                    },
-                    "FWP": {
-                        "desc": "FWP는 기관 투자자 대상 로드쇼(Roadshow) PPT 자료입니다. **Graphics**(비즈니스 모델 시각화)와 **Strategy**(경영진이 강조하는 미래 성장 동력)를 확인할 수 있습니다.",
-                        "points": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전
-                        2. 두 번째 문단: 경쟁사 대비 부각시키는 기술적/사업적 차별화 포인트
-                        3. 세 번째 문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지
-                        """
-                    },
-                    "424B4": {
-                        "desc": "424B4는 공모가가 최종 확정된 후 발행되는 설명서입니다. **Underwriting**(주관사 배정)과 확정된 **Final Price**(최종 공모가)를 확인할 수 있습니다.",
-                        "points": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 확정 공모가의 위치와 시장 수요 해석
-                        2. 두 번째 문단: 확정된 조달 자금의 투입 우선순위 점검
-                        3. 세 번째 문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측
-                        """
-                    },
-                    # --- [상장 철회 및 폐지 서류] ---
-                    "RW": {
-                        "desc": "RW(Registration Withdrawal)는 기업이 상장 절차를 공식적으로 중단하고 증권신고서를 철회할 때 제출하는 문서입니다. 주로 시장 환경 악화나 내부 사정으로 인한 철회 사유가 담깁니다.",
-                        "points": "Withdrawal Reason(철회 사유), Market Condition(시장 환경 악화 여부), Future Plans(향후 계획)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 해당 기업의 상장 철회(Withdrawal) 결정적 사유 및 배경
-                        2. 두 번째 문단: 상장 철회가 기업 재무 및 기존 투자자에게 미치는 영향
-                        3. 세 번째 문단: 향후 재상장 또는 M&A 등 향후 계획
-                        """
-                    },
-                    "Form 25": {
-                        "desc": "Form 25는 거래소에서 상장 폐지되거나 등록이 취소될 때 제출하는 공식 통지서입니다. 인수합병(M&A)이나 상장 유지 규정 위반 등의 사유를 확인할 수 있습니다.",
-                        "points": "Delisting Reason(상장폐지 사유), M&A(인수합병 여부), Shareholder Impact(주주 영향)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 상장 폐지(Delisting)의 정확한 사유 (인수합병, 자진 상폐, 규정 위반 등)
-                        2. 두 번째 문단: 상장 폐지 후 기존 주주의 권리 및 주식 처리 방안
-                        3. 세 번째 문단: 장외시장(OTC) 거래 가능성 및 향후 기업 상태
-                        """
-                    },
-                    # --- [상장 후 1년 이상 정식 재무 서류] ---
-                    "10-K": {
-                        "desc": "10-K는 미국의 상장기업이 매년 SEC에 제출하는 연간 사업보고서입니다. 한 해의 전반적인 사업 성과와 위험 요소를 포괄적으로 다룹니다.",
-                        "points": "Business Overview(사업 개요), Risk Factors(위험 요소), MD&A(경영진 분석)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 지난 1년간의 핵심 사업 성과 및 비즈니스 모델 변화
-                        2. 두 번째 문단: 경영진이 강조하는(MD&A) 주요 재무 실적과 당면 과제
-                        3. 세 번째 문단: 새롭게 부각된 위험 요소(Risk Factors) 및 장기 전망
-                        """
-                    },
-                    "10-Q": {
-                        "desc": "10-Q는 분기별로 제출되는 실적 보고서입니다. 최근 3개월간의 재무 상태 변화와 단기적인 사업 현황을 파악할 수 있습니다.",
-                        "points": "Quarterly Earnings(분기 실적), Short-term Guidance(단기 가이던스), Recent Changes(최근 변동사항)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 해당 분기의 매출 및 이익 달성 현황 요약
-                        2. 두 번째 문단: 전년 동기 대비 주요 변화와 그 원인
-                        3. 세 번째 문단: 다음 분기 가이던스 및 단기 리스크 요인
-                        """
-                    },
-                    "BS": {
-                        "desc": "재무상태표(Balance Sheet)는 기업의 자산, 부채, 자본의 현재 상태를 보여줍니다. 기업의 재무 건전성과 지급 능력을 분석합니다.",
-                        "points": "Assets(자산 구성), Liabilities(부채 및 상환 능력), Equity(자본 건전성)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 유동 자산과 비유동 자산의 핵심 구성비 및 특징
-                        2. 두 번째 문단: 부채 비율, 이자 발생 부채 등 재무 리스크 진단
-                        3. 세 번째 문단: 자본 충실도 및 종합적인 재무 건전성(Solvency) 평가
-                        """
-                    },
-                    "IS": {
-                        "desc": "손익계산서(Income Statement)는 일정 기간 동안의 매출과 비용, 순이익을 나타냅니다. 기업의 수익 창출 능력을 분석합니다.",
-                        "points": "Revenue Growth(매출 성장), Margins(이익률), EPS(주당순이익)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 탑라인(매출) 성장 추이와 주요 견인 사업부 분석
-                        2. 두 번째 문단: 매출원가 및 판관비 통제에 따른 영업이익률/순이익률 평가
-                        3. 세 번째 문단: 최종 수익성(EPS 등) 및 이익의 질(Quality of Earnings) 요약
-                        """
-                    },
-                    "CF": {
-                        "desc": "현금흐름표(Cash Flow)는 기업에 실제 현금이 어떻게 들어오고 나갔는지를 보여줍니다. 흑자 도산 위험 등을 판별하는 핵심 지표입니다.",
-                        "points": "Operating CF(영업현금), Investing CF(투자현금), Financing CF(재무현금)",
-                        "structure": """
-                        [문단 구성 지침]
-                        1. 첫 번째 문단: 영업활동을 통한 순수 현금 창출 능력 평가
-                        2. 두 번째 문단: CAPEX 등 투자활동 현금흐름의 공격성 및 방향성
-                        3. 세 번째 문단: 차입/상환 및 배당 등 재무활동과 최종 잉여현금흐름(FCF) 상태
-                        """
-                    }
-                }
+    # 💡 [핵심 교체] def_meta를 함수 밖이나 안에 두지 않고, 언어별로 바로 매핑하도록 수정
+    def get_localized_meta(lang, doc_type):
+        meta_dict = {
+            "ko": {
+                "S-1": {"p": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)", "s": "1문단: 발견된 가장 중요한 투자 포인트\n2문단: 실질적 성장 가능성과 재무적 의미\n3문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책"},
+                "S-1/A": {"p": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)", "s": "1문단: 이전 S-1 대비 변경된 핵심 사항\n2문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기\n3문단: 기존 주주 가치 희석 정도와 투자 매력도"},
+                "F-1": {"p": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)", "s": "1문단: 기업이 글로벌 시장에서 가진 독보적인경쟁 우위\n2문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크\n3문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향"},
+                "FWP": {"p": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)", "s": "1문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전\n2문단: 경쟁사 대비 기술적/사업적 차별화 포인트\n3문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지"},
+                "424B4": {"p": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)", "s": "1문단: 확정 공모가의 위치와 시장 수요 해석\n2문단: 확정된 조달 자금의 투입 우선순위\n3문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측"},
+                "RW": {"p": "Withdrawal Reason(철회 사유), Market Condition(시장 환경 악화 여부), Future Plans(향후 계획)", "s": "1문단: 상장 철회(Withdrawal) 결정적 사유 및 배경\n2문단: 상장 철회가 기업 재무 및 기존 투자자에게 미치는 영향\n3문단: 향후 재상장 또는 M&A 등 향후 계획"},
+                "Form 25": {"p": "Delisting Reason(상장폐지 사유), M&A(인수합병 여부), Shareholder Impact(주주 영향)", "s": "1문단: 상장 폐지(Delisting)의 정확한 사유\n2문단: 상장 폐지 후 기존 주주의 권리 및 주식 처리 방안\n3문단: 장외시장(OTC) 거래 가능성 및 향후 기업 상태"},
+                "10-K": {"p": "Business Overview(사업 개요), Risk Factors(위험 요소), MD&A(경영진 분석)", "s": "1문단: 지난 1년간의 핵심 사업 성과 및 비즈니스 모델 변화\n2문단: 경영진이 강조하는(MD&A) 주요 재무 실적과 당면 과제\n3문단: 새롭게 부각된 위험 요소(Risk Factors) 및 장기 전망"},
+                "10-Q": {"p": "Quarterly Earnings(분기 실적), Short-term Guidance(단기 가이던스), Recent Changes(최근 변동사항)", "s": "1문단: 해당 분기의 매출 및 이익 달성 현황 요약\n2문단: 전년 동기 대비 주요 변화와 그 원인\n3문단: 다음 분기 가이던스 및 단기 리스크 요인"},
+                "BS": {"p": "Assets(자산 구성), Liabilities(부채 및 상환 능력), Equity(자본 건전성)", "s": "1문단: 유동 자산과 비유동 자산의 핵심 구성비 및 특징\n2문단: 부채 비율, 이자 발생 부채 등 재무 리스크 진단\n3문단: 자본 충실도 및 종합적인 재무 건전성(Solvency) 평가"},
+                "IS": {"p": "Revenue Growth(매출 성장), Margins(이익률), EPS(주당순이익)", "s": "1문단: 탑라인(매출) 성장 추이와 주요 견인 사업부 분석\n2문단: 매출원가 및 판관비 통제에 따른 영업이익률/순이익률 평가\n3문단: 최종 수익성(EPS 등) 및 이익의 질(Quality of Earnings) 요약"},
+                "CF": {"p": "Operating CF(영업현금), Investing CF(투자현금), Financing CF(재무현금)", "s": "1문단: 영업활동을 통한 순수 현금 창출 능력 평가\n2문단: CAPEX 등 투자활동 현금흐름의 공격성 및 방향성\n3문단: 차입/상환 및 배당 등 재무활동과 최종 잉여현금흐름(FCF) 상태"}
+            },
+            "en": {
+                "S-1": {"p": "Risk Factors, Use of Proceeds (Soundness), MD&A (Growth Drivers)", "s": "Paragraph 1: The most important investment points found in this document.\nParagraph 2: Real business growth potential and financial implications.\nParagraph 3: One core risk, its ripple effects, and countermeasures."},
+                "S-1/A": {"p": "Pricing Terms (Demand sentiment), Dilution, Changes from previous filing", "s": "Paragraph 1: Core changes compared to the previous S-1.\nParagraph 2: Appropriateness of pricing terms and expected demand.\nParagraph 3: Dilution for new investors and investment attractiveness."},
+                "F-1": {"p": "Foreign Risk (Geopolitical), Accounting (GAAP diff), ADS (Depository Receipt)", "s": "Paragraph 1: The company's unique competitive advantage in the global market.\nParagraph 2: Specific risks for foreign companies (FX, politics, accounting).\nParagraph 3: Impact of the ADS structure on shareholder rights."},
+                "FWP": {"p": "Graphics (Market share), Strategy (Future drivers), Highlights (Management focus)", "s": "Paragraph 1: Future growth vision emphasized by management in the roadshow.\nParagraph 2: Technical/business differentiation points against competitors.\nParagraph 3: Market penetration willingness inferred from the tone and manner."},
+                "424B4": {"p": "Underwriting (Tier), Final Price (Allocation), IPO Outcome", "s": "Paragraph 1: Interpretation of the final IPO price and market demand.\nParagraph 2: Priority of how the raised funds will be used.\nParagraph 3: Expected initial float based on underwriters and lock-ups."},
+                "RW": {"p": "Withdrawal Reason, Market Condition, Future Plans", "s": "Paragraph 1: The decisive reason and background for the IPO withdrawal.\nParagraph 2: Impact of the withdrawal on corporate finance and existing investors.\nParagraph 3: Future plans such as M&A or re-attempting IPO."},
+                "Form 25": {"p": "Delisting Reason, M&A, Shareholder Impact", "s": "Paragraph 1: Exact reason for delisting (M&A, voluntary, violations, etc.).\nParagraph 2: Impact on shareholder rights and stock treatment after delisting.\nParagraph 3: Possibility of OTC trading and future corporate status."},
+                "10-K": {"p": "Business Overview, Risk Factors, MD&A", "s": "Paragraph 1: Core business performance and model changes over the past year.\nParagraph 2: Key financial results and challenges highlighted in MD&A.\nParagraph 3: Newly highlighted Risk Factors and long-term outlook."},
+                "10-Q": {"p": "Quarterly Earnings, Short-term Guidance, Recent Changes", "s": "Paragraph 1: Summary of revenue and profit achieved in this quarter.\nParagraph 2: Major YoY changes and their causes.\nParagraph 3: Guidance for the next quarter and short-term risks."},
+                "BS": {"p": "Assets, Liabilities, Equity", "s": "Paragraph 1: Key composition and characteristics of current and non-current assets.\nParagraph 2: Diagnosis of financial risks such as debt ratio and interest-bearing debt.\nParagraph 3: Capital adequacy and comprehensive solvency evaluation."},
+                "IS": {"p": "Revenue Growth, Margins, EPS", "s": "Paragraph 1: Top-line revenue growth trend and key driving business units.\nParagraph 2: Evaluation of operating/net margin based on cost control.\nParagraph 3: Final profitability (EPS) and summary of Quality of Earnings."},
+                "CF": {"p": "Operating CF, Investing CF, Financing CF", "s": "Paragraph 1: Evaluation of pure cash generation through operating activities.\nParagraph 2: Aggressiveness and direction of investing cash flows like CAPEX.\nParagraph 3: Financing activities and final Free Cash Flow (FCF) status."}
+            },
+            "ja": {
+                "S-1": {"p": "Risk Factors (特異な訴訟・規制), Use of Proceeds (資金使途の健全性), MD&A (成長要因)", "s": "第1段落：この文書で確認できる最も重要な投資ポイント\n第2段落：実質的な成長可能性と財務的意味\n第3段落：核心的なリスク1つ、その波及効果および対応策"},
+                "S-1/A": {"p": "Pricing Terms (需要予測), Dilution (希薄化), Changes (前回からの変更点)", "s": "第1段落：前回のS-1からの主な変更点\n第2段落：提示された公募価格帯の妥当性と需要予測の雰囲気\n第3段落：既存株主の価値希薄化の程度と投資魅力度"},
+                "F-1": {"p": "Foreign Risk (地政学的リスク), Accounting (GAAP差異), ADS (米国預託証券)", "s": "第1段落：企業がグローバル市場で持つ独自の競争優位性\n第2段落：為替、政治、会計など海外企業特有のリスク\n第3段落：米国預託証券（ADS）構造が株主の権利に与える影響"},
+                "FWP": {"p": "Graphics (市場シェアの視覚化), Strategy (未来の成長エンジン), Highlights (経営陣の強調点)", "s": "第1段落：経営陣がロードショーで強調する未来の成長ビジョン\n第2段落：競合他社と比較した技術的・事業的な差別化ポイント\n第3段落：資料のトーン＆マナーから推測される市場攻略への意欲"},
+                "424B4": {"p": "Underwriting (主幹事ランク), Final Price (機関配分), IPO Outcome", "s": "第1段落：確定した公募価格の位置づけと市場需要の解釈\n第2段落：確定した調達資金の投入優先順位\n第3段落：引受シンジケートおよび配分に基づく上場初期の流通株式予測"},
+                "RW": {"p": "Withdrawal Reason (撤回の理由), Market Condition (市場環境の悪化), Future Plans (今後の計画)", "s": "第1段落：該当企業の上場撤回（Withdrawal）の決定的な理由と背景\n第2段落：上場撤回が企業の財務および既存投資家に与える影響\n第3段落：今後の再上場またはM&Aなどの今後の計画"},
+                "Form 25": {"p": "Delisting Reason (上場廃止の理由), M&A (買収合併), Shareholder Impact (株主への影響)", "s": "第1段落：上場廃止（Delisting）の正確な理由\n第2段落：上場廃止後の既存株主の権利および株式の取り扱い\n第3段落：店頭市場（OTC）での取引可能性および今後の企業状態"},
+                "10-K": {"p": "Business Overview (事業概要), Risk Factors (リスク要因), MD&A (経営陣の分析)", "s": "第1段落：過去1年間の核心的な事業成果およびビジネスモデルの変化\n第2段落：経営陣が強調する主要な財務実績と直面する課題\n第3段落：新たに浮上したリスク要因および長期的な展望"},
+                "10-Q": {"p": "Quarterly Earnings (四半期業績), Short-term Guidance, Recent Changes", "s": "第1段落：該当四半期の売上および利益達成状況の要約\n第2段落：前年同期比の主な変化とその原因\n第3段落：次四半期のガイダンスおよび短期的なリスク要因"},
+                "BS": {"p": "Assets (資産構成), Liabilities (負債と返済能力), Equity (資本の健全性)", "s": "第1段落：流動資産と非流動資産の主な構成比と特徴\n第2段落：負債比率、有利子負債などの財務リスクの診断\n第3段落：自己資本の充実度および総合的な財務健全性（Solvency）の評価"},
+                "IS": {"p": "Revenue Growth (売上成長), Margins (利益率), EPS (一株当たり利益)", "s": "第1段落：売上の成長推移と主要な牽引事業部門の分析\n第2段落：売上原価および販管費の統制に基づく利益率の評価\n第3段落：最終的な収益性（EPSなど）と利益の質（Quality of Earnings）の要約"},
+                "CF": {"p": "Operating CF (営業CF), Investing CF (投資CF), Financing CF (財務CF)", "s": "第1段落：営業活動を通じた純粋な現金創出力の評価\n第2段落：CAPEXなど投資活動キャッシュフローの攻撃性と方向性\n第3段落：借入・返済や配当などの財務活動と、最終的なフリーキャッシュフロー状態"}
+            },
+            "zh": {
+                "S-1": {"p": "Risk Factors (特殊诉讼/监管), Use of Proceeds (资金用途), MD&A (增长驱动力)", "s": "第一段：该文件中最重要的投资亮点\n第二段：实质性增长潜力及其财务意义\n第三段：一个核心风险，其连锁反应及应对措施"},
+                "S-1/A": {"p": "Pricing Terms (定价氛围), Dilution (股权稀释), Changes (与前次差异)", "s": "第一段：与之前S-1相比的核心变化\n第二段：定价区间的合理性及需求氛围分析\n第三段：现有股东的价值稀释程度及投资吸引力"},
+                "F-1": {"p": "Foreign Risk (地缘政治风险), Accounting (GAAP差异), ADS (存托凭证)", "s": "第一段：企业在全球市场中独有的竞争优势\n第二段：外汇、政治、会计等海外企业特有风险分析\n第三段：美国存托凭证（ADS）结构对股东权利的影响"},
+                "FWP": {"p": "Graphics (市场份额), Strategy (未来引擎), Highlights (管理层强调)", "s": "第一段：管理层在路演中强调的未来增长愿景\n第二段：与竞争对手相比的技术/业务差异化优势\n第三段：从资料的基调推测的市场开拓意愿"},
+                "424B4": {"p": "Underwriting (承销商等级), Final Price (机构配售), IPO Outcome", "s": "第一段：最终发行价的定位及市场需求解读\n第二段：确定募集资金的投入优先顺序\n第三段：基于承销团队及配售情况的上市初期流通股预测"},
+                "RW": {"p": "Withdrawal Reason (撤回原因), Market Condition (市场恶化), Future Plans (未来计划)", "s": "第一段：该企业撤回上市的决定性原因及背景\n第二段：撤回上市对企业财务及现有投资者的影响\n第三段：未来再次上市或并购等计划"},
+                "Form 25": {"p": "Delisting Reason (退市原因), M&A (并购), Shareholder Impact (股东影响)", "s": "第一段：退市的准确原因（并购、自愿退市、违规等）\n第二段：退市后现有股东的权利及股票处理方案\n第三段：场外市场（OTC）交易的可能性及未来企业状态"},
+                "10-K": {"p": "Business Overview (业务概览), Risk Factors (风险因素), MD&A (管理层分析)", "s": "第一段：过去一年的核心业务成果及商业模式变化\n第二段：管理层强调的主要财务业绩和面临的挑战\n第三段：新出现的风险因素及长期展望"},
+                "10-Q": {"p": "Quarterly Earnings (季度业绩), Short-term Guidance, Recent Changes", "s": "第一段：该季度营收及利润达成情况的摘要\n第二段：同比主要变化及其原因\n第三段：下季度业绩指引及短期风险因素"},
+                "BS": {"p": "Assets (资产构成), Liabilities (偿债能力), Equity (资本健康度)", "s": "第一段：流动资产与非流动资产的核心构成比及特征\n第二段：负债率、有息负债等财务风险诊断\n第三段：资本充足度及综合偿债能力评估"},
+                "IS": {"p": "Revenue Growth (营收增长), Margins (利润率), EPS (每股收益)", "s": "第一段：营收增长趋势及主要驱动业务部门分析\n第二段：基于成本和费用控制的营业利润率/净利率评估\n第三段：最终盈利能力（EPS）及盈利质量总结"},
+                "CF": {"p": "Operating CF (经营CF), Investing CF (投资CF), Financing CF (筹资CF)", "s": "第一段：通过经营活动创造纯现金的能力评估\n第二段：资本支出等投资现金流的激进程度及方向\n第三段：借款/还款、分红等筹资活动及最终自由现金流状况"}
+            }
+        }
+        return meta_dict.get(lang, meta_dict['ko']).get(doc_type, meta_dict['ko']['S-1'])
 
-    curr_meta = def_meta.get(topic, def_meta["S-1"])
+    def get_format_instruction(lang):
+        if lang == 'en':
+            return """[Output Format Rules - STRICTLY FOLLOW]
+            - Each paragraph MUST begin with a translated **[Heading]**, followed by a space and the content. Do NOT line break after the heading.
+            - [Length] Write exactly 4 to 5 detailed sentences per paragraph.
+            - Correct Example: **[Investment Point]** The company's main advantage is...
+            - Forbidden: **[Investment Point - 투자포인트]** (DO NOT mix Korean)
+            - Forbidden: **[Investment Point]** \n The company... (DO NOT line break)"""
+        elif lang == 'ja':
+            return """[出力形式および翻訳規則 - 厳守すること]
+            - 各段落の始めは必ず日本語に翻訳された **[見出し]** から始め、改行せずにスペースを1つ空けて本文を続けてください。
+            - [分量条件] 単なる要約ではなく、各段落ごとに必ず4〜5文程度の詳細な内容を記述してください。
+            - 正しい例：**[投資ポイント]** 同社の最大の強みは...
+            - 禁止例（韓国語の併記禁止）：**[投資ポイント - 투자포인트]** (絶対に混ぜないこと)
+            - 禁止例（見出し後の改行禁止）：**[投資ポイント]** \n 同社は... (X)"""
+        elif lang == 'zh':
+            return """[输出格式及翻译规则 - 必须严格遵守]
+            - 每个段落的开头必须是中文的 **[副标题]**，不要换行，空一格后直接接着写正文。
+            - [篇幅要求] 每个段落必须写4到5句详细的内容。
+            - 正确示例：**[投资要点]** 该公司的最大优势是...
+            - 禁止示例（严禁标注韩语）：**[投资要点 - 투자포인트]** (严禁混用韩语)
+            - 禁止示例（副标题后严禁换行）：**[投资要点]** \n 该公司... (X)"""
+        else:
+            return """[출력 형식 및 번역 규칙 - 반드시 지킬 것]
+            - 각 문단의 시작은 반드시 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
+            - [분량 조건] 각 문단마다 반드시 4~5문장씩 내용을 상세히 채워 넣으세요.
+            - 금지 예시(소제목 뒤 줄바꿈 금지): **[투자 포인트]** \n 해당 기업은... (X)"""
 
-    format_instruction = """
-    [출력 형식 및 번역 규칙 - 반드시 지킬 것]
-    - 각 문단의 시작은 반드시 해당 언어로 번역된 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
-    - [분량 조건] 전체 요약이 아닙니다! **각 문단(1, 2, 3)마다 반드시 4~5문장(약 5줄 분량)씩** 내용을 상세하고 풍성하게 채워 넣으세요.
-    - 올바른 예시(영어): **[Investment Point]** The company's main advantage is...
-    - 올바른 예시(일본어): **[投資ポイント]** 同社の最大の強みは...
-    - 금지 예시(한국어 병기 절대 금지): **[Investment Point - 투자포인트]** (X)
-    - 금지 예시(소제목 뒤 줄바꿈 절대 금지): **[投資ポイント]** \n 同社は... (X)
-    """
+    meta = get_localized_meta(lang_code, topic)
+    format_inst = get_format_instruction(lang_code)
 
     if lang_code == 'en':
-        labels = ["Analysis Target", "Instructions", "Structure & Format", "Writing Style Guide"]
-        role_desc = "You are a professional senior analyst from Wall Street."
-        no_intro_prompt = 'CRITICAL: NEVER introduce yourself. DO NOT include Korean translations in headings. START IMMEDIATELY with the first English **[Heading]**.'
-        target_lang_str = "English"
-        style_guide = "- Respond strictly and entirely in English.\n- Ensure smooth transitions between sentences."
+        prompt = f"""You are a senior analyst from Wall Street.
+Target: {company_name} - {topic}
+Checkpoints: {meta['p']}
+
+[Writing Instructions]
+- STRICTLY write entirely in English. DO NOT mix Korean.
+- DO NOT introduce yourself.
+
+[Content Structure]
+{meta['s']}
+
+{format_inst}"""
+
     elif lang_code == 'ja':
-        labels = ["分析対象", "指針", "内容構成および形式", "文体ガイド"]
-        role_desc = "あなたはウォール街出身の専門分析家です。"
-        no_intro_prompt = '【重要】自己紹介は禁止です。見出しに韓国語を併記しないでください。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
-        target_lang_str = "日本語(Japanese)"
-        style_guide = "- 必ず自然な日本語のみで作成し、韓国語を絶対に混ぜないでください。\n- 文末は「〜です」「〜ます」などの丁寧語を使用してください。"
+        prompt = f"""あなたはウォール街出身の専門分析家です。
+分析対象: {company_name} - {topic}
+チェックポイント: {meta['p']}
+
+[作成指針]
+- 必ず自然な日本語のみで作成し、韓国語を絶対に混ぜないでください。
+- 自己紹介や挨拶は一切しないでください。
+
+[段落の構成内容]
+{meta['s']}
+
+{format_inst}"""
+
     elif lang_code == 'zh':
-        labels = ["分析目标", "指南", "内容结构和格式", "文体指南"]
-        role_desc = "您是华尔街的专业高级分析师。"
-        no_intro_prompt = '【重要】绝对不要自我介绍。绝对不要在标题中包含韩语。请直接以中文的**[标题]**开始正文。'
-        target_lang_str = "简体中文(Simplified Chinese)"
-        style_guide = "- 必须只用自然流畅的简体中文编写，严禁混用韩语。\n- 使用专业且礼貌的商业语调。"
+        prompt = f"""您是华尔街的专业高级分析师。
+分析目标: {company_name} - {topic}
+检查重点: {meta['p']}
+
+[编写指南]
+- 必须只用流畅的简体中文编写，严禁混用韩语。
+- 绝对不要自我介绍。
+
+[段落结构]
+{meta['s']}
+
+{format_inst}"""
+
     else:
-        labels = ["분석 대상", "지침", "내용 구성 및 형식", "문체 가이드"]
-        role_desc = "당신은 월가 출신의 전문 분석가입니다."
-        no_intro_prompt = '자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
-        target_lang_str = "한국어(Korean)"
-        style_guide = "- 모든 문장은 반드시 '~합니다', '~입니다' 형태의 정중한 경어체로 작성하세요.\n- 문장 끝이 끊기지 않도록 매끄럽게 연결하세요."
+        prompt = f"""당신은 월가 출신의 전문 분석가입니다.
+분석 대상: {company_name} - {topic}
+체크포인트: {meta['p']}
 
-    prompt = f"""
-    {labels[0]}: {company_name} - {topic}
-    {labels[1]} (Checkpoints): {curr_meta['points']}
-    
-    [{labels[1]}]
-    {role_desc}
-    {no_intro_prompt}
-    
-    [{labels[2]}]
-    {curr_meta['structure']}
-    {format_instruction}
+[작성 지침]
+- 반드시 한국어로만 작성하세요.
+- 자기소개나 인사말은 절대 하지 마세요.
 
-    [{labels[3]}]
-    {style_guide}
-    """
+[내용 구성 지침]
+{meta['s']}
+
+{format_inst}"""
 
     try:
-        # 최대 2회 재시도 (한국어 혼용 방지)
         final_text = ""
         for attempt in range(2):
             response = model.generate_content(prompt)
             res_text = response.text
             
             if lang_code != 'ko':
-                import re
                 if re.search(r'[가-힣]', res_text):
                     time.sleep(1)
                     continue 
@@ -993,7 +953,6 @@ def get_ai_analysis(company_name, topic, lang_code):
         if not final_text:
             final_text = response.text
 
-        # 💡 [핵심] API를 호출해서 얻어낸 결과를 DB에 저장합니다. (다음 사람을 위해)
         try:
             supabase.table("analysis_cache").upsert({
                 "cache_key": cache_key,
@@ -1007,7 +966,6 @@ def get_ai_analysis(company_name, topic, lang_code):
 
     except Exception as e:
         return f"분석 중 오류 발생: {str(e)}"
-
 
 @st.cache_data(ttl=86400) # 하루 동안 재무제표 기억
 def get_cached_raw_financials(symbol):
@@ -1048,32 +1006,95 @@ def get_market_dashboard_analysis(metrics_data, lang_code):
     except Exception as e:
         print(f"Dashboard AI Cache Error: {e}")
 
-    target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
+    # 💡 [핵심 교체] 언어별 프롬프트 완벽 분리
+    if lang_code == 'en':
+        prompt = f"""You are a Chief Market Strategist on Wall Street.
+Based on the current market data below, write a daily briefing assessing the U.S. stock market and IPO market.
 
-    prompt = f"""
-    당신은 월가의 수석 시장 전략가(Chief Market Strategist)입니다.
-    아래 제공된 실시간 시장 지표를 바탕으로 현재 미국 주식 시장과 IPO 시장의 상태를 진단하는 일일 브리핑을 작성하세요.
+[Market Data]
+- IPO Return: {metrics_data.get('ipo_return', 0):.1f}%
+- IPO Volume: {metrics_data.get('ipo_volume', 0)}
+- Unprofitable PCT: {metrics_data.get('unprofitable_pct', 0):.1f}%
+- Withdrawal Rate: {metrics_data.get('withdrawal_rate', 0):.1f}%
+- VIX: {metrics_data.get('vix', 0):.2f}
+- Buffett Indicator: {metrics_data.get('buffett_val', 0):.0f}%
+- S&P 500 PE: {metrics_data.get('pe_ratio', 0):.1f}x
+- Fear & Greed: {metrics_data.get('fear_greed', 50):.0f}
 
-    [실시간 시장 지표]
-    1. IPO 초기 수익률: {metrics_data.get('ipo_return', 0):.1f}%
-    2. IPO 예정 물량: {metrics_data.get('ipo_volume', 0)}건
-    3. 적자 기업 비율: {metrics_data.get('unprofitable_pct', 0):.1f}%
-    4. 상장 철회율: {metrics_data.get('withdrawal_rate', 0):.1f}%
-    5. VIX 지수: {metrics_data.get('vix', 0):.2f}
-    6. 버핏 지수(GDP 대비 시총): {metrics_data.get('buffett_val', 0):.0f}%
-    7. S&P 500 PE: {metrics_data.get('pe_ratio', 0):.1f}배
-    8. Fear & Greed Index: {metrics_data.get('fear_greed', 50):.0f}점
+[Guidelines]
+- STRICTLY use English only. Do not mix Korean.
+- Write a 3 to 5-line summary paragraph.
+- DO NOT use titles, subtitles, headers (##), or greetings.
+- Clearly provide insight on whether the current market presents an 'opportunity' or 'risk' based on the data."""
 
-    [작성 가이드]
-    - 언어: 반드시 '{target_lang}'로 작성하세요.
-    - 어조: 냉철하고 전문적인 어조 (인사말 생략)
-    - 형식: 줄글로 된 3~5줄의 요약 리포트로 제목, 소제목, 헤더(##), 인사말을 절대 포함하지 마세요.
-    - 내용: 위 지표들을 종합하여 현재가 '기회'인지 '위험'인지 명확한 인사이트를 제공하세요. 
-    """
+    elif lang_code == 'ja':
+        prompt = f"""あなたはウォール街のチーフ市場ストラテジストです。
+以下の現在の市場データに基づいて、米国株式市場とIPO市場の状態を診断する日次ブリーフィングを作成してください。
+
+[市場データ]
+- IPO収益率: {metrics_data.get('ipo_return', 0):.1f}%
+- IPO予定数: {metrics_data.get('ipo_volume', 0)}件
+- 赤字企業率: {metrics_data.get('unprofitable_pct', 0):.1f}%
+- 上場撤回率: {metrics_data.get('withdrawal_rate', 0):.1f}%
+- VIX指数: {metrics_data.get('vix', 0):.2f}
+- バフェット指数: {metrics_data.get('buffett_val', 0):.0f}%
+- S&P 500 PE: {metrics_data.get('pe_ratio', 0):.1f}倍
+- Fear & Greed: {metrics_data.get('fear_greed', 50):.0f}点
+
+[ガイドライン]
+- 必ず日本語のみで作成してください。韓国語は絶対に混ぜないでください。
+- 3〜5行程度の要約段落として作成してください。
+- 見出し、箇条書き、挨拶文は一切含めないでください。
+- データに基づいて、現在の市場が「機会」か「リスク」かについて明確な洞察を提供してください。"""
+
+    elif lang_code == 'zh':
+        prompt = f"""您是华尔街的首席市场策略师。
+根据以下当前市场数据，撰写一份评估美国股市和IPO市场状态的每日简报。
+
+[市场数据]
+- IPO收益率: {metrics_data.get('ipo_return', 0):.1f}%
+- IPO数量: {metrics_data.get('ipo_volume', 0)}
+- 亏损企业比例: {metrics_data.get('unprofitable_pct', 0):.1f}%
+- 撤回率: {metrics_data.get('withdrawal_rate', 0):.1f}%
+- VIX指数: {metrics_data.get('vix', 0):.2f}
+- 巴菲特指标: {metrics_data.get('buffett_val', 0):.0f}%
+- 标普500 PE: {metrics_data.get('pe_ratio', 0):.1f}倍
+- 恐惧与贪婪指数: {metrics_data.get('fear_greed', 50):.0f}
+
+[指南]
+- 必须只用简体中文编写。严禁混用韩语。
+- 写一段3到5行的摘要。
+- 绝对不要包含标题、副标题、项目符号或问候语。
+- 基于数据，明确指出当前市场是“机会”还是“风险”。"""
+
+    else:
+        prompt = f"""당신은 월가의 수석 시장 전략가(Chief Market Strategist)입니다.
+아래 제공된 실시간 시장 지표를 바탕으로 현재 미국 주식 시장과 IPO 시장의 상태를 진단하는 일일 브리핑을 작성하세요.
+
+[실시간 시장 지표]
+- IPO 수익률: {metrics_data.get('ipo_return', 0):.1f}%
+- IPO 예정 물량: {metrics_data.get('ipo_volume', 0)}건
+- 적자 기업 비율: {metrics_data.get('unprofitable_pct', 0):.1f}%
+- 상장 철회율: {metrics_data.get('withdrawal_rate', 0):.1f}%
+- VIX 지수: {metrics_data.get('vix', 0):.2f}
+- 버핏 지수: {metrics_data.get('buffett_val', 0):.0f}%
+- S&P 500 PE: {metrics_data.get('pe_ratio', 0):.1f}배
+- Fear & Greed: {metrics_data.get('fear_greed', 50):.0f}점
+
+[작성 가이드]
+- 반드시 한국어로 작성하세요.
+- 어조: 냉철하고 전문적인 어조 (인사말 생략)
+- 형식: 줄글로 된 3~5줄의 요약 리포트로 제목, 소제목, 헤더(##), 인사말을 절대 포함하지 마세요.
+- 내용: 위 지표들을 종합하여 현재가 '기회'인지 '위험'인지 명확한 인사이트를 제공하세요."""
 
     try:
         response = model.generate_content(prompt)
         result = response.text
+
+        # 💡 [방어막 적용]
+        if lang_code != 'ko':
+            if re.search(r'[가-힣]', result):
+                return "Analysis generation retrying due to language mix..."
 
         supabase.table("analysis_cache").upsert({
             "cache_key": cache_key,
@@ -1833,99 +1854,124 @@ def get_financial_report_analysis(company_name, ticker, metrics, lang_code):
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
     try:
-        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", one_day_ago).execute()
-        if res.data: return res.data[0]['content']
+        res = supabase.table("analysis_cache") \
+            .select("content") \
+            .eq("cache_key", cache_key) \
+            .gt("updated_at", one_day_ago) \
+            .execute()
+        
+        if res.data:
+            return res.data[0]['content']
     except Exception as e:
         print(f"Tab3 Cache Error: {e}")
 
-    # 💡 [핵심] 언어별 프롬프트 완벽 분리
-    if lang_code == 'ja':
-        target_lang = '日本語(Japanese)'
-        instructions = """
-        [作成ガイド]
-        1. 言語: 必ず日本語のみで作成してください。
-        2. 形式: 以下の4つの見出しを**必ず**使用して段落を分けてください。
-           **[Valuation & Market Position]**
-           **[Operating Performance]**
-           **[Risk & Solvency]**
-           **[Analyst Conclusion]**
-        3. 内容: 数値を単純に羅列するのではなく、数値が持つ意味（プレミアム、効率性、リスクなど）を解釈してください。全体で10〜12行程度に要約してください。
-        """
-    elif lang_code == 'en':
-        target_lang = 'English'
-        instructions = """
-        [Writing Guide]
-        1. Language: Write strictly in English. Do not mix Korean.
-        2. Format: You MUST use the following 4 headings to separate paragraphs:
-           **[Valuation & Market Position]**
-           **[Operating Performance]**
-           **[Risk & Solvency]**
-           **[Analyst Conclusion]**
-        3. Content: Do not just list numbers; interpret their implications (premium, efficiency, risk, etc.). Keep the entire summary to about 10-12 lines.
-        """
+    # 💡 [핵심 교체] 언어별 프롬프트 완벽 분리
+    if lang_code == 'en':
+        prompt = f"""You are a Lead Equity Analyst with a CFA charter.
+Write an investment analysis report for {company_name} ({ticker}) based on the following financial data.
+
+[Financial Data]
+- Revenue Growth (YoY): {metrics.get('growth', 'N/A')}
+- Net Margin: {metrics.get('net_margin', 'N/A')}
+- OPM (Operating Margin): {metrics.get('op_margin', 'N/A')}
+- ROE: {metrics.get('roe', 'N/A')}
+- D/E Ratio: {metrics.get('debt_equity', 'N/A')}
+- Forward PER: {metrics.get('pe', 'N/A')}
+- Accruals Quality: {metrics.get('accruals', 'Unknown')}
+
+[Writing Guide]
+1. Language: Write STRICTLY and ENTIRELY in English. Do not mix Korean.
+2. Format: You MUST use the following 4 headings to separate your paragraphs:
+   **[Valuation & Market Position]**
+   **[Operating Performance]**
+   **[Risk & Solvency]**
+   **[Analyst Conclusion]**
+3. Content: Do not just list numbers. Interpret what they imply (premium, efficiency, risk, etc.) in about 10-12 lines total."""
+
+    elif lang_code == 'ja':
+        prompt = f"""あなたはCFA資格を保有するシニア株式アナリストです。
+以下の財務データに基づいて、{company_name} ({ticker})に関する投資分析レポートを作成してください。
+
+[財務データ]
+- 売上成長率(YoY): {metrics.get('growth', 'N/A')}
+- 純利益率(Net Margin): {metrics.get('net_margin', 'N/A')}
+- 営業利益率(OPM): {metrics.get('op_margin', 'N/A')}
+- ROE: {metrics.get('roe', 'N/A')}
+- 負債比率(D/E): {metrics.get('debt_equity', 'N/A')}
+- 予想PER: {metrics.get('pe', 'N/A')}
+- 発生額の質(Accruals): {metrics.get('accruals', 'Unknown')}
+
+[作成ガイド]
+1. 言語: 全て自然な日本語のみで記述してください。韓国語は絶対に混ぜないでください。
+2. 形式: 以下の4つの見出しを**必ず**使用して段落を分けてください。
+   **[Valuation & Market Position]**
+   **[Operating Performance]**
+   **[Risk & Solvency]**
+   **[Analyst Conclusion]**
+3. 内容: 数値を単純に羅列するのではなく、それが持つ意味（プレミアム、効率性、リスクなど）を解釈し、全体で10〜12行程度に要約してください。"""
+
     elif lang_code == 'zh':
-        target_lang = '简体中文(Simplified Chinese)'
-        instructions = """
-        [编写指南]
-        1. 语言：必须只用简体中文编写。严禁混用韩语。
-        2. 格式：**必须**使用以下4个副标题来划分段落：
-           **[Valuation & Market Position]**
-           **[Operating Performance]**
-           **[Risk & Solvency]**
-           **[Analyst Conclusion]**
-        3. 内容：不要简单罗列数据，请解释数据的含义（溢价、效率、风险等）。整体控制在10~12行左右。
-        """
+        prompt = f"""您是拥有CFA资格的首席股票分析师。
+请根据以下财务数据，撰写关于 {company_name} ({ticker}) 的投资分析报告。
+
+[财务数据]
+- 营收增长率(YoY): {metrics.get('growth', 'N/A')}
+- 净利润率(Net Margin): {metrics.get('net_margin', 'N/A')}
+- 营业利润率(OPM): {metrics.get('op_margin', 'N/A')}
+- ROE: {metrics.get('roe', 'N/A')}
+- 资产负债率(D/E): {metrics.get('debt_equity', 'N/A')}
+- 预测PER: {metrics.get('pe', 'N/A')}
+- 会计账簿质量: {metrics.get('accruals', 'Unknown')}
+
+[编写指南]
+1. 语言：必须只用简体中文编写。严禁混用韩语。
+2. 格式：**必须**使用以下4个副标题来划分段落：
+   **[Valuation & Market Position]**
+   **[Operating Performance]**
+   **[Risk & Solvency]**
+   **[Analyst Conclusion]**
+3. 内容：不要简单罗列数据，请解释数据的深刻含义（溢价、效率、风险等）。整体控制在10~12行左右。"""
+
     else:
-        target_lang = '한국어'
-        instructions = """
-        [작성 가이드]
-        1. 언어: 반드시 한국어로 작성하세요.
-        2. 형식: 아래 4가지 소제목을 **반드시** 사용하여 단락을 구분하세요.
-           **[Valuation & Market Position]**
-           **[Operating Performance]**
-           **[Risk & Solvency]**
-           **[Analyst Conclusion]**
-        3. 내용: 수치를 단순 나열하지 말고, 수치가 갖는 함의를 해석하세요. 10~12줄 내외로 요약하세요.
-        """
+        prompt = f"""당신은 CFA 자격을 보유한 수석 주식 애널리스트입니다.
+아래 재무 데이터를 바탕으로 {company_name} ({ticker})에 대한 투자 분석 리포트를 작성하세요.
 
-    prompt = f"""
-    당신은 CFA 자격을 보유한 수석 주식 애널리스트입니다.
-    아래 재무 데이터를 바탕으로 {company_name} ({ticker})에 대한 투자 분석 리포트를 작성하세요.
+[재무 데이터]
+- 매출 성장률(YoY): {metrics.get('growth', 'N/A')}
+- 순이익률(Net Margin): {metrics.get('net_margin', 'N/A')}
+- 영업이익률(OPM): {metrics.get('op_margin', 'N/A')}
+- ROE: {metrics.get('roe', 'N/A')}
+- 부채비율(D/E): {metrics.get('debt_equity', 'N/A')}
+- 선행 PER: {metrics.get('pe', 'N/A')}
+- 발생액 품질: {metrics.get('accruals', 'Unknown')}
 
-    [재무 데이터]
-    - 매출 성장률(YoY): {metrics.get('growth', 'N/A')}
-    - 순이익률(Net Margin): {metrics.get('net_margin', 'N/A')}
-    - 영업이익률(OPM): {metrics.get('op_margin', 'N/A')}
-    - ROE: {metrics.get('roe', 'N/A')}
-    - 부채비율(D/E): {metrics.get('debt_equity', 'N/A')}
-    - 선행 PER: {metrics.get('pe', 'N/A')}
-    - 발생액 품질: {metrics.get('accruals', 'Unknown')}
+[작성 가이드]
+1. 언어: 반드시 한국어로 작성하세요.
+2. 형식: 아래 4가지 소제목을 **반드시** 사용하여 단락을 구분하세요.
+   **[Valuation & Market Position]**
+   **[Operating Performance]**
+   **[Risk & Solvency]**
+   **[Analyst Conclusion]**
+3. 내용: 수치를 단순 나열하지 말고, 수치가 갖는 함의를 해석하세요. 10~12줄 내외로 요약하세요."""
 
-    {instructions}
-    """
+    try:
+        response = model.generate_content(prompt)
+        result = response.text
 
-    # 💡 [핵심] 혼용 방어막(Retry Loop) 적용
-    for attempt in range(3):
-        try:
-            response = model.generate_content(prompt)
-            result = response.text
+        if lang_code != 'ko':
+            if re.search(r'[가-힣]', result):
+                return "Analysis generation retrying due to language mix..."
 
-            if lang_code != 'ko':
-                import re
-                if re.search(r'[가-힣]', result):
-                    time.sleep(1); continue
+        supabase.table("analysis_cache").upsert({
+            "cache_key": cache_key,
+            "content": result,
+            "updated_at": now.isoformat()
+        }).execute()
 
-            supabase.table("analysis_cache").upsert({
-                "cache_key": cache_key,
-                "content": result,
-                "updated_at": now.isoformat()
-            }).execute()
+        return result
 
-            return result
-        except Exception as e:
-            time.sleep(1)
-
-    return f"분석 리포트 생성 중 오류 발생 (언어 혼용 기각됨)"
+    except Exception as e:
+        return f"분석 리포트 생성 중 오류: {str(e)}"
 
 # 💡 [신규 추가] 스팩/직상장 등 갑자기 편입된 Ticker 리스트 불러오기 (캐싱)
 @st.cache_data(ttl=3600) 
