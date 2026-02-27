@@ -625,7 +625,7 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
 
     for lang_code, _ in SUPPORTED_LANGS.items():
-        cache_key = f"{ticker}_Tab4_{lang_code}"
+        cache_key = f"{ticker}_Tab4_v2_{lang_code}" # 💡 v2를 슬쩍 끼워넣습니다.
         
         # 💡 [핵심 2] DB 캐시 확인 (유효기간 내면 AI 호출 스킵!)
         try:
