@@ -4252,12 +4252,14 @@ with main_area.container():
                         except: s_val = 0
                         size_str = f" | ${s_val:,.0f}M" if s_val > 0 else ""
                         
-                        # 💡 [핵심 추가] Ticker 목록에 있으면 HTML 뱃지를 생성합니다.
+                        # 💡 [핵심 추가] Ticker 목록에 있으면 HTML 뱃지를 생성합니다. (다국어 완벽 적용)
                         badge_html = ""
                         if str(row['symbol']) in sudden_tickers:
-                            # 작성해주신 툴팁 적용
-                            tooltip_text = "이 기업들은 상장 일정이 당일 확정되는 특수 목적 회사(SPAC)나 직상장 케이스로, 상장 직후에 리스트에 안전하게 추가되었습니다."
-                            badge_html = f" <span title='{tooltip_text}' style='background-color: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: bold; cursor: help;'>🚀 신규 편입</span>"
+                            # UI_TEXT에 추가한 다국어 텍스트를 불러옵니다.
+                            tooltip_text = get_text('tooltip_sudden_addition')
+                            badge_text = get_text('badge_sudden_addition')
+                            
+                            badge_html = f" <span title='{tooltip_text}' style='background-color: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: bold; cursor: help;'>{badge_text}</span>"
 
                         # 원래 있던 렌더링 문구 끝에 {badge_html}을 붙여줍니다.
                         st.markdown(f"<div class='mobile-sub' style='margin-top:-2px; padding-left:2px;'>{row['symbol']} | {row.get('exchange','-')}{size_str}{badge_html}</div>", unsafe_allow_html=True)
