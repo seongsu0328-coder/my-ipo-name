@@ -625,7 +625,7 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
 
     for lang_code, _ in SUPPORTED_LANGS.items():
-        cache_key = f"{ticker}_Tab4_v2_{lang_code}" # 💡 v2를 슬쩍 끼워넣습니다.
+        cache_key = f"{ticker}_Tab4_v3_{lang_code}" # 💡 v3 캐시 키 적용
         
         # 💡 [핵심 2] DB 캐시 확인 (유효기간 내면 AI 호출 스킵!)
         try:
@@ -634,7 +634,7 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 continue # 캐시가 살아있으면 다음 언어로 조용히 넘어갑니다 (API 요금 $0)
         except: pass
 
-        # 💡 [핵심 교정] 언어별 지시어와 JSON 포맷을 100% 해당 국가 언어로 분리
+        # 💡 [핵심 3] Target Language 중심 설계: 언어별 지시어와 JSON 포맷 100% 분리
         LANG_MAP = {
             'ko': '한국어 (Korean)',
             'en': '영어 (English)',
@@ -649,7 +649,7 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             "rating": "Strong Buy / Buy / Hold / Neutral / Sell (この項目のみ英語を維持)",
             "score": "1から5までの整数",
             "summary": "日本語での専門的な3行要約",
-            "pro_con": "**Pros(長所)**:\\n- 詳細内容\\n\\n**Cons(短所)**:\\n- 詳細内容 (必ず日本語で)",
+            "pro_con": "**Pros(長所)**:\\n- 詳細な分析内容\\n\\n**Cons(短所)**:\\n- 詳細なリスク要因 (必ず日本語で記述)",
             """
         elif lang_code == 'en':
             lang_instruction = "Respond strictly and entirely in English. Do not mix Korean anywhere."
@@ -657,7 +657,7 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             "rating": "Strong Buy / Buy / Hold / Neutral / Sell",
             "score": "Integer from 1 to 5",
             "summary": "Professional 3-line summary in English",
-            "pro_con": "**Pros**:\\n- details\\n\\n**Cons**:\\n- details",
+            "pro_con": "**Pros**:\\n- Detailed analysis\\n\\n**Cons**:\\n- Detailed risk factors (all in English)",
             """
         elif lang_code == 'zh':
             lang_instruction = "必须只用简体中文(Simplified Chinese)编写。严禁在回答中出现任何韩语(Korean)。"
@@ -665,7 +665,7 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             "rating": "Strong Buy / Buy / Hold / Neutral / Sell (保留英文)",
             "score": "1到5的整数",
             "summary": "专业中文三行摘要",
-            "pro_con": "**Pros(优点)**:\\n- 详细内容\\n\\n**Cons(缺点)**:\\n- 详细内容 (必须用中文)",
+            "pro_con": "**Pros(优点)**:\\n- 详细分析内容\\n\\n**Cons(缺点)**:\\n- 详细风险因素 (必须用中文填写)",
             """
         else: # ko
             lang_instruction = "검색된 영문 리포트 내용을 반드시 자연스러운 한국어로 번역하여 작성하세요."
@@ -673,19 +673,20 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             "rating": "Strong Buy / Buy / Hold / Neutral / Sell 중 택 1 (영어 유지)",
             "score": "1~5 사이의 정수 (예: 4)",
             "summary": "한국어 전문 3줄 요약",
-            "pro_con": "**Pros(장점)**:\\n- 구체적 내용\\n\\n**Cons(단점)**:\\n- 구체적 내용",
+            "pro_con": "**Pros(장점)**:\\n- 구체적 분석 내용\\n\\n**Cons(단점)**:\\n- 구체적 리스크 요인",
             """
 
         prompt = f"""
         당신은 월가 출신의 IPO 전문 분석가입니다. 
-        구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
+        구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 찾아 심층 분석하세요.
 
         [작성 지침]
-        1. **언어**: 반드시 '{target_lang}'로 답변하세요. {lang_instruction}
-        2. **분석 깊이**: 단순 사실 나열이 아닌 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
-        3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 서술하세요.
+        1. **언어 규칙**: 반드시 '{target_lang}'로만 답변하세요. {lang_instruction}
+        2. **분석 깊이**: 구체적인 수치나 근거를 포함하여 전문적으로 분석하세요.
+        3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적 요소(Cons) 2가지를 명확히 도출하여 반영하세요.
         4. **Score**: 월가 리포트의 종합적인 긍정/기대 수준을 1점(최악)부터 5점(대박) 사이의 정수로 평가하세요.
-        5. **링크 위치**: 본문 안에는 절대 URL을 넣지 말고, 반드시 "links" 리스트 안에만 기입하세요.
+        5. **출력 형식**: 아래 제공된 <JSON_START> 양식의 '값(Value)' 부분에 적힌 언어와 지시사항을 100% 준수하여 채워 넣으세요.
+        6. **링크 위치**: 본문 안에는 절대 URL을 넣지 말고, 반드시 "links" 배열 안에만 기입하세요.
 
         <JSON_START>
         {{
@@ -700,14 +701,19 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 response = model.generate_content(prompt)
                 full_text = response.text
                 
-                # 💡 [방어막 최적화] 한글이 포함되었는지 검사 (일본어/중국어/영어일 때만)
+                # 💡 [방어막 최적화] 한글이 포함되었는지 검사 (Target Language가 한국어가 아닐 때)
                 if lang_code != 'ko':
                     # 한글 유니코드 범위 검사
                     if re.search(r'[가-힣]', full_text):
-                        time.sleep(1)
-                        continue 
+                        if attempt < 2: # 0, 1번째 시도에서는 재시도
+                            time.sleep(1)
+                            continue 
+                        else:
+                            # 🚨 3번째 시도에도 한글이 나오면 강제 스킵 (DB 오염 원천 차단)
+                            print(f"⚠️ {ticker} Tab4 ({lang_code}) - Language mixing 방지 (DB 저장 스킵)")
+                            break 
                 
-                # JSON 추출 로직 (더 견고하게 수정)
+                # JSON 추출 로직
                 json_str = ""
                 json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
                 if json_match:
@@ -723,12 +729,17 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     # 💡 JSON 파싱이 정상적으로 되는지 검증 후 DB 저장
                     try:
                         parsed_json = json.loads(clean_str, strict=False)
-                        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": json.dumps(parsed_json, ensure_ascii=False), "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+                        batch_upsert("analysis_cache", [{
+                            "cache_key": cache_key, 
+                            "content": json.dumps(parsed_json, ensure_ascii=False), 
+                            "updated_at": datetime.now().isoformat()
+                        }], on_conflict="cache_key")
                     except Exception as json_e:
                         print(f"JSON Parse Error for {ticker} ({lang_code}): {json_e}")
                         
-                break 
-            except:
+                break # 성공적으로 저장했으면 재시도 루프 탈출
+            except Exception as e:
+                print(f"⚠️ {ticker} Tab4 API Error ({lang_code}): {e}")
                 time.sleep(1)
 
 def run_tab3_analysis(ticker, company_name, metrics):
