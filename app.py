@@ -2406,7 +2406,7 @@ UI_TEXT = {
     'menu_watch': {'ko': '관심', 'en': 'Watchlist', 'ja': 'お気に入り', 'zh': '关注'},
     'menu_board': {'ko': '게시판', 'en': 'Board', 'ja': '掲示板', 'zh': '论坛'},
     'menu_settings': {'ko': '권한설정', 'en': 'Settings', 'ja': '設定', 'zh': '权限设置'},
-    'menu_logout': {'ko': '로그아웃', 'en': 'Logout', 'ja': '로그아웃', 'zh': '退出登录'},
+    'menu_logout': {'ko': '로그아웃', 'en': 'Logout', 'ja': 'ログアウト', 'zh': '退出登录'},
     'menu_back': {'ko': '뒤로가기', 'en': 'Back', 'ja': '戻る', 'zh': '返回'},
     'btn_save': {'ko': '저장', 'en': 'Save', 'ja': '保存', 'zh': '保存'},
     'btn_verify': {'ko': '인증', 'en': 'Verify', 'ja': '認証', 'zh': '认证'},
