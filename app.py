@@ -2086,14 +2086,12 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
     당신은 월가 출신의 IPO 전문 분석가입니다. 
     구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
 
-     [작성 지침]
+    [작성 지침]
     1. **언어**: 반드시 '{target_lang}'로 답변하세요. {lang_instruction}
-    2. **분석 깊이**: 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
-    3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
-    4. **Rating**: (Strong Buy/Buy/Hold/Sell) 중 하나를 영어로 선택하세요.
-    5. **Score**: 월가 리포트의 종합적인 긍정/기대 수준을 1점(최악)부터 5점(대박) 사이의 정수로 평가하세요.
-    6. **Summary**: 전문적인 톤으로 3~5줄 내외로 핵심만 작성하세요.
-    7. **링크**: 본문 안에는 URL을 넣지 말고 하단 "links" 리스트에만 넣으세요.
+    2. **분석 깊이**: 단순 사실 나열이 아닌 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
+    3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적 요소(Cons) 2가지를 명확히 구분하여 서술하세요.
+    4. **Score**: 월가 리포트의 종합적인 긍정/기대 수준을 1점(최악)부터 5점(대박) 사이의 정수로 평가하세요.
+    5. **링크 위치**: 본문 안에는 절대 URL을 넣지 말고, 반드시 "links" 리스트 안에만 기입하세요.
 
     반드시 아래 JSON 형식으로만 출력하세요:
     <JSON_START>
