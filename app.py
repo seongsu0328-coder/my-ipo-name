@@ -2028,7 +2028,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
 
     # 💡 [핵심 추가 2] 안정기면 7일, 아니면 1일 전으로 조회 제한 시간(limit_time) 설정
     valid_days = 7 if is_stable else 1
-    cache_key = f"{ticker}_Tab4_{lang_code}" # 버전업하여 새 캐시 생성 유도
+    cache_key = f"{ticker}_Tab4_v2_{lang_code}" # 💡 v2를 슬쩍 끼워넣습니다.
     limit_time = (now - timedelta(days=valid_days)).isoformat()
 
     # 1. DB 캐시 확인 (limit_time 적용)
