@@ -2039,7 +2039,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
     except Exception as e:
         print(f"Tab4 DB Error: {e}")
 
-    # 2. 언어별 설정 및 프롬프트 포맷 (완벽 분기 적용)
+    # 2. 언어별 설정 및 프롬프트 포맷 (💡 한국어 혼용 원천 차단)
     LANG_MAP = {
         'ko': '한국어 (Korean)',
         'en': '영어 (English)',
@@ -2049,28 +2049,36 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
     target_lang = LANG_MAP.get(lang_code, '한국어 (Korean)')
 
     if lang_code == 'ja':
-        lang_instruction = "必ず日本語(Japanese)のみで作成してください。韓国語は絶対に混ぜないでください。"
+        lang_instruction = "必ず日本語(Japanese)のみで作成してください。見出し, 本文, JSONの値すべてにおいて韓国語(Korean)を絶対に混ぜないでください。"
         json_format = """
+        "rating": "Strong Buy / Buy / Hold / Neutral / Sell (この項目のみ英語を維持)",
+        "score": "1から5までの整数",
         "summary": "日本語での専門的な3行要約",
-        "pro_con": "**Pros(長所)**:\\n- 内容\\n\\n**Cons(短所)**:\\n- 内容 (必ず日本語で)",
+        "pro_con": "**Pros(長所)**:\\n- 詳細内容\\n\\n**Cons(短所)**:\\n- 詳細内容 (必ず日本語で)",
         """
     elif lang_code == 'en':
-        lang_instruction = "Respond strictly in English. Do not mix Korean. All sentences must be in English."
+        lang_instruction = "Respond strictly and entirely in English. Do not mix Korean anywhere."
         json_format = """
+        "rating": "Strong Buy / Buy / Hold / Neutral / Sell",
+        "score": "Integer from 1 to 5",
         "summary": "Professional 3-line summary in English",
-        "pro_con": "**Pros**:\\n- Details\\n\\n**Cons**:\\n- Details (all in English)",
+        "pro_con": "**Pros**:\\n- details\\n\\n**Cons**:\\n- details",
         """
     elif lang_code == 'zh':  
-        lang_instruction = "必须只用简体中文(Simplified Chinese)编写。绝对不能混用韩语。"
+        lang_instruction = "必须只用简体中文(Simplified Chinese)编写。严禁在回答中出现任何韩语(Korean)。"
         json_format = """
+        "rating": "Strong Buy / Buy / Hold / Neutral / Sell (保留英文)",
+        "score": "1到5的整数",
         "summary": "专业中文三行摘要",
-        "pro_con": "**Pros(优点)**:\\n- 内容\\n\\n**Cons(缺点)**:\\n- 内容 (必须用中文)",
+        "pro_con": "**Pros(优点)**:\\n- 详细内容\\n\\n**Cons(缺点)**:\\n- 详细内容 (必须用中文)",
         """
-    else: # 'ko'
-        lang_instruction = "검색된 영문 리포트 내용을 반드시 한국어로 번역하여 작성하세요."
+    else: # ko
+        lang_instruction = "검색된 영문 리포트 내용을 반드시 자연스러운 한국어로 번역하여 작성하세요."
         json_format = """
+        "rating": "Strong Buy / Buy / Hold / Neutral / Sell 중 택 1 (영어 유지)",
+        "score": "1~5 사이의 정수 (예: 4)",
         "summary": "한국어 전문 3줄 요약",
-        "pro_con": "**Pros(장점)**:\\n- 내용\\n\\n**Cons(단점)**:\\n- 내용 (한국어)",
+        "pro_con": "**Pros(장점)**:\\n- 구체적 내용\\n\\n**Cons(단점)**:\\n- 구체적 내용",
         """
 
     # 3. 프롬프트 (안정성 강화 및 json_format 주입)
@@ -2078,7 +2086,7 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
     당신은 월가 출신의 IPO 전문 분석가입니다. 
     구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital, Morningstar 등)를 찾아 심층 분석하세요.
 
-    [작성 지침]
+     [작성 지침]
     1. **언어**: 반드시 '{target_lang}'로 답변하세요. {lang_instruction}
     2. **분석 깊이**: 구체적인 수치나 근거를 들어 전문적으로 분석하세요.
     3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적/리스크 요소(Cons) 2가지를 명확히 구분하여 상세하게 서술하세요.
@@ -2090,16 +2098,12 @@ def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Activ
     반드시 아래 JSON 형식으로만 출력하세요:
     <JSON_START>
     {{
-        "rating": "Buy/Hold/Sell 중 하나",
-        "score": "1~5 사이의 정수 (예: 4)",
         {json_format}
-        "links": [
-            {{"title": "Report Title", "link": "URL"}}
-        ]
+        "links": [ {{"title": "Report Title", "link": "URL"}} ]
     }}
     <JSON_END>
     """
-
+    
     max_retries = 3
     for attempt in range(max_retries):
         try:
