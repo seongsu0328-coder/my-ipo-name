@@ -926,13 +926,14 @@ def main():
             c_status = row.get('status', 'Active')
             c_date = row.get('date', None)
             
-            run_tab1_analysis(original_symbol, name, c_status, c_date)
-            run_tab0_analysis(original_symbol, name, c_status, c_date, cik_mapping)
-            run_tab4_analysis(original_symbol, name, c_status, c_date)
+            run_tab1_analysis(official_symbol, name, c_status, c_date)
+            run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping)
+            run_tab4_analysis(official_symbol, name, c_status, c_date)
             
             try:
                 tk = yf.Ticker(official_symbol)
-                run_tab3_analysis(original_symbol, name, {"pe": tk.info.get('forwardPE', 0)})
+                # 여기도 official_symbol 로 변경!
+                run_tab3_analysis(official_symbol, name, {"pe": tk.info.get('forwardPE', 0)})
             except: pass
             
             time.sleep(1.2)
