@@ -164,6 +164,13 @@ DRIVE_FOLDER_ID = "1WwjsnOljLTdjpuxiscRyar9xk1W4hSn2"
 MY_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 # ==========================================
 
+# 현재 AI 프롬프트에 주입할 언어명 문자열 매핑
+LANG_PROMPT_MAP = {
+    'ko': '전문적인 한국어(Korean)',
+    'en': 'Professional English',
+    'ja': '専門的な日本語(Japanese)',
+    'zh': '简体中文(Simplified Chinese)'  # 💡 추가됨
+
 # ==========================================
 # [Supabase DB] 데이터 관리 함수 모음 (NEW)
 # ==========================================
@@ -931,21 +938,25 @@ def get_ai_analysis(company_name, topic, lang_code):
         role_desc = "You are a professional senior analyst from Wall Street."
         no_intro_prompt = 'CRITICAL: NEVER introduce yourself. DO NOT include Korean translations in headings. START IMMEDIATELY with the first English **[Heading]**.'
         target_lang_str = "English"
+        style_guide = "- Respond strictly and entirely in English.\n- Ensure smooth transitions between sentences."
     elif lang_code == 'ja':
         labels = ["分析対象", "指針", "内容構成および形式", "文体ガイド"]
         role_desc = "あなたはウォール街出身の専門分析家です。"
         no_intro_prompt = '【重要】自己紹介は禁止です。見出しに韓国語を併記しないでください。1文字目からいきなり日本語の**[見出し]**で本論から始めてください。'
         target_lang_str = "日本語(Japanese)"
+        style_guide = "- 必ず自然な日本語のみで作成し、韓国語を絶対に混ぜないでください。\n- 文末は「〜です」「〜ます」などの丁寧語を使用してください。"
     elif lang_code == 'zh':
         labels = ["分析目标", "指南", "内容结构和格式", "文体指南"]
         role_desc = "您是华尔街的专业高级分析师。"
         no_intro_prompt = '【重要】绝对不要自我介绍。绝对不要在标题中包含韩语。请直接以中文的**[标题]**开始正文。'
         target_lang_str = "简体中文(Simplified Chinese)"
+        style_guide = "- 必须只用自然流畅的简体中文编写，严禁混用韩语。\n- 使用专业且礼貌的商业语调。"
     else:
         labels = ["분석 대상", "지침", "내용 구성 및 형식", "문체 가이드"]
         role_desc = "당신은 월가 출신의 전문 분석가입니다."
         no_intro_prompt = '자기소개나 인사말, 서론은 절대 하지 마세요. 1글자부터 바로 본론(**[소제목]**)으로 시작하세요.'
         target_lang_str = "한국어(Korean)"
+        style_guide = "- 모든 문장은 반드시 '~합니다', '~입니다' 형태의 정중한 경어체로 작성하세요.\n- 문장 끝이 끊기지 않도록 매끄럽게 연결하세요."
 
     prompt = f"""
     {labels[0]}: {company_name} - {topic}
@@ -960,9 +971,7 @@ def get_ai_analysis(company_name, topic, lang_code):
     {format_instruction}
 
     [{labels[3]}]
-    - 반드시 '{target_lang_str}'로만 작성하세요. (절대 다른 언어를 섞지 마세요)
-    - 모든 문장은 반드시 '~합니다', '~입니다' 형태의 정중한 경어체로 작성하세요.
-    - 문장 끝이 끊기지 않도록 매끄럽게 연결하세요.
+    {style_guide}
     """
 
     try:
@@ -1824,18 +1833,60 @@ def get_financial_report_analysis(company_name, ticker, metrics, lang_code):
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
     try:
-        res = supabase.table("analysis_cache") \
-            .select("content") \
-            .eq("cache_key", cache_key) \
-            .gt("updated_at", one_day_ago) \
-            .execute()
-        
-        if res.data:
-            return res.data[0]['content']
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", one_day_ago).execute()
+        if res.data: return res.data[0]['content']
     except Exception as e:
         print(f"Tab3 Cache Error: {e}")
 
-    target_lang = LANG_PROMPT_MAP.get(lang_code, '한국어')
+    # 💡 [핵심] 언어별 프롬프트 완벽 분리
+    if lang_code == 'ja':
+        target_lang = '日本語(Japanese)'
+        instructions = """
+        [作成ガイド]
+        1. 言語: 必ず日本語のみで作成してください。
+        2. 形式: 以下の4つの見出しを**必ず**使用して段落を分けてください。
+           **[Valuation & Market Position]**
+           **[Operating Performance]**
+           **[Risk & Solvency]**
+           **[Analyst Conclusion]**
+        3. 内容: 数値を単純に羅列するのではなく、数値が持つ意味（プレミアム、効率性、リスクなど）を解釈してください。全体で10〜12行程度に要約してください。
+        """
+    elif lang_code == 'en':
+        target_lang = 'English'
+        instructions = """
+        [Writing Guide]
+        1. Language: Write strictly in English. Do not mix Korean.
+        2. Format: You MUST use the following 4 headings to separate paragraphs:
+           **[Valuation & Market Position]**
+           **[Operating Performance]**
+           **[Risk & Solvency]**
+           **[Analyst Conclusion]**
+        3. Content: Do not just list numbers; interpret their implications (premium, efficiency, risk, etc.). Keep the entire summary to about 10-12 lines.
+        """
+    elif lang_code == 'zh':
+        target_lang = '简体中文(Simplified Chinese)'
+        instructions = """
+        [编写指南]
+        1. 语言：必须只用简体中文编写。严禁混用韩语。
+        2. 格式：**必须**使用以下4个副标题来划分段落：
+           **[Valuation & Market Position]**
+           **[Operating Performance]**
+           **[Risk & Solvency]**
+           **[Analyst Conclusion]**
+        3. 内容：不要简单罗列数据，请解释数据的含义（溢价、效率、风险等）。整体控制在10~12行左右。
+        """
+    else:
+        target_lang = '한국어'
+        instructions = """
+        [작성 가이드]
+        1. 언어: 반드시 한국어로 작성하세요.
+        2. 형식: 아래 4가지 소제목을 **반드시** 사용하여 단락을 구분하세요.
+           **[Valuation & Market Position]**
+           **[Operating Performance]**
+           **[Risk & Solvency]**
+           **[Analyst Conclusion]**
+        3. 내용: 수치를 단순 나열하지 말고, 수치가 갖는 함의를 해석하세요. 10~12줄 내외로 요약하세요.
+        """
 
     prompt = f"""
     당신은 CFA 자격을 보유한 수석 주식 애널리스트입니다.
@@ -1850,31 +1901,31 @@ def get_financial_report_analysis(company_name, ticker, metrics, lang_code):
     - 선행 PER: {metrics.get('pe', 'N/A')}
     - 발생액 품질: {metrics.get('accruals', 'Unknown')}
 
-    [작성 가이드]
-    1. 언어: 반드시 '{target_lang}'로 작성하세요.
-    2. 형식: 아래 4가지 소제목을 **반드시** 사용하여 단락을 구분하세요. (소제목 자체도 {target_lang}에 맞게 번역해도 좋습니다.)
-       **[Valuation & Market Position]**
-       **[Operating Performance]**
-       **[Risk & Solvency]**
-       **[Analyst Conclusion]**
-    3. 내용: 수치를 단순 나열하지 말고, 수치가 갖는 함의(프리미엄, 효율성, 리스크 등)를 해석하세요.
-    4. 분량: 전체 10~12줄 내외로 핵심만 요약하세요.
+    {instructions}
     """
 
-    try:
-        response = model.generate_content(prompt)
-        result = response.text
+    # 💡 [핵심] 혼용 방어막(Retry Loop) 적용
+    for attempt in range(3):
+        try:
+            response = model.generate_content(prompt)
+            result = response.text
 
-        supabase.table("analysis_cache").upsert({
-            "cache_key": cache_key,
-            "content": result,
-            "updated_at": now.isoformat()
-        }).execute()
+            if lang_code != 'ko':
+                import re
+                if re.search(r'[가-힣]', result):
+                    time.sleep(1); continue
 
-        return result
+            supabase.table("analysis_cache").upsert({
+                "cache_key": cache_key,
+                "content": result,
+                "updated_at": now.isoformat()
+            }).execute()
 
-    except Exception as e:
-        return f"분석 리포트 생성 중 오류: {str(e)}"
+            return result
+        except Exception as e:
+            time.sleep(1)
+
+    return f"분석 리포트 생성 중 오류 발생 (언어 혼용 기각됨)"
 
 # 💡 [신규 추가] 스팩/직상장 등 갑자기 편입된 Ticker 리스트 불러오기 (캐싱)
 @st.cache_data(ttl=3600) 
@@ -3008,15 +3059,6 @@ def get_text(key):
     lang = st.session_state.get('lang', 'ko') 
     return UI_TEXT.get(key, {}).get(lang, UI_TEXT.get(key, {}).get('ko', key))
 
-# 현재 AI 프롬프트에 주입할 언어명 문자열 매핑
-# 현재 AI 프롬프트에 주입할 언어명 문자열 매핑
-LANG_PROMPT_MAP = {
-    'ko': '전문적인 한국어(Korean)',
-    'en': 'Professional English',
-    'ja': '専門的な日本語(Japanese)',
-    'zh': '简体中文(Simplified Chinese)'  # 💡 추가됨
-}
-
 # 3. 공통 UI 함수 정의 (전역) - 무한 수정 및 다국어 완벽 적용 버전
 def draw_decision_box(step_key, title, option_keys, current_p=0.0):
     """사용자 투표/판단 박스를 그리는 함수 (수정 허용)"""
@@ -3092,62 +3134,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 🚀🚀🚀 [바로 여기입니다! 워밍업 봇 전용 비밀 뒷문] 🚀🚀🚀
-if st.query_params.get("warmup") == "true":
-    try:
-        # 1. 캘린더 전체 데이터를 불러와 서버 RAM(메모리)에 올림 (변수명 수정 완료)
-        df_calendar = get_extended_ipo_data(MY_API_KEY)
-        
-        if not df_calendar.empty:
-            # 2. 시장 거시 지표(Tab 2) 메모리에 올림 (변수명 수정 완료)
-            get_cached_market_status(df_calendar, MY_API_KEY)
-            
-            # 3. 타겟 종목 순회 (최근 180일 ~ 향후 35일)
-            from datetime import datetime, timedelta
-            import pandas as pd
-            
-            today = datetime.now()
-            df_calendar['dt'] = pd.to_datetime(df_calendar['date'], errors='coerce')
-            
-            target_stocks = df_calendar[
-                (df_calendar['dt'] >= today - timedelta(days=180)) & 
-                (df_calendar['dt'] <= today + timedelta(days=35))
-            ].head(50) 
-            
-            # 💡 [교체된 반복문 구간]
-            for _, row in target_stocks.iterrows():
-                ticker = row['symbol']
-                name = row['name']
-                
-                # 💡 [교체된 반복문 구간]
-            for _, row in target_stocks.iterrows():
-                ticker = row['symbol']
-                name = row['name']
-                
-                # [Tab 0 로드]
-                try:
-                    get_ai_analysis(name, "S-1", "ko")
-                except: 
-                    pass
-                
-                # [Tab 1 로드]
-                try:
-                    get_unified_tab1_analysis(name, ticker, 'ko')
-                except: 
-                    pass
-                
-                # 💡 [추가] Tab 4 기관 평가도 미리 렌더링하도록 봇에게 지시!
-                try:
-                    get_unified_tab4_analysis(name, ticker, 'ko')
-                except:
-                    pass
-        
-        st.write(f"✅ 봇 접속 확인: 메인 데이터 및 Tab0/Tab1 ({len(target_stocks)}개 핵심 종목) 서버 메모리 캐싱 완료!")
-    except Exception as e:
-        st.write(f"⚠️ 워밍업 에러 발생: {e}")
-        
-    st.stop() 
-# 🚀🚀🚀 [워밍업 코드 끝] 🚀🚀🚀
 
 # ==========================================
 # [PAGE ROUTING] 세션 상태 안전 초기화
