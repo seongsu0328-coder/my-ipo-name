@@ -2,9 +2,9 @@ name: Streamlit App Warm-up Bot
 
 on:
   schedule:
-    # 1. 매일 아침 7시 30분 실행 (worker.py가 7시에 DB를 채운 직후)
+    # 1. 매일 아침 7시 30분 실행 (worker.py가 7시에 DB를 채운 직후 / KST 기준)
     - cron: '30 22 * * *'
-    # 2. 혹시 서버가 잠들지 않도록 1시간마다 찔러주기 (선택 사항, 필요시 주석 해제)
+    # 2. 혹시 서버가 잠들지 않도록 1시간마다 찔러주기 (Railway 서버 Sleep 방지)
     - cron: '0 * * * *' 
   workflow_dispatch:
 
@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: 앱 접속해서 메모리 깨우기 (가짜 유저 역할)
-      # 💡 아래 URL을 대표님의 실제 Streamlit 주소로 변경하세요!
+      # 💡 대표님의 실제 Railway 주소로 변경 완료!
       run: |
-        curl -s "https://unicornfinder.streamlit.app/?warmup=true"
+        curl -s "https://my-ipo-name-production.up.railway.app/?warmup=true"
         echo "앱 워밍업 완료!"
