@@ -939,20 +939,59 @@ def main():
         print("⚠️ 수집된 IPO 종목이 없습니다.")
         return
 
-    print("\n📋 [stock_cache] 명단 업데이트 시작...")
+    print("\n📋 [stock_cache] 명단 업데이트 및 신규 편입 식별 시작...")
+    
+    # 💡 [신규 추가 1] 기존 DB에서 추적 중이던 전체 Ticker 목록 불러오기
+    try:
+        res_known = supabase.table("stock_cache").select("symbol").execute()
+        known_tickers = {item['symbol'] for item in res_known.data}
+    except Exception as e:
+        print(f"⚠️ 기존 Ticker 로드 실패 (초기화 상태로 간주): {e}")
+        known_tickers = set()
+        
     now_iso = datetime.now().isoformat()
+    today_date = datetime.now().date()
     stock_list = []
+    sudden_additions = [] # 💡 [신규 추가 2] 갑자기 등장한 기업(SPAC 등) 담을 바구니
     
     for _, row in df.iterrows():
+        sym = str(row['symbol'])
+        
+        # 💡 [신규 추가 3] 신규 편입(스팩/직상장) 식별 로직
+        try: ipo_dt = pd.to_datetime(row['date']).date()
+        except: ipo_dt = today_date
+        
+        # 기존 DB에 없었고(신규), 상장일이 오늘이거나 이미 지났다면 '예고 없이 상장된 기업'으로 판별
+        if known_tickers and (sym not in known_tickers) and (ipo_dt <= today_date):
+            sudden_additions.append(sym)
+            
         stock_list.append({
-            "symbol": str(row['symbol']),
+            "symbol": sym,
             "name": str(row['name']) if pd.notna(row['name']) else "Unknown",
             "last_updated": now_iso 
         })
-    
+        
+    # 💡 [신규 추가 4] 식별된 스팩/직상장 리스트를 app.py가 읽을 수 있도록 DB에 저장
+    if sudden_additions:
+        try:
+            old_res = supabase.table("analysis_cache").select("content").eq("cache_key", "SUDDEN_ADDITIONS_LIST").execute()
+            if old_res.data:
+                old_list = json.loads(old_res.data[0]['content'])
+                sudden_additions = list(set(old_list + sudden_additions)) # 기존 리스트와 병합 및 중복 제거
+        except: pass
+        
+        batch_upsert("analysis_cache", [{
+            "cache_key": "SUDDEN_ADDITIONS_LIST",
+            "content": json.dumps(sudden_additions),
+            "updated_at": now_iso
+        }], on_conflict="cache_key")
+        print(f"✨ 신규 편입(스팩/직상장) 누적 {len(sudden_additions)}개 식별 및 DB 저장 완료.")
+
+    # 기존 저장 로직 정상 수행
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
     update_macro_data(df)
     
+    # ------------------ 이하 기존 로직 완벽히 동일 ------------------
     print("🔥 타겟 종목 선별 중 (35일 상장예정 + 6개월 신규상장 + 수익률 상위 50위)...")
     price_map = get_current_prices() 
     
@@ -990,9 +1029,7 @@ def main():
     target_df = df[df['symbol'].isin(target_symbols)]
     total = len(target_df)
     
-    # 💡 [신규 추가] 반복문 시작 전, SEC CIK 매핑 데이터를 딱 한 번만 로드합니다.
     print("\n🏛️ SEC EDGAR CIK 매핑 데이터 로드 중 (API 최적화)...")
-    # 방금 수정한 새로운 함수 호출 (두 가지 사전 반환)
     cik_mapping, name_to_ticker_map = get_sec_master_mapping()
     print(f"✅ 총 {len(cik_mapping)}개의 SEC 식별번호 확보 완료.")
     
@@ -1002,11 +1039,9 @@ def main():
         original_symbol = row.get('symbol')
         name = row.get('name')
         
-        # 💡 [핵심 교정] 이름 정규화를 통해 공식 티커를 찾아냅니다.
         clean_name = normalize_company_name(name)
         official_symbol = name_to_ticker_map.get(clean_name, original_symbol)
         
-        # 💡 [캐시 불일치 방어막] app.py를 위해 옛날 티커도 진짜 CIK 번호와 연결해 줍니다.
         if original_symbol != official_symbol:
             print(f"🔧 [티커 교정 작동] {name}: {original_symbol} ➡️ {official_symbol}")
             if official_symbol in cik_mapping:
@@ -1018,16 +1053,12 @@ def main():
             c_status = row.get('status', 'Active')
             c_date = row.get('date', None)
             
-            # AI 분석(Tab 0, 1, 4)은 app.py가 찾을 수 있게 무조건 'original_symbol'로 캐싱!
             run_tab1_analysis(original_symbol, name, c_status, c_date)
             run_tab0_analysis(original_symbol, name, c_status, c_date, cik_mapping)
-            # 💡 [핵심] Tab 4에도 똑같이 상태(c_status)와 날짜(c_date)를 넘겨줍니다!
             run_tab4_analysis(original_symbol, name, c_status, c_date)
             
-            # 💡 [핵심] 단, 주가(Tab 3)를 가져오는 야후 파이낸스는 무조건 교정된 'official_symbol'을 찔러야 합니다!
             try:
                 tk = yf.Ticker(official_symbol)
-                # 저장할 때의 키값은 original_symbol로 유지하여 app.py와 동기화
                 run_tab3_analysis(original_symbol, name, {"pe": tk.info.get('forwardPE', 0)})
             except: pass
             
@@ -1037,7 +1068,6 @@ def main():
             print(f"⚠️ {original_symbol} 분석 건너뜀: {e}")
             continue
 
-    # 모든 AI 분석이 완료된 후, 전체 캘린더를 대상으로 알림 엔진 가동
     run_premium_alert_engine(df)
             
     print(f"\n🏁 모든 작업 종료: {datetime.now()}")
