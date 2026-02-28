@@ -3181,7 +3181,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# 🚀🚀🚀 [복구됨! 워밍업 봇 전용 비밀 뒷문 (Streamlit RAM 캐싱용)] 🚀🚀🚀
+# 🚀🚀🚀 [수정됨: 워밍업 봇 전용 비밀 뒷문 (DB 커넥션 & 캐시 갱신용)] 🚀🚀🚀
 # =========================================================
 try:
     current_params = dict(st.query_params)
@@ -3189,63 +3189,22 @@ except:
     current_params = st.experimental_get_query_params()
 
 if current_params.get("warmup", [""])[0] == "true" or current_params.get("warmup") == "true":
-    st.warning("🔥 워밍업 봇 가동 중... DB의 데이터를 서버 RAM으로 끌어올리고 있습니다.")
+    st.warning("🔥 워밍업 봇 가동 중... DB 커넥션을 활성화하고 글로벌 캐시를 갱신합니다.")
     try:
-        # 1. 캘린더 전체 데이터를 불러와 서버 RAM에 올림
+        # 1. 캘린더 전체 데이터를 불러와 최신 상태로 유지 (1시간 캐싱)
         df_calendar = get_extended_ipo_data(MY_API_KEY)
         
         if not df_calendar.empty:
-            # 2. 시장 거시 지표 RAM에 올림 (전체 공통)
+            # 2. 시장 거시 지표(Tab 2) 최신화 및 DB 저장 강제 실행
             get_cached_market_status(df_calendar, MY_API_KEY)
             
-            # 3. 타겟 종목 선별 (최근 180일 ~ 향후 35일)
-            from datetime import datetime, timedelta
-            import pandas as pd
+            # 3. 주가(Price) DB 한 번 싹 긁어와서 Streamlit 글로벌 메모리에 적재
+            load_price_data()
             
-            today = datetime.now()
-            df_calendar['dt'] = pd.to_datetime(df_calendar['date'], errors='coerce')
-            
-            target_stocks = df_calendar[
-                (df_calendar['dt'] >= today - timedelta(days=180)) & 
-                (df_calendar['dt'] <= today + timedelta(days=35))
-            ].head(50) 
-            
-            # 💡 [핵심] 4개 국어 모두 RAM에 캐싱
-            langs = ['ko', 'en', 'ja', 'zh']
-            
-            # 4. 핵심 종목 순회하며 Streamlit 캐시(@st.cache_data) 활성화
-            for _, row in target_stocks.iterrows():
-                ticker = row['symbol']
-                name = row['name']
-                c_status = row.get('status', 'Active')
-                c_date = row.get('date', None)
-                
-                for lang in langs:
-                    # [Tab 0 로드] (기본 S-1 기준)
-                    try:
-                        get_ai_analysis(name, "S-1", lang)
-                    except: 
-                        pass
-                    
-                    # [Tab 1 로드]
-                    try:
-                        get_unified_tab1_analysis(name, ticker, lang, c_status, c_date)
-                    except: 
-                        pass
+            # 4. 갑자기 추가된 종목(스팩 등) 리스트 메모리 적재
+            get_sudden_additions()
 
-                    # 💡 [Tab 2 로드 추가]
-                    try:
-                        get_unified_tab2_analysis(name, ticker, lang, c_status, c_date)
-                    except: 
-                        pass
-                    
-                    # [Tab 4 로드]
-                    try:
-                        get_unified_tab4_analysis(name, ticker, lang, c_status, c_date)
-                    except: 
-                        pass
-                    
-            st.success(f"✅ 봇 접속 확인: 메인 데이터 및 다국어 Tab0/1/2/4 ({len(target_stocks)}개 핵심 종목) 서버 RAM 캐싱 완료! 이제 유저 로딩 속도는 0.1초입니다.")
+            st.success("✅ 워밍업 봇: 글로벌 데이터(캘린더, 거시지표, 주가, 신규종목) 메모리 로드 및 DB 커넥션 유지 완료!")
     except Exception as e:
         st.error(f"⚠️ 워밍업 에러 발생: {e}")
         
