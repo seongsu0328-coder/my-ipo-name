@@ -6,7 +6,7 @@ import sys
 try:
     import requests
     import pandas as pd
-    import numpy as np
+    import numpy as npㅇ
     import plotly.graph_objects as go
     import os
     import time
@@ -3181,7 +3181,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# 🚀🚀🚀 [수정됨: 워밍업 봇 전용 비밀 뒷문 (DB 커넥션 & 캐시 갱신용)] 🚀🚀🚀
+# 🚀🚀🚀 [수정됨: 워밍업 봇 전용 비밀 뒷문 (핵심 종목 RAM 쾌속 로딩)] 🚀🚀🚀
 # =========================================================
 try:
     current_params = dict(st.query_params)
@@ -3189,22 +3189,78 @@ except:
     current_params = st.experimental_get_query_params()
 
 if current_params.get("warmup", [""])[0] == "true" or current_params.get("warmup") == "true":
-    st.warning("🔥 워밍업 봇 가동 중... DB 커넥션을 활성화하고 글로벌 캐시를 갱신합니다.")
+    st.warning("🔥 워밍업 봇 가동 중... DB 커넥션 유지 및 핵심 타겟 종목을 서버 RAM에 적재합니다.")
     try:
-        # 1. 캘린더 전체 데이터를 불러와 최신 상태로 유지 (1시간 캐싱)
+        # 1. 캘린더 전체 데이터 최신화
         df_calendar = get_extended_ipo_data(MY_API_KEY)
         
         if not df_calendar.empty:
-            # 2. 시장 거시 지표(Tab 2) 최신화 및 DB 저장 강제 실행
+            # 2. 시장 거시 지표(Tab 2) 메모리 적재
             get_cached_market_status(df_calendar, MY_API_KEY)
             
-            # 3. 주가(Price) DB 한 번 싹 긁어와서 Streamlit 글로벌 메모리에 적재
-            load_price_data()
+            # 3. 전체 주가 메모리 적재 (수익률 계산용)
+            df_price = load_price_data()
+            price_map = dict(zip(df_price['ticker'], df_price['price'])) if not df_price.empty else {}
             
-            # 4. 갑자기 추가된 종목(스팩 등) 리스트 메모리 적재
+            # 4. 갑자기 추가된 종목(스팩 등) 명단 적재
             get_sudden_additions()
 
-            st.success("✅ 워밍업 봇: 글로벌 데이터(캘린더, 거시지표, 주가, 신규종목) 메모리 로드 및 DB 커넥션 유지 완료!")
+            # =======================================================
+            # 💡 [핵심 타겟팅] 상장 예정 종목 + 수익률 상위 50개 선별
+            # =======================================================
+            today = datetime.now()
+            df_calendar['dt'] = pd.to_datetime(df_calendar['date'], errors='coerce')
+            
+            # 타겟 1: 상장 예정 종목 (오늘 이후 35일 이내)
+            upcoming_df = df_calendar[(df_calendar['dt'] > today) & (df_calendar['dt'] <= today + timedelta(days=35))]
+            
+            # 타겟 2: 수익률 상위 50개 종목 (실시간 주가 기반 계산)
+            past_df = df_calendar[df_calendar['dt'] <= today].copy()
+            def calc_return(row):
+                try:
+                    p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
+                    p_curr = price_map.get(row['symbol'], 0.0)
+                    if p_ipo > 0 and p_curr > 0: return ((p_curr - p_ipo) / p_ipo) * 100
+                    return -9999.0
+                except: return -9999.0
+            
+            past_df['return'] = past_df.apply(calc_return, axis=1)
+            top50_df = past_df.sort_values(by='return', ascending=False).head(50)
+            
+            # 두 타겟 그룹 병합 및 중복 제거
+            target_stocks = pd.concat([upcoming_df, top50_df]).drop_duplicates(subset=['symbol'])
+            
+            # =======================================================
+            # 💡 핵심 종목 순회하며 Tab 0, 1, 3, 4 (4개 국어) RAM 강제 캐싱
+            # =======================================================
+            langs = ['ko', 'en', 'ja', 'zh']
+            for _, row in target_stocks.iterrows():
+                ticker = row['symbol']
+                name = row['name']
+                c_status = row.get('status', 'Active')
+                c_date = row.get('date', None)
+                
+                for lang in langs:
+                    # [Tab 0] S-1 공시 리포트 적재
+                    try: get_ai_analysis(name, "S-1", lang) 
+                    except: pass
+                    
+                    # [Tab 1] 심층 분석 & 뉴스 적재
+                    try: get_unified_tab1_analysis(name, ticker, lang, c_status, c_date) 
+                    except: pass
+                    
+                    # [Tab 3] 재무 데이터 및 AI 재무 리포트 적재
+                    # (워커가 이미 DB에 만들어 둔 리포트를 빈 파라미터{}로 가볍게 호출하여 RAM에만 저장)
+                    try: get_cached_raw_financials(ticker) 
+                    except: pass
+                    try: get_financial_report_analysis(name, ticker, {}, lang) 
+                    except: pass
+                    
+                    # [Tab 4] 월가 기관 리포트 적재
+                    try: get_unified_tab4_analysis(name, ticker, lang, c_status, c_date) 
+                    except: pass
+
+            st.success(f"✅ 봇 접속 완료: 글로벌 지표 및 핵심 타겟 {len(target_stocks)}개 종목(Tab 0, 1, 3, 4) 서버 RAM 캐싱 완료!")
     except Exception as e:
         st.error(f"⚠️ 워밍업 에러 발생: {e}")
         
