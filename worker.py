@@ -216,6 +216,151 @@ def check_sec_specific_filing(cik, target_form):
     except:
         return None
 
+def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
+    if not model: return
+    
+    now = datetime.now()
+    status_lower = str(ipo_status).lower()
+    is_withdrawn = bool(re.search(r'\b(withdrawn|rw|철회|취소)\b', status_lower))
+    is_delisted_or_otc = bool(re.search(r'\b(delisted|폐지|otc)\b', status_lower))
+    
+    is_over_1y = False
+    try:
+        if ipo_date_str:
+            days_passed = (now.date() - pd.to_datetime(ipo_date_str).date()).days
+            if days_passed > 365: is_over_1y = True
+    except: pass
+
+    # 기업 상태별 동적 캐싱 주기
+    if is_withdrawn or is_delisted_or_otc or is_over_1y: valid_hours = 24 * 7 
+    elif "상장예정" in ipo_status or "30일" in ipo_status: valid_hours = 6
+    else: valid_hours = 24
+
+    limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
+    current_date = now.strftime("%Y-%m-%d")
+    current_year = now.strftime("%Y")
+
+    # 4개 국어 순회 생성
+    for lang_code, _ in SUPPORTED_LANGS.items():
+        cache_key = f"{ticker}_Tab1_v5_{lang_code}"
+        
+        # 이미 최신 캐시가 있으면 패스
+        try:
+            res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+            if res.data: continue 
+        except: pass
+
+        if lang_code == 'ja':
+            sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
+            task2_label = "[タスク2: 最新ニュースの収集]"
+            target_lang = "日本語(Japanese)"
+            lang_instruction = "必ず自然な日本語のみで作成してください。"
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+        elif lang_code == 'en':
+            sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
+            task2_label = "[Task 2: Latest News Collection]"
+            target_lang = "English"
+            lang_instruction = "Your entire response MUST be in English only."
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+        elif lang_code == 'zh':  
+            sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。"
+            task2_label = "[任务2: 收集最新新闻]"
+            target_lang = "简体中文(Simplified Chinese)"
+            lang_instruction = "必须只用自然流畅的简体中文编写。"
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "中文标题", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+        else:
+            sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
+            task2_label = "[작업 2: 최신 뉴스 수집]"
+            target_lang = "한국어(Korean)"
+            lang_instruction = "반드시 자연스러운 한국어만 사용하세요."
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국어로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+
+        if is_withdrawn:
+            task1_label = f"[{'작업 1: 상장 철회(Withdrawn) 심층 진단' if lang_code == 'ko' else 'Task 1: Withdrawn IPO Diagnosis'}]"
+            task1_structure = "\n- 1문단: [철회 배경 진단] 시장 환경 악화 여부 및 내부 펀더멘털/규제 이슈 분석\n- 2문단: [재무적 타격] 자본 조달 실패가 기업의 단기 유동성에 미치는 영향\n- 3문단: [생존 전략] M&A 피인수, 우회 상장, 추가 사모 펀딩 등 대안 시나리오\n"
+        elif is_delisted_or_otc:
+            task1_label = f"[{'작업 1: OTC/장외시장 거래 리스크 진단' if lang_code == 'ko' else 'Task 1: OTC Market Risk Analysis'}]"
+            task1_structure = "\n- 1문단: [장외 편입 배경] 비즈니스 모델 요약 및 정규 시장 미진입(또는 강등) 사유\n- 2문단: [투자 리스크] 거래량 부족에 따른 유동성 위험(Liquidity Risk) 및 정보 비대칭성 진단\n- 3문단: [장기 전망] 사업 지속 가능성(Going Concern) 및 정규 시장 재진입 가능성\n"
+        elif is_over_1y:
+            task1_label = f"[{'작업 1: 상장 1년 차 펀더멘털 점검' if lang_code == 'ko' else 'Task 1: Post-IPO Fundamental Check'}]"
+            task1_structure = "\n- 1문단: [목표 달성도] IPO 당시 제시했던 비전 대비 현재 핵심 펀더멘털 달성 여부\n- 2문단: [수익성 평가] 흑자 전환(Path to Profitability) 현황 및 잉여현금흐름(FCF)\n- 3문단: [자본 효율성] 투자(CAPEX/R&D) 성과 및 장기적 주주 가치 환원 전략\n"
+        else:
+            task1_label = f"[{'작업 1: 신규 IPO 비즈니스 심층 분석' if lang_code == 'ko' else 'Task 1: Deep Business Model Analysis'}]"
+            task1_structure = "\n- 1문단: 비즈니스 모델 및 시장 내 핵심 경쟁 우위 (Competitive Advantage)\n- 2문단: 재무 현황 및 공모 자금 활용 계획 (Use of Proceeds)\n- 3문단: 향후 산업 전망 및 종합 투자 의견 (Outlook & Valuation)\n"
+
+        prompt = f"""
+        {sys_prompt}
+        분석 대상: {company_name} ({ticker})
+        기업 상태: {ipo_status}
+        오늘 날짜: {current_date}
+
+        {task1_label}
+        아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
+        1. 언어: {lang_instruction}
+           - 경고: 영어 단어(potential, growth 등)를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
+        2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
+           {task1_structure}
+        3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
+        4. 최종 검수(Self-Check): 답변을 최종 출력하기 전에 스스로 엄격하게 검토하세요. 인사말, 서론, 또는 {target_lang} 외의 언어가 포함되어 있다면 삭제하세요.
+        
+        {task2_label}
+        - 🚨 [강제 명령] 반드시 구글 검색 도구(google_search_retrieval)를 지금 즉시 사용하여 "{company_name} {ticker} news {current_year}"를 검색하십시오.
+        - 과거 지식을 바탕으로 지어내지 말고, 검색 결과 중 오늘({current_date}) 기준 가장 최신 기사 5개를 선정하십시오.
+        - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
+        - [중요] sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
+
+        <JSON_START>
+        {json_format}
+        <JSON_END>
+        """
+
+        for attempt in range(3):
+            try:
+                response = model.generate_content(prompt)
+                full_text = response.text
+
+                # 한글 오염 방어막
+                if lang_code != 'ko':
+                    check_text = full_text.replace("긍정", "").replace("부정", "").replace("일반", "")
+                    if re.search(r'[가-힣]', check_text):
+                        time.sleep(1); continue 
+
+                news_list = []
+                json_str = ""
+                
+                json_match = re.search(r'\[\s*\{.*?\}\s*\]', full_text, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                    try: news_list = json.loads(json_str)
+                    except: pass
+
+                if json_str: biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
+                else: biz_analysis = full_text.split("{")[0].replace("<JSON_START>", "").strip()
+
+                biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
+                paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
+                
+                indent_size = "14px" if lang_code == "ko" else "0px"
+                html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+
+                if news_list:
+                    news_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
+                    for n in news_list:
+                        if n.get('sentiment') == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                        elif n.get('sentiment') == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
+                        else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
+
+                # 완성된 결과를 DB에 전송
+                batch_upsert("analysis_cache", [{
+                    "cache_key": cache_key,
+                    "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
+                    "updated_at": now.isoformat()
+                }], on_conflict="cache_key")
+                
+                break
+            except Exception as e:
+                time.sleep(1)
+
 
 def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None):
     if not model: return
