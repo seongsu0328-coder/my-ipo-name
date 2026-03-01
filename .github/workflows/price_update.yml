@@ -15,6 +15,8 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      # 💡 [핵심 추가] FMP API 키를 드디어 주가 워커에 주입합니다!
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       PYTHONDONTWRITEBYTECODE: 1
 
     steps:
@@ -27,9 +29,9 @@ jobs:
           python-version: '3.9'
 
       - name: 라이브러리 설치
-        # 🚨 2. 캐시 무시 + 최신 버전 강제 설치 (supabase 빼고 requests 넣음)
+        # 🚨 2. 캐시 무시 + 최신 버전 강제 설치 (💡 yfinance 삭제 완료!)
         run: |
-          pip install --no-cache-dir --upgrade yfinance pandas requests pytz
+          pip install --no-cache-dir --upgrade pandas requests pytz
 
       - name: 주가 업데이트 실행
         # env는 위로 올렸으므로 여기서는 실행 명령어만 깔끔하게 남깁니다.
