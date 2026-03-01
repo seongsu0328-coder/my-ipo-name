@@ -1717,6 +1717,31 @@ def display_disclaimer():
     st.divider()
     st.caption(get_text('msg_disclaimer'))
 
+def draw_footer():
+    """웹사이트 하단(Footer) 회사 정보 및 약관 링크 영역 (다국어 완벽 적용)"""
+    
+    # UI_TEXT 사전에서 현재 선택된 언어에 맞는 텍스트 호출
+    info_html = get_text('footer_company_info')
+    terms_txt = get_text('footer_terms')
+    privacy_txt = get_text('footer_privacy')
+    refund_txt = get_text('footer_refund')
+    
+    # f-string을 사용하여 다국어 변수를 HTML 뼈대에 삽입
+    footer_html = f"""
+    <hr style="margin-top: 50px; border-color: #F0F2F6;">
+    <div style="color: #666666; font-size: 13px; line-height: 1.6; padding-bottom: 30px; text-align: center;">
+        {info_html}
+        <br><br>
+        <a href="[이용약관_URL]" target="_blank" style="color: #666666; text-decoration: none; margin: 0 10px;">{terms_txt}</a> | 
+        <a href="[개인정보처리방침_URL]" target="_blank" style="color: #666666; text-decoration: none; margin: 0 10px;">{privacy_txt}</a> | 
+        <a href="[환불정책_URL]" target="_blank" style="color: #666666; text-decoration: none; margin: 0 10px;">{refund_txt}</a>
+        <br><br>
+        © 2026 UnicornFinder. All rights reserved.
+    </div>
+    """
+    
+    st.markdown(footer_html, unsafe_allow_html=True)
+
 # ---------------------------------------------------------
 # 3. 이후 메인 로직 시작 (탭 구성 등)
 # ---------------------------------------------------------
@@ -5816,6 +5841,13 @@ with main_area.container():
                     
                 with tab_free:
                     render_board_tab(free_posts, 'board_free_count', 'free')
+
+    # 👇 모든 화면 렌더링이 끝난 후, 맨 밑바닥에 푸터를 그립니다.
+    draw_footer()
+
+# [중요] 코드 맨 마지막에 아래 내용을 붙입니다.
+except Exception as e:
+    st.error("🚨 앱 실행 중 에러가 발생했습니다!")
                 
                         
         
