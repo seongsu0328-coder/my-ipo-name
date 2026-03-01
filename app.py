@@ -2112,7 +2112,7 @@ def get_cached_market_status(df_calendar, api_key):
     return fresh_data
     
 # --- [주식 및 차트 기능] ---
-import yfinance as yf
+
 import plotly.graph_objects as go
 
 # ==========================================
