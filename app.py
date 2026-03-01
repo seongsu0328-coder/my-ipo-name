@@ -3097,7 +3097,10 @@ UI_TEXT = {
     'msg_already_voted': {'ko': '이미 참여하신 게시글입니다.', 'en': 'You have already voted.', 'ja': 'すでに投票済みです。', 'zh': '您已经参与过该帖子的投票。'},
     'msg_no_latest_posts': {'ko': '조건에 맞는 최신 글이 없습니다.', 'en': 'No matching recent posts.', 'ja': '条件に合う最新の投稿がありません。', 'zh': '没有符合条件的最新帖子。'},
     'msg_no_posts': {'ko': '게시글이 없습니다.', 'en': 'No posts available.', 'ja': '投稿がありません。', 'zh': '暂无帖子。'},
-}
+
+    # ==========================================
+    # 18. 웹사이트 하단 푸터 (Footer)
+    # ==========================================
     'footer_company_info': {
         'ko': '<strong>UnicornFinder (유니콘파인더)</strong><br>대표자(CEO) : 김승수 | 고객센터 : [전화번호 입력] | 이메일 : unicornfinder0328@gmail.com<br>사업장 소재지 : [우편번호] 서울특별시 강남구 언주로 123 (도곡동, 개포한신아파트)<br>사업자등록번호 : [발급 대기 중] | 통신판매업신고번호 : [발급 대기 중]',
         'en': '<strong>UnicornFinder</strong><br>CEO : Seungsoo Kim | CS : [Phone Number] | Email : unicornfinder0328@gmail.com<br>Address : [Zip Code] 123, Eonju-ro, Gangnam-gu, Seoul, Republic of Korea (Dogok-dong, Gaepo Hanshin Apt.)<br>Business Registration No. : [Pending] | E-commerce Registration No. : [Pending]',
@@ -3121,8 +3124,8 @@ UI_TEXT = {
         'en': 'Refund Policy', 
         'ja': '返金ポリシー', 
         'zh': '退款政策'
-    },
-   
+    }
+}
 
 def get_text(key):
     """현재 세션 언어에 맞는 텍스트를 반환하는 헬퍼 함수"""
