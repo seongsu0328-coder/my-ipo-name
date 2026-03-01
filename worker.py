@@ -485,30 +485,31 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             if res.data: continue 
         except: pass
 
+        # 💡 [핵심 수정] 언어별 프롬프트에 '전문 번역' 지시와 포맷 제약 추가
         if lang_code == 'ja':
             sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
-            task2_label = "[タスク2: 最新ニュースの収集]"
+            task2_label = "[タスク2: 最新ニュースの収集と専門的な翻訳]"
             target_lang = "日本語(Japanese)"
             lang_instruction = "必ず自然な日本語のみで作成してください。"
-            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日経新聞のヘッドライン風に翻訳されたタイトル(記号なし)", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
         elif lang_code == 'en':
             sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
-            task2_label = "[Task 2: Latest News Collection]"
+            task2_label = "[Task 2: Latest News Collection and Professional Translation]"
             target_lang = "English"
             lang_instruction = "Your entire response MUST be in English only."
-            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Professional WSJ style headline (No markdown/quotes)", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
         elif lang_code == 'zh':  
             sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。"
-            task2_label = "[任务2: 收集最新新闻]"
+            task2_label = "[任务2: 收集最新新闻并专业翻译]"
             target_lang = "简体中文(Simplified Chinese)"
             lang_instruction = "必须只用自然流畅的简体中文编写。"
-            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "中文标题", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "财经新闻头条风格的中文标题(不含特殊符号)", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
         else:
             sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
-            task2_label = "[작업 2: 최신 뉴스 수집]"
+            task2_label = "[작업 2: 최신 뉴스 수집 및 전문 번역]"
             target_lang = "한국어(Korean)"
             lang_instruction = "반드시 자연스러운 한국어만 사용하세요."
-            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국어로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일로 번역된 제목(마크다운, 따옴표 제외)", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
 
         if is_withdrawn:
             task1_label = f"[{'작업 1: 상장 철회(Withdrawn) 심층 진단' if lang_code == 'ko' else 'Task 1: Withdrawn IPO Diagnosis'}]"
@@ -541,6 +542,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         {task2_label}
         - 🚨 [강제 명령] 반드시 구글 검색 도구(google_search_retrieval)를 지금 즉시 사용하여 "{company_name} {ticker} news {current_year}"를 검색하십시오.
         - 과거 지식을 바탕으로 지어내지 말고, 검색 결과 중 오늘({current_date}) 기준 가장 최신 기사 5개를 선정하십시오.
+        - 💡 [번역 필수 규칙] 각 뉴스의 'translated_title'은 반드시 {target_lang}의 '전문 경제신문/월스트리트 저널 헤드라인 스타일'로 완벽하게 번역하세요. (예: sh -> 주당, M -> 백만). 제목에 마크다운 기호(**)나 불필요한 따옴표는 절대 넣지 마세요.
         - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
         - [중요] sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
 
@@ -595,7 +597,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 break # 성공 시 루프 탈출
                 
             except Exception as e:
-                # 🚨 이 줄을 추가해서 로그에 에러를 찍습니다.
                 print(f"❌ [AI 분석 또는 DB 전송 에러]: {e}")
                 time.sleep(1)
 
