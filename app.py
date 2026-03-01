@@ -541,17 +541,23 @@ def db_log_user_action(user_id, ticker, action_type, price=0.0, details=""):
     if user_id == 'guest_id' or not user_id: 
         return False
     try:
-        # 현재 유저가 사용 중인 언어 환경 가져오기
-        import streamlit as st
+        # 1. 체류 시간 계산 (현재 시각 - 탭 진입 시각)
+        entry_time = st.session_state.get('tab_entry_time', time.time())
+        stay_duration = round(time.time() - entry_time, 2)
+        
+        # 2. 다음 측정을 위해 진입 시각 리셋 (선택 사항)
+        st.session_state.tab_entry_time = time.time()
+
         current_lang = st.session_state.get('lang', 'ko').upper() 
         
         log_data = {
             "user_id": str(user_id),
             "ticker": str(ticker),
-            "action_type": action_type,
+            "action_type": action_type, # 예: 'Tab 0_POS'
             "price": float(price),     
             "details": str(details),
-            "user_lang": current_lang  # 🔥 [신규 추가] 어떤 언어권에서 누른 버튼인지 기록
+            "user_lang": current_lang,
+            "stay_duration_sec": stay_duration  # 🔥 [신규 추가] 체류 시간 기록
         }
         supabase.table("action_logs").insert(log_data).execute()
         return True
@@ -4537,9 +4543,8 @@ with main_area.container():
             else:
                 st.session_state.user_decisions[sid] = {}
 
-        # 🔥 [핵심 수정] 탭(Tab)이 바뀌기 전에 무조건 실시간 가격부터 가져옵니다! (Null 에러 방지)
+        # 실시간 주가 및 기업 정보 로드
         profile = None
-        fin_data = {}
         current_p = 0.0
         off_val = 0.0
         current_s = "Active"
@@ -4555,8 +4560,9 @@ with main_area.container():
         except: pass
     
         if stock:
-            # 상단 메뉴바
+            # 1. 상단 메뉴바 스타일 및 네비게이션
             st.markdown("""<style>div[data-testid="stPills"] div[role="radiogroup"] button { border: none !important; background-color: #000000 !important; color: #ffffff !important; border-radius: 20px !important; padding: 6px 15px !important; margin-right: 5px !important; box-shadow: none !important; } div[data-testid="stPills"] button[aria-selected="true"] { background-color: #444444 !important; font-weight: 800 !important; }</style>""", unsafe_allow_html=True)
+            
             is_logged_in = st.session_state.auth_status == 'user'
             login_text = get_text('menu_logout') if is_logged_in else get_text('btn_login')
             menu_options = [login_text, get_text('menu_settings'), get_text('menu_main'), f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})", get_text('menu_board')] if is_logged_in else [login_text, get_text('menu_main'), f"{get_text('menu_watch')} ({len(st.session_state.watchlist)})", get_text('menu_board')]
@@ -4572,14 +4578,13 @@ with main_area.container():
                 elif selected_menu == get_text('menu_board'): st.session_state.page = 'board'
                 st.rerun()
 
-            # 🔥 [핵심 수정] 위에서 가져온 가격으로 즉시 헤더를 그립니다!
+            # 2. 기업 헤더 정보 (상태 emoji, 가격 툴팁 등)
             today = datetime.now().date()
             ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
             status_emoji = "🐣" if ipo_dt > (today - timedelta(days=365)) else "🦄"
             date_str = ipo_dt.strftime('%Y-%m-%d')
             label_ipo = get_text('label_ipo_price')
             
-            # 💡 [핵심 교정] 핀허브 원본 상태와 DB 상태를 합쳐서 완벽히 검사
             raw_status = str(stock.get('status', '')).lower()
             live_s = str(current_s).lower()
             combined_status = f"{raw_status} {live_s}"
@@ -4590,65 +4595,52 @@ with main_area.container():
             is_delisted = bool(re.search(r'\b(delisted|폐지)\b', combined_status))
             is_expected = bool(re.search(r'\b(expected|filed|active|priced)\b', combined_status))
 
-            # 1. 상장 철회
             if is_withdrawn:
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('label_rw')})</span>"
-            
-            # 2. 공식 상장 연기
             elif is_delayed:
                 p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
-            
-            # 3. 상장 폐지
             elif is_delisted:
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
-            
-            # 4. 정상 거래 중
             elif current_p > 0 and off_val > 0:
                 pct = ((current_p - off_val) / off_val) * 100
                 color = "#00ff41" if pct >= 0 else "#ff4b4b"
                 icon = "▲" if pct >= 0 else "▼"
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
-            
-            # 5. 그 외 주가가 0인 경우 (날짜 기반 판별 + 툴팁 추가)
             else: 
                 if ipo_dt > today:
                     p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / ⏳ {get_text('status_waiting')})</span>"
-                
                 elif 0 <= (today - ipo_dt).days <= 14:
                     if is_expected:
-                        # 💡 가격 확인중 툴팁 추가
                         tooltip = get_text('tooltip_price_checking')
                         p_info = f"<span style='font-size: 0.9rem; color: #333333; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / {get_text('status_price_checking')})</span>"
                     else:
-                        # 💡 지연/비상장 툴팁 추가
                         tooltip = get_text('tooltip_otc_unsupported')
                         p_info = f"<span style='font-size: 0.9rem; color: #f57c00; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / {get_text('status_delayed_unlisted')})</span>"
-                
                 else:
-                    # 💡 OTC 미지원 툴팁 추가
                     tooltip = get_text('tooltip_otc_unsupported')
                     p_info = f"<span style='font-size: 0.9rem; color: #888888; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / {get_text('status_otc_unsupported')})</span>"
 
-            # 여기서 화면에 헤더를 그려줍니다.
             st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
             st.write("")
-            
-    
-            # 💡 [핵심 수정] Tab 6(스마트머니)를 포함하기 위해 range(7)로 변경!
+
+            # 3. 💡 [체류 시간 측정 및 탭 제어] 
+            import time
+            if 'tab_entry_time' not in st.session_state:
+                st.session_state.tab_entry_time = time.time()
+
             tab_labels = [get_text(f'tab_{i}') for i in range(7)] 
-            
             if 'detail_sub_menu' not in st.session_state or st.session_state.detail_sub_menu not in tab_labels:
                 st.session_state.detail_sub_menu = tab_labels[0]
 
-            selected_sub_menu = st.pills(label="sub_nav", options=tab_labels, selection_mode="single", default=st.session_state.detail_sub_menu, key="detail_tabs_pills", label_visibility="collapsed")
+            selected_sub_menu = st.pills(label="sub_nav", options=tab_labels, selection_mode="single", 
+                                         default=st.session_state.detail_sub_menu, key="detail_tabs_pills", label_visibility="collapsed")
             
+            # 🚀 탭 변경 시 시간 리셋
             if selected_sub_menu and selected_sub_menu != st.session_state.detail_sub_menu:
+                st.session_state.tab_entry_time = time.time() 
                 st.session_state.detail_sub_menu = selected_sub_menu
                 st.rerun()
 
-            # -------------------------------------------------------------------------
-            # 여기서부터는 선택된 탭의 내용만 그립니다! (초고속 로딩의 비결)
-            # -------------------------------------------------------------------------
             
             # --- Tab 0: 핵심 정보 ---
             if selected_sub_menu == get_text('tab_0'):
