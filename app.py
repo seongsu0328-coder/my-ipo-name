@@ -5033,64 +5033,42 @@ with main_area.container():
                 </style>
                 """, unsafe_allow_html=True)
             
-                # 1. 변수 초기화 (NameError 방지 핵심)
-                fin_data = {} 
-                data_source = "Unknown"
-                is_data_available = False
+                # 💡 [수술 완료] yfinance를 싹 걷어내고 초고속 FMP 함수로 대체!
+                with st.spinner("재무 데이터를 불러오는 중..." if is_ko else "Loading financial data..."):
+                    fin_data = get_cached_raw_financials(stock['symbol'])
                 
-                # 2. 기존 DB 데이터 확인 (상자가 정의되었으므로 이제 에러가 나지 않습니다)
-                # (참고: 이 윗부분에서 DB로부터 fin_data를 가져오는 로직이 실행되었어야 합니다)
-                if fin_data and fin_data.get('revenue') and fin_data.get('revenue') > 0:
+                is_data_available = False
+                data_source = "Financial Modeling Prep"
+
+                if fin_data and fin_data.get('revenue') and float(fin_data.get('revenue', 0)) > 0:
                     is_data_available = True
-                    data_source = "SEC 10-K/Q" if 'sec' in str(fin_data.get('source', '')).lower() else "Finnhub" if fin_data.get('market_cap') else "Yahoo Finance"
-            
-                # 3. 데이터가 없으면 Yahoo Finance에서 직접 긁어오기 (Fallback 로직)
-                if not is_data_available or not fin_data.get('revenue'):
-                    try:
-                        ticker = yf.Ticker(stock['symbol'])
-                        yf_fin = ticker.financials; yf_info = ticker.info; yf_bal = ticker.balance_sheet
-                        
-                        if not yf_fin.empty:
-                            rev = yf_fin.loc['Total Revenue'].iloc[0]; net_inc = yf_fin.loc['Net Income'].iloc[0]
-                            # 데이터가 1개만 있을 경우를 대비한 처리
-                            prev_rev = yf_fin.loc['Total Revenue'].iloc[1] if len(yf_fin.columns) > 1 else rev
-                            
-                            # 데이터 단위 변환 및 저장 ($1M 단위)
-                            fin_data['revenue'] = rev / 1e6
-                            fin_data['net_margin'] = (net_inc / rev) * 100
-                            fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100
-                            fin_data['eps'] = yf_info.get('trailingEps', 0)
-                            fin_data['op_margin'] = (yf_fin.loc['Operating Income'].iloc[0] / rev) * 100 if 'Operating Income' in yf_fin.index else fin_data['net_margin']
-                            fin_data['market_cap'] = yf_info.get('marketCap', 0) / 1e6
-                            fin_data['forward_pe'] = yf_info.get('forwardPE', 0)
-                            fin_data['price_to_book'] = yf_info.get('priceToBook', 0)
-                            
-                            if not yf_bal.empty:
-                                total_liab = yf_bal.loc['Total Liabilities Net Minority Interest'].iloc[0] if 'Total Liabilities Net Minority Interest' in yf_bal.index else 0
-                                equity = yf_bal.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in yf_bal.index else 1
-                                fin_data['debt_equity'] = (total_liab / equity) * 100
-                                fin_data['roe'] = (net_inc / equity) * 100
-                            
-                            is_data_available = True
-                            data_source = "Yahoo Finance"
-                    except Exception as e:
-                        # 에러 발생 시 로그를 남겨두면 나중에 디버깅하기 좋습니다.
-                        # print(f"Yahoo Finance 로드 실패 ({stock['symbol']}): {e}")
-                        pass
+                else:
+                    fin_data = {} # 데이터가 없을 경우 방어 처리
             
                 growth_val = fin_data.get('growth') if is_data_available else None
-                ocf_val = fin_data.get('net_margin') if is_data_available else 0
                 op_m = fin_data.get('op_margin') if is_data_available else None
                 net_m = fin_data.get('net_margin') if is_data_available else None
-                accruals_status = "Low" if is_data_available and op_m is not None and net_m is not None and abs(op_m - net_m) < 5 else "High" if is_data_available else "Unknown"
+                
+                # 발생액 품질(Accruals) 계산 방어막
+                try:
+                    if is_data_available and op_m is not None and net_m is not None:
+                        accruals_status = "Low" if abs(op_m - net_m) < 5 else "High"
+                    else:
+                        accruals_status = "Unknown"
+                except:
+                    accruals_status = "Unknown"
     
                 def clean_value(val):
                     try: return 0.0 if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))) else float(val)
                     except: return 0.0
-                if fin_data is None: fin_data = {}
     
-                rev_val = clean_value(fin_data.get('revenue', 0)); net_m_val = clean_value(fin_data.get('net_margin', 0)); op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
-                growth = clean_value(fin_data.get('growth', 0)); roe_val = clean_value(fin_data.get('roe', 0)); de_ratio = clean_value(fin_data.get('debt_equity', 0)); pe_val = clean_value(fin_data.get('forward_pe', 0))
+                rev_val = clean_value(fin_data.get('revenue', 0))
+                net_m_val = clean_value(fin_data.get('net_margin', 0))
+                op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
+                growth = clean_value(fin_data.get('growth', 0))
+                roe_val = clean_value(fin_data.get('roe', 0))
+                de_ratio = clean_value(fin_data.get('debt_equity', 0))
+                pe_val = clean_value(fin_data.get('forward_pe', 0))
     
                 growth_display = f"{growth:+.1f}%" if abs(growth) > 0.001 else "N/A"
                 net_m_display = f"{net_m_val:.1f}%" if abs(net_m_val) > 0.001 else "N/A"
