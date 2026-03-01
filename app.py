@@ -5068,14 +5068,26 @@ with main_area.container():
                 curr_lang = st.session_state.lang
                 is_ko = (curr_lang == 'ko')
 
-                # CSS 스타일 (기존 6칸 박스 스타일 유지)
                 st.markdown("""
                 <style>
+                    /* Premium UI Cards */
+                    .metric-card { background-color:#ffffff; padding:15px; border-radius:12px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.03); height: 100%; min-height: 220px; display: flex; flex-direction: column; justify-content: space-between; }
+                    .metric-header { font-weight:bold; font-size:16px; color:#111; margin-bottom:5px; }
+                    .metric-value-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; justify-content: flex-start; }
+                    .metric-value { font-size:20px; font-weight:800; color:#004e92; white-space: nowrap; }
+                    .st-badge { font-size:12px; padding: 3px 8px; border-radius:6px; font-weight:bold; vertical-align: middle; margin-left: 5px; }
+                    .st-hot { background-color:#ffebee; color:#c62828; }
+                    .st-good { background-color:#e8f5e9; color:#2e7d32; }
+                    
+                    /* Existing 6-Grid CSS */
                     .custom-metric-container { display: flex; justify-content: space-between; text-align: center; padding: 10px 0; }
                     .custom-metric-box { flex: 1; border-right: 1px solid #f0f0f0; }
                     .custom-metric-box:last-child { border-right: none; }
                     .custom-metric-label { font-size: 0.85rem; font-weight: bold; color: #333333; margin-bottom: 6px; }
                     .custom-metric-value { font-size: 1.15rem; font-weight: 800; color: #004e92; }
+                    
+                    /* Text Style */
+                    .unified-text { font-size: 0.95rem !important; line-height: 1.6 !important; color: #222222; }
                 </style>
                 """, unsafe_allow_html=True)
             
@@ -5090,11 +5102,12 @@ with main_area.container():
                 else:
                     fin_data = {} 
             
+                # 1. 💡 [프리미엄 + 기존 보존] 상단 재무분석 Expander
                 with st.expander(get_text('expander_financial_analysis'), expanded=True):
                     if is_data_available:
                         st.caption(f"Data Source: {data_source} (Premium) / Currency: USD")
                         
-                        # 💡 [프리미엄 영역 추가] 1단: DCF 적정주가 & 퀀트 등급 박스
+                        # [프리미엄 UI] DCF 적정주가 및 퀀트 등급 
                         dcf_p = fin_data.get('dcf_price', 0.0)
                         gap_pct = ((dcf_p - current_p) / current_p * 100) if current_p > 0 else 0
                         gap_str = f"(+{gap_pct:.1f}% {get_text('tab3_undervalued')})" if gap_pct > 0 else f"({gap_pct:.1f}% {get_text('tab3_overvalued')})"
@@ -5112,7 +5125,7 @@ with main_area.container():
                         
                         st.write("<br>", unsafe_allow_html=True)
 
-                        # --- [기존 영역 보존] 2단: 기존 6칸짜리 핵심 투자 지표 ---
+                        # [기존 6칸 보존] 핵심 투자 지표
                         def clean_value(val):
                             try: return 0.0 if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))) else float(val)
                             except: return 0.0
@@ -5123,6 +5136,10 @@ with main_area.container():
                         de_ratio = clean_value(fin_data.get('debt_equity', 0))
                         pe_val = clean_value(fin_data.get('forward_pe', 0))
                         pb_val = clean_value(fin_data.get('price_to_book', 0))
+                        
+                        # 하단 논문 분석에서 쓰일 발생액 데이터
+                        ocf_val = fin_data.get('ocf', 0.0)
+                        accruals_status = fin_data.get('accruals', 'Unknown')
 
                         metrics = [
                             ("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"), 
@@ -5138,7 +5155,7 @@ with main_area.container():
                         
                         st.markdown("---")     
                         
-                        # --- [기존 영역 보존] 3단: AI 리포트 호출부 ---
+                        # [기존 AI 리포트 보존] (프리미엄 내용이 담긴 버전)
                         with st.spinner(get_text('msg_analyzing_financial')):
                             ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], {}, curr_lang)
                         
@@ -5147,7 +5164,44 @@ with main_area.container():
                     else: 
                         st.warning("신규 상장 기업이거나 현재 재무 데이터가 업데이트 중입니다." if is_ko else "Data is currently updating for this newly listed company.")
                 
-                # 기존 의사결정 박스 및 면책조항 유지
+                # 2. 💡 [복구 완료] 논문기반 AI 분석 보기
+                with st.expander(get_text('expander_academic_analysis'), expanded=False):
+                    st.caption(f"Data Source: {data_source} / Currency: USD")
+                    if is_data_available:
+                        if curr_lang == 'ko':
+                            growth_status_text = "고성장" if growth > 20 else "안정적" if growth > 5 else "정체"
+                            quality_status_text = "우수" if roe_val > 15 else "보통"
+                            st.markdown(f"<div class='unified-text'><b>1. 성장성 및 생존 분석 (Jay Ritter, 1991)</b><br>현재 매출 성장률은 <b>{growth_status_text}</b> 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {'긍정적 시그널' if growth > 10 else '주의가 필요한 시그널'}로 해석됩니다.<br><br><b>2. 수익성 품질 및 자본 구조 (Fama & French, 2004)</b><br>수익성 지표(Net Margin/ROE)는 <b>{quality_status_text}</b> 등급입니다. 본 기업은 {'상대적으로 견고한 이익 체력' if roe_val > 10 else '영업 효율성 개선이 선행되어야 하는 체력'}을 보유하고 있습니다.<br><br><b>3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)</b><br>발생액 품질(Accruals Quality)이 <b>{accruals_status}</b> 상태입니다. 이는 경영진의 이익 조정 가능성이 {'낮음' if accruals_status == 'Low' else '존재함'}을 의미합니다.</div>", unsafe_allow_html=True)
+                            st.info(f"**AI 종합 판정:** 학술적 관점에서 본 기업은 **{growth_status_text}** 성격이 강하며, 정보 불확실성은 일정 부분 해소된 상태입니다.")
+                        elif curr_lang == 'ja':
+                            growth_status_text = "高成長" if growth > 20 else "安定的" if growth > 5 else "停滞"
+                            quality_status_text = "優秀" if roe_val > 15 else "普通"
+                            st.markdown(f"<div class='unified-text'><b>1. 成長性と生存分析 (Jay Ritter, 1991)</b><br>現在の売上成長率は<b>{growth_status_text}</b>段階です。Ritterの理論によると、上場初期の高成長企業は今後3〜5年間の「成長鈍化の罠」に注意すべきであり、現在の数値は{'肯定的なシグナル' if growth > 10 else '注意が必要なシグナル'}と解釈されます。<br><br><b>2. 収益性の質と資本構造 (Fama & French, 2004)</b><br>収益性指標(Net Margin/ROE)は<b>{quality_status_text}</b>レベルです。この企業は{'比較的堅固な利益創出力' if roe_val > 10 else '営業効率の改善が先行されるべき体力'}を保持しています。<br><br><b>3. 情報の非対称性と会計の質 (Teoh et al., 1998)</b><br>発生額の質(Accruals Quality)が<b>{accruals_status}</b>の状態です。これは経営陣による利益調整の可能性が{'低い' if accruals_status == 'Low' else '存在する'}ことを意味します。</div>", unsafe_allow_html=True)
+                            st.info(f"**AI 総合判定:** 学術的な観点から、この企業は**{growth_status_text}**の性格が強く、情報の不確実性は一定部分解消された状態です。")
+                        else:
+                            growth_status_text = "High-Growth" if growth > 20 else "Stable" if growth > 5 else "Stagnant"
+                            quality_status_text = "High-Quality" if roe_val > 15 else "Average"
+                            st.markdown(f"<div class='unified-text'><b>1. Growth & Survival Analysis (Jay Ritter, 1991)</b><br>Current revenue growth is in the <b>{growth_status_text}</b> stage. According to Ritter's theory, high-growth firms should beware of the 'growth trap' in the next 3-5 years. Current metrics indicate a {'positive' if growth > 10 else 'cautionary'} signal.<br><br><b>2. Profitability & Capital Structure (Fama & French, 2004)</b><br>Profitability (Net Margin/ROE) is rated as <b>{quality_status_text}</b>. This firm possesses {'relatively solid earnings power' if roe_val > 10 else 'room for operational improvement'}.<br><br><b>3. Information Asymmetry & Accounting Quality (Teoh et al., 1998)</b><br>Accruals quality is <b>{accruals_status}</b>, implying the risk of earnings management by executives is {'low' if accruals_status == 'Low' else 'notable'}.</div>", unsafe_allow_html=True)
+                            st.info(f"**AI Verdict:** Academically, this firm exhibits **{growth_status_text}** characteristics with manageable information uncertainty.")
+                    else: st.warning(get_text('err_no_biz_info'))
+
+                # 3. 💡 [복구 완료] 참고문헌 (References)
+                with st.expander(get_text('expander_references'), expanded=False):
+                    st.markdown("""<style>.ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; } .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 0.95rem; } .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; } .ref-summary { font-size: 0.85rem; color: #666666; margin-top: 3px; } .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; color: #555; text-decoration: none; white-space: nowrap; }</style>""", unsafe_allow_html=True)
+                    if curr_lang == 'ko': sum_vc = "VC 투자가 상장 시 갖는 공신력 분석"; sum_rock = "정보 비대칭성과 공모가 저평가 메커니즘"
+                    elif curr_lang == 'ja': sum_vc = "VC投資が上場時に持つ公信力の分析"; sum_rock = "情報の非対称性と公募価格の割安メカニズム"
+                    else: sum_vc = "Analyzing the credibility of VC certification."; sum_rock = "Information asymmetry and pricing mechanism."
+                    references_tab3 = [
+                        {"label": get_text('ref_label_growth'), "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "summary": get_text('ref_sum_ipo'), "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991"},
+                        {"label": get_text('ref_label_fundamental'), "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "summary": get_text('ref_sum_withdrawal'), "link": "https://scholar.google.com/scholar?q=Fama+French+2004"},
+                        {"label": get_text('ref_label_accounting'), "title": "Earnings Management and the Long-Run Performance", "author": "Teoh, Welch, & Wong (1998)", "summary": get_text('ref_sum_overheat'), "link": "https://scholar.google.com/scholar?q=Teoh+Welch+Wong+1998"},
+                        {"label": get_text('ref_label_vc'), "title": "The Role of Venture Capital", "author": "Barry et al. (1990)", "summary": sum_vc, "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
+                        {"label": get_text('ref_label_underpricing'), "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "summary": sum_rock, "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
+                    ]
+                    st.info(f"💡 {get_text('caption_google_search')} (Source: **{data_source}**)")
+                    for ref in references_tab3:
+                        st.markdown(f"<div class='ref-item'><div style='flex:1; padding-right: 10px;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div class='ref-summary'>{ref['summary']}, {ref['author']}</div></div><div><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
+            
                 draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", ['opt_overvalued', 'sentiment_neutral', 'opt_undervalued'], current_p)
                 display_disclaimer()
     
