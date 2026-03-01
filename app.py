@@ -22,7 +22,7 @@ try:
     import io
     import resend
     import xml.etree.ElementTree as ET
-    import yfinance as yf 
+    import yfinance as yf  # 💡 Step 1(FMP 도입)에서 지울 예정이므로 일단 둡니다!
     from oauth2client.service_account import ServiceAccountCredentials
     from email.mime.text import MIMEText
     from datetime import datetime, timedelta
@@ -38,20 +38,20 @@ try:
         """Supabase 클라이언트를 초기화하고 연결을 유지합니다."""
         try:
             # Railway Variables에 넣은 이름과 일치해야 합니다.
-            # 만약 [supabase] url 로 넣으셨다면 아래 형식이 맞습니다.
             url = os.environ.get("SUPABASE_URL") or st.secrets["supabase"]["url"]
             key = os.environ.get("SUPABASE_KEY") or st.secrets["supabase"]["key"]
             return create_client(url, key)
         except Exception as e:
-            # 여기서 에러가 나면 화면에 뿌려줍니다.
             st.error(f"Supabase 설정 읽기 오류: {e}")
             raise e # 상위 try문으로 에러 전달
 
     # 전역 Supabase 객체 생성
     supabase = init_supabase()
 
-    # --- 여기에 나머지 기존 app.py 코드들을 모두 붙여넣으세요 ---
-    # (기존의 페이지 구성, 데이터 로드, 화면 출력 코드들...)
+    # --- [AI 라이브러리] ---
+    import google.generativeai as genai
+    from google.generativeai import protos  
+    # 💡 [핵심] from openai import OpenAI <- 이 부분이 영구 삭제되었습니다!
 
 # [중요] 코드 맨 마지막에 아래 내용을 붙입니다.
 except Exception as e:
@@ -1759,54 +1759,84 @@ def draw_footer():
 # ---------------------------------------------------------
     
 # ---------------------------------------------------------
-# ✅ [수정] translate_news_title 함수 (재시도 로직 적용)
+# ✅ [수정] translate_news_title 함수 (Gemini API 텍스트 번역 백업용)
 # ---------------------------------------------------------
 @st.cache_data(show_spinner=False, ttl=3600)
 def translate_news_title(en_title):
-    """뉴스 제목을 한국 경제 신문 헤드라인 스타일로 번역 (Groq API + 재시도 로직 + 후처리)"""
-    groq_key = st.secrets.get("GROQ_API_KEY")
-    if not groq_key or not en_title:
+    """
+    뉴스 제목을 현재 접속한 유저의 언어에 맞춰 경제 신문 헤드라인 스타일로 번역합니다.
+    (Worker 캐싱 누락 시 작동하는 Gemini API 백업 로직)
+    """
+    if not en_title:
         return en_title
 
-    client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
-    
-    # [수정] 프롬프트 제약 조건 강화
-    system_msg = """당신은 한국 경제 신문사 헤드라인 데스크의 전문 편집자입니다. 
-    영문 뉴스를 한국어 경제 신문 헤드라인 스타일로 번역하세요.
-    - 반드시 순수한 한글(KOREAN)로만 작성하세요. (한자, 베트남어, 일본어 등 혼용 절대 금지)
-    - '**'나 '*' 같은 마크다운 강조 기호를 절대 사용하지 마세요.
-    - 'sh' -> '주당', 'M' -> '백만', 'IPO' -> 'IPO'로 번역하세요.
-    - 따옴표나 불필요한 수식어는 제거하고 핵심만 간결하게 전달하세요."""
+    # 전역 model 객체 확인 (app.py 상단에서 이미 초기화된 model 사용)
+    if 'model' not in globals() or not model:
+        return en_title
+
+    # 💡 현재 유저가 선택한 언어 설정 가져오기
+    lang_code = st.session_state.get('lang', 'ko')
+
+    # 💡 언어별 프롬프트 동적 세팅 (한국어는 특별 제약조건 강력 적용)
+    if lang_code == 'en':
+        return en_title  # 영어 원문 상태면 번역 없이 바로 반환
+        
+    elif lang_code == 'ko':
+        prompt = f"""당신은 한국 경제 신문사 헤드라인 데스크의 전문 편집자입니다. 
+영문 뉴스를 한국어 경제 신문 헤드라인 스타일로 번역하세요.
+- 반드시 순수한 한글(KOREAN)로만 작성하세요. (한자, 베트남어, 일본어 등 혼용 절대 금지)
+- '**'나 '*' 같은 마크다운 강조 기호를 절대 사용하지 마세요.
+- 'sh' -> '주당', 'M' -> '백만', 'IPO' -> 'IPO'로 번역하세요.
+- 따옴표나 불필요한 수식어는 제거하고 핵심만 간결하게 전달하세요.
+
+Original Headline: {en_title}"""
+
+    else:
+        # 일본어, 중국어 전용 프롬프트
+        if lang_code == 'ja':
+            target_lang = "Japanese"
+            style_desc = "日経新聞のヘッドライン風(記号なし)"
+        else: # zh
+            target_lang = "Simplified Chinese"
+            style_desc = "财经新闻头条风格(不含特殊符号)"
+            
+        prompt = f"""You are a professional financial news editor.
+Translate the following English news headline into {target_lang}.
+Apply the following style: {style_desc}
+
+[Rules]
+- ONLY return the translated headline text.
+- DO NOT include any markdown symbols like **, *, or quotes.
+- DO NOT include any additional explanations or greetings.
+
+Original Headline: {en_title}"""
 
     max_retries = 3
     for i in range(max_retries):
         try:
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": f"Translate this headline to pure Korean only: {en_title}"}
-                ],
-                temperature=0.0  # 일관성을 위해 0.1에서 0.0으로 하향 조정
-            )
+            # Gemini(model) 호출
+            response = model.generate_content(prompt)
+            translated_text = response.text.strip()
             
-            translated_text = response.choices[0].message.content.strip()
-            
-            # [추가] 후처리 로직: 마크다운 기호 및 따옴표 강제 제거
+            # 후처리 로직: 마크다운 기호 및 불필요한 따옴표 강제 제거
             clean_text = translated_text.replace("**", "").replace("*", "").replace('"', '').replace("'", "")
             
-            # [추가] 정규식을 활용해 한글, 숫자, 기본 부호 외의 외국어(한자 등) 제거 (선택 사항)
-            # clean_text = re.sub(r'[^가-힣0-9\s\.\,\[\]\(\)\%\!\?\-\w]', '', clean_text)
-            
+            # 한글/외국어 혼용 방지 (최소한의 길이 체크)
+            if len(clean_text) < 2:
+                continue
+                
             return clean_text
             
         except Exception as e:
+            import time
             if "429" in str(e):
-                time.sleep(2 * (i + 1))
-                continue
+                time.sleep(2)  # 트래픽 제한 걸릴 시 2초 대기
+            elif i < max_retries - 1:
+                time.sleep(1)
             else:
+                # 3번 다 실패하면 에러를 띄우지 않고 안전하게 영어 원문 반환
                 return en_title
-    
+                
     return en_title
 
 # ---------------------------------------------------------
