@@ -6,7 +6,7 @@ import sys
 try:
     import requests
     import pandas as pd
-    import numpy as npㅇ
+    import numpy as np
     import plotly.graph_objects as go
     import os
     import time
