@@ -13,8 +13,11 @@ from supabase import create_client
 import google.generativeai as genai
 
 # ==========================================
-# [1] 환경 설정
+# [1] 환경 설정 & 디버깅 로그
 # ==========================================
+print(f"🚀 Worker Process 시작: {datetime.now()}")
+
+# 1. 환경 변수 로드
 raw_url = os.environ.get("SUPABASE_URL", "")
 if "/rest/v1" in raw_url:
     SUPABASE_URL = raw_url.split("/rest/v1")[0].rstrip('/')
@@ -25,39 +28,45 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 GENAI_API_KEY = os.environ.get("GENAI_API_KEY", "")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 
+# 💡 [디버깅] GitHub Secrets 배달 상태 확인
+print(f"DEBUG: SUPABASE_URL 존재 = {bool(SUPABASE_URL)}")
+print(f"DEBUG: SUPABASE_KEY 존재 = {bool(SUPABASE_KEY)}")
+print(f"DEBUG: GENAI_API_KEY 존재 = {bool(GENAI_API_KEY)}")
+if GENAI_API_KEY:
+    print(f"DEBUG: API KEY 앞 4자리 = {GENAI_API_KEY[:4]}****")
+
 logging.getLogger('yfinance').setLevel(logging.CRITICAL)
 
+# 2. 필수 연결 체크
 if not (SUPABASE_URL and SUPABASE_KEY):
-    print("❌ 환경변수 누락 (SUPABASE_URL 또는 KEY)")
+    print("❌ 환경변수 누락으로 종료 (URL/KEY 확인 필요)")
     exit()
 
 try:
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ Supabase 클라이언트 연결 성공")
 except Exception as e:
-    print(f"❌ Supabase 클라이언트 초기화 실패: {e}")
+    print(f"❌ Supabase 초기화 실패: {e}")
     exit()
 
+# 3. AI 모델 설정
 model = None 
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
+        # Search Tool을 포함하여 최신 모델 로드
         model = genai.GenerativeModel('gemini-2.0-flash', tools=[{'google_search_retrieval': {}}])
-        print("✅ AI 모델 로드 성공 (Search Tool 활성화)")
-    except:
+        print("✅ AI 모델 로드 성공 (Gemini 2.0 Flash + Search)")
+    except Exception as e:
         model = genai.GenerativeModel('gemini-2.0-flash')
-        print("⚠️ AI 모델 기본 로드 (Search Tool 제외)")
-
-# 💡 중국어(zh) 지원이 포함된 언어 리스트
-SUPPORTED_LANGS = {
-    'ko': '전문적인 한국어(Korean)',
-    'en': 'Professional English',
-    'ja': '専門的な日本語(Japanese)',
-    'zh': '简体中文(Simplified Chinese)'
-}
+        print(f"⚠️ AI 모델 기본 로드 (Search 제외): {e}")
+else:
+    print("❌ GENAI_API_KEY가 비어있습니다. AI 분석이 건너뛰어집니다.")
 
 # ==========================================
-# [2] 헬퍼 함수
+# [2] 헬퍼 함수: 과거 성공했던 '직접 전송' 방식 복구
 # ==========================================
+
 def sanitize_value(v):
     if v is None or pd.isna(v): return None
     if isinstance(v, (np.floating, float)):
@@ -67,25 +76,35 @@ def sanitize_value(v):
     return str(v).strip().replace('\x00', '')
 
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
+    """과거 성공했던 requests 기반 직접 Upsert 로직 (가장 확실함)"""
     if not data_list: return
     
+    # Supabase REST 엔드포인트 설정
+    endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        # 💡 중요: DB 제약 조건이 PK가 아니어도 중복 시 덮어쓰도록 강제함
+        "Prefer": "return=minimal,resolution=merge-duplicates" 
+    }
+
     clean_batch = []
     for item in data_list:
         payload = {k: sanitize_value(v) for k, v in item.items()}
         if payload.get(on_conflict):
             clean_batch.append(payload)
 
-    if not clean_batch:
-        print(f"⚠️ [{table_name}] 업로드할 유효 데이터가 없습니다.")
-        return
+    if not clean_batch: return
 
     try:
-        res = supabase.table(table_name).upsert(clean_batch, on_conflict=on_conflict).execute()
-        # 💡 주석을 풀고 성공 로그를 강제로 찍습니다.
-        print(f"✅ [{table_name}] {len(clean_batch)}개 데이터 저장 성공!")
+        resp = requests.post(endpoint, json=clean_batch, headers=headers)
+        if resp.status_code in [200, 201, 204]:
+            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공")
+        else:
+            print(f"❌ [{table_name}] 저장 실패 ({resp.status_code}): {resp.text}")
     except Exception as e:
-        # 🚨 실패 시 구체적인 이유를 반드시 찍습니다.
-        print(f"❌ [{table_name}] DB 저장 실패! 사유: {e}")
+        print(f"❌ [{table_name}] 통신 에러: {e}")
 
 def get_target_stocks():
     if not FINNHUB_API_KEY: return pd.DataFrame()
