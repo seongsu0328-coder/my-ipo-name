@@ -27,15 +27,15 @@ jobs:
 
       - name: 필수 라이브러리 설치
         run: |
-          # streamlit을 추가하여 worker.py의 st.secrets를 사용할 수 있게 합니다.
-          pip install streamlit requests pandas numpy yfinance supabase google-generativeai
+          # 💡 [수정] yfinance를 제거했습니다!
+          pip install streamlit requests pandas numpy supabase google-generativeai
 
       - name: 데이터 수집기(Worker) 실행
         env:
-          # 스트림릿은 환경 변수가 SECTION_KEY 형식이면 st.secrets["section"]["key"]로 자동 매핑합니다.
-          # 예: SUPABASE_URL -> st.secrets["supabase"]["url"]
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GENAI_API_KEY: ${{ secrets.GENAI_API_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          # 💡 [핵심 추가] FMP API 키를 Worker에 주입합니다!
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
         run: python worker.py
