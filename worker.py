@@ -69,7 +69,6 @@ def sanitize_value(v):
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not data_list: return
     
-    # [1] 데이터 정제
     clean_batch = []
     for item in data_list:
         payload = {k: sanitize_value(v) for k, v in item.items()}
@@ -81,17 +80,15 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         return
 
     try:
-        # [2] Supabase 라이브러리를 사용하여 직접 Upsert 실행
-        # 이 방식은 헤더와 URL 관리를 라이브러리가 대신 해줍니다.
+        # 💡 성공/실패 여부를 확실히 로그에 남깁니다.
         res = supabase.table(table_name).upsert(clean_batch, on_conflict=on_conflict).execute()
         
-        # 성공 시 로깅 (필요할 때만 주석 해제)
-        # print(f"✅ [{table_name}] {len(clean_batch)}개 데이터 저장 완료.")
+        # ✅ 성공 로그 출력 활성화
+        print(f"✅ [{table_name}] {len(clean_batch)}개 데이터 저장 성공! (Key: {clean_batch[0].get(on_conflict)})")
         
     except Exception as e:
-        # [3] 에러 발생 시 아주 상세하게 출력하도록 변경
-        # 여기서 'Primary Key가 없다'거나 '인증 오류' 등의 진짜 이유가 나옵니다.
-        print(f"❌ [{table_name}] DB 저장 실패! 사유: {e}")
+        # ❌ 실패 시 구체적인 이유 출력
+        print(f"❌ [{table_name}] DB 저장 실패! 상세 사유: {e}")
 
 def get_target_stocks():
     if not FINNHUB_API_KEY: return pd.DataFrame()
