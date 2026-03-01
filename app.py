@@ -536,16 +536,22 @@ def db_load_community_scores(ticker):
         return []
 
 # [신규] 유저의 모든 행동과 '당시 가격'을 히스토리(Log)로 쌓는 함수
+# [수정된 함수]
 def db_log_user_action(user_id, ticker, action_type, price=0.0, details=""):
     if user_id == 'guest_id' or not user_id: 
         return False
     try:
+        # 현재 유저가 사용 중인 언어 환경 가져오기
+        import streamlit as st
+        current_lang = st.session_state.get('lang', 'ko').upper() 
+        
         log_data = {
             "user_id": str(user_id),
             "ticker": str(ticker),
             "action_type": action_type,
-            "price": float(price),     # 🔥 가격 데이터 저장
-            "details": str(details)
+            "price": float(price),     
+            "details": str(details),
+            "user_lang": current_lang  # 🔥 [신규 추가] 어떤 언어권에서 누른 버튼인지 기록
         }
         supabase.table("action_logs").insert(log_data).execute()
         return True
@@ -3727,6 +3733,7 @@ if st.session_state.page == 'login':
                                 "inv_risk": val_risk,
                                 "inv_sector": ",".join(val_sector),
                                 "noti_method": val_noti,  # 🔥 여기에 딱 한 줄 추가!
+                                "country_code": st.session_state.lang.upper(),  # 🔥 [신규 추가] 가입 당시 언어(국적) 저장 (KO, EN, JA, ZH)
                                 "role": role, "status": status,
                                 "display_name": f"{role} | {td['id'][:3]}***"
                             }
