@@ -80,15 +80,12 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         return
 
     try:
-        # 💡 성공/실패 여부를 확실히 로그에 남깁니다.
         res = supabase.table(table_name).upsert(clean_batch, on_conflict=on_conflict).execute()
-        
-        # ✅ 성공 로그 출력 활성화
-        print(f"✅ [{table_name}] {len(clean_batch)}개 데이터 저장 성공! (Key: {clean_batch[0].get(on_conflict)})")
-        
+        # 💡 주석을 풀고 성공 로그를 강제로 찍습니다.
+        print(f"✅ [{table_name}] {len(clean_batch)}개 데이터 저장 성공!")
     except Exception as e:
-        # ❌ 실패 시 구체적인 이유 출력
-        print(f"❌ [{table_name}] DB 저장 실패! 상세 사유: {e}")
+        # 🚨 실패 시 구체적인 이유를 반드시 찍습니다.
+        print(f"❌ [{table_name}] DB 저장 실패! 사유: {e}")
 
 def get_target_stocks():
     if not FINNHUB_API_KEY: return pd.DataFrame()
@@ -575,8 +572,11 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     "updated_at": now.isoformat()
                 }], on_conflict="cache_key")
                 
-                break
+                break # 성공 시 루프 탈출
+                
             except Exception as e:
+                # 🚨 이 줄을 추가해서 로그에 에러를 찍습니다.
+                print(f"❌ [AI 분석 또는 DB 전송 에러]: {e}")
                 time.sleep(1)
 
 
