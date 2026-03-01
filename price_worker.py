@@ -2,14 +2,12 @@ import os
 import requests
 import pandas as pd
 import numpy as np
-import yfinance as yf
 from datetime import datetime, timedelta
 import pytz
 import time
-import logging
 import re
 
-logging.getLogger('yfinance').setLevel(logging.CRITICAL)
+# 💡 [수정] yfinance 라이브러리 및 로깅 설정 완전 삭제
 
 # [1] 환경 설정
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip('/')
@@ -17,8 +15,14 @@ if "/rest/v1" in SUPABASE_URL:
     SUPABASE_URL = SUPABASE_URL.split("/rest/v1")[0]
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
 
+# 💡 [신규] FMP API 키 로드
+FMP_API_KEY = os.environ.get("FMP_API_KEY", "").strip()
+
 if not SUPABASE_URL or not SUPABASE_KEY:
-    print("❌ 에러: 환경변수 누락", flush=True); exit(1)
+    print("❌ 에러: Supabase 환경변수 누락", flush=True); exit(1)
+
+if not FMP_API_KEY:
+    print("❌ 에러: FMP_API_KEY 환경변수 누락 (GitHub Secrets 확인 필요)", flush=True); exit(1)
 
 def batch_upsert_raw(table_name, data_list, on_conflict="ticker"):
     if not data_list: return False
@@ -35,7 +39,7 @@ def batch_upsert_raw(table_name, data_list, on_conflict="ticker"):
         return False
 
 # =====================================================================
-# 💡 [추가] SEC 티커 교정 헬퍼 (app.py와 완벽 동기화)
+# [SEC 티커 교정 헬퍼 (app.py와 완벽 동기화)]
 # =====================================================================
 def get_sec_ticker_mapping():
     try:
@@ -94,10 +98,10 @@ def fetch_and_update_prices():
         orig_sym = item['symbol']
         clean_n = normalize_name(item.get('name', ''))
         official_sym = sec_map.get(clean_n, orig_sym)
-        query_map[official_sym] = orig_sym # 야후는 official로 찌르고, DB 저장은 orig로!
+        query_map[official_sym] = orig_sym # 조회는 official로, DB 저장은 orig로 매핑
 
     official_tickers = list(query_map.keys())
-    print(f"📦 대상: {len(official_tickers)}개 주가 다운로드 시작 (SEC 동기화 완료)...", flush=True)
+    print(f"📦 대상: {len(official_tickers)}개 FMP API로 주가 다운로드 시작 (SEC 동기화 완료)...", flush=True)
 
     now_iso = datetime.now(pytz.timezone('Asia/Seoul')).isoformat()
     us_today_str = now_est.strftime('%Y-%m-%d')
@@ -105,40 +109,42 @@ def fetch_and_update_prices():
     upsert_list = []
     history_list = [] 
     
+    # 💡 [핵심 수정] FMP 다중 주가 조회 방식 (쉼표로 구분하여 한 번에 대량 호출)
     chunk_size = 50
     for i in range(0, len(official_tickers), chunk_size):
         chunk = official_tickers[i : i + chunk_size]
+        tickers_str = ",".join(chunk)
+        
+        url = f"https://financialmodelingprep.com/api/v3/quote/{tickers_str}?apikey={FMP_API_KEY}"
         
         try:
-            data = yf.download(chunk, period="1d", group_by='ticker', threads=True, progress=False)
+            res = requests.get(url, timeout=15)
+            data = res.json()
+            
+            fmp_prices = {}
+            if isinstance(data, list):
+                # 받아온 JSON 데이터에서 심볼별로 가격을 딕셔너리로 매핑
+                fmp_prices = {item.get("symbol"): float(item.get("price", 0.0)) for item in data if item.get("symbol")}
             
             for official_sym in chunk:
-                try:
-                    target = data[official_sym] if len(chunk) > 1 else data
-                    current_p = 0.0
-                    
-                    if 'Close' in target:
-                        valid = target['Close'].dropna()
-                        if not valid.empty and float(valid.iloc[-1]) > 0:
-                            current_p = float(valid.iloc[-1])
-                            
-                    if current_p <= 0:
-                        current_p = fetch_otc_price_premium(official_sym)
+                # 1. FMP에서 가격 확인
+                current_p = fmp_prices.get(official_sym, 0.0)
+                
+                # 2. 가격이 0원이면 예비 OTC 함수 찔러보기
+                if current_p <= 0:
+                    current_p = fetch_otc_price_premium(official_sym)
 
-                    if current_p > 0:
-                        # 💡 [핵심 수정 완료] 앱(app.py)에서도 SEC 공식 티커로 데이터를 찾으므로, 
-                        # DB에 저장할 때도 원래 티커로 되돌리지 않고 '공식 티커' 이름 그대로 저장합니다.
-                        upsert_list.append({
-                            "ticker": str(official_sym), "price": current_p, "updated_at": now_iso
-                        })
-                        history_list.append({
-                            "ticker": str(official_sym), "target_date": us_today_str, "close_price": current_p
-                        })
-                except: continue
+                if current_p > 0:
+                    upsert_list.append({
+                        "ticker": str(official_sym), "price": current_p, "updated_at": now_iso
+                    })
+                    history_list.append({
+                        "ticker": str(official_sym), "target_date": us_today_str, "close_price": current_p
+                    })
         except Exception as e:
-            print(f"🚨 다운로드 에러 발생 ({i+1}~구간): {e}", flush=True)
+            print(f"🚨 FMP 다운로드 에러 발생 ({i+1}~구간): {e}", flush=True)
             
-        time.sleep(1.5)
+        time.sleep(0.5) # API 속도 제한(Rate Limit) 방어
 
     # DB 전송 로직
     if upsert_list:
@@ -161,7 +167,7 @@ def fetch_and_update_prices():
 # 🚀 메인 실행부 (무한 루프 적용 - 서버 Fail 방지)
 # =====================================================================
 if __name__ == "__main__":
-    print("🤖 실시간 주가 수집 워커가 24시간 모드로 가동됩니다.", flush=True)
+    print("🤖 FMP 실시간 주가 수집 워커가 24시간 모드로 가동됩니다.", flush=True)
     while True:
         try:
             # 1. 주가 수집 함수 실행 (내부에서 주말/야간 체크 알아서 함)
