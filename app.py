@@ -22,7 +22,6 @@ try:
     import io
     import resend
     import xml.etree.ElementTree as ET
-    import yfinance as yf  # 💡 Step 1(FMP 도입)에서 지울 예정이므로 일단 둡니다!
     from oauth2client.service_account import ServiceAccountCredentials
     from email.mime.text import MIMEText
     from datetime import datetime, timedelta
@@ -981,20 +980,40 @@ Checkpoints: {meta['p']}
 
 @st.cache_data(ttl=86400) # 하루 동안 재무제표 기억
 def get_cached_raw_financials(symbol):
+    """FMP API를 활용하여 월스트리트 공식 재무제표 및 지표를 로드합니다."""
     fin_data = {}
     try:
-        ticker = yf.Ticker(symbol)
-        yf_fin = ticker.financials; yf_info = ticker.info; yf_bal = ticker.balance_sheet
-        if not yf_fin.empty:
-            rev = yf_fin.loc['Total Revenue'].iloc[0]
-            net_inc = yf_fin.loc['Net Income'].iloc[0]
-            prev_rev = yf_fin.loc['Total Revenue'].iloc[1] if len(yf_fin.columns) > 1 else rev
+        fmp_key = os.environ.get("FMP_API_KEY") or st.secrets.get("FMP_API_KEY", "")
+        
+        # 1. 포괄 손익계산서 (최근 2년치 매출 및 이익)
+        inc_url = f"https://financialmodelingprep.com/api/v3/income-statement/{symbol}?limit=2&apikey={fmp_key}"
+        inc_res = requests.get(inc_url, timeout=5).json()
+        
+        if inc_res and isinstance(inc_res, list) and len(inc_res) > 0:
+            curr_inc = inc_res[0]
+            rev = float(curr_inc.get('revenue', 0))
+            net_inc = float(curr_inc.get('netIncome', 0))
+            op_inc = float(curr_inc.get('operatingIncome', 0))
+            prev_rev = float(inc_res[1].get('revenue', rev)) if len(inc_res) > 1 else rev
+            
             fin_data['revenue'] = rev / 1e6
-            fin_data['net_margin'] = (net_inc / rev) * 100
-            fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100
-            fin_data['forward_pe'] = yf_info.get('forwardPE', 0)
-            # ... (나머지 지표들 추출 로직)
-    except: 
+            fin_data['net_margin'] = (net_inc / rev) * 100 if rev else 0
+            fin_data['op_margin'] = (op_inc / rev) * 100 if rev else 0
+            fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100 if prev_rev else 0
+
+        # 2. 핵심 투자 지표 (PE, ROE, P/B, D/E 등)
+        metrics_url = f"https://financialmodelingprep.com/api/v3/key-metrics-ttm/{symbol}?apikey={fmp_key}"
+        metrics_res = requests.get(metrics_url, timeout=5).json()
+        
+        if metrics_res and isinstance(metrics_res, list) and len(metrics_res) > 0:
+            m = metrics_res[0]
+            fin_data['forward_pe'] = m.get('peRatioTTM', 0)
+            fin_data['price_to_book'] = m.get('pbRatioTTM', 0)
+            fin_data['debt_equity'] = m.get('debtToEquityTTM', 0) * 100
+            fin_data['roe'] = m.get('roeTTM', 0) * 100
+            
+        fin_data['source'] = "Financial Modeling Prep"
+    except Exception as e:
         pass
     return fin_data
         
@@ -1351,46 +1370,34 @@ def fetch_otc_price_for_app(ticker):
 
 def get_current_stock_price(ticker, api_key=None):
     """
-    단일 종목의 현재가를 조회하되, DB에 '상장연기/폐지' 기록이 있다면 
-    야후 API 호출을 건너뛰는 똑똑한 안전장치 + OTC 백업 기능이 포함된 함수입니다.
+    DB에 가격이 없을 때 FMP API로 실시간 주가를 가져오는 예비 함수입니다.
     """
     try:
-        # [Step 1] DB에서 먼저 상태와 가격 확인
         res = supabase.table("price_cache").select("price, status").eq("ticker", ticker).execute()
-        
         if res.data:
             db_data = res.data[0]
             db_status = db_data.get('status', 'Active')
             db_price = float(db_data.get('price', 0.0))
             
-            # 상장연기나 폐지 상태라면 API 호출 없이 바로 결과 반환
-            if db_status in ["상장연기", "상장폐지"]:
-                return db_price, db_status
-            
-            # Active이고 가격이 이미 있다면 그것도 바로 반환 (API 절약)
-            if db_price > 0:
-                return db_price, "Active"
+            if db_status in ["상장연기", "상장폐지"]: return db_price, db_status
+            if db_price > 0: return db_price, "Active"
 
-        # [Step 2] DB에 없거나 업데이트가 필요할 때만 야후 호출
-        stock = yf.Ticker(ticker)
-        df = stock.history(period='1d')
+        # [핵심 교체] yfinance 대신 FMP Quote API 사용
+        fmp_key = os.environ.get("FMP_API_KEY") or st.secrets.get("FMP_API_KEY", "")
+        url = f"https://financialmodelingprep.com/api/v3/quote/{ticker}?apikey={fmp_key}"
+        fmp_res = requests.get(url, timeout=5).json()
         
-        if not df.empty and float(df['Close'].iloc[-1]) > 0:
-            current_p = float(round(df['Close'].iloc[-1], 4))
-            return current_p, "Active"
-        else:
-            # 💡 [핵심 파이프라인] 야후에서 실패하면 예비 OTC 함수를 찌른다!
-            otc_price = fetch_otc_price_for_app(ticker)
-            if otc_price > 0:
-                return otc_price, "Active"
-            else:
-                return 0.0, "데이터없음"
+        if fmp_res and isinstance(fmp_res, list) and len(fmp_res) > 0:
+            current_p = float(fmp_res[0].get('price', 0.0))
+            if current_p > 0: return current_p, "Active"
+            
+        otc_price = fetch_otc_price_for_app(ticker)
+        if otc_price > 0: return otc_price, "Active"
+        return 0.0, "데이터없음"
             
     except Exception:
-        # 💡 에러가 나도 한 번 더 OTC 백업 함수를 찔러봄
         otc_price = fetch_otc_price_for_app(ticker)
-        if otc_price > 0:
-            return otc_price, "Active"
+        if otc_price > 0: return otc_price, "Active"
         return 0.0, "에러"
 
 
@@ -1888,21 +1895,31 @@ def _calculate_market_metrics_internal(df_calendar, api_key):
             wd = recent_history[recent_history['status'].str.lower() == 'withdrawn']
             data["withdrawal_rate"] = (len(wd) / len(recent_history)) * 100
 
-    # --- B. Macro Market 데이터 (Yahoo Finance) ---
+    # --- B. Macro Market 데이터 (FMP API) ---
     try:
-        vix_obj = yf.Ticker("^VIX")
-        data["vix"] = vix_obj.history(period="1d")['Close'].iloc[-1]
+        fmp_key = os.environ.get("FMP_API_KEY") or st.secrets.get("FMP_API_KEY", "")
         
-        w5000 = yf.Ticker("^W5000").history(period="1d")['Close'].iloc[-1]
-        data["buffett_val"] = ( (w5000 / 1000 * 0.93) / 28.0 ) * 100
+        # VIX, SPY, S&P500 지수 한 번에 호출
+        q_url = f"https://financialmodelingprep.com/api/v3/quote/^VIX,SPY,^GSPC?apikey={fmp_key}"
+        q_res = requests.get(q_url, timeout=5).json()
+        q_map = {item['symbol']: item for item in q_res} if isinstance(q_res, list) else {}
         
-        spy = yf.Ticker("SPY")
-        data["pe_ratio"] = spy.info.get('trailingPE', 24.5)
-
-        spx = yf.Ticker("^GSPC").history(period="1y")
-        curr_spx = spx['Close'].iloc[-1]
-        ma200 = spx['Close'].rolling(200).mean().iloc[-1]
-        mom_score = ((curr_spx - ma200) / ma200) * 100
+        data["vix"] = q_map.get('^VIX', {}).get('price', 20.0)
+        data["pe_ratio"] = q_map.get('SPY', {}).get('pe', 24.5)
+        curr_spx = q_map.get('^GSPC', {}).get('price', 5000.0)
+        
+        # 윌셔 5000 (Buffett Indicator) 데이터 호출
+        w5000_url = f"https://financialmodelingprep.com/api/v3/quote/^W5000?apikey={fmp_key}"
+        w5000_res = requests.get(w5000_url, timeout=5).json()
+        w5000_price = w5000_res[0].get('price', curr_spx) if w5000_res and isinstance(w5000_res, list) else curr_spx
+        data["buffett_val"] = ( (w5000_price / 1000 * 0.93) / 28.0 ) * 100
+        
+        # S&P 500 200일 이동평균선 (Fear & Greed 계산용)
+        ma_url = f"https://financialmodelingprep.com/api/v3/technical_indicator/1day/^GSPC?type=sma&period=200&apikey={fmp_key}"
+        ma_res = requests.get(ma_url, timeout=5).json()
+        ma200 = ma_res[0].get('sma', curr_spx) if ma_res and isinstance(ma_res, list) else curr_spx
+        
+        mom_score = ((curr_spx - ma200) / ma200) * 100 if ma200 > 0 else 0
         
         s_vix = max(0, min(100, (35 - data["vix"]) * (100/23)))
         s_mom = max(0, min(100, (mom_score + 10) * 5))
