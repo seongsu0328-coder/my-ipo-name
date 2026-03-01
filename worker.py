@@ -1143,20 +1143,12 @@ def main():
     print(f"   -> 최근 상장(6개월): {len(past_6m)}개")
     
     try:
+        # 과거 상장 기업 전체 포함 (수익률 계산 및 Top 50 제한 완전 해제)
         past_all = df[df['dt'] <= today].copy()
-        def calc_return(row):
-            try:
-                ipo_p = float(str(row.get('price', '0')).replace('$','').split('-')[0])
-                curr_p = price_map.get(row['symbol'], 0.0)
-                if ipo_p > 0 and curr_p > 0: return (curr_p - ipo_p) / ipo_p * 100
-                return -9999.0
-            except: return -9999.0
-        past_all['return'] = past_all.apply(calc_return, axis=1)
-        top_50 = past_all.sort_values(by='return', ascending=False).head(50)
-        target_symbols.update(top_50['symbol'].tolist())
-        print(f"   -> 수익률 상위(전체 중): 50개 (1위: {top_50.iloc[0]['symbol']} {top_50.iloc[0]['return']:.1f}%)")
+        target_symbols.update(past_all['symbol'].tolist())
+        print(f"   -> 전체 과거 상장 종목 포함: {len(past_all)}개 (제한 해제)")
     except Exception as e:
-        print(f"   ⚠️ 수익률 계산 에러: {e}")
+        print(f"   ⚠️ 타겟 종목 합산 에러: {e}")
 
     print(f"✅ 최종 분석 대상: 총 {len(target_symbols)}개 종목 (중복 제거)")
 
@@ -1169,7 +1161,19 @@ def main():
     
     print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 종목 다국어 캐싱)...")
     
+    print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 종목 다국어 캐싱)...")
+    
+    # 💡 [핵심 추가] 워커 시작 시간 기록 및 최대 허용 시간(5.5시간) 설정
+    import time
+    WORKER_START_TIME = time.time()
+    MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간(19,800초)
+    
     for idx, row in target_df.iterrows():
+        # 💡 [핵심 추가] 5.5시간이 넘어가면 깃허브 강제 종료를 막기 위해 스스로 안전하게 멈춤
+        if time.time() - WORKER_START_TIME > MAX_RUN_TIME_SEC:
+            print("⏳ [알림] 깃허브 6시간 제한 임박! 서버 강제 다운을 막기 위해 작업을 안전하게 일시 중단합니다. (다음 워커가 이어서 작업합니다)")
+            break
+
         original_symbol = row.get('symbol')
         name = row.get('name')
         
