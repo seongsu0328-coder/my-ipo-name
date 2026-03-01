@@ -2402,30 +2402,41 @@ IPO_REFERENCES = [
 
 
 # ==========================================
-# [3] 핵심 재무 분석 함수 (yfinance 실시간 연동)
+# [3] 핵심 재무 분석 함수 (FMP API 완벽 대체)
 # ==========================================
+@st.cache_data(ttl=86400) # 24시간 캐싱으로 속도 극대화
 def get_us_ipo_analysis(ticker_symbol):
-    """
-    yfinance를 사용하여 실시간 재무 지표를 계산합니다.
-    """
+    """FMP API를 사용하여 실시간 재무 지표를 계산합니다. (yfinance 완벽 제거)"""
     try:
-        tk = yf.Ticker(ticker_symbol)
-        info = tk.info
+        fmp_key = os.environ.get("FMP_API_KEY") or st.secrets.get("FMP_API_KEY", "")
         
-        # 1. Sales Growth (최근 매출 성장률)
-        sales_growth = info.get('revenueGrowth', 0) * 100 
+        # 1. Income Statement (매출 성장률, 순이익)
+        inc_url = f"https://financialmodelingprep.com/api/v3/income-statement/{ticker_symbol}?limit=2&apikey={fmp_key}"
+        inc_res = requests.get(inc_url, timeout=5).json()
         
-        # 2. OCF (영업현금흐름)
-        cashflow = tk.cashflow
-        if not cashflow.empty and 'Operating Cash Flow' in cashflow.index:
-            ocf_val = cashflow.loc['Operating Cash Flow'].iloc[0]
-        else:
-            ocf_val = info.get('operatingCashflow', 0)
-            
-        # 3. Accruals (발생액 계산: 당기순이익 - 영업현금흐름)
-        net_income = info.get('netIncomeToCommon', 0)
+        # 2. Cash Flow Statement (영업현금흐름)
+        cf_url = f"https://financialmodelingprep.com/api/v3/cash-flow-statement/{ticker_symbol}?limit=1&apikey={fmp_key}"
+        cf_res = requests.get(cf_url, timeout=5).json()
+
+        # 데이터가 없거나 상장 직후라 재무제표가 비어있는 경우 방어
+        if not inc_res or not cf_res or not isinstance(inc_res, list) or not isinstance(cf_res, list):
+            return {"status": "Error"}
+
+        curr_inc = inc_res[0]
+        prev_inc = inc_res[1] if len(inc_res) > 1 else curr_inc
+        curr_cf = cf_res[0]
+
+        # 매출 성장률 (Sales Growth) 계산
+        rev_curr = float(curr_inc.get('revenue', 0))
+        rev_prev = float(prev_inc.get('revenue', rev_curr))
+        sales_growth = ((rev_curr - rev_prev) / rev_prev * 100) if rev_prev else 0.0
+
+        # 발생액 품질 (Accruals) 계산: 당기순이익 - 영업현금흐름
+        ocf_val = float(curr_cf.get('operatingCashFlow', 0))
+        net_income = float(curr_inc.get('netIncome', 0))
+        
         accruals_amt = net_income - ocf_val
-        accruals_status = "Low" if accruals_amt <= 0 else "High"
+        accruals_status = "Low" if accruals_amt <= 0 else "High" # 낮을수록 회계가 투명(좋음)
 
         return {
             "sales_growth": sales_growth,
