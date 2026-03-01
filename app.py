@@ -3068,7 +3068,7 @@ UI_TEXT = {
     'noti_sms': {'ko': 'SMS 문자', 'en': 'SMS Text', 'ja': 'SMS メッセージ', 'zh': 'SMS 短信'},
 
     # ==========================================
-    # 13. 시스템 메시지 (Toast, Spinner, Error)
+    # 18. 시스템 메시지 (Toast, Spinner, Error)
     # ==========================================
     'msg_disclaimer': {
         'ko': '**이용 유의사항** 본 서비스는 자체 알고리즘과 AI 모델을 활용한 요약 정보를 제공하며, 원저작권자의 권리를 존중합니다. 요약본은 원문과 차이가 있을 수 있으므로 반드시 원문을 확인하시기 바랍니다. 모든 투자 결정의 최종 책임은 사용자 본인에게 있습니다.',
@@ -3098,6 +3098,31 @@ UI_TEXT = {
     'msg_no_latest_posts': {'ko': '조건에 맞는 최신 글이 없습니다.', 'en': 'No matching recent posts.', 'ja': '条件に合う最新の投稿がありません。', 'zh': '没有符合条件的最新帖子。'},
     'msg_no_posts': {'ko': '게시글이 없습니다.', 'en': 'No posts available.', 'ja': '投稿がありません。', 'zh': '暂无帖子。'},
 }
+    'footer_company_info': {
+        'ko': '<strong>UnicornFinder (유니콘파인더)</strong><br>대표자(CEO) : 김승수 | 고객센터 : [전화번호 입력] | 이메일 : unicornfinder0328@gmail.com<br>사업장 소재지 : [우편번호] 서울특별시 강남구 언주로 123 (도곡동, 개포한신아파트)<br>사업자등록번호 : [발급 대기 중] | 통신판매업신고번호 : [발급 대기 중]',
+        'en': '<strong>UnicornFinder</strong><br>CEO : Seungsoo Kim | CS : [Phone Number] | Email : unicornfinder0328@gmail.com<br>Address : [Zip Code] 123, Eonju-ro, Gangnam-gu, Seoul, Republic of Korea (Dogok-dong, Gaepo Hanshin Apt.)<br>Business Registration No. : [Pending] | E-commerce Registration No. : [Pending]',
+        'ja': '<strong>UnicornFinder (ユニコーンファインダー)</strong><br>代表者(CEO) : 金承洙 (Kim Seungsoo) | カスタマーセンター : [電話番号] | メール : unicornfinder0328@gmail.com<br>所在地 : [郵便番号] ソウル特別市 江南区 彦州路 123 (道谷洞、開浦韓信アパート)<br>事業者登録番号 : [発行待機中] | 通信販売業申告番号 : [発行待機中]',
+        'zh': '<strong>UnicornFinder</strong><br>首席执行官(CEO) : 金承洙 | 客服中心 : [电话号码] | 电子邮箱 : unicornfinder0328@gmail.com<br>营业地址 : [邮政编码] 首尔特别市 江南区 彦州路 123 (道谷洞，开浦韩信公寓)<br>商业登记号 : [待发放] | 电子商务登记号 : [待发放]'
+    },
+    'footer_terms': {
+        'ko': '이용약관', 
+        'en': 'Terms of Service', 
+        'ja': '利用規約', 
+        'zh': '服务条款'
+    },
+    'footer_privacy': {
+        'ko': '개인정보처리방침', 
+        'en': 'Privacy Policy', 
+        'ja': 'プライバシーポリシー', 
+        'zh': '隐私政策'
+    },
+    'footer_refund': {
+        'ko': '환불정책', 
+        'en': 'Refund Policy', 
+        'ja': '返金ポリシー', 
+        'zh': '退款政策'
+    },
+   
 
 def get_text(key):
     """현재 세션 언어에 맞는 텍스트를 반환하는 헬퍼 함수"""
