@@ -52,11 +52,16 @@ model = None
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash', tools=[{'google_search_retrieval': {}}])
-        print("✅ AI 모델 로드 성공 (Gemini 2.0 Flash + Search)")
+    # 'google_search_retrieval'을 'google_search'로 변경합니다.
+    model = genai.GenerativeModel(
+        model_name='gemini-2.0-flash', 
+        tools=[{'google_search': {}}] 
+    )
+    print("✅ AI 모델 로드 성공 (Google Search Tool 활성화)")
     except Exception as e:
+        # 만약 위 설정이 실패할 경우를 대비한 방어 코드
         model = genai.GenerativeModel('gemini-2.0-flash')
-        print(f"⚠️ AI 모델 기본 로드 (Search 제외): {e}")
+        print(f"⚠️ AI 모델 기본 로드 (Search 도구 제외): {e}")
 
 # 💡 [중요] 다국어 지원 언어 리스트 정의 (에러 해결 핵심)
 SUPPORTED_LANGS = {
