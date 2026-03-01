@@ -68,27 +68,30 @@ def sanitize_value(v):
 
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not data_list: return
-    endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal,resolution=merge-duplicates" 
-    }
+    
+    # [1] 데이터 정제
     clean_batch = []
     for item in data_list:
         payload = {k: sanitize_value(v) for k, v in item.items()}
         if payload.get(on_conflict):
             clean_batch.append(payload)
 
-    if not clean_batch: return
+    if not clean_batch:
+        print(f"⚠️ [{table_name}] 업로드할 유효 데이터가 없습니다.")
+        return
 
     try:
-        resp = requests.post(endpoint, json=clean_batch, headers=headers)
-        if resp.status_code in [200, 201, 204]:
-            pass # 성공 로깅 생략
+        # [2] Supabase 라이브러리를 사용하여 직접 Upsert 실행
+        # 이 방식은 헤더와 URL 관리를 라이브러리가 대신 해줍니다.
+        res = supabase.table(table_name).upsert(clean_batch, on_conflict=on_conflict).execute()
+        
+        # 성공 시 로깅 (필요할 때만 주석 해제)
+        # print(f"✅ [{table_name}] {len(clean_batch)}개 데이터 저장 완료.")
+        
     except Exception as e:
-        print(f"❌ [{table_name}] 통신 에러: {e}")
+        # [3] 에러 발생 시 아주 상세하게 출력하도록 변경
+        # 여기서 'Primary Key가 없다'거나 '인증 오류' 등의 진짜 이유가 나옵니다.
+        print(f"❌ [{table_name}] DB 저장 실패! 사유: {e}")
 
 def get_target_stocks():
     if not FINNHUB_API_KEY: return pd.DataFrame()
