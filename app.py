@@ -5070,23 +5070,20 @@ with main_area.container():
 
                 st.markdown("""
                 <style>
-                    /* Premium UI Cards */
-                    .metric-card { background-color:#ffffff; padding:15px; border-radius:12px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.03); height: 100%; min-height: 220px; display: flex; flex-direction: column; justify-content: space-between; }
-                    .metric-header { font-weight:bold; font-size:16px; color:#111; margin-bottom:5px; }
-                    .metric-value-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; justify-content: flex-start; }
-                    .metric-value { font-size:20px; font-weight:800; color:#004e92; white-space: nowrap; }
-                    .st-badge { font-size:12px; padding: 3px 8px; border-radius:6px; font-weight:bold; vertical-align: middle; margin-left: 5px; }
-                    .st-hot { background-color:#ffebee; color:#c62828; }
-                    .st-good { background-color:#e8f5e9; color:#2e7d32; }
-                    
-                    /* Existing 6-Grid CSS */
-                    .custom-metric-container { display: flex; justify-content: space-between; text-align: center; padding: 10px 0; }
-                    .custom-metric-box { flex: 1; border-right: 1px solid #f0f0f0; }
-                    .custom-metric-box:last-child { border-right: none; }
-                    .custom-metric-label { font-size: 0.85rem; font-weight: bold; color: #333333; margin-bottom: 6px; }
+                    /* 공통 카드 UI (프리미엄 2칸 & 기존 6칸 모두 동일하게 적용) */
+                    .custom-metric-box { 
+                        text-align: center; 
+                        padding: 15px 5px; 
+                        border-radius: 10px; 
+                        border: 1px solid #f0f0f0; 
+                        background-color: #ffffff;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+                        height: 100%;
+                    }
+                    .custom-metric-label { font-size: 0.85rem; font-weight: bold; color: #555555; margin-bottom: 8px; }
                     .custom-metric-value { font-size: 1.15rem; font-weight: 800; color: #004e92; }
                     
-                    /* Text Style */
+                    /* 하단 논문 분석 텍스트용 */
                     .unified-text { font-size: 0.95rem !important; line-height: 1.6 !important; color: #222222; }
                 </style>
                 """, unsafe_allow_html=True)
@@ -5097,13 +5094,14 @@ with main_area.container():
                 is_data_available = False
                 data_source = "Financial Modeling Prep"
 
-                if fin_data and fin_data.get('status') == 'Success':
+                # 💡 [수정2] 'status' 검사가 아닌 실제 'revenue' 데이터 존재 여부로 확실하게 체크!
+                if fin_data and fin_data.get('revenue', 0) > 0:
                     is_data_available = True
                 else:
                     fin_data = {} 
             
-                # 1. 💡 [프리미엄 + 기존 보존] 상단 재무분석 Expander
-                with st.expander(get_text('expander_financial_analysis'), expanded=True):
+                # 💡 [수정1] expanded=False로 변경하여 처음에 닫혀있게 수정
+                with st.expander(get_text('expander_financial_analysis'), expanded=False):
                     if is_data_available:
                         st.caption(f"Data Source: {data_source} (Premium) / Currency: USD")
                         
@@ -5117,11 +5115,12 @@ with main_area.container():
                         r_grade = fin_data.get('rating', 'N/A')
                         rating_display = f"{r_grade} <span style='font-size:0.8rem; color: #666;'>({get_text('tab3_score')} {r_score}/5)</span>" if r_grade != "N/A" else "N/A"
 
+                        # 💡 [수정3] 상단 2칸도 기존 6칸과 똑같은 'custom-metric-box' 클래스 사용
                         p_cols = st.columns(2)
                         with p_cols[0]: 
-                            st.markdown(f'<div class="custom-metric-box" style="background:#f8f9fa; padding:15px; border-radius:10px;"><div class="custom-metric-label">{get_text("tab3_dcf_title")}</div><div class="custom-metric-value">{dcf_display}</div></div>', unsafe_allow_html=True)
+                            st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{get_text("tab3_dcf_title")}</div><div class="custom-metric-value">{dcf_display}</div></div>', unsafe_allow_html=True)
                         with p_cols[1]: 
-                            st.markdown(f'<div class="custom-metric-box" style="background:#f8f9fa; padding:15px; border-radius:10px;"><div class="custom-metric-label">{get_text("tab3_quant_title")}</div><div class="custom-metric-value">{rating_display}</div></div>', unsafe_allow_html=True)
+                            st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{get_text("tab3_quant_title")}</div><div class="custom-metric-value">{rating_display}</div></div>', unsafe_allow_html=True)
                         
                         st.write("<br>", unsafe_allow_html=True)
 
@@ -5137,7 +5136,6 @@ with main_area.container():
                         pe_val = clean_value(fin_data.get('forward_pe', 0))
                         pb_val = clean_value(fin_data.get('price_to_book', 0))
                         
-                        # 하단 논문 분석에서 쓰일 발생액 데이터
                         ocf_val = fin_data.get('ocf', 0.0)
                         accruals_status = fin_data.get('accruals', 'Unknown')
 
@@ -5149,13 +5147,15 @@ with main_area.container():
                             ("D/E Ratio", f"{de_ratio:.1f}%"), 
                             ("Growth (YoY)", f"{growth:+.1f}%")
                         ]
+                        
+                        # 하단 6칸 랜더링 (동일한 디자인 적용)
                         m_cols = st.columns(6)
                         for i, (label, value) in enumerate(metrics):
                             with m_cols[i]: st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
                         
                         st.markdown("---")     
                         
-                        # [기존 AI 리포트 보존] (프리미엄 내용이 담긴 버전)
+                        # [기존 AI 리포트 보존]
                         with st.spinner(get_text('msg_analyzing_financial')):
                             ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], {}, curr_lang)
                         
@@ -5164,7 +5164,7 @@ with main_area.container():
                     else: 
                         st.warning("신규 상장 기업이거나 현재 재무 데이터가 업데이트 중입니다." if is_ko else "Data is currently updating for this newly listed company.")
                 
-                # 2. 💡 [복구 완료] 논문기반 AI 분석 보기
+                # 2. [복구 완료] 논문기반 AI 분석 보기
                 with st.expander(get_text('expander_academic_analysis'), expanded=False):
                     st.caption(f"Data Source: {data_source} / Currency: USD")
                     if is_data_available:
@@ -5185,7 +5185,7 @@ with main_area.container():
                             st.info(f"**AI Verdict:** Academically, this firm exhibits **{growth_status_text}** characteristics with manageable information uncertainty.")
                     else: st.warning(get_text('err_no_biz_info'))
 
-                # 3. 💡 [복구 완료] 참고문헌 (References)
+                # 3. [복구 완료] 참고문헌 (References)
                 with st.expander(get_text('expander_references'), expanded=False):
                     st.markdown("""<style>.ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; } .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 0.95rem; } .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; } .ref-summary { font-size: 0.85rem; color: #666666; margin-top: 3px; } .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; color: #555; text-decoration: none; white-space: nowrap; }</style>""", unsafe_allow_html=True)
                     if curr_lang == 'ko': sum_vc = "VC 투자가 상장 시 갖는 공신력 분석"; sum_rock = "정보 비대칭성과 공모가 저평가 메커니즘"
