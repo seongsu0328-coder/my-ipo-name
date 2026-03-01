@@ -5842,12 +5842,8 @@ with main_area.container():
                 with tab_free:
                     render_board_tab(free_posts, 'board_free_count', 'free')
 
-    # 👇 모든 화면 렌더링이 끝난 후, 맨 밑바닥에 푸터를 그립니다.
-    draw_footer()
-
-# [중요] 코드 맨 마지막에 아래 내용을 붙입니다.
-except Exception as e:
-    st.error("🚨 앱 실행 중 에러가 발생했습니다!")
+# 👇 [여기서부터 파일 끝입니다. except 관련 코드는 싹 지워주세요!]
+draw_footer()
                 
                         
         
