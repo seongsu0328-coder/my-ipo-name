@@ -5332,7 +5332,7 @@ with main_area.container():
                 # --- 💡 3. 참고문헌 Expander (Tab 3 전용) ---
                 with st.expander(get_text('expander_references'), expanded=False):
                     # 🚀 [신규 추가] FMP 공식 프리미엄 데이터 출처 링크
-                    st.markdown(f"**[Official Institutional Data]**")
+                
                     st.markdown(f"- [Financial Modeling Prep: {stock['name']} Financial Summary & Valuation](https://financialmodelingprep.com/financial-summary/{sid})")
                   
 
