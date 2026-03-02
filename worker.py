@@ -1084,6 +1084,108 @@ def update_macro_data(df):
                 time.sleep(1)
 
 # ==========================================
+# [신규 추가] Tab 6: 스마트머니 (내부자 거래 & 기관 보유량) 데이터 수집 및 분석
+# ==========================================
+def fetch_smart_money_data(symbol, api_key):
+    """FMP API를 통해 SEC Form 4 (내부자 거래) 및 SEC 13F (기관 보유량) 데이터를 수집합니다."""
+    data = {"insider": [], "institutional": []}
+    try:
+        # 1. SEC Form 4 (내부자 거래 내역 - 최근 10건)
+        in_url = f"https://financialmodelingprep.com/api/v4/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
+        in_res = requests.get(in_url, timeout=5).json()
+        if in_res and isinstance(in_res, list):
+            data["insider"] = in_res
+
+        # 2. SEC 13F (대형 기관 보유량 - 상위 10개 기관)
+        inst_url = f"https://financialmodelingprep.com/api/v3/institutional-holder/{symbol}?apikey={api_key}"
+        inst_res = requests.get(inst_url, timeout=5).json()
+        if inst_res and isinstance(inst_res, list):
+            data["institutional"] = inst_res[:10]
+    except Exception as e:
+        print(f"Smart Money Fetch Error for {symbol}: {e}")
+    return data
+
+def run_tab6_analysis(ticker, company_name, smart_money_data):
+    """Tab 6: 스마트머니 감시 AI 리포트 생성"""
+    if not model: return False
+    
+    valid_hours = 24 
+    limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
+    
+    for lang_code, target_lang in SUPPORTED_LANGS.items():
+        cache_key = f"{ticker}_Tab6_SmartMoney_v1_{lang_code}"
+        
+        try:
+            res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+            if res.data: continue 
+        except: pass
+
+        if lang_code == 'en':
+            prompt = f"""You are a Wall Street Insider Trading & Institutional Flow Analyst.
+Analyze the following Smart Money data for {company_name} ({ticker}).
+Data: {smart_money_data}
+
+[Writing Guidelines]
+1. Write STRICTLY in English.
+2. Format using two headings: **[SEC Form 4: Insider Tracking]** and **[SEC 13F: Institutional Whales]**.
+3. [Insider]: Analyze if CEOs/Executives are secretly dumping shares (Sell) or buying (Buy). Mention specific names/titles if available. If no data, state "No recent insider trading detected."
+4. [Institutional]: Analyze if mega-institutions (BlackRock, Vanguard, etc.) are sweeping up this stock. Mention specific top holders. If no data, state "Institutional data not yet fully updated post-IPO."
+5. Write 3-4 professional sentences per section."""
+
+        elif lang_code == 'ja':
+            prompt = f"""あなたはウォール街の内部者取引および機関投資家フローの専門アナリストです。
+以下の{company_name} ({ticker})のスマートマネーデータを分析してください。
+データ: {smart_money_data}
+
+[作成ガイドライン]
+1. 全て日本語で作成してください。
+2. 2つの見出しを使用してください：**[SEC Form 4: 内部者取引監視]** と **[SEC 13F: 機関投資家の動向]**。
+3. [内部者]: CEOや役員が密かに株を売却(Sell)しているか、買約(Buy)しているかを分析してください。データがない場合は「最近の内部者取引は検出されていません」と記載してください。
+4. [機関投資家]: ウォール街の巨大機関（BlackRock、Vanguardなど）がこの株を買い集めているかを分析してください。データがない場合は「IPO後の機関データはまだ完全に更新されていません」と記載してください。
+5. 各セクションにつき3〜4文の専門的な文章で記述してください。"""
+
+        elif lang_code == 'zh':
+            prompt = f"""您是华尔街内幕交易与机构资金流向的专业分析师。
+请分析以下关于 {company_name} ({ticker}) 的聪明钱(Smart Money)数据。
+数据: {smart_money_data}
+
+[编写指南]
+1. 必须只用简体中文编写。
+2. 使用两个副标题：**[SEC Form 4: 内幕交易监控]** 和 **[SEC 13F: 机构巨头动向]**。
+3. [内幕交易]: 分析CEO或高管是否在暗中抛售(Sell)或买入(Buy)股票。如果没有数据，请说明“近期未检测到内幕交易”。
+4. [机构动向]: 分析华尔街大型机构（如贝莱德、先锋领航等）是否在扫货该股票。如果没有数据，请说明“IPO后机构数据尚未完全更新”。
+5. 每个部分写3-4句专业的分析。"""
+
+        else: # ko
+            prompt = f"""당신은 월스트리트 내부자 거래 및 기관 자금 흐름(Smart Money) 전문 퀀트 애널리스트입니다.
+아래 제공된 {company_name} ({ticker})의 스마트머니 데이터를 심층 분석하세요.
+데이터: {smart_money_data}
+
+[작성 가이드]
+1. 반드시 한국어로만 작성하세요.
+2. 아래 2가지 소제목을 반드시 사용하세요.
+   **[SEC Form 4: 내부자 거래 감시]**
+   **[SEC 13F: 대형 기관 매집 동향]**
+3. [내부자 거래]: CEO나 임원들이 최근 주식을 몰래 팔고 있는지(Sell), 아니면 매수하고 있는지(Buy) 감시하여 경고/긍정 알림을 작성하세요. 이름이나 직책 데이터가 있다면 언급하세요. 데이터가 비어있다면 "최근 보고된 내부자 특이 동향이 없습니다."라고 명시하세요.
+4. [기관 매집]: 블랙록, 뱅가드 등 월가 대형 기관들이 이 주식을 쓸어 담고 있는지 보유량을 분석하세요. 주요 기관명을 언급하세요. 데이터가 없다면 "신규 상장으로 아직 13F 기관 보고서가 업데이트되지 않았습니다."라고 명시하세요.
+5. 각 항목당 3~4문장의 전문가 어조로 작성하세요."""
+        
+        for attempt in range(3):
+            try:
+                response = model.generate_content(prompt)
+                res_text = response.text
+                
+                if lang_code != 'ko' and re.search(r'[가-힣]', res_text):
+                    time.sleep(1); continue 
+                        
+                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": res_text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+                break 
+            except Exception as e:
+                time.sleep(1)
+
+
+
+# ==========================================
 # [추가] 프리미엄 유저 대상 통계적 급등 알림 엔진
 # ==========================================
 def run_premium_alert_engine(df_calendar):
@@ -1384,6 +1486,15 @@ def main():
                 print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
                 pass
             # 👆 여기까지 덮어쓰기 완료! 👆
+
+            # 👇 [여기에 신규 추가!!] Tab 6 스마트머니 수집 및 분석 실행
+            try:
+                smart_money_data = fetch_smart_money_data(official_symbol, FMP_API_KEY)
+                run_tab6_analysis(official_symbol, name, smart_money_data)
+            except Exception as e:
+                print(f"Tab6 Smart Money Error for {official_symbol}: {e}")
+                pass
+            # 👆 [여기까지 추가 완료!]
             
             time.sleep(1.2)
             
