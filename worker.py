@@ -890,6 +890,31 @@ def fetch_premium_financials(symbol, api_key):
     
     return fin_data
 
+    
+# ==========================================
+# [신규 추가] FMP 애널리스트 목표가 & 컨센서스 수집 헬퍼
+# ==========================================
+def fetch_analyst_estimates(symbol, api_key):
+    """월가 애널리스트들의 평균 목표가와 투자의견을 수집합니다."""
+    data = {"target": "N/A", "high": "N/A", "low": "N/A", "consensus": "N/A"}
+    try:
+        # 1. Price Target (목표가)
+        pt_url = f"https://financialmodelingprep.com/api/v4/price-target-consensus?symbol={symbol}&apikey={api_key}"
+        pt_res = requests.get(pt_url, timeout=5).json()
+        if pt_res and isinstance(pt_res, list) and len(pt_res) > 0:
+            data['target'] = pt_res[0].get('targetConsensus', 'N/A')
+            data['high'] = pt_res[0].get('targetHigh', 'N/A')
+            data['low'] = pt_res[0].get('targetLow', 'N/A')
+        
+        # 2. Analyst Recommendation (투자의견)
+        rec_url = f"https://financialmodelingprep.com/api/v3/analyst-stock-recommendations/{symbol}?limit=1&apikey={api_key}"
+        rec_res = requests.get(rec_url, timeout=5).json()
+        if rec_res and isinstance(rec_res, list) and len(rec_res) > 0:
+            data['consensus'] = rec_res[0].get('ratingRecommendation', 'N/A')
+    except Exception as e:
+        print(f"Analyst Data Fetch Error for {symbol}: {e}")
+    return data
+    
 # ==========================================
 # [수정] 11개 지표 + 4단락 구조로 통합된 워커용 프롬프트
 # ==========================================
@@ -1340,7 +1365,15 @@ def main():
             
             run_tab1_analysis(official_symbol, name, c_status, c_date)
             run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping)
-            run_tab4_analysis(official_symbol, name, c_status, c_date)
+            
+            # 👇 [핵심 추가] Tab 4: FMP 월가 애널리스트 목표가 데이터 수집 및 연동
+            try:
+                analyst_metrics = fetch_analyst_estimates(official_symbol, FMP_API_KEY)
+                run_tab4_analysis(official_symbol, name, c_status, c_date, analyst_metrics)
+            except Exception as e:
+                print(f"Tab4 Analyst Data Error for {official_symbol}: {e}")
+                pass
+            # 👆 [여기까지 추가 완료!]
             
             try:
                 # 💡 [핵심 수정] 기존의 개별 API 호출 코드들을 지우고, 
