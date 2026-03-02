@@ -5912,7 +5912,7 @@ with main_area.container():
                     pro_eval_data = get_pro_fund_manager_eval(sid)
 
                     # [A] 80억 이상 자산가 시장평가 (Gauge Bar)
-                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>📊 {get_text('label_market_eval_80b')}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'> {get_text('label_market_eval_80b')}</div>", unsafe_allow_html=True)
                     
                     m_avg = smart_eval_data.get('market_avg', 0.0)
                     avg_pct = min(max(((m_avg + 5) / 10) * 100, 0), 100)
@@ -5945,7 +5945,7 @@ with main_area.container():
 
                     # [B] 펀드매니저 평가 (Stacked Bar)
                     st.write("<br>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>👔 펀드매니저의 '{corp_name}' 평가</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>펀드매니저의 '{corp_name}' 평가</div>", unsafe_allow_html=True)
                     
                     up_pct = pro_eval_data.get('up_pct', 50.0)
                     down_pct = pro_eval_data.get('down_pct', 50.0)
