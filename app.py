@@ -5129,8 +5129,8 @@ with main_area.container():
 
                 data_source = "Unknown"
                 is_data_available = False
-                
-                if fin_data and fin_data.get('revenue') and fin_data.get('revenue') > 0:
+            .
+                if fin_data and (fin_data.get('revenue') is not None or len(fin_data) > 5):
                     is_data_available = True
                     data_source = "SEC 10-K/Q" if 'sec' in str(fin_data.get('source', '')).lower() else "Financial Modeling Prep (Premium)"
             
