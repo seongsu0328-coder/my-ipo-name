@@ -5247,7 +5247,7 @@ with main_area.container():
                     if dcf_p > 0: status, st_cls = (f"✅ {gap_pct:.1f}% 저평가" if is_ko else f"✅ {gap_pct:.1f}% Undervalued", "st-good") if gap_pct > 0 else (f"🚨 {gap_pct:.1f}% 고평가" if is_ko else f"🚨 {gap_pct:.1f}% Overvalued", "st-hot")
                     else: status, st_cls = ("🔍 N/A", "st-neutral")
                     desc = get_text('tab3_dcf_desc')
-                    st.markdown(f"<div class='metric-card' style='border: 2px solid #e3f2fd;'><div class='metric-header'>💡 FMP Target (DCF)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Model: FMP Valuation<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-card' style='border: 2px solid #e3f2fd;'><div class='metric-header'>FMP Target (DCF)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Model: FMP Valuation<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
 
                 # [카드 2: 프리미엄 Quant Rating - 9점 만점 피오트로스키 버전]
                 with r2_c4:
