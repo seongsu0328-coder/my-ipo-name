@@ -2509,6 +2509,107 @@ def get_pro_fund_manager_eval(sid):
         return {"up_pct": 50.0, "down_pct": 50.0, "total_votes": 0}
 
 # 추후 여기에 get_insider_trading_trend(sid) 등 
+
+# ==========================================
+# [신규] Tab 6: 스마트머니 데이터 수집 및 분석 (Worker 백업용)
+# ==========================================
+@st.cache_data(ttl=86400) # 24시간 캐싱 (API 보호)
+def fetch_smart_money_data_app(symbol, api_key):
+    """FMP API를 통해 SEC Form 4 및 SEC 13F 데이터를 수집합니다."""
+    data = {"insider": [], "institutional": []}
+    try:
+        in_url = f"https://financialmodelingprep.com/api/v4/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
+        in_res = requests.get(in_url, timeout=5).json()
+        if in_res and isinstance(in_res, list): data["insider"] = in_res
+
+        inst_url = f"https://financialmodelingprep.com/api/v3/institutional-holder/{symbol}?apikey={api_key}"
+        inst_res = requests.get(inst_url, timeout=5).json()
+        if inst_res and isinstance(inst_res, list): data["institutional"] = inst_res[:10]
+    except Exception as e:
+        print(f"Smart Money Fetch Error: {e}")
+    return data
+
+@st.cache_data(show_spinner=False, ttl=600)
+def get_smart_money_analysis_app(company_name, ticker, lang_code):
+    """워커가 실패했을 경우 앱이 직접 DB를 찌르거나 실시간으로 AI 리포트를 생성하는 백업 함수"""
+    if not model: return "⚠️ AI 모델 연결 실패"
+
+    cache_key = f"{ticker}_Tab6_SmartMoney_v1_{lang_code}"
+    now = datetime.now()
+    one_day_ago = (now - timedelta(days=1)).isoformat()
+
+    # 1. DB에서 캐시 확인 (Worker가 만들어둔 게 있는지)
+    try:
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", one_day_ago).execute()
+        if res.data: return res.data[0]['content']
+    except: pass
+
+    # 2. 캐시가 없으면 실시간 데이터 수집 (Fallback)
+    fmp_key = os.environ.get("FMP_API_KEY") or st.secrets.get("FMP_API_KEY", "")
+    smart_money_data = fetch_smart_money_data_app(ticker, fmp_key)
+
+    # 3. 언어별 프롬프트 분기
+    if lang_code == 'en':
+        prompt = f"""You are a Wall Street Insider Trading & Institutional Flow Analyst.
+Analyze the following Smart Money data for {company_name} ({ticker}).
+Data: {smart_money_data}
+[Writing Guidelines]
+1. Write STRICTLY in English.
+2. Format using two headings: **[SEC Form 4: Insider Tracking]** and **[SEC 13F: Institutional Whales]**.
+3. [Insider]: Analyze if CEOs/Executives are secretly dumping shares (Sell) or buying (Buy).
+4. [Institutional]: Analyze if mega-institutions are sweeping up this stock.
+5. Write 3-4 professional sentences per section."""
+    elif lang_code == 'ja':
+        prompt = f"""あなたはウォール街の内部者取引および機関投資家フローの専門アナリストです。
+以下の{company_name} ({ticker})のスマートマネーデータを分析してください。データ: {smart_money_data}
+[作成ガイドライン]
+1. 全て日本語で作成してください。
+2. 2つの見出しを使用してください：**[SEC Form 4: 内部者取引監視]** と **[SEC 13F: 機関投資家の動向]**。
+3. [内部者]: CEOや役員が密かに株を売却(Sell)しているか、買約(Buy)しているかを分析してください。
+4. [機関投資家]: ウォール街の巨大機関がこの株を買い集めているかを分析してください。
+5. 各セクションにつき3〜4文の専門的な文章で記述してください。"""
+    elif lang_code == 'zh':
+        prompt = f"""您是华尔街内幕交易与机构资金流向的专业分析师。
+请分析以下关于 {company_name} ({ticker}) 的聪明钱数据。数据: {smart_money_data}
+[编写指南]
+1. 必须只用简体中文编写。
+2. 使用两个副标题：**[SEC Form 4: 内幕交易监控]** 和 **[SEC 13F: 机构巨头动向]**。
+3. [内幕交易]: 分析CEO或高管是否在暗中抛售(Sell)或买入(Buy)股票。
+4. [机构动向]: 分析华尔街大型机构是否在扫货该股票。
+5. 每个部分写3-4句专业的分析。"""
+    else: # ko
+        prompt = f"""당신은 월스트리트 내부자 거래 및 기관 자금 흐름(Smart Money) 전문 퀀트 애널리스트입니다.
+아래 제공된 {company_name} ({ticker})의 스마트머니 데이터를 심층 분석하세요. 데이터: {smart_money_data}
+[작성 가이드]
+1. 반드시 한국어로만 작성하세요.
+2. 아래 2가지 소제목을 반드시 사용하세요.
+   **[SEC Form 4: 내부자 거래 감시]**
+   **[SEC 13F: 대형 기관 매집 동향]**
+3. [내부자 거래]: CEO나 임원들이 최근 주식을 몰래 팔고 있는지(Sell), 아니면 매수하고 있는지(Buy) 감시하여 분석하세요. 이름이나 직책 데이터가 있다면 언급하세요. (없다면 특이 동향이 없다고 명시)
+4. [기관 매집]: 블랙록, 뱅가드 등 월가 대형 기관들이 이 주식을 쓸어 담고 있는지 보유량을 분석하세요.
+5. 각 항목당 3~4문장의 전문가 어조로 작성하세요."""
+
+    # 4. AI 호출 및 DB 덮어쓰기
+    try:
+        response = model.generate_content(prompt)
+        res_text = response.text
+        
+        # 한글 오염 방어막
+        if lang_code != 'ko' and re.search(r'[가-힣]', res_text):
+            return "Translating data... Please try again."
+
+        # DB에 저장하여 다음 사람부터는 0.1초 로딩되게 만듦
+        try:
+            supabase.table("analysis_cache").upsert({
+                "cache_key": cache_key, "content": res_text, "updated_at": now.isoformat()
+            }).execute()
+        except: pass
+        
+        return res_text
+    except Exception as e:
+        return f"분석 중 오류 발생: {e}"
+
+
 # 프리미엄 전용 함수들을 계속 추가해 나가시면 됩니다!
 
 # ==========================================
@@ -2622,6 +2723,10 @@ try:
                     except: st.experimental_set_query_params()
 except Exception as e:
     pass
+
+
+
+
 # ==========================================
 # [추가] 다국어(i18n) 지원 설정 및 사전(Dictionary)
 # ==========================================
@@ -3107,6 +3212,18 @@ UI_TEXT = {
     },
     'label_gauge_recession': {'ko': '침체', 'en': 'Recession', 'ja': '沈滞', 'zh': '衰退'},
     'label_gauge_bubble': {'ko': '버블', 'en': 'Bubble', 'ja': 'バブル', 'zh': '泡沫'},
+    'expander_insider': {
+        'ko': 'SEC Form 4 내부자 거래 감시', 
+        'en': 'SEC Form 4 Insider Tracking', 
+        'ja': 'SEC Form 4 内部者取引監視', 
+        'zh': 'SEC Form 4 内幕交易监控'
+    },
+    'expander_institutional': {
+        'ko': 'SEC 13F 고래(기관) 매집 동향', 
+        'en': 'SEC 13F Institutional Whales', 
+        'ja': 'SEC 13F 機関投資家の動向', 
+        'zh': 'SEC 13F 机构巨头动向'
+    },
     
 
     # ==========================================
@@ -5787,20 +5904,19 @@ with main_area.container():
                 user_info = st.session_state.get('user_info') or {}
                 user_level = user_info.get('membership_level', 'free')
                 corp_name = stock.get('corp_name', sid)
+                curr_lang = st.session_state.lang
                 
                 if user_level == 'premium_plus':
-                    # 💡 [핵심 연동] 분리해둔 프리미엄 전용 함수 호출 (API 역할)
+                    # [기존 기능 1 & 2] 시장 평가 & 펀드매니저 평가
                     smart_eval_data = get_smart_money_market_eval(sid)
                     pro_eval_data = get_pro_fund_manager_eval(sid)
 
                     # [A] 80억 이상 자산가 시장평가 (Gauge Bar)
                     st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>📊 {get_text('label_market_eval_80b')}</div>", unsafe_allow_html=True)
                     
-                    # (함수에서 받아온 값 반영)
                     m_avg = smart_eval_data.get('market_avg', 0.0)
                     avg_pct = min(max(((m_avg + 5) / 10) * 100, 0), 100)
                     
-                    # Tab 5에 있는 나의 위치 재호출 (예외 방지용)
                     user_score = 0
                     if 'user_decisions' in st.session_state and sid in st.session_state.user_decisions:
                         ud = st.session_state.user_decisions[sid]
@@ -5810,7 +5926,6 @@ with main_area.container():
                     
                     user_pct = min(max(((user_score + 5) / 10) * 100, 0), 100)
 
-                    # HTML 들여쓰기 제거
                     gauge_html_smart = f"""<div style="background-color: #ffffff; padding: 45px 20px 75px 20px; border-radius: 15px; border: 1px solid #e0e0e0; box-shadow: 0 4px 10px rgba(0,0,0,0.03); margin-bottom: 30px;">
 <div style="position: relative; width: 100%; height: 20px; background: linear-gradient(to right, #ff4b4b 0%, #f1f3f4 50%, #00ff41 100%); border-radius: 10px;">
     <div style="position: absolute; top: 30px; left: 0%; transform: translateX(0%); font-size: 13px; font-weight: 700; color: #d32f2f;">{get_text('label_gauge_recession')}</div>
@@ -5832,7 +5947,6 @@ with main_area.container():
                     st.write("<br>", unsafe_allow_html=True)
                     st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>👔 펀드매니저의 '{corp_name}' 평가</div>", unsafe_allow_html=True)
                     
-                    # (함수에서 받아온 값 반영)
                     up_pct = pro_eval_data.get('up_pct', 50.0)
                     down_pct = pro_eval_data.get('down_pct', 50.0)
                     total_votes = pro_eval_data.get('total_votes', 0)
@@ -5851,15 +5965,48 @@ with main_area.container():
 </div>
 </div>"""
                     st.markdown(sentiment_html_smart, unsafe_allow_html=True)
+                    st.write("<br>", unsafe_allow_html=True)
+
+                    # =========================================================
+                    # 🚀 [NEW] SEC Form 4 (내부자 거래) & SEC 13F (기관 매집) AI 리포트
+                    # =========================================================
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>🚨 실시간 SEC 자금 흐름 추적 (Smart Money)</div>", unsafe_allow_html=True)
+                    
+                    with st.spinner("Decrypting SEC Smart Money filings..."):
+                        # 💡 [핵심] 상단에 정의한 깔끔한 함수를 호출!
+                        ai_report = get_smart_money_analysis_app(stock['name'], sid, curr_lang)
+
+                        import re
+                        parts = re.split(r'\*\*\[SEC 13F.*?\]\*\*', ai_report, flags=re.IGNORECASE)
+                        
+                        insider_text = parts[0].replace('**[SEC Form 4: 내부자 거래 감시]**', '').replace('**[SEC Form 4: Insider Tracking]**', '').replace('**[SEC Form 4: 内部者取引監視]**', '').replace('**[SEC Form 4: 内幕交易监控]**', '').strip()
+                        inst_text = parts[1].strip() if len(parts) > 1 else ""
+
+                    # 다국어 타이틀 매핑
+                    title_insider = "🕵️ SEC Form 4 내부자 거래 감시" if curr_lang == 'ko' else ("🕵️ SEC Form 4 Insider Tracking" if curr_lang == 'en' else ("🕵️ SEC Form 4 内部者取引監視" if curr_lang == 'ja' else "🕵️ SEC Form 4 内幕交易监控"))
+                    title_inst = "🐳 SEC 13F 고래(기관) 매집 동향" if curr_lang == 'ko' else ("🐳 SEC 13F Institutional Whales" if curr_lang == 'en' else ("🐳 SEC 13F 機関投資家の動向" if curr_lang == 'ja' else "🐳 SEC 13F 机构巨头动向"))
+                    cap_msg = "※ 본 분석은 월스트리트 공식 SEC Form 4 및 13F 제출 서류를 기반으로 실시간 추적된 데이터입니다." if curr_lang == 'ko' else "※ Based on official SEC Form 4 and 13F filings."
+
+                    # 1. 내부자 거래 카드
+                    with st.expander(title_insider, expanded=True):
+                        st.markdown(f"<div style='font-size:0.95rem; color:#d32f2f; font-weight:600; margin-bottom:5px;'>CEO/Executives Flow</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='background-color:#fff3f3; padding:15px; border-radius:8px; border-left: 4px solid #d32f2f; color:#333; line-height:1.6;'>{insider_text}</div>", unsafe_allow_html=True)
+                        
+                    # 2. 고래(기관) 매집 카드
+                    with st.expander(title_inst, expanded=True):
+                        st.markdown(f"<div style='font-size:0.95rem; color:#004e92; font-weight:600; margin-bottom:5px;'>Wall Street Whales</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='background-color:#f4f9ff; padding:15px; border-radius:8px; border-left: 4px solid #004e92; color:#333; line-height:1.6;'>{inst_text if inst_text else 'Analyzing institutional data...'}</div>", unsafe_allow_html=True)
+                        
+                    st.caption(cap_msg)
 
                 else:
+                    # 프리미엄 플러스가 아닌 일반/프리미엄 유저에게 보여주는 락업 UI
                     st.markdown("""
                         <div style="background-color: rgba(255,255,255,0.7); padding: 50px; text-align: center; backdrop-filter: blur(5px); border: 1px dashed #ccc; border-radius: 10px;">
                             <h3 style="color: #333;">🔒 SmartMoney Only</h3>
-                            <p style="color: #666; font-size: 1.05rem;">정량 분석 데이터는 <b>프리미엄 플러스</b> 등급부터 열람 가능합니다.</p>
+                            <p style="color: #666; font-size: 1.05rem;">월가 내부자 거래 및 기관 매집 추적 리포트는 <b>프리미엄 플러스</b> 등급부터 열람 가능합니다.</p>
                         </div>
                     """, unsafe_allow_html=True)
-
 
     # ---------------------------------------------------------
     # [NEW] 6. 게시판 페이지 (Board) - 분석/자유 분리형
