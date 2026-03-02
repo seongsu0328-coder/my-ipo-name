@@ -118,33 +118,35 @@ def fetch_and_update_prices():
         url = f"https://financialmodelingprep.com/api/v3/quote/{tickers_str}?apikey={FMP_API_KEY}"
         
         try:
-            res = requests.get(url, timeout=15)
-            data = res.json()
-            
-            fmp_prices = {}
-            if isinstance(data, list):
-                # 받아온 JSON 데이터에서 심볼별로 가격을 딕셔너리로 매핑
-                fmp_prices = {item.get("symbol"): float(item.get("price", 0.0)) for item in data if item.get("symbol")}
-            
-            for official_sym in chunk:
-                # 1. FMP에서 가격 확인
-                current_p = fmp_prices.get(official_sym, 0.0)
+                res = requests.get(url, timeout=15)
+                data = res.json()
                 
-                # 2. 가격이 0원이면 예비 OTC 함수 찔러보기
-                if current_p <= 0:
-                    current_p = fetch_otc_price_premium(official_sym)
-
-                if current_p > 0:
-                    upsert_list.append({
-                        "ticker": str(official_sym), "price": current_p, "updated_at": now_iso
-                    })
-                    history_list.append({
-                        "ticker": str(official_sym), "target_date": us_today_str, "close_price": current_p
-                    })
-        except Exception as e:
-            print(f"🚨 FMP 다운로드 에러 발생 ({i+1}~구간): {e}", flush=True)
+                fmp_prices = {}
+                if isinstance(data, list):
+                    fmp_prices = {item.get("symbol"): float(item.get("price", 0.0)) for item in data if item.get("symbol")}
+                else:
+                    # 💡 [신규 추가] 왜 데이터를 못 가져오는지 이유를 터미널에 찍어줍니다.
+                    print(f"⚠️ FMP API 응답 에러 (유료 결제 전 한도 초과 추정): {data}", flush=True)
             
-        time.sleep(0.5) # API 속도 제한(Rate Limit) 방어
+                for official_sym in chunk:
+                    # 1. FMP에서 가격 확인
+                    current_p = fmp_prices.get(official_sym, 0.0)
+                    
+                    # 2. 가격이 0원이면 예비 OTC 함수 찔러보기
+                    if current_p <= 0:
+                        current_p = fetch_otc_price_premium(official_sym)
+
+                    if current_p > 0:
+                        upsert_list.append({
+                            "ticker": str(official_sym), "price": current_p, "updated_at": now_iso
+                        })
+                        history_list.append({
+                            "ticker": str(official_sym), "target_date": us_today_str, "close_price": current_p
+                        })
+            except Exception as e:
+                print(f"🚨 FMP 다운로드 에러 발생 ({i+1}~구간): {e}", flush=True)
+                
+            time.sleep(0.5) # API 속도 제한(Rate Limit) 방어
 
     # DB 전송 로직
     if upsert_list:
@@ -156,25 +158,20 @@ def fetch_and_update_prices():
         for i in range(0, len(history_list), chunk_size):
             batch_upsert_raw("price_history", history_list[i : i + chunk_size], on_conflict="ticker,target_date")
             time.sleep(0.5)
-
-        # 생존 신고 업데이트
-        batch_upsert_raw("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": now_iso}], on_conflict="cache_key")
-        print(f"✅ 워커 작업 완벽 종료", flush=True)
     else:
-        print("⚠️ 업데이트할 가격 데이터가 없습니다.", flush=True)
+        print("⚠️ 업데이트할 가격 데이터가 없습니다. (FMP 한도 초과 또는 장 마감)", flush=True)
+
+    # 💡 [핵심 수정] 주가 업데이트 성공 여부와 상관없이 무조건 생존 신고를 보냅니다!
+    batch_upsert_raw("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": now_iso}], on_conflict="cache_key")
+    print(f"✅ 주가 업데이트 워커 1회차 작업 완벽 종료", flush=True)
 
 # =====================================================================
-# 🚀 메인 실행부 (무한 루프 적용 - 서버 Fail 방지)
+# 🚀 메인 실행부 (무한 루프 제거! 깃허브 액션 맞춤형)
 # =====================================================================
 if __name__ == "__main__":
-    print("🤖 FMP 실시간 주가 수집 워커가 24시간 모드로 가동됩니다.", flush=True)
-    while True:
-        try:
-            # 1. 주가 수집 함수 실행 (내부에서 주말/야간 체크 알아서 함)
-            fetch_and_update_prices()
-        except Exception as e:
-            print(f"🚨 워커 루프 에러 발생: {e}", flush=True)
-        
-        # 2. 작업이 끝나면 (또는 휴식 판정이 나면) 15분(900초) 동안 대기
-        print("⏳ 다음 수집 주기(15분)까지 대기합니다...\n", flush=True)
-        time.sleep(900)
+    # 💡 깃허브 액션이 15분마다 이 파일을 1번씩만 깔끔하게 실행하고 종료하도록 수정!
+    print("🤖 FMP 실시간 주가 수집 워커를 1회 실행합니다.", flush=True)
+    try:
+        fetch_and_update_prices()
+    except Exception as e:
+        print(f"🚨 워커 실행 중 에러 발생: {e}", flush=True)
