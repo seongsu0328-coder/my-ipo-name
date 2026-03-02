@@ -5087,6 +5087,10 @@ with main_area.container():
                 </style>
                 """, unsafe_allow_html=True)
             
+                # 💡 [복구 완료] fin_data를 불러오는 핵심 로직 추가!
+                with st.spinner(get_text('msg_analyzing_financial')):
+                    fin_data = get_cached_raw_financials(stock['symbol'])
+
                 data_source = "Unknown"
                 is_data_available = False
                 
