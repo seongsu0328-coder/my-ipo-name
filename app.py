@@ -5070,7 +5070,7 @@ with main_area.container():
 
                 st.markdown("""
                 <style>
-                    /* 공통 카드 UI (프리미엄 2칸 & 기존 6칸 모두 동일하게 적용) */
+                    /* 💡 공통 카드 UI (프리미엄 2칸 & 기존 6칸 모두 완벽히 동일한 디자인 적용) */
                     .custom-metric-box { 
                         text-align: center; 
                         padding: 15px 5px; 
@@ -5079,6 +5079,9 @@ with main_area.container():
                         background-color: #ffffff;
                         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
                         height: 100%;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
                     }
                     .custom-metric-label { font-size: 0.85rem; font-weight: bold; color: #555555; margin-bottom: 8px; }
                     .custom-metric-value { font-size: 1.15rem; font-weight: 800; color: #004e92; }
@@ -5091,40 +5094,27 @@ with main_area.container():
                 with st.spinner(get_text('msg_analyzing_financial')):
                     fin_data = get_cached_raw_financials(stock['symbol'])
                 
-                is_data_available = False
                 data_source = "Financial Modeling Prep"
 
-                # 💡 [수정2] 'status' 검사가 아닌 실제 'revenue' 데이터 존재 여부로 확실하게 체크!
-                if fin_data and fin_data.get('revenue', 0) > 0:
-                    is_data_available = True
-                else:
-                    fin_data = {} 
+                # 💡 [해결 2] 깐깐한 조건식 삭제. 딕셔너리에 데이터가 들어오기만 하면 무조건 통과!
+                is_data_available = True if isinstance(fin_data, dict) and fin_data.get('status') != 'Error' else False
             
-                # 💡 [수정1] expanded=False로 변경하여 처음에 닫혀있게 수정
+                # 💡 [해결 1] expanded=False 로 변경하여 처음에 깔끔하게 닫혀있도록 수정
                 with st.expander(get_text('expander_financial_analysis'), expanded=False):
                     if is_data_available:
                         st.caption(f"Data Source: {data_source} (Premium) / Currency: USD")
                         
-                        # [프리미엄 UI] DCF 적정주가 및 퀀트 등급 
+                        # [프리미엄 데이터 계산] DCF 적정주가 및 퀀트 등급 
                         dcf_p = fin_data.get('dcf_price', 0.0)
                         gap_pct = ((dcf_p - current_p) / current_p * 100) if current_p > 0 else 0
-                        gap_str = f"(+{gap_pct:.1f}% {get_text('tab3_undervalued')})" if gap_pct > 0 else f"({gap_pct:.1f}% {get_text('tab3_overvalued')})"
+                        gap_str = f"(+{gap_pct:.1f}% 저평가)" if gap_pct > 0 else f"({gap_pct:.1f}% 고평가)" if dcf_p > 0 else ""
                         dcf_display = f"${dcf_p:.2f} <span style='font-size:0.8rem; color: #666;'>{gap_str}</span>" if dcf_p > 0 else "N/A"
                         
                         r_score = fin_data.get('health_score', 0)
                         r_grade = fin_data.get('rating', 'N/A')
-                        rating_display = f"{r_grade} <span style='font-size:0.8rem; color: #666;'>({get_text('tab3_score')} {r_score}/5)</span>" if r_grade != "N/A" else "N/A"
+                        rating_display = f"{r_grade} <span style='font-size:0.8rem; color: #666;'>(점수: {r_score}/5)</span>" if r_grade != "N/A" else "N/A"
 
-                        # 💡 [수정3] 상단 2칸도 기존 6칸과 똑같은 'custom-metric-box' 클래스 사용
-                        p_cols = st.columns(2)
-                        with p_cols[0]: 
-                            st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{get_text("tab3_dcf_title")}</div><div class="custom-metric-value">{dcf_display}</div></div>', unsafe_allow_html=True)
-                        with p_cols[1]: 
-                            st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{get_text("tab3_quant_title")}</div><div class="custom-metric-value">{rating_display}</div></div>', unsafe_allow_html=True)
-                        
-                        st.write("<br>", unsafe_allow_html=True)
-
-                        # [기존 6칸 보존] 핵심 투자 지표
+                        # [기존 데이터 계산] 핵심 투자 지표
                         def clean_value(val):
                             try: return 0.0 if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))) else float(val)
                             except: return 0.0
@@ -5135,23 +5125,32 @@ with main_area.container():
                         de_ratio = clean_value(fin_data.get('debt_equity', 0))
                         pe_val = clean_value(fin_data.get('forward_pe', 0))
                         pb_val = clean_value(fin_data.get('price_to_book', 0))
-                        
                         ocf_val = fin_data.get('ocf', 0.0)
                         accruals_status = fin_data.get('accruals', 'Unknown')
 
-                        metrics = [
+                        # 💡 [해결 3] 카드 크기 통일: 프리미엄 2개 + 기존 6개 = 총 8개를 4칸씩 2줄로 완벽히 동일하게 배치!
+                        metrics_row1 = [
+                            ("💡 FMP 적정주가(DCF)" if is_ko else "💡 FMP DCF Target", dcf_display), 
+                            ("📊 재무 건전성 (Quant)" if is_ko else "📊 Quant Rating", rating_display),
                             ("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"), 
-                            ("P/B Ratio", f"{pb_val:.2f}x"), 
+                            ("P/B Ratio", f"{pb_val:.2f}x")
+                        ]
+                        metrics_row2 = [
                             ("Net Margin", f"{net_m_val:.1f}%"), 
                             ("ROE", f"{roe_val:.1f}%"), 
                             ("D/E Ratio", f"{de_ratio:.1f}%"), 
                             ("Growth (YoY)", f"{growth:+.1f}%")
                         ]
                         
-                        # 하단 6칸 랜더링 (동일한 디자인 적용)
-                        m_cols = st.columns(6)
-                        for i, (label, value) in enumerate(metrics):
-                            with m_cols[i]: st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
+                        r1_cols = st.columns(4)
+                        for i, (label, value) in enumerate(metrics_row1):
+                            with r1_cols[i]: st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
+                            
+                        st.write("<div style='height:10px;'></div>", unsafe_allow_html=True)
+                        
+                        r2_cols = st.columns(4)
+                        for i, (label, value) in enumerate(metrics_row2):
+                            with r2_cols[i]: st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
                         
                         st.markdown("---")     
                         
@@ -5160,11 +5159,11 @@ with main_area.container():
                             ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], {}, curr_lang)
                         
                         st.info(ai_report)
-                        st.caption(get_text('tab3_data_source_prem'))
+                        st.caption("※ 본 분석은 월스트리트 기관용 데이터(FMP Premium)를 바탕으로 생성된 전문가용 리포트입니다." if is_ko else "※ This report is generated based on FMP Premium data.")
                     else: 
                         st.warning("신규 상장 기업이거나 현재 재무 데이터가 업데이트 중입니다." if is_ko else "Data is currently updating for this newly listed company.")
                 
-                # 2. [복구 완료] 논문기반 AI 분석 보기
+                # 2. [논문기반 AI 분석 보기]
                 with st.expander(get_text('expander_academic_analysis'), expanded=False):
                     st.caption(f"Data Source: {data_source} / Currency: USD")
                     if is_data_available:
@@ -5185,7 +5184,7 @@ with main_area.container():
                             st.info(f"**AI Verdict:** Academically, this firm exhibits **{growth_status_text}** characteristics with manageable information uncertainty.")
                     else: st.warning(get_text('err_no_biz_info'))
 
-                # 3. [복구 완료] 참고문헌 (References)
+                # 3. [참고문헌 (References)]
                 with st.expander(get_text('expander_references'), expanded=False):
                     st.markdown("""<style>.ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; } .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 0.95rem; } .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; } .ref-summary { font-size: 0.85rem; color: #666666; margin-top: 3px; } .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; color: #555; text-decoration: none; white-space: nowrap; }</style>""", unsafe_allow_html=True)
                     if curr_lang == 'ko': sum_vc = "VC 투자가 상장 시 갖는 공신력 분석"; sum_rock = "정보 비대칭성과 공모가 저평가 메커니즘"
@@ -5202,6 +5201,7 @@ with main_area.container():
                     for ref in references_tab3:
                         st.markdown(f"<div class='ref-item'><div style='flex:1; padding-right: 10px;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div class='ref-summary'>{ref['summary']}, {ref['author']}</div></div><div><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
             
+                # 4. 판단 박스 (보존)
                 draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", ['opt_overvalued', 'sentiment_neutral', 'opt_undervalued'], current_p)
                 display_disclaimer()
     
