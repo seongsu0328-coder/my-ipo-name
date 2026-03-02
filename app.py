@@ -2891,7 +2891,10 @@ UI_TEXT = {
         'ja': '分析データを精製中です。しばらくしてからもう一度お試しください。', 
         'zh': '正在整理分析数据。请稍后再试。'
     },
-    
+
+    'tab3_score': {'ko': '점수:', 'en': 'Score:', 'ja': 'スコア:', 'zh': '得分:'},
+    'tab3_score_suffix': {'ko': '/ 9 (우량)', 'en': '/ 9 (Strong)', 'ja': '/ 9 (優良)', 'zh': '/ 9 (优良)'},
+    'tab3_score_weak': {'ko': '/ 9 (주의)', 'en': '/ 9 (Weak)', 'ja': '/ 9 (注意)', 'zh': '/ 9 (注意)'},
 
     
     # ==========================================
@@ -2944,10 +2947,10 @@ UI_TEXT = {
         'zh': 'FMP目标价 (DCF)'
     },
     'tab3_quant_title': {
-        'ko': 'Quant Rating', 
-        'en': 'Quant Rating', 
-        'ja': 'クオンツ評価 (Quant)', 
-        'zh': '量化评级 (Quant)'
+        'ko': '퀀트등급 (Piotroski 기반)', 
+        'en': 'Quant Rating (Piotroski Based)', 
+        'ja': 'クオンツ評価 (Piotroski)', 
+        'zh': '量化评级 (基于Piotroski)'
     },
     'tab3_dcf_desc': {
         'ko': '현금흐름할인법(DCF) 알고리즘으로 산출된 적정주가 대비 현재가의 괴리율입니다.',
@@ -2956,10 +2959,10 @@ UI_TEXT = {
         'zh': '基于现金流折现法(DCF)算法计算的目标价与当前股价的差距。'
     },
     'tab3_quant_desc': {
-        'ko': '재무 건전성과 수익성을 종합 평가한 월스트리트 퀀트(Quant) 알고리즘 등급입니다.',
-        'en': 'Comprehensive quantitative rating of financial health and profitability.',
-        'ja': '財務健全性と収益性を総合評価したウォール街のクオンツアルゴリズム等級です。',
-        'zh': '综合评估财务健康状况和盈利能力的华尔街量化算法等级。'
+        'ko': '피오트로스키(Piotroski) 점수를 포함하여 재무 건전성과 수익성을 종합 평가한 월스트리트 퀀트(Quant) 알고리즘 등급입니다.',
+        'en': 'Comprehensive quantitative rating based on Piotroski F-Score, evaluating financial health and profitability by Wall Street standards.',
+        'ja': 'ピオトロスキー(Piotroski)スコアに基づき、財務健全性と収益性を総合評価したウォール街のクオンツアルゴリズム等級です。',
+        'zh': '基于皮奥特罗斯基(Piotroski)分数，综合评估财务健康状况和盈利能力的华尔街量化算法等级。'
     },
     'tab3_per_desc': {
         'ko': '주가수익비율(PER)로, 1주당 창출하는 순이익 대비 현재 주가의 밸류에이션 배수입니다.',
@@ -5126,6 +5129,12 @@ with main_area.container():
             
                 with st.spinner(get_text('msg_analyzing_financial')):
                     fin_data = get_cached_raw_financials(stock['symbol'])
+                
+                # 💡 [여기 추가] 피오트로스키 점수(9점 만점) 추출 로직
+                if fin_data:
+                    # FMP에서 제공하는 piotroskiScore 필드를 가져옵니다. (없으면 0)
+                    raw_p_score = int(fin_data.get('piotroskiScore', fin_data.get('piotroski_score', 0)))
+                    fin_data['piotroski_score_raw'] = raw_p_score
 
                 data_source = "Unknown"
                 is_data_available = False
@@ -5240,17 +5249,37 @@ with main_area.container():
                     desc = get_text('tab3_dcf_desc')
                     st.markdown(f"<div class='metric-card' style='border: 2px solid #e3f2fd;'><div class='metric-header'>💡 FMP Target (DCF)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Model: FMP Valuation<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
 
-                # [카드 2: 프리미엄 Quant Rating]
+                # [카드 2: 프리미엄 Quant Rating - 9점 만점 피오트로스키 버전]
                 with r2_c4:
-                    r_score = fin_data.get('health_score', 0)
-                    r_grade = fin_data.get('rating', 'N/A')
-                    display_val = r_grade
-                    if r_grade != "N/A": status, st_cls = (f"⭐ 점수: {r_score}/5" if is_ko else f"⭐ Score: {r_score}/5", "st-good" if r_score >= 4 else "st-cold" if r_score == 3 else "st-hot")
-                    else: status, st_cls = ("🔍 N/A", "st-neutral")
-                    desc = get_text('tab3_quant_desc')
-                    st.markdown(f"<div class='metric-card' style='border: 2px solid #e3f2fd;'><div class='metric-header'>📊 Quant Rating</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Model: FMP Quant Score<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+                    raw_p_score = fin_data.get('piotroski_score_raw', 0)
+                    r_grade = fin_data.get('rating', 'N/A') # A, B, C 등급 유지
+                    
+                    if raw_p_score > 0:
+                        # 점수대별 배지 로직 (7-9: 우량, 4-6: 보통, 0-3: 주의)
+                        if raw_p_score >= 7:
+                            status = f"🔥 {get_text('tab3_score')} {raw_p_score} / 9"
+                            st_cls = "st-hot" # 빨간색/강력
+                        elif raw_p_score >= 4:
+                            status = f"✅ {get_text('tab3_score')} {raw_p_score} / 9"
+                            st_cls = "st-good" # 녹색/안정
+                        else:
+                            status = f"🚨 {get_text('tab3_score')} {raw_p_score} / 9"
+                            st_cls = "st-neutral" # 회색/주의
+                    else:
+                        status, st_cls = ("🔍 N/A", "st-neutral")
 
-                st.write("<br>", unsafe_allow_html=True)
+                    # 디자인은 대표님의 오리지널 '명품 카드' 양식을 그대로 유지합니다.
+                    st.markdown(f"""
+                        <div class='metric-card' style='border: 2px solid #e3f2fd;'>
+                            <div class='metric-header'>{get_text('tab3_quant_title')}</div>
+                            <div class='metric-value-row'>
+                                <span class='metric-value'>{r_grade}</span>
+                                <span class='st-badge {st_cls}'>{status}</span>
+                            </div>
+                            <div class='metric-desc'>{get_text('tab3_quant_desc')}</div>
+                            <div class='metric-footer'>Model: Piotroski F-Score (9 Metrics)<br><b>Data Source: {data_source}</b></div>
+                        </div>
+                    """, unsafe_allow_html=True)
     
                 # --- 💡 1. 재무분석 Expander (이제 이 안에는 AI 텍스트 리포트만 깔끔하게 나옵니다) ---
                 with st.expander(get_text('expander_financial_analysis'), expanded=False):
