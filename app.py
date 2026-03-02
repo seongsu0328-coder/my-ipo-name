@@ -2939,7 +2939,7 @@ UI_TEXT = {
         'en': '※ This is an in-depth professional report generated based on institutional Wall Street data (FMP Premium).',
         'ja': '※ 本分析はウォール街の機関投資家向けデータ(FMP Premium)に基づいて作成された専門家向けの深層レポート입니다.',
         'zh': '※ 本分析是基于华尔街机构级数据(FMP Premium)生成的专家级深度报告。'
-    },  # <--- 💡 바
+    },
     'tab3_dcf_title': {
         'ko': 'FMP Target (DCF)', 
         'en': 'FMP Target (DCF)', 
@@ -2947,10 +2947,10 @@ UI_TEXT = {
         'zh': 'FMP目标价 (DCF)'
     },
     'tab3_quant_title': {
-        'ko': '퀀트등급 (Piotroski 기반)', 
-        'en': 'Quant Rating (Piotroski Based)', 
-        'ja': 'クオンツ評価 (Piotroski)', 
-        'zh': '量化评级 (基于Piotroski)'
+        'ko': 'Piotroski Score', 
+        'en': 'Piotroski Score', 
+        'ja': 'Piotroski Score', 
+        'zh': 'Piotroski Score'
     },
     'tab3_dcf_desc': {
         'ko': '현금흐름할인법(DCF) 알고리즘으로 산출된 적정주가 대비 현재가의 괴리율입니다.',
