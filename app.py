@@ -3036,6 +3036,12 @@ UI_TEXT = {
     'decision_final_institutional': {'ko': '기관 분석을 참고한 나의 최종 판단은?', 'en': 'Final judgment based on institutional analysis?', 'ja': '機関分析を参考にした私の最終判断は？', 'zh': '参考机构分析后，我的最终判断是？'},
     'btn_buy': {'ko': '매수', 'en': 'Buy', 'ja': '買い', 'zh': '买入'},
     'btn_sell': {'ko': '매도', 'en': 'Sell', 'ja': '売り', 'zh': '卖出'},
+    'expander_wallstreet_pt': {
+        'ko': '월가 컨센서스 & 목표 주가', 
+        'en': 'Wall St. Consensus & Target Price', 
+        'ja': 'ウォール街コンセンサスと目標株価', 
+        'zh': '华尔街共识与目标价'
+    },
     
     # ==========================================
     # 10. Tab 5: 투자결정 및 차트
@@ -5363,6 +5369,21 @@ with main_area.container():
                 q = stock['symbol'] if stock['symbol'] else stock['name']
     
                 st.write("<br>", unsafe_allow_html=True)
+
+                # =========================================================
+                # 🚀 [여기서부터 신규 추가!] 기존 코드 건드리지 않고 제일 상단에 꽂아넣기!
+                # =========================================================
+                target_price_val = str(result.get('target_price', 'N/A')).strip()
+                
+                with st.expander(get_text('expander_wallstreet_pt', '💡 월가 컨센서스 & 목표 주가 (Premium)'), expanded=False):
+                    if target_price_val == 'N/A' or target_price_val == '':
+                        st.info("현재 FMP 월가 애널리스트 평균 목표가 데이터가 제공되지 않는 종목입니다." if curr_lang == 'ko' else "Target price data is currently unavailable.")
+                    else:
+                        st.success(f"🎯 **평균 목표 주가 (Target Price) : {target_price_val}**")
+                        st.caption("※ FMP Premium에서 실시간으로 수집된 월가 애널리스트 평균(Consensus) 데이터입니다." if curr_lang == 'ko' else "※ Wall Street Consensus from FMP Premium.")
+                # =========================================================
+                # 🚀 [여기까지 신규 추가 끝!]
+                # =========================================================
             
                 with st.expander(get_text('expander_renaissance'), expanded=False):
                     import re
