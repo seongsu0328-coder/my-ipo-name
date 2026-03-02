@@ -5983,8 +5983,8 @@ with main_area.container():
                         inst_text = parts[1].strip() if len(parts) > 1 else ""
 
                     # 다국어 타이틀 매핑
-                    title_insider = "🕵️ SEC Form 4 내부자 거래 감시" if curr_lang == 'ko' else ("🕵️ SEC Form 4 Insider Tracking" if curr_lang == 'en' else ("🕵️ SEC Form 4 内部者取引監視" if curr_lang == 'ja' else "🕵️ SEC Form 4 内幕交易监控"))
-                    title_inst = "🐳 SEC 13F 고래(기관) 매집 동향" if curr_lang == 'ko' else ("🐳 SEC 13F Institutional Whales" if curr_lang == 'en' else ("🐳 SEC 13F 機関投資家の動向" if curr_lang == 'ja' else "🐳 SEC 13F 机构巨头动向"))
+                    title_insider = "SEC Form 4 내부자 거래 감시" if curr_lang == 'ko' else ("SEC Form 4 Insider Tracking" if curr_lang == 'en' else ("SEC Form 4 内部者取引監視" if curr_lang == 'ja' else "SEC Form 4 内幕交易监控"))
+                    title_inst = "SEC 13F 고래(기관) 매집 동향" if curr_lang == 'ko' else ("SEC 13F Institutional Whales" if curr_lang == 'en' else ("SEC 13F 機関投資家の動向" if curr_lang == 'ja' else "SEC 13F 机构巨头动向"))
                     cap_msg = "※ 본 분석은 월스트리트 공식 SEC Form 4 및 13F 제출 서류를 기반으로 실시간 추적된 데이터입니다." if curr_lang == 'ko' else "※ Based on official SEC Form 4 and 13F filings."
 
                     # 1. 내부자 거래 카드
