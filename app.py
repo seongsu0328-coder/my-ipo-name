@@ -1933,7 +1933,8 @@ def _calculate_market_metrics_internal(df_calendar, api_key):
 def get_financial_report_analysis(company_name, ticker, metrics, lang_code):
     if not model: return "AI 모델 설정 오류"
 
-    cache_key = f"{ticker}_Financial_Report_Tab3_{lang_code}"
+    # 💡 캐시 키 v2_Premium 유지
+    cache_key = f"{ticker}_Tab3_v2_Premium_{lang_code}"
     now = datetime.now()
     one_day_ago = (now - timedelta(days=1)).isoformat()
 
@@ -1949,12 +1950,12 @@ def get_financial_report_analysis(company_name, ticker, metrics, lang_code):
     except Exception as e:
         print(f"Tab3 Cache Error: {e}")
 
-    # 💡 [핵심 교체] 언어별 프롬프트 완벽 분리
+    # 💡 [핵심 통합본] 기본 재무 지표 + 프리미엄 지표 통합 및 4가지 소제목 강제
     if lang_code == 'en':
-        prompt = f"""You are a Lead Equity Analyst with a CFA charter.
-Write an investment analysis report for {company_name} ({ticker}) based on the following financial data.
+        prompt = f"""You are a Lead Quant Analyst on Wall Street with a CFA charter.
+Write an in-depth financial and investment analysis report for {company_name} ({ticker}) based strictly on the comprehensive data below.
 
-[Financial Data]
+[Financial & Premium Data]
 - Revenue Growth (YoY): {metrics.get('growth', 'N/A')}
 - Net Margin: {metrics.get('net_margin', 'N/A')}
 - OPM (Operating Margin): {metrics.get('op_margin', 'N/A')}
@@ -1962,21 +1963,25 @@ Write an investment analysis report for {company_name} ({ticker}) based on the f
 - D/E Ratio: {metrics.get('debt_equity', 'N/A')}
 - Forward PER: {metrics.get('pe', 'N/A')}
 - Accruals Quality: {metrics.get('accruals', 'Unknown')}
+- Current Price: {metrics.get('current_price', 'N/A')}
+- DCF Value (Target Price): {metrics.get('dcf_price', 'N/A')}
+- Quant Rating: {metrics.get('rating', 'N/A')} (Score: {metrics.get('health_score', 'N/A')}/5)
+- Recommendation: {metrics.get('recommendation', 'N/A')}
 
-[Writing Guide]
+[Writing Guidelines]
 1. Language: Write STRICTLY and ENTIRELY in English. Do not mix Korean.
 2. Format: You MUST use the following 4 headings to separate your paragraphs:
-   **[Valuation & Market Position]**
-   **[Operating Performance]**
-   **[Risk & Solvency]**
-   **[Analyst Conclusion]**
-3. Content: Do not just list numbers. Interpret what they imply (premium, efficiency, risk, etc.) in about 10-12 lines total."""
+   [Valuation & Market Position]
+   [Operating Performance]
+   [Risk & Solvency]
+   [Analyst Conclusion]
+3. Content: YOU MUST INCLUDE THE EXACT NUMBERS from the data above. Interpret what the numbers imply (premium, efficiency, risk, etc.). If a value is 'N/A', state that 'data is currently unavailable'. DO NOT use bold (**) for numbers or headings. (12-15 lines total)"""
 
     elif lang_code == 'ja':
-        prompt = f"""あなたはCFA資格を保有するシニア株式アナリストです。
-以下の財務データに基づいて、{company_name} ({ticker})に関する投資分析レポートを作成してください。
+        prompt = f"""あなたはCFA資格を保有するウォール街のシニアクオンツアナリストです。
+以下の包括的なデータに厳密に基づいて、{company_name} ({ticker})の深層財務および投資分析レポートを作成してください。
 
-[財務データ]
+[財務およびプレミアムデータ]
 - 売上成長率(YoY): {metrics.get('growth', 'N/A')}
 - 純利益率(Net Margin): {metrics.get('net_margin', 'N/A')}
 - 営業利益率(OPM): {metrics.get('op_margin', 'N/A')}
@@ -1984,65 +1989,78 @@ Write an investment analysis report for {company_name} ({ticker}) based on the f
 - 負債比率(D/E): {metrics.get('debt_equity', 'N/A')}
 - 予想PER: {metrics.get('pe', 'N/A')}
 - 発生額の質(Accruals): {metrics.get('accruals', 'Unknown')}
+- 現在の株価(Current Price): {metrics.get('current_price', 'N/A')}
+- DCF目標株価(DCF Value): {metrics.get('dcf_price', 'N/A')}
+- クオンツ評価(Quant Rating): {metrics.get('rating', 'N/A')} (スコア: {metrics.get('health_score', 'N/A')}/5)
+- 投資判断(Recommendation): {metrics.get('recommendation', 'N/A')}
 
-[作成ガイド]
+[作成ガイドライン]
 1. 言語: 全て自然な日本語のみで記述してください。韓国語は絶対に混ぜないでください。
 2. 形式: 以下の4つの見出しを**必ず**使用して段落を分けてください。
-   **[Valuation & Market Position]**
-   **[Operating Performance]**
-   **[Risk & Solvency]**
-   **[Analyst Conclusion]**
-3. 内容: 数値を単純に羅列するのではなく、それが持つ意味（プレミアム、効率性、リスクなど）を解釈し、全体で10〜12行程度に要約してください。"""
+   [Valuation & Market Position]
+   [Operating Performance]
+   [Risk & Solvency]
+   [Analyst Conclusion]
+3. 内容: 上記のデータから正確な数値を必ず含め、それが持つ意味（プレミアム、効率性、リスクなど）を解釈してください。値が「N/A」の場合はデータが存在しないと明記してください。数値や見出しに強調(**)は使わないでください。(全体で12〜15行程度)"""
 
     elif lang_code == 'zh':
-        prompt = f"""您是拥有CFA资格的首席股票分析师。
-请根据以下财务数据，撰写关于 {company_name} ({ticker}) 的投资分析报告。
+        prompt = f"""您是拥有CFA资格的华尔街首席量化分析师。
+请严格根据以下综合数据，撰写关于 {company_name} ({ticker}) 的深度财务与投资分析报告。
 
-[财务数据]
+[财务与高级数据]
 - 营收增长率(YoY): {metrics.get('growth', 'N/A')}
 - 净利润率(Net Margin): {metrics.get('net_margin', 'N/A')}
 - 营业利润率(OPM): {metrics.get('op_margin', 'N/A')}
 - ROE: {metrics.get('roe', 'N/A')}
 - 资产负债率(D/E): {metrics.get('debt_equity', 'N/A')}
 - 预测PER: {metrics.get('pe', 'N/A')}
-- 会计账簿质量: {metrics.get('accruals', 'Unknown')}
+- 会计账簿质量(Accruals): {metrics.get('accruals', 'Unknown')}
+- 当前股价(Current Price): {metrics.get('current_price', 'N/A')}
+- DCF目标价(DCF Value): {metrics.get('dcf_price', 'N/A')}
+- 量化评级(Quant Rating): {metrics.get('rating', 'N/A')} (得分: {metrics.get('health_score', 'N/A')}/5)
+- 投资建议(Recommendation): {metrics.get('recommendation', 'N/A')}
 
 [编写指南]
 1. 语言：必须只用简体中文编写。严禁混用韩语。
 2. 格式：**必须**使用以下4个副标题来划分段落：
-   **[Valuation & Market Position]**
-   **[Operating Performance]**
-   **[Risk & Solvency]**
-   **[Analyst Conclusion]**
-3. 内容：不要简单罗列数据，请解释数据的深刻含义（溢价、效率、风险等）。整体控制在10~12行左右。"""
+   [Valuation & Market Position]
+   [Operating Performance]
+   [Risk & Solvency]
+   [Analyst Conclusion]
+3. 内容：必须包含上述数据中的确切数值，并解释其深刻含义（溢价、效率、风险等）。如果值为“N/A”，请声明数据暂不可用。不要对数值或标题使用加粗(**)。(整体12~15行左右)"""
 
-    else:
-        prompt = f"""당신은 CFA 자격을 보유한 수석 주식 애널리스트입니다.
-아래 재무 데이터를 바탕으로 {company_name} ({ticker})에 대한 투자 분석 리포트를 작성하세요.
+    else: # ko
+        prompt = f"""당신은 CFA 자격을 보유한 월스트리트 수석 퀀트 애널리스트입니다.
+아래 제공된 종합 재무 및 프리미엄 데이터를 엄격하게 바탕으로 {company_name} ({ticker})의 심층 투자 분석 리포트를 작성하세요.
 
-[재무 데이터]
+[재무 및 프리미엄 데이터]
 - 매출 성장률(YoY): {metrics.get('growth', 'N/A')}
 - 순이익률(Net Margin): {metrics.get('net_margin', 'N/A')}
 - 영업이익률(OPM): {metrics.get('op_margin', 'N/A')}
 - ROE: {metrics.get('roe', 'N/A')}
 - 부채비율(D/E): {metrics.get('debt_equity', 'N/A')}
 - 선행 PER: {metrics.get('pe', 'N/A')}
-- 발생액 품질: {metrics.get('accruals', 'Unknown')}
+- 발생액 품질(Accruals): {metrics.get('accruals', 'Unknown')}
+- 현재 주가(Current Price): {metrics.get('current_price', 'N/A')}
+- DCF 산출 적정 주가(DCF Value): {metrics.get('dcf_price', 'N/A')}
+- 건전성 종합 등급(Quant Rating): {metrics.get('rating', 'N/A')} (점수: {metrics.get('health_score', 'N/A')}/5)
+- 퀀트 투자의견(Recommendation): {metrics.get('recommendation', 'N/A')}
 
 [작성 가이드]
 1. 언어: 반드시 한국어로 작성하세요.
-2. 형식: 아래 4가지 소제목을 **반드시** 사용하여 단락을 구분하세요.
-   **[Valuation & Market Position]**
-   **[Operating Performance]**
-   **[Risk & Solvency]**
-   **[Analyst Conclusion]**
-3. 내용: 수치를 단순 나열하지 말고, 수치가 갖는 함의를 해석하세요. 10~12줄 내외로 요약하세요."""
+2. 형식: 아래 4가지 소제목을 반드시 사용하여 단락을 구분하세요.
+   [Valuation & Market Position]
+   [Operating Performance]
+   [Risk & Solvency]
+   [Analyst Conclusion]
+3. 내용: 일반론을 절대 쓰지 마세요. 제공된 데이터의 '실제 수치'를 반드시 본문에 포함하여 수치가 갖는 함의(프리미엄, 효율성, 리스크 등)를 전문가 시각에서 해석하세요. 데이터가 'N/A'인 경우, 지어내지 말고 '현재 제공되지 않습니다'라고 명시하세요. 숫자나 소제목에 별표(**) 강조를 절대 하지 마세요. (총 12~15줄 내외)"""
 
     try:
         response = model.generate_content(prompt)
         result = response.text
 
         if lang_code != 'ko':
+            import re
             if re.search(r'[가-힣]', result):
                 return "Analysis generation retrying due to language mix..."
 
@@ -2838,6 +2856,13 @@ UI_TEXT = {
     'label_form25': {'ko': 'Form 25 (상장폐지)', 'en': 'Form 25 (Delisted)', 'ja': 'Form 25 (上場廃止)', 'zh': 'Form 25 (退市)'},
     'desc_rw': {'ko': "RW(Registration Withdrawal)는 기업이 상장 절차를 공식적으로 중단하고 증권신고서를 철회할 때 제출하는 문서입니다. 주로 시장 환경 악화나 내부 사정으로 인한 철회 사유가 담깁니다.", 'en': "Form RW is submitted when a company officially halts its IPO. It contains reasons for withdrawal.", 'ja': "RWは企業が上場手続きを公式に中断・撤回する際に提出する文書です。", 'zh': "RW是企业正式中止上市程序并撤回注册声明时提交的文件。"},
     'desc_form25': {'ko': "Form 25는 거래소에서 상장 폐지되거나 등록이 취소될 때 제출하는 공식 통지서입니다. 인수합병(M&A)이나 상장 유지 규정 위반 등의 사유를 확인할 수 있습니다.", 'en': "Form 25 is an official notification of removal from listing. It shows reasons like M&A or rule violations.", 'ja': "Form 25は取引所から上場廃止になる際に提出される公式通知書です。", 'zh': "Form 25是自交易所退市或取消注册时提交的官方通知书。"},
+    'label_market_eval_80b': {
+        'ko': '시장평가(80억 이상 자산가)', 
+        'en': 'Market Eval (High Net Worth)', 
+        'ja': '市場評価(80億以上の資産家)', 
+        'zh': '市场评估(80亿以上资产家)'
+    },
+    
     # ==========================================
     # 7. Tab 1: 주요뉴스
     # ==========================================
@@ -5253,12 +5278,29 @@ with main_area.container():
                 # --- 💡 1. 재무분석 Expander (이제 이 안에는 AI 텍스트 리포트만 깔끔하게 나옵니다) ---
                 with st.expander(get_text('expander_financial_analysis'), expanded=False):
                     if is_data_available:
-                        ai_metrics = {"growth": growth_display, "net_margin": net_m_display, "op_margin": opm_display, "roe": f"{roe_val:.1f}%", "debt_equity": f"{de_ratio:.1f}%", "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A", "accruals": accruals_status}
+                        # 💡 [호출부 수정] FMP 프리미엄 데이터(DCF, 주가, 퀀트 등)를 빠짐없이 챙겨서 AI에게 넘겨줍니다!
+                        ai_metrics = {
+                            "growth": growth_display, 
+                            "net_margin": net_m_display, 
+                            "op_margin": opm_display, 
+                            "roe": f"{roe_val:.1f}%", 
+                            "debt_equity": f"{de_ratio:.1f}%", 
+                            "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A", 
+                            "accruals": accruals_status,
+                            "current_price": f"${current_p:.2f}" if current_p > 0 else "N/A",
+                            "dcf_price": f"${fin_data.get('dcf_price', 0.0):.2f}" if fin_data.get('dcf_price', 0.0) > 0 else "N/A",
+                            "rating": fin_data.get('rating', 'N/A'),
+                            "health_score": fin_data.get('health_score', 'N/A'),
+                            "pb": fin_data.get('price_to_book', 'N/A')
+                        }
+                        
                         with st.spinner(get_text('msg_analyzing_financial')):
                             ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], ai_metrics, curr_lang)
+                        
                         st.info(ai_report)
                         st.caption("※ 본 분석은 월스트리트 기관용 데이터(FMP Premium)를 바탕으로 생성된 전문가용 심층 리포트입니다." if is_ko else "※ Generated based on FMP Premium data.")
-                    else: st.warning(get_text('err_no_biz_info'))
+                    else: 
+                        st.warning(get_text('err_no_biz_info'))
 
                 # --- 💡 2. 논문기반 분석 Expander ---
                 with st.expander(get_text('expander_academic_analysis'), expanded=False):
