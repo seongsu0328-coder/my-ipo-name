@@ -838,17 +838,18 @@ def run_tab3_analysis(ticker, company_name, metrics):
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
     
     for lang_code, target_lang in SUPPORTED_LANGS.items():
-        cache_key = f"{ticker}_Financial_Report_Tab3_{lang_code}"
+        # 💡 [핵심 수정] 무료 API 시절의 악성 캐시를 버리고, 유료 API용 새 캐시를 생성하도록 버전업!
+        cache_key = f"{ticker}_Tab3_v2_Premium_{lang_code}"
         
         try:
             res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
             if res.data: continue 
         except: pass
 
-        # 💡 [핵심] 언어별 프롬프트 완벽 분리 및 소제목 강제 지정
+        # 💡 [프롬프트 강화] 숫자가 없으면 없다고 말하고, 있으면 무조건 숫자를 쓰도록 강제
         if lang_code == 'en':
             prompt = f"""You are a Lead Quant Analyst on Wall Street.
-Write an in-depth financial report for {company_name} ({ticker}) based on the FMP Premium data below.
+Write an in-depth financial report for {company_name} ({ticker}) based strictly on the FMP Premium data below.
 
 [FMP Premium Data]
 - Current Price: {metrics.get('current_price', 'N/A')}
@@ -863,11 +864,11 @@ Write an in-depth financial report for {company_name} ({ticker}) based on the FM
    **[DCF Valuation & Price Target]**
    **[Quant Health Score]**
    **[Analyst Conclusion]**
-3. Content: Analyze the gap between DCF value and current price. Evaluate fundamental health based on the Quant Rating and ROE. (10-12 lines total)"""
+3. Content: YOU MUST INCLUDE THE EXACT NUMBERS from the data above. If a value is 'N/A', state that 'data is currently unavailable'. DO NOT use bold (**) for numbers. (10-12 lines total)"""
 
         elif lang_code == 'ja':
             prompt = f"""あなたはウォール街のシニアクオンツアナリストです。
-以下のFMPプレミアムデータに基づいて、{company_name} ({ticker})の深層財務レポートを作成してください。
+以下のFMPプレミアムデータに厳密に基づいて、{company_name} ({ticker})の深層財務レポートを作成してください。
 
 [FMPプレミアムデータ]
 - 現在の株価(Current Price): {metrics.get('current_price', 'N/A')}
@@ -882,11 +883,11 @@ Write an in-depth financial report for {company_name} ({ticker}) based on the FM
    **[DCFバリュエーションと目標株価]**
    **[クオンツ・ヘルススコア]**
    **[アナリストの結論]**
-3. 内容: DCF価値と現在価格の乖離率を解釈し、クオンツ評価に基づいてファンダメンタルズを評価してください。(全体で10〜12行程度)"""
+3. 内容: 上記のデータから**正確な数値を必ず**含めてください。値が「N/A」の場合はデータが存在しないと明記してください。数値に強調(**)は使わないでください。(全体で10〜12行程度)"""
 
         elif lang_code == 'zh':
             prompt = f"""您是华尔街的首席量化分析师。
-请根据以下FMP高级数据，撰写关于 {company_name} ({ticker}) 的深度财务报告。
+请严格根据以下FMP高级数据，撰写关于 {company_name} ({ticker}) 的深度财务报告。
 
 [FMP高级数据]
 - 当前股价(Current Price): {metrics.get('current_price', 'N/A')}
@@ -901,11 +902,11 @@ Write an in-depth financial report for {company_name} ({ticker}) based on the FM
    **[DCF估值与目标价]**
    **[量化健康评分]**
    **[分析师结论]**
-3. 内容：分析DCF估值与当前股价之间的差距，并基于量化评级评估公司的基本面健康状况。(整体10~12行左右)"""
+3. 内容：**必须包含**上述数据中的确切数值。如果值为“N/A”，请声明数据暂不可用。不要对数值使用加粗(**)。(整体10~12行左右)"""
 
         else: # ko
             prompt = f"""당신은 CFA 자격을 보유한 월스트리트 수석 퀀트 애널리스트입니다.
-아래 FMP 프리미엄 데이터를 바탕으로 {company_name} ({ticker})의 심층 재무 리포트를 작성하세요.
+아래 FMP 프리미엄 데이터를 엄격하게 바탕으로 {company_name} ({ticker})의 심층 재무 리포트를 작성하세요.
 
 [FMP 프리미엄 데이터]
 - 현재 주가(Current Price): {metrics.get('current_price', 'N/A')}
@@ -920,7 +921,7 @@ Write an in-depth financial report for {company_name} ({ticker}) based on the FM
    **[DCF 적정주가 및 밸류에이션]**
    **[퀀트 헬스 스코어]**
    **[애널리스트 종합 의견]**
-3. 내용: 단순 수치 나열을 피하고, DCF 괴리율(%) 분석과 종합 등급이 뜻하는 펀더멘털 상태를 전문가 시각에서 해석하세요. (총 10~12줄)"""
+3. 내용: 일반론을 절대 쓰지 마세요. 제공된 데이터의 **실제 수치를 반드시 본문에 포함**하여 적정주가 괴리율과 펀더멘털을 분석하세요. 데이터가 'N/A'인 경우, 지어내지 말고 '현재 FMP 데이터가 제공되지 않습니다'라고 명시하세요. 숫자에 별표(**) 강조를 하지 마세요. (총 10~12줄)"""
         
         for attempt in range(3):
             try:
