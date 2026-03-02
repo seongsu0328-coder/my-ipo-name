@@ -5375,7 +5375,7 @@ with main_area.container():
                 # =========================================================
                 target_price_val = str(result.get('target_price', 'N/A')).strip()
                 
-                with st.expander(get_text('expander_wallstreet_pt', '💡 월가 컨센서스 & 목표 주가 (Premium)'), expanded=False):
+                with st.expander(get_text('expander_wallstreet_pt'), expanded=False):
                     if target_price_val == 'N/A' or target_price_val == '':
                         st.info("현재 FMP 월가 애널리스트 평균 목표가 데이터가 제공되지 않는 종목입니다." if curr_lang == 'ko' else "Target price data is currently unavailable.")
                     else:
