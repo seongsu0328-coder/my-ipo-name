@@ -5064,101 +5064,118 @@ with main_area.container():
                 curr_lang = st.session_state.lang
                 is_ko = (curr_lang == 'ko')
 
+                # 💡 [핵심] Tab 2와 완벽하게 동일한 디자인을 적용하기 위해 CSS 카드를 선언합니다.
                 st.markdown("""
                 <style>
-                    /* 공통 카드 UI (프리미엄 2칸 & 기존 6칸 모두 동일하게 적용) */
-                    .custom-metric-box { 
-                        text-align: center; 
-                        padding: 15px 5px; 
-                        border-radius: 10px; 
-                        border: 1px solid #f0f0f0; 
-                        background-color: #ffffff;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-                        height: 100%;
-                        display: flex;
-                        flex-direction: column;
-                        justify-content: center;
-                    }
-                    .custom-metric-label { font-size: 0.85rem; font-weight: bold; color: #555555; margin-bottom: 8px; }
-                    .custom-metric-value { font-size: 1.15rem; font-weight: 800; color: #004e92; }
+                    /* Tab 2와 동일한 메인 카드 디자인 */
+                    .metric-card { background-color:#ffffff; padding:15px; border-radius:12px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.03); height: 100%; min-height: 220px; display: flex; flex-direction: column; justify-content: space-between; }
+                    .metric-header { font-weight:bold; font-size:16px; color:#111; margin-bottom:5px; }
+                    .metric-value-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; justify-content: flex-start; }
+                    .metric-value { font-size:20px; font-weight:800; color:#004e92; white-space: nowrap; }
+                    .metric-desc { font-size:13px; color:#555; line-height:1.5; margin-bottom:10px; flex-grow: 1; }
+                    .metric-footer { font-size:11px; color:#999; margin-top:5px; border-top:1px solid #f0f0f0; padding-top:8px; font-style: italic; }
                     
-                    /* 하단 논문 분석 텍스트용 */
+                    /* 상태별 배지(Badge) 색상 */
+                    .st-badge { font-size:12px; padding: 3px 8px; border-radius:6px; font-weight:bold; vertical-align: middle; margin-left: 5px; }
+                    .st-hot { background-color:#ffebee; color:#c62828; }
+                    .st-cold { background-color:#e3f2fd; color:#1565c0; }
+                    .st-good { background-color:#e8f5e9; color:#2e7d32; }
+                    .st-neutral { background-color:#f5f5f5; color:#616161; }
+                    
+                    /* Tab 3 하단 분석 텍스트용 */
                     .unified-text { font-size: 0.95rem !important; line-height: 1.6 !important; color: #222222; }
                 </style>
                 """, unsafe_allow_html=True)
             
-                with st.spinner(get_text('msg_analyzing_financial')):
-                    fin_data = get_cached_raw_financials(stock['symbol'])
+                data_source = "Unknown"
+                is_data_available = False
                 
-                is_data_available = True if isinstance(fin_data, dict) and fin_data else False
-                data_source = "Financial Modeling Prep"
+                if fin_data and fin_data.get('revenue') and fin_data.get('revenue') > 0:
+                    is_data_available = True
+                    data_source = "SEC 10-K/Q" if 'sec' in str(fin_data.get('source', '')).lower() else "Financial Modeling Prep (Premium)"
             
-                # 💡 [핵심 복구] st.expander 껍데기를 완전히 제거했습니다! 이제 탭을 누르면 바로 보입니다.
-                if is_data_available:
-                    st.caption(f"Data Source: {data_source} (Premium) / Currency: USD")
-                    
-                    # [프리미엄 데이터 계산]
-                    dcf_p = fin_data.get('dcf_price', 0.0)
-                    gap_pct = ((dcf_p - current_p) / current_p * 100) if current_p > 0 else 0
-                    gap_str = f"(+{gap_pct:.1f}% 저평가)" if gap_pct > 0 else f"({gap_pct:.1f}% 고평가)" if dcf_p > 0 else ""
-                    dcf_display = f"${dcf_p:.2f} <span style='font-size:0.8rem; color: #666;'>{gap_str}</span>" if dcf_p > 0 else "N/A"
-                    
-                    r_score = fin_data.get('health_score', 0)
-                    r_grade = fin_data.get('rating', 'N/A')
-                    rating_display = f"{r_grade} <span style='font-size:0.8rem; color: #666;'>(점수: {r_score}/5)</span>" if r_grade != "N/A" else "N/A"
-
-                    # [기존 데이터 계산]
-                    def clean_value(val):
-                        try: return 0.0 if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))) else float(val)
-                        except: return 0.0
-
-                    growth = clean_value(fin_data.get('growth', 0))
-                    net_m_val = clean_value(fin_data.get('net_margin', 0))
-                    roe_val = clean_value(fin_data.get('roe', 0))
-                    de_ratio = clean_value(fin_data.get('debt_equity', 0))
-                    pe_val = clean_value(fin_data.get('forward_pe', 0))
-                    pb_val = clean_value(fin_data.get('price_to_book', 0))
-                    ocf_val = fin_data.get('ocf', 0.0)
-                    accruals_status = fin_data.get('accruals', 'Unknown')
-
-                    # 카드 배치 배열 구성 (4개씩 2줄)
-                    metrics_row1 = [
-                        ("💡 FMP 적정주가(DCF)" if is_ko else "💡 FMP DCF Target", dcf_display), 
-                        ("📊 재무 건전성 (Quant)" if is_ko else "📊 Quant Rating", rating_display),
-                        ("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"), 
-                        ("P/B Ratio", f"{pb_val:.2f}x")
-                    ]
-                    metrics_row2 = [
-                        ("Net Margin", f"{net_m_val:.1f}%"), 
-                        ("ROE", f"{roe_val:.1f}%"), 
-                        ("D/E Ratio", f"{de_ratio:.1f}%"), 
-                        ("Growth (YoY)", f"{growth:+.1f}%")
-                    ]
-                    
-                    # 1번째 줄 화면 출력 (4칸)
-                    r1_cols = st.columns(4)
-                    for i, (label, value) in enumerate(metrics_row1):
-                        with r1_cols[i]: st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
-                        
-                    st.write("<div style='height:10px;'></div>", unsafe_allow_html=True)
-                    
-                    # 2번째 줄 화면 출력 (4칸)
-                    r2_cols = st.columns(4)
-                    for i, (label, value) in enumerate(metrics_row2):
-                        with r2_cols[i]: st.markdown(f'<div class="custom-metric-box"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
-                    
-                    st.markdown("---")     
-                    
-                    # [기존 AI 리포트 보존] (껍데기 없이 바로 노출)
-                    with st.spinner(get_text('msg_analyzing_financial')):
-                        ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], {}, curr_lang)
-                    
-                    st.info(ai_report)
-                    st.caption("※ 본 분석은 월스트리트 기관용 데이터(FMP Premium)를 바탕으로 생성된 전문가용 리포트입니다." if is_ko else "※ This report is generated based on FMP Premium data.")
-                else: 
-                    st.warning("신규 상장 기업이거나 현재 재무 데이터가 업데이트 중입니다." if is_ko else "Data is currently updating for this newly listed company.")
+                if not is_data_available or not fin_data.get('revenue'):
+                    try:
+                        ticker = yf.Ticker(stock['symbol'])
+                        yf_fin = ticker.financials; yf_info = ticker.info; yf_bal = ticker.balance_sheet
+                        if not yf_fin.empty:
+                            rev = yf_fin.loc['Total Revenue'].iloc[0]; net_inc = yf_fin.loc['Net Income'].iloc[0]
+                            prev_rev = yf_fin.loc['Total Revenue'].iloc[1] if len(yf_fin.columns) > 1 else rev
+                            fin_data['revenue'] = rev / 1e6; fin_data['net_margin'] = (net_inc / rev) * 100; fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100
+                            fin_data['eps'] = yf_info.get('trailingEps', 0)
+                            fin_data['op_margin'] = (yf_fin.loc['Operating Income'].iloc[0] / rev) * 100 if 'Operating Income' in yf_fin.index else fin_data['net_margin']
+                            fin_data['market_cap'] = yf_info.get('marketCap', 0) / 1e6; fin_data['forward_pe'] = yf_info.get('forwardPE', 0); fin_data['price_to_book'] = yf_info.get('priceToBook', 0)
+                            if not yf_bal.empty:
+                                total_liab = yf_bal.loc['Total Liabilities Net Minority Interest'].iloc[0] if 'Total Liabilities Net Minority Interest' in yf_bal.index else 0
+                                equity = yf_bal.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in yf_bal.index else 1
+                                fin_data['debt_equity'] = (total_liab / equity) * 100; fin_data['roe'] = (net_inc / equity) * 100
+                            is_data_available = True; data_source = "Yahoo Finance"
+                    except: pass
             
-                # 2. [복구 완료] 논문기반 AI 분석 보기 (이것만 Expander로 닫아둠)
+                growth_val = fin_data.get('growth') if is_data_available else None
+                ocf_val = fin_data.get('net_margin') if is_data_available else 0
+                op_m = fin_data.get('op_margin') if is_data_available else None
+                net_m = fin_data.get('net_margin') if is_data_available else None
+                accruals_status = "Low" if is_data_available and op_m is not None and net_m is not None and abs(op_m - net_m) < 5 else "High" if is_data_available else "Unknown"
+    
+                def clean_value(val):
+                    try: return 0.0 if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))) else float(val)
+                    except: return 0.0
+                if fin_data is None: fin_data = {}
+    
+                rev_val = clean_value(fin_data.get('revenue', 0)); net_m_val = clean_value(fin_data.get('net_margin', 0)); op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
+                growth = clean_value(fin_data.get('growth', 0)); roe_val = clean_value(fin_data.get('roe', 0)); de_ratio = clean_value(fin_data.get('debt_equity', 0)); pe_val = clean_value(fin_data.get('forward_pe', 0))
+    
+                growth_display = f"{growth:+.1f}%" if abs(growth) > 0.001 else "N/A"
+                net_m_display = f"{net_m_val:.1f}%" if abs(net_m_val) > 0.001 else "N/A"
+                opm_display = f"{op_m_val:.2f}%" if abs(op_m_val) > 0.001 else "N/A"
+    
+                # --- [오리지널 보존] 상단 5개의 대형 카드 영역 ---
+                r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
+                r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
+    
+                with r1_c1:
+                    display_val = growth_display
+                    if display_val != "N/A": status, st_cls = ("🔥 High-Growth" if not is_ko else "🔥 고성장", "st-hot") if growth > 20 else ("✅ Stable" if not is_ko else "✅ 안정", "st-good") if growth > 5 else ("⚠️ Slowdown" if not is_ko else "⚠️ 둔화", "st-neutral")
+                    else: status, st_cls = ("🔍 N/A", "st-neutral")
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_growth')}</div><div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+    
+                with r1_c2:
+                    display_val = net_m_display
+                    if display_val != "N/A": status, st_cls = ("✅ Profit" if not is_ko else "✅ 흑자", "st-good") if net_m_val > 0 else ("🚨 Loss" if not is_ko else "🚨 적자", "st-hot")
+                    else: status, st_cls = ("🔍 N/A", "st-neutral")
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Net Margin (Profit)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_net_margin')}</div><div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+    
+                with r1_c3:
+                    val = accruals_status
+                    status = ("✅ Solid" if not is_ko else "✅ 건전") if val == "Low" else ("🚨 Caution" if not is_ko else "🚨 주의") if val == "High" else "🔍 N/A"
+                    st_cls = "st-good" if val == "Low" else "st-hot" if val == "High" else "st-neutral"
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_accruals')}</div><div class='metric-footer'>Theory: Teoh et al. (1998)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+    
+                with r1_c4:
+                    display_val = f"{de_ratio:.1f}%" if de_ratio > 0 else "N/A"
+                    status, st_cls = ("✅ Stable" if not is_ko else "✅ 안정", "st-good") if (0 < de_ratio < 100) else ("🔍 N/A", "st-neutral")
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Debt / Equity</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_debt_equity')}</div><div class='metric-footer'>Ref: Standard Ratio<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+    
+                with r2_c1:
+                    if current_p > 0 and off_val > 0:
+                        up_rate = ((current_p - off_val) / off_val) * 100
+                        display_val, status, st_cls = (f"{up_rate:+.1f}%", ("🚀 Surge" if not is_ko else "🚀 급등") if up_rate > 20 else ("⚖️ Fair" if not is_ko else "⚖️ 적정"), "st-hot" if up_rate > 20 else "st-good")
+                    else: 
+                        if ipo_dt < today:
+                            display_val = get_text('status_otc_delayed')
+                            status = ("⚠️ OTC" if not is_ko else "⚠️ 지연")
+                            st_cls = "st-neutral"
+                        else:
+                            display_val = get_text('status_waiting')
+                            status = ("⏳ IPO" if not is_ko else "⏳ 예정")
+                            st_cls = "st-neutral"
+
+                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Market Performance</div><div class='metric-value-row'><span class='metric-value' style='font-size:1.1rem;'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_performance')}</div><div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div></div>", unsafe_allow_html=True)
+    
+                st.write("<br>", unsafe_allow_html=True)
+    
+                # --- [오리지널 보존] 논문기반 분석 Expander ---
                 with st.expander(get_text('expander_academic_analysis'), expanded=False):
                     st.caption(f"Data Source: {data_source} / Currency: USD")
                     if is_data_available:
@@ -5178,8 +5195,43 @@ with main_area.container():
                             st.markdown(f"<div class='unified-text'><b>1. Growth & Survival Analysis (Jay Ritter, 1991)</b><br>Current revenue growth is in the <b>{growth_status_text}</b> stage. According to Ritter's theory, high-growth firms should beware of the 'growth trap' in the next 3-5 years. Current metrics indicate a {'positive' if growth > 10 else 'cautionary'} signal.<br><br><b>2. Profitability & Capital Structure (Fama & French, 2004)</b><br>Profitability (Net Margin/ROE) is rated as <b>{quality_status_text}</b>. This firm possesses {'relatively solid earnings power' if roe_val > 10 else 'room for operational improvement'}.<br><br><b>3. Information Asymmetry & Accounting Quality (Teoh et al., 1998)</b><br>Accruals quality is <b>{accruals_status}</b>, implying the risk of earnings management by executives is {'low' if accruals_status == 'Low' else 'notable'}.</div>", unsafe_allow_html=True)
                             st.info(f"**AI Verdict:** Academically, this firm exhibits **{growth_status_text}** characteristics with manageable information uncertainty.")
                     else: st.warning(get_text('err_no_biz_info'))
+            
+                # --- [수정 완료] 재무분석 Expander (기존 6칸 + 프리미엄 2칸 추가) ---
+                with st.expander(get_text('expander_financial_analysis'), expanded=False):
+                    if is_data_available:
+                        st.caption(f"Data Source: {data_source} / Currency: USD")
+                        st.markdown("""<style>.custom-metric-container { display: flex; justify-content: space-between; text-align: center; padding: 10px 0; } .custom-metric-box { flex: 1; border-right: 1px solid #f0f0f0; border-radius: 8px; margin: 0 4px; } .custom-metric-box:last-child { border-right: none; } .custom-metric-label { font-size: 0.85rem; font-weight: bold; color: #333333; margin-bottom: 6px; } .custom-metric-value { font-size: 1.05rem; font-weight: 400; color: #1f1f1f; }</style>""", unsafe_allow_html=True)
+                        
+                        # 💡 [여기에 프리미엄 2칸 추가 완료!]
+                        dcf_p = fin_data.get('dcf_price', 0.0)
+                        gap_pct = ((dcf_p - current_p) / current_p * 100) if current_p > 0 else 0
+                        gap_str = f"(+{gap_pct:.1f}% {'저평가' if is_ko else 'Undervalued'})" if gap_pct > 0 else f"({gap_pct:.1f}% {'고평가' if is_ko else 'Overvalued'})" if dcf_p > 0 else ""
+                        dcf_display = f"${dcf_p:.2f} <span style='font-size:0.8rem; color: #666;'>{gap_str}</span>" if dcf_p > 0 else "N/A"
+                        r_score = fin_data.get('health_score', 0)
+                        r_grade = fin_data.get('rating', 'N/A')
+                        rating_display = f"{r_grade} <span style='font-size:0.8rem; color: #666;'>({'점수:' if is_ko else 'Score:'} {r_score}/5)</span>" if r_grade != "N/A" else "N/A"
 
-                # 3. [복구 완료] 참고문헌 (References)
+                        p_cols = st.columns(2)
+                        with p_cols[0]: st.markdown(f'<div class="custom-metric-box" style="background:#f8f9fa; padding:15px;"><div class="custom-metric-label">💡 FMP 산출 적정주가 (DCF)</div><div class="custom-metric-value">{dcf_display}</div></div>', unsafe_allow_html=True)
+                        with p_cols[1]: st.markdown(f'<div class="custom-metric-box" style="background:#f8f9fa; padding:15px;"><div class="custom-metric-label">📊 재무 건전성 종합 등급</div><div class="custom-metric-value">{rating_display}</div></div>', unsafe_allow_html=True)
+                        st.markdown("<br>", unsafe_allow_html=True)
+
+                        # [오리지널 보존] 6칸 지표
+                        metrics = [("Forward PER", f"{pe_val:.1f}x" if pe_val > 0 else "N/A"), ("P/B Ratio", f"{fin_data.get('price_to_book', 0):.2f}x"), ("Net Margin", f"{net_m_val:.1f}%"), ("ROE", f"{roe_val:.1f}%"), ("D/E Ratio", f"{de_ratio:.1f}%"), ("Growth (YoY)", f"{growth:.1f}%")]
+                        m_cols = st.columns(6)
+                        for i, (label, value) in enumerate(metrics):
+                            with m_cols[i]: st.markdown(f'<div class="custom-metric-box" style="padding:10px 0;"><div class="custom-metric-label">{label}</div><div class="custom-metric-value">{value}</div></div>', unsafe_allow_html=True)
+                        st.markdown(" ")     
+                        
+                        # [오리지널 보존] AI 리포트
+                        ai_metrics = {"growth": growth_display, "net_margin": net_m_display, "op_margin": opm_display, "roe": f"{roe_val:.1f}%", "debt_equity": f"{de_ratio:.1f}%", "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A", "accruals": accruals_status}
+                        with st.spinner(get_text('msg_analyzing_financial')):
+                            ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], ai_metrics, curr_lang)
+                        st.info(ai_report)
+                        st.caption("※ CFA algorithm analysis applied." if not is_ko else "※ 본 분석은 실제 재무 데이터를 기반으로 생성된 표준 CFA 분석 알고리즘에 따릅니다.")
+                    else: st.warning(get_text('err_no_biz_info'))
+            
+                # --- [오리지널 보존] 참고문헌 Expander ---
                 with st.expander(get_text('expander_references'), expanded=False):
                     st.markdown("""<style>.ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; } .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 0.95rem; } .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; } .ref-summary { font-size: 0.85rem; color: #666666; margin-top: 3px; } .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; color: #555; text-decoration: none; white-space: nowrap; }</style>""", unsafe_allow_html=True)
                     if curr_lang == 'ko': sum_vc = "VC 투자가 상장 시 갖는 공신력 분석"; sum_rock = "정보 비대칭성과 공모가 저평가 메커니즘"
