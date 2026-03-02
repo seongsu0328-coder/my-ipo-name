@@ -2934,8 +2934,9 @@ UI_TEXT = {
     'tab3_data_source_prem': {
         'ko': '※ 본 분석은 월스트리트 기관용 데이터(FMP Premium)를 바탕으로 생성된 전문가용 심층 리포트입니다.',
         'en': '※ This is an in-depth professional report generated based on institutional Wall Street data (FMP Premium).',
-        'ja': '※ 本分析はウォール街の機関投資家向けデータ(FMP Premium)に基づいて作成された専門家向けの深層レポートです。',
+        'ja': '※ 本分析はウォール街の機関投資家向けデータ(FMP Premium)に基づいて作成された専門家向けの深層レポート입니다.',
         'zh': '※ 本分析是基于华尔街机构级数据(FMP Premium)生成的专家级深度报告。'
+    },  # <--- 💡 바
     'tab3_dcf_title': {
         'ko': 'FMP Target (DCF)', 
         'en': 'FMP Target (DCF)', 
