@@ -2909,10 +2909,30 @@ UI_TEXT = {
     'opt_bubble': {'ko': '버블', 'en': 'Bubble', 'ja': 'バブル', 'zh': '泡沫'},
     'opt_recession': {'ko': '침체', 'en': 'Recession', 'ja': '停滞', 'zh': '衰退'},
     'desc_growth': {'ko': '최근 연간 매출 성장률입니다.', 'en': 'Recent annual revenue growth rate.', 'ja': '直近の年間売上成長率。', 'zh': '近期年度营收增长率。'},
-    'desc_net_margin': {'ko': '순이익률입니다.', 'en': 'Net profit margin.', 'ja': '純利益率。', 'zh': '净利润率。'},
-    'desc_accruals': {'ko': '회계 장부의 투명성입니다.', 'en': 'Transparency of accounting logs.', 'ja': '会計帳簿の透明性。', 'zh': '会计账簿的透明度。'},
-    'desc_debt_equity': {'ko': '자본 대비 부채 비중입니다.', 'en': 'Total debt to equity ratio.', 'ja': '自己資本に対する負債の割合。', 'zh': '资产负债率。'},
-    'desc_performance': {'ko': '공모가 대비 수익률입니다.', 'en': 'Returns relative to the IPO price.', 'ja': '公募価格に対する収益率。', 'zh': '相对于发行价的收益率。'},
+    'desc_net_margin': {
+        'ko': '매출액 대비 최종 순이익의 비율입니다. 기업이 비용을 얼마나 효율적으로 통제하며 실제로 돈을 남기고 있는지 보여줍니다.',
+        'en': 'Ratio of net income to revenue. It shows how efficiently the company controls costs and generates actual profit.',
+        'ja': '売上高に対する最終純利益の割合です。企業が費用をいかに効率的に管理し、実際に利益を残しているかを示します。',
+        'zh': '净利润占收入的比例。它显示了公司在控制成本和产生实际利润方面的效率。'
+    },
+    'desc_accruals': {
+        'ko': '회계 장부상 이익과 실제 현금 흐름의 차이를 분석합니다. 이 수치가 낮을수록 장난치지 않은 "진짜 현금성 이익"이 많음을 의미합니다.',
+        'en': 'Analyzes the gap between book profit and actual cash flow. A lower value indicates higher "real cash earnings" without accounting tricks.',
+        'ja': '会計上の利益と実際のキャッシュフローの差を分析します。この数値が低いほど、操作のない「真の現金性利益」が多いことを意味します。',
+        'zh': '分析账面利润与实际现金流之间的差距。数值越低，表明没有会计欺诈的“真实现金收益”越多。'
+    },
+    'desc_debt_equity': {
+        'ko': '자기자본 대비 부채의 비중을 나타냅니다. 고금리 시대에 IPO 기업이 외부 자금 압박 없이 독자 생존할 수 있는 재무 체력을 평가합니다.',
+        'en': 'Ratio of total debt to shareholder equity. Assesses the financial stamina to survive without external funding pressure in a high-rate era.',
+        'ja': '自己資本に対する負債の比率を示します。高金利時代において、IPO企業が外部資金の圧力なしに独力で生存できる財務力を評価します。',
+        'zh': '总负债与股东权益的比率。评估在利率上升时代，IPO公司在没有外部资金压力的情况下独立生存 hydraulic 财力。'
+    },
+    'desc_performance': {
+        'ko': '공모가 대비 현재 주가의 변동률입니다. 상장 이후 시장 참여자들이 이 기업의 미래 가치를 얼마나 높게 평가하고 있는지 나타내는 성적표입니다.',
+        'en': 'Percentage change in current price relative to the IPO price. A scorecard showing how much investors value the company\'s future growth.',
+        'ja': '公募価格に対する現在株価の変動率です。上場後、市場参加者がこの企業の将来価値をいかに高く評価しているかを示す成績表です。',
+        'zh': '当前价格相对于IPO价格的变化百分比。这份成绩单显示了市场参与者对公司未来价值的评价有多高。'
+    },
     'expander_financial_analysis': {'ko': '재무분석', 'en': 'Financial Analysis', 'ja': '財務分析', 'zh': '财务分析'},
     'expander_academic_analysis': {'ko': '논문기반 AI 분석 보기', 'en': 'View Academic AI Analysis', 'ja': '論文ベースのAI分析を表示', 'zh': '查看基于论文的AI分析'},
     'decision_valuation_verdict': {'ko': '가치평가(Valuation) 최종 판단', 'en': 'Final Valuation Verdict', 'ja': '価値評価の最終判断', 'zh': '估值(Valuation)最终判断'},
