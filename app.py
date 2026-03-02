@@ -5329,12 +5329,20 @@ with main_area.container():
                             st.info(f"**AI Verdict:** Academically, this firm exhibits **{growth_status_text}** characteristics with manageable information uncertainty.")
                     else: st.warning(get_text('err_no_biz_info'))
 
-                # --- 💡 3. 참고문헌 Expander ---
+                # --- 💡 3. 참고문헌 Expander (Tab 3 전용) ---
                 with st.expander(get_text('expander_references'), expanded=False):
+                    # 🚀 [신규 추가] FMP 공식 프리미엄 데이터 출처 링크
+                    st.markdown(f"**[Official Institutional Data]**")
+                    st.markdown(f"- [Financial Modeling Prep: {stock['name']} Financial Summary & Valuation](https://financialmodelingprep.com/financial-summary/{sid})")
+                  
+
                     st.markdown("""<style>.ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; } .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 0.95rem; } .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; } .ref-summary { font-size: 0.85rem; color: #666666; margin-top: 3px; } .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; color: #555; text-decoration: none; white-space: nowrap; }</style>""", unsafe_allow_html=True)
+                    
+                    # (이하 기존 학술 논문 리스트 로직 유지)
                     if curr_lang == 'ko': sum_vc = "VC 투자가 상장 시 갖는 공신력 분석"; sum_rock = "정보 비대칭성과 공모가 저평가 메커니즘"
                     elif curr_lang == 'ja': sum_vc = "VC投資が上場時に持つ公信力の分析"; sum_rock = "情報の非対称性と公募価格の割安メカニズム"
                     else: sum_vc = "Analyzing the credibility of VC certification."; sum_rock = "Information asymmetry and pricing mechanism."
+                    
                     references_tab3 = [
                         {"label": get_text('ref_label_growth'), "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "summary": get_text('ref_sum_ipo'), "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991"},
                         {"label": get_text('ref_label_fundamental'), "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "summary": get_text('ref_sum_withdrawal'), "link": "https://scholar.google.com/scholar?q=Fama+French+2004"},
@@ -5342,6 +5350,7 @@ with main_area.container():
                         {"label": get_text('ref_label_vc'), "title": "The Role of Venture Capital", "author": "Barry et al. (1990)", "summary": sum_vc, "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
                         {"label": get_text('ref_label_underpricing'), "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "summary": sum_rock, "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
                     ]
+                    
                     st.info(f"💡 {get_text('caption_google_search')} (Source: **{data_source}**)")
                     for ref in references_tab3:
                         st.markdown(f"<div class='ref-item'><div style='flex:1; padding-right: 10px;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div class='ref-summary'>{ref['summary']}, {ref['author']}</div></div><div><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
