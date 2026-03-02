@@ -6290,8 +6290,16 @@ with main_area.container():
                 with tab_free:
                     render_board_tab(free_posts, 'board_free_count', 'free')
 
-# 👇 [여기서부터 파일 끝입니다. except 관련 코드는 싹 지워주세요!]
-draw_footer()
+            # 💡 [여기에 Footer 추가]
+            draw_footer()
+
+# 💡 [필수 복구] 지우셨던 except 블록을 파일 맨 밑에 다시 살려주세요!
+except Exception as e:
+    st.error("🚨 앱 실행 중 에러가 발생했습니다!")
+    st.warning("아래 에러 메시지를 복사해서 관리자에게 알려주세요:")
+    error_msg = traceback.format_exc()
+    st.code(error_msg, language='python')
+    st.stop()
                 
                         
         
