@@ -5440,10 +5440,9 @@ with main_area.container():
                 # --- Tab 4: 기관평가 내 References 영역 ---
                 with st.expander("References", expanded=False):
                     # 💡 [신규 추가] FMP 공식 목표가 출처 링크를 최상단에 배치합니다.
-                    st.markdown(f"**[Official Data Source]**")
+                 
                     st.markdown(f"- [Financial Modeling Prep: {stock['name']} Institutional Consensus](https://financialmodelingprep.com/financial-summary/{q})")
-                    st.divider()
-
+                   
                     # 👇 [기존 코드 유지] 실시간 AI 추출 링크들
                     if sources:
                         for src in sources: st.markdown(f"- [{src['title']}]({src['link']})")
