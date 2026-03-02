@@ -353,37 +353,55 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 "F-1": {"p": "Foreign Risk, Accounting (GAAP), ADS Structure", "s": "1문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위\n2문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크\n3문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향"},
                 "FWP": {"p": "Graphics, Strategy, Highlights", "s": "1문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전\n2문단: 경쟁사 대비 기술적/사업적 차별화 포인트\n3문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지"},
                 "424B4": {"p": "Final Price, Underwriting, IPO Outcome", "s": "1문단: 확정 공모가의 위치와 시장 수요 해석\n2문단: 확정된 조달 자금의 투입 우선순위\n3문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측"},
-                "RW": {"p": "Withdrawal Reason, Market Condition", "s": "1문단: 상장 철회(Withdrawal) 결정적 사유 및 배경\n2문단: 상장 철회가 기업 재무 및 기존 투자자에게 미치는 영향\n3문단: 향후 재상장 또는 M&A 등 향후 계획"},
+                "RW": {"p": "Withdrawal Reason, Market Condition, Future Plans", "s": "1문단: 상장 철회(Withdrawal) 결정적 사유 및 배경\n2문단: 상장 철회가 기업 재무 및 기존 투자자에게 미치는 영향\n3문단: 향후 재상장 또는 M&A 등 향후 계획"},
                 "Form 25": {"p": "Delisting Reason, M&A, Shareholder Impact", "s": "1문단: 상장 폐지(Delisting)의 정확한 사유\n2문단: 상장 폐지 후 기존 주주의 권리 및 주식 처리 방안\n3문단: 장외시장(OTC) 거래 가능성 및 향후 기업 상태"},
-                "10-K": {"p": "Annual Revenue, Operating Income, Net Income, Growth Rate", "s": "1문단: [연간 성과] 지난 1년간의 **실제 매출액과 영업이익 수치($)** 및 전년비 성장률 명시\n2문단: [사업 확장] 경영진이 강조한 핵심 사업부별 **실적 데이터**와 비즈니스 모델 변화\n3문단: [리스크] 새롭게 부각된 위험 요소가 향후 **재무 수치에 미칠 수 있는 구체적 영향**"},
-                "10-Q": {"p": "Quarterly Revenue, Net Income, Cash Balances", "s": "1문단: [분기 실적] 이번 분기 **실제 매출($) 및 순이익($)** 성과와 전년 동기 대비 증감률 명시\n2문단: [현금 현황] 현재 보유한 **현금 및 현금성 자산의 실제 수치**와 단기 유동성 분석\n3문단: [가이던스] 경영진이 제시한 다음 분기 예상 수치 및 성장의 구체적 근거"},
-                "BS": {"p": "Total Assets, Total Liabilities, Cash & Equivalents, Total Debt, Equity", "s": "1문단: [자산 구조] 현금성 자산을 포함한 유동 자산과 비유동 자산의 **실제 수치(USD)**를 명시\n2문단: [부채와 자본] 총부채와 자기자본의 **실제 금액($)**을 바탕으로 부채비율을 분석\n3문단: [결론] 위 수치를 근거로 한 기업의 재무 건전성 및 지급 능력 최종 평가"},
-                "IS": {"p": "Revenue, Gross Margin, Operating Income, Net Income, EPS", "s": "1문단: [매출 성과] 서류에 기재된 **실제 매출액(Revenue) 수치와 성장률(%)**을 반드시 포함\n2문단: [수익성] 영업이익(Operating Income)과 순이익(Net Income)의 **실제 달러 수치** 명시\n3문단: [수익성 품질] 주당순이익(EPS)과 일회성 비용 유무를 수치 기반으로 요약"},
-                "CF": {"p": "Operating CF, Investing CF(CAPEX), Financing CF, FCF", "s": "1문단: [영업현금흐름] 실제 영업활동 현금흐름 **수치($)**를 명시하고 현금 창출력 평가\n2문단: [투자 및 CAPEX] **자본적 지출(CAPEX)의 실제 금액**과 투자 방향성 분석\n3문단: [현금 생존력] **잉여현금흐름(FCF)을 직접 계산(영업CF-CAPEX)**하여 수치로 명시"}
+                "10-K": {"p": "Annual Revenue, Operating Income, Net Income, Growth Rate", "s": "1문단: [연간 성과] 지난 1년간의 실제 매출액과 영업이익 수치($) 및 전년비 성장률 명시\n2문단: [사업 확장] 경영진이 강조한 핵심 사업부별 실적 데이터와 비즈니스 모델 변화\n3문단: [리스크] 새롭게 부각된 위험 요소가 향후 재무 수치에 미칠 수 있는 구체적 영향"},
+                "10-Q": {"p": "Quarterly Revenue, Net Income, Cash Balances", "s": "1문단: [분기 실적] 이번 분기 실제 매출($) 및 순이익($) 성과와 전년 동기 대비 증감률 명시\n2문단: [현금 현황] 현재 보유한 현금 및 현금성 자산의 실제 수치와 단기 유동성 분석\n3문단: [가이던스] 경영진이 제시한 다음 분기 예상 수치 및 성장의 구체적 근거"},
+                "BS": {"p": "Total Assets, Total Liabilities, Cash & Equivalents, Total Debt, Equity", "s": "1문단: [자산 구조] 현금성 자산을 포함한 유동 자산과 비유동 자산의 실제 수치(USD)를 공시 서류에서 찾아 명시\n2문단: [부채와 자본] 총부채와 자기자본의 실제 금액($)을 바탕으로 부채비율 분석 및 재무 리스크 진단\n3문단: [결론] 위 수치를 근거로 한 기업의 실질적인 재무 건전성 및 지급 능력 최종 평가"},
+                "IS": {"p": "Revenue Growth, Gross Margin, Operating Income, Net Income, EPS", "s": "1문단: [매출 성과] 서류에 기재된 실제 매출액(Revenue) 수치와 전년 대비 성장률(%)을 반드시 포함\n2문단: [이익률 평가] 영업이익(Operating Income)과 순이익(Net Income)의 실제 달러 수치를 명시하고 마진 분석\n3문단: [수익성 품질] 주당순이익(EPS)과 일회성 비용 유무를 통해 본 기업의 실질적 수익 창출력 요약"},
+                "CF": {"p": "Operating CF, Investing CF(CAPEX), Financing CF, Free Cash Flow(FCF)", "s": "1문단: [영업현금흐름] 실제 영업활동 현금흐름 수치를 명시하고 기업의 핵심 현금 창출력 평가\n2문단: [투자 및 CAPEX] 자본적 지출(CAPEX)의 실제 금액과 투자 방향성을 구체적인 숫자로 분석\n3문단: [현금 생존력] 잉여현금흐름(FCF)을 직접 계산(영업CF - CAPEX)하여 명시하고 향후 자금 조달 필요성 진단"}
             },
             "en": {
-                "S-1": {"p": "Risk Factors, Use of Proceeds, MD&A", "s": "Para 1: Key investment highlights found in the filing.\nPara 2: Strategic growth potential and financial implications.\nPara 3: Critical risk factor and its impact on shareholders."},
-                "10-K": {"p": "Full-year Revenue, Operating Income, Segment Data", "s": "Para 1: [Annual Performance] State **actual Revenue and Operating Income ($)** with YoY growth.\nPara 2: [Operations] Analyze core business unit **performance data** and strategic shifts.\nPara 3: [Risk Outlook] Specific **numerical impact** of new risks on long-term goals."},
-                "10-Q": {"p": "Quarterly Revenue, Net Income, Cash Reserves", "s": "Para 1: [Quarterly Results] State **actual Revenue and Net Income ($)** with YoY comparison.\nPara 2: [Liquidity] List **actual cash and cash equivalents** and assess solvency.\nPara 3: [Guidance] Specific numerical guidance for the next quarter and its drivers."},
-                "BS": {"p": "Assets, Liabilities, Cash, Debt, Equity", "s": "Para 1: [Asset Structure] List **actual USD values** for current and non-current assets.\nPara 2: [Debt & Equity] Use **actual debt and equity figures ($)** to analyze stability.\nPara 3: [Solvency] Final evaluation based purely on the reported financial numbers."},
-                "IS": {"p": "Revenue, Gross Margin, Net Income, EPS", "s": "Para 1: [Top-line] Explicitly include **actual Revenue and YoY growth (%)**.\nPara 2: [Profitability] Analyze Operating/Net Income using **actual dollar amounts**.\nPara 3: [Earnings Quality] Summarize EPS and profit quality using specific financial data."},
-                "CF": {"p": "Operating CF, CAPEX, FCF, Financing", "s": "Para 1: [Operating] State **actual cash flow from operations ($)** and efficiency.\nPara 2: [Investing] Analyze **actual CAPEX spending** and direction using dollar amounts.\nPara 3: [Cash Runway] **Calculate and state FCF (OCF - CAPEX)** using reported figures."}
+                "S-1": {"p": "Risk Factors, Use of Proceeds, MD&A", "s": "Para 1: The most important investment points found in this document.\nPara 2: Real business growth potential and financial implications.\nPara 3: One core risk, its ripple effects, and countermeasures."},
+                "S-1/A": {"p": "Pricing Terms, Dilution, Changes", "s": "Para 1: Core changes compared to the previous S-1.\nPara 2: Appropriateness of pricing terms and expected demand.\nPara 3: Dilution for new investors and investment attractiveness."},
+                "F-1": {"p": "Foreign Risk, Accounting (GAAP), ADS Structure", "s": "Para 1: The company's unique competitive advantage in the global market.\nPara 2: Specific risks for foreign companies (FX, politics, accounting).\nPara 3: Impact of the ADS structure on shareholder rights."},
+                "FWP": {"p": "Graphics, Strategy, Highlights", "s": "Para 1: Future growth vision emphasized by management in the roadshow.\nPara 2: Technical/business differentiation points against competitors.\nPara 3: Market penetration willingness inferred from the tone and manner."},
+                "424B4": {"p": "Final Price, Underwriting, IPO Outcome", "s": "Para 1: Interpretation of the final IPO price and market demand.\nPara 2: Priority of how the raised funds will be used.\nPara 3: Expected initial float based on underwriters and lock-ups."},
+                "RW": {"p": "Withdrawal Reason, Market Condition, Future Plans", "s": "Para 1: Decisive reason and background for the IPO withdrawal.\nPara 2: Impact of the withdrawal on corporate finance and existing investors.\nPara 3: Future plans such as M&A or re-attempting IPO."},
+                "Form 25": {"p": "Delisting Reason, M&A, Shareholder Impact", "s": "Para 1: Exact reason for delisting (M&A, voluntary, violations, etc.).\nPara 2: Impact on shareholder rights and stock treatment after delisting.\nPara 3: Possibility of OTC trading and future corporate status."},
+                "10-K": {"p": "Annual Revenue, Operating Income, Net Income, Growth Rate", "s": "Para 1: [Annual Performance] State actual Revenue and Operating Income ($) from the past year with growth rates.\nPara 2: [Business Expansion] Core segment performance data and strategic model changes emphasized by management.\nPara 3: [Risks] Specific numerical impact of emerging risk factors on future financial metrics."},
+                "10-Q": {"p": "Quarterly Revenue, Net Income, Cash Balances", "s": "Para 1: [Quarterly Results] State actual Revenue ($) and Net Income ($) for this quarter with YoY growth.\nPara 2: [Cash Status] Mention actual cash and cash equivalents and assess short-term liquidity.\nPara 3: [Guidance] Specific numerical guidance for the next quarter and its fundamental drivers."},
+                "BS": {"p": "Total Assets, Total Liabilities, Cash, Debt, Equity", "s": "Para 1: [Asset Structure] List actual USD values for current and non-current assets including cash from the filing.\nPara 2: [Solvency] Use actual debt and equity figures ($) to analyze the debt-to-equity ratio and financial risks.\nPara 3: [Verdict] Final evaluation of short-term liquidity and long-term solvency based on the numbers."},
+                "IS": {"p": "Revenue Growth, Margins, Operating Income, Net Income, EPS", "s": "Para 1: [Top-line] Explicitly include actual Revenue figures and YoY growth (%) from the document.\nPara 2: [Profitability] Analyze Operating and Net Income using actual dollar amounts and margin trends.\nPara 3: [Earnings Quality] Summarize EPS and long-term profitability based on real data points."},
+                "CF": {"p": "Operating CF, Investing CF(CAPEX), Financing CF, FCF", "s": "Para 1: [Operating CF] State actual cash flow from operations ($) and evaluate core cash generation.\nPara 2: [Investing & CAPEX] Analyze actual CAPEX figures and investment direction using dollar amounts.\nPara 3: [Cash Runway] Calculate and state Free Cash Flow (FCF) using reported figures and assess funding needs."}
             },
             "ja": {
-                "S-1": {"p": "リスク要因, 資金使途, MD&A", "s": "第1段落：この文書で確認できる最も重要な投資ポイント\n第2段落：成長可能性と財務的な意味合い\n第3段落：核心的なリスクとその対応策"},
-                "10-K": {"p": "通期売上高, 営業利益, セグメント実績", "s": "第1段落：[通期実績] 過去1年間の**実際の売上高と営業利益の数値($)**および成長率を明記\n第2段落：[事業分析] 経営陣が強調する事業部別の**実績データ**とモデルの変化\n第3段落：[将来リスク] リスク要因が今後の**財務指標に与える具体的な影響**"},
-                "10-Q": {"p": "四半期売上, 純利益, 現金残高", "s": "第1段落：[四半期実績] 当四반期の**実際の売上($)と純利益($)**および前年比を明記\n第2段落：[流動性] 現在の**現金および現金同等物の数値**を明記し、支払能力を診断\n第3段落：[ガイダンス] 次四半期の予想数値と成長の具体的な根拠"},
-                "BS": {"p": "資産合計, 負債合計, 現金等価物, 自己資本", "s": "第1段落：[資産構造] 現金同等物を含む流動・非流動資産の**実際の数値(USD)**を明記\n第2段落：[負債と資本] 総負債と自己資本の**実際の金額($)**に基づき分析\n第3段落：[結論] 数値に裏打ちされた短期支払能力と長期的な健全性の評価"},
-                "IS": {"p": "売上高, 利益率, 営業利益, 純利益, EPS", "s": "第1段落：[売上実績] 報告書に明記された**実際の売上高(Revenue)数値と成長率(%)**を含める\n第2段落：[収益性] 営業利益と純利益の**実際のドル数値**を明記し分析\n第3段落：[利益の質] EPSと一回性費用の分析による収益創出能力の要約"},
-                "CF": {"p": "営業CF, CAPEX, 財務CF, フリーキャッシュフロー(FCF)", "s": "第1段落：[営業CF] **実際の営業活動によるCF数値($)**を明記し評価\n第2段落：[投資とCAPEX] **CAPEXの実際の金額**と投資方向性を数字で分析\n第3段落：[現金の存続能力] **フリーキャッシュフロー(FCF)を直接計算(営業CF-CAPEX)**して明記"}
+                "S-1": {"p": "リスク要因, 資金使途, MD&A", "s": "第1段落：この文書で確認できる最も重要な投資ポイント\n第2段落：実質的な成長可能性と財務的意味\n第3段落：核心的なリスク1つ、その波及効果および対応策"},
+                "S-1/A": {"p": "需要予測, 希薄化, 変更点", "s": "第1段落：前回のS-1からの主な変更点\n第2段落：提示された公募価格帯の妥当性と需要予測の雰囲気\n第3段落：既存株主の価値希薄化の程度と投資魅力度"},
+                "F-1": {"p": "地政学的リスク, 会計差異, ADS構造", "s": "第1段落：企業がグローバル市場で持つ独自の競争優位性\n第2段落：為替、政治、会計など海外企業特有のリスク\n第3段落：ADS構造が株主の権利に与える影響"},
+                "FWP": {"p": "戦略, ハイライト, 市場シェア", "s": "第1段落：経営陣がロードショーで強調する未来の成長ビジョン\n第2段落：競합他社と比較した技術的・事業的な差別化ポイント\n第3段落：資料のトーンから推測される市場攻略への意欲"},
+                "424B4": {"p": "最終価格, 引受シンジケート, 配分", "s": "第1段落：確定した公募価格の位置づけと市場需要の解釈\n第2段落：確定した調達資金の投入優先順位\n第3段落：配分に基づく上場初期の流通株式予測"},
+                "RW": {"p": "撤回理由, 市場環境, 今後の計画", "s": "第1段落：上場撤回の決定的な理由と背景\n第2段落：上場撤回が企業の財務および投資家に与える影響\n第3段落：今後の再上場またはM&Aなどの計画"},
+                "Form 25": {"p": "上場廃止理由, M&A, 株主への影響", "s": "第1段落：上場廃止の正確な理由（買収、自主的、違反など）\n第2段落：上場廃止後の既存株主の権利および株式の取り扱い\n第3段落：店頭市場（OTC）での取引可能性および今後の状態"},
+                "10-K": {"p": "通期売上高, 営業利益, セ그メント実績", "s": "第1段落：[通期実績] 過去1年間の実際の売上高と営業利益の数値($)、および成長率を明記\n第2段落：[事業分析] 各セグメント別の実績データとビジネスモデルの変化\n第3段落：[将来リスク] リスク要因が今後の財務指標に与える具体的な影響"},
+                "10-Q": {"p": "四半期売上, 純利益, 現金残高", "s": "第1段落：[四半期実績] 当四半期の実際の売上($)と純利益($)および前年比を明記\n第2段落：[流動性] 現在の現金および現金同等物の実際の数値をお明記し診断\n第3段落：[ガイダンス] 次四半期の予想数値と成長の具体的な根拠"},
+                "BS": {"p": "資産合計, 負債合計, 現金等価物, 自己資本", "s": "第1段落：[資産構造] 現金同等物を含む流動・非流動資産の実際の数値(USD)を明記\n第2段落：[負債と資本] 総負債と自己資本の実際の金額($)に基づき分析\n第3段落：[結論] 数値に裏打ちされた短期支払能力と健全性の評価"},
+                "IS": {"p": "売上高, 利益率, 営業利益, 純利益, EPS", "s": "第1段落：[売上実績] 報告書に明記された実際の売上高(Revenue)数値と成長率(%)を含める\n第2段落：[収益性] 営業利益と純利益の実際のドル数値を明記し分析\n第3段落：[利益の質] EPSと利益の質を具体的なデータで要約"},
+                "CF": {"p": "営業CF, CAPEX, 財務CF, FCF", "s": "第1段落：[営業CF] 実際の営業活動によるCF数値($)を明記し評価\n第2段落：[投資とCAPEX] CAPEXの実際の金額と投資方向性を数字で分析\n第3段落：[現金の存続能力] フリーキャッシュフロー(FCF)を 직접計算(営業CF-CAPEX)して明記"}
             },
             "zh": {
-                "S-1": {"p": "风险因素, 资金用途, MD&A", "s": "第一段：该文件中最重要的投资亮点\n第二段：实质性增长潜力及其财务意义\n第三段：一个核心风险及其连锁反应"},
-                "10-K": {"p": "年度营收, 营业利润, 业务板块数据", "s": "第一段：[年度表现] 明确列出过去一年的**实际营收和营业利润数值($)**及增长率\n第二段：[业务分析] 管理层强调的核心板块**业绩数据**及商业模式变化\n第三段：[风险展望] 风险因素对未来**财务指标的具体影响**"},
-                "10-Q": {"p": "季度营收, 净利润, 现金储备", "s": "第一段：[季度业绩] 明确列出本季度**实际营收($)和净利润($)**及同比变化\n第二段：[现金状况] 明确列出当前的**现金及现金等价物数值**，评估偿债能力\n第三段：[指引] 管理层给出的下季度预期数值及短期增长的依据"},
-                "BS": {"p": "总资产, 总负债, 现金及等价物, 权益", "s": "第一段：[资产结构] 明确列出流动资产和非流动资产的**实际美元金额(USD)**\n第二段：[负债与资本] 使用总负债和股东权益的**实际金额($)**评估稳定性\n第三段：[结论] 基于上述具体数值评估偿债能力及长期财务状况"},
-                "IS": {"p": "营收增长, 毛利率, 营业利润, 净利润, EPS", "s": "第一段：[营收表现] 必须包含报告中列出的**实际营收数值及同比增长率(%)**\n第二段：[盈利指标] 使用**实际美元金额**分析营业利润和净利润\n第三段：[收益质量] 结合EPS和非经常性损益，总结实际盈利能力"},
-                "CF": {"p": "经营CF, 投资CF, 筹资CF, FCF", "s": "第一段：[经营现金流] 明确列出**实际经营活动现金流数值($)**并评估造血能力\n第二段：[投资与支出] 基于金额分析**资本支出(CAPEX)的具体数值**\n第三段：[现金流存续] **明确计算并列出自由现金流(FCF)**情况"}
+                "S-1": {"p": "风险因素, 资金用途, MD&A", "s": "第一段：该文件中最重要的投资亮点\n第二段：实质性增长潜力及其财务意义\n第三段：一个核心风险，其连锁反应及应对措施"},
+                "S-1/A": {"p": "定价条款, 股权稀释, 变更点", "s": "第一段：与之前S-1相比的核心变化\n第二段：定价区间的合理性及需求氛围分析\n第三段：现有股东的价值稀释程度及投资吸引力"},
+                "F-1": {"p": "地缘政治风险, 会计差异, ADS结构", "s": "第一段：企业在全球市场中独有的竞争优势\n第二段：外汇、政治、会计等海外企业特有风险分析\n第三段：ADS结构对股东权利的影响"},
+                "FWP": {"p": "战略, 亮点, 市场份额", "s": "第一段：管理层在路演中强调的未来增长愿景\n第二段：与竞争对手相比的技术/业务差异化优势\n第三段：从资料基调推测的市场开拓意愿"},
+                "424B4": {"p": "最终价格, 承销, IPO结果", "s": "第一段：最终发行价的定位及市场需求解读\n第二段：确定募集资金的投入优先顺序\n第三段：基于配售情况的上市初期流通股预测"},
+                "RW": {"p": "撤回原因, 市场环境, 未来计划", "s": "第一段：该企业撤回上市的决定性原因及背景\n第二段：撤回上市对企业财务及现有投资者的影响\n第三段：未来再次上市或并购等计划"},
+                "Form 25": {"p": "退市原因, 并购, 股东影响", "s": "第一段：退市的准确原因（并购、自愿退市、违规等）\n第二段：退市后现有股东的权利及股票处理方案\n第三段：场外市场（OTC）交易的可能性及未来状态"},
+                "10-K": {"p": "年度营收, 营业利润, 各板块数据", "s": "第一段：[年度表现] 明确列出过去一年的实际营收和营业利润数值($)及增长率\n第二段：[业务分析] 核心业务板块业绩数据及商业模式变化\n第三段：[风险展望] 风险因素对未来财务指标的具体影响"},
+                "10-Q": {"p": "季度营收, 净利润, 现金储备", "s": "第一段：[季度业绩] 明确列出本季度实际营收($)和净利润($)及同比变化\n第二段：[现金状况] 明确列出当前的现金及现金等价物数值\n第三段：[指引] 管理层给出的下季度预期数值及短期增长的依据"},
+                "BS": {"p": "总资产, 总负债, 现金及等价物, 权益", "s": "第一段：[资产结构] 明确列出流动资产和非流动资产的实际美元金额(USD)\n第二段：[负债与资本] 使用总负债和股东权益的实际金额($)评估稳定性\n第三段：[结论] 基于上述具体数值评估企业的偿债能力"},
+                "IS": {"p": "营收增长, 毛利率, 净利润, EPS", "s": "第一段：[营收表现] 必须包含报告中列出的实际营收数值及同比增长率(%)\n第二段：[盈利指标] 使用实际美元金额分析营业利润和净利润\n第三段：[收益质量] 结合EPS总结企业的实际盈利能力"},
+                "CF": {"p": "经营CF, 投资CF, 筹资CF, FCF", "s": "第一段：[经营现金流] 明确列出实际经营活动现金流数值($)并评估造血能力\n第二段：[投资与支出] 基于金额分析资本支出(CAPEX)的具体数值\n第三段：[现金流存续] 明确计算并列出自由现金流(FCF)情况"}
             }
         }
         lang_group = meta_dict.get(lang, meta_dict['ko'])
@@ -401,13 +419,14 @@ Checkpoints: {meta['p']}
 1. Write ENTIRELY in English.
 2. DO NOT provide general definitions (e.g., 'Revenue is important').
 3. YOU MUST find and include REAL NUMBERS (USD, %) from the filings.
-4. If numbers are not in the provided fact check, search specifically for '{company_name} latest {topic} financial data'.
+4. DO NOT use markdown bold (**) for numbers or currency symbols. Keep them as plain text.
 5. NO self-introductions.
 
 [Structure]
 {meta['s']}
 
 {format_inst}"""
+
         elif lang == 'ja':
             return f"""あなたは証券分析のエキスパートです。
 分析対象: {company_name} ({ticker}) - {topic}
@@ -417,13 +436,15 @@ Checkpoints: {meta['p']}
 [厳格な作成ルール]
 1. 全て日本語で作成してください。韓国語を絶対に混ぜないでください。
 2. 一般的な定義（例：「売上は重要です」など）は一切禁止します。
-3. 必ず最新の開示書類から**実際の数値（USD、$）とパーセンテージ（%）**を引用してください。
-4. 自己紹介や挨拶は不要です。
+3. 必ず最新の開示書類から実際の数値（USD、$）とパーセンテージ（%）を引用してください。
+4. 数値や通貨記号に強調表示（**）は使用しないでください。プレーンテキストで記述してください。
+5. 自己紹介や挨拶は不要です。
 
 [構成]
 {meta['s']}
 
 {format_inst}"""
+
         elif lang == 'zh':
             return f"""您是资深证券分析师。
 分析目标: {company_name} ({ticker}) - {topic}
@@ -433,13 +454,15 @@ Checkpoints: {meta['p']}
 [严格编写指南]
 1. 必须完全使用简体中文编写。严禁混用韩语。
 2. 严禁提供空洞的理论描述（如：'营收对公司很重要'）。
-3. 必须从报告中找出并列出**具体的美元金额($)和百分比(%)数值**。
-4. 不要进行自我介绍。
+3. 必须从报告中找出并列出具体的美元金额($)和百分比(%)数值。
+4. 严禁对数值或货币符号加粗(**)。请保持普通文本格式。
+5. 不要进行自我介绍。
 
 [结构要求]
 {meta['s']}
 
 {format_inst}"""
+
         else: # ko
             return f"""당신은 월가 출신의 전문 분석가입니다.
 분석 대상: {company_name} ({ticker}) - {topic}
@@ -449,9 +472,10 @@ Checkpoints: {meta['p']}
 [작성 지침 - 필수 준수]
 1. 반드시 한국어로만 작성하세요.
 2. 일반적인 정의나 이론적인 설명(예: '영업현금흐름은 중요합니다')은 절대 하지 마세요.
-3. 반드시 공시 서류에 기재된 **실제 달러($) 수치와 퍼센트(%)**를 찾아 언급하세요.
-4. 수치를 찾을 수 없는 경우에만 예외적으로 팩트 위주로 작성하세요.
-5. 자기소개나 인사말은 절대 하지 말고 ~입니다, ~합니다, ~습니다 등으로 문장을 끝내세요.
+3. 반드시 공시 서류에 기재된 실제 달러($) 수치와 퍼센트(%)를 찾아 언급하세요.
+4. 숫자나 통화 기호에 별표(**)를 사용한 강조 처리는 절대 하지 마세요. 일반 텍스트로만 작성하세요.
+5. 수치를 찾을 수 없는 경우에만 예외적으로 팩트 위주로 작성하세요.
+6. 자기소개나 인사말은 절대 하지 말고 ~입니다, ~합니다, ~습니다 등으로 문장을 끝내세요.
 
 [내용 구성 지침]
 {meta['s']}
@@ -460,14 +484,14 @@ Checkpoints: {meta['p']}
 
     def get_format_instruction(lang):
         if lang == 'en':
-            return "- Begin each paragraph with a translated **[Heading]**. Rich content, 4-5 sentences per paragraph."
+            return "- Begin each paragraph with a translated **[Heading]**. Rich content, 4-5 sentences per paragraph. DO NOT bold numbers."
         elif lang == 'ja':
-            return "- 各段落は日本語の **[見出し]** から始めてください。1段落につき4〜5文の充実した内容にしてください。"
+            return "- 各段落は日本語の **[見出し]** から始めてください。1段落につき4〜5文にし、数値に強調（**）は使わないでください。"
         elif lang == 'zh':
-            return "- 每个段落以中文 **[副标题]** 开头。每段必须包含4-5句详尽的内容。"
+            return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
         else:
-            return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5문장씩 상세하고 풍성하게 작성하세요."
-
+            return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5문장씩 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
+            
     for topic in target_topics:
         sec_fact_prompt = ""
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
