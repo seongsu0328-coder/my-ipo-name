@@ -6290,17 +6290,9 @@ with main_area.container():
                 with tab_free:
                     render_board_tab(free_posts, 'board_free_count', 'free')
 
-    # 👇 draw_footer는 try 블록 안에 속해야 하므로 '4칸'만 들여쓰기 합니다.
-    draw_footer()
-
-# 🚨 [매우 중요] except는 전체 코드를 감싸는 맨 위 try의 짝꿍입니다. 
-# 반드시 앞에 띄어쓰기가 "단 1칸도 없이" 화면 맨 왼쪽에 딱 붙어야 합니다!
-except Exception as e:
-    st.error("🚨 앱 실행 중 에러가 발생했습니다!")
-    st.warning("아래 에러 메시지를 복사해서 관리자에게 알려주세요:")
-    error_msg = traceback.format_exc()
-    st.code(error_msg, language='python')
-    st.stop()
+# 👇 [여기서부터 파일 끝입니다. 기존에 있던 except 관련 코드는 싹 지워주세요!]
+# draw_footer()는 화면 맨 왼쪽(띄어쓰기 0칸)에 딱 붙여서 작성합니다.
+draw_footer()
                 
                         
         
