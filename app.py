@@ -2931,26 +2931,62 @@ UI_TEXT = {
     'ref_label_accounting': {'ko': '회계 품질', 'en': 'Accounting Quality', 'ja': '会計の質', 'zh': '会计质量'},
     'ref_label_vc': {'ko': 'VC 인증', 'en': 'VC Certification', 'ja': 'VC認証', 'zh': 'VC背书'},
     'ref_label_underpricing': {'ko': '저평가 이론', 'en': 'Underpricing Theory', 'ja': '割安理論', 'zh': '抑价理论'},
-    'tab3_dcf_title': {
-        'ko': '💡 FMP 산출 알고리즘 적정주가 (DCF)', 
-        'en': '💡 FMP Algorithm Target Price (DCF)', 
-        'ja': '💡 FMP算出アルゴリズム適正株価 (DCF)', 
-        'zh': '💡 FMP算法目标价 (DCF)'
-    },
-    'tab3_quant_title': {
-        'ko': '📊 재무 건전성 종합 등급 (Quant)', 
-        'en': '📊 Overall Financial Health Rating (Quant)', 
-        'ja': '📊 財務健全性総合評価 (Quant)', 
-        'zh': '📊 整体财务健康评级 (Quant)'
-    },
-    'tab3_undervalued': {'ko': '저평가', 'en': 'Undervalued', 'ja': '割安', 'zh': '低估'},
-    'tab3_overvalued': {'ko': '고평가', 'en': 'Overvalued', 'ja': '割高', 'zh': '高估'},
-    'tab3_score': {'ko': '점수:', 'en': 'Score:', 'ja': 'スコア:', 'zh': '得分:'},
     'tab3_data_source_prem': {
         'ko': '※ 본 분석은 월스트리트 기관용 데이터(FMP Premium)를 바탕으로 생성된 전문가용 심층 리포트입니다.',
         'en': '※ This is an in-depth professional report generated based on institutional Wall Street data (FMP Premium).',
         'ja': '※ 本分析はウォール街の機関投資家向けデータ(FMP Premium)に基づいて作成された専門家向けの深層レポートです。',
         'zh': '※ 本分析是基于华尔街机构级数据(FMP Premium)生成的专家级深度报告。'
+    'tab3_dcf_title': {
+        'ko': 'FMP Target (DCF)', 
+        'en': 'FMP Target (DCF)', 
+        'ja': 'FMP目標株価 (DCF)', 
+        'zh': 'FMP目标价 (DCF)'
+    },
+    'tab3_quant_title': {
+        'ko': 'Quant Rating', 
+        'en': 'Quant Rating', 
+        'ja': 'クオンツ評価 (Quant)', 
+        'zh': '量化评级 (Quant)'
+    },
+    'tab3_dcf_desc': {
+        'ko': '현금흐름할인법(DCF) 알고리즘으로 산출된 적정주가 대비 현재가의 괴리율입니다.',
+        'en': 'Gap between DCF algorithm target price and current price.',
+        'ja': '現金収益を基に算出された適正株価と現在価格の乖離率です。',
+        'zh': '基于现金流折现法(DCF)算法计算的目标价与当前股价的差距。'
+    },
+    'tab3_quant_desc': {
+        'ko': '재무 건전성과 수익성을 종합 평가한 월스트리트 퀀트(Quant) 알고리즘 등급입니다.',
+        'en': 'Comprehensive quantitative rating of financial health and profitability.',
+        'ja': '財務健全性と収益性を総合評価したウォール街のクオンツアルゴリズム等級です。',
+        'zh': '综合评估财务健康状况和盈利能力的华尔街量化算法等级。'
+    },
+    'tab3_per_desc': {
+        'ko': '주가수익비율(PER)로, 1주당 창출하는 순이익 대비 현재 주가의 밸류에이션 배수입니다.',
+        'en': 'Price-to-Earnings ratio, indicating valuation relative to forward earnings.',
+        'ja': '株価収益率(PER)で、1株当たりの純利益に対する株価の割安・割高指標です。',
+        'zh': '市盈率(PER)，表示相对于每股净利润的股价估值倍数。'
+    },
+    'tab3_undervalued': {'ko': '저평가', 'en': 'Undervalued', 'ja': '割安', 'zh': '低估'},
+    'tab3_overvalued': {'ko': '고평가', 'en': 'Overvalued', 'ja': '割高', 'zh': '高估'},
+    'tab3_score': {'ko': '점수:', 'en': 'Score:', 'ja': 'スコア:', 'zh': '得分:'},
+    'tab3_report_caption': {
+        'ko': '※ 본 분석은 월스트리트 기관용 데이터(FMP Premium)를 바탕으로 생성된 전문가용 심층 리포트입니다.',
+        'en': '※ This is an in-depth professional report generated based on FMP Premium data.',
+        'ja': '※ 本分析はウォール街の機関用データ(FMP Premium)に基づいた専門家向けの深層レポートです。',
+        'zh': '※ 本分析是基于华尔街机构级数据(FMP Premium)生成的专家级深度报告。'
+    },
+    'tab3_academic_limited': {
+        'ko': '상장 전 기업이거나 공식 재무 제표가 확인되지 않아 학술적 분석이 제한됩니다.',
+        'en': 'Academic analysis is limited due to missing financial statements for this company.',
+        'ja': '上場前の企業、または公式財務諸表が確認できないため、学術的分析が制限されます。',
+        'zh': '由于是拟上市公司或未查到官方财务报表，学术分析受限。'
+    },
+    # 기존 키값 보강 (혹시 누락된 경우를 위해)
+    'desc_growth': {
+        'ko': '최근 연간 매출 성장률입니다. 고성장 IPO 기업의 생존 가능성을 판단하는 핵심 지표입니다.',
+        'en': 'Annual revenue growth. A key metric for assessing the survival of high-growth IPOs.',
+        'ja': '直近の年間売上成長率です。高成長IPO企業の生存可能性を判断する重要指標です。',
+        'zh': '最近一年的营收增长率。判断高成长拟上市企业生存可能性的核心指标。'
     },
      
     # ==========================================
@@ -5133,59 +5169,43 @@ with main_area.container():
                 net_m_display = f"{net_m_val:.1f}%" if abs(net_m_val) > 0.001 else "N/A"
                 opm_display = f"{op_m_val:.2f}%" if abs(op_m_val) > 0.001 else "N/A"
     
-                # 💡 [핵심] 상단에 고정으로 보여질 8개의 완벽한 명품 카드 (4칸 x 2줄)
+                # 💡 [순서 재배치] 3456 (첫 줄) / 7812 (둘째 줄)
                 r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
                 r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
     
-                # [카드 1: 프리미엄 DCF 적정주가]
-                with r1_c1:
-                    dcf_p = fin_data.get('dcf_price', 0.0)
-                    gap_pct = ((dcf_p - current_p) / current_p * 100) if current_p > 0 else 0
-                    display_val = f"${dcf_p:.2f}" if dcf_p > 0 else "N/A"
-                    if dcf_p > 0: status, st_cls = (f"✅ {gap_pct:.1f}% 저평가" if is_ko else f"✅ {gap_pct:.1f}% Undervalued", "st-good") if gap_pct > 0 else (f"🚨 {gap_pct:.1f}% 고평가" if is_ko else f"🚨 {gap_pct:.1f}% Overvalued", "st-hot")
-                    else: status, st_cls = ("🔍 N/A", "st-neutral")
-                    desc = "현금흐름할인법(DCF) 알고리즘으로 산출된 적정주가 대비 현재가의 괴리율입니다." if is_ko else "Gap between DCF algorithm target price and current price."
-                    st.markdown(f"<div class='metric-card' style='border: 2px solid #e3f2fd;'><div class='metric-header'>💡 FMP Target (DCF)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Model: FMP Valuation<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
-
-                # [카드 2: 프리미엄 Quant Rating]
-                with r1_c2:
-                    r_score = fin_data.get('health_score', 0)
-                    r_grade = fin_data.get('rating', 'N/A')
-                    display_val = r_grade
-                    if r_grade != "N/A": status, st_cls = (f"⭐ 점수: {r_score}/5" if is_ko else f"⭐ Score: {r_score}/5", "st-good" if r_score >= 4 else "st-cold" if r_score == 3 else "st-hot")
-                    else: status, st_cls = ("🔍 N/A", "st-neutral")
-                    desc = "재무 건전성과 수익성을 종합 평가한 월스트리트 퀀트(Quant) 알고리즘 등급입니다." if is_ko else "Comprehensive quantitative rating of financial health and profitability."
-                    st.markdown(f"<div class='metric-card' style='border: 2px solid #e3f2fd;'><div class='metric-header'>📊 Quant Rating</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Model: FMP Quant Score<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+                # --- [첫 번째 줄: 3, 4, 5, 6] ---
 
                 # [카드 3: 기존 Sales Growth]
-                with r1_c3:
+                with r1_c1:
                     display_val = growth_display
                     if display_val != "N/A": status, st_cls = ("🔥 High-Growth" if not is_ko else "🔥 고성장", "st-hot") if growth > 20 else ("✅ Stable" if not is_ko else "✅ 안정", "st-good") if growth > 5 else ("⚠️ Slowdown" if not is_ko else "⚠️ 둔화", "st-neutral")
                     else: status, st_cls = ("🔍 N/A", "st-neutral")
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_growth')}</div><div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
                 # [카드 4: 기존 Net Margin]
-                with r1_c4:
+                with r1_c2:
                     display_val = net_m_display
                     if display_val != "N/A": status, st_cls = ("✅ Profit" if not is_ko else "✅ 흑자", "st-good") if net_m_val > 0 else ("🚨 Loss" if not is_ko else "🚨 적자", "st-hot")
                     else: status, st_cls = ("🔍 N/A", "st-neutral")
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Net Margin (Profit)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_net_margin')}</div><div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
                 # [카드 5: 기존 Accruals Quality]
-                with r2_c1:
+                with r1_c3:
                     val = accruals_status
                     status = ("✅ Solid" if not is_ko else "✅ 건전") if val == "Low" else ("🚨 Caution" if not is_ko else "🚨 주의") if val == "High" else "🔍 N/A"
                     st_cls = "st-good" if val == "Low" else "st-hot" if val == "High" else "st-neutral"
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_accruals')}</div><div class='metric-footer'>Theory: Teoh et al. (1998)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
                 # [카드 6: 기존 Debt / Equity]
-                with r2_c2:
+                with r1_c4:
                     display_val = f"{de_ratio:.1f}%" if de_ratio > 0 else "N/A"
                     status, st_cls = ("✅ Stable" if not is_ko else "✅ 안정", "st-good") if (0 < de_ratio < 100) else ("🔍 N/A", "st-neutral")
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Debt / Equity</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_debt_equity')}</div><div class='metric-footer'>Ref: Standard Ratio<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
     
+                # --- [두 번째 줄: 7, 8, 1, 2] ---
+
                 # [카드 7: 기존 Market Performance]
-                with r2_c3:
+                with r2_c1:
                     if current_p > 0 and off_val > 0:
                         up_rate = ((current_p - off_val) / off_val) * 100
                         display_val, status, st_cls = (f"{up_rate:+.1f}%", ("🚀 Surge" if not is_ko else "🚀 급등") if up_rate > 20 else ("⚖️ Fair" if not is_ko else "⚖️ 적정"), "st-hot" if up_rate > 20 else "st-good")
@@ -5201,13 +5221,33 @@ with main_area.container():
 
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Market Performance</div><div class='metric-value-row'><span class='metric-value' style='font-size:1.1rem;'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_performance')}</div><div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div></div>", unsafe_allow_html=True)
     
-                # [카드 8: 신규 Forward PER (레이아웃 짝맞춤용)]
-                with r2_c4:
+                # [카드 8: 기존 Forward PER]
+                with r2_c2:
                     display_val = f"{pe_val:.1f}x" if pe_val > 0 else "N/A"
                     if display_val != "N/A": status, st_cls = ("⭐ 저평가" if is_ko else "⭐ Value", "st-good") if pe_val < 20 else ("⚠️ 고평가" if is_ko else "⚠️ Overvalued", "st-hot")
                     else: status, st_cls = ("🔍 N/A", "st-neutral")
-                    desc = "주가수익비율(PER)로, 1주당 창출하는 순이익 대비 현재 주가의 밸류에이션 배수입니다." if is_ko else "Price-to-Earnings ratio, indicating valuation relative to forward earnings."
+                    desc = get_text('tab3_per_desc') # UI_TEXT에 추가한 키값 사용
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Forward PER</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Ref: Valuation Multiple<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+
+                # [카드 1: 프리미엄 DCF 적정주가]
+                with r2_c3:
+                    dcf_p = fin_data.get('dcf_price', 0.0)
+                    gap_pct = ((dcf_p - current_p) / current_p * 100) if current_p > 0 else 0
+                    display_val = f"${dcf_p:.2f}" if dcf_p > 0 else "N/A"
+                    if dcf_p > 0: status, st_cls = (f"✅ {gap_pct:.1f}% 저평가" if is_ko else f"✅ {gap_pct:.1f}% Undervalued", "st-good") if gap_pct > 0 else (f"🚨 {gap_pct:.1f}% 고평가" if is_ko else f"🚨 {gap_pct:.1f}% Overvalued", "st-hot")
+                    else: status, st_cls = ("🔍 N/A", "st-neutral")
+                    desc = get_text('tab3_dcf_desc')
+                    st.markdown(f"<div class='metric-card' style='border: 2px solid #e3f2fd;'><div class='metric-header'>💡 FMP Target (DCF)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Model: FMP Valuation<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+
+                # [카드 2: 프리미엄 Quant Rating]
+                with r2_c4:
+                    r_score = fin_data.get('health_score', 0)
+                    r_grade = fin_data.get('rating', 'N/A')
+                    display_val = r_grade
+                    if r_grade != "N/A": status, st_cls = (f"⭐ 점수: {r_score}/5" if is_ko else f"⭐ Score: {r_score}/5", "st-good" if r_score >= 4 else "st-cold" if r_score == 3 else "st-hot")
+                    else: status, st_cls = ("🔍 N/A", "st-neutral")
+                    desc = get_text('tab3_quant_desc')
+                    st.markdown(f"<div class='metric-card' style='border: 2px solid #e3f2fd;'><div class='metric-header'>📊 Quant Rating</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Model: FMP Quant Score<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
 
                 st.write("<br>", unsafe_allow_html=True)
     
