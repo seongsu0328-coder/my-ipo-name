@@ -78,7 +78,8 @@ def fetch_and_update_prices():
     chunk_size = 50
     for i in range(0, len(official_tickers), chunk_size):
         chunk = official_tickers[i : i + chunk_size]
-        url = f"https://financialmodelingprep.com/api/v3/quote/{','.join(chunk)}?apikey={FMP_API_KEY}"
+        # 💡 quote 뒤에 -short 를 붙여서 최신 공식 API 주소로 변경합니다!
+        url = f"https://financialmodelingprep.com/api/v3/quote-short/{','.join(chunk)}?apikey={FMP_API_KEY}"
 
         try:
             res = requests.get(url, timeout=15)
