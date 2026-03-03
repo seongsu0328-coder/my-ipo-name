@@ -54,10 +54,9 @@ model = None
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
-        # 💡 깔끔하게 텍스트로 넣어주면 최신 구글 검색이 켜집니다!
         model = genai.GenerativeModel(
             model_name='gemini-2.0-flash', 
-            tools='google_search_retrieval'
+            tools='google_search'  # 💡 구글이 요구한 정확한 이름으로 변경!
         )
         print("✅ AI 모델 로드 성공 (Google Search Tool 활성화)")
     except Exception as e:
