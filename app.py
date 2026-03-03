@@ -2179,25 +2179,6 @@ def get_latest_stable_model():
         print(f"Model selection error: {e}")
         return 'gemini-2.0-flash'
 
-# ---------------------------------------------------------
-# 2. 전역 모델 객체 생성 (404 에러 원천 차단 버전)
-# ---------------------------------------------------------
-
-# 함수를 호출하는 대신, 2026년 표준인 2.0 모델명을 직접 지정합니다.
-SELECTED_MODEL_NAME = 'gemini-2.0-flash' 
-
-if os.environ.get("GENAI_API_KEY") or st.secrets.get("GENAI_API_KEY"):
-    try:
-        # model_name을 명시적으로 선언하여 가상 환경 오류를 방지합니다.
-        model = genai.GenerativeModel(model_name=SELECTED_MODEL_NAME)
-        print(f"✅ 전역 AI 모델 '{SELECTED_MODEL_NAME}' 로드 성공")
-    except Exception as e:
-        print(f"⚠️ 모델 로드 실패: {e}")
-        model = None
-else:
-    # API 키가 없을 때만 에러 메시지를 띄웁니다.
-    st.error("⚠️ GENAI_API_KEY가 설정되지 않았습니다. Streamlit Secrets를 확인하세요.")
-    model = None
 
 @st.cache_data(show_spinner=False, ttl=86400)
 def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Active", ipo_date_str=None):
