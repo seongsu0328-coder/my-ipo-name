@@ -658,123 +658,27 @@ def get_cached_raw_financials(symbol):
         
 @st.cache_data(show_spinner=False, ttl=600)
 def get_market_dashboard_analysis(metrics_data, lang_code):
-    if not model: return "AI 모델 연결 실패"
-
+    """[디커플링 완료] 앱에서 거시경제 AI 프롬프트 생성 금지. DB만 조회합니다."""
     cache_key = f"Global_Market_Dashboard_Tab2_{lang_code}"
-    now = datetime.now()
-    one_day_ago = (now - timedelta(days=1)).isoformat()
-
+    
     try:
-        res = supabase.table("analysis_cache") \
-            .select("content") \
-            .eq("cache_key", cache_key) \
-            .gt("updated_at", one_day_ago) \
-            .execute()
-        
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
         if res.data:
-            return res.data[0]['content']
+            import re
+            ai_market_comment = res.data[0]['content']
+            ai_market_comment = re.sub(r'^#+.*$', '', ai_market_comment, flags=re.MULTILINE)
+            ai_market_comment = ai_market_comment.replace("</div>", "").replace("<div>", "").replace("```html", "").replace("```", "").strip()
+            return ai_market_comment
     except Exception as e:
         print(f"Dashboard AI Cache Error: {e}")
 
-    # 💡 [핵심 교체] 언어별 프롬프트 완벽 분리
-    if lang_code == 'en':
-        prompt = f"""You are a Chief Market Strategist on Wall Street.
-Based on the current market data below, write a daily briefing assessing the U.S. stock market and IPO market.
-
-[Market Data]
-- IPO Return: {metrics_data.get('ipo_return', 0):.1f}%
-- IPO Volume: {metrics_data.get('ipo_volume', 0)}
-- Unprofitable PCT: {metrics_data.get('unprofitable_pct', 0):.1f}%
-- Withdrawal Rate: {metrics_data.get('withdrawal_rate', 0):.1f}%
-- VIX: {metrics_data.get('vix', 0):.2f}
-- Buffett Indicator: {metrics_data.get('buffett_val', 0):.0f}%
-- S&P 500 PE: {metrics_data.get('pe_ratio', 0):.1f}x
-- Fear & Greed: {metrics_data.get('fear_greed', 50):.0f}
-
-[Guidelines]
-- STRICTLY use English only. Do not mix Korean.
-- Write a 3 to 5-line summary paragraph.
-- DO NOT use titles, subtitles, headers (##), or greetings.
-- Clearly provide insight on whether the current market presents an 'opportunity' or 'risk' based on the data."""
-
-    elif lang_code == 'ja':
-        prompt = f"""あなたはウォール街のチーフ市場ストラテジストです。
-以下の現在の市場データに基づいて、米国株式市場とIPO市場の状態を診断する日次ブリーフィングを作成してください。
-
-[市場データ]
-- IPO収益率: {metrics_data.get('ipo_return', 0):.1f}%
-- IPO予定数: {metrics_data.get('ipo_volume', 0)}件
-- 赤字企業率: {metrics_data.get('unprofitable_pct', 0):.1f}%
-- 上場撤回率: {metrics_data.get('withdrawal_rate', 0):.1f}%
-- VIX指数: {metrics_data.get('vix', 0):.2f}
-- バフェット指数: {metrics_data.get('buffett_val', 0):.0f}%
-- S&P 500 PE: {metrics_data.get('pe_ratio', 0):.1f}倍
-- Fear & Greed: {metrics_data.get('fear_greed', 50):.0f}点
-
-[ガイドライン]
-- 必ず日本語のみで作成してください。韓国語は絶対に混ぜないでください。
-- 3〜5行程度の要約段落として作成してください。
-- 見出し、箇条書き、挨拶文は一切含めないでください。
-- データに基づいて、現在の市場が「機会」か「リスク」かについて明確な洞察を提供してください。"""
-
-    elif lang_code == 'zh':
-        prompt = f"""您是华尔街的首席市场策略师。
-根据以下当前市场数据，撰写一份评估美国股市和IPO市场状态的每日简报。
-
-[市场数据]
-- IPO收益率: {metrics_data.get('ipo_return', 0):.1f}%
-- IPO数量: {metrics_data.get('ipo_volume', 0)}
-- 亏损企业比例: {metrics_data.get('unprofitable_pct', 0):.1f}%
-- 撤回率: {metrics_data.get('withdrawal_rate', 0):.1f}%
-- VIX指数: {metrics_data.get('vix', 0):.2f}
-- 巴菲特指标: {metrics_data.get('buffett_val', 0):.0f}%
-- 标普500 PE: {metrics_data.get('pe_ratio', 0):.1f}倍
-- 恐惧与贪婪指数: {metrics_data.get('fear_greed', 50):.0f}
-
-[指南]
-- 必须只用简体中文编写。严禁混用韩语。
-- 写一段3到5行的摘要。
-- 绝对不要包含标题、副标题、项目符号或问候语。
-- 基于数据，明确指出当前市场是“机会”还是“风险”。"""
-
-    else:
-        prompt = f"""당신은 월가의 수석 시장 전략가(Chief Market Strategist)입니다.
-아래 제공된 실시간 시장 지표를 바탕으로 현재 미국 주식 시장과 IPO 시장의 상태를 진단하는 일일 브리핑을 작성하세요.
-
-[실시간 시장 지표]
-- IPO 수익률: {metrics_data.get('ipo_return', 0):.1f}%
-- IPO 예정 물량: {metrics_data.get('ipo_volume', 0)}건
-- 적자 기업 비율: {metrics_data.get('unprofitable_pct', 0):.1f}%
-- 상장 철회율: {metrics_data.get('withdrawal_rate', 0):.1f}%
-- VIX 지수: {metrics_data.get('vix', 0):.2f}
-- 버핏 지수: {metrics_data.get('buffett_val', 0):.0f}%
-- S&P 500 PE: {metrics_data.get('pe_ratio', 0):.1f}배
-- Fear & Greed: {metrics_data.get('fear_greed', 50):.0f}점
-
-[작성 가이드]
-- 반드시 한국어로 작성하세요.
-- 어조: 냉철하고 전문적인 어조 (인사말 생략)
-- 형식: 줄글로 된 3~5줄의 요약 리포트로 제목, 소제목, 헤더(##), 인사말을 절대 포함하지 마세요.
-- 내용: 위 지표들을 종합하여 현재가 '기회'인지 '위험'인지 명확한 인사이트를 제공하세요."""
-
-    try:
-        response = model.generate_content(prompt)
-        result = response.text
-
-        # 💡 [방어막 적용]
-        if lang_code != 'ko':
-            if re.search(r'[가-힣]', result):
-                return "Analysis generation retrying due to language mix..."
-
-        supabase.table("analysis_cache").upsert({
-            "cache_key": cache_key,
-            "content": result,
-            "updated_at": now.isoformat()
-        }).execute()
-
-        return result
-    except Exception as e:
-        return f"시장 분석 생성 중 오류: {str(e)}"
+    wait_msgs = {
+        'ko': "🤖 AI 애널리스트가 거시 경제 지표를 분석 중입니다... (최대 15분 소요)",
+        'en': "🤖 AI is analyzing macroeconomic indicators...",
+        'ja': "🤖 AIがマクロ経済指標を分析中です...",
+        'zh': "🤖 AI正在分析宏观经济指标..."
+    }
+    return wait_msgs.get(lang_code, wait_msgs['ko'])
 
 
         
