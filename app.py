@@ -691,7 +691,7 @@ def get_cached_raw_financials(symbol):
 @st.cache_data(show_spinner=False, ttl=600)
 def get_market_dashboard_analysis(metrics_data, lang_code):
     """[디커플링 완료] 앱에서 거시경제 AI 프롬프트 생성 금지. DB만 조회합니다."""
-    cache_key = f"Global_Market_Dashboard_Tab2_{lang_code}"
+    cache_key = f"Global_Market_Dashboard_{lang_code}"
     
     try:
         res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
@@ -1450,7 +1450,7 @@ def get_cached_market_status(df_calendar=None, api_key=None):
     [디커플링 완료] FMP API로 VIX, SPY 긁어오는 로직 완전 삭제.
     워커가 저장해둔 거시 지표만 0.1초 만에 불러옵니다.
     """
-    cache_key = "Market_Dashboard_Metrics_Tab2"
+    cache_key = "Market_Dashboard_Metrics"
     try:
         res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
         if res.data:
@@ -3581,7 +3581,8 @@ elif st.session_state.page == 'setup':
                         elif "Tab1" in key:
                             tab1_total += 1
                             if is_fresh: tab1_fresh += 1
-                        elif "Tab2" in key:
+                       # 💡 'Market_Dashboard' 키워드가 포함된 것도 Tab 2로 셉니다.
+                        elif "Tab2" in key or "Market_Dashboard" in key:
                             tab2_total += 1
                             if is_fresh: tab2_fresh += 1
                         elif "Tab3" in key:
