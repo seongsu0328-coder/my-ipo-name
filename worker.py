@@ -1084,18 +1084,19 @@ def update_macro_data(df):
     except Exception as e:
         print(f"Macro Fetch Error: {e}")
 
-    # 2. AI 리포트 생성 및 DB 저장
+   # 2. AI 리포트 생성 및 DB 저장
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_report = f"Global_Market_Dashboard_Tab2_{lang_code}"
         prompt = f"""
         당신은 월가의 수석 시장 전략가입니다.
         현재 데이터(VIX: {data['vix']:.2f}, S&P500 PE: {data['pe_ratio']:.1f}, 버핏지수: {data['buffett_val']:.1f}%) 기반으로 미국 시장 상태를 진단하세요.
-        [작성 가이드] 반드시 '{target_lang}'로 작성. 3~5줄 요약.
+        
+        [작성 가이드 - 필수 준수]
+        1. 반드시 '{target_lang}'로 작성하세요.
+        2. 3~5줄의 간결한 줄글 형태로 작성하세요.
+        3. 🚨 절대 "알겠습니다", "요약해 드리겠습니다", "현재 미국 시장 진단:" 같은 인사말, 서론, 제목을 쓰지 마세요.
+        4. 첫 글자부터 곧바로 냉철한 시장 분석 내용(본론)만 출력하세요.
         """
-        try:
-            ai_resp = model.generate_content(prompt).text.strip()
-            batch_upsert("analysis_cache", [{"cache_key": cache_key_report, "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-        except: pass
 
 # ==========================================
 # [신규 추가] Tab 6: 스마트머니 (내부자 거래 & 기관 보유량) 데이터 수집 및 분석
