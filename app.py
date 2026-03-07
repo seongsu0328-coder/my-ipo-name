@@ -913,15 +913,21 @@ def normalize_name_for_app(name):
     name = re.sub(r'\b(inc|corp|corporation|co|ltd|plc|group|company|holdings)\b\.?', '', name)
     return re.sub(r'[^a-z0-9]', '', name)    
 
-# 💡 [기존 함수 교체] 캘린더를 부를 때 티커를 일괄 교정합니다!
+# 💡 [기존 함수 교체] 캘린더를 부를 때 API 대신 DB에서 가져오고 티커를 일괄 교정합니다!
 @st.cache_data(ttl=600) 
 def get_extended_ipo_data(api_key=None):
     """[디커플링 완료] Finnhub API 직접 호출 전면 삭제. DB에서 전체 달력 읽어오기"""
     try:
         res = supabase.table("analysis_cache").select("content").eq("cache_key", "IPO_CALENDAR_DATA").execute()
+        
         if res.data:
             import json
-            df = pd.DataFrame(json.loads(res.data[0]['content']))
+            
+            # 💡 [안전장치] DB에서 꺼낸 데이터가 문자열인지 딕셔너리/리스트인지 판별하여 에러 방지
+            raw_content = res.data[0]['content']
+            calendar_data = json.loads(raw_content) if isinstance(raw_content, str) else raw_content
+            
+            df = pd.DataFrame(calendar_data)
             
             # SEC 티커 교정 적용
             sec_map = get_sec_ticker_mapping_for_app()
@@ -931,6 +937,7 @@ def get_extended_ipo_data(api_key=None):
 
             df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
             return df.dropna(subset=['공모일_dt'])
+            
     except Exception as e:
         print(f"Calendar DB Read Error: {e}")
         
@@ -1465,89 +1472,6 @@ Original Headline: {en_title}"""
                 
     return en_title
 
-# ---------------------------------------------------------
-# [수정] 실제 시장 지표를 계산하는 함수 (API 일괄 호출 최적화)
-# ---------------------------------------------------------
-def _calculate_market_metrics_internal(df_calendar, api_key):
-    data = {
-        "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0,
-        "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50
-    }
-
-    if not df_calendar.empty:
-        today = datetime.now().date()
-        
-        # 1. IPO 데이터 계산 (최근 30개 기준)
-        traded_ipos = df_calendar[df_calendar['공모일_dt'].dt.date < today].sort_values(by='공모일_dt', ascending=False).head(30)
-        
-        # 💡 [핵심 최적화] 30개 종목의 실시간 가격을 한 번에(Batch) 가져옵니다!
-        symbols_to_fetch = traded_ipos['symbol'].dropna().unique().tolist()
-        batch_prices, _ = get_batch_prices(symbols_to_fetch)
-        
-        ret_sum = 0; ret_cnt = 0; unp_cnt = 0
-        for _, row in traded_ipos.iterrows():
-            sym = row['symbol']
-            try:
-                p_ipo = float(str(row.get('price','0')).replace('$','').split('-')[0])
-                # 개별 API 호출 대신, 방금 한 번에 가져온 batch_prices에서 꺼내 씁니다.
-                p_curr = batch_prices.get(sym, 0.0) 
-                
-                if p_ipo > 0 and p_curr > 0:
-                    ret_sum += ((p_curr - p_ipo) / p_ipo) * 100
-                    ret_cnt += 1
-                
-                # 재무 정보는 24시간 캐시가 걸려있어 비교적 안전하나, 이 부분도 필요시 최적화 가능
-                fin = get_financial_metrics(sym, api_key)
-                if fin and fin.get('net_margin') and fin['net_margin'] < 0: unp_cnt += 1
-            except: pass
-        
-        if ret_cnt > 0: data["ipo_return"] = ret_sum / ret_cnt
-        if len(traded_ipos) > 0: data["unprofitable_pct"] = (unp_cnt / len(traded_ipos)) * 100
-
-        # 2. 향후 30일 물량 및 1.5년 철회율
-        future_ipos = df_calendar[(df_calendar['공모일_dt'].dt.date >= today) & 
-                                  (df_calendar['공모일_dt'].dt.date <= today + timedelta(days=30))]
-        data["ipo_volume"] = len(future_ipos)
-        
-        recent_history = df_calendar[df_calendar['공모일_dt'].dt.date >= (today - timedelta(days=540))]
-        if not recent_history.empty:
-            wd = recent_history[recent_history['status'].str.lower() == 'withdrawn']
-            data["withdrawal_rate"] = (len(wd) / len(recent_history)) * 100
-
-    # --- B. Macro Market 데이터 (FMP API) ---
-    try:
-        fmp_key = os.environ.get("FMP_API_KEY") or st.secrets.get("FMP_API_KEY", "")
-        
-        # VIX, SPY, S&P500 지수 한 번에 호출
-        q_url = f"https://financialmodelingprep.com/api/v3/quote/^VIX,SPY,^GSPC?apikey={fmp_key}"
-        q_res = requests.get(q_url, timeout=5).json()
-        q_map = {item['symbol']: item for item in q_res} if isinstance(q_res, list) else {}
-        
-        data["vix"] = q_map.get('^VIX', {}).get('price', 20.0)
-        data["pe_ratio"] = q_map.get('SPY', {}).get('pe', 24.5)
-        curr_spx = q_map.get('^GSPC', {}).get('price', 5000.0)
-        
-        # 윌셔 5000 (Buffett Indicator) 데이터 호출
-        w5000_url = f"https://financialmodelingprep.com/api/v3/quote/^W5000?apikey={fmp_key}"
-        w5000_res = requests.get(w5000_url, timeout=5).json()
-        w5000_price = w5000_res[0].get('price', curr_spx) if w5000_res and isinstance(w5000_res, list) else curr_spx
-        data["buffett_val"] = ( (w5000_price / 1000 * 0.93) / 28.0 ) * 100
-        
-        # S&P 500 200일 이동평균선 (Fear & Greed 계산용)
-        ma_url = f"https://financialmodelingprep.com/api/v3/technical_indicator/1day/^GSPC?type=sma&period=200&apikey={fmp_key}"
-        ma_res = requests.get(ma_url, timeout=5).json()
-        ma200 = ma_res[0].get('sma', curr_spx) if ma_res and isinstance(ma_res, list) else curr_spx
-        
-        mom_score = ((curr_spx - ma200) / ma200) * 100 if ma200 > 0 else 0
-        
-        s_vix = max(0, min(100, (35 - data["vix"]) * (100/23)))
-        s_mom = max(0, min(100, (mom_score + 10) * 5))
-        data["fear_greed"] = (s_vix + s_mom) / 2
-    except Exception as e:
-        print(f"Macro Data Error: {e}")
-    
-    return data
-
 @st.cache_data(show_spinner=False, ttl=600)
 def get_financial_report_analysis(company_name, ticker, metrics, lang_code):
     """[디커플링 완료] 앱에서 재무제표 AI 분석 금지."""
@@ -1781,21 +1705,7 @@ def get_pro_fund_manager_eval(sid):
 # ==========================================
 # [신규] Tab 6: 스마트머니 데이터 수집 및 분석 (Worker 백업용)
 # ==========================================
-@st.cache_data(ttl=86400) # 24시간 캐싱 (API 보호)
-def fetch_smart_money_data_app(symbol, api_key):
-    """FMP API를 통해 SEC Form 4 및 SEC 13F 데이터를 수집합니다."""
-    data = {"insider": [], "institutional": []}
-    try:
-        in_url = f"https://financialmodelingprep.com/api/v4/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
-        in_res = requests.get(in_url, timeout=5).json()
-        if in_res and isinstance(in_res, list): data["insider"] = in_res
 
-        inst_url = f"https://financialmodelingprep.com/api/v3/institutional-holder/{symbol}?apikey={api_key}"
-        inst_res = requests.get(inst_url, timeout=5).json()
-        if inst_res and isinstance(inst_res, list): data["institutional"] = inst_res[:10]
-    except Exception as e:
-        print(f"Smart Money Fetch Error: {e}")
-    return data
 
 @st.cache_data(show_spinner=False, ttl=600)
 def get_smart_money_analysis_app(company_name, ticker, lang_code):
