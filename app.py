@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components # [추가] GA4 스크립트 실행용
 import traceback
 import sys
 
@@ -25,6 +26,23 @@ try:
     from oauth2client.service_account import ServiceAccountCredentials
     from email.mime.text import MIMEText
     from datetime import datetime, timedelta
+
+    # =======================================================
+    # [추가] Google Analytics 4 (GA4) 연동 세팅
+    # =======================================================
+    GA_ID = "G-NC5TH230ME"
+    ga_script = f"""
+    <script async src="https://www.googletagmanager.com/gtag/js?id={GA_ID}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){{dataLayer.push(arguments);}}
+        gtag('js', new Date());
+        gtag('config', '{GA_ID}');
+    </script>
+    """
+    # 보이지 않는 HTML 블록으로 GA4 코드를 백그라운드에서 실행시킵니다.
+    components.html(ga_script, width=0, height=0)
+    # =======================================================
 
     # ==========================================
     # [신규] Supabase 라이브러리 및 초기화
