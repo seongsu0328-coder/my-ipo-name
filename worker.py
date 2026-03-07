@@ -1084,19 +1084,64 @@ def update_macro_data(df):
     except Exception as e:
         print(f"Macro Fetch Error: {e}")
 
-   # 2. AI 리포트 생성 및 DB 저장
+    # 2. AI 리포트 생성 및 DB 저장 (다국어 프롬프트 완벽 분리)
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_report = f"Global_Market_Dashboard_Tab2_{lang_code}"
-        prompt = f"""
-        당신은 월가의 수석 시장 전략가입니다.
-        현재 데이터(VIX: {data['vix']:.2f}, S&P500 PE: {data['pe_ratio']:.1f}, 버핏지수: {data['buffett_val']:.1f}%) 기반으로 미국 시장 상태를 진단하세요.
         
-        [작성 가이드 - 필수 준수]
-        1. 반드시 '{target_lang}'로 작성하세요.
-        2. 3~5줄의 간결한 줄글 형태로 작성하세요.
-        3. 🚨 절대 "알겠습니다", "요약해 드리겠습니다", "현재 미국 시장 진단:" 같은 인사말, 서론, 제목을 쓰지 마세요.
-        4. 첫 글자부터 곧바로 냉철한 시장 분석 내용(본론)만 출력하세요.
-        """
+        if lang_code == 'en':
+            prompt = f"""You are a Chief Market Strategist on Wall Street.
+            Based on the current data (VIX: {data['vix']:.2f}, S&P500 PE: {data['pe_ratio']:.1f}, Buffett Indicator: {data['buffett_val']:.1f}%), assess the U.S. market condition.
+            
+            [STRICT WRITING RULES]
+            1. Write ENTIRELY in English.
+            2. Write a concise summary in 3-5 lines.
+            3. 🚨 NEVER use introductory phrases like "Understood", "Here is the summary", or "Market Diagnosis:". Do not use titles or headers.
+            4. Start immediately with the cold, objective market analysis from the very first word.
+            """
+            
+        elif lang_code == 'ja':
+            prompt = f"""あなたはウォール街のチーフ市場ストラテジストです。
+            現在のデータ（VIX: {data['vix']:.2f}, S&P500 PE: {data['pe_ratio']:.1f}, バフェット指数: {data['buffett_val']:.1f}%）に基づいて、米国市場の状況を診断してください。
+            
+            [厳格な作成ルール]
+            1. 必ず日本語のみで作成してください。
+            2. 3〜5行の簡潔な文章で作成してください。
+            3. 🚨 「承知いたしました」「要約します」「現在の米国市場の診断：」などの挨拶、前置き、見出しは絶対に書かないでください。
+            4. 最初の文字からすぐに、客観的で専門的な市場分析の内容のみを出力してください。
+            """
+            
+        elif lang_code == 'zh':
+            prompt = f"""您是华尔街的首席市场策略师。
+            根据当前数据（VIX: {data['vix']:.2f}, 标普500 PE: {data['pe_ratio']:.1f}, 巴菲特指标: {data['buffett_val']:.1f}%），诊断美国市场状况。
+            
+            [严格编写指南]
+            1. 必须只用简体中文编写。
+            2. 写成3~5行的简明段落。
+            3. 🚨 绝对不要使用“好的”、“为您总结”、“当前美国市场诊断：”等问候语、开场白或标题。
+            4. 从第一个字开始，直接输出客观、专业的市场分析正文。
+            """
+            
+        else: # ko
+            prompt = f"""당신은 월가의 수석 시장 전략가입니다.
+            현재 데이터(VIX: {data['vix']:.2f}, S&P500 PE: {data['pe_ratio']:.1f}, 버핏지수: {data['buffett_val']:.1f}%) 기반으로 미국 시장 상태를 진단하세요.
+            
+            [작성 가이드 - 필수 준수]
+            1. 반드시 한국어로 작성하세요.
+            2. 3~5줄의 간결한 줄글 형태로 작성하세요.
+            3. 🚨 절대 "알겠습니다", "요약해 드리겠습니다", "현재 미국 시장 진단:" 같은 인사말, 서론, 제목을 쓰지 마세요.
+            4. 첫 글자부터 곧바로 냉철한 시장 분석 내용(본론)만 출력하세요.
+            """
+
+        try:
+            ai_resp = model.generate_content(prompt).text.strip()
+            
+            # 한글 오염 방어 (한국어가 아닐 때 한글이 섞여 있으면 스킵)
+            if lang_code != 'ko':
+                if re.search(r'[가-힣]', ai_resp):
+                    time.sleep(1); continue
+                    
+            batch_upsert("analysis_cache", [{"cache_key": cache_key_report, "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+        except: pass
 
 # ==========================================
 # [신규 추가] Tab 6: 스마트머니 (내부자 거래 & 기관 보유량) 데이터 수집 및 분석
