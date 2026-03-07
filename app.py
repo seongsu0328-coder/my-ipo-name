@@ -946,74 +946,24 @@ Checkpoints: {meta['p']}
     except Exception as e:
         return f"분석 중 오류 발생: {str(e)}"
 
-@st.cache_data(ttl=86400) # 하루 동안 재무제표 기억
+@st.cache_data(ttl=600)
 def get_cached_raw_financials(symbol):
-    """FMP API를 활용하여 월스트리트 공식 재무제표 및 지표를 로드합니다. (절대 실패 방지 버전)"""
-    fin_data = {'status': 'Success'} # 기본적으로 성공 상태로 시작
+    """
+    [디커플링 완료] FMP API 직접 호출(Income, CF, DCF, Rating 등) 전면 삭제.
+    워커가 수집해둔 재무 데이터를 Supabase DB에서 한 번에 꺼내옵니다.
+    """
+    fin_data = {'status': 'Error'}
     try:
-        fmp_key = os.environ.get("FMP_API_KEY") or st.secrets.get("FMP_API_KEY", "")
+        # 워커가 '{symbol}_Raw_Financials' 키로 저장했다고 가정
+        cache_key = f"{symbol}_Raw_Financials"
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
         
-        # 1. 포괄 손익계산서
-        try:
-            inc_url = f"https://financialmodelingprep.com/api/v3/income-statement/{symbol}?limit=2&apikey={fmp_key}"
-            inc_res = requests.get(inc_url, timeout=5).json()
-            if inc_res and isinstance(inc_res, list) and len(inc_res) > 0:
-                curr_inc = inc_res[0]
-                rev = float(curr_inc.get('revenue', 0))
-                net_inc = float(curr_inc.get('netIncome', 0))
-                op_inc = float(curr_inc.get('operatingIncome', 0))
-                prev_rev = float(inc_res[1].get('revenue', rev)) if len(inc_res) > 1 else rev
-                
-                fin_data['revenue'] = rev / 1e6
-                fin_data['net_margin'] = (net_inc / rev) * 100 if rev else 0
-                fin_data['op_margin'] = (op_inc / rev) * 100 if rev else 0
-                fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100 if prev_rev else 0
-        except: pass
-
-        # 2. 핵심 투자 지표 (PE, ROE 등)
-        try:
-            metrics_url = f"https://financialmodelingprep.com/api/v3/key-metrics-ttm/{symbol}?apikey={fmp_key}"
-            metrics_res = requests.get(metrics_url, timeout=5).json()
-            if metrics_res and isinstance(metrics_res, list) and len(metrics_res) > 0:
-                m = metrics_res[0]
-                fin_data['forward_pe'] = m.get('peRatioTTM', 0)
-                fin_data['price_to_book'] = m.get('pbRatioTTM', 0)
-                fin_data['debt_equity'] = m.get('debtToEquityTTM', 0) * 100
-                fin_data['roe'] = m.get('roeTTM', 0) * 100
-        except: pass
-
-        # 3. 현금흐름 (Accruals 계산)
-        try:
-            cf_url = f"https://financialmodelingprep.com/api/v3/cash-flow-statement/{symbol}?limit=1&apikey={fmp_key}"
-            cf_res = requests.get(cf_url, timeout=5).json()
-            if cf_res and isinstance(cf_res, list) and len(cf_res) > 0:
-                ocf_val = float(cf_res[0].get('operatingCashFlow', 0))
-                fin_data['ocf'] = ocf_val
-                # 순이익 데이터가 있으면 발생액 계산
-                net_income_val = fin_data.get('net_margin', 0) # 단순 대체값
-                fin_data['accruals'] = "Low" if (net_income_val - ocf_val) <= 0 else "High"
-        except: pass
-
-        # 4. 프리미엄 DCF 적정주가
-        try:
-            dcf_url = f"https://financialmodelingprep.com/api/v3/discounted-cash-flow/{symbol}?apikey={fmp_key}"
-            dcf_res = requests.get(dcf_url, timeout=5).json()
-            fin_data["dcf_price"] = float(dcf_res[0].get("dcf", 0.0)) if dcf_res and isinstance(dcf_res, list) else 0.0
-        except: pass
-
-        # 5. 프리미엄 Rating 등급
-        try:
-            rating_url = f"https://financialmodelingprep.com/api/v3/rating/{symbol}?apikey={fmp_key}"
-            rating_res = requests.get(rating_url, timeout=5).json()
-            if rating_res and isinstance(rating_res, list) and len(rating_res) > 0:
-                fin_data["rating"] = rating_res[0].get("rating", "N/A")
-                fin_data["health_score"] = rating_res[0].get("ratingScore", 0)
-        except: pass
-
-        fin_data['source'] = "Financial Modeling Prep"
-        
+        if res.data:
+            import json
+            fin_data = json.loads(res.data[0]['content'])
+            fin_data['status'] = 'Success'
     except Exception as e:
-        fin_data['status'] = "Error"
+        print(f"Financials DB Read Error: {e}")
     
     return fin_data
         
@@ -1223,26 +1173,31 @@ def get_daily_quote(lang='ko'):
     return {"eng": choice['eng'], "translated": trans, "author": choice['author']}
         
 @st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
-def get_financial_metrics(symbol, api_key):
-    try:
-        url = f"https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={api_key}"
-        res = requests.get(url, timeout=5).json()
-        metrics = res.get('metric', {})
+@st.cache_data(ttl=600)
+def get_financial_metrics(symbol, api_key=None):
+    """[디커플링 완료] DB의 통합 재무 데이터에서 필요한 지표만 뽑아 씁니다."""
+    fin_data = get_cached_raw_financials(symbol)
+    if fin_data and fin_data.get('status') == 'Success':
         return {
-            "growth": metrics.get('salesGrowthYoy', None),
-            "op_margin": metrics.get('operatingMarginTTM', None),
-            "net_margin": metrics.get('netProfitMarginTTM', None),
-            "debt_equity": metrics.get('totalDebt/totalEquityQuarterly', None)
-        } if metrics else None
-    except: return None
+            "growth": fin_data.get('growth'),
+            "op_margin": fin_data.get('op_margin'),
+            "net_margin": fin_data.get('net_margin'),
+            "debt_equity": fin_data.get('debt_equity')
+        }
+    return None
 
-@st.cache_data(ttl=86400) # 24시간 (기업 프로필도 거의 안 바뀜)
-def get_company_profile(symbol, api_key):
+@st.cache_data(ttl=600)
+def get_company_profile(symbol, api_key=None):
+    """[디커플링 완료] 외부 API 통신 차단. 워커가 저장한 프로필을 읽습니다."""
     try:
-        url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={api_key}"
-        res = requests.get(url, timeout=5).json()
-        return res if res and 'name' in res else None
-    except: return None
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", f"{symbol}_Profile").execute()
+        if res.data:
+            import json
+            return json.loads(res.data[0]['content'])
+    except:
+        pass
+    # SEC 링크용 웹사이트나 CIK 코드가 없어도 앱이 터지지 않도록 기본값 반환
+    return {"weburl": "", "cik": ""}
 
 # 💡 [신규 추가] 앱단 SEC 티커 교정 헬퍼
 @st.cache_data(ttl=86400)
@@ -1370,34 +1325,27 @@ def fetch_otc_price_for_app(ticker):
 
 def get_current_stock_price(ticker, api_key=None):
     """
-    DB에 가격이 없을 때 FMP API로 실시간 주가를 가져오는 예비 함수입니다.
+    [디커플링 완료] 외부 API를 절대 직접 호출하지 않고, 
+    오직 Supabase DB(price_cache)에 있는 가격만 읽어옵니다.
     """
     try:
         res = supabase.table("price_cache").select("price, status").eq("ticker", ticker).execute()
+        
         if res.data:
             db_data = res.data[0]
             db_status = db_data.get('status', 'Active')
             db_price = float(db_data.get('price', 0.0))
             
-            if db_status in ["상장연기", "상장폐지"]: return db_price, db_status
-            if db_price > 0: return db_price, "Active"
+            if db_status in ["상장연기", "상장폐지"]: 
+                return db_price, db_status
+            if db_price > 0: 
+                return db_price, "Active"
 
-        # [핵심 교체] yfinance 대신 FMP Quote API 사용
-        fmp_key = os.environ.get("FMP_API_KEY") or st.secrets.get("FMP_API_KEY", "")
-        url = f"https://financialmodelingprep.com/api/v3/quote/{ticker}?apikey={fmp_key}"
-        fmp_res = requests.get(url, timeout=5).json()
-        
-        if fmp_res and isinstance(fmp_res, list) and len(fmp_res) > 0:
-            current_p = float(fmp_res[0].get('price', 0.0))
-            if current_p > 0: return current_p, "Active"
+        # 🚨 [핵심] DB에 없으면 API를 부르지 않고 워커의 작업을 기다립니다.
+        return 0.0, "업데이트 대기중"
             
-        otc_price = fetch_otc_price_for_app(ticker)
-        if otc_price > 0: return otc_price, "Active"
-        return 0.0, "데이터없음"
-            
-    except Exception:
-        otc_price = fetch_otc_price_for_app(ticker)
-        if otc_price > 0: return otc_price, "Active"
+    except Exception as e:
+        print(f"Price DB Read Error: {e}")
         return 0.0, "에러"
 
 
@@ -2512,83 +2460,27 @@ def fetch_smart_money_data_app(symbol, api_key):
 
 @st.cache_data(show_spinner=False, ttl=600)
 def get_smart_money_analysis_app(company_name, ticker, lang_code):
-    """워커가 실패했을 경우 앱이 직접 DB를 찌르거나 실시간으로 AI 리포트를 생성하는 백업 함수"""
-    if not model: return "⚠️ AI 모델 연결 실패"
-
+    """
+    [디커플링 완료] 앱에서 SEC 13F 데이터 호출 및 Gemini 직접 요청 차단.
+    오직 워커가 완성해 둔 리포트만 DB에서 읽어옵니다.
+    """
     cache_key = f"{ticker}_Tab6_SmartMoney_v1_{lang_code}"
-    now = datetime.now()
-    one_day_ago = (now - timedelta(days=1)).isoformat()
-
-    # 1. DB에서 캐시 확인 (Worker가 만들어둔 게 있는지)
+    
     try:
-        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", one_day_ago).execute()
-        if res.data: return res.data[0]['content']
-    except: pass
-
-    # 2. 캐시가 없으면 실시간 데이터 수집 (Fallback)
-    fmp_key = os.environ.get("FMP_API_KEY") or st.secrets.get("FMP_API_KEY", "")
-    smart_money_data = fetch_smart_money_data_app(ticker, fmp_key)
-
-    # 3. 언어별 프롬프트 분기
-    if lang_code == 'en':
-        prompt = f"""You are a Wall Street Insider Trading & Institutional Flow Analyst.
-Analyze the following Smart Money data for {company_name} ({ticker}).
-Data: {smart_money_data}
-[Writing Guidelines]
-1. Write STRICTLY in English.
-2. Format using two headings: **[SEC Form 4: Insider Tracking]** and **[SEC 13F: Institutional Whales]**.
-3. [Insider]: Analyze if CEOs/Executives are secretly dumping shares (Sell) or buying (Buy).
-4. [Institutional]: Analyze if mega-institutions are sweeping up this stock.
-5. Write 3-4 professional sentences per section."""
-    elif lang_code == 'ja':
-        prompt = f"""あなたはウォール街の内部者取引および機関投資家フローの専門アナリストです。
-以下の{company_name} ({ticker})のスマートマネーデータを分析してください。データ: {smart_money_data}
-[作成ガイドライン]
-1. 全て日本語で作成してください。
-2. 2つの見出しを使用してください：**[SEC Form 4: 内部者取引監視]** と **[SEC 13F: 機関投資家の動向]**。
-3. [内部者]: CEOや役員が密かに株を売却(Sell)しているか、買約(Buy)しているかを分析してください。
-4. [機関投資家]: ウォール街の巨大機関がこの株を買い集めているかを分析してください。
-5. 各セクションにつき3〜4文の専門的な文章で記述してください。"""
-    elif lang_code == 'zh':
-        prompt = f"""您是华尔街内幕交易与机构资金流向的专业分析师。
-请分析以下关于 {company_name} ({ticker}) 的聪明钱数据。数据: {smart_money_data}
-[编写指南]
-1. 必须只用简体中文编写。
-2. 使用两个副标题：**[SEC Form 4: 内幕交易监控]** 和 **[SEC 13F: 机构巨头动向]**。
-3. [内幕交易]: 分析CEO或高管是否在暗中抛售(Sell)或买入(Buy)股票。
-4. [机构动向]: 分析华尔街大型机构是否在扫货该股票。
-5. 每个部分写3-4句专业的分析。"""
-    else: # ko
-        prompt = f"""당신은 월스트리트 내부자 거래 및 기관 자금 흐름(Smart Money) 전문 퀀트 애널리스트입니다.
-아래 제공된 {company_name} ({ticker})의 스마트머니 데이터를 심층 분석하세요. 데이터: {smart_money_data}
-[작성 가이드]
-1. 반드시 한국어로만 작성하세요.
-2. 아래 2가지 소제목을 반드시 사용하세요.
-   **[SEC Form 4: 내부자 거래 감시]**
-   **[SEC 13F: 대형 기관 매집 동향]**
-3. [내부자 거래]: CEO나 임원들이 최근 주식을 몰래 팔고 있는지(Sell), 아니면 매수하고 있는지(Buy) 감시하여 분석하세요. 이름이나 직책 데이터가 있다면 언급하세요. (없다면 특이 동향이 없다고 명시)
-4. [기관 매집]: 블랙록, 뱅가드 등 월가 대형 기관들이 이 주식을 쓸어 담고 있는지 보유량을 분석하세요.
-5. 각 항목당 3~4문장의 전문가 어조로 작성하세요."""
-
-    # 4. AI 호출 및 DB 덮어쓰기
-    try:
-        response = model.generate_content(prompt)
-        res_text = response.text
-        
-        # 한글 오염 방어막
-        if lang_code != 'ko' and re.search(r'[가-힣]', res_text):
-            return "Translating data... Please try again."
-
-        # DB에 저장하여 다음 사람부터는 0.1초 로딩되게 만듦
-        try:
-            supabase.table("analysis_cache").upsert({
-                "cache_key": cache_key, "content": res_text, "updated_at": now.isoformat()
-            }).execute()
-        except: pass
-        
-        return res_text
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
+        if res.data: 
+            return res.data[0]['content']
     except Exception as e:
-        return f"분석 중 오류 발생: {e}"
+        print(f"Smart Money Cache Read Error: {e}")
+
+    # 캐시가 비어있을 경우 (API 호출 없이 안내 문구만 노출)
+    fail_msgs = {
+        'ko': "스마트머니 데이터를 수집 중입니다. (15분 주기로 업데이트됩니다)",
+        'en': "Collecting Smart Money data. (Updates every 15 mins)",
+        'ja': "スマートマネーデータを収集中です。(15分間隔で更新)",
+        'zh': "正在收集聪明钱数据。(每15分钟更新一次)"
+    }
+    return fail_msgs.get(lang_code, fail_msgs['ko'])
 
 
 # 프리미엄 전용 함수들을 계속 추가해 나가시면 됩니다!
