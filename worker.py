@@ -1065,37 +1065,37 @@ Write an in-depth financial and investment analysis report for {company_name} ({
                 time.sleep(1)
 
 def update_macro_data(df):
-    """Tab 2: 거시 지표 분석 코멘트"""
+    """Tab 2: 실제 FMP 데이터를 활용한 거시 지표 수집 및 AI 리포트 생성"""
     if not model: return
-    print("🌍 거시 지표(Tab 2) 업데이트 중...")
+    print("🌍 거시 지표(Tab 2) 실제 데이터 업데이트 중...")
     
-    data = {"ipo_return": 15.2, "ipo_volume": len(df), "vix": 14.5, "fear_greed": 60} 
-    
+    # 1. FMP 실제 데이터 수집
+    data = {"ipo_return": 0.0, "ipo_volume": len(df), "vix": 20.0, "fear_greed": 50, "buffett_val": 100.0, "pe_ratio": 20.0}
+    try:
+        q_url = f"https://financialmodelingprep.com/api/v3/quote/^VIX,SPY,^GSPC,^W5000?apikey={FMP_API_KEY}"
+        q_res = requests.get(q_url, timeout=5).json()
+        if isinstance(q_res, list):
+            q_map = {item['symbol']: item for item in q_res}
+            data["vix"] = q_map.get('^VIX', {}).get('price', 20.0)
+            data["pe_ratio"] = q_map.get('SPY', {}).get('pe', 24.5)
+            curr_spx = q_map.get('^GSPC', {}).get('price', 5000.0)
+            w5000_price = q_map.get('^W5000', {}).get('price', curr_spx)
+            data["buffett_val"] = ((w5000_price / 1000 * 0.93) / 28.0) * 100
+    except Exception as e:
+        print(f"Macro Fetch Error: {e}")
+
+    # 2. AI 리포트 생성 및 DB 저장
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_report = f"Global_Market_Dashboard_Tab2_{lang_code}"
         prompt = f"""
-        당신은 월가의 수석 시장 전략가(Chief Market Strategist)입니다.
-        현재 시장 데이터(VIX: {data['vix']:.2f}, IPO수익률: {data['ipo_return']:.1f}%) 기반으로 현재 미국 주식 시장과 IPO 시장의 상태를 진단하는 일일 브리핑을 작성하세요.
-
-        [작성 가이드]
-        - 언어: 반드시 '{target_lang}'로 작성하세요. (다른 언어 절대 혼용 금지)
-        - 형식: 줄글로 된 3~5줄의 요약 리포트로 제목, 소제목, 헤더(##), 인사말을 절대 포함하지 마세요.
+        당신은 월가의 수석 시장 전략가입니다.
+        현재 데이터(VIX: {data['vix']:.2f}, S&P500 PE: {data['pe_ratio']:.1f}, 버핏지수: {data['buffett_val']:.1f}%) 기반으로 미국 시장 상태를 진단하세요.
+        [작성 가이드] 반드시 '{target_lang}'로 작성. 3~5줄 요약.
         """
-        
-        # 💡 [방어막 추가] 최대 3회 재시도 루프
-        for attempt in range(3):
-            try:
-                ai_resp = model.generate_content(prompt).text
-                
-                if lang_code != 'ko':
-                    if re.search(r'[가-힣]', ai_resp):
-                        time.sleep(1); continue # 한글 감지 시 재시도
-
-                ai_resp = re.sub(r'^#+.*$', '', ai_resp, flags=re.MULTILINE).strip()
-                batch_upsert("analysis_cache", [{"cache_key": cache_key_report, "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-                break # 성공 시 루프 탈출
-            except:
-                time.sleep(1)
+        try:
+            ai_resp = model.generate_content(prompt).text.strip()
+            batch_upsert("analysis_cache", [{"cache_key": cache_key_report, "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+        except: pass
 
 # ==========================================
 # [신규 추가] Tab 6: 스마트머니 (내부자 거래 & 기관 보유량) 데이터 수집 및 분석
@@ -1402,10 +1402,11 @@ def main():
                 sudden_additions = list(set(old_list + sudden_additions)) # 기존 리스트와 병합 및 중복 제거
         except: pass
         
+        # get_target_stocks 함수가 df를 리턴하기 직전에 추가:
         batch_upsert("analysis_cache", [{
-            "cache_key": "SUDDEN_ADDITIONS_LIST",
-            "content": json.dumps(sudden_additions),
-            "updated_at": now_iso
+            "cache_key": "IPO_CALENDAR_DATA",
+            "content": df.to_json(orient='records'),
+            "updated_at": datetime.now().isoformat()
         }], on_conflict="cache_key")
         print(f"✨ 신규 편입(스팩/직상장) 누적 {len(sudden_additions)}개 식별 및 DB 저장 완료.")
 
