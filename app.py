@@ -28,19 +28,33 @@ try:
     from datetime import datetime, timedelta
 
     # =======================================================
-    # [추가] Google Analytics 4 (GA4) 연동 세팅
+    # [수정] Google Analytics 4 (GA4) 연동 세팅 - Streamlit 우회 버전
     # =======================================================
     GA_ID = "G-NC5TH230ME"
     ga_script = f"""
-    <script async src="https://www.googletagmanager.com/gtag/js?id={GA_ID}"></script>
     <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){{dataLayer.push(arguments);}}
-        gtag('js', new Date());
-        gtag('config', '{GA_ID}');
+        // Streamlit의 격리된 상자(iframe)를 벗어나 실제 메인 창(parent)에 코드를 심습니다.
+        var parentDocument = window.parent.document;
+        
+        // 코드가 여러 번 중복 실행되는 것을 방지합니다.
+        if (!parentDocument.getElementById("google-analytics-script")) {{
+            var script1 = parentDocument.createElement("script");
+            script1.id = "google-analytics-script";
+            script1.async = true;
+            script1.src = "https://www.googletagmanager.com/gtag/js?id={GA_ID}";
+            parentDocument.head.appendChild(script1);
+
+            var script2 = parentDocument.createElement("script");
+            script2.innerHTML = `
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){{dataLayer.push(arguments);}}
+                gtag('js', new Date());
+                gtag('config', '{GA_ID}');
+            `;
+            parentDocument.head.appendChild(script2);
+        }}
     </script>
     """
-    # 보이지 않는 HTML 블록으로 GA4 코드를 백그라운드에서 실행시킵니다.
     components.html(ga_script, width=0, height=0)
     # =======================================================
 
