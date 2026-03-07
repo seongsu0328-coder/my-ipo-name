@@ -592,359 +592,48 @@ model = configure_genai()
 # ---------------------------------------------------------
 
 # (A) Tab 1용: 비즈니스 요약 + 뉴스 통합 (동적 캐싱 및 맞춤형 프롬프트 적용)
-@st.cache_data(show_spinner=False, ttl=86400)
+@st.cache_data(show_spinner=False, ttl=600)
 def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Active", ipo_date_str=None):
-    if not model: return "AI 모델 설정 오류", []
+    """[디커플링 완료] 구글 뉴스 검색 및 AI 요약 앱단에서 금지. DB만 조회합니다."""
+    cache_key = f"{ticker}_Tab1_v5_{lang_code}"
     
-    now = datetime.now()
-    
-    # 💡 [1. 기업 생애주기 및 상태 정밀 판별]
-    status_lower = str(ipo_status).lower()
-    
-    import re
-    is_withdrawn = bool(re.search(r'\b(withdrawn|rw|철회|취소)\b', status_lower))
-    is_delisted_or_otc = bool(re.search(r'\b(delisted|폐지|otc)\b', status_lower))
-    
-    is_over_1y = False
     try:
-        if ipo_date_str:
-            days_passed = (now.date() - pd.to_datetime(ipo_date_str).date()).days
-            if days_passed > 365:
-                is_over_1y = True
-    except: pass
-
-    # 💡 [2. 동적 캐싱 로직] 상태에 따라 캐시 유효 시간 결정
-    if is_withdrawn or is_delisted_or_otc or is_over_1y:
-        valid_hours = 24 * 7  # 7일 (정보 변동이 적음)
-    elif "상장예정" in ipo_status or "30일" in ipo_status:
-        valid_hours = 6       # 6시간 (임박한 기업은 자주 갱신)
-    else:
-        valid_hours = 24      # 일반 기업은 하루 1번 갱신
-
-    # v5로 캐시 키 업데이트 (프롬프트가 완전히 바뀌었으므로 기존 캐시 초기화)
-    cache_key = f"{ticker}_Tab1_v5_{lang_code}" 
-    limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
-
-    try:
-        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
         if res.data:
+            import json
             saved_data = json.loads(res.data[0]['content'])
-            return saved_data['html'], saved_data['news']
+            return saved_data.get('html', ''), saved_data.get('news', [])
     except Exception as e:
         print(f"Tab1 DB Error: {e}")
 
-    # 💡 [3. 언어별 기본 세팅 유지]
-    if lang_code == 'ja':
-        sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
-        task2_label = "[タスク2: 最新ニュースの収集]"
-        target_lang = "日本語(Japanese)"
-        lang_instruction = "必ず自然な日本語のみで作成してください。"
-        json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日本語に翻訳されたタイトル", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-    elif lang_code == 'en':
-        sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
-        task2_label = "[Task 2: Latest News Collection]"
-        target_lang = "English"
-        lang_instruction = "Your entire response MUST be in English only."
-        json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Same as English Title", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-    elif lang_code == 'zh':  
-        sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。"
-        task2_label = "[任务2: 收集最新新闻]"
-        target_lang = "简体中文(Simplified Chinese)"
-        lang_instruction = "必须只用自然流畅的简体中文编写。"
-        json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "中文标题", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-    else:
-        sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
-        task2_label = "[작업 2: 최신 뉴스 수집]"
-        target_lang = "한국어(Korean)"
-        lang_instruction = "반드시 자연스러운 한국어만 사용하세요."
-        json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국어로 번역된 제목", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
-
-    # 💡 [4. 생애주기별 프롬프트 구조 분기 (핵심 로직)]
-    if is_withdrawn:
-        task1_label = f"[{'작업 1: 상장 철회(Withdrawn) 심층 진단' if lang_code == 'ko' else 'Task 1: Withdrawn IPO Diagnosis'}]"
-        task1_structure = """
-        - 1문단: [철회 배경 진단] 시장 환경 악화 여부 및 내부 펀더멘털/규제 이슈 분석
-        - 2문단: [재무적 타격] 자본 조달 실패가 기업의 단기 유동성에 미치는 영향
-        - 3문단: [생존 전략] M&A 피인수, 우회 상장, 추가 사모 펀딩 등 대안 시나리오
-        """
-    elif is_delisted_or_otc:
-        task1_label = f"[{'작업 1: OTC/장외시장 거래 리스크 진단' if lang_code == 'ko' else 'Task 1: OTC Market Risk Analysis'}]"
-        task1_structure = """
-        - 1문단: [장외 편입 배경] 비즈니스 모델 요약 및 정규 시장 미진입(또는 강등) 사유
-        - 2문단: [투자 리스크] 거래량 부족에 따른 유동성 위험(Liquidity Risk) 및 정보 비대칭성 진단
-        - 3문단: [장기 전망] 사업 지속 가능성(Going Concern) 및 정규 시장 재진입 가능성
-        """
-    elif is_over_1y:
-        task1_label = f"[{'작업 1: 상장 1년 차 펀더멘털 점검' if lang_code == 'ko' else 'Task 1: Post-IPO Fundamental Check'}]"
-        task1_structure = """
-        - 1문단: [목표 달성도] IPO 당시 제시했던 비전 대비 현재 핵심 펀더멘털 달성 여부
-        - 2문단: [수익성 평가] 흑자 전환(Path to Profitability) 현황 및 잉여현금흐름(FCF)
-        - 3문단: [자본 효율성] 투자(CAPEX/R&D) 성과 및 장기적 주주 가치 환원 전략
-        """
-    else:
-        # 일반 신규 상장 / 상장 대기 기업
-        task1_label = f"[{'작업 1: 신규 IPO 비즈니스 심층 분석' if lang_code == 'ko' else 'Task 1: Deep Business Model Analysis'}]"
-        task1_structure = """
-        - 1문단: 비즈니스 모델 및 시장 내 핵심 경쟁 우위 (Competitive Advantage)
-        - 2문단: 재무 현황 및 공모 자금 활용 계획 (Use of Proceeds)
-        - 3문단: 향후 산업 전망 및 종합 투자 의견 (Outlook & Valuation)
-        """
-
-    current_date = now.strftime("%Y-%m-%d")
-    current_year = now.strftime("%Y")
-
-    prompt = f"""
-    {sys_prompt}
-    분석 대상: {company_name} ({ticker})
-    기업 상태: {ipo_status}
-    오늘 날짜: {current_date}
-
-    {task1_label}
-    아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
-    1. 언어: {lang_instruction}
-       - 경고: 영어 단어(potential, growth 등)를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
-    2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
-       {task1_structure}
-    3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
-    4. 최종 검수(Self-Check): 답변을 최종 출력하기 전에 스스로 엄격하게 검토하세요. 인사말, 서론, 또는 {target_lang} 외의 언어(특히 한국어)가 단 한 글자라도 포함되어 있다면 해당 부분을 완전히 삭제하고 완벽한 {target_lang} 문장으로만 구성하여 답변하세요.
+    wait_msgs = {
+        'ko': "🤖 최신 뉴스와 비즈니스 모델을 분석 중입니다...",
+        'en': "🤖 Analyzing latest news and business model...",
+        'ja': "🤖 最新ニュースとビジネスモデルを分析中です...",
+        'zh': "🤖 正在分析最新新闻和商业模式..."
+    }
+    return f"<p style='color:#666;'>{wait_msgs.get(lang_code, wait_msgs['ko'])}</p>", []
     
-    {task2_label}
-    - 🚨 [강제 명령] 반드시 구글 검색 도구(google_search_retrieval)를 지금 즉시 사용하여 "{company_name} {ticker} news {current_year}"를 검색하십시오.
-    - 과거 지식을 바탕으로 지어내지 말고, 검색 결과 중 오늘({current_date}) 기준 가장 최신 기사 5개를 선정하십시오.
-    - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
-    - [중요] sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
-
-    <JSON_START>
-    {json_format}
-    <JSON_END>
-    """
-
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = model.generate_content(prompt)
-            full_text = response.text
-
-            if lang_code != 'ko':
-                check_text = full_text.replace("긍정", "").replace("부정", "").replace("일반", "")
-                if re.search(r'[가-힣]', check_text):
-                    time.sleep(1); continue 
-
-            news_list = []
-            json_str = ""
-            
-            json_match = re.search(r'\[\s*\{.*?\}\s*\]', full_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
-                try:
-                    news_list = json.loads(json_str)
-                except: pass
-
-            if json_str:
-                biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
-            else:
-                biz_analysis = full_text.split("{")[0].replace("<JSON_START>", "").strip()
-
-            biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
-            paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
-            
-            indent_size = "14px" if lang_code == "ko" else "0px"
-            html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
-
-            if news_list:
-                news_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
-                for n in news_list:
-                    if n.get('sentiment') == "긍정": n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                    elif n.get('sentiment') == "부정": n['bg'], n['color'] = "#fce8e6", "#d93025"
-                    else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
-
-            supabase.table("analysis_cache").upsert({
-                "cache_key": cache_key,
-                "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
-                "updated_at": now.isoformat()
-            }).execute()
-
-            return html_output, news_list
-            
-        except Exception as e:
-            if attempt == max_retries - 1:
-                return f"<p style='color:red;'>시스템 오류: {str(e)}</p>", []
-            time.sleep(1)
-
-    return f"<p style='color:red;'>시스템 오류: 언어 생성 지연</p>", []
-
-@st.cache_data(show_spinner=False, ttl=86400)
+@st.cache_data(show_spinner=False, ttl=600)
 def get_ai_analysis(company_name, topic, lang_code):
-    """
-    Tab 0: 공시 12종 및 재무 분석 (수치 데이터 강제 및 지시어 현지화 v15)
-    """
-    if not model:
-        return "⚠️ AI 모델 설정 오류가 발생했습니다."
-
-    # 💡 [캐시 버전] v15로 업데이트하여 숫자 기반의 새 데이터 생성
+    """[디커플링 완료] 앱에서 AI 프롬프트 생성 금지. DB만 조회합니다."""
     cache_key = f"{company_name}_{topic}_Tab0_v15_FullNumerical_{lang_code}"
-    now = datetime.now()
-
+    
     try:
-        # 최근 7일 이내의 유효한 데이터가 있는지 확인
-        res = supabase.table("analysis_cache") \
-            .select("content") \
-            .eq("cache_key", cache_key) \
-            .execute()
-            
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
         if res.data:
             return res.data[0]['content']
     except Exception as e:
         print(f"Tab0 Cache Read Error: {e}")
 
-    # 💡 [핵심] 12가지 문서의 세부 지시사항 - 단 한 줄의 생략 없이 복구 및 수치 로직 강화
-    def get_localized_meta(lang, doc_type):
-        meta_dict = {
-            "ko": {
-                "S-1": {"p": "Risk Factors(특이 소송/규제), Use of Proceeds(자금 용도의 건전성), MD&A(성장 동인)", "s": "1문단: 발견된 가장 중요한 투자 포인트\n2문단: 실질적 성장 가능성과 재무적 의미\n3문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책"},
-                "S-1/A": {"p": "Pricing Terms(수요예측 분위기), Dilution(신규 투자자 희석률), Changes(이전 제출본과의 차이점)", "s": "1문단: 이전 S-1 대비 변경된 핵심 사항\n2문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기\n3문단: 기존 주주 가치 희석 정도와 투자 매력도"},
-                "F-1": {"p": "Foreign Risk(지정학적 리스크), Accounting(GAAP 차이), ADS(주식 예탁 증서 구조)", "s": "1문단: 기업이 글로벌 시장에서 가진 독보적인경쟁 우위\n2문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크\n3문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향"},
-                "FWP": {"p": "Graphics(시장 점유율 시각화), Strategy(미래 핵심 먹거리), Highlights(경영진 강조 사항)", "s": "1문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전\n2문단: 경쟁사 대비 기술적/사업적 차별화 포인트\n3문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지"},
-                "424B4": {"p": "Underwriting(주관사 등급), Final Price(기관 배정 물량), IPO Outcome(최종 공모 결과)", "s": "1문단: 확정 공모가의 위치와 시장 수요 해석\n2문단: 확정된 조달 자금의 투입 우선순위\n3문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측"},
-                "RW": {"p": "Withdrawal Reason(철회 사유), Market Condition(시장 환경 악화 여부), Future Plans(향후 계획)", "s": "1문단: 상장 철회(Withdrawal) 결정적 사유 및 배경\n2문단: 상장 철회가 기업 재무 및 기존 투자자에게 미치는 영향\n3문단: 향후 재상장 또는 M&A 등 향후 계획"},
-                "Form 25": {"p": "Delisting Reason(상장폐지 사유), M&A(인수합병 여부), Shareholder Impact(주주 영향)", "s": "1문단: 상장 폐지(Delisting)의 정확한 사유\n2문단: 상장 폐지 후 기존 주주의 권리 및 주식 처리 방안\n3문단: 장외시장(OTC) 거래 가능성 및 향후 기업 상태"},
-                "10-K": {"p": "Annual Revenue, Operating Income, Net Income, Growth Rate", "s": "1문단: [연간 성과] 지난 1년간의 실제 매출액과 영업이익 수치($) 및 전년비 성장률 명시\n2문단: [사업 확장] 경영진이 강조한 핵심 사업부별 실적 데이터와 비즈니스 모델 변화\n3문단: [리스크] 위험 요소가 향후 재무 지표에 미칠 수 있는 구체적 수치 영향"},
-                "10-Q": {"p": "Quarterly Revenue, Net Income, Cash Balances", "s": "1문단: [분기 실적] 이번 분기 실제 매출($) 및 순이익($) 성과와 전년 동기 대비 증감률 명시\n2문단: [현금 현황] 현재 보유한 현금 및 현금성 자산의 실제 수치와 단기 유동성 분석\n3문단: [가이던스] 경영진이 제시한 다음 분기 예상 수치 및 성장의 구체적 근거"},
-                "BS": {"p": "Total Assets, Total Liabilities, Cash & Equivalents, Total Debt, Equity", "s": "1문단: [자산 구조] 현금 및 현금성 자산을 포함한 유동 자산과 비유동 자산의 실제 수치(USD)를 공시 서류에서 찾아 명시\n2문단: [부채와 자본] 총부채와 자기자본의 실제 금액($)을 바탕으로 부채비율 분석 및 재무 리스크 진단\n3문단: [결론] 위 수치를 근거로 한 기업의 실질적인 재무 건전성 및 지급 능력 최종 평가"},
-                "IS": {"p": "Revenue Growth, Gross Margin, Operating Income, Net Income, EPS", "s": "1문단: [매출 성과] 서류에 기재된 실제 매출액(Revenue) 수치와 전년 대비 성장률(%)을 반드시 포함\n2문단: [이익률 평가] 영업이익(Operating Income)과 순이익(Net Income)의 실제 달러 수치를 명시하고 마진 분석\n3문단: [수익성 품질] 주당순이익(EPS)과 일회성 비용 유무를 통해 본 기업의 실질적 수익 창출력 요약"},
-                "CF": {"p": "Operating CF, Investing CF(CAPEX), Financing CF, Free Cash Flow(FCF)", "s": "1문단: [영업현금흐름] 실제 영업활동 현금흐름 수치를 명시하고 기업의 핵심 현금 창출력 평가\n2문단: [투자 및 CAPEX] 자본적 지출(CAPEX)의 실제 금액과 투자 방향성을 구체적인 숫자로 분석\n3문단: [현금 생존력] 잉여현금흐름(FCF)을 직접 계산(영업CF - CAPEX)하여 명시하고 향후 자금 조달 필요성 진단"}
-            },
-            "en": {
-                "S-1": {"p": "Risk Factors, Use of Proceeds, MD&A", "s": "Para 1: Key investment highlights found in this document.\nPara 2: Strategic growth potential and financial implications.\nPara 3: Major risk factor and its impact on future goals."},
-                "S-1/A": {"p": "Pricing Terms, Dilution, Changes", "s": "Para 1: Core changes compared to the previous S-1.\nPara 2: Appropriateness of pricing and demand sentiment.\nPara 3: Shareholder value dilution and attractiveness."},
-                "F-1": {"p": "Geopolitical Risk, Accounting (GAAP), ADS Structure", "s": "Para 1: Competitive advantages in the global market.\nPara 2: Specific risks for foreign firms (FX, politics).\nPara 3: Impact of ADS structure on shareholder rights."},
-                "FWP": {"p": "Strategy, Highlights, Market Share", "s": "Para 1: Future growth vision emphasized in roadshows.\nPara 2: Differentiation points against competitors.\nPara 3: Market penetration willingness from the materials."},
-                "424B4": {"p": "Final Price, Underwriting, IPO Outcome", "s": "Para 1: Final IPO price position and market demand.\nPara 2: Priority of how raised funds will be used.\nPara 3: Expected initial float based on allocation data."},
-                "RW": {"p": "Withdrawal Reason, Market Condition, Future Plans", "s": "Para 1: Critical reason for IPO withdrawal.\nPara 2: Impact of withdrawal on finance and investors.\nPara 3: Future plans such as M&A or re-attempting."},
-                "Form 25": {"p": "Delisting Reason, M&A, Shareholder Impact", "s": "Para 1: Exact reason for delisting (M&A, violations).\nPara 2: Impact on shareholder rights and stock treatment.\nPara 3: Possibility of OTC trading and future status."},
-                "10-K": {"p": "Annual Revenue, Operating Income, Segment Data", "s": "Para 1: [Annual Performance] State actual Revenue and Operating Income ($) with growth rates.\nPara 2: [Analysis] Core business segment performance data and strategic shifts.\nPara 3: [Risks] New risk factors and their numerical impact on financials."},
-                "10-Q": {"p": "Quarterly Revenue, Net Income, Cash Balances", "s": "Para 1: [Quarterly Review] State actual Revenue and Net Income ($) with YoY comparison.\nPara 2: [Liquidity] Mention actual cash and cash equivalents and assess solvency.\nPara 3: [Guidance] Specific guidance numbers for next quarter performance."},
-                "BS": {"p": "Total Assets, Liabilities, Cash, Debt, Equity", "s": "Para 1: [Asset Structure] State actual USD values for current/non-current assets including cash.\nPara 2: [Solvency] Use actual debt and equity figures ($) to analyze stability.\nPara 3: [Verdict] Final evaluation based purely on reported financial numbers."},
-                "IS": {"p": "Revenue Growth, Margins, Operating Income, EPS", "s": "Para 1: [Top-line] Explicitly include actual Revenue figures and growth (%).\nPara 2: [Profitability] Analyze Operating and Net Income using actual dollar amounts.\nPara 3: [Earnings] Summarize EPS and profit quality using specific financial data points."},
-                "CF": {"p": "Operating CF, Investing CF(CAPEX), Financing CF, FCF", "s": "Para 1: [Operating] State actual cash flow from operations ($) and efficiency.\nPara 2: [Investing] Analyze actual CAPEX spending using dollar amounts.\nPara 3: [Runway] Calculate and state FCF (OCF - CAPEX) using reported figures."}
-            },
-            "ja": {
-                "S-1": {"p": "リスク要因, 資金使途, MD&A", "s": "第1段落：重要な投資ポイントの要約\n第2段落：実質的な成長可能性と財務的意味\n第3段落：核心的なリスクとその対応策"},
-                "FWP": {"p": "戦略, ハイライト, 市場シェア", "s": "第1段落：ロードショーで強調された将来の成長ビジョン\n第2段落：競合他社と比較した技術적差別化ポイント\n第3段落：市場攻略への意欲と戦略の方向性"},
-                "10-K": {"p": "通期売上高, 営業利益, セグメント実績", "s": "第1段落：[通期実績] 過去1年間の実際の売上高と営業利益の数値($)を明記\n第2段落：[事業分析] 各セグメント別の実績データとビジネスモデルの変化\n第3段落：[将来リスク] リスク要因が今後の財務指標に与える具体的な影響"},
-                "BS": {"p": "資産合計, 負債合計, 現金等価物, 自己資本", "s": "第1段落：[資産構造] 現金同等物を含む流動資産・非流動資産の実際の数値(USD)を明記\n第2段落：[負債と資本] 総負債と自己資本の実際の金額($)に基づき分析\n第3段落：[結論] 数値に裏打ちされた短期支払能力と健全性の評価"},
-                "IS": {"p": "売上高, 利益率, 営業利益, 純利益, EPS", "s": "第1段落：[売上実績] 報告書に明記された実際の売上高(Revenue)数値と成長率(%)を含める\n第2段落：[収益性] 営業利益と純利益の実際のドル数値を明記し分析\n第3段落：[利益の質] EPSと利益の質를具体的なデータで要約"},
-                "CF": {"p": "営業CF, CAPEX, 財務CF, FCF", "s": "第1段落：[営業CF] 実際の営業活動によるCF数値($)を明記し評価\n第2段落：[投資とCAPEX] CAPEXの実際の金額と投資方向性を数字で分析\n第3段落：[現金の存続能力] フリーキャッシュフロー(FCF)を直接計算(営業CF-CAPEX)して明記"}
-            },
-            "zh": {
-                "S-1": {"p": "风险因素, 资金用途, MD&A", "s": "第一段：该文件中最重要的投资亮点\n第二段：实质性增长潜力及其财务意义\n第三段：一个核心风险及其连锁反应"},
-                "10-K": {"p": "年度营收, 营业利润, 各板块数据", "s": "第一段：[年度表现] 明确列出过去一年的实际营收和营业利润数值($)及增长率\n第二段：[业务分析] 核心业务板块业绩数据及商业模式变化\n第三段：[风险展望] 风险因素对未来财务指标的具体影响"},
-                "BS": {"p": "总资产, 总负债, 现金及等价物, 权益", "s": "第一段：[资产结构] 明确列出流动资产和非流动资产的实际美元金额(USD)\n第二段：[负债与资本] 使用总负债和股东权益的实际金额($)评估稳定性\n第三段：[结论] 基于上述具体数值评估企业的偿债能力"},
-                "IS": {"p": "营收增长, 毛利率, 净利润, EPS", "s": "第一段：[营收表现] 必须包含报告中列出的实际营收数值及同比增长率(%)\n第二段：[盈利指标] 使用实际美元金额分析营业利润和净利润\n第三段：[收益质量] 结合EPS总结企业的实际盈利能力"},
-                "CF": {"p": "经营CF, 投资CF, 筹资CF, FCF", "s": "第一段：[经营现金流] 明确列출实际经营活动现金流数值($)\n第二段：[投资与支出] 基于金额分析资本支出(CAPEX)的具体数值\n第三段：[现金流存续] 明确计算并列出自由现金流(FCF)情况"}
-            }
-        }
-        lang_group = meta_dict.get(lang, meta_dict['ko'])
-        return lang_group.get(doc_type, lang_group.get('S-1'))
-
-    # 💡 [핵심] 강조 기호 금지 조항 추가 및 별표 제거
-    def get_format_instruction(lang):
-        if lang == 'en':
-            return """[Output Format Rules - STRICTLY FOLLOW]
-            - Each paragraph MUST begin with a translated **[Heading]**, followed by a space and the content. Do NOT line break after the heading.
-            - [Length] Write exactly 4 to 5 detailed sentences per paragraph to make it rich in content.
-            - [Numerical Mandate] YOU MUST find and include REAL NUMBERS (USD, %) from the filings. 
-            - [No Bold] DO NOT use markdown bold (**) for numerical values or currency symbols.
-            - [Prohibition] DO NOT explain definitions. FOCUS ONLY on data."""
-        elif lang == 'ja':
-            return """[出力形式および翻訳規則 - 厳守すること]
-            - 各段落の始めは必ず日本語に翻訳された **[見出し]** から始め、改行せずにスペースを1つ空けて本文를続けてください。
-            - [分量条件] 各段落ごとに必ず4〜5文程度の詳細な内容を記述してください.
-            - [数値의 義務] 報告書に記載されている実際の数値（USD、$）とパーセンテージ（%）を必ず含めてください.
-            - [強調禁止] 数値や通貨記号にマ記号（**）を使用した強調表示（Bold）は絶対に行わないでください。
-            - [禁止事項] 定義や理論説明は不要です。事実と数値のみを記述してください。"""
-        elif lang == 'zh':
-            return """[输出格式及翻译规则 - 必须严格遵守]
-            - 每个段落的开头必须是中文的 **[副标题]**，不要换行，空一格后直接接着写正文。
-            - [篇幅要求] 每个段落必须写4到5句详细且充实的内容。
-            - [数值要求] 必须从报告中找出并列出具体的美元金额($)和百分比(%)数值。
-            - [禁止加粗] 请勿对数值或货币符号使用加粗(**)处理。请保持普通文本格式。"""
-        else:
-            return """[출력 형식 및 번역 규칙 - 반드시 지킬 것]
-            - 각 문단의 시작은 반드시 **[소제목]**으로 시작한 뒤, 줄바꿈 없이 한 칸 띄우고 바로 내용을 이어가세요.
-            - [분량 조건] 각 문단마다 반드시 4~5문장씩 내용을 상세하고 풍성하게 채워 넣으세요.
-            - [수치 데이터 필수] 공시 서류에 기재된 실제 달러($) 수치와 퍼센트(%)를 반드시 찾아 언급하세요.
-            - [강조 금지] 숫자나 통화 기호에 별표(**)를 사용한 강조 처리를 절대 하지 마세요. 일반 텍스트로만 작성하세요."""
-
-    # 💡 [핵심] 지시사항(Instructions) 자체를 타겟 언어로 발행하여 AI의 논리 일관성 강화
-    def get_localized_prompt(lang, company_name, topic, meta):
-        rules = {
-            "en": {
-                "persona": "You are a Senior Wall Street Analyst.",
-                "rules": "1. Write ENTIRELY in English.\n2. NO general business definitions.\n3. YOU MUST find and include REAL NUMBERS (USD, %) from the filings.\n4. NO self-introductions."
-            },
-            "ja": {
-                "persona": "あなたは証券分析のエキスパートです。",
-                "rules": "1. 全て日本語で作成してください。\n2. 一般的な定義（例：「売上は重要です」など）は一切禁止します。\n3. 必ず最新の開示書類から**実際の数値（USD、$）とパーセンテージ（%）**を抽出してください。\n4. 挨拶は不要です。"
-            },
-            "zh": {
-                "persona": "您是资深证券分析师。",
-                "rules": "1. 必须完全使用简体中文编写。\n2. 严禁提供空洞的理论描述。\n3. 必须从报告中找出并列出**具体的美元金额($)和百分比(%)数值**。\n4. 不要进行自我介绍。"
-            },
-            "ko": {
-                "persona": "당신은 월가 출신의 전문 분석가입니다.",
-                "rules": "1. 반드시 한국어로만 작성하고 문장 끝은 ~합니다,~습니다,~입니다로 끝내주세요.\n2. 일반적인 정의나 이론적인 설명은 절대 하지 마세요.\n3. 반드시 공시 서류에 기재된 **실제 달러($) 수치와 퍼센트(%)**를 찾아 언급하세요.\n4. 자기소개는 하지 마세요."
-            }
-        }
-        r = rules.get(lang, rules['ko'])
-        return f"""{r['persona']}
-Target: {company_name} - {topic}
-Checkpoints: {meta['p']}
-
-[STRICT WRITING RULES]
-{r['rules']}
-
-[Structure]
-{meta['s']}"""
-
-    # 메인 실행 프로세스
-    meta = get_localized_meta(lang_code, topic)
-    format_inst = get_format_instruction(lang_code)
-    prompt = f"{get_localized_prompt(lang_code, company_name, topic, meta)}\n\n{format_inst}"
-
-    try:
-        final_text = ""
-        # 💡 한글 섞임 방지를 위한 최대 2회 재시도 로직
-        for attempt in range(2):
-            response = model.generate_content(prompt)
-            res_text = response.text
-            
-            # 외국어 답변에 한글이 포함된 경우 재시도
-            if lang_code != 'ko':
-                import re
-                if re.search(r'[가-힣]', res_text):
-                    time.sleep(1); continue 
-            
-            final_text = res_text
-            break
-            
-        if not final_text:
-            final_text = response.text
-
-        # Supabase 업데이트 (배포 시 실시간 데이터 반영을 위함)
-        try:
-            supabase.table("analysis_cache").upsert({
-                "cache_key": cache_key,
-                "content": final_text,
-                "updated_at": now.isoformat()
-            }).execute()
-        except:
-            pass
-
-        return final_text
-
-    except Exception as e:
-        return f"분석 중 오류 발생: {str(e)}"
+    # 데이터가 없으면 AI 호출 없이 대기 메시지만 출력
+    wait_msgs = {
+        'ko': f"🤖 AI 애널리스트가 {topic} 리포트를 작성 중입니다. (최대 15분 소요)",
+        'en': f"🤖 AI is generating the {topic} report. (Max 15 mins)",
+        'ja': f"🤖 AIが {topic} レポートを作成中です。(最大15分)",
+        'zh': f"🤖 AI正在生成 {topic} 报告。(最多15分钟)"
+    }
+    return wait_msgs.get(lang_code, wait_msgs['ko'])
 
 @st.cache_data(ttl=600)
 def get_cached_raw_financials(symbol):
@@ -1172,7 +861,7 @@ def get_daily_quote(lang='ko'):
     
     return {"eng": choice['eng'], "translated": trans, "author": choice['author']}
         
-@st.cache_data(ttl=86400) # 24시간 (재무제표는 분기마다 바뀌므로 하루 종일 캐싱해도 안전)
+
 @st.cache_data(ttl=600)
 def get_financial_metrics(symbol, api_key=None):
     """[디커플링 완료] DB의 통합 재무 데이터에서 필요한 지표만 뽑아 씁니다."""
@@ -1225,45 +914,27 @@ def normalize_name_for_app(name):
     return re.sub(r'[^a-z0-9]', '', name)    
 
 # 💡 [기존 함수 교체] 캘린더를 부를 때 티커를 일괄 교정합니다!
-@st.cache_data(ttl=3600) 
-def get_extended_ipo_data(api_key):
-    now = datetime.now()
-    ranges = [
-        (now - timedelta(days=200), now + timedelta(days=120)),
-        (now - timedelta(days=380), now - timedelta(days=170)),
-        (now - timedelta(days=560), now - timedelta(days=350))
-    ]
-    
-    all_data = []
-    for start_dt, end_dt in ranges:
-        start_str = start_dt.strftime('%Y-%m-%d')
-        end_str = end_dt.strftime('%Y-%m-%d')
-        url = f"https://finnhub.io/api/v1/calendar/ipo?from={start_str}&to={end_str}&token={api_key}"
-        
-        try:
-            time.sleep(0.2)
-            res = requests.get(url, timeout=5).json()
-            ipo_list = res.get('ipoCalendar', [])
-            if ipo_list:
-                all_data.extend(ipo_list)
-        except:
-            continue
-    
-    if not all_data: return pd.DataFrame()
-    
-    df = pd.DataFrame(all_data)
-    df = df.drop_duplicates(subset=['symbol', 'date'])
-    
-    # 🚀 [핵심 교정 로직] 앱에서도 SEC 공식 티커로 스와핑!
-    sec_map = get_sec_ticker_mapping_for_app()
-    if sec_map:
-        df['clean_name'] = df['name'].apply(normalize_name_for_app)
-        df['symbol'] = df.apply(lambda r: sec_map.get(r['clean_name'], r['symbol']), axis=1)
+@st.cache_data(ttl=600) 
+def get_extended_ipo_data(api_key=None):
+    """[디커플링 완료] Finnhub API 직접 호출 전면 삭제. DB에서 전체 달력 읽어오기"""
+    try:
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", "IPO_CALENDAR_DATA").execute()
+        if res.data:
+            import json
+            df = pd.DataFrame(json.loads(res.data[0]['content']))
+            
+            # SEC 티커 교정 적용
+            sec_map = get_sec_ticker_mapping_for_app()
+            if sec_map and not df.empty:
+                df['clean_name'] = df['name'].apply(normalize_name_for_app)
+                df['symbol'] = df.apply(lambda r: sec_map.get(r['clean_name'], r['symbol']), axis=1)
 
-    df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
-    df = df.dropna(subset=['공모일_dt'])
-    
-    return df
+            df['공모일_dt'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
+            return df.dropna(subset=['공모일_dt'])
+    except Exception as e:
+        print(f"Calendar DB Read Error: {e}")
+        
+    return pd.DataFrame()
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_batch_prices(ticker_list):
@@ -1879,149 +1550,23 @@ def _calculate_market_metrics_internal(df_calendar, api_key):
 
 @st.cache_data(show_spinner=False, ttl=600)
 def get_financial_report_analysis(company_name, ticker, metrics, lang_code):
-    if not model: return "AI 모델 설정 오류"
-
-    # 💡 캐시 키 v2_Premium 유지
+    """[디커플링 완료] 앱에서 재무제표 AI 분석 금지."""
     cache_key = f"{ticker}_Tab3_v2_Premium_{lang_code}"
-    now = datetime.now()
-    one_day_ago = (now - timedelta(days=1)).isoformat()
-
+    
     try:
-        res = supabase.table("analysis_cache") \
-            .select("content") \
-            .eq("cache_key", cache_key) \
-            .gt("updated_at", one_day_ago) \
-            .execute()
-        
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
         if res.data:
             return res.data[0]['content']
     except Exception as e:
         print(f"Tab3 Cache Error: {e}")
 
-    # 💡 [핵심 통합본] 기본 재무 지표 + 프리미엄 지표 통합 및 4가지 소제목 강제
-    if lang_code == 'en':
-        prompt = f"""You are a Lead Quant Analyst on Wall Street with a CFA charter.
-Write an in-depth financial and investment analysis report for {company_name} ({ticker}) based strictly on the comprehensive data below.
-
-[Financial & Premium Data]
-- Revenue Growth (YoY): {metrics.get('growth', 'N/A')}
-- Net Margin: {metrics.get('net_margin', 'N/A')}
-- OPM (Operating Margin): {metrics.get('op_margin', 'N/A')}
-- ROE: {metrics.get('roe', 'N/A')}
-- D/E Ratio: {metrics.get('debt_equity', 'N/A')}
-- Forward PER: {metrics.get('pe', 'N/A')}
-- Accruals Quality: {metrics.get('accruals', 'Unknown')}
-- Current Price: {metrics.get('current_price', 'N/A')}
-- DCF Value (Target Price): {metrics.get('dcf_price', 'N/A')}
-- Quant Rating: {metrics.get('rating', 'N/A')} (Score: {metrics.get('health_score', 'N/A')}/5)
-- Recommendation: {metrics.get('recommendation', 'N/A')}
-
-[Writing Guidelines]
-1. Language: Write STRICTLY and ENTIRELY in English. Do not mix Korean.
-2. Format: You MUST use the following 4 headings to separate your paragraphs:
-   [Valuation & Market Position]
-   [Operating Performance]
-   [Risk & Solvency]
-   [Analyst Conclusion]
-3. Content: YOU MUST INCLUDE THE EXACT NUMBERS from the data above. Interpret what the numbers imply (premium, efficiency, risk, etc.). If a value is 'N/A', state that 'data is currently unavailable'. DO NOT use bold (**) for numbers or headings. (12-15 lines total)"""
-
-    elif lang_code == 'ja':
-        prompt = f"""あなたはCFA資格を保有するウォール街のシニアクオンツアナリストです。
-以下の包括的なデータに厳密に基づいて、{company_name} ({ticker})の深層財務および投資分析レポートを作成してください。
-
-[財務およびプレミアムデータ]
-- 売上成長率(YoY): {metrics.get('growth', 'N/A')}
-- 純利益率(Net Margin): {metrics.get('net_margin', 'N/A')}
-- 営業利益率(OPM): {metrics.get('op_margin', 'N/A')}
-- ROE: {metrics.get('roe', 'N/A')}
-- 負債比率(D/E): {metrics.get('debt_equity', 'N/A')}
-- 予想PER: {metrics.get('pe', 'N/A')}
-- 発生額の質(Accruals): {metrics.get('accruals', 'Unknown')}
-- 現在の株価(Current Price): {metrics.get('current_price', 'N/A')}
-- DCF目標株価(DCF Value): {metrics.get('dcf_price', 'N/A')}
-- クオンツ評価(Quant Rating): {metrics.get('rating', 'N/A')} (スコア: {metrics.get('health_score', 'N/A')}/5)
-- 投資判断(Recommendation): {metrics.get('recommendation', 'N/A')}
-
-[作成ガイドライン]
-1. 言語: 全て自然な日本語のみで記述してください。韓国語は絶対に混ぜないでください。
-2. 形式: 以下の4つの見出しを**必ず**使用して段落を分けてください。
-   [Valuation & Market Position]
-   [Operating Performance]
-   [Risk & Solvency]
-   [Analyst Conclusion]
-3. 内容: 上記のデータから正確な数値を必ず含め、それが持つ意味（プレミアム、効率性、リスクなど）を解釈してください。値が「N/A」の場合はデータが存在しないと明記してください。数値や見出しに強調(**)は使わないでください。(全体で12〜15行程度)"""
-
-    elif lang_code == 'zh':
-        prompt = f"""您是拥有CFA资格的华尔街首席量化分析师。
-请严格根据以下综合数据，撰写关于 {company_name} ({ticker}) 的深度财务与投资分析报告。
-
-[财务与高级数据]
-- 营收增长率(YoY): {metrics.get('growth', 'N/A')}
-- 净利润率(Net Margin): {metrics.get('net_margin', 'N/A')}
-- 营业利润率(OPM): {metrics.get('op_margin', 'N/A')}
-- ROE: {metrics.get('roe', 'N/A')}
-- 资产负债率(D/E): {metrics.get('debt_equity', 'N/A')}
-- 预测PER: {metrics.get('pe', 'N/A')}
-- 会计账簿质量(Accruals): {metrics.get('accruals', 'Unknown')}
-- 当前股价(Current Price): {metrics.get('current_price', 'N/A')}
-- DCF目标价(DCF Value): {metrics.get('dcf_price', 'N/A')}
-- 量化评级(Quant Rating): {metrics.get('rating', 'N/A')} (得分: {metrics.get('health_score', 'N/A')}/5)
-- 投资建议(Recommendation): {metrics.get('recommendation', 'N/A')}
-
-[编写指南]
-1. 语言：必须只用简体中文编写。严禁混用韩语。
-2. 格式：**必须**使用以下4个副标题来划分段落：
-   [Valuation & Market Position]
-   [Operating Performance]
-   [Risk & Solvency]
-   [Analyst Conclusion]
-3. 内容：必须包含上述数据中的确切数值，并解释其深刻含义（溢价、效率、风险等）。如果值为“N/A”，请声明数据暂不可用。不要对数值或标题使用加粗(**)。(整体12~15行左右)"""
-
-    else: # ko
-        prompt = f"""당신은 CFA 자격을 보유한 월스트리트 수석 퀀트 애널리스트입니다.
-아래 제공된 종합 재무 및 프리미엄 데이터를 엄격하게 바탕으로 {company_name} ({ticker})의 심층 투자 분석 리포트를 작성하세요.
-
-[재무 및 프리미엄 데이터]
-- 매출 성장률(YoY): {metrics.get('growth', 'N/A')}
-- 순이익률(Net Margin): {metrics.get('net_margin', 'N/A')}
-- 영업이익률(OPM): {metrics.get('op_margin', 'N/A')}
-- ROE: {metrics.get('roe', 'N/A')}
-- 부채비율(D/E): {metrics.get('debt_equity', 'N/A')}
-- 선행 PER: {metrics.get('pe', 'N/A')}
-- 발생액 품질(Accruals): {metrics.get('accruals', 'Unknown')}
-- 현재 주가(Current Price): {metrics.get('current_price', 'N/A')}
-- DCF 산출 적정 주가(DCF Value): {metrics.get('dcf_price', 'N/A')}
-- 건전성 종합 등급(Quant Rating): {metrics.get('rating', 'N/A')} (점수: {metrics.get('health_score', 'N/A')}/5)
-- 퀀트 투자의견(Recommendation): {metrics.get('recommendation', 'N/A')}
-
-[작성 가이드]
-1. 언어: 반드시 한국어로 작성하세요.
-2. 형식: 아래 4가지 소제목을 반드시 사용하여 단락을 구분하세요.
-   [Valuation & Market Position]
-   [Operating Performance]
-   [Risk & Solvency]
-   [Analyst Conclusion]
-3. 내용: 일반론을 절대 쓰지 마세요. 제공된 데이터의 '실제 수치'를 반드시 본문에 포함하여 수치가 갖는 함의(프리미엄, 효율성, 리스크 등)를 전문가 시각에서 해석하세요. 데이터가 'N/A'인 경우, 지어내지 말고 '현재 제공되지 않습니다'라고 명시하세요. 숫자나 소제목에 별표(**) 강조를 절대 하지 마세요. (총 12~15줄 내외)"""
-
-    try:
-        response = model.generate_content(prompt)
-        result = response.text
-
-        if lang_code != 'ko':
-            import re
-            if re.search(r'[가-힣]', result):
-                return "Analysis generation retrying due to language mix..."
-
-        supabase.table("analysis_cache").upsert({
-            "cache_key": cache_key,
-            "content": result,
-            "updated_at": now.isoformat()
-        }).execute()
-
-        return result
-
-    except Exception as e:
-        return f"분석 리포트 생성 중 오류: {str(e)}"
+    wait_msgs = {
+        'ko': "🤖 AI 퀀트 애널리스트가 재무 데이터를 분석 중입니다...",
+        'en': "🤖 AI Quant Analyst is reviewing financials...",
+        'ja': "🤖 AIクオンツアナリストが財務データを分析中です...",
+        'zh': "🤖 AI量化分析师正在审查财务数据..."
+    }
+    return wait_msgs.get(lang_code, wait_msgs['ko'])
 
 # 💡 [신규 추가] 스팩/직상장 등 갑자기 편입된 Ticker 리스트 불러오기 (캐싱)
 @st.cache_data(ttl=3600) 
@@ -2040,43 +1585,25 @@ def get_sudden_additions():
 # ✅ [메인] Supabase 연동 캐싱 함수 (이걸 호출하세요)
 # ---------------------------------------------------------
 @st.cache_data(show_spinner=False, ttl=600)
-def get_cached_market_status(df_calendar, api_key):
+def get_cached_market_status(df_calendar=None, api_key=None):
     """
-    Supabase DB를 확인하여 시장 지표를 0.1초 만에 반환합니다.
-    없을 경우에만 계산 로직(5~10초)을 수행하고 저장합니다.
+    [디커플링 완료] FMP API로 VIX, SPY 긁어오는 로직 완전 삭제.
+    워커가 저장해둔 거시 지표만 0.1초 만에 불러옵니다.
     """
-    # [Step 1] Supabase에서 오늘자 데이터 확인 (24시간 캐시)
     cache_key = "Market_Dashboard_Metrics_Tab2"
-    now = datetime.now()
-    one_day_ago = (now - timedelta(hours=24)).isoformat()
-
     try:
-        res = supabase.table("analysis_cache") \
-            .select("content") \
-            .eq("cache_key", cache_key) \
-            .gt("updated_at", one_day_ago) \
-            .execute()
-        
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
         if res.data:
-            # DB에 있으면 즉시 JSON 파싱 후 반환
+            import json
             return json.loads(res.data[0]['content'])
     except Exception as e:
         print(f"Market Metrics Cache Miss: {e}")
 
-    # [Step 2] 캐시가 없거나 만료됨 -> 내부 계산 함수 실행 (시간 소요됨)
-    fresh_data = _calculate_market_metrics_internal(df_calendar, api_key)
-
-    # [Step 3] 계산된 결과를 Supabase에 저장 (다음 사람을 위해)
-    try:
-        supabase.table("analysis_cache").upsert({
-            "cache_key": cache_key,
-            "content": json.dumps(fresh_data), # 딕셔너리를 JSON 문자열로 변환
-            "updated_at": now.isoformat()
-        }).execute()
-    except Exception as e:
-        print(f"Metrics Save Error: {e}")
-
-    return fresh_data
+    # 워커가 아직 데이터를 안 만들었다면 기본값 반환 (절대 API 찌르지 않음)
+    return {
+        "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0, "withdrawal_rate": 0,
+        "vix": 0.0, "buffett_val": 0.0, "pe_ratio": 0.0, "fear_greed": 50
+    }
     
 # --- [주식 및 차트 기능] ---
 
@@ -2128,179 +1655,32 @@ def get_latest_stable_model():
         return 'gemini-2.0-flash'
 
 
-@st.cache_data(show_spinner=False, ttl=86400)
+@st.cache_data(show_spinner=False, ttl=600)
 def get_unified_tab4_analysis(company_name, ticker, lang_code, ipo_status="Active", ipo_date_str=None):
-    # 필요한 라이브러리 체크
-    import re
-    import time
-    import json
-    import pandas as pd
-    from datetime import datetime, timedelta
-
-    if not model: 
-        return {"rating": "Error", "summary": "설정 오류", "pro_con": "", "links": []}
-
-    now = datetime.now()
-
-    # 💡 [핵심 추가 1] 기업 상태 및 상장일 기준 안정기(7일 캐시 대상) 판별
-    status_lower = str(ipo_status).lower()
-    is_stable = bool(re.search(r'\b(withdrawn|rw|철회|취소|delisted|폐지)\b', status_lower))
+    """[디커플링 완료] 앱에서 목표가 및 기관 리포트 AI 생성 금지."""
+    # 💡 주의: worker.py에서 저장하는 키가 v4_Premium 입니다. 반드시 맞춰야 합니다.
+    cache_key = f"{ticker}_Tab4_v4_Premium_{lang_code}"
     
-    if not is_stable and ipo_date_str:
-        try:
-            ipo_dt = pd.to_datetime(ipo_date_str).date()
-            if (now.date() - ipo_dt).days > 365:
-                is_stable = True
-        except: 
-            pass
-
-    # 💡 [핵심 추가 2] 캐시 키 버전업 (v3 적용하여 오염된 기존 캐시 강제 무시)
-    valid_days = 7 if is_stable else 1
-    cache_key = f"{ticker}_Tab4_v3_{lang_code}" 
-    limit_time = (now - timedelta(days=valid_days)).isoformat()
-
-    # 1. DB 캐시 확인 (limit_time 적용)
     try:
-        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).gt("updated_at", limit_time).execute()
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
         if res.data:
+            import json
             return json.loads(res.data[0]['content'])
     except Exception as e:
         print(f"Tab4 DB Error: {e}")
 
-    # 2. 💡 [Target Language 중심 설계] 언어별 지시어와 JSON 포맷을 100% 분리
-    LANG_MAP = {
-        'ko': '한국어 (Korean)',
-        'en': '영어 (English)',
-        'ja': '일본어 (Japanese)',
-        'zh': '简体中文 (Simplified Chinese)' 
-    }
-    target_lang = LANG_MAP.get(lang_code, '한국어 (Korean)')
-
-    if lang_code == 'ja':
-        lang_instruction = "必ず日本語(Japanese)のみで作成してください。見出し, 本文, JSONの値すべてにおいて韓国語(Korean)を絶対に混ぜないでください。"
-        json_format = """
-        "rating": "Strong Buy / Buy / Hold / Neutral / Sell (この項目のみ英語を維持)",
-        "score": "1から5までの整数",
-        "summary": "日本語での専門的な3行要約",
-        "pro_con": "**Pros(長所)**:\\n- 詳細な分析内容\\n\\n**Cons(短所)**:\\n- 詳細なリスク要因 (必ず日本語で記述)",
-        """
-    elif lang_code == 'en':
-        lang_instruction = "Respond strictly and entirely in English. Do not mix Korean anywhere."
-        json_format = """
-        "rating": "Strong Buy / Buy / Hold / Neutral / Sell",
-        "score": "Integer from 1 to 5",
-        "summary": "Professional 3-line summary in English",
-        "pro_con": "**Pros**:\\n- Detailed analysis\\n\\n**Cons**:\\n- Detailed risk factors (all in English)",
-        """
-    elif lang_code == 'zh':  
-        lang_instruction = "必须只用简体中文(Simplified Chinese)编写。严禁在回答中出现任何韩语(Korean)。"
-        json_format = """
-        "rating": "Strong Buy / Buy / Hold / Neutral / Sell (保留英文)",
-        "score": "1到5的整数",
-        "summary": "专业中文三行摘要",
-        "pro_con": "**Pros(优点)**:\\n- 详细分析内容\\n\\n**Cons(缺点)**:\\n- 详细风险因素 (必须用中文填写)",
-        """
-    else: # ko
-        lang_instruction = "검색된 영문 리포트 내용을 반드시 자연스러운 한국어로 번역하여 작성하세요."
-        json_format = """
-        "rating": "Strong Buy / Buy / Hold / Neutral / Sell 중 택 1 (영어 유지)",
-        "score": "1~5 사이의 정수 (예: 4)",
-        "summary": "한국어 전문 3줄 요약",
-        "pro_con": "**Pros(장점)**:\\n- 구체적 분석 내용\\n\\n**Cons(단점)**:\\n- 구체적 리스크 요인",
-        """
-
-    # 3. 프롬프트 (세부 지시사항을 json_format 안으로 이관하여 충돌 방지)
-    prompt = f"""
-    당신은 월가 출신의 IPO 전문 분석가입니다. 
-    구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 찾아 심층 분석하세요.
-
-    [작성 지침]
-    1. **언어 규칙**: 반드시 '{target_lang}'로만 답변하세요. {lang_instruction}
-    2. **분석 깊이**: 구체적인 수치나 근거를 포함하여 전문적으로 분석하세요.
-    3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적 요소(Cons) 2가지를 명확히 도출하여 반영하세요.
-    4. **Score**: 월가 리포트의 종합적인 긍정/기대 수준을 1점(최악)부터 5점(대박) 사이의 정수로 평가하세요.
-    5. **출력 형식**: 아래 제공된 <JSON_START> 양식의 '값(Value)' 부분에 적힌 언어와 지시사항을 100% 준수하여 채워 넣으세요.
-    6. **링크 위치**: 본문 안에는 절대 URL을 넣지 말고, 반드시 "links" 배열 안에만 기입하세요.
-
-    <JSON_START>
-    {{
-        {json_format}
-        "links": [ {{"title": "Report Title", "link": "URL"}} ]
-    }}
-    <JSON_END>
-    """
-    
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = model.generate_content(prompt)
-            full_text = response.text
-            
-            # 💡 [방어막 최적화] 한글이 포함되었는지 검사 (Target Language가 한국어가 아닐 때)
-            if lang_code != 'ko':
-                # 한글 유니코드 범위 검사
-                if re.search(r'[가-힣]', full_text):
-                    if attempt < max_retries - 1:
-                        time.sleep(1)
-                        continue
-                    else:
-                        # 3번 시도해도 한글이 섞여 나오면, DB 오염 방지를 위해 강제 에러 발생!
-                        raise Exception(f"Language mixing detected: Korean found in {lang_code} response.")
-
-            # JSON 추출 로직 
-            json_str = ""
-            json_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1).strip()
-            else:
-                json_match = re.search(r'\{.*\}', full_text, re.DOTALL)
-                json_str = json_match.group(0).strip() if json_match else ""
-
-            if json_str:
-                # 제어 문자 제거 (파싱 에러 방지)
-                clean_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_str)
-                result_data = json.loads(clean_str, strict=False)
-                
-                # 정상적으로 파싱 및 언어 검열을 통과했을 때만 DB 저장
-                try:
-                    supabase.table("analysis_cache").upsert({
-                        "cache_key": cache_key,
-                        "content": json.dumps(result_data, ensure_ascii=False),
-                        "updated_at": now.isoformat()
-                    }).execute()
-                except: pass
-                
-                return result_data
-
-        except Exception as e:
-            print(f"⚠️ Tab4 Attempt {attempt+1} Error for {ticker}: {e}")
-            time.sleep(1)
-
-    # 4. 최종 실패 시 (기본값 리턴)
     fail_msgs = {
-        'ko': "분석 데이터를 정제하는 중입니다. 잠시 후 다시 시도해주세요.",
-        'en': "Analyzing data... Please try again in a moment.",
-        'ja': "データを分析中です。しばらくしてからもう一度お試しください。", 
-        'zh': "数据分析中... 请稍后再试。"
+        'ko': "🤖 월가 투자 의견 데이터를 수집 중입니다...",
+        'en': "🤖 Collecting Wall Street consensus data...",
+        'ja': "🤖 ウォール街の投資意見データを収集中です...",
+        'zh': "🤖 正在收集华尔街投资意见数据..."
     }
     return {
+        "target_price": "N/A",
         "rating": "N/A", 
+        "score": "3", 
         "summary": fail_msgs.get(lang_code, fail_msgs['ko']), 
-        "pro_con": "Check the connection or try another company.", 
-        "links": []
-    }
-
-    # 4. 최종 실패 시 (기본값 리턴)
-    fail_msgs = {
-        'ko': "분석 데이터를 정제하는 중입니다. 잠시 후 다시 시도해주세요.",
-        'en': "Analyzing data... Please try again in a moment.",
-        'ja': "データを分析中です。しばらくしてからもう一度お試しください。", 
-        'zh': "数据分析中... 请稍后再试。"
-    }
-    return {
-        "rating": "N/A", 
-        "summary": fail_msgs.get(lang_code, fail_msgs['ko']), 
-        "pro_con": "Check the connection or try another company.", 
+        "pro_con": "데이터 대기 중...", 
         "links": []
     }
     
@@ -2352,50 +1732,9 @@ IPO_REFERENCES = [
 # ==========================================
 # [3] 핵심 재무 분석 함수 (FMP API 완벽 대체)
 # ==========================================
-@st.cache_data(ttl=86400) # 24시간 캐싱으로 속도 극대화
-def get_us_ipo_analysis(ticker_symbol):
-    """FMP API를 사용하여 실시간 재무 지표를 계산합니다. (yfinance 완벽 제거)"""
-    try:
-        fmp_key = os.environ.get("FMP_API_KEY") or st.secrets.get("FMP_API_KEY", "")
-        
-        # 1. Income Statement (매출 성장률, 순이익)
-        inc_url = f"https://financialmodelingprep.com/api/v3/income-statement/{ticker_symbol}?limit=2&apikey={fmp_key}"
-        inc_res = requests.get(inc_url, timeout=5).json()
-        
-        # 2. Cash Flow Statement (영업현금흐름)
-        cf_url = f"https://financialmodelingprep.com/api/v3/cash-flow-statement/{ticker_symbol}?limit=1&apikey={fmp_key}"
-        cf_res = requests.get(cf_url, timeout=5).json()
 
-        # 데이터가 없거나 상장 직후라 재무제표가 비어있는 경우 방어
-        if not inc_res or not cf_res or not isinstance(inc_res, list) or not isinstance(cf_res, list):
-            return {"status": "Error"}
 
-        curr_inc = inc_res[0]
-        prev_inc = inc_res[1] if len(inc_res) > 1 else curr_inc
-        curr_cf = cf_res[0]
-
-        # 매출 성장률 (Sales Growth) 계산
-        rev_curr = float(curr_inc.get('revenue', 0))
-        rev_prev = float(prev_inc.get('revenue', rev_curr))
-        sales_growth = ((rev_curr - rev_prev) / rev_prev * 100) if rev_prev else 0.0
-
-        # 발생액 품질 (Accruals) 계산: 당기순이익 - 영업현금흐름
-        ocf_val = float(curr_cf.get('operatingCashFlow', 0))
-        net_income = float(curr_inc.get('netIncome', 0))
-        
-        accruals_amt = net_income - ocf_val
-        accruals_status = "Low" if accruals_amt <= 0 else "High" # 낮을수록 회계가 투명(좋음)
-
-        return {
-            "sales_growth": sales_growth,
-            "ocf": ocf_val,
-            "accruals": accruals_status,
-            "status": "Success"
-        }
-    except Exception as e:
-        return {"status": "Error"}
-
-        # =========================================================
+# =========================================================
 # 👑 [Premium Plus 전용] 스마트머니 퀀트 분석 엔진 (API 역할)
 # (추후 앱/웹 외주 개발 시, 이 블록은 백엔드 API로 그대로 이관됩니다)
 # =========================================================
