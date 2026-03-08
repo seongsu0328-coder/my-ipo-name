@@ -4342,27 +4342,12 @@ with main_area.container():
                 data_source = "Unknown"
                 is_data_available = False
             
-                if fin_data and (fin_data.get('revenue') is not None or len(fin_data) > 5):
+                if fin_data and len(fin_data) > 5:
                     is_data_available = True
-                    data_source = "SEC 10-K/Q" if 'sec' in str(fin_data.get('source', '')).lower() else "Financial Modeling Prep (Premium)"
-            
-                if not is_data_available or not fin_data.get('revenue'):
-                    try:
-                        ticker = yf.Ticker(stock['symbol'])
-                        yf_fin = ticker.financials; yf_info = ticker.info; yf_bal = ticker.balance_sheet
-                        if not yf_fin.empty:
-                            rev = yf_fin.loc['Total Revenue'].iloc[0]; net_inc = yf_fin.loc['Net Income'].iloc[0]
-                            prev_rev = yf_fin.loc['Total Revenue'].iloc[1] if len(yf_fin.columns) > 1 else rev
-                            fin_data['revenue'] = rev / 1e6; fin_data['net_margin'] = (net_inc / rev) * 100; fin_data['growth'] = ((rev - prev_rev) / prev_rev) * 100
-                            fin_data['eps'] = yf_info.get('trailingEps', 0)
-                            fin_data['op_margin'] = (yf_fin.loc['Operating Income'].iloc[0] / rev) * 100 if 'Operating Income' in yf_fin.index else fin_data['net_margin']
-                            fin_data['market_cap'] = yf_info.get('marketCap', 0) / 1e6; fin_data['forward_pe'] = yf_info.get('forwardPE', 0); fin_data['price_to_book'] = yf_info.get('priceToBook', 0)
-                            if not yf_bal.empty:
-                                total_liab = yf_bal.loc['Total Liabilities Net Minority Interest'].iloc[0] if 'Total Liabilities Net Minority Interest' in yf_bal.index else 0
-                                equity = yf_bal.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in yf_bal.index else 1
-                                fin_data['debt_equity'] = (total_liab / equity) * 100; fin_data['roe'] = (net_inc / equity) * 100
-                            is_data_available = True; data_source = "Yahoo Finance"
-                    except: pass
+                    data_source = "FMP Premium API"
+                else:
+                    is_data_available = False
+                    data_source = "Data Unavailable"
             
                 growth_val = fin_data.get('growth') if is_data_available else None
                 ocf_val = fin_data.get('net_margin') if is_data_available else 0
