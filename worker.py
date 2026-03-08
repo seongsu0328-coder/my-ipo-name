@@ -1084,9 +1084,20 @@ def update_macro_data(df):
     except Exception as e:
         print(f"Macro Fetch Error: {e}")
 
+    # =======================================================
+    # 🚨 [신규 추가] 수집한 숫자 데이터(data)를 DB에 저장합니다.
+    # 앱(app.py)이 "Market_Dashboard_Metrics"라는 이름으로 찾고 있으므로 완벽히 동일하게 맞춥니다.
+    # =======================================================
+    batch_upsert("analysis_cache", [{
+        "cache_key": "Market_Dashboard_Metrics",
+        "content": json.dumps(data),
+        "updated_at": datetime.now().isoformat()
+    }], on_conflict="cache_key")
+
     # 2. AI 리포트 생성 및 DB 저장 (다국어 프롬프트 완벽 분리)
     for lang_code, target_lang in SUPPORTED_LANGS.items():
-        cache_key_report = f"Global_Market_Dashboard_Tab2_{lang_code}"
+        # 🚨 [수정] 앱(app.py)과 동일하게 _Tab2를 제거한 이름으로 저장
+        cache_key_report = f"Global_Market_Dashboard_{lang_code}"
         
         if lang_code == 'en':
             prompt = f"""You are a Chief Market Strategist on Wall Street.
