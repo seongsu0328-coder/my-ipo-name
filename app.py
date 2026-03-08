@@ -4234,10 +4234,14 @@ with main_area.container():
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Filings Volume</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_filings_vol')}</div><div class='metric-footer'>Ref: Ibbotson & Jaffe (1975)</div></div>", unsafe_allow_html=True)
             
                 with c3:
-                    val = md['unprofitable_pct']; status = get_stat("risk") if val >= 80 else get_stat("warn") if val >= 50 else get_stat("good")
+                    # 키가 없을 경우 KeyError 대신 기본값 0을 반환하도록 수정
+                    val = md.get('unprofitable_pct', 0) 
+                    
+                    status = get_stat("risk") if val >= 80 else get_stat("warn") if val >= 50 else get_stat("good")
                     st_cls = "st-hot" if val >= 50 else "st-good"
+                    
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Unprofitable IPOs</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_unprofitable')}</div><div class='metric-footer'>Ref: Jay Ritter (Dot-com Bubble)</div></div>", unsafe_allow_html=True)
-            
+                
                 with c4:
                     val = md['withdrawal_rate']; status = get_stat("over") if val < 5 else get_stat("good")
                     st_cls = "st-hot" if val < 5 else "st-good"
