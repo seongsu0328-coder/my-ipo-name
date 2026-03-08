@@ -1641,9 +1641,17 @@ def main():
             # 👆 [여기까지 추가 완료!]
             
             try:
-                # 💡 [핵심 수정] 기존의 개별 API 호출 코드들을 지우고, 
-                # 위에서 만든 11지표 통합 수집 헬퍼 함수를 호출하여 보따리를 꽉 채웁니다!
+                # 11지표 통합 수집 헬퍼 함수 호출
                 unified_metrics = fetch_premium_financials(official_symbol, FMP_API_KEY)
+                
+                # 🚨 [신규 추가] app.py가 카드를 그릴 수 있도록 순수 재무 숫자 데이터도 DB에 저장!
+                batch_upsert("analysis_cache", [{
+                    "cache_key": f"{official_symbol}_Raw_Financials",
+                    "content": json.dumps(unified_metrics, ensure_ascii=False),
+                    "updated_at": datetime.now().isoformat()
+                }], on_conflict="cache_key")
+                
+                # AI 리포트 생성
                 run_tab3_analysis(official_symbol, name, unified_metrics)
             except Exception as e:
                 print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
