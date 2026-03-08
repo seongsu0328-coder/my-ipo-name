@@ -4369,17 +4369,36 @@ with main_area.container():
                 net_m = fin_data.get('net_margin') if is_data_available else None
                 accruals_status = "Low" if is_data_available and op_m is not None and net_m is not None and abs(op_m - net_m) < 5 else "High" if is_data_available else "Unknown"
     
+                # 💡 [핵심 방어막] N/A 문자열 및 기호(%, x) 섞인 쓰레기 값 처리 강화
                 def clean_value(val):
-                    try: return 0.0 if val is None or (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))) else float(val)
-                    except: return 0.0
+                    if val in ['N/A', 'Unknown', None, '']:
+                        return 0.0
+                    if isinstance(val, str):
+                        try:
+                            clean_str = val.replace('%', '').replace('x', '').replace('+', '').replace(',', '')
+                            return float(clean_str)
+                        except:
+                            return 0.0
+                    try: 
+                        return 0.0 if (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))) else float(val)
+                    except: 
+                        return 0.0
+                
                 if fin_data is None: fin_data = {}
     
-                rev_val = clean_value(fin_data.get('revenue', 0)); net_m_val = clean_value(fin_data.get('net_margin', 0)); op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
-                growth = clean_value(fin_data.get('growth', 0)); roe_val = clean_value(fin_data.get('roe', 0)); de_ratio = clean_value(fin_data.get('debt_equity', 0)); pe_val = clean_value(fin_data.get('forward_pe', 0))
+                # 안전하게 값 추출 시도 (워커가 보낸 N/A 문자열도 위 함수가 0.0으로 잡아줍니다)
+                rev_val = clean_value(fin_data.get('revenue', 0))
+                net_m_val = clean_value(fin_data.get('net_margin', 0))
+                op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
+                growth = clean_value(fin_data.get('growth', 0))
+                roe_val = clean_value(fin_data.get('roe', 0))
+                de_ratio = clean_value(fin_data.get('debt_equity', 0))
+                pe_val = clean_value(fin_data.get('pe', fin_data.get('forward_pe', 0))) # 워커의 키 'pe' 호환
     
-                growth_display = f"{growth:+.1f}%" if abs(growth) > 0.001 else "N/A"
-                net_m_display = f"{net_m_val:.1f}%" if abs(net_m_val) > 0.001 else "N/A"
-                opm_display = f"{op_m_val:.2f}%" if abs(op_m_val) > 0.001 else "N/A"
+                # 화면에 보여줄 문자열 포맷팅 (워커가 만들어둔 포맷이 있으면 우선 사용)
+                growth_display = fin_data.get('growth', f"{growth:+.1f}%") if str(fin_data.get('growth')) not in ["N/A", "None", ""] else "N/A"
+                net_m_display = fin_data.get('net_margin', f"{net_m_val:.1f}%") if str(fin_data.get('net_margin')) not in ["N/A", "None", ""] else "N/A"
+                opm_display = fin_data.get('op_margin', f"{op_m_val:.2f}%") if str(fin_data.get('op_margin')) not in ["N/A", "None", ""] else "N/A"
     
                 # 💡 [순서 재배치] 3456 (첫 줄) / 7812 (둘째 줄)
                 r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
