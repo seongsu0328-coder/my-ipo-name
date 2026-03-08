@@ -691,8 +691,9 @@ def get_cached_raw_financials(symbol):
 @st.cache_data(show_spinner=False, ttl=600)
 def get_market_dashboard_analysis(metrics_data, lang_code):
     """[디커플링 완료] 앱에서 거시경제 AI 프롬프트 생성 금지. DB만 조회합니다."""
-    # 💡 워커가 저장한 이름(worker.py 610번 줄)과 100% 동일하게 맞춰줍니다.
-    cache_key = f"Global_Market_Dashboard_Tab2_{lang_code}"
+    
+    # 💡 [핵심 수정] worker.py가 저장하는 이름과 100% 동일하게 '_Tab2'를 제거합니다!
+    cache_key = f"Global_Market_Dashboard_{lang_code}"
     
     try:
         res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
