@@ -1302,7 +1302,7 @@ Analyze the Smart Money data for {company_name} ({ticker}): {smart_money_data}
 |||SEP|||
 [Section 2: Institutional] Analyze if mega-whales are sweeping up this stock.
 |||SEP|||
-[Section 3: Senate] Analyze if any US politicians traded this stock recently. (Warning if buying before good news). If empty, say "No recent political trading detected."
+[Section 3: US Senate] Analyze if any US Senators traded this stock recently. (Warning if buying before good news). If empty, say "No recent Senate trading detected."
 |||SEP|||
 [Section 4: Short Squeeze (FTD)] Analyze Fail-To-Deliver data. If numbers are surging, warn about a potential short squeeze. If empty, say "No significant short-selling pressure detected."
 """
@@ -1319,7 +1319,7 @@ Analyze the Smart Money data for {company_name} ({ticker}): {smart_money_data}
 |||SEP|||
 [セクション2: 機関投資家] 巨大機関が買い集めているか分析。
 |||SEP|||
-[セクション3: 米国議員] 最近、米国の政治家がこの株を取引したか分析。データがない場合は「最近の政治家の取引は検出されていません」と記載。
+[セクション3: 米国上院議員] 最近、米国の上院議員がこの株を取引したか分析。データがない場合は「最近の上院議員の取引は検出されていません」と記載。
 |||SEP|||
 [セクション4: 空売り(FTD)] Fail-To-Deliverデータを分析し、数値が急増していればショートスクイーズの警告を出す。データがない場合は「有意な空売り圧力は検出されていません」と記載。
 """
@@ -1336,7 +1336,7 @@ Analyze the Smart Money data for {company_name} ({ticker}): {smart_money_data}
 |||SEP|||
 [第2部分: 机构动向] 分析华尔街巨头是否在扫货。
 |||SEP|||
-[第3部分: 美国议员] 分析近期是否有美国政治家交易该股票。如果没有数据，请写“近期未检测到政治家交易”。
+[第3部分: 美国参议员] 分析近期是否有美国参议员(Senate)交易该股票。如果没有数据，请写“近期未检测到参议员交易”。
 |||SEP|||
 [第4部分: 卖空(FTD)] 分析未能交收(FTD)数据。如果数值激增，请警告可能出现轧空(Short Squeeze)。如果没有数据，请写“未检测到明显的卖空压力”。
 """
@@ -1353,7 +1353,7 @@ Analyze the Smart Money data for {company_name} ({ticker}): {smart_money_data}
 |||SEP|||
 [항목 2: 대형 기관] 블랙록, 뱅가드 등 고래들의 매집 현황.
 |||SEP|||
-[항목 3: 미국 국회의원] 미국 상/하원 의원들의 최근 주식 거래 내역(Senate Trading). 입법/정책 호재를 앞두고 선취매 했는지 감시. 데이터가 없으면 "최근 보고된 정치인 거래 내역이 없습니다."
+[항목 3: 미국 상원의원] 미국 상원의원(Senate)들의 최근 주식 거래 내역. 입법/정책 호재를 앞두고 선취매 했는지 감시. 데이터가 없으면 "최근 보고된 상원의원 거래 내역이 없습니다."
 |||SEP|||
 [항목 4: 공매도 미결제(FTD)] 기관들의 공매도 상환 실패(Fail To Deliver) 물량 분석. 수치가 급증했다면 숏 스퀴즈(Short Squeeze) 폭등 가능성 경고. 데이터가 없으면 "현재 유의미한 공매도 압력이 없습니다."
 """
