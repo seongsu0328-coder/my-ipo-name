@@ -5076,7 +5076,7 @@ with main_area.container():
                     # =========================================================
                     # 🚀 [NEW] SEC Form 4 (내부자 거래) & SEC 13F (기관 매집) & 정치인/공매도 AI 리포트
                     # =========================================================
-                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>🚨 실시간 SEC 자금 흐름 추적 (Smart Money)</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>실시간 SEC 자금 흐름 추적 (Smart Money)</div>", unsafe_allow_html=True)
                     
                     with st.spinner("Decrypting SEC Smart Money filings..."):
                         # 💡 [핵심] 상단에 정의한 깔끔한 함수를 호출!
