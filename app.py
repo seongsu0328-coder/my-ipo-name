@@ -4377,11 +4377,8 @@ with main_area.container():
                     is_data_available = False
                     data_source = "Data Unavailable"
             
-                growth_val = fin_data.get('growth') if is_data_available else None
-                ocf_val = fin_data.get('net_margin') if is_data_available else 0
-                op_m = fin_data.get('op_margin') if is_data_available else None
-                net_m = fin_data.get('net_margin') if is_data_available else None
-                accruals_status = "Low" if is_data_available and op_m is not None and net_m is not None and abs(op_m - net_m) < 5 else "High" if is_data_available else "Unknown"
+                # 워커가 이미 계산해 둔 accruals 값을 그대로 가져옵니다 (문자열 연산 에러 원천 차단)
+                accruals_status = str(fin_data.get('accruals', 'Unknown')) if is_data_available else "Unknown"
     
                 # 💡 [핵심 방어막] N/A 문자열 및 기호(%, x) 섞인 쓰레기 값 처리 강화
                 def clean_value(val):
