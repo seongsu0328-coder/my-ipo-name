@@ -1243,29 +1243,38 @@ def update_macro_data(df):
         except: pass
 
 # ==========================================
-# [신규 추가] Tab 6: 스마트머니 (내부자 거래 & 기관 보유량) 데이터 수집 및 분석
+# [수정] Tab 6: 스마트머니 통합 데이터 수집 (국회의원 & 공매도 추가)
 # ==========================================
 def fetch_smart_money_data(symbol, api_key):
-    """FMP API를 통해 SEC Form 4 (내부자 거래) 및 SEC 13F (기관 보유량) 데이터를 수집합니다."""
-    data = {"insider": [], "institutional": []}
+    """FMP API를 통해 SEC 내부자, 기관, 국회의원, 공매도 데이터를 모두 수집합니다."""
+    data = {"insider": [], "institutional": [], "senate": [], "fail_to_deliver": []}
     try:
         # 1. SEC Form 4 (내부자 거래 내역 - 최근 10건)
         in_url = f"https://financialmodelingprep.com/api/v4/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
         in_res = requests.get(in_url, timeout=5).json()
-        if in_res and isinstance(in_res, list):
-            data["insider"] = in_res
+        if in_res and isinstance(in_res, list): data["insider"] = in_res
 
         # 2. SEC 13F (대형 기관 보유량 - 상위 10개 기관)
         inst_url = f"https://financialmodelingprep.com/api/v3/institutional-holder/{symbol}?apikey={api_key}"
         inst_res = requests.get(inst_url, timeout=5).json()
-        if inst_res and isinstance(inst_res, list):
-            data["institutional"] = inst_res[:10]
+        if inst_res and isinstance(inst_res, list): data["institutional"] = inst_res[:10]
+        
+        # 3. 🚨 [NEW] 국회의원 주식 거래 (Senate Trading)
+        senate_url = f"https://financialmodelingprep.com/api/v4/senate-trading?symbol={symbol}&apikey={api_key}"
+        senate_res = requests.get(senate_url, timeout=5).json()
+        if senate_res and isinstance(senate_res, list): data["senate"] = senate_res[:5] # 최신 5건
+        
+        # 4. 🚨 [NEW] 공매도 미결제 약정 (Fail To Deliver)
+        ftd_url = f"https://financialmodelingprep.com/api/v4/fail_to_deliver?symbol={symbol}&limit=5&apikey={api_key}"
+        ftd_res = requests.get(ftd_url, timeout=5).json()
+        if ftd_res and isinstance(ftd_res, list): data["fail_to_deliver"] = ftd_res
+
     except Exception as e:
         print(f"Smart Money Fetch Error for {symbol}: {e}")
     return data
 
 def run_tab6_analysis(ticker, company_name, smart_money_data):
-    """Tab 6: 스마트머니 감시 AI 리포트 생성"""
+    """Tab 6: 스마트머니 4대 지표 통합 감시 AI 리포트 생성"""
     if not model: return False
     
     valid_hours = 24 
@@ -1279,59 +1288,75 @@ def run_tab6_analysis(ticker, company_name, smart_money_data):
             if res.data: continue 
         except: pass
 
+        # 💡 [핵심] 구분자 |||SEP||| 를 사용하여 앱에서 4개 항목을 쪼개서 이쁘게 렌더링할 수 있게 유도
         if lang_code == 'en':
-            prompt = f"""You are a Wall Street Insider Trading & Institutional Flow Analyst.
-Analyze the following Smart Money data for {company_name} ({ticker}).
-Data: {smart_money_data}
+            prompt = f"""You are a Wall Street Insider & Institutional Flow Analyst.
+Analyze the Smart Money data for {company_name} ({ticker}): {smart_money_data}
 
-[Writing Guidelines]
-1. Write STRICTLY in English.
-2. Format using two headings: **[SEC Form 4: Insider Tracking]** and **[SEC 13F: Institutional Whales]**.
-3. [Insider]: Analyze if CEOs/Executives are secretly dumping shares (Sell) or buying (Buy). Mention specific names/titles if available. If no data, state "No recent insider trading detected."
-4. [Institutional]: Analyze if mega-institutions (BlackRock, Vanguard, etc.) are sweeping up this stock. Mention specific top holders. If no data, state "Institutional data not yet fully updated post-IPO."
-5. Write 3-4 professional sentences per section.
-6. 🚨 NEVER use introductory phrases like "Here is the analysis" or greetings. Start immediately with the first heading."""
+[Format Rules]
+- Write STRICTLY in English.
+- Use EXACTLY these 4 separators between sections: |||SEP|||
+- NO intro/outro greetings.
 
+[Section 1: Insider] Analyze if executives are secretly buying/selling.
+|||SEP|||
+[Section 2: Institutional] Analyze if mega-whales are sweeping up this stock.
+|||SEP|||
+[Section 3: Senate] Analyze if any US politicians traded this stock recently. (Warning if buying before good news). If empty, say "No recent political trading detected."
+|||SEP|||
+[Section 4: Short Squeeze (FTD)] Analyze Fail-To-Deliver data. If numbers are surging, warn about a potential short squeeze. If empty, say "No significant short-selling pressure detected."
+"""
         elif lang_code == 'ja':
             prompt = f"""あなたはウォール街の内部者取引および機関投資家フローの専門アナリストです。
-以下の{company_name} ({ticker})のスマートマネーデータを分析してください。
-データ: {smart_money_data}
+{company_name} ({ticker})のスマートマネーデータを分析してください: {smart_money_data}
 
-[作成ガイドライン]
-1. 全て日本語で作成してください。
-2. 2つの見出しを使用してください：**[SEC Form 4: 内部者取引監視]** と **[SEC 13F: 機関投資家の動向]**。
-3. [内部者]: CEOや役員が密かに株を売却(Sell)しているか、買約(Buy)しているかを分析してください。データがない場合は「最近の内部者取引は検出されていません」と記載してください。
-4. [機関投資家]: ウォール街の巨大機関（BlackRock、Vanguardなど）がこの株を買い集めているかを分析してください。データがない場合は「IPO後の機関データはまだ完全に更新されていません」と記載してください。
-5. 各セクションにつき3〜4文の専門的な文章で記述してください。
-6. 🚨 「分析結果です」などの挨拶や前置きは絶対に書かないでください。最初の文字からすぐに、最初の見出し(**[SEC Form 4...**)で始めてください。"""
+[フォーマット規則]
+- 全て日本語で記述してください。
+- 各セクションの間には必ず |||SEP||| という区切り文字を入れてください（合計3回）。
+- 挨拶や前置きは絶対に書かないでください。
 
+[セクション1: 内部者] 役員が密かに株を売買しているか分析。
+|||SEP|||
+[セクション2: 機関投資家] 巨大機関が買い集めているか分析。
+|||SEP|||
+[セクション3: 米国議員] 最近、米国の政治家がこの株を取引したか分析。データがない場合は「最近の政治家の取引は検出されていません」と記載。
+|||SEP|||
+[セクション4: 空売り(FTD)] Fail-To-Deliverデータを分析し、数値が急増していればショートスクイーズの警告を出す。データがない場合は「有意な空売り圧力は検出されていません」と記載。
+"""
         elif lang_code == 'zh':
             prompt = f"""您是华尔街内幕交易与机构资金流向的专业分析师。
-请分析以下关于 {company_name} ({ticker}) 的聪明钱(Smart Money)数据。
-数据: {smart_money_data}
+请分析 {company_name} ({ticker}) 的聪明钱数据: {smart_money_data}
 
-[编写指南]
-1. 必须只用简体中文编写。
-2. 使用两个副标题：**[SEC Form 4: 内幕交易监控]** 和 **[SEC 13F: 机构巨头动向]**。
-3. [内幕交易]: 分析CEO或高管是否在暗中抛售(Sell)或买入(Buy)股票。如果没有数据，请说明“近期未检测到内幕交易”。
-4. [机构动向]: 分析华尔街大型机构（如贝莱德、先锋领航等）是否在扫货该股票。如果没有数据，请说明“IPO后机构数据尚未完全更新”。
-5. 每个部分写3-4句专业的分析。
-6. 🚨 绝对不要使用“这是分析结果”等问候语或开场白。直接从第一个副标题(**[SEC Form 4...**)开始输出。"""
+[格式规则]
+- 必须只用简体中文编写。
+- 各部分之间必须使用 |||SEP||| 作为分隔符（共3次）。
+- 绝对不要写问候语或开场白。
 
+[第1部分: 内幕交易] 分析高管是否在暗中买卖。
+|||SEP|||
+[第2部分: 机构动向] 分析华尔街巨头是否在扫货。
+|||SEP|||
+[第3部分: 美国议员] 分析近期是否有美国政治家交易该股票。如果没有数据，请写“近期未检测到政治家交易”。
+|||SEP|||
+[第4部分: 卖空(FTD)] 分析未能交收(FTD)数据。如果数值激增，请警告可能出现轧空(Short Squeeze)。如果没有数据，请写“未检测到明显的卖空压力”。
+"""
         else: # ko
-            prompt = f"""당신은 월스트리트 내부자 거래 및 기관 자금 흐름(Smart Money) 전문 퀀트 애널리스트입니다.
-아래 제공된 {company_name} ({ticker})의 스마트머니 데이터를 심층 분석하세요.
-데이터: {smart_money_data}
+            prompt = f"""당신은 월스트리트 내부자 거래 및 자금 흐름(Smart Money) 전문 애널리스트입니다.
+{company_name} ({ticker})의 스마트머니 데이터를 심층 분석하세요: {smart_money_data}
 
-[작성 가이드]
-1. 반드시 한국어로만 작성하세요.
-2. 아래 2가지 소제목을 반드시 사용하세요.
-   **[SEC Form 4: 내부자 거래 감시]**
-   **[SEC 13F: 대형 기관 매집 동향]**
-3. [내부자 거래]: CEO나 임원들이 최근 주식을 몰래 팔고 있는지(Sell), 아니면 매수하고 있는지(Buy) 감시하여 경고/긍정 알림을 작성하세요. 이름이나 직책 데이터가 있다면 언급하세요. 데이터가 비어있다면 "최근 보고된 내부자 특이 동향이 없습니다."라고 명시하세요.
-4. [기관 매집]: 블랙록, 뱅가드 등 월가 대형 기관들이 이 주식을 쓸어 담고 있는지 보유량을 분석하세요. 주요 기관명을 언급하세요. 데이터가 없다면 "신규 상장으로 아직 13F 기관 보고서가 업데이트되지 않았습니다."라고 명시하세요.
-5. 각 항목당 3~4문장의 전문가 어조로 작성하세요.
-6. 🚨 절대 "분석 결과입니다", "알겠습니다" 등의 인사말이나 서론을 쓰지 마세요. 첫 글자부터 곧바로 첫 번째 소제목(**[SEC Form 4: 내부자 거래 감시]**)으로 시작하세요."""
+[포맷 규칙 - 엄격 준수]
+- 반드시 한국어로만 작성하세요.
+- 각 항목 사이에 반드시 |||SEP||| 구분자를 넣으세요. (총 3개의 구분자가 들어가야 함)
+- 인사말, 요약, 결론 등 불필요한 서론/본론은 절대 쓰지 마세요.
+
+[항목 1: 내부자 거래] CEO/임원들의 최근 매수/매도 동향.
+|||SEP|||
+[항목 2: 대형 기관] 블랙록, 뱅가드 등 고래들의 매집 현황.
+|||SEP|||
+[항목 3: 미국 국회의원] 미국 상/하원 의원들의 최근 주식 거래 내역(Senate Trading). 입법/정책 호재를 앞두고 선취매 했는지 감시. 데이터가 없으면 "최근 보고된 정치인 거래 내역이 없습니다."
+|||SEP|||
+[항목 4: 공매도 미결제(FTD)] 기관들의 공매도 상환 실패(Fail To Deliver) 물량 분석. 수치가 급증했다면 숏 스퀴즈(Short Squeeze) 폭등 가능성 경고. 데이터가 없으면 "현재 유의미한 공매도 압력이 없습니다."
+"""
         
         for attempt in range(3):
             try:
