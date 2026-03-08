@@ -1190,7 +1190,8 @@ Data: {smart_money_data}
 2. Format using two headings: **[SEC Form 4: Insider Tracking]** and **[SEC 13F: Institutional Whales]**.
 3. [Insider]: Analyze if CEOs/Executives are secretly dumping shares (Sell) or buying (Buy). Mention specific names/titles if available. If no data, state "No recent insider trading detected."
 4. [Institutional]: Analyze if mega-institutions (BlackRock, Vanguard, etc.) are sweeping up this stock. Mention specific top holders. If no data, state "Institutional data not yet fully updated post-IPO."
-5. Write 3-4 professional sentences per section."""
+5. Write 3-4 professional sentences per section.
+6. 🚨 NEVER use introductory phrases like "Here is the analysis" or greetings. Start immediately with the first heading."""
 
         elif lang_code == 'ja':
             prompt = f"""あなたはウォール街の内部者取引および機関投資家フローの専門アナリストです。
@@ -1202,7 +1203,8 @@ Data: {smart_money_data}
 2. 2つの見出しを使用してください：**[SEC Form 4: 内部者取引監視]** と **[SEC 13F: 機関投資家の動向]**。
 3. [内部者]: CEOや役員が密かに株を売却(Sell)しているか、買約(Buy)しているかを分析してください。データがない場合は「最近の内部者取引は検出されていません」と記載してください。
 4. [機関投資家]: ウォール街の巨大機関（BlackRock、Vanguardなど）がこの株を買い集めているかを分析してください。データがない場合は「IPO後の機関データはまだ完全に更新されていません」と記載してください。
-5. 各セクションにつき3〜4文の専門的な文章で記述してください。"""
+5. 各セクションにつき3〜4文の専門的な文章で記述してください。
+6. 🚨 「分析結果です」などの挨拶や前置きは絶対に書かないでください。最初の文字からすぐに、最初の見出し(**[SEC Form 4...**)で始めてください。"""
 
         elif lang_code == 'zh':
             prompt = f"""您是华尔街内幕交易与机构资金流向的专业分析师。
@@ -1214,7 +1216,8 @@ Data: {smart_money_data}
 2. 使用两个副标题：**[SEC Form 4: 内幕交易监控]** 和 **[SEC 13F: 机构巨头动向]**。
 3. [内幕交易]: 分析CEO或高管是否在暗中抛售(Sell)或买入(Buy)股票。如果没有数据，请说明“近期未检测到内幕交易”。
 4. [机构动向]: 分析华尔街大型机构（如贝莱德、先锋领航等）是否在扫货该股票。如果没有数据，请说明“IPO后机构数据尚未完全更新”。
-5. 每个部分写3-4句专业的分析。"""
+5. 每个部分写3-4句专业的分析。
+6. 🚨 绝对不要使用“这是分析结果”等问候语或开场白。直接从第一个副标题(**[SEC Form 4...**)开始输出。"""
 
         else: # ko
             prompt = f"""당신은 월스트리트 내부자 거래 및 기관 자금 흐름(Smart Money) 전문 퀀트 애널리스트입니다.
@@ -1228,7 +1231,8 @@ Data: {smart_money_data}
    **[SEC 13F: 대형 기관 매집 동향]**
 3. [내부자 거래]: CEO나 임원들이 최근 주식을 몰래 팔고 있는지(Sell), 아니면 매수하고 있는지(Buy) 감시하여 경고/긍정 알림을 작성하세요. 이름이나 직책 데이터가 있다면 언급하세요. 데이터가 비어있다면 "최근 보고된 내부자 특이 동향이 없습니다."라고 명시하세요.
 4. [기관 매집]: 블랙록, 뱅가드 등 월가 대형 기관들이 이 주식을 쓸어 담고 있는지 보유량을 분석하세요. 주요 기관명을 언급하세요. 데이터가 없다면 "신규 상장으로 아직 13F 기관 보고서가 업데이트되지 않았습니다."라고 명시하세요.
-5. 각 항목당 3~4문장의 전문가 어조로 작성하세요."""
+5. 각 항목당 3~4문장의 전문가 어조로 작성하세요.
+6. 🚨 절대 "분석 결과입니다", "알겠습니다" 등의 인사말이나 서론을 쓰지 마세요. 첫 글자부터 곧바로 첫 번째 소제목(**[SEC Form 4: 내부자 거래 감시]**)으로 시작하세요."""
         
         for attempt in range(3):
             try:
@@ -1242,7 +1246,6 @@ Data: {smart_money_data}
                 break 
             except Exception as e:
                 time.sleep(1)
-
 
 
 # ==========================================
