@@ -4527,7 +4527,7 @@ with main_area.container():
                 # --- 💡 1. 재무분석 Expander (이제 이 안에는 AI 텍스트 리포트만 깔끔하게 나옵니다) ---
                 with st.expander(get_text('expander_financial_analysis'), expanded=False):
                     if is_data_available:
-                        # 💡 [호출부 수정] FMP 프리미엄 데이터(DCF, 주가, 퀀트 등)를 빠짐없이 챙겨서 AI에게 넘겨줍니다!
+                        # 💡 [핵심 방어막] 워커가 이미 예쁘게 만들어준 문자열을 그대로 넘기도록 수정
                         ai_metrics = {
                             "growth": growth_display, 
                             "net_margin": net_m_display, 
@@ -4537,10 +4537,10 @@ with main_area.container():
                             "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A", 
                             "accruals": accruals_status,
                             "current_price": f"${current_p:.2f}" if current_p > 0 else "N/A",
-                            "dcf_price": f"${fin_data.get('dcf_price', 0.0):.2f}" if fin_data.get('dcf_price', 0.0) > 0 else "N/A",
-                            "rating": fin_data.get('rating', 'N/A'),
-                            "health_score": fin_data.get('health_score', 'N/A'),
-                            "pb": fin_data.get('price_to_book', 'N/A')
+                            "dcf_price": str(fin_data.get('dcf_price', 'N/A')), # 문자열 그대로 전달
+                            "rating": str(fin_data.get('rating', 'N/A')),
+                            "health_score": str(fin_data.get('health_score', 'N/A')),
+                            "pb": str(fin_data.get('price_to_book', 'N/A'))
                         }
                         
                         with st.spinner(get_text('msg_analyzing_financial')):
