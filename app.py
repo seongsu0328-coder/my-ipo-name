@@ -2302,6 +2302,18 @@ UI_TEXT = {
         'ja': '※ 本分析はウォール街の公式SEC Form 4、13F、および米国議会提出書類に基づいてリアルタイムで追跡されたデータです。',
         'zh': '※ 本分析基于华尔街官方SEC Form 4、13F及美国国会提交文件实时追踪的数据。'
     },
+    'label_pro_eval_corp': {
+        'ko': "펀드매니저의 '{0}' 평가",
+        'en': "Fund Manager's Evaluation of '{0}'",
+        'ja': "ファンドマネージャーの「{0}」評価",
+        'zh': "基金经理对“{0}”的评估"
+    },
+    'title_sec_smart_money': {
+        'ko': '실시간 SEC 자금 흐름 추적 (Smart Money)',
+        'en': 'Real-time SEC Flow Tracking (Smart Money)',
+        'ja': 'リアルタイムSEC資金フロー追跡 (Smart Money)',
+        'zh': '实时SEC资金流向追踪 (Smart Money)'
+    },
 
     # ==========================================
     # 11. 게시판 (Board) - 리스트, 컨트롤, 상세
@@ -5051,7 +5063,8 @@ with main_area.container():
 
                     # [B] 펀드매니저 평가 (Stacked Bar)
                     st.write("<br>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>펀드매니저의 '{corp_name}' 평가</div>", unsafe_allow_html=True)
+                    pro_eval_title = get_text('label_pro_eval_corp').format(corp_name)
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>{pro_eval_title}</div>", unsafe_allow_html=True)
                     
                     up_pct = pro_eval_data.get('up_pct', 50.0)
                     down_pct = pro_eval_data.get('down_pct', 50.0)
@@ -5076,7 +5089,8 @@ with main_area.container():
                     # =========================================================
                     # 🚀 [NEW] SEC Form 4 (내부자 거래) & SEC 13F (기관 매집) & 정치인/공매도 AI 리포트
                     # =========================================================
-                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>실시간 SEC 자금 흐름 추적 (Smart Money)</div>", unsafe_allow_html=True)
+                    sec_tracking_title = get_text('title_sec_smart_money')
+                    st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>{sec_tracking_title}</div>", unsafe_allow_html=True)
                     
                     with st.spinner("Decrypting SEC Smart Money filings..."):
                         # 💡 [핵심] 상단에 정의한 깔끔한 함수를 호출!
