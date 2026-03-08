@@ -1385,61 +1385,56 @@ def run_premium_alert_engine(df_calendar):
 
         if current_p <= 0: continue
 
-        # --- 2. 기간별 통계적 유의 상승 로직 (1일~12개월 초정밀 세분화) ---
+        # --- 2. 기간별 통계적 유의 상승 로직 (FMP API 적용으로 완전 교체) ---
         try:
-            tk_yf = yf.Ticker(ticker)
-            hist = tk_yf.history(period="1y")
-            if len(hist) < 2: continue
-
+            # 💡 [핵심] yfinance를 버리고 FMP에서 최근 260 거래일(약 1년) 주가를 호출합니다.
+            url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?timeseries=260&apikey={FMP_API_KEY}"
+            res = requests.get(url, timeout=5).json()
+            hist = res.get('historical', [])
+            
             if len(hist) >= 2:
-                p_1d = hist['Close'].iloc[-2]
-                chg_1d = ((current_p - p_1d) / p_1d) * 100
-                if chg_1d >= 12.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1D", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1일 동안 {chg_1d:.1f}% 상승"})
+                # FMP historical 데이터는 인덱스 0이 가장 최신(오늘/어제)입니다.
+                p_1d = hist[1]['close'] # 1일 전 종가
+                if p_1d > 0 and ((current_p - p_1d) / p_1d) * 100 >= 12.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1D", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1일 동안 {((current_p - p_1d) / p_1d) * 100:.1f}% 상승"})
             
             if len(hist) >= 5:
-                p_1w = hist['Close'].iloc[-5]
-                chg_1w = ((current_p - p_1w) / p_1w) * 100
-                if chg_1w >= 20.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1주 동안 {chg_1w:.1f}% 상승"})
+                p_1w = hist[4]['close'] # 1주일 전 종가
+                if p_1w > 0 and ((current_p - p_1w) / p_1w) * 100 >= 20.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1주 동안 {((current_p - p_1w) / p_1w) * 100:.1f}% 상승"})
 
             if len(hist) >= 10:
-                p_2w = hist['Close'].iloc[-10]
-                chg_2w = ((current_p - p_2w) / p_2w) * 100
-                if chg_2w >= 30.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_2W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 2주 동안 {chg_2w:.1f}% 상승"})
+                p_2w = hist[9]['close']
+                if p_2w > 0 and ((current_p - p_2w) / p_2w) * 100 >= 30.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_2W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 2주 동안 {((current_p - p_2w) / p_2w) * 100:.1f}% 상승"})
 
             if len(hist) >= 20:
-                p_4w = hist['Close'].iloc[-20]
-                chg_4w = ((current_p - p_4w) / p_4w) * 100
-                if chg_4w >= 40.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_4W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 4주 동안 {chg_4w:.1f}% 상승"})
+                p_4w = hist[19]['close']
+                if p_4w > 0 and ((current_p - p_4w) / p_4w) * 100 >= 40.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_4W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 4주 동안 {((current_p - p_4w) / p_4w) * 100:.1f}% 상승"})
 
             if len(hist) >= 22:
-                p_1mo = hist['Close'].iloc[-22]
-                chg_1mo = ((current_p - p_1mo) / p_1mo) * 100
-                if chg_1mo >= 45.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1M", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1개월 동안 {chg_1mo:.1f}% 상승"})
+                p_1m = hist[21]['close'] # 약 1개월 전
+                if p_1m > 0 and ((current_p - p_1m) / p_1m) * 100 >= 45.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1M", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1개월 동안 {((current_p - p_1m) / p_1m) * 100:.1f}% 상승"})
 
             if len(hist) >= 63:
-                p_3m = hist['Close'].iloc[-63]
-                chg_3m = ((current_p - p_3m) / p_3m) * 100
-                if chg_3m >= 60.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_3M", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 3개월 동안 {chg_3m:.1f}% 상승"})
+                p_3m = hist[62]['close'] # 약 3개월 전
+                if p_3m > 0 and ((current_p - p_3m) / p_3m) * 100 >= 60.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_3M", "title": f"{ticker} 중기 급등 포착", "message": f"{ticker} 주가 최근 3개월 동안 {((current_p - p_3m) / p_3m) * 100:.1f}% 상승"})
 
             if len(hist) >= 126:
-                p_6m = hist['Close'].iloc[-126]
-                chg_6m = ((current_p - p_6m) / p_6m) * 100
-                if chg_6m >= 80.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_6M", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 6개월 동안 {chg_6m:.1f}% 상승"})
+                p_6m = hist[125]['close'] # 약 6개월 전
+                if p_6m > 0 and ((current_p - p_6m) / p_6m) * 100 >= 80.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_6M", "title": f"{ticker} 중기 급등 포착", "message": f"{ticker} 주가 최근 6개월 동안 {((current_p - p_6m) / p_6m) * 100:.1f}% 상승"})
 
             if len(hist) >= 250:
-                p_1y = hist['Close'].iloc[0]
-                chg_1y = ((current_p - p_1y) / p_1y) * 100
-                if chg_1y >= 150.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1Y", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1년 동안 {chg_1y:.1f}% 상승"})
-        except: pass
-
+                p_1y = hist[-1]['close'] # 가장 오래된 데이터 (약 1년 전)
+                if p_1y > 0 and ((current_p - p_1y) / p_1y) * 100 >= 150.0:
+                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1Y", "title": f"{ticker} 장기 급등 포착", "message": f"{ticker} 주가 최근 1년 동안 {((current_p - p_1y) / p_1y) * 100:.1f}% 상승"})
+        
+        except Exception as e: 
+            pass
         # --- 3. 공모가 돌파 및 회복 시그널 ---
         try: ipo_p = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
         except: ipo_p = 0.0
