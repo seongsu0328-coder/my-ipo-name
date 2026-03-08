@@ -2285,16 +2285,16 @@ UI_TEXT = {
         'zh': 'SEC 13F 机构巨头动向'
     },
     'expander_senate': {
-        'ko': '🇺🇸 국회의원 주식 거래 감시 (Senate)', 
-        'en': '🇺🇸 US Senate Trading Tracker', 
-        'ja': '🇺🇸 米国議員の株式取引監視 (Senate)', 
-        'zh': '🇺🇸 美国议员股票交易监控 (Senate)'
+        'ko': '상원의 주식거래 감시', 
+        'en': 'US Senate Trading Tracker', 
+        'ja': '米国上院議員の株式取引監視', 
+        'zh': '美国参议员股票交易监控'
     },
     'expander_ftd': {
-        'ko': '🔥 공매도 숏스퀴즈 경고 (FTD)', 
-        'en': '🔥 Short Squeeze Warning (FTD)', 
-        'ja': '🔥 空売りショートスクイーズ警告 (FTD)', 
-        'zh': '🔥 卖空轧空警告 (FTD)'
+        'ko': '공매도 숏스퀴즈 경고 (FTD)', 
+        'en': 'Short Squeeze Warning (FTD)', 
+        'ja': '空売りショートスクイーズ警告 (FTD)', 
+        'zh': '卖空轧空警告 (FTD)'
     },
     'caption_smart_money_source': {
         'ko': '※ 본 분석은 월스트리트 공식 SEC Form 4, 13F 및 미국 의회 제출 서류를 기반으로 실시간 추적된 데이터입니다.',
@@ -3573,7 +3573,7 @@ elif st.session_state.page == 'setup':
                 now_est = datetime.now(pytz.timezone('US/Eastern'))
                 is_market_open = (now_est.weekday() < 5) and (4 <= now_est.hour <= 20)
                 
-                # [2] AI 리포트 전체 캐시 (Tab 0 ~ 4) 모니터링
+                # [2] AI 리포트 전체 캐시 (Tab 0 ~ 6) 모니터링
                 res_analysis_all = supabase.table("analysis_cache").select("cache_key, updated_at").execute()
                 
                 tab0_total = 0; tab0_fresh = 0
@@ -3581,6 +3581,7 @@ elif st.session_state.page == 'setup':
                 tab2_total = 0; tab2_fresh = 0
                 tab3_total = 0; tab3_fresh = 0
                 tab4_total = 0; tab4_fresh = 0
+                tab6_total = 0; tab6_fresh = 0 # 💡 Tab 6 변수 추가
                 
                 seven_days_ago = now - timedelta(days=7)
                 
@@ -3600,7 +3601,6 @@ elif st.session_state.page == 'setup':
                         elif "Tab1" in key:
                             tab1_total += 1
                             if is_fresh: tab1_fresh += 1
-                       # 💡 'Market_Dashboard' 키워드가 포함된 것도 Tab 2로 셉니다.
                         elif "Tab2" in key or "Market_Dashboard" in key:
                             tab2_total += 1
                             if is_fresh: tab2_fresh += 1
@@ -3610,20 +3610,26 @@ elif st.session_state.page == 'setup':
                         elif "Tab4" in key:
                             tab4_total += 1
                             if is_fresh: tab4_fresh += 1
+                        # 💡 Tab 6 카운트 추가 (키에 'Tab6' 포함)
+                        elif "Tab6" in key:
+                            tab6_total += 1
+                            if is_fresh: tab6_fresh += 1
 
                 tab0_pct = int((tab0_fresh / tab0_total) * 100) if tab0_total > 0 else 0
                 tab1_pct = int((tab1_fresh / tab1_total) * 100) if tab1_total > 0 else 0
                 tab2_pct = int((tab2_fresh / tab2_total) * 100) if tab2_total > 0 else 0
                 tab3_pct = int((tab3_fresh / tab3_total) * 100) if tab3_total > 0 else 0
                 tab4_pct = int((tab4_fresh / tab4_total) * 100) if tab4_total > 0 else 0
+                tab6_pct = int((tab6_fresh / tab6_total) * 100) if tab6_total > 0 else 0 # 💡 Tab 6 퍼센트
 
-                # [3] 대시보드 화면 렌더링 (2줄 x 3칸 레이아웃)
+                # [3] 대시보드 화면 렌더링
+                # 레이아웃을 2칸 x 3줄 혹은 3칸/3칸/1칸 등으로 유연하게 구성
                 dash_r1_c1, dash_r1_c2, dash_r1_c3 = st.columns(3)
                 dash_r2_c1, dash_r2_c2, dash_r2_c3 = st.columns(3)
+                dash_r3_c1, dash_r3_c2, dash_r3_c3 = st.columns(3) # 💡 세 번째 줄 추가
                 
                 # 첫 번째 줄
                 with dash_r1_c1:
-                    # 💡 장이 열려있을 때만 %, 닫혀있으면 장 마감 표시
                     if is_market_open:
                         st.metric(label="🟢 실시간 주가 (최근 30분)", value=f"{price_pct}% 정상", delta=f"{active_price_cnt} / {total_price_cnt} 종목", delta_color="normal" if price_pct >= 90 else "inverse")
                     else:
@@ -3637,12 +3643,17 @@ elif st.session_state.page == 'setup':
 
                 # 두 번째 줄
                 with dash_r2_c1:
-                    # Tab 2는 시장 전체 공통 지표라 숫자가 작게 나옵니다 (예: 4/4건)
                     st.metric(label="🌍 거시 지표 캐시 (Tab 2)", value=f"{tab2_pct}% 완료", delta=f"{tab2_fresh} / {tab2_total} 건 방어 중", delta_color="normal" if tab2_pct >= 90 else "inverse")
                 with dash_r2_c2:
                     st.metric(label="📊 미시 재무 캐시 (Tab 3)", value=f"{tab3_pct}% 완료", delta=f"{tab3_fresh} / {tab3_total} 건 방어 중", delta_color="normal" if tab3_pct >= 90 else "inverse")
                 with dash_r2_c3:
                     st.metric(label="👔 기관 평가 캐시 (Tab 4)", value=f"{tab4_pct}% 완료", delta=f"{tab4_fresh} / {tab4_total} 건 방어 중", delta_color="normal" if tab4_pct >= 90 else "inverse")
+
+                st.write("<br>", unsafe_allow_html=True) # 줄 간격 띄우기
+
+                # 세 번째 줄 (Tab 6 추가)
+                with dash_r3_c1:
+                    st.metric(label="🚨 스마트머니 캐시 (Tab 6)", value=f"{tab6_pct}% 완료", delta=f"{tab6_fresh} / {tab6_total} 건 방어 중", delta_color="normal" if tab6_pct >= 90 else "inverse")
                     
                 st.info("💡 진척률이 100%에 가깝다면, 각 탭에 유저가 진입할 때마다 발생하는 모든 API 과금을 완벽히 방어(0원)하고 있다는 뜻입니다.")
 
@@ -5073,23 +5084,23 @@ with main_area.container():
                         senate_text = re.sub(r'\*\*\[.*?\]\*\*', '', parts[2]).strip() if len(parts) > 2 else "No data"
                         ftd_text = re.sub(r'\*\*\[.*?\]\*\*', '', parts[3]).strip() if len(parts) > 3 else "No data"
 
-                    # 1. 내부자 거래 카드
-                    with st.expander(get_text('expander_insider'), expanded=True):
+                    # 1. 내부자 거래 카드 (기본 닫힘으로 변경)
+                    with st.expander(get_text('expander_insider'), expanded=False):
                         st.markdown(f"<div style='font-size:0.95rem; color:#d32f2f; font-weight:600; margin-bottom:5px;'>CEO/Executives Flow</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='background-color:#fff3f3; padding:15px; border-radius:8px; border-left: 4px solid #d32f2f; color:#333; line-height:1.6;'>{insider_text}</div>", unsafe_allow_html=True)
                         
-                    # 2. 고래(기관) 매집 카드
-                    with st.expander(get_text('expander_institutional'), expanded=True):
+                    # 2. 고래(기관) 매집 카드 (기본 닫힘)
+                    with st.expander(get_text('expander_institutional'), expanded=False):
                         st.markdown(f"<div style='font-size:0.95rem; color:#004e92; font-weight:600; margin-bottom:5px;'>Wall Street Whales</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='background-color:#f4f9ff; padding:15px; border-radius:8px; border-left: 4px solid #004e92; color:#333; line-height:1.6;'>{inst_text if inst_text else 'Analyzing institutional data...'}</div>", unsafe_allow_html=True)
                     
-                    # 3. 🚨 [NEW] 국회의원 거래 카드
-                    with st.expander(get_text('expander_senate'), expanded=True):
+                    # 3. 🚨 [NEW] 상원의원 거래 카드 (기본 닫힘)
+                    with st.expander(get_text('expander_senate'), expanded=False):
                         st.markdown(f"<div style='font-size:0.95rem; color:#6a11cb; font-weight:600; margin-bottom:5px;'>US Politicians Trades</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='background-color:#f3e8ff; padding:15px; border-radius:8px; border-left: 4px solid #6a11cb; color:#333; line-height:1.6;'>{senate_text}</div>", unsafe_allow_html=True)
 
-                    # 4. 🚨 [NEW] 공매도 미결제 약정 (Short Squeeze) 카드
-                    with st.expander(get_text('expander_ftd'), expanded=True):
+                    # 4. 🚨 [NEW] 공매도 미결제 약정 (Short Squeeze) 카드 (기본 닫힘)
+                    with st.expander(get_text('expander_ftd'), expanded=False):
                         st.markdown(f"<div style='font-size:0.95rem; color:#e67e22; font-weight:600; margin-bottom:5px;'>Short Squeeze Warning (FTD)</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='background-color:#fff3e0; padding:15px; border-radius:8px; border-left: 4px solid #e67e22; color:#333; line-height:1.6;'>{ftd_text}</div>", unsafe_allow_html=True)
                         
