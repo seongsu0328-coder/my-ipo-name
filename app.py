@@ -648,8 +648,10 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Activ
     
 @st.cache_data(show_spinner=False, ttl=600)
 def get_ai_analysis(company_name, topic, lang_code):
-    """[디커플링 완료] 앱에서 AI 프롬프트 생성 금지. DB만 조회합니다."""
-    cache_key = f"{company_name}_{topic}_Tab0_v15_FullNumerical_{lang_code}"
+    """
+    [Tab 0] 공시 요약과 8-K 분석이 포함된 원본 캐시를 가져옵니다.
+    """
+    cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
     
     try:
         res = supabase.table("analysis_cache").select("content").eq("cache_key", cache_key).execute()
@@ -658,12 +660,11 @@ def get_ai_analysis(company_name, topic, lang_code):
     except Exception as e:
         print(f"Tab0 Cache Read Error: {e}")
 
-    # 데이터가 없으면 AI 호출 없이 대기 메시지만 출력
     wait_msgs = {
-        'ko': f"🤖 AI 애널리스트가 {topic} 리포트를 작성 중입니다. (최대 15분 소요)",
-        'en': f"🤖 AI is generating the {topic} report. (Max 15 mins)",
-        'ja': f"🤖 AIが {topic} レポートを作成中です。(最大15分)",
-        'zh': f"🤖 AI正在生成 {topic} 报告。(最多15分钟)"
+        'ko': f"🤖 AI 애널리스트가 {topic} 리포트를 작성 중입니다...",
+        'en': f"🤖 AI is generating the {topic} report...",
+        'ja': f"🤖 AIが {topic} レポートを作成中です...",
+        'zh': f"🤖 AI正在生成 {topic} 报告..."
     }
     return wait_msgs.get(lang_code, wait_msgs['ko'])
 
@@ -2026,6 +2027,24 @@ UI_TEXT = {
         'en': 'Market Eval (High Net Worth)', 
         'ja': '市場評価(80億以上の資産家)', 
         'zh': '市场评估(80亿以上资产家)'
+    },
+    'expander_8k_premium': {
+        'ko': '🚨 실시간 8-K 중대 이벤트 분석', 
+        'en': '🚨 Real-time 8-K Critical Event Analysis', 
+        'ja': '🚨 リアルタイム8-K重大イベント分析', 
+        'zh': '🚨 实时8-K重大事件分析'
+    },
+    'msg_8k_blur_teaser': {
+        'ko': '임원 교체, 대규모 소송, M&A 등 주가에 치명적인 영향을 미치는 8-K 돌발 공시 내역입니다. 프리미엄 등급부터 열람할 수 있습니다.',
+        'en': 'Critical 8-K filings affecting stock prices, such as executive changes, lawsuits, and M&A. Available for Premium members.',
+        'ja': '役員交代、大規模訴訟、M&Aなど、株価に致命的な影響を与える8-K突発開示履歴です。プレミアム等級から閲覧できます。',
+        'zh': '高管变动、大规模诉讼、并购等对股价产生致命影响的8-K突发公告记录。高级会员及以上可查看。'
+    },
+    'btn_upgrade_premium': {
+        'ko': '👑 프리미엄 구독하고 확인하기',
+        'en': '👑 Go Premium to Unlock',
+        'ja': '👑 プレミアムを購読して確認する',
+        'zh': '👑 订阅高级会员查看'
     },
     
     # ==========================================
@@ -4099,18 +4118,61 @@ with main_area.container():
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
 
-                # 4. AI 요약 보기 (Expander)
-                with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=False):
+                # 4. AI 요약 보기 및 프리미엄 8-K 섹션 (Expander)
+                user_level = st.session_state.get('user_info', {}).get('membership_level', 'free')
+
+                with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=True):
                     with st.spinner(get_text('msg_analyzing_filing')):
                         analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
+                    
                     if "ERROR_DETAILS" in analysis_result:
                         st.error(get_text('err_try_again'))  
                     else:
-                        import re
-                        formatted_result = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', analysis_result)
+                        # |||SEP||| 로 기본 요약과 8-K 이벤트를 분리
+                        parts = analysis_result.split("|||SEP|||")
                         
-                        # 💡 들여쓰기(text-indent)를 완전히 제거하여 모든 언어 0px 좌측 정렬 통일
-                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_result.replace(chr(10), "<br>")}</div><br>', unsafe_allow_html=True)
+                        # [파트 1: 공통 S-1/10-K 요약 - 모두에게 공개]
+                        import re
+                        formatted_public = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[0])
+                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_public.replace(chr(10), "<br>")}</div><br>', unsafe_allow_html=True)
+                        
+                        st.divider()
+
+                        # [파트 2: 프리미엄 실시간 8-K 분석 영역]
+                        st.markdown(f"<div style='font-size:1.0rem; font-weight:700; color:#d32f2f; margin-bottom:10px;'>{get_text('expander_8k_premium')}</div>", unsafe_allow_html=True)
+                        
+                        # 8-K 내용이 있을 경우
+                        if len(parts) > 1:
+                            formatted_premium = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[1])
+                            
+                            # 👑 프리미엄 이상 등급 (블러 없이 원문 출력)
+                            if user_level in ['premium', 'premium_plus']:
+                                st.markdown(f"<div style='background-color:#fff8f8; padding:15px; border-radius:8px; border-left: 4px solid #d32f2f; color:#333; line-height:1.6;'>{formatted_premium.replace(chr(10), '<br>')}</div>", unsafe_allow_html=True)
+                            
+                            # 🔒 일반/무료 등급 (원본 데이터에 CSS 블러 + 오버레이 결제 유도)
+                            else:
+                                blur_msg = get_text('msg_8k_blur_teaser')
+                                st.markdown(f"""
+                                    <div style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #e0e0e0;">
+                                        <div style="background-color:#fff8f8; padding:15px; border-left: 4px solid #dcdcdc; color:#333; line-height:1.6; filter: blur(5px); user-select: none;">
+                                            {formatted_premium.replace(chr(10), '<br>')}
+                                        </div>
+                                        
+                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px;">
+                                            <div style="font-size: 2rem; margin-bottom: 10px;">🔒</div>
+                                            <div style="color: #111; font-weight: 700; font-size: 1.05rem; margin-bottom: 8px;">Premium Only</div>
+                                            <div style="color: #444; font-size: 0.9rem; margin-bottom: 15px;">{blur_msg}</div>
+                                        </div>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                                
+                                # 구독 버튼을 겹침 영역(오버레이) 바로 아래에 배치
+                                st.write("")
+                                if st.button(get_text('btn_upgrade_premium'), key=f"btn_upgrade_tab0_{topic}", use_container_width=True):
+                                    st.session_state.page = 'setup'
+                                    st.rerun()
+
+                    st.write("")
                     st.caption(get_text('caption_algorithm'))
 
                 # 5. 외부 링크 버튼 (재무제표는 10-K 링크로 매핑)
