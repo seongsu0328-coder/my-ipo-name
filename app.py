@@ -4473,11 +4473,22 @@ with main_area.container():
 
                 # [카드 1: 프리미엄 DCF 적정주가]
                 with r2_c3:
-                    dcf_p = fin_data.get('dcf_price', 0.0)
-                    gap_pct = ((dcf_p - current_p) / current_p * 100) if current_p > 0 else 0
+                    # 💡 워커가 보낸 문자열("$15.50" 또는 "N/A")에서 달러 기호를 떼고 숫자로 안전하게 변환
+                    raw_dcf = str(fin_data.get('dcf_price', '0')).replace('$', '').replace(',', '').strip()
+                    try:
+                        dcf_p = float(raw_dcf) if raw_dcf not in ['N/A', 'Unknown', 'None', ''] else 0.0
+                    except:
+                        dcf_p = 0.0
+                    
+                    # 💡 안전하게 변환된 숫자(dcf_p)를 바탕으로 괴리율 및 표시 텍스트 계산
+                    gap_pct = ((dcf_p - current_p) / current_p * 100) if current_p > 0 and dcf_p > 0 else 0
                     display_val = f"${dcf_p:.2f}" if dcf_p > 0 else "N/A"
-                    if dcf_p > 0: status, st_cls = (f"✅ {gap_pct:.1f}% 저평가" if is_ko else f"✅ {gap_pct:.1f}% Undervalued", "st-good") if gap_pct > 0 else (f"🚨 {gap_pct:.1f}% 고평가" if is_ko else f"🚨 {gap_pct:.1f}% Overvalued", "st-hot")
-                    else: status, st_cls = ("🔍 N/A", "st-neutral")
+                    
+                    if dcf_p > 0: 
+                        status, st_cls = (f"✅ {gap_pct:.1f}% 저평가" if is_ko else f"✅ {gap_pct:.1f}% Undervalued", "st-good") if gap_pct > 0 else (f"🚨 {abs(gap_pct):.1f}% 고평가" if is_ko else f"🚨 {abs(gap_pct):.1f}% Overvalued", "st-hot")
+                    else: 
+                        status, st_cls = ("🔍 N/A", "st-neutral")
+                        
                     desc = get_text('tab3_dcf_desc')
                     st.markdown(f"<div class='metric-card' style='border: 2px solid #e3f2fd;'><div class='metric-header'>FMP Target (DCF)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Model: FMP Valuation<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
 
