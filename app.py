@@ -4243,7 +4243,8 @@ with main_area.container():
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Unprofitable IPOs</div><div class='metric-value-row'><span class='metric-value'>{val:.0f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_unprofitable')}</div><div class='metric-footer'>Ref: Jay Ritter (Dot-com Bubble)</div></div>", unsafe_allow_html=True)
                 
                 with c4:
-                    val = md['withdrawal_rate']; status = get_stat("over") if val < 5 else get_stat("good")
+                    val = md.get('withdrawal_rate', 0)
+                    status = get_stat("over") if val < 5 else get_stat("good")
                     st_cls = "st-hot" if val < 5 else "st-good"
                     st.markdown(f"<div class='metric-card'><div class='metric-header'>Withdrawal Rate</div><div class='metric-value-row'><span class='metric-value'>{val:.1f}%</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_withdrawal')}</div><div class='metric-footer'>Ref: Dunbar (1998)</div></div>", unsafe_allow_html=True)
             
