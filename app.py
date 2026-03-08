@@ -2284,7 +2284,24 @@ UI_TEXT = {
         'ja': 'SEC 13F 機関投資家の動向', 
         'zh': 'SEC 13F 机构巨头动向'
     },
-    
+    'expander_senate': {
+        'ko': '🇺🇸 국회의원 주식 거래 감시 (Senate)', 
+        'en': '🇺🇸 US Senate Trading Tracker', 
+        'ja': '🇺🇸 米国議員の株式取引監視 (Senate)', 
+        'zh': '🇺🇸 美国议员股票交易监控 (Senate)'
+    },
+    'expander_ftd': {
+        'ko': '🔥 공매도 숏스퀴즈 경고 (FTD)', 
+        'en': '🔥 Short Squeeze Warning (FTD)', 
+        'ja': '🔥 空売りショートスクイーズ警告 (FTD)', 
+        'zh': '🔥 卖空轧空警告 (FTD)'
+    },
+    'caption_smart_money_source': {
+        'ko': '※ 본 분석은 월스트리트 공식 SEC Form 4, 13F 및 미국 의회 제출 서류를 기반으로 실시간 추적된 데이터입니다.',
+        'en': '※ This analysis is based on real-time data tracked from official Wall Street SEC Form 4, 13F, and US Congressional filings.',
+        'ja': '※ 本分析はウォール街の公式SEC Form 4、13F、および米国議会提出書類に基づいてリアルタイムで追跡されたデータです。',
+        'zh': '※ 本分析基于华尔街官方SEC Form 4、13F及美国国会提交文件实时追踪的数据。'
+    },
 
     # ==========================================
     # 11. 게시판 (Board) - 리스트, 컨트롤, 상세
@@ -5038,7 +5055,7 @@ with main_area.container():
                     st.write("<br>", unsafe_allow_html=True)
 
                     # =========================================================
-                    # 🚀 [NEW] SEC Form 4 (내부자 거래) & SEC 13F (기관 매집) AI 리포트
+                    # 🚀 [NEW] SEC Form 4 (내부자 거래) & SEC 13F (기관 매집) & 정치인/공매도 AI 리포트
                     # =========================================================
                     st.markdown(f"<div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 15px;'>🚨 실시간 SEC 자금 흐름 추적 (Smart Money)</div>", unsafe_allow_html=True)
                     
@@ -5046,35 +5063,45 @@ with main_area.container():
                         # 💡 [핵심] 상단에 정의한 깔끔한 함수를 호출!
                         ai_report = get_smart_money_analysis_app(stock['name'], sid, curr_lang)
 
-                        import re
-                        parts = re.split(r'\*\*\[SEC 13F.*?\]\*\*', ai_report, flags=re.IGNORECASE)
+                        # 워커가 |||SEP||| 로 구분해서 보내준 4개 항목을 자름
+                        parts = [p.strip() for p in ai_report.split('|||SEP|||')]
                         
-                        insider_text = parts[0].replace('**[SEC Form 4: 내부자 거래 감시]**', '').replace('**[SEC Form 4: Insider Tracking]**', '').replace('**[SEC Form 4: 内部者取引監視]**', '').replace('**[SEC Form 4: 内幕交易监控]**', '').strip()
-                        inst_text = parts[1].strip() if len(parts) > 1 else ""
-
-                    # 다국어 타이틀 매핑
-                    title_insider = "SEC Form 4 내부자 거래 감시" if curr_lang == 'ko' else ("SEC Form 4 Insider Tracking" if curr_lang == 'en' else ("SEC Form 4 内部者取引監視" if curr_lang == 'ja' else "SEC Form 4 内幕交易监控"))
-                    title_inst = "SEC 13F 고래(기관) 매집 동향" if curr_lang == 'ko' else ("SEC 13F Institutional Whales" if curr_lang == 'en' else ("SEC 13F 機関投資家の動向" if curr_lang == 'ja' else "SEC 13F 机构巨头动向"))
-                    cap_msg = "※ 본 분석은 월스트리트 공식 SEC Form 4 및 13F 제출 서류를 기반으로 실시간 추적된 데이터입니다." if curr_lang == 'ko' else "※ Based on official SEC Form 4 and 13F filings."
+                        # 각 항목의 제목 텍스트 찌꺼기를 정규식으로 안전하게 제거
+                        import re
+                        insider_text = re.sub(r'\*\*\[.*?\]\*\*', '', parts[0]).strip() if len(parts) > 0 else "No data"
+                        inst_text = re.sub(r'\*\*\[.*?\]\*\*', '', parts[1]).strip() if len(parts) > 1 else "No data"
+                        senate_text = re.sub(r'\*\*\[.*?\]\*\*', '', parts[2]).strip() if len(parts) > 2 else "No data"
+                        ftd_text = re.sub(r'\*\*\[.*?\]\*\*', '', parts[3]).strip() if len(parts) > 3 else "No data"
 
                     # 1. 내부자 거래 카드
-                    with st.expander(title_insider, expanded=True):
+                    with st.expander(get_text('expander_insider'), expanded=True):
                         st.markdown(f"<div style='font-size:0.95rem; color:#d32f2f; font-weight:600; margin-bottom:5px;'>CEO/Executives Flow</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='background-color:#fff3f3; padding:15px; border-radius:8px; border-left: 4px solid #d32f2f; color:#333; line-height:1.6;'>{insider_text}</div>", unsafe_allow_html=True)
                         
                     # 2. 고래(기관) 매집 카드
-                    with st.expander(title_inst, expanded=True):
+                    with st.expander(get_text('expander_institutional'), expanded=True):
                         st.markdown(f"<div style='font-size:0.95rem; color:#004e92; font-weight:600; margin-bottom:5px;'>Wall Street Whales</div>", unsafe_allow_html=True)
                         st.markdown(f"<div style='background-color:#f4f9ff; padding:15px; border-radius:8px; border-left: 4px solid #004e92; color:#333; line-height:1.6;'>{inst_text if inst_text else 'Analyzing institutional data...'}</div>", unsafe_allow_html=True)
+                    
+                    # 3. 🚨 [NEW] 국회의원 거래 카드
+                    with st.expander(get_text('expander_senate'), expanded=True):
+                        st.markdown(f"<div style='font-size:0.95rem; color:#6a11cb; font-weight:600; margin-bottom:5px;'>US Politicians Trades</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='background-color:#f3e8ff; padding:15px; border-radius:8px; border-left: 4px solid #6a11cb; color:#333; line-height:1.6;'>{senate_text}</div>", unsafe_allow_html=True)
+
+                    # 4. 🚨 [NEW] 공매도 미결제 약정 (Short Squeeze) 카드
+                    with st.expander(get_text('expander_ftd'), expanded=True):
+                        st.markdown(f"<div style='font-size:0.95rem; color:#e67e22; font-weight:600; margin-bottom:5px;'>Short Squeeze Warning (FTD)</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='background-color:#fff3e0; padding:15px; border-radius:8px; border-left: 4px solid #e67e22; color:#333; line-height:1.6;'>{ftd_text}</div>", unsafe_allow_html=True)
                         
-                    st.caption(cap_msg)
+                    # 5. 다국어 출처 캡션 적용
+                    st.caption(get_text('caption_smart_money_source'))
 
                 else:
                     # 프리미엄 플러스가 아닌 일반/프리미엄 유저에게 보여주는 락업 UI
                     st.markdown("""
                         <div style="background-color: rgba(255,255,255,0.7); padding: 50px; text-align: center; backdrop-filter: blur(5px); border: 1px dashed #ccc; border-radius: 10px;">
                             <h3 style="color: #333;">🔒 SmartMoney Only</h3>
-                            <p style="color: #666; font-size: 1.05rem;">월가 내부자 거래 및 기관 매집 추적 리포트는 <b>프리미엄 플러스</b> 등급부터 열람 가능합니다.</p>
+                            <p style="color: #666; font-size: 1.05rem;">월가 내부자 거래, 기관 매집, 국회의원 거래 및 숏스퀴즈 추적 리포트는 <b>프리미엄 플러스</b> 등급부터 열람 가능합니다.</p>
                         </div>
                     """, unsafe_allow_html=True)
 
