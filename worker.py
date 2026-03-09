@@ -671,15 +671,18 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     is_withdrawn = bool(re.search(r'\b(withdrawn|rw|철회|취소)\b', status_lower))
     is_delisted_or_otc = bool(re.search(r'\b(delisted|폐지|otc)\b', status_lower))
     
+    is_over_3m = False
     is_over_1y = False
     try:
         if ipo_date_str:
             days_passed = (now.date() - pd.to_datetime(ipo_date_str).date()).days
             if days_passed > 365: is_over_1y = True
+            elif days_passed > 90: is_over_3m = True
     except: pass
 
-    # 기업 상태별 동적 캐싱 주기
-    if is_withdrawn or is_delisted_or_otc or is_over_1y: valid_hours = 24 * 7 
+    # 기업 상태 및 상장 기간별 동적 캐싱 주기
+    if is_withdrawn or is_delisted_or_otc or is_over_1y: valid_hours = 24 * 7  # 1년 이상, 폐지, 철회 = 7일
+    elif is_over_3m: valid_hours = 24 * 3  # 3개월 이상 = 3일
     elif "상장예정" in ipo_status or "30일" in ipo_status: valid_hours = 6
     else: valid_hours = 24
 
@@ -806,12 +809,12 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     "updated_at": now.isoformat()
                 }], on_conflict="cache_key")
                 
+                print(f"✅ [{ticker}] Tab 1 비즈니스/뉴스 캐싱 완료 ({lang_code})")
                 break # 성공 시 루프 탈출
                 
             except Exception as e:
                 print(f"❌ [AI 분석 또는 DB 전송 에러]: {e}")
                 time.sleep(1)
-
 
 
 
@@ -1082,10 +1085,21 @@ def fetch_analyst_estimates(symbol, api_key):
 # ==========================================
 # [수정] 11개 지표 + 4단락 구조로 통합된 워커용 프롬프트
 # ==========================================
-def run_tab3_analysis(ticker, company_name, metrics):
+def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     if not model: return False
     
-    valid_hours = 24 
+    days_passed = 0
+    try:
+        if ipo_date_str:
+            days_passed = (datetime.now().date() - pd.to_datetime(ipo_date_str).date()).days
+    except: pass
+
+    # [조건 5] 3개월 이내 기업은 7일(168시간), 3개월 초과는 한 달(30일 = 720시간)
+    if days_passed > 90:
+        valid_hours = 24 * 30
+    else:
+        valid_hours = 24 * 7 
+        
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
     
     for lang_code, target_lang in SUPPORTED_LANGS.items():
@@ -1099,107 +1113,107 @@ def run_tab3_analysis(ticker, company_name, metrics):
 
         if lang_code == 'en':
             prompt = f"""You are a Lead Quant Analyst on Wall Street with a CFA charter.
-Write an in-depth financial and investment analysis report for {company_name} ({ticker}) based strictly on the comprehensive data below.
+            Write an in-depth financial and investment analysis report for {company_name} ({ticker}) based strictly on the comprehensive data below.
 
-[Financial & Premium Data]
-- Revenue Growth (YoY): {metrics.get('growth', 'N/A')}
-- Net Margin: {metrics.get('net_margin', 'N/A')}
-- OPM (Operating Margin): {metrics.get('op_margin', 'N/A')}
-- ROE: {metrics.get('roe', 'N/A')}
-- D/E Ratio: {metrics.get('debt_equity', 'N/A')}
-- Forward PER: {metrics.get('pe', 'N/A')}
-- Accruals Quality: {metrics.get('accruals', 'Unknown')}
-- Current Price: {metrics.get('current_price', 'N/A')}
-- DCF Value (Target Price): {metrics.get('dcf_price', 'N/A')}
-- Quant Rating: {metrics.get('rating', 'N/A')} (Score: {metrics.get('health_score', 'N/A')}/5)
-- Recommendation: {metrics.get('recommendation', 'N/A')}
+            [Financial & Premium Data]
+            - Revenue Growth (YoY): {metrics.get('growth', 'N/A')}
+            - Net Margin: {metrics.get('net_margin', 'N/A')}
+            - OPM (Operating Margin): {metrics.get('op_margin', 'N/A')}
+            - ROE: {metrics.get('roe', 'N/A')}
+            - D/E Ratio: {metrics.get('debt_equity', 'N/A')}
+            - Forward PER: {metrics.get('pe', 'N/A')}
+            - Accruals Quality: {metrics.get('accruals', 'Unknown')}
+            - Current Price: {metrics.get('current_price', 'N/A')}
+            - DCF Value (Target Price): {metrics.get('dcf_price', 'N/A')}
+            - Quant Rating: {metrics.get('rating', 'N/A')} (Score: {metrics.get('health_score', 'N/A')}/5)
+            - Recommendation: {metrics.get('recommendation', 'N/A')}
 
-[Writing Guidelines]
-1. Language: Write STRICTLY and ENTIRELY in English. Do not mix Korean.
-2. Format: You MUST use the following 4 headings to separate your paragraphs:
-   [Valuation & Market Position]
-   [Operating Performance]
-   [Risk & Solvency]
-   [Analyst Conclusion]
-3. Content: YOU MUST INCLUDE THE EXACT NUMBERS from the data above. Interpret what the numbers imply. If a value is 'N/A', state that 'data is currently unavailable'. DO NOT use bold (**) for numbers or headings. (12-15 lines total)"""
+            [Writing Guidelines]
+            1. Language: Write STRICTLY and ENTIRELY in English. Do not mix Korean.
+            2. Format: You MUST use the following 4 headings to separate your paragraphs:
+               [Valuation & Market Position]
+               [Operating Performance]
+               [Risk & Solvency]
+               [Analyst Conclusion]
+            3. Content: YOU MUST INCLUDE THE EXACT NUMBERS from the data above. Interpret what the numbers imply. If a value is 'N/A', state that 'data is currently unavailable'. DO NOT use bold (**) for numbers or headings. (12-15 lines total)"""
 
         elif lang_code == 'ja':
             prompt = f"""あなたはCFA資格を保有するウォール街のシニアクオンツアナリストです。
-以下の包括的なデータに厳密に基づいて、{company_name} ({ticker})の深層財務および投資分析レポートを作成してください。
+            以下の包括的なデータに厳密に基づいて、{company_name} ({ticker})の深層財務および投資分析レポートを作成してください。
 
-[財務およびプレミアムデータ]
-- 売上成長率(YoY): {metrics.get('growth', 'N/A')}
-- 純利益率(Net Margin): {metrics.get('net_margin', 'N/A')}
-- 営業利益率(OPM): {metrics.get('op_margin', 'N/A')}
-- ROE: {metrics.get('roe', 'N/A')}
-- 負債比率(D/E): {metrics.get('debt_equity', 'N/A')}
-- 予想PER: {metrics.get('pe', 'N/A')}
-- 発生額の質(Accruals): {metrics.get('accruals', 'Unknown')}
-- 現在の株価(Current Price): {metrics.get('current_price', 'N/A')}
-- DCF目標株価(DCF Value): {metrics.get('dcf_price', 'N/A')}
-- クオンツ評価(Quant Rating): {metrics.get('rating', 'N/A')} (スコア: {metrics.get('health_score', 'N/A')}/5)
-- 投資判断(Recommendation): {metrics.get('recommendation', 'N/A')}
+            [財務およびプレミアムデータ]
+            - 売上成長率(YoY): {metrics.get('growth', 'N/A')}
+            - 純利益率(Net Margin): {metrics.get('net_margin', 'N/A')}
+            - 営業利益率(OPM): {metrics.get('op_margin', 'N/A')}
+            - ROE: {metrics.get('roe', 'N/A')}
+            - 負債比率(D/E): {metrics.get('debt_equity', 'N/A')}
+            - 予想PER: {metrics.get('pe', 'N/A')}
+            - 発生額の質(Accruals): {metrics.get('accruals', 'Unknown')}
+            - 現在の株価(Current Price): {metrics.get('current_price', 'N/A')}
+            - DCF目標株価(DCF Value): {metrics.get('dcf_price', 'N/A')}
+            - クオンツ評価(Quant Rating): {metrics.get('rating', 'N/A')} (スコア: {metrics.get('health_score', 'N/A')}/5)
+            - 投資判断(Recommendation): {metrics.get('recommendation', 'N/A')}
 
-[作成ガイドライン]
-1. 言語: 全て自然な日本語のみで記述してください。韓国語は絶対に混ぜないでください。
-2. 形式: 以下の4つの見出しを**必ず**使用して段落を分けてください。
-   [Valuation & Market Position]
-   [Operating Performance]
-   [Risk & Solvency]
-   [Analyst Conclusion]
-3. 内容: 上記のデータから正確な数値を必ず含め、それが持つ意味を解釈してください。値が「N/A」の場合はデータが存在しないと明記してください。数値や見出しに強調(**)は使わないでください。(全体で12〜15行程度)"""
+            [作成ガイドライン]
+            1. 言語: 全て自然な日本語のみで記述してください。韓国語は絶対に混ぜないでください。
+            2. 形式: 以下の4つの見出しを**必ず**使用して段落を分けてください。
+               [Valuation & Market Position]
+               [Operating Performance]
+               [Risk & Solvency]
+               [Analyst Conclusion]
+            3. 内容: 上記のデータから正確な数値を必ず含め、それが持つ意味を解釈してください。値が「N/A」の場合はデータが存在しないと明記してください。数値や見出しに強調(**)は使わないでください。(全体で12〜15行程度)"""
 
         elif lang_code == 'zh':
             prompt = f"""您是拥有CFA资格的华尔街首席量化分析师。
-请严格根据以下综合数据，撰写关于 {company_name} ({ticker}) 的深度财务与投资分析报告。
+            请严格根据以下综合数据，撰写关于 {company_name} ({ticker}) 的深度财务与投资分析报告。
 
-[财务与高级数据]
-- 营收增长率(YoY): {metrics.get('growth', 'N/A')}
-- 净利润率(Net Margin): {metrics.get('net_margin', 'N/A')}
-- 营业利润率(OPM): {metrics.get('op_margin', 'N/A')}
-- ROE: {metrics.get('roe', 'N/A')}
-- 资产负债率(D/E): {metrics.get('debt_equity', 'N/A')}
-- 预测PER: {metrics.get('pe', 'N/A')}
-- 会计账簿质量(Accruals): {metrics.get('accruals', 'Unknown')}
-- 当前股价(Current Price): {metrics.get('current_price', 'N/A')}
-- DCF目标价(DCF Value): {metrics.get('dcf_price', 'N/A')}
-- 量化评级(Quant Rating): {metrics.get('rating', 'N/A')} (得分: {metrics.get('health_score', 'N/A')}/5)
-- 投资建议(Recommendation): {metrics.get('recommendation', 'N/A')}
+            [财务与高级数据]
+            - 营收增长率(YoY): {metrics.get('growth', 'N/A')}
+            - 净利润率(Net Margin): {metrics.get('net_margin', 'N/A')}
+            - 营业利润率(OPM): {metrics.get('op_margin', 'N/A')}
+            - ROE: {metrics.get('roe', 'N/A')}
+            - 资产负债率(D/E): {metrics.get('debt_equity', 'N/A')}
+            - 预测PER: {metrics.get('pe', 'N/A')}
+            - 会计账簿质量(Accruals): {metrics.get('accruals', 'Unknown')}
+            - 当前股价(Current Price): {metrics.get('current_price', 'N/A')}
+            - DCF目标价(DCF Value): {metrics.get('dcf_price', 'N/A')}
+            - 量化评级(Quant Rating): {metrics.get('rating', 'N/A')} (得分: {metrics.get('health_score', 'N/A')}/5)
+            - 投资建议(Recommendation): {metrics.get('recommendation', 'N/A')}
 
-[编写指南]
-1. 语言：必须只用简体中文编写。严禁混用韩语。
-2. 格式：**必须**使用以下4个副标题来划分段落：
-   [Valuation & Market Position]
-   [Operating Performance]
-   [Risk & Solvency]
-   [Analyst Conclusion]
-3. 内容：必须包含上述数据中的确切数值，并解释其含义。如果值为“N/A”，请声明数据暂不可用。不要对数值或标题使用加粗(**)。(整体12~15行左右)"""
+            [编写指南]
+            1. 语言：必须只用简体中文编写。严禁混用韩语。
+            2. 格式：**必须**使用以下4个副标题来划分段落：
+               [Valuation & Market Position]
+               [Operating Performance]
+               [Risk & Solvency]
+               [Analyst Conclusion]
+            3. 内容：必须包含上述数据中的确切数值，并解释其含义。如果值为“N/A”，请声明数据暂不可用。不要对数值或标题使用加粗(**)。(整体12~15行左右)"""
 
         else: # ko
             prompt = f"""당신은 CFA 자격을 보유한 월스트리트 수석 퀀트 애널리스트입니다.
-아래 제공된 종합 재무 및 프리미엄 데이터를 엄격하게 바탕으로 {company_name} ({ticker})의 심층 투자 분석 리포트를 작성하세요.
+            아래 제공된 종합 재무 및 프리미엄 데이터를 엄격하게 바탕으로 {company_name} ({ticker})의 심층 투자 분석 리포트를 작성하세요.
 
-[재무 및 프리미엄 데이터]
-- 매출 성장률(YoY): {metrics.get('growth', 'N/A')}
-- 순이익률(Net Margin): {metrics.get('net_margin', 'N/A')}
-- 영업이익률(OPM): {metrics.get('op_margin', 'N/A')}
-- ROE: {metrics.get('roe', 'N/A')}
-- 부채비율(D/E): {metrics.get('debt_equity', 'N/A')}
-- 선행 PER: {metrics.get('pe', 'N/A')}
-- 발생액 품질(Accruals): {metrics.get('accruals', 'Unknown')}
-- 현재 주가(Current Price): {metrics.get('current_price', 'N/A')}
-- DCF 산출 적정 주가(DCF Value): {metrics.get('dcf_price', 'N/A')}
-- 건전성 종합 등급(Quant Rating): {metrics.get('rating', 'N/A')} (점수: {metrics.get('health_score', 'N/A')}/5)
-- 퀀트 투자의견(Recommendation): {metrics.get('recommendation', 'N/A')}
+            [재무 및 프리미엄 데이터]
+            - 매출 성장률(YoY): {metrics.get('growth', 'N/A')}
+            - 순이익률(Net Margin): {metrics.get('net_margin', 'N/A')}
+            - 영업이익률(OPM): {metrics.get('op_margin', 'N/A')}
+            - ROE: {metrics.get('roe', 'N/A')}
+            - 부채비율(D/E): {metrics.get('debt_equity', 'N/A')}
+            - 선행 PER: {metrics.get('pe', 'N/A')}
+            - 발생액 품질(Accruals): {metrics.get('accruals', 'Unknown')}
+            - 현재 주가(Current Price): {metrics.get('current_price', 'N/A')}
+            - DCF 산출 적정 주가(DCF Value): {metrics.get('dcf_price', 'N/A')}
+            - 건전성 종합 등급(Quant Rating): {metrics.get('rating', 'N/A')} (점수: {metrics.get('health_score', 'N/A')}/5)
+            - 퀀트 투자의견(Recommendation): {metrics.get('recommendation', 'N/A')}
 
-[작성 가이드]
-1. 언어: 반드시 한국어로 작성하세요.
-2. 형식: 아래 4가지 소제목을 반드시 사용하여 단락을 구분하세요.
-   [Valuation & Market Position]
-   [Operating Performance]
-   [Risk & Solvency]
-   [Analyst Conclusion]
-3. 내용: 일반론을 절대 쓰지 마세요. 제공된 데이터의 '실제 수치'를 반드시 본문에 포함하여 수치가 갖는 함의를 해석하세요. 데이터가 'N/A'인 경우, 지어내지 말고 '현재 제공되지 않습니다'라고 명시하세요. 숫자나 소제목에 별표(**) 강조를 절대 하지 마세요. (총 12~15줄 내외)"""
+            [작성 가이드]
+            1. 언어: 반드시 한국어로 작성하세요.
+            2. 형식: 아래 4가지 소제목을 반드시 사용하여 단락을 구분하세요.
+               [Valuation & Market Position]
+               [Operating Performance]
+               [Risk & Solvency]
+               [Analyst Conclusion]
+            3. 내용: 일반론을 절대 쓰지 마세요. 제공된 데이터의 '실제 수치'를 반드시 본문에 포함하여 수치가 갖는 함의를 해석하세요. 데이터가 'N/A'인 경우, 지어내지 말고 '현재 제공되지 않습니다'라고 명시하세요. 숫자나 소제목에 별표(**) 강조를 절대 하지 마세요. (총 12~15줄 내외)"""
         
         for attempt in range(3):
             try:
@@ -1220,6 +1234,19 @@ Write an in-depth financial and investment analysis report for {company_name} ({
 def update_macro_data(df):
     """Tab 2: 실제 FMP 데이터 및 실시간 IPO 데이터를 활용한 거시 지표 연산 및 AI 리포트 생성"""
     if not model: return
+    
+    # [조건 4] 하루 한 번 업데이트 (24시간)
+    valid_hours = 24
+    limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
+    
+    # 💡 [핵심 최적화] 캐시를 먼저 검사해서 24시간이 안 지났으면 연산 자체를 스킵 (API 비용 절대 방어)
+    try:
+        res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", "Market_Dashboard_Metrics").gt("updated_at", limit_time_str).execute()
+        if res.data: 
+            print("✅ 거시 지표(Tab 2)는 24시간이 경과하지 않아 기존 캐시를 유지합니다.")
+            return
+    except: pass
+
     print("🌍 거시 지표(Tab 2) 실제 데이터 업데이트 및 연산 중...")
     
     # 1. 동적 연산을 위한 기본 변수 초기화
@@ -1253,9 +1280,6 @@ def update_macro_data(df):
                 data["withdrawal_rate"] = (withdrawn_cnt / len(past_1y)) * 100
                 
             # 3) unprofitable_pct (적자 상장 비율) 및 ipo_return (첫날 수익률)
-            # 이 두 가지는 worker가 긁어온 price_cache나 재무 데이터와 교차 검증해야 하므로 
-            # 임시로 시장 평균 추정치(Historical Average)를 베이스로 넣되 변동성을 줍니다.
-            # (추후 FMP에서 모든 종목의 Net Income을 받으면 100% 실시간 연산 가능)
             data["unprofitable_pct"] = 75.0 if data["ipo_volume"] > 15 else 60.0
             data["ipo_return"] = 18.5 if data["vix"] < 15 else 5.2
             
@@ -1285,7 +1309,6 @@ def update_macro_data(df):
             if '^W5000' in q_map:
                 w5000_price = float(q_map['^W5000'].get('price', 0))
                 if w5000_price > 0:
-                    # Wilshire 5000 지수 1pt = 약 1.1 Billion USD 시총 (근사치)
                     estimated_market_cap_trillion = (w5000_price * 1.1) / 1000
                     current_us_gdp_trillion = 28.0 # 2024-2025 미국 명목 GDP
                     data["buffett_val"] = (estimated_market_cap_trillion / current_us_gdp_trillion) * 100
