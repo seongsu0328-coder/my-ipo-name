@@ -95,6 +95,7 @@ except Exception as e:
     
     # 앱이 꺼지지 않게 강제로 멈춤
     st.stop()
+
 # [app.py 전용] 데이터 정제 및 범용 직송 함수
 def sanitize_value(v):
     if v is None or pd.isna(v): return None
@@ -103,6 +104,22 @@ def sanitize_value(v):
     if isinstance(v, (np.integer, int)): return int(v)
     if isinstance(v, (np.bool_, bool)): return bool(v)
     return str(v).strip().replace('\x00', '')
+
+# 💡 [여기에 추가!] Tab 3 등에서 N/A, %, x 등 기호가 섞인 문자열을 숫자로 바꿔주는 전역 헬퍼 함수
+def clean_value(val):
+    import numpy as np
+    if val in ['N/A', 'Unknown', None, '']:
+        return 0.0
+    if isinstance(val, str):
+        try:
+            clean_str = val.replace('%', '').replace('x', '').replace('+', '').replace(',', '')
+            return float(clean_str)
+        except:
+            return 0.0
+    try: 
+        return 0.0 if (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))) else float(val)
+    except: 
+        return 0.0
 
 # [app.py 최적화 버전]
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
@@ -4541,22 +4558,6 @@ with main_area.container():
                 # 워커가 이미 계산해 둔 accruals 값을 그대로 가져옵니다 (문자열 연산 에러 원천 차단)
                 accruals_status = str(fin_data.get('accruals', 'Unknown')) if is_data_available else "Unknown"
     
-                # 💡 [핵심 방어막] N/A 문자열 및 기호(%, x) 섞인 쓰레기 값 처리 강화
-                def clean_value(val):
-                    if val in ['N/A', 'Unknown', None, '']:
-                        return 0.0
-                    if isinstance(val, str):
-                        try:
-                            clean_str = val.replace('%', '').replace('x', '').replace('+', '').replace(',', '')
-                            return float(clean_str)
-                        except:
-                            return 0.0
-                    try: 
-                        return 0.0 if (isinstance(val, (int, float)) and (np.isnan(val) or np.isinf(val))) else float(val)
-                    except: 
-                        return 0.0
-                
-                if fin_data is None: fin_data = {}
     
                 # 안전하게 값 추출 시도 (워커가 보낸 N/A 문자열도 위 함수가 0.0으로 잡아줍니다)
                 rev_val = clean_value(fin_data.get('revenue', 0))
