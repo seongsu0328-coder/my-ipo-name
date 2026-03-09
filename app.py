@@ -4117,10 +4117,9 @@ with main_area.container():
                 # 2. 문서 설명 (Info Box)
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
-
                 # 4. AI 요약 보기 및 프리미엄 8-K 섹션 (버튼 블러 UI 적용)
                 user_info = st.session_state.get('user_info') or {}
-                user_level = (st.session_state.get('user_info') or {}).get('membership_level', 'free')
+                user_level = user_info.get('membership_level', 'free')
 
                 # 👑 결제자 (Premium, Premium Plus): 정상적인 Expander 출력
                 if user_level in ['premium', 'premium_plus']:
@@ -4160,7 +4159,7 @@ with main_area.container():
                                     <span style="color: #666;">▼</span>
                                 </div>
                                 <div style="padding: 15px; font-size: 0.95rem; color: #555; line-height: 1.6;">
-                                    이 기업은 최근 3년간 연평균 15%의 안정적인 매출 성장을...<br><br>
+                                    이 기업은 최근 3년간 연평균 15%의 안정적인 매출 성장을 보이고 있으며...<br><br>
                                     🚨 [실시간 8-K 중대 이벤트]<br>
                                     최근 SEC에 보고된 바에 따르면, 대규모 M&A가 논의 중이며 이로 인해 단기 주가 변동성이 극대화될 수 있습니다...
                                 </div>
@@ -4174,7 +4173,6 @@ with main_area.container():
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # 화면에는 보이지 않지만, 위 HTML 박스를 클릭하면 작동하는 보이지 않는 Streamlit 버튼
                     import streamlit.components.v1 as components
                     components.html("""
                         <script>
@@ -4187,17 +4185,15 @@ with main_area.container():
                         </script>
                     """, height=0, width=0)
 
-                    # 실제 기능을 수행할 버튼 (명시적으로도 노출해 줌)
                     if st.button(get_text('btn_upgrade_premium'), key=f"btn_upgrade_tab0_visible", use_container_width=True, type="primary"):
                         st.session_state.page = 'setup'
                         st.rerun()
 
-                # 5. 외부 링크 버튼 (재무제표는 10-K 링크로 매핑)
+                # 5. 외부 링크 버튼
                 import urllib.parse
                 cik = profile.get('cik', '') if profile else ''
                 full_company_name = stock['name'].strip() 
                 
-                # 💡 [핵심] BS, IS, CF는 개별 문서가 아니라 10-K 안에 있으므로 SEC 검색 시 10-K로 치환합니다.
                 sec_topic = "10-K" if topic in ["BS", "IS", "CF"] else topic
                 
                 if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(sec_topic)}&owner=include&count=40"
@@ -4215,7 +4211,6 @@ with main_area.container():
                     </a>
                 """, unsafe_allow_html=True)
 
-                # 6. 의사결정 박스 및 면책 조항
                 draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 display_disclaimer()
 
