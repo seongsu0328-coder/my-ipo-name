@@ -3321,7 +3321,7 @@ elif st.session_state.page == 'setup':
         # [D & E] 🔥 결제 버튼 영역 (실제 결제 로직 유지 + 2개 버튼 분리)
         curr_lang = st.session_state.get('lang', 'ko')
         is_premium = user.get('is_premium', False)
-        user_level = user.get('membership_level', 'free')
+        user_level = (st.session_state.get('user_info') or {}).get('membership_level', 'free')
         current_uid = user.get('id', '')
 
         # 이미 유료 회원인 경우 (취소 버튼 및 현재 등급 표시)
@@ -4120,7 +4120,7 @@ with main_area.container():
 
                 # 4. AI 요약 보기 및 프리미엄 8-K 섹션 (버튼 블러 UI 적용)
                 user_info = st.session_state.get('user_info') or {}
-                user_level = user_info.get('membership_level', 'free')
+                user_level = (st.session_state.get('user_info') or {}).get('membership_level', 'free')
 
                 # 👑 결제자 (Premium, Premium Plus): 정상적인 Expander 출력
                 if user_level in ['premium', 'premium_plus']:
@@ -5099,7 +5099,7 @@ with main_area.container():
             # ---------------------------------------------------------
             elif selected_sub_menu == get_text('tab_6'):
                 user_info = st.session_state.get('user_info') or {}
-                user_level = user_info.get('membership_level', 'free')
+                user_level = (st.session_state.get('user_info') or {}).get('membership_level', 'free')
                 corp_name = stock.get('corp_name', sid)
                 curr_lang = st.session_state.lang
                 
