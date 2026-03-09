@@ -5699,8 +5699,6 @@ with main_area.container():
                 with tab_free:
                     render_board_tab(free_posts, 'board_free_count', 'free')
 
-# 👇 [여기서부터 파일 끝입니다. 기존에 있던 except 관련 코드는 싹 지워주세요!]
-# draw_footer()는 화면 맨 왼쪽(띄어쓰기 0칸)에 딱 붙여서 작성합니다.
 draw_footer()
                 
                         
