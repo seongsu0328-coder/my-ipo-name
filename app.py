@@ -4080,7 +4080,7 @@ with main_area.container():
                 elif is_over_1y: btn_list = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
                 else: btn_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
 
-                # 🔍 8-K 데이터 존재 여부 실시간 체크 (Worker가 만든 데이터가 있는지 확인)
+                # 🔍 8-K 데이터 존재 여부 실시간 체크
                 has_8k = False
                 try:
                     res_8k = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{stock_name}_8-K_Tab0_v16_{curr_lang}").execute()
@@ -4105,7 +4105,6 @@ with main_area.container():
                     cols = st.columns(chunk_size)
                     for j, topic_name in enumerate(btn_list[i : i + chunk_size]):
                         with cols[j]:
-                            # 🔒 비결제자 8-K 버튼 (잠긴 빨간 버튼)
                             if topic_name == "8-K" and user_level not in ['premium', 'premium_plus']:
                                 st.markdown("""
                                     <div style="position: relative; width: 100%; height: 3.5em; border-radius: 8px; overflow: hidden; border: 1px solid #b71c1c; background: #d32f2f; display: flex; align-items: center; justify-content: center; cursor: not-allowed; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -4115,14 +4114,8 @@ with main_area.container():
                                 """, unsafe_allow_html=True)
                             else:
                                 if 'core_topic' not in st.session_state: st.session_state.core_topic = btn_list[0]
-                                
-                                # 💡 8-K는 결제자에게 항상 빨간색(Primary), 나머지는 선택 시 빨간색
-                                if topic_name == "8-K":
-                                    btn_type = "primary"
-                                else:
-                                    btn_type = "primary" if st.session_state.core_topic == topic_name else "secondary"
-                                
-                                if st.button(label_map.get(topic_name, topic_name), type=btn_type, use_container_width=True, key=f"btn_tab0_vfinal_{topic_name}"):
+                                btn_type = "primary" if st.session_state.core_topic == topic_name else "secondary"
+                                if st.button(label_map.get(topic_name, topic_name), type=btn_type, use_container_width=True, key=f"btn_tab0_vfinal_fixed_{topic_name}"):
                                     st.session_state.core_topic = topic_name
                                     st.rerun()
 
@@ -4139,16 +4132,15 @@ with main_area.container():
                     else:
                         import re
                         parts = analysis_result.split("|||SEP|||")
-                        # 8-K 분석은 SEP 뒤의 내용(parts[1])을 보여주는 것이 정석
                         main_content = parts[1] if (curr_topic == "8-K" and len(parts) > 1) else parts[0]
                         formatted_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', main_content)
                         st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
-                # 4. 하단 처리 (에러가 났던 지점 수정 완료)
+                # 4. 하단 처리 (여기에 남아있던 topic을 전부 curr_topic으로 교체했습니다)
                 import urllib.parse
                 cik = profile.get('cik', '') if profile else ''
                 
-                # 💡 모든 'topic' 변수를 'curr_topic'으로 통일했습니다.
+                # 💡 SEC 조회 시 토픽 보정 (BS, IS, CF는 10-K로 조회)
                 sec_type_query = "10-K" if curr_topic in ["BS", "IS", "CF"] else curr_topic
                 
                 if cik: 
