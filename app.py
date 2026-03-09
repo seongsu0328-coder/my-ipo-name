@@ -4118,7 +4118,7 @@ with main_area.container():
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
                 # ========================================================
-                # 4. AI 요약 보기 및 프리미엄 8-K 섹션 (버튼 블러 UI 적용)
+                # 4. AI 요약 보기 및 프리미엄 8-K 섹션 (심플 블러 UI 적용)
                 # ========================================================
                 user_info = st.session_state.get('user_info') or {}
                 user_level = user_info.get('membership_level', 'free')
@@ -4147,7 +4147,7 @@ with main_area.container():
                         st.write("")
                         st.caption(get_text('caption_algorithm'))
                 
-                # 🔒 비결제자 (Free/Basic): 블러 처리 및 심플한 안내 메시지 노출 (버튼 없음)
+                # 🔒 비결제자 (Free/Basic): 전체 박스를 흐리게 만들고 중앙에 메시지 노출
                 else:
                     st.write("")
                     st.markdown(f"""
@@ -4177,6 +4177,7 @@ with main_area.container():
                             
                         </div>
                     """, unsafe_allow_html=True)
+                    
                 # 5. 외부 링크 버튼
                 import urllib.parse
                 cik = profile.get('cik', '') if profile else ''
