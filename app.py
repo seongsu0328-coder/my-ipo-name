@@ -4764,7 +4764,9 @@ with main_area.container():
                 surp_summary, est_summary = get_premium_tab3_summaries(sid, curr_lang)
                 
                 with st.expander(get_text('tab3_surprise_title'), expanded=False):
-                    user_level = st.session_state.get('user_info', {}).get('membership_level', 'free')
+                    raw_info = st.session_state.get('user_info')
+                    user_info = raw_info if raw_info is not None else {}
+                    user_level = user_info.get('membership_level', 'free')
                     is_premium = user_level in ['premium', 'premium_plus']
                     
                     if is_premium:
