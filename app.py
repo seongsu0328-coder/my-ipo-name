@@ -4051,7 +4051,7 @@ with main_area.container():
             
             # --- Tab 0: 핵심 정보 ---
             if selected_sub_menu == get_text('tab_0'):
-                # 💡 버튼 CSS 분리 (secondary: 하얀색, primary: 빨간색)
+                # 버튼 CSS 분리
                 st.markdown("""<style>
                     div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } 
                     div.stButton > button[kind="secondary"]:hover { border-color: #6e8efb !important; color: #6e8efb !important; } 
@@ -4064,7 +4064,6 @@ with main_area.container():
                 is_withdrawn = any(x in final_status for x in ['철회', '취소', 'withdrawn'])
                 is_delisted = any(x in final_status for x in ['폐지', 'delisted'])
                 
-                # 💡 [핵심 수정] 날짜 안전장치: 데이터가 이상하면 1년 이하(S-1 모드)로 기본 처리
                 is_over_1y = False
                 try:
                     ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
@@ -4073,7 +4072,7 @@ with main_area.container():
                 except:
                     pass 
 
-                # 💡 상태별로 렌더링할 버튼 목록과 속성(순서, 디자인)을 배열로 정의
+                # 💡 상태별 버튼 레이아웃
                 if is_withdrawn:
                     btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("RW", "primary")]
                     default_topic = "RW"
@@ -4087,12 +4086,10 @@ with main_area.container():
                     btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("424B4", "secondary")]
                     default_topic = "S-1"
 
-                # 현재 선택된 토픽이 유효한 버튼 리스트에 없다면 기본값으로 자동 전환
                 valid_topics = [b[0] for b in btn_layout]
                 if 'core_topic' not in st.session_state or st.session_state.core_topic not in valid_topics:
                     st.session_state.core_topic = default_topic
 
-                # 라벨 매핑 사전
                 label_map = {
                     "S-1": get_text('label_s1'), "S-1/A": get_text('label_s1a'), "F-1": get_text('label_f1'), 
                     "FWP": get_text('label_fwp'), "424B4": get_text('label_424b4'), "RW": get_text('label_rw'), 
@@ -4100,7 +4097,7 @@ with main_area.container():
                     "BS": get_text('label_bs'), "IS": get_text('label_is'), "CF": get_text('label_cf')
                 }
 
-                # 💡 동적 버튼 렌더링 (한 줄에 4개씩 깔끔하게 자동 줄바꿈 배치)
+                # 동적 버튼 렌더링
                 chunk_size = 4
                 for i in range(0, len(btn_layout), chunk_size):
                     cols = st.columns(chunk_size)
@@ -4113,71 +4110,63 @@ with main_area.container():
 
                 topic = st.session_state.core_topic
                 curr_lang = st.session_state.lang
+                user_level = (st.session_state.get('user_info') or {}).get('membership_level', 'free')
                 
-                # 2. 문서 설명 (Info Box)
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
                 # ========================================================
-                # 4. AI 요약 보기 및 프리미엄 8-K 섹션 (심플 블러 UI 적용)
+                # 4. AI 요약 보기 (권한별 블러 처리 적용)
                 # ========================================================
-                user_info = st.session_state.get('user_info') or {}
-                user_level = user_info.get('membership_level', 'free')
-
-                # 👑 결제자 (Premium, Premium Plus): 정상적인 Expander 출력
-                if user_level in ['premium', 'premium_plus']:
-                    with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=True):
-                        with st.spinner(get_text('msg_analyzing_filing')):
-                            analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
+                with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=True):
+                    with st.spinner(get_text('msg_analyzing_filing')):
+                        analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
+                    
+                    if "ERROR_DETAILS" in analysis_result:
+                        st.error(get_text('err_try_again'))  
+                    else:
+                        import re
                         
-                        if "ERROR_DETAILS" in analysis_result:
-                            st.error(get_text('err_try_again'))  
-                        else:
+                        # 👑 결제자: 정상 출력
+                        if user_level in ['premium', 'premium_plus']:
                             parts = analysis_result.split("|||SEP|||")
-                            import re
                             formatted_public = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[0]) if len(parts) > 0 else ""
                             formatted_premium = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[1]) if len(parts) > 1 else ""
 
                             st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_public.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-                            
                             if formatted_premium:
                                 st.divider()
                                 st.markdown(f"<div style='font-size:1.0rem; font-weight:700; color:#d32f2f; margin-bottom:10px;'>{get_text('expander_8k_premium')}</div>", unsafe_allow_html=True)
                                 st.markdown(f"<div style='background-color:#fff8f8; padding:15px; border-radius:8px; border-left: 4px solid #d32f2f; color:#333; line-height:1.6;'>{formatted_premium.replace(chr(10), '<br>')}</div>", unsafe_allow_html=True)
 
-                        st.write("")
-                        st.caption(get_text('caption_algorithm'))
-                
-                # 🔒 비결제자 (Free/Basic): 전체 박스를 흐리게 만들고 중앙에 메시지 노출
-                else:
-                    st.write("")
-                    st.markdown(f"""
-                        <div style="position: relative; border-radius: 8px; overflow: hidden; margin-bottom: 15px;">
+                        # 🔒 비결제자: 실제 텍스트 위에 CSS 필터만 씌워서 블러 처리
+                        else:
+                            clean_text = analysis_result.replace("|||SEP|||", "<br><br>🚨 <b>[실시간 8-K 중대 이벤트 분석]</b><br>")
+                            clean_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', clean_text).replace(chr(10), "<br>")
                             
-                            <div style="border: 1px solid #ddd; border-radius: 8px; background-color: #f8f9fa; filter: blur(3px); user-select: none;">
-                                <div style="padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd;">
-                                    <span style="font-size: 1rem; font-weight: 600; color: #333;">📄 {topic} 심층 분석 및 8-K 요약 보기</span>
-                                    <span style="color: #666;">▼</span>
+                            st.markdown(f"""
+                            <div style="position: relative; border-radius: 8px; background: #f8f9fa; overflow: hidden; border: 1px solid #ddd;">
+                                <div style="padding: 15px; font-size: 15px; line-height: 1.6; color: #333; filter: blur(5px); user-select: none;">
+                                    {clean_text}
                                 </div>
-                                <div style="padding: 15px; font-size: 0.95rem; color: #555; line-height: 1.6;">
-                                    이 기업은 최근 3년간 연평균 15%의 안정적인 매출 성장을 보이고 있으며...<br><br>
-                                    🚨 [실시간 8-K 중대 이벤트]<br>
-                                    최근 SEC에 보고된 바에 따르면, 대규모 M&A가 논의 중이며 이로 인해 단기 주가 변동성이 극대화될 수 있습니다...
+                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.3); display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                                    <div style="font-size: 3rem; text-shadow: 0px 2px 4px rgba(0,0,0,0.2);">🔒</div>
+                                    <div style="background: rgba(255,255,255,0.9); padding: 15px; border-radius: 8px; border: 1px solid #ccc; text-align: center; margin-top: 10px;">
+                                        <span style="font-weight: bold; color: #111; font-size: 1.1rem;">Premium Only</span><br>
+                                        <span style="font-size: 0.95rem; color: #d32f2f; font-weight: bold;">프리미엄 등급 이상 열람 가능합니다.</span>
+                                    </div>
                                 </div>
                             </div>
+                            """, unsafe_allow_html=True)
+                            
+                            st.write("")
+                            if st.button(get_text('btn_upgrade_premium'), key=f"btn_upgrade_tab0_{topic}", use_container_width=True, type="primary"):
+                                st.session_state.page = 'setup'
+                                st.rerun()
 
-                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                <div style="font-size: 2.5rem; margin-bottom: 10px; text-shadow: 0px 2px 4px rgba(0,0,0,0.2);">🔒</div>
-                                <div style="background-color: rgba(255,255,255,0.85); padding: 15px 25px; border-radius: 10px; border: 1px dashed #ccc; width: 85%;">
-                                    <h4 style="color: #333; margin-top:0; margin-bottom:10px;">Premium Only</h4>
-                                    <p style="color: #555; font-size: 0.95rem; margin: 0; line-height: 1.5;">
-                                        이 기업의 <b>심층 공시 요약</b>과 돌발 악재를 파악하는 <b>8-K 실시간 분석 리포트</b>는 <br><span style="color:#d32f2f; font-weight:bold;">프리미엄 등급</span> 이상부터 열람 가능합니다.
-                                    </p>
-                                </div>
-                            </div>
-                            
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
+                    st.write("")
+                    st.caption(get_text('caption_algorithm'))
+
+                # ========================================================
                 # 5. 외부 링크 버튼
                 import urllib.parse
                 cik = profile.get('cik', '') if profile else ''
