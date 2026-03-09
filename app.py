@@ -1447,6 +1447,22 @@ def get_financial_report_analysis(company_name, ticker, metrics, lang_code):
     return wait_msgs.get(lang_code, wait_msgs['ko'])
 
 # 💡 [신규 추가] 스팩/직상장 등 갑자기 편입된 Ticker 리스트 불러오기 (캐싱)
+
+@st.cache_data(show_spinner=False, ttl=600)
+def get_premium_tab4_summaries(ticker, lang_code):
+    """[Tab 4] 투자의견 히스토리 및 경쟁사 비교 AI 요약본을 DB에서 가져옵니다."""
+    ud_summary, peers_summary = "", ""
+    try:
+        res_ud = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_PremiumUpgrades_v1_{lang_code}").execute()
+        if res_ud.data: ud_summary = res_ud.data[0]['content']
+        
+        res_p = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_PremiumPeers_v1_{lang_code}").execute()
+        if res_p.data: peers_summary = res_p.data[0]['content']
+    except Exception as e:
+        print(f"Premium Tab4 Cache Error: {e}")
+        
+    return ud_summary, peers_summary
+
 @st.cache_data(ttl=3600) 
 def get_sudden_additions():
     try:
@@ -2279,6 +2295,15 @@ UI_TEXT = {
         'ja': 'ウォール街コンセンサスと目標株価', 
         'zh': '华尔街共识与目标价'
     },
+    'tab4_upgrades_title': {
+        'ko': '📈 투자의견 변화추이', 'en': '📈 Upgrades & Downgrades', 
+        'ja': '📈 投資意見の変化推移', 'zh': '📈 投资意见变化趋势'
+    },
+    'tab4_peers_title': {
+        'ko': '📊 Sector내 비교', 'en': '📊 Peer Comparison', 
+        'ja': '📊 セクター内比較', 'zh': '📊 行业内比较'
+    },
+    
     
     # ==========================================
     # 10. Tab 5: 투자결정 및 차트
@@ -4740,7 +4765,11 @@ with main_area.container():
             # --- Tab 4: 기관평가 (UI 출력 부분 다국어 적용) ---
             elif selected_sub_menu == get_text('tab_4'):
                 curr_lang = st.session_state.lang
+                user_level = st.session_state.get('user_info', {}).get('membership_level', 'free')
+                is_premium = user_level in ['premium', 'premium_plus']
+
                 with st.spinner(get_text('msg_analyzing_institutional')):
+                    # 1. 기존 무료 데이터 로드 (구글 검색 기반)
                     result = get_unified_tab4_analysis(
                         stock['name'], 
                         stock['symbol'], 
@@ -4748,6 +4777,8 @@ with main_area.container():
                         ipo_status=stock.get('status', 'Active'), 
                         ipo_date_str=stock.get('date')
                     )
+                    # 2. 🚀 [NEW] 신규 프리미엄 데이터 로드 (FMP 기반)
+                    ud_summary, peers_summary = get_premium_tab4_summaries(sid, curr_lang)
                 
                 summary_raw = result.get('summary', '')
                 pro_con_raw = result.get('pro_con', '')
@@ -4759,7 +4790,7 @@ with main_area.container():
                 st.write("<br>", unsafe_allow_html=True)
 
                 # =========================================================
-                # 🚀 [여기서부터 신규 추가!] 기존 코드 건드리지 않고 제일 상단에 꽂아넣기!
+                # [기존 기능 유지] 1. 월가 컨센서스 & 목표 주가
                 # =========================================================
                 target_price_val = str(result.get('target_price', 'N/A')).strip()
                 
@@ -4769,10 +4800,10 @@ with main_area.container():
                     else:
                         st.success(f"🎯 **평균 목표 주가 (Target Price) : {target_price_val}**")
                         st.caption("※ FMP Premium에서 실시간으로 수집된 월가 애널리스트 평균(Consensus) 데이터입니다." if curr_lang == 'ko' else "※ Wall Street Consensus from FMP Premium.")
-                # =========================================================
-                # 🚀 [여기까지 신규 추가 끝!]
-                # =========================================================
             
+                # =========================================================
+                # [기존 기능 유지] 2. 르네상스 & 시킹알파 요약
+                # =========================================================
                 with st.expander(get_text('expander_renaissance'), expanded=False):
                     import re
                     pattern = r'(?i)source|출처|https?://'
@@ -4791,6 +4822,9 @@ with main_area.container():
                     if "의견 수집 중" in pro_con or not pro_con: st.error(get_text('err_ai_analysis_failed'))
                     else: st.success(pro_con.replace('\n', '\n\n'))
             
+                # =========================================================
+                # [기존 기능 유지] 3. 기관 투자 심리 (Sentiment)
+                # =========================================================
                 with st.expander(get_text('expander_sentiment'), expanded=False):
                     s_col1, s_col2 = st.columns(2)
                     with s_col1:
@@ -4824,19 +4858,61 @@ with main_area.container():
                         elif score_val == "3": st.info(f"{eval_label}: {s_list.get(score_val, 'N/A')}")
                         else: st.warning(f"{eval_label}: {s_list.get(score_val, 'N/A')}")
                         st.caption(f"ℹ️ {score_desc}")
-            
-                # --- Tab 4: 기관평가 내 References 영역 ---
+
+                # =========================================================
+                # 🚀 [NEW] 투자의견 변화추이 (Premium 전용 - Blur 적용)
+                # =========================================================
+                with st.expander(get_text('tab4_upgrades_title'), expanded=False):
+                    if is_premium:
+                        if ud_summary:
+                            st.markdown(ud_summary, unsafe_allow_html=True)
+                        else:
+                            st.info("데이터를 수집 및 분석 중입니다..." if curr_lang == 'ko' else "Analyzing data...")
+                    else:
+                        # 비결제자 Blur 화면
+                        blur_text = "모건스탠리는 최근 이 기업의 투자의견을 'Neutral'에서 'Buy'로 상향 조정했습니다. 목표가 역시 기존 대비 15% 상향된 수치를 제시하며 기관들의 강력한 매수세가 관측되고 있습니다... (이하 블러 처리)"
+                        st.markdown(f"""
+                            <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                    <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                    <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                # =========================================================
+                # 🚀 [NEW] Sector내 비교 (Premium 전용 - Blur 적용)
+                # =========================================================
+                with st.expander(get_text('tab4_peers_title'), expanded=False):
+                    if is_premium:
+                        if peers_summary:
+                            st.markdown(peers_summary, unsafe_allow_html=True)
+                        else:
+                            st.info("데이터를 수집 및 분석 중입니다..." if curr_lang == 'ko' else "Analyzing data...")
+                    else:
+                        # 비결제자 Blur 화면
+                        blur_text = "동일 섹터 내 경쟁사인 주요 상장사들과 비교할 때 본 기업의 주가수익비율(PER)은 상대적으로 저평가 구간에 머물러 있습니다. 이는 시장 점유율 확보 전략이... (이하 블러 처리)"
+                        st.markdown(f"""
+                            <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                    <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                    <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                # =========================================================
+                # [기존 기능 유지] 4. References 영역
+                # =========================================================
                 with st.expander("References", expanded=False):
-                    # 💡 [신규 추가] FMP 공식 목표가 출처 링크를 최상단에 배치합니다.
-                 
                     st.markdown(f"- [Financial Modeling Prep: {stock['name']} Institutional Consensus](https://financialmodelingprep.com/financial-summary/{q})")
-                   
-                    # 👇 [기존 코드 유지] 실시간 AI 추출 링크들
+                    
                     if sources:
                         for src in sources: st.markdown(f"- [{src['title']}]({src['link']})")
                     else: st.caption(get_text('err_no_links'))
 
-                    # 👇 [기존 코드 유지] 외부 포털 검색 링크들
                     st.markdown(f"- [Renaissance Capital: {stock['name']} {get_text('label_detail_data')}](https://www.google.com/search?q=site:renaissancecapital.com+{q})")
                     st.markdown(f"- [Seeking Alpha: {stock['name']} {get_text('label_deep_analysis')}](https://seekingalpha.com/symbol/{q}/analysis)")
                     st.markdown(f"- [Morningstar: {stock['name']} {get_text('label_research_result')}](https://www.morningstar.com/search?query={q})")
