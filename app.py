@@ -4117,7 +4117,9 @@ with main_area.container():
                 # 2. 문서 설명 (Info Box)
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
+                # ========================================================
                 # 4. AI 요약 보기 및 프리미엄 8-K 섹션 (버튼 블러 UI 적용)
+                # ========================================================
                 user_info = st.session_state.get('user_info') or {}
                 user_level = user_info.get('membership_level', 'free')
 
@@ -4145,13 +4147,11 @@ with main_area.container():
                         st.write("")
                         st.caption(get_text('caption_algorithm'))
                 
-                # 🔒 비결제자 (Free/Basic): 버튼 자체가 블러 처리된 가짜 UI
+                # 🔒 비결제자 (Free/Basic): 블러 처리 및 심플한 안내 메시지 노출 (버튼 없음)
                 else:
                     st.write("")
-                    blur_msg = get_text('msg_8k_blur_teaser')
-                    
                     st.markdown(f"""
-                        <div style="position: relative; border-radius: 8px; overflow: hidden; margin-bottom: 15px; cursor: pointer;" onclick="document.getElementById('hidden_upgrade_btn_tab0').click()">
+                        <div style="position: relative; border-radius: 8px; overflow: hidden; margin-bottom: 15px;">
                             
                             <div style="border: 1px solid #ddd; border-radius: 8px; background-color: #f8f9fa; filter: blur(3px); user-select: none;">
                                 <div style="padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd;">
@@ -4165,30 +4165,18 @@ with main_area.container():
                                 </div>
                             </div>
 
-                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.2); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                <div style="font-size: 2.5rem; margin-bottom: 5px; text-shadow: 0px 2px 4px rgba(0,0,0,0.2);">🔒</div>
-                                <div style="color: #111; font-weight: 800; font-size: 1.1rem; background: rgba(255,255,255,0.8); padding: 2px 10px; border-radius: 5px;">Premium Only</div>
+                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                <div style="font-size: 2.5rem; margin-bottom: 10px; text-shadow: 0px 2px 4px rgba(0,0,0,0.2);">🔒</div>
+                                <div style="background-color: rgba(255,255,255,0.85); padding: 15px 25px; border-radius: 10px; border: 1px dashed #ccc; width: 85%;">
+                                    <h4 style="color: #333; margin-top:0; margin-bottom:10px;">Premium Only</h4>
+                                    <p style="color: #555; font-size: 0.95rem; margin: 0; line-height: 1.5;">
+                                        이 기업의 <b>심층 공시 요약</b>과 돌발 악재를 파악하는 <b>8-K 실시간 분석 리포트</b>는 <br><span style="color:#d32f2f; font-weight:bold;">프리미엄 등급</span> 이상부터 열람 가능합니다.
+                                    </p>
+                                </div>
                             </div>
                             
                         </div>
                     """, unsafe_allow_html=True)
-                    
-                    import streamlit.components.v1 as components
-                    components.html("""
-                        <script>
-                            document.addEventListener('click', function(e) {
-                                if(e.target.closest('div[style*="cursor: pointer"]')) {
-                                    const btn = window.parent.document.querySelector('button[kind="primary"]');
-                                    if(btn) btn.click();
-                                }
-                            });
-                        </script>
-                    """, height=0, width=0)
-
-                    if st.button(get_text('btn_upgrade_premium'), key=f"btn_upgrade_tab0_visible", use_container_width=True, type="primary"):
-                        st.session_state.page = 'setup'
-                        st.rerun()
-
                 # 5. 외부 링크 버튼
                 import urllib.parse
                 cik = profile.get('cik', '') if profile else ''
