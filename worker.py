@@ -580,13 +580,41 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
             else:
                 sec_fact_prompt = f"\n[SEC FACT CHECK] '{sec_search_target}' not found in SEC EDGAR. Use the latest available numerical data from recent web records."
         
-        # 💡 [worker.py 수정 구간]
+        # 1. 먼저 8-K 독립 데이터부터 처리 (루프 밖에서 언어별로 1번만 실행)
         fmp_8k_data = fetch_fmp_8k_events(ticker, FMP_API_KEY)
+        
+        if "No recent 8-K events" not in fmp_8k_data:
+            for lang_code, target_lang in SUPPORTED_LANGS.items():
+                cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
+                try:
+                    # 최신 데이터 존재 여부 확인
+                    res_8k = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key_8k).gt("updated_at", limit_time_str).execute()
+                    if not res_8k.data:
+                        meta_8k = get_localized_meta(lang_code, "S-1")
+                        # 8-K 전용 프롬프트
+                        prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, "", get_format_instruction(lang_code), fmp_8k_data)
+                        response_8k = model.generate_content(prompt_8k)
+                        
+                        if response_8k and response_8k.text:
+                            # 💡 [중요] app.py가 parts[1]을 읽을 수 있게 SEP를 강제로 넣어 저장합니다.
+                            final_8k_text = response_8k.text
+                            if "|||SEP|||" not in final_8k_text:
+                                final_8k_text = f"Summary Area|||SEP|||{final_8k_text}"
+                                
+                            batch_upsert("analysis_cache", [{
+                                "cache_key": cache_key_8k, 
+                                "content": final_8k_text, 
+                                "updated_at": datetime.now().isoformat()
+                            }], on_conflict="cache_key")
+                            print(f"🚨 [{ticker}] 8-K 분석 완료 ({lang_code})")
+                except Exception as e:
+                    print(f"❌ 8-K 생성 스킵: {e}")
     
-        # 1. 일반 공시 문서들 (S-1, 10-K 등) 처리
+        # 2. 일반 서류들 (S-1, 10-K, 10-Q 등) 처리
         for topic in target_topics:
             sec_fact_prompt = ""
             sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
+            
             if cik:
                 filed_date = check_sec_specific_filing(cik, sec_search_target)
                 if filed_date:
@@ -596,6 +624,7 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
                 cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
                 
                 try:
+                    # 기존 데이터 확인
                     res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
                     if res.data: continue 
                 except: pass
@@ -604,28 +633,21 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
                 format_inst = get_format_instruction(lang_code)
                 prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, fmp_8k_data)
                 
-                try:
-                    response = model.generate_content(prompt)
-                    if response and response.text:
-                        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-                        print(f"✅ [{ticker}] {topic} ({lang_code}) 완료")
-                except: pass
-    
-        # 2. 💡 [핵심] 8-K 독립 버튼용 데이터 별도 생성 (루프 밖에서 1번만 실행)
-        if "No recent 8-K events" not in fmp_8k_data:
-            for lang_code, target_lang in SUPPORTED_LANGS.items():
-                cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
-                meta_8k = get_localized_meta(lang_code, "S-1")
-                prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, "", get_format_instruction(lang_code), fmp_8k_data)
-                
-                try:
-                    response_8k = model.generate_content(prompt_8k)
-                    if response_8k and response_8k.text:
-                        # 💡 앱의 로직(parts[1] 호출)에 맞게 구분자를 강제로 넣어 저장합니다.
-                        full_content = f"Summary Area|||SEP|||{response_8k.text}" if "|||SEP|||" not in response_8k.text else response_8k.text
-                        batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": full_content, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-                        print(f"🚨 [{ticker}] 8-K 독립 데이터 생성 완료 ({lang_code})")
-                except: pass
+                # AI 호출 및 재시도 로직
+                for attempt in range(2):
+                    try:
+                        response = model.generate_content(prompt)
+                        if response and response.text:
+                            # 💡 일반 서류는 parts[0]을 사용하므로 그대로 저장해도 무방 (프롬프트에 SEP 포함됨)
+                            batch_upsert("analysis_cache", [{
+                                "cache_key": cache_key, 
+                                "content": response.text, 
+                                "updated_at": datetime.now().isoformat()
+                            }], on_conflict="cache_key")
+                            print(f"✅ [{ticker}] {topic} 완료 ({lang_code})")
+                            break
+                    except:
+                        time.sleep(1)
 
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if not model: return
