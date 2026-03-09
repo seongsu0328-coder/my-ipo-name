@@ -387,15 +387,23 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn'])
     is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
     
+    days_passed = 0
     is_over_1y = False
+    is_over_3m = False
+    
     if ipo_date_str:
         try:
             ipo_dt = pd.to_datetime(ipo_date_str).date()
-            if (datetime.now().date() - ipo_dt).days > 365: is_over_1y = True
+            days_passed = (datetime.now().date() - ipo_dt).days
+            if days_passed > 365: is_over_1y = True
+            if days_passed > 90: is_over_3m = True
         except: pass
 
-    if is_withdrawn or is_delisted or is_over_1y: valid_hours = 24 * 7  
-    else: valid_hours = 24       
+    # 💡 3개월 이상 지났거나 폐지/철회된 경우 7일에 한 번 캐싱, 그 외는 1일
+    if is_withdrawn or is_delisted or is_over_3m or is_over_1y: 
+        valid_hours = 24 * 7  
+    else: 
+        valid_hours = 24        
         
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
 
@@ -565,35 +573,62 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
 제공된 8-K 데이터를 분석하세요. 이벤트가 없다면 "최근 보고된 돌발 악재/호재가 없습니다."라고 적으세요. 데이터가 있다면 해당 이슈가 단기 주가에 미칠 치명적 파급력을 4~5문장으로 냉철하게 분석하세요.
 """
 
-    # 💡 [핵심] 루프 밖에서 8-K 전용 데이터 1회만 생성 및 독립 캐싱
+    # 💡 [핵심] 루프 밖에서 8-K 전용 데이터 수집 및 실시간 변동 감지
     fmp_8k_data = fetch_fmp_8k_events(ticker, FMP_API_KEY)
     
+    is_new_8k = False
+    raw_cache_key = f"{ticker}_8K_RawData_v1"
+    
     if "No recent" not in fmp_8k_data:
+        try:
+            res_raw = supabase.table("analysis_cache").select("content").eq("cache_key", raw_cache_key).execute()
+            cached_raw = res_raw.data[0]['content'] if res_raw.data else ""
+            
+            if not cached_raw:
+                # 최초 DB 적재 시 (알림 폭탄 방지)
+                is_new_8k = True
+                batch_upsert("analysis_cache", [{"cache_key": raw_cache_key, "content": fmp_8k_data, "updated_at": datetime.now().isoformat()}], "cache_key")
+            elif fmp_8k_data != cached_raw:
+                # 🚨 기존 텍스트와 달라짐 = 새로운 8-K 업데이트 발생!
+                is_new_8k = True
+                batch_upsert("analysis_cache", [{"cache_key": raw_cache_key, "content": fmp_8k_data, "updated_at": datetime.now().isoformat()}], "cache_key")
+                
+                # 프리미엄 유저 대상 알림 발송
+                batch_upsert("premium_alerts", [{
+                    "ticker": ticker, 
+                    "alert_type": "8K_UPDATE", 
+                    "title": f"{ticker} 8-K 업데이트", 
+                    "message": "새로운 8-K(중대 이벤트) 공시가 등록되었습니다. Tab 0에서 최신 분석 내용을 확인하세요."
+                }], on_conflict="ticker,alert_type")
+                print(f"🔔 [{ticker}] 신규 8-K 감지! 알림 발송 완료.")
+        except Exception as e:
+            print(f"8-K 감지 에러: {e}")
+
+    # 💡 [핵심] 8-K AI 분석은 '신규 업데이트'가 감지되었을 때만 즉시 갱신 (비용 절약)
+    if is_new_8k:
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
             try:
-                res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key_8k).gt("updated_at", limit_time_str).execute()
-                if not res.data:
-                    # 💡 [통일] 8-K 독립 데이터 역시 "3단락 / 각 4~5문장"으로 동일하게 적용
-                    if lang_code == 'en':
-                        p_8k = f"You are a Wall Street Analyst.\nTarget: 8-K (Material Events) for {company_name} ({ticker})\nData: {fmp_8k_data}\n\n[Structure]\nPara 1: [Core Event] Summarize the most critical event from the 8-K.\nPara 2: [Financial Impact] Analyze the impact on financials and stock price.\nPara 3: [Future Outlook] Forecast management's next steps or points for investors.\n- Begin each paragraph with a **[Heading]**. Write exactly 3 paragraphs. Each paragraph should be about 4-5 sentences. DO NOT bold numbers."
-                    elif lang_code == 'ja':
-                        p_8k = f"あなたはウォール街のアナリストです。\n分析対象: {company_name} ({ticker}) 8-Kイベント\nデータ: {fmp_8k_data}\n\n[構成]\n第1段落：[核心イベント] 8-K公示の最も重要なイベントの要約\n第2段落：[財務への影響] 該当イベントが財務および株価に与える影響\n第3段落：[今後の展望] 投資家が注目すべきポイント\n- 各段落は **[見出し]** から始めてください。必ず3つの段落で作成し、各段落は約4〜5文で構成してください。数値に強調(**)は不可。"
-                    elif lang_code == 'zh':
-                        p_8k = f"您是华尔街分析师。\n分析目标: {company_name} ({ticker}) 8-K事件\n数据: {fmp_8k_data}\n\n[结构]\n第一段：[核心事件] 总结8-K公告中最核心的事件\n第二段：[财务影响] 分析该事件对财务和股价的影响\n第三段：[未来展望] 预测投资者应关注的要点\n- 每个段落以 **[副标题]** 开头。必须写3个段落，每段约4-5句话。请勿加粗数值。"
-                    else: # ko
-                        p_8k = f"당신은 월가의 전문 애널리스트입니다.\n분석 대상: {company_name} ({ticker}) 8-K 수시공시\n제공된 데이터: {fmp_8k_data}\n\n[작성 지침]\n1문단: [핵심 이벤트] 발생한 8-K 공시의 가장 중요한 사유 요약\n2문단: [재무적 파급력] 해당 이벤트가 단기 재무 지표 및 주가에 미치는 영향\n3문단: [향후 전망] 경영진의 대응 또는 투자자가 주목해야 할 포인트\n\n- 반드시 한국어로 작성하세요.\n- 각 문단은 반드시 **[소제목]**으로 시작하세요.\n- 반드시 3개의 문단으로 구분하고, 각 문단은 4~5줄(문장) 길이로 묵직하게 작성하세요.\n- 숫자에 별표(**) 강조는 절대 쓰지 마세요."
+                # [통일] 8-K 독립 데이터 역시 "3단락 / 각 4~5문장"으로 동일하게 적용 (기존 지침 유지)
+                if lang_code == 'en':
+                    p_8k = f"You are a Wall Street Analyst.\nTarget: 8-K (Material Events) for {company_name} ({ticker})\nData: {fmp_8k_data}\n\n[Structure]\nPara 1: [Core Event] Summarize the most critical event from the 8-K.\nPara 2: [Financial Impact] Analyze the impact on financials and stock price.\nPara 3: [Future Outlook] Forecast management's next steps or points for investors.\n- Begin each paragraph with a **[Heading]**. Write exactly 3 paragraphs. Each paragraph should be about 4-5 sentences. DO NOT bold numbers."
+                elif lang_code == 'ja':
+                    p_8k = f"あなたはウォール街のアナリストです。\n分析対象: {company_name} ({ticker}) 8-Kイベント\nデータ: {fmp_8k_data}\n\n[構成]\n第1段落：[核心イベント] 8-K公示の最も重要なイベントの要約\n第2段落：[財務への影響] 該当イベントが財務および株価に与える影響\n第3段落：[今後の展望] 投資家が注目すべきポイント\n- 各段落は **[見出し]** から始めてください。必ず3つの段落で作成し、各段落は約4〜5文で構成してください。数値に強調(**)は不可。"
+                elif lang_code == 'zh':
+                    p_8k = f"您是华尔街分析师。\n分析目标: {company_name} ({ticker}) 8-K事件\n数据: {fmp_8k_data}\n\n[结构]\n第一段：[核心事件] 总结8-K公告中最核心的事件\n第二段：[财务影响] 分析该事件对财务和股价的影响\n第三段：[未来展望] 预测投资者应关注的要点\n- 每个段落以 **[副标题]** 开头。必须写3个段落，每段约4-5句话。请勿加粗数值。"
+                else: # ko
+                    p_8k = f"당신은 월가의 전문 애널리스트입니다.\n분석 대상: {company_name} ({ticker}) 8-K 수시공시\n제공된 데이터: {fmp_8k_data}\n\n[작성 지침]\n1문단: [핵심 이벤트] 발생한 8-K 공시의 가장 중요한 사유 요약\n2문단: [재무적 파급력] 해당 이벤트가 단기 재무 지표 및 주가에 미치는 영향\n3문단: [향후 전망] 경영진의 대응 또는 투자자가 주목해야 할 포인트\n\n- 반드시 한국어로 작성하세요.\n- 각 문단은 반드시 **[소제목]**으로 시작하세요.\n- 반드시 3개의 문단으로 구분하고, 각 문단은 4~5줄(문장) 길이로 묵직하게 작성하세요.\n- 숫자에 별표(**) 강조는 절대 쓰지 마세요."
 
-                    response_8k = model.generate_content(p_8k)
-                    
-                    if response_8k and response_8k.text:
-                        # app.py 구조(parts[1] 호출)에 맞게 가짜 앞부분 강제 삽입
-                        final_8k_text = response_8k.text
-                        if "|||SEP|||" not in final_8k_text:
-                            final_8k_text = f"Summary Area|||SEP|||{final_8k_text}"
-                            
-                        batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": final_8k_text, "updated_at": datetime.now().isoformat()}], "cache_key")
-                        print(f"🚨 [{ticker}] 8-K 독립 분석 캐싱 완료 ({lang_code})")
+                response_8k = model.generate_content(p_8k)
+                
+                if response_8k and response_8k.text:
+                    # app.py 구조(parts[1] 호출)에 맞게 가짜 앞부분 강제 삽입
+                    final_8k_text = response_8k.text
+                    if "|||SEP|||" not in final_8k_text:
+                        final_8k_text = f"Summary Area|||SEP|||{final_8k_text}"
+                        
+                    batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": final_8k_text, "updated_at": datetime.now().isoformat()}], "cache_key")
+                    print(f"🚨 [{ticker}] 8-K 신규 분석 캐싱 완료 ({lang_code})")
             except: pass
 
     # 💡 [2] 일반 서류(S-1, 10-K 등) 루프 처리
