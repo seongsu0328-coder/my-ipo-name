@@ -4051,126 +4051,101 @@ with main_area.container():
             
             # --- Tab 0: 핵심 정보 ---
             if selected_sub_menu == get_text('tab_0'):
-                # 버튼 CSS 분리
+                # 버튼 스타일 CSS
                 st.markdown("""<style>
-                    div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } 
-                    div.stButton > button[kind="secondary"]:hover { border-color: #6e8efb !important; color: #6e8efb !important; } 
-                    div.stButton > button[kind="primary"] { background-color: #d32f2f !important; color: #ffffff !important; border: 1px solid #d32f2f !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; }
-                    div.stButton > button[kind="primary"]:hover { background-color: #b71c1c !important; border-color: #b71c1c !important; }
+                    div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; } 
+                    div.stButton > button[kind="primary"] { background-color: #d32f2f !important; color: #ffffff !important; border: 1px solid #d32f2f !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; }
                 </style>""", unsafe_allow_html=True)
     
-                # 1. 기업 상태 확인
+                # 1. 기업 상태 및 유저 등급 확인
+                user_info = st.session_state.get('user_info') or {}
+                user_level = user_info.get('membership_level', 'free')
                 final_status = str(stock.get('status', current_s)).lower()
+                
                 is_withdrawn = any(x in final_status for x in ['철회', '취소', 'withdrawn'])
                 is_delisted = any(x in final_status for x in ['폐지', 'delisted'])
                 
                 is_over_1y = False
                 try:
                     ipo_dt = pd.to_datetime(stock['공모일_dt']).date()
-                    if (datetime.now().date() - ipo_dt).days > 365:
-                        is_over_1y = True
-                except:
-                    pass 
+                    if (datetime.now().date() - ipo_dt).days > 365: is_over_1y = True
+                except: pass 
 
-                # 💡 상태별 버튼 레이아웃
-                if is_withdrawn:
-                    btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("RW", "primary")]
-                    default_topic = "RW"
-                elif is_delisted:
-                    btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("424B4", "secondary"), ("Form 25", "primary")]
-                    default_topic = "Form 25"
-                elif is_over_1y:
-                    btn_layout = [("S-1", "secondary"), ("FWP", "secondary"), ("10-K", "secondary"), ("10-Q", "secondary"), ("BS", "secondary"), ("IS", "secondary"), ("CF", "secondary")]
-                    default_topic = "10-K"
-                else:
-                    btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("424B4", "secondary")]
-                    default_topic = "S-1"
+                # 💡 버튼 목록 구성 (8-K를 항상 마지막에 추가)
+                if is_withdrawn: btn_list = ["S-1", "S-1/A", "F-1", "FWP", "RW", "8-K"]
+                elif is_delisted: btn_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4", "Form 25", "8-K"]
+                elif is_over_1y: btn_list = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF", "8-K"]
+                else: btn_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4", "8-K"]
 
-                valid_topics = [b[0] for b in btn_layout]
-                if 'core_topic' not in st.session_state or st.session_state.core_topic not in valid_topics:
-                    st.session_state.core_topic = default_topic
-
+                # 라벨 매핑 (8-K에 🚨 이모지 추가)
                 label_map = {
                     "S-1": get_text('label_s1'), "S-1/A": get_text('label_s1a'), "F-1": get_text('label_f1'), 
                     "FWP": get_text('label_fwp'), "424B4": get_text('label_424b4'), "RW": get_text('label_rw'), 
                     "Form 25": get_text('label_form25'), "10-K": get_text('label_10k'), "10-Q": get_text('label_10q'), 
-                    "BS": get_text('label_bs'), "IS": get_text('label_is'), "CF": get_text('label_cf')
+                    "BS": get_text('label_bs'), "IS": get_text('label_is'), "CF": get_text('label_cf'), 
+                    "8-K": "🚨 8-K 분석"
                 }
 
-                # 동적 버튼 렌더링
+                # 2. 버튼 렌더링 (8-K만 비결제자에게 블러 처리)
                 chunk_size = 4
-                for i in range(0, len(btn_layout), chunk_size):
+                for i in range(0, len(btn_list), chunk_size):
                     cols = st.columns(chunk_size)
-                    for j in range(chunk_size):
-                        if i + j < len(btn_layout):
-                            t_name, t_style = btn_layout[i + j]
-                            if cols[j].button(label_map[t_name], type=t_style, use_container_width=True, key=f"btn_tab0_{t_name}"):
-                                st.session_state.core_topic = t_name
-                                st.rerun()
+                    for j, topic_name in enumerate(btn_list[i : i + chunk_size]):
+                        with cols[j]:
+                            # 💡 [핵심] 8-K 버튼이고 유저가 무료 등급일 때 -> 블러 및 자물쇠 처리된 가짜 버튼 노출
+                            if topic_name == "8-K" and user_level not in ['premium', 'premium_plus']:
+                                st.markdown("""
+                                    <div style="position: relative; width: 100%; height: 3.5em; border-radius: 8px; overflow: hidden; border: 1px solid #ddd; background: #f8f9fa; display: flex; align-items: center; justify-content: center; cursor: not-allowed;">
+                                        <div style="filter: blur(3px); font-size: 14px; font-weight: bold; color: #777; user-select: none;">🚨 8-K 분석</div>
+                                        <div style="position: absolute; font-size: 1.2rem; top: 50%; left: 50%; transform: translate(-50%, -50%);">🔒</div>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                # 일반 유저용 S-1 등 버튼 및 결제자용 8-K 버튼
+                                if 'core_topic' not in st.session_state: st.session_state.core_topic = btn_list[0]
+                                btn_type = "primary" if st.session_state.core_topic == topic_name else "secondary"
+                                if st.button(label_map.get(topic_name, topic_name), type=btn_type, use_container_width=True, key=f"btn_tab0_v3_{topic_name}"):
+                                    st.session_state.core_topic = topic_name
+                                    st.rerun()
 
-                topic = st.session_state.core_topic
-                curr_lang = st.session_state.lang
-                user_level = (st.session_state.get('user_info') or {}).get('membership_level', 'free')
-                
-                st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
+                # 3. 상세 요약 출력 영역 (Worker가 만든 DB 데이터 호출)
+                curr_topic = st.session_state.get('core_topic', btn_list[0])
+                st.info(get_text(f"desc_{curr_topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
-                # ========================================================
-                # 4. AI 요약 보기 (기본 공시는 오픈 / 8-K는 프리미엄 블러)
-                # ========================================================
-                user_info = st.session_state.get('user_info') or {}
-                user_level = user_info.get('membership_level', 'free')
-
-                with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=True):
+                with st.expander(f" {curr_topic} {get_text('btn_summary_view')}", expanded=True):
                     with st.spinner(get_text('msg_analyzing_filing')):
-                        analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
+                        # Worker가 저장한 v16 캐시에서 데이터를 0.1초 만에 가져옴
+                        analysis_result = get_ai_analysis(stock['name'], curr_topic, curr_lang)
                     
                     if "ERROR_DETAILS" in analysis_result:
                         st.error(get_text('err_try_again'))  
                     else:
                         import re
-                        # DB에서 가져온 데이터를 기본 요약(parts[0])과 8-K 분석(parts[1])으로 나눔
                         parts = analysis_result.split("|||SEP|||")
                         
-                        # --- [A] 기본 공시 요약: 누구나 볼 수 있음 ---
-                        formatted_public = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[0]) if len(parts) > 0 else ""
-                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_public.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-                        
-                        # --- [B] 8-K 프리미엄 섹션: 결제 여부에 따라 블러 처리 ---
-                        # 8-K 분석 데이터가 있을 때만 렌더링
-                        if len(parts) > 1 and parts[1].strip():
-                            st.divider()
-                            st.markdown(f"<div style='font-size:1.0rem; font-weight:700; color:#d32f2f; margin-bottom:10px;'>{get_text('expander_8k_premium')}</div>", unsafe_allow_html=True)
+                        # 8-K 버튼을 눌렀을 때는 parts[1] (8-K 분석)을 보여주고, 
+                        # 그 외 일반 서류는 parts[0] (기본 요약)을 보여줌
+                        if curr_topic == "8-8-K" or curr_topic == "8-K":
+                             # Worker 코드상 8-K 분석은 SEP 뒤에 위치함
+                            main_content = parts[1] if len(parts) > 1 else parts[0]
+                        else:
+                            main_content = parts[0]
                             
-                            formatted_premium = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[1])
-                            
-                            # 👑 결제자: 8-K 내용 선명하게 공개
-                            if user_level in ['premium', 'premium_plus']:
-                                st.markdown(f"<div style='background-color:#fff8f8; padding:15px; border-radius:8px; border-left: 4px solid #d32f2f; color:#333; line-height:1.6;'>{formatted_premium.replace(chr(10), '<br>')}</div>", unsafe_allow_html=True)
-                            
-                            # 🔒 비결제자: 8-K 내용만 자물쇠 + 블러 처리
-                            else:
-                                import streamlit.components.v1 as components
-                                
-                                blur_html = f"""
-                                    <div style="position: relative; border-radius: 8px; overflow: hidden; font-family: sans-serif;">
-                                        <div style="background-color:#fff8f8; padding:15px; border-left: 4px solid #d32f2f; color:#333; line-height:1.6; filter: blur(5px); user-select: none;">
-                                            {formatted_premium.replace(chr(10), '<br>')}
-                                        </div>
+                        formatted_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', main_content)
+                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
-                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                            <div style="font-size: 1.8rem; margin-bottom: 5px;">🔒</div>
-                                            <div style="background-color: rgba(255,255,255,0.9); padding: 8px 15px; border-radius: 8px; border: 1px dashed #ccc;">
-                                                <p style="color: #333; font-size: 0.85rem; margin: 0; font-weight: bold;">
-                                                    실시간 8-K 분석은 <span style="color:#d32f2f;">프리미엄 등급</span> 이상부터 제공됩니다.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                """
-                                components.html(blur_html, height=150)
+                # 4. 외부 링크 및 의사결정
+                import urllib.parse
+                cik = profile.get('cik', '') if profile else ''
+                # 8-K 링크는 SEC에서 별도로 검색되도록 처리
+                sec_topic_query = "8-K" if curr_topic == "8-K" else curr_topic
+                if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(sec_topic_query)}&owner=include&count=40"
+                else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(stock['name'])}"
+                
+                st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;">{get_text("btn_sec_link")} ({curr_topic})</button></a>', unsafe_allow_html=True)
 
-                    st.write("")
-                    st.caption(get_text('caption_algorithm'))
+                draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
+                display_disclaimer()
                     
                 # ========================================================
                 # 5. 외부 링크 버튼
