@@ -697,6 +697,63 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
                 except:
                     time.sleep(1)
                     
+# ==========================================
+# [신규 추가] Tab 1 프리미엄 요약 전용 프롬프트 생성 함수 (다국어 분리 완벽 적용)
+# ==========================================
+def get_tab1_premium_prompt(lang, type_name, raw_data):
+    if lang == 'en':
+        return f"""You are a Senior Wall Street Analyst. Summarize the latest corporate trends based on the provided [Raw Data] ({type_name}).
+        
+[Strict Rules]
+1. Write ENTIRELY in English. Do not mix other languages.
+2. Write exactly 3 paragraphs.
+3. Each paragraph must be 4-5 sentences long, containing deep and professional insights.
+4. DO NOT use markdown bold (**) for numbers.
+5. Omit greetings and start the main content immediately. Maintain a cold, objective, and analytical tone.
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'ja':
+        return f"""あなたはウォール街のシニアアナリストです。提供された [Raw Data] ({type_name}) に基づいて、企業の最新動向を日本語で要約してください。
+        
+[厳格な作成ルール]
+1. 全て自然な日本語のみで記述してください。
+2. 必ず3つの段落に分けて作成してください。
+3. 各段落は4〜5文で構成し、重厚で専門的な洞察を含めてください。
+4. 数値に強調記号（**）は絶対に使用しないでください。
+5. 挨拶は省略し、すぐに本題に入ってください。冷静で客観的な分析トーンを維持してください。
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'zh':
+        return f"""您是华尔街的高级分析师。请根据提供的 [Raw Data] ({type_name})，用简体中文总结该公司的最新动态。
+        
+[严格编写规则]
+1. 必须完全使用简体中文编写，严禁混用其他语言。
+2. 必须严格分为3个段落。
+3. 每个段落应包含4-5句话，并提供深刻、专业的见解。
+4. 绝对不要使用星号（**）对数字进行加粗。
+5. 省略问候语，直接进入正文。保持冷静、客观和分析的基调。
+
+[Raw Data]:
+{raw_data}"""
+
+    else: # ko
+        return f"""당신은 월가 출신의 수석 애널리스트입니다. 아래 제공된 [Raw Data]({type_name})를 바탕으로 기업의 최신 동향을 한국어로 요약하세요.
+        
+[작성 규칙 - 엄격 준수]
+1. 반드시 순수한 한국어로만 작성하세요.
+2. 반드시 3개의 문단으로 나누어 작성하세요.
+3. 각 문단은 4~5줄(문장) 길이로 묵직하고 전문적인 통찰을 담으세요.
+4. 숫자에 별표(**) 강조를 절대 사용하지 마세요.
+5. 인사말을 생략하고 첫 글자부터 본론만 작성하세요. 냉철하고 분석적인 어조를 유지하세요.
+
+[Raw Data]:
+{raw_data}"""
+
+
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if not model: return
     
@@ -724,7 +781,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     current_date = now.strftime("%Y-%m-%d")
     current_year = now.strftime("%Y")
 
-    # 4개 국어 순회 생성
+    # =========================================================
+    # [A] 4개 국어 순회 생성 (기존 무료 데이터 로직 - 100% 보존)
+    # =========================================================
     for lang_code, _ in SUPPORTED_LANGS.items():
         cache_key = f"{ticker}_Tab1_v5_{lang_code}"
         
@@ -849,6 +908,74 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             except Exception as e:
                 print(f"❌ [AI 분석 또는 DB 전송 에러]: {e}")
                 time.sleep(1)
+
+    # =========================================================
+    # 🚀 [B] 프리미엄 전용 데이터 추가 수집 (FMP 기관 뉴스 + 공식 보도자료)
+    # =========================================================
+    try:
+        # 기관용 금융 뉴스 원본 가져오기 (6시간 제한 방어)
+        news_url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={ticker}&limit=10&apikey={FMP_API_KEY}"
+        news_raw = get_fmp_data_with_cache(ticker, "RAW_NEWS", news_url, valid_hours=6)
+        
+        # 기업 공식 보도자료 원본 가져오기 (12시간 제한 방어)
+        pr_url = f"https://financialmodelingprep.com/api/v3/press-releases/{ticker}?limit=10&apikey={FMP_API_KEY}"
+        pr_raw = get_fmp_data_with_cache(ticker, "RAW_PR", pr_url, valid_hours=12)
+
+        # 4개 국어 번역 및 요약 진행
+        for lang_code in SUPPORTED_LANGS.keys():
+            
+            # 1. 기관 뉴스 AI 다국어 요약
+            if news_raw:
+                news_summary_key = f"{ticker}_PremiumNewsSummary_v1_{lang_code}"
+                try:
+                    res_n = supabase.table("analysis_cache").select("updated_at").eq("cache_key", news_summary_key).gt("updated_at", limit_time_str).execute()
+                    if not res_n.data:
+                        prompt_n = get_tab1_premium_prompt(lang_code, "Institutional News", news_raw)
+                        
+                        # 💡 [핵심 보강] AI 통신 안정성을 위해 3번 재시도 + 1초 대기 루프 적용
+                        for attempt in range(3):
+                            try:
+                                resp_n = model.generate_content(prompt_n)
+                                if resp_n and resp_n.text:
+                                    n_paragraphs = [p.strip() for p in resp_n.text.split('\n') if len(p.strip()) > 20]
+                                    indent_size = "14px" if lang_code == "ko" else "0px"
+                                    html_n = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in n_paragraphs])
+                                    
+                                    batch_upsert("analysis_cache", [{"cache_key": news_summary_key, "content": html_n, "updated_at": now.isoformat()}], "cache_key")
+                                    print(f"✅ [{ticker}] 프리미엄 뉴스 캐싱 완료 ({lang_code})")
+                                    break # 성공 시 루프 탈출
+                            except Exception as e:
+                                print(f"❌ [Premium News AI 에러 - {lang_code}] 재시도 대기중...: {e}")
+                                time.sleep(1) # 1초 대기 후 재시도
+                except: pass
+
+            # 2. 보도자료 AI 다국어 요약
+            if pr_raw:
+                pr_summary_key = f"{ticker}_PressReleaseSummary_v1_{lang_code}"
+                try:
+                    res_p = supabase.table("analysis_cache").select("updated_at").eq("cache_key", pr_summary_key).gt("updated_at", limit_time_str).execute()
+                    if not res_p.data:
+                        prompt_p = get_tab1_premium_prompt(lang_code, "Press Release", pr_raw)
+                        
+                        # 💡 [핵심 보강] AI 통신 안정성을 위해 3번 재시도 + 1초 대기 루프 적용
+                        for attempt in range(3):
+                            try:
+                                resp_p = model.generate_content(prompt_p)
+                                if resp_p and resp_p.text:
+                                    p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
+                                    indent_size = "14px" if lang_code == "ko" else "0px"
+                                    html_p = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in p_paragraphs])
+                                    
+                                    batch_upsert("analysis_cache", [{"cache_key": pr_summary_key, "content": html_p, "updated_at": now.isoformat()}], "cache_key")
+                                    print(f"✅ [{ticker}] 프리미엄 보도자료 캐싱 완료 ({lang_code})")
+                                    break # 성공 시 루프 탈출
+                            except Exception as e:
+                                print(f"❌ [Premium PR AI 에러 - {lang_code}] 재시도 대기중...: {e}")
+                                time.sleep(1) # 1초 대기 후 재시도
+                except: pass
+
+    except Exception as e:
+        print(f"Premium FMP Collection Error for {ticker}: {e}")
 
 
 
