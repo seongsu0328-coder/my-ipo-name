@@ -4403,8 +4403,8 @@ with main_area.container():
                 # 💡 [여기 추가] 피오트로스키 점수(9점 만점) 추출 로직
                 if fin_data:
                     # FMP에서 제공하는 piotroskiScore 필드를 가져옵니다. (없으면 0)
-                    raw_p_score = int(fin_data.get('piotroskiScore', fin_data.get('piotroski_score', 0)))
-                    fin_data['piotroski_score_raw'] = raw_p_score
+                    raw_p_score = clean_value(fin_data.get('health_score', 0))
+                    fin_data['piotroski_score_raw'] = int(raw_p_score)
 
                 data_source = "Unknown"
                 is_data_available = False
