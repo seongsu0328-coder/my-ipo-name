@@ -4119,7 +4119,7 @@ with main_area.container():
                                     st.session_state.core_topic = topic_name
                                     st.rerun()
 
-                # 3. 상세 요약 출력 영역
+                # 3. 상세 요약 출력 영역 (S-1 등 기존 데이터 정상 호출)
                 curr_topic = st.session_state.get('core_topic', btn_list[0])
                 st.info(get_text(f"desc_{curr_topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
@@ -4132,15 +4132,16 @@ with main_area.container():
                     else:
                         import re
                         parts = analysis_result.split("|||SEP|||")
+                        # 8-K는 parts[1], 나머지는 parts[0] 호출
                         main_content = parts[1] if (curr_topic == "8-K" and len(parts) > 1) else parts[0]
                         formatted_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', main_content)
                         st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
-                # 4. 하단 처리 (여기에 남아있던 topic을 전부 curr_topic으로 교체했습니다)
+                # 4. 하단 처리 (여기가 에러 지점: 모든 topic을 curr_topic으로 수정)
                 import urllib.parse
                 cik = profile.get('cik', '') if profile else ''
                 
-                # 💡 SEC 조회 시 토픽 보정 (BS, IS, CF는 10-K로 조회)
+                # 💡 [수정 완료] topic -> curr_topic
                 sec_type_query = "10-K" if curr_topic in ["BS", "IS", "CF"] else curr_topic
                 
                 if cik: 
