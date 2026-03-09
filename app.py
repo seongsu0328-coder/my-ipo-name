@@ -4139,7 +4139,7 @@ with main_area.container():
                 cik = profile.get('cik', '') if profile else ''
                 full_company_name = stock['name'].strip() 
                 
-                sec_topic = "10-K" if topic in ["BS", "IS", "CF"] else topic
+                sec_topic = "10-K" if curr_topic in ["BS", "IS", "CF"] else curr_topic
                 
                 if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(sec_topic)}&owner=include&count=40"
                 else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(full_company_name)}&dateRange=all"
