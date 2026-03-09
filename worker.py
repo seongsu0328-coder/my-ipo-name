@@ -315,7 +315,71 @@ def check_sec_specific_filing(cik, target_form):
     except:
         return None
 
+# ==========================================
+# [신규] FMP 프리미엄 헬퍼 함수 (Tab 0, Tab 1 용)
+# ==========================================
 
+def fetch_fmp_8k_events(symbol, api_key):
+    """[Tab 0] 기업의 최근 8-K(중대 이벤트: M&A, 소송, 임원교체 등)를 가져옵니다."""
+    try:
+        url = f"https://financialmodelingprep.com/api/v3/sec_filings/{symbol}?type=8-K&limit=3&apikey={api_key}"
+        res = requests.get(url, timeout=5).json()
+        if res and isinstance(res, list) and len(res) > 0:
+            events = [f"- Date: {r.get('fillingDate')} | Link: {r.get('finalLink')}" for r in res]
+            return "\n".join(events)
+        return "No recent 8-K events."
+    except Exception as e:
+        print(f"8-K Fetch Error for {symbol}: {e}")
+        return "No recent 8-K events."
+
+def fetch_fmp_premium_news(symbol, api_key):
+    """[Tab 1] FMP의 기관용 실시간 금융 뉴스(블룸버그, 로이터 등) 및 보도자료를 가져옵니다."""
+    try:
+        url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={symbol}&limit=5&apikey={api_key}"
+        res = requests.get(url, timeout=5).json()
+        if res and isinstance(res, list) and len(res) > 0:
+            news_list = [f"- [{r.get('publishedDate')}] {r.get('title')} (Source: {r.get('site')})" for r in res]
+            return "\n".join(news_list)
+        return "No recent premium news."
+    except Exception as e:
+        print(f"Premium News Fetch Error for {symbol}: {e}")
+        return "No recent premium news."
+
+def fetch_fmp_earnings_call(symbol, api_key):
+    """[Tab 1] 가장 최근 분기의 어닝콜(경영진 실적발표 Q&A) 스크립트 전문을 가져옵니다."""
+    try:
+        url = f"https://financialmodelingprep.com/api/v3/earning_call_transcript/{symbol}?limit=1&apikey={api_key}"
+        res = requests.get(url, timeout=5).json()
+        if res and isinstance(res, list) and len(res) > 0:
+            # 텍스트가 너무 길면 토큰 초과 우려가 있으므로 앞부분(경영진 주요 발언)만 3000자로 자름
+            content = res[0].get('content', '')[:3000]
+            return f"[Quarter: {res[0].get('quarter')} / Year: {res[0].get('year')}]\n{content}..."
+        return "No earnings call transcript available."
+    except Exception as e:
+        print(f"Earnings Call Fetch Error for {symbol}: {e}")
+        return "No earnings call transcript available."
+
+
+# ==========================================
+# [신규 추가] FMP 프리미엄 헬퍼 함수 (Tab 0 용)
+# ==========================================
+def fetch_fmp_8k_events(symbol, api_key):
+    """[Tab 0] 기업의 최근 8-K(중대 이벤트: M&A, 소송, 임원교체 등)를 가져옵니다."""
+    try:
+        url = f"https://financialmodelingprep.com/api/v3/sec_filings/{symbol}?type=8-K&limit=3&apikey={api_key}"
+        res = requests.get(url, timeout=5).json()
+        if res and isinstance(res, list) and len(res) > 0:
+            events = [f"- Date: {r.get('fillingDate')} | Link: {r.get('finalLink')}" for r in res]
+            return "\n".join(events)
+        return "No recent 8-K events."
+    except Exception as e:
+        print(f"8-K Fetch Error for {symbol}: {e}")
+        return "No recent 8-K events."
+
+
+# ==========================================
+# [완전 교체] run_tab0_analysis 함수
+# ==========================================
 def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None):
     if not model: return
     
@@ -343,7 +407,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
     cik = cik_mapping.get(ticker) if cik_mapping else None
 
-    # 💡 [핵심] 12가지 문서의 세부 지시사항 - 수치 데이터 강제 명시 로직 반영
+    # 12가지 문서의 세부 지시사항 유지
     def get_localized_meta(lang, doc_type):
         meta_dict = {
             "ko": {
@@ -406,81 +470,6 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         lang_group = meta_dict.get(lang, meta_dict['ko'])
         return lang_group.get(doc_type, lang_group.get('S-1'))
 
-    # 💡 [핵심] 지시사항(Instructions) 자체를 타겟 언어로 발행하여 일관성 유지
-    def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst):
-        if lang == 'en':
-            return f"""You are a Senior Wall Street Analyst.
-Target: {company_name} ({ticker}) - {topic}
-Checkpoints: {meta['p']}
-{sec_fact_prompt}
-
-[STRICT WRITING RULES]
-1. Write ENTIRELY in English.
-2. DO NOT provide general definitions (e.g., 'Revenue is important').
-3. YOU MUST find and include REAL NUMBERS (USD, %) from the filings.
-4. DO NOT use markdown bold (**) for numbers or currency symbols. Keep them as plain text.
-5. NO self-introductions.
-
-[Structure]
-{meta['s']}
-
-{format_inst}"""
-
-        elif lang == 'ja':
-            return f"""あなたは証券分析のエキスパートです。
-分析対象: {company_name} ({ticker}) - {topic}
-チェックポイント: {meta['p']}
-{sec_fact_prompt}
-
-[厳格な作成ルール]
-1. 全て日本語で作成してください。韓国語を絶対に混ぜないでください。
-2. 一般的な定義（例：「売上は重要です」など）は一切禁止します。
-3. 必ず最新の開示書類から実際の数値（USD、$）とパーセンテージ（%）を引用してください。
-4. 数値や通貨記号に強調表示（**）は使用しないでください。プレーンテキストで記述してください。
-5. 自己紹介や挨拶は不要です。
-
-[構成]
-{meta['s']}
-
-{format_inst}"""
-
-        elif lang == 'zh':
-            return f"""您是资深证券分析师。
-分析目标: {company_name} ({ticker}) - {topic}
-检查重点: {meta['p']}
-{sec_fact_prompt}
-
-[严格编写指南]
-1. 必须完全使用简体中文编写。严禁混用韩语。
-2. 严禁提供空洞的理论描述（如：'营收对公司很重要'）。
-3. 必须从报告中找出并列出具体的美元金额($)和百分比(%)数值。
-4. 严禁对数值或货币符号加粗(**)。请保持普通文本格式。
-5. 不要进行自我介绍。
-
-[结构要求]
-{meta['s']}
-
-{format_inst}"""
-
-        else: # ko
-            return f"""당신은 월가 출신의 전문 분석가입니다.
-분석 대상: {company_name} ({ticker}) - {topic}
-체크포인트: {meta['p']}
-{sec_fact_prompt}
-
-[작성 지침 - 필수 준수]
-1. 반드시 한국어로만 작성하세요.
-2. 일반적인 정의나 이론적인 설명(예: '영업현금흐름은 중요합니다')은 절대 하지 마세요.
-3. 반드시 공시 서류에 기재된 실제 달러($) 수치와 퍼센트(%)를 찾아 언급하세요.
-4. 숫자나 통화 기호에 별표(**)를 사용한 강조 처리는 절대 하지 마세요. 일반 텍스트로만 작성하세요.
-5. 수치를 찾을 수 없는 경우에만 예외적으로 팩트 위주로 작성하세요.
-6. 자기소개나 인사말은 절대 하지 말고 ~입니다, ~합니다, ~습니다 등으로 문장을 끝내세요.
-
-[내용 구성 지침]
-{meta['s']}
-
-{format_inst}"""
-
     def get_format_instruction(lang):
         if lang == 'en':
             return "- Begin each paragraph with a translated **[Heading]**. Rich content, 4-5 sentences per paragraph. DO NOT bold numbers."
@@ -490,7 +479,96 @@ Checkpoints: {meta['p']}
             return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
         else:
             return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5문장씩 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
-            
+
+    # 💡 [핵심] 프롬프트에 8-K 데이터(fmp_8k) 주입 및 |||SEP||| 분리 지시
+    def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, fmp_8k):
+        if lang == 'en':
+            return f"""You are a Senior Wall Street Analyst.
+Target: {company_name} ({ticker}) - {topic}
+Checkpoints: {meta['p']}
+{sec_fact_prompt}
+
+[Real-time 8-K Events (M&A, Lawsuits, Exec Changes)]:
+{fmp_8k}
+
+[STRICT WRITING RULES]
+1. Write ENTIRELY in English. DO NOT use markdown bold (**) for numbers.
+2. Separate your response into exactly TWO parts using '|||SEP|||'.
+
+[Structure]
+{meta['s']}
+
+|||SEP|||
+
+**[Real-time 8-K Critical Event Analysis]**
+Analyze the 8-K events above. If "No recent", state it clearly. If there are events, explain their critical impact on the stock in 3-4 sentences.
+{format_inst}"""
+
+        elif lang == 'ja':
+            return f"""あなたは証券分析のエキスパートです。
+分析対象: {company_name} ({ticker}) - {topic}
+{sec_fact_prompt}
+
+[最新の8-Kイベント(M&A、訴訟、役員交代など)]:
+{fmp_8k}
+
+[厳格な作成ルール]
+1. 全て日本語で作成し、数値に強調(**)は使用しないでください。
+2. 回答は必ず '|||SEP|||' を使用して2つの部分に分けてください。
+
+[構成]
+{meta['s']}
+
+|||SEP|||
+
+**[リアルタイム8-K重大イベント分析]**
+上記の8-Kイベントを分析してください。イベントがない場合はその旨を記載し、ある場合は株価への致命的な影響を3〜4文で解説してください。
+{format_inst}"""
+
+        elif lang == 'zh':
+            return f"""您是资深证券分析师。
+分析目标: {company_name} ({ticker}) - {topic}
+{sec_fact_prompt}
+
+[最新8-K事件(并购、诉讼、高管变动等)]:
+{fmp_8k}
+
+[严格编写指南]
+1. 必须完全使用简体中文编写，严禁对数值加粗(**)。
+2. 回答必须使用 '|||SEP|||' 严格分为两部分。
+
+[结构要求]
+{meta['s']}
+
+|||SEP|||
+
+**[实时8-K重大事件分析]**
+分析上述8-K事件。如果没有，请明确说明。如果有，请用3-4句话解释其对股价的致命影响。
+{format_inst}"""
+
+        else: # ko
+            return f"""당신은 월가 출신의 전문 분석가입니다.
+분석 대상: {company_name} ({ticker}) - {topic}
+체크포인트: {meta['p']}
+{sec_fact_prompt}
+
+[최근 8-K 중대 이벤트 (M&A, 소송, 임원교체 등)]:
+{fmp_8k}
+
+[작성 지침 - 필수 준수]
+1. 반드시 한국어로만 작성하고 숫자에 별표(**) 강조를 쓰지 마세요.
+2. 답변은 반드시 '|||SEP|||' 구분자를 기준으로 [기본 요약]과 [프리미엄 8-K 분석] 두 부분으로 나누어 출력하세요.
+
+[내용 구성 지침]
+{meta['s']}
+{format_inst}
+
+|||SEP|||
+
+**[실시간 8-K 중대 이벤트 분석]**
+제공된 8-K 데이터를 분석하세요. 이벤트가 없다면 "최근 보고된 돌발 악재/호재가 없습니다."라고 적으세요. 데이터가 있다면 해당 이슈가 단기 주가에 미칠 치명적 파급력을 3~4문장으로 냉철하게 분석하세요.
+"""
+
     for topic in target_topics:
         sec_fact_prompt = ""
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
@@ -502,8 +580,12 @@ Checkpoints: {meta['p']}
             else:
                 sec_fact_prompt = f"\n[SEC FACT CHECK] '{sec_search_target}' not found in SEC EDGAR. Use the latest available numerical data from recent web records."
         
+        # 💡 [신규] FMP API 호출로 최신 8-K 데이터를 가져옵니다.
+        fmp_8k_data = fetch_fmp_8k_events(ticker, FMP_API_KEY)
+        
         for lang_code, target_lang in SUPPORTED_LANGS.items():
-            cache_key = f"{company_name}_{topic}_Tab0_v15_FullNumerical_{lang_code}"
+            # 💡 [핵심] 캐시키 버전을 v16으로 통일 (앱에서 알아서 블러 처리하므로 투트랙 필요 없음)
+            cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
             
             try:
                 res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
@@ -513,8 +595,8 @@ Checkpoints: {meta['p']}
             meta = get_localized_meta(lang_code, topic)
             format_inst = get_format_instruction(lang_code)
             
-            # 타겟 언어로 된 지시사항 생성
-            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, sec_fact_prompt, format_inst)
+            # 프리미엄 8-K 데이터가 주입된 프롬프트 생성
+            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, fmp_8k_data)
             
             for attempt in range(3):
                 try:
@@ -526,6 +608,7 @@ Checkpoints: {meta['p']}
                         if re.search(r'[가-힣]', res_text):
                             time.sleep(1); continue 
                             
+                    # 💡 원본 그대로 1개의 키에만 저장!
                     batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": res_text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
                     break 
                 except:
