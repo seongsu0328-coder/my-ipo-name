@@ -2296,12 +2296,12 @@ UI_TEXT = {
         'zh': '华尔街共识与目标价'
     },
     'tab4_upgrades_title': {
-        'ko': '📈 투자의견 변화추이', 'en': '📈 Upgrades & Downgrades', 
-        'ja': '📈 投資意見の変化推移', 'zh': '📈 投资意见变化趋势'
+        'ko': '투자의견 변화추이', 'en': 'Upgrades & Downgrades', 
+        'ja': '投資意見の変化推移', 'zh': '投资意见变化趋势'
     },
     'tab4_peers_title': {
-        'ko': '📊 Sector내 비교', 'en': '📊 Peer Comparison', 
-        'ja': '📊 セクター内比較', 'zh': '📊 行业内比较'
+        'ko': 'Sector내 비교', 'en': 'Peer Comparison', 
+        'ja': 'セクター内比較', 'zh': '行业内比较'
     },
     
     
