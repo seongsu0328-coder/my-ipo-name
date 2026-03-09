@@ -4238,7 +4238,7 @@ with main_area.container():
                     else:
                         st.error(get_text('err_no_biz_info'))
     
-                st.write("<br>", unsafe_allow_html=True)
+               
 
                 # =========================================================
                 # 🚀 [2] 기관용 금융 뉴스 요약 (Premium 전용 - Blur 적용)
