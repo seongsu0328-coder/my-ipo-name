@@ -4204,7 +4204,10 @@ with main_area.container():
             # --- Tab 1: 뉴스 & 심층 분석 ---
             elif selected_sub_menu == get_text('tab_1'):
                 curr_lang = st.session_state.lang
-                user_level = st.session_state.get('user_info', {}).get('membership_level', 'free')
+                
+                # 💡 [에러 해결] user_info가 None일 경우를 대비해 빈 딕셔너리({})로 안전하게 감싸줍니다.
+                user_info = st.session_state.get('user_info') or {}
+                user_level = user_info.get('membership_level', 'free')
                 is_premium = user_level in ['premium', 'premium_plus']
 
                 with st.spinner(get_text('msg_analyzing_tab1')):
