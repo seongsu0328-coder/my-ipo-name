@@ -4051,17 +4051,19 @@ with main_area.container():
             
             # --- Tab 0: 핵심 정보 ---
             if selected_sub_menu == get_text('tab_0'):
-                # 버튼 스타일 CSS
+                # 💡 [변수 선언] 에러 방지를 위해 최상단 배치
+                curr_lang = st.session_state.get('lang', 'ko')
+                user_info = st.session_state.get('user_info') or {}
+                user_level = user_info.get('membership_level', 'free')
+                
+                # 버튼 스타일 CSS (Primary는 빨간색, Secondary는 흰색)
                 st.markdown("""<style>
                     div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; } 
                     div.stButton > button[kind="primary"] { background-color: #d32f2f !important; color: #ffffff !important; border: 1px solid #d32f2f !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; }
                 </style>""", unsafe_allow_html=True)
     
-                # 1. 기업 상태 및 유저 등급 확인
-                user_info = st.session_state.get('user_info') or {}
-                user_level = user_info.get('membership_level', 'free')
+                # 1. 기업 상태 확인
                 final_status = str(stock.get('status', current_s)).lower()
-                
                 is_withdrawn = any(x in final_status for x in ['철회', '취소', 'withdrawn'])
                 is_delisted = any(x in final_status for x in ['폐지', 'delisted'])
                 
@@ -4071,50 +4073,52 @@ with main_area.container():
                     if (datetime.now().date() - ipo_dt).days > 365: is_over_1y = True
                 except: pass 
 
-                # 💡 버튼 목록 구성 (8-K를 항상 마지막에 추가)
+                # 💡 버튼 목록 구성
                 if is_withdrawn: btn_list = ["S-1", "S-1/A", "F-1", "FWP", "RW", "8-K"]
                 elif is_delisted: btn_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4", "Form 25", "8-K"]
                 elif is_over_1y: btn_list = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF", "8-K"]
                 else: btn_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4", "8-K"]
 
-                # 라벨 매핑 (8-K에 🚨 이모지 추가)
                 label_map = {
                     "S-1": get_text('label_s1'), "S-1/A": get_text('label_s1a'), "F-1": get_text('label_f1'), 
                     "FWP": get_text('label_fwp'), "424B4": get_text('label_424b4'), "RW": get_text('label_rw'), 
                     "Form 25": get_text('label_form25'), "10-K": get_text('label_10k'), "10-Q": get_text('label_10q'), 
                     "BS": get_text('label_bs'), "IS": get_text('label_is'), "CF": get_text('label_cf'), 
-                    "8-K": "🚨 8-K 분석"
+                    "8-K": "🚨 8-K 분석 (실시간)"
                 }
 
-                # 2. 버튼 렌더링 (8-K만 비결제자에게 블러 처리)
+                # 2. 버튼 렌더링 (8-K 레드 테마 적용)
                 chunk_size = 4
                 for i in range(0, len(btn_list), chunk_size):
                     cols = st.columns(chunk_size)
                     for j, topic_name in enumerate(btn_list[i : i + chunk_size]):
                         with cols[j]:
-                            # 💡 [핵심] 8-K 버튼이고 유저가 무료 등급일 때 -> 블러 및 자물쇠 처리된 가짜 버튼 노출
+                            # 🔒 비결제자 전용: 8-K 버튼을 '잠긴 빨간 버튼' 형태로 렌더링
                             if topic_name == "8-K" and user_level not in ['premium', 'premium_plus']:
                                 st.markdown("""
-                                    <div style="position: relative; width: 100%; height: 3.5em; border-radius: 8px; overflow: hidden; border: 1px solid #ddd; background: #f8f9fa; display: flex; align-items: center; justify-content: center; cursor: not-allowed;">
-                                        <div style="filter: blur(3px); font-size: 14px; font-weight: bold; color: #777; user-select: none;">🚨 8-K 분석</div>
-                                        <div style="position: absolute; font-size: 1.2rem; top: 50%; left: 50%; transform: translate(-50%, -50%);">🔒</div>
+                                    <div style="position: relative; width: 100%; height: 3.5em; border-radius: 8px; overflow: hidden; border: 1px solid #b71c1c; background: #d32f2f; display: flex; align-items: center; justify-content: center; cursor: not-allowed; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                        <div style="filter: blur(1.5px); font-size: 13px; font-weight: bold; color: #ffffff; user-select: none;">🚨 8-K 분석</div>
+                                        <div style="position: absolute; font-size: 1.2rem; color: white;">🔒</div>
                                     </div>
                                 """, unsafe_allow_html=True)
                             else:
-                                # 일반 유저용 S-1 등 버튼 및 결제자용 8-K 버튼
+                                # 활성화된 버튼들
                                 if 'core_topic' not in st.session_state: st.session_state.core_topic = btn_list[0]
+                                
+                                # 💡 8-K는 결제자에게 항상 빨간색(Primary)으로 보이게 하거나, 
+                                # 혹은 현재 선택된 버튼만 빨간색으로 보이게 설정 (여기서는 선택된 버튼 강조 유지)
                                 btn_type = "primary" if st.session_state.core_topic == topic_name else "secondary"
-                                if st.button(label_map.get(topic_name, topic_name), type=btn_type, use_container_width=True, key=f"btn_tab0_v3_{topic_name}"):
+                                
+                                if st.button(label_map.get(topic_name, topic_name), type=btn_type, use_container_width=True, key=f"btn_tab0_v5_{topic_name}"):
                                     st.session_state.core_topic = topic_name
                                     st.rerun()
 
-                # 3. 상세 요약 출력 영역 (Worker가 만든 DB 데이터 호출)
+                # 3. 상세 요약 출력 영역
                 curr_topic = st.session_state.get('core_topic', btn_list[0])
                 st.info(get_text(f"desc_{curr_topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
                 with st.expander(f" {curr_topic} {get_text('btn_summary_view')}", expanded=True):
                     with st.spinner(get_text('msg_analyzing_filing')):
-                        # Worker가 저장한 v16 캐시에서 데이터를 0.1초 만에 가져옴
                         analysis_result = get_ai_analysis(stock['name'], curr_topic, curr_lang)
                     
                     if "ERROR_DETAILS" in analysis_result:
@@ -4122,24 +4126,16 @@ with main_area.container():
                     else:
                         import re
                         parts = analysis_result.split("|||SEP|||")
-                        
-                        # 8-K 버튼을 눌렀을 때는 parts[1] (8-K 분석)을 보여주고, 
-                        # 그 외 일반 서류는 parts[0] (기본 요약)을 보여줌
-                        if curr_topic == "8-8-K" or curr_topic == "8-K":
-                             # Worker 코드상 8-K 분석은 SEP 뒤에 위치함
-                            main_content = parts[1] if len(parts) > 1 else parts[0]
-                        else:
-                            main_content = parts[0]
-                            
+                        # 8-K 선택 시 분석 데이터(SEP 뒤쪽)를 출력
+                        main_content = parts[1] if (curr_topic == "8-K" and len(parts) > 1) else parts[0]
                         formatted_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', main_content)
                         st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
-                # 4. 외부 링크 및 의사결정
+                # 4. 하단 버튼 및 면책조항
                 import urllib.parse
                 cik = profile.get('cik', '') if profile else ''
-                # 8-K 링크는 SEC에서 별도로 검색되도록 처리
-                sec_topic_query = "8-K" if curr_topic == "8-K" else curr_topic
-                if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(sec_topic_query)}&owner=include&count=40"
+                sec_type = "8-K" if curr_topic == "8-K" else curr_topic
+                if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(sec_type)}&owner=include&count=40"
                 else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(stock['name'])}"
                 
                 st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;">{get_text("btn_sec_link")} ({curr_topic})</button></a>', unsafe_allow_html=True)
