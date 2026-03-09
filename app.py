@@ -4051,7 +4051,12 @@ with main_area.container():
             
             # --- Tab 0: 핵심 정보 ---
             if selected_sub_menu == get_text('tab_0'):
-                # 💡 [변수 선언] 에러 방지를 위해 최상단에 배치
+                # 💡 [보안/안전] 데이터 로딩 중이거나 세션이 꼬였을 때 프로세스 중단 방지
+                if not stock or 'name' not in stock:
+                    st.warning("기업 데이터를 불러오는 중입니다... 잠시만 기다려 주세요.")
+                    st.stop()
+
+                # 변수 선언 (에러 방지를 위해 최상단 고정)
                 curr_lang = st.session_state.get('lang', 'ko')
                 user_info = st.session_state.get('user_info') or {}
                 user_level = user_info.get('membership_level', 'free')
@@ -4074,22 +4079,22 @@ with main_area.container():
                     if (datetime.now().date() - ipo_dt).days > 365: is_over_1y = True
                 except: pass 
 
-                # 💡 기본 버튼 목록 구성
+                # 💡 기본 버튼 리스트 구성
                 if is_withdrawn: btn_list = ["S-1", "S-1/A", "F-1", "FWP", "RW"]
                 elif is_delisted: btn_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4", "Form 25"]
                 elif is_over_1y: btn_list = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
                 else: btn_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
 
-                # 🔍 8-K 데이터 존재 여부 실시간 체크
-                has_8k = False
-                try:
-                    res_8k = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{stock_name}_8-K_Tab0_v16_{curr_lang}").execute()
-                    if res_8k.data:
-                        has_8k = True
-                except: pass
+                # 🔍 [최적화] 8-K 데이터 존재 여부 체크 (캐싱 적용으로 502 에러 방어)
+                @st.cache_data(ttl=600)
+                def check_has_8k_v2(s_name, s_lang):
+                    try:
+                        res = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{s_name}_8-K_Tab0_v16_{s_lang}").execute()
+                        return len(res.data) > 0
+                    except: return False
 
-                if has_8k:
-                    btn_list.append("8-K")
+                if check_has_8k_v2(stock_name, curr_lang):
+                    if "8-K" not in btn_list: btn_list.append("8-K")
 
                 label_map = {
                     "S-1": get_text('label_s1'), "S-1/A": get_text('label_s1a'), "F-1": get_text('label_f1'), 
@@ -4100,27 +4105,30 @@ with main_area.container():
                 }
 
                 # 2. 버튼 렌더링
+                if 'core_topic' not in st.session_state or st.session_state.core_topic not in btn_list:
+                    st.session_state.core_topic = btn_list[0]
+
                 chunk_size = 4
                 for i in range(0, len(btn_list), chunk_size):
                     cols = st.columns(chunk_size)
                     for j, topic_name in enumerate(btn_list[i : i + chunk_size]):
                         with cols[j]:
+                            # 🔒 비결제자 전용: 8-K 버튼 블러 처리
                             if topic_name == "8-K" and user_level not in ['premium', 'premium_plus']:
-                                st.markdown("""
+                                st.markdown(f"""
                                     <div style="position: relative; width: 100%; height: 3.5em; border-radius: 8px; overflow: hidden; border: 1px solid #b71c1c; background: #d32f2f; display: flex; align-items: center; justify-content: center; cursor: not-allowed; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                                         <div style="filter: blur(1.5px); font-size: 13px; font-weight: bold; color: #ffffff; user-select: none;">🚨 8-K 분석</div>
                                         <div style="position: absolute; font-size: 1.2rem; color: white;">🔒</div>
                                     </div>
                                 """, unsafe_allow_html=True)
                             else:
-                                if 'core_topic' not in st.session_state: st.session_state.core_topic = btn_list[0]
                                 btn_type = "primary" if st.session_state.core_topic == topic_name else "secondary"
                                 if st.button(label_map.get(topic_name, topic_name), type=btn_type, use_container_width=True, key=f"btn_tab0_vfinal_fixed_{topic_name}"):
                                     st.session_state.core_topic = topic_name
                                     st.rerun()
 
-                # 3. 상세 요약 출력 영역 (S-1 등 기존 데이터 정상 호출)
-                curr_topic = st.session_state.get('core_topic', btn_list[0])
+                # 3. 상세 요약 출력 영역
+                curr_topic = st.session_state.core_topic
                 st.info(get_text(f"desc_{curr_topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
                 with st.expander(f" {curr_topic} {get_text('btn_summary_view')}", expanded=True):
@@ -4132,16 +4140,13 @@ with main_area.container():
                     else:
                         import re
                         parts = analysis_result.split("|||SEP|||")
-                        # 8-K는 parts[1], 나머지는 parts[0] 호출
                         main_content = parts[1] if (curr_topic == "8-K" and len(parts) > 1) else parts[0]
                         formatted_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', main_content)
                         st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
-                # 4. 하단 처리 (여기가 에러 지점: 모든 topic을 curr_topic으로 수정)
+                # 4. 하단 처리 (에러 원인이었던 모든 topic을 curr_topic으로 완전 교체)
                 import urllib.parse
                 cik = profile.get('cik', '') if profile else ''
-                
-                # 💡 [수정 완료] topic -> curr_topic
                 sec_type_query = "10-K" if curr_topic in ["BS", "IS", "CF"] else curr_topic
                 
                 if cik: 
