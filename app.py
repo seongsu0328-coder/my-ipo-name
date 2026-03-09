@@ -4118,62 +4118,78 @@ with main_area.container():
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
 
-                # 4. AI 요약 보기 및 프리미엄 8-K 섹션 (Expander)
+                # 4. AI 요약 보기 및 프리미엄 8-K 섹션 (버튼 블러 UI 적용)
                 user_level = st.session_state.get('user_info', {}).get('membership_level', 'free')
 
-                with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=True):
-                    with st.spinner(get_text('msg_analyzing_filing')):
-                        analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
-                    
-                    if "ERROR_DETAILS" in analysis_result:
-                        st.error(get_text('err_try_again'))  
-                    else:
-                        # |||SEP||| 로 기본 요약과 8-K 이벤트를 분리
-                        parts = analysis_result.split("|||SEP|||")
+                # 👑 결제자 (Premium, Premium Plus): 정상적인 Expander 출력
+                if user_level in ['premium', 'premium_plus']:
+                    with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=True):
+                        with st.spinner(get_text('msg_analyzing_filing')):
+                            analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
                         
-                        # [파트 1: 공통 S-1/10-K 요약 - 모두에게 공개]
-                        import re
-                        formatted_public = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[0])
-                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_public.replace(chr(10), "<br>")}</div><br>', unsafe_allow_html=True)
-                        
-                        st.divider()
+                        if "ERROR_DETAILS" in analysis_result:
+                            st.error(get_text('err_try_again'))  
+                        else:
+                            parts = analysis_result.split("|||SEP|||")
+                            import re
+                            formatted_public = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[0]) if len(parts) > 0 else ""
+                            formatted_premium = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[1]) if len(parts) > 1 else ""
 
-                        # [파트 2: 프리미엄 실시간 8-K 분석 영역]
-                        st.markdown(f"<div style='font-size:1.0rem; font-weight:700; color:#d32f2f; margin-bottom:10px;'>{get_text('expander_8k_premium')}</div>", unsafe_allow_html=True)
-                        
-                        # 8-K 내용이 있을 경우
-                        if len(parts) > 1:
-                            formatted_premium = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[1])
+                            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_public.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
                             
-                            # 👑 프리미엄 이상 등급 (블러 없이 원문 출력)
-                            if user_level in ['premium', 'premium_plus']:
+                            if formatted_premium:
+                                st.divider()
+                                st.markdown(f"<div style='font-size:1.0rem; font-weight:700; color:#d32f2f; margin-bottom:10px;'>{get_text('expander_8k_premium')}</div>", unsafe_allow_html=True)
                                 st.markdown(f"<div style='background-color:#fff8f8; padding:15px; border-radius:8px; border-left: 4px solid #d32f2f; color:#333; line-height:1.6;'>{formatted_premium.replace(chr(10), '<br>')}</div>", unsafe_allow_html=True)
-                            
-                            # 🔒 일반/무료 등급 (원본 데이터에 CSS 블러 + 오버레이 결제 유도)
-                            else:
-                                blur_msg = get_text('msg_8k_blur_teaser')
-                                st.markdown(f"""
-                                    <div style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #e0e0e0;">
-                                        <div style="background-color:#fff8f8; padding:15px; border-left: 4px solid #dcdcdc; color:#333; line-height:1.6; filter: blur(5px); user-select: none;">
-                                            {formatted_premium.replace(chr(10), '<br>')}
-                                        </div>
-                                        
-                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px;">
-                                            <div style="font-size: 2rem; margin-bottom: 10px;">🔒</div>
-                                            <div style="color: #111; font-weight: 700; font-size: 1.05rem; margin-bottom: 8px;">Premium Only</div>
-                                            <div style="color: #444; font-size: 0.9rem; margin-bottom: 15px;">{blur_msg}</div>
-                                        </div>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                                
-                                # 구독 버튼을 겹침 영역(오버레이) 바로 아래에 배치
-                                st.write("")
-                                if st.button(get_text('btn_upgrade_premium'), key=f"btn_upgrade_tab0_{topic}", use_container_width=True):
-                                    st.session_state.page = 'setup'
-                                    st.rerun()
 
+                        st.write("")
+                        st.caption(get_text('caption_algorithm'))
+                
+                # 🔒 비결제자 (Free/Basic): 버튼 자체가 블러 처리된 가짜 UI
+                else:
                     st.write("")
-                    st.caption(get_text('caption_algorithm'))
+                    blur_msg = get_text('msg_8k_blur_teaser')
+                    
+                    st.markdown(f"""
+                        <div style="position: relative; border-radius: 8px; overflow: hidden; margin-bottom: 15px; cursor: pointer;" onclick="document.getElementById('hidden_upgrade_btn_tab0').click()">
+                            
+                            <div style="border: 1px solid #ddd; border-radius: 8px; background-color: #f8f9fa; filter: blur(3px); user-select: none;">
+                                <div style="padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd;">
+                                    <span style="font-size: 1rem; font-weight: 600; color: #333;">📄 {topic} 심층 분석 및 8-K 요약 보기</span>
+                                    <span style="color: #666;">▼</span>
+                                </div>
+                                <div style="padding: 15px; font-size: 0.95rem; color: #555; line-height: 1.6;">
+                                    이 기업은 최근 3년간 연평균 15%의 안정적인 매출 성장을...<br><br>
+                                    🚨 [실시간 8-K 중대 이벤트]<br>
+                                    최근 SEC에 보고된 바에 따르면, 대규모 M&A가 논의 중이며 이로 인해 단기 주가 변동성이 극대화될 수 있습니다...
+                                </div>
+                            </div>
+
+                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.2); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                <div style="font-size: 2.5rem; margin-bottom: 5px; text-shadow: 0px 2px 4px rgba(0,0,0,0.2);">🔒</div>
+                                <div style="color: #111; font-weight: 800; font-size: 1.1rem; background: rgba(255,255,255,0.8); padding: 2px 10px; border-radius: 5px;">Premium Only</div>
+                            </div>
+                            
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 화면에는 보이지 않지만, 위 HTML 박스를 클릭하면 작동하는 보이지 않는 Streamlit 버튼
+                    import streamlit.components.v1 as components
+                    components.html("""
+                        <script>
+                            document.addEventListener('click', function(e) {
+                                if(e.target.closest('div[style*="cursor: pointer"]')) {
+                                    const btn = window.parent.document.querySelector('button[kind="primary"]');
+                                    if(btn) btn.click();
+                                }
+                            });
+                        </script>
+                    """, height=0, width=0)
+
+                    # 실제 기능을 수행할 버튼 (명시적으로도 노출해 줌)
+                    if st.button(get_text('btn_upgrade_premium'), key=f"btn_upgrade_tab0_visible", use_container_width=True, type="primary"):
+                        st.session_state.page = 'setup'
+                        st.rerun()
 
                 # 5. 외부 링크 버튼 (재무제표는 10-K 링크로 매핑)
                 import urllib.parse
