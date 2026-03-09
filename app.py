@@ -4115,8 +4115,11 @@ with main_area.container():
                 st.info(get_text(f"desc_{topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
                 # ========================================================
-                # 4. AI 요약 보기 (권한별 블러 처리 적용)
+                # 4. AI 요약 보기 및 8-K 프리미엄 섹션 분리 렌더링
                 # ========================================================
+                user_info = st.session_state.get('user_info') or {}
+                user_level = user_info.get('membership_level', 'free')
+
                 with st.expander(f" {topic} {get_text('btn_summary_view')}", expanded=True):
                     with st.spinner(get_text('msg_analyzing_filing')):
                         analysis_result = get_ai_analysis(stock['name'], topic, curr_lang)
@@ -4124,48 +4127,55 @@ with main_area.container():
                     if "ERROR_DETAILS" in analysis_result:
                         st.error(get_text('err_try_again'))  
                     else:
+                        parts = analysis_result.split("|||SEP|||")
                         import re
                         
-                        # 👑 결제자: 정상 출력
-                        if user_level in ['premium', 'premium_plus']:
-                            parts = analysis_result.split("|||SEP|||")
-                            formatted_public = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[0]) if len(parts) > 0 else ""
-                            formatted_premium = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[1]) if len(parts) > 1 else ""
-
-                            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_public.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-                            if formatted_premium:
-                                st.divider()
-                                st.markdown(f"<div style='font-size:1.0rem; font-weight:700; color:#d32f2f; margin-bottom:10px;'>{get_text('expander_8k_premium')}</div>", unsafe_allow_html=True)
+                        # [공통] 1. 기본 공시 요약 렌더링 (모든 유저 열람 가능)
+                        formatted_public = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[0]) if len(parts) > 0 else ""
+                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{formatted_public.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+                        
+                        # [분기] 2. 8-K 프리미엄 섹션 렌더링
+                        formatted_premium = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', parts[1]) if len(parts) > 1 else ""
+                        
+                        if formatted_premium:
+                            st.divider()
+                            st.markdown(f"<div style='font-size:1.0rem; font-weight:700; color:#d32f2f; margin-bottom:10px;'>{get_text('expander_8k_premium')}</div>", unsafe_allow_html=True)
+                            
+                            # 👑 결제자 (Premium, Premium Plus): 8-K 원문 정상 출력
+                            if user_level in ['premium', 'premium_plus']:
                                 st.markdown(f"<div style='background-color:#fff8f8; padding:15px; border-radius:8px; border-left: 4px solid #d32f2f; color:#333; line-height:1.6;'>{formatted_premium.replace(chr(10), '<br>')}</div>", unsafe_allow_html=True)
+                            
+                            # 🔒 비결제자 (Free/Basic): 8-K 영역만 블러 처리
+                            else:
+                                import streamlit.components.v1 as components
+                                blur_msg = get_text('msg_8k_blur_teaser')
+                                
+                                blur_html = f"""
+                                    <div style="position: relative; border-radius: 8px; overflow: hidden; margin-bottom: 15px; font-family: sans-serif;">
+                                        <div style="background-color:#fff8f8; padding:15px; border-left: 4px solid #d32f2f; color:#333; line-height:1.6; filter: blur(5px); user-select: none;">
+                                            {formatted_premium.replace(chr(10), '<br>')}
+                                        </div>
 
-                        # 🔒 비결제자: 실제 텍스트 위에 CSS 필터만 씌워서 블러 처리
-                        else:
-                            clean_text = analysis_result.replace("|||SEP|||", "<br><br>🚨 <b>[실시간 8-K 중대 이벤트 분석]</b><br>")
-                            clean_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', clean_text).replace(chr(10), "<br>")
-                            
-                            st.markdown(f"""
-                            <div style="position: relative; border-radius: 8px; background: #f8f9fa; overflow: hidden; border: 1px solid #ddd;">
-                                <div style="padding: 15px; font-size: 15px; line-height: 1.6; color: #333; filter: blur(5px); user-select: none;">
-                                    {clean_text}
-                                </div>
-                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.3); display: flex; flex-direction: column; justify-content: center; align-items: center;">
-                                    <div style="font-size: 3rem; text-shadow: 0px 2px 4px rgba(0,0,0,0.2);">🔒</div>
-                                    <div style="background: rgba(255,255,255,0.9); padding: 15px; border-radius: 8px; border: 1px solid #ccc; text-align: center; margin-top: 10px;">
-                                        <span style="font-weight: bold; color: #111; font-size: 1.1rem;">Premium Only</span><br>
-                                        <span style="font-size: 0.95rem; color: #d32f2f; font-weight: bold;">프리미엄 등급 이상 열람 가능합니다.</span>
+                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                            <div style="font-size: 2.5rem; margin-bottom: 10px; text-shadow: 0px 2px 4px rgba(0,0,0,0.2);">🔒</div>
+                                            <div style="background-color: rgba(255,255,255,0.85); padding: 15px 25px; border-radius: 10px; border: 1px dashed #ccc; width: 85%;">
+                                                <h4 style="color: #333; margin-top:0; margin-bottom:10px;">Premium Only</h4>
+                                                <p style="color: #555; font-size: 0.95rem; margin: 0; line-height: 1.5;">
+                                                    이 기업의 돌발 악재를 파악하는 <b>8-K 실시간 분석 리포트</b>는 <br><span style="color:#d32f2f; font-weight:bold;">프리미엄 등급</span> 이상부터 열람 가능합니다.
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
-                            st.write("")
-                            if st.button(get_text('btn_upgrade_premium'), key=f"btn_upgrade_tab0_{topic}", use_container_width=True, type="primary"):
-                                st.session_state.page = 'setup'
-                                st.rerun()
+                                """
+                                components.html(blur_html, height=220)
+                                
+                                # Streamlit 버튼을 HTML 밖에 배치하여 깔끔하게 동작하도록 처리
+                                if st.button(get_text('btn_upgrade_premium'), key=f"btn_upgrade_tab0_{topic}", use_container_width=True, type="primary"):
+                                    st.session_state.page = 'setup'
+                                    st.rerun()
 
                     st.write("")
                     st.caption(get_text('caption_algorithm'))
-
                 # ========================================================
                 # 5. 외부 링크 버튼
                 import urllib.parse
