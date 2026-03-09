@@ -4765,7 +4765,10 @@ with main_area.container():
             # --- Tab 4: 기관평가 (UI 출력 부분 다국어 적용) ---
             elif selected_sub_menu == get_text('tab_4'):
                 curr_lang = st.session_state.lang
-                user_level = st.session_state.get('user_info', {}).get('membership_level', 'free')
+                
+                # 💡 [에러 해결] Tab 1과 동일하게 user_info가 None일 때를 대비한 철벽 방어 코드 적용
+                user_info = st.session_state.get('user_info') or {}
+                user_level = user_info.get('membership_level', 'free')
                 is_premium = user_level in ['premium', 'premium_plus']
 
                 with st.spinner(get_text('msg_analyzing_institutional')):
