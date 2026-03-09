@@ -645,6 +645,21 @@ def get_unified_tab1_analysis(company_name, ticker, lang_code, ipo_status="Activ
         'zh': "🤖 正在分析最新新闻和商业模式..."
     }
     return f"<p style='color:#666;'>{wait_msgs.get(lang_code, wait_msgs['ko'])}</p>", []
+
+@st.cache_data(show_spinner=False, ttl=600)
+def get_premium_tab1_summaries(ticker, lang_code):
+    """[Tab 1] 프리미엄 뉴스 및 보도자료 AI 요약본을 DB에서 가져옵니다."""
+    news_summary, pr_summary = "", ""
+    try:
+        res_n = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_PremiumNewsSummary_v1_{lang_code}").execute()
+        if res_n.data: news_summary = res_n.data[0]['content']
+        
+        res_p = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_PressReleaseSummary_v1_{lang_code}").execute()
+        if res_p.data: pr_summary = res_p.data[0]['content']
+    except Exception as e:
+        print(f"Premium Tab1 Cache Error: {e}")
+        
+    return news_summary, pr_summary
     
 @st.cache_data(show_spinner=False, ttl=600)
 def get_ai_analysis(company_name, topic, lang_code):
@@ -2073,6 +2088,24 @@ UI_TEXT = {
     'tab3_score': {'ko': '점수:', 'en': 'Score:', 'ja': 'スコア:', 'zh': '得分:'},
     'tab3_score_suffix': {'ko': '/ 9 (우량)', 'en': '/ 9 (Strong)', 'ja': '/ 9 (優良)', 'zh': '/ 9 (优良)'},
     'tab3_score_weak': {'ko': '/ 9 (주의)', 'en': '/ 9 (Weak)', 'ja': '/ 9 (注意)', 'zh': '/ 9 (注意)'},
+    'tab1_premium_news_title': {
+        'ko': '기관용 금융뉴스', 'en': 'Institutional Financial News', 
+        'ja': '機関投資家向けニュース要約', 'zh': '机构级财经新闻摘要'
+    },
+    'tab1_press_release_title': {
+        'ko': '기업 공식보도자료', 'en': 'Official Press Releases', 
+        'ja': '企業公式プレスリリース', 'zh': '公司官方新闻稿摘要'
+    },
+    'tab1_recent_news_title': {
+        'ko': '최근 주요뉴스 (Top 5)', 'en': 'Recent Top 5 News', 
+        'ja': '最新の主要ニュース', 'zh': '近期五大核心新闻'
+    },
+    'msg_premium_lock': {
+        'ko': '이 정보는 프리미엄 회원전용 분석리포트입니다.', 
+        'en': 'This report is exclusive to Premium members.', 
+        'ja': 'この情報はプレミアム会員専用の分析レポートです。', 
+        'zh': '此信息为高级会员专属的分析报告。'
+    }
 
     
     # ==========================================
@@ -4170,17 +4203,28 @@ with main_area.container():
                     
             # --- Tab 1: 뉴스 & 심층 분석 ---
             elif selected_sub_menu == get_text('tab_1'):
+                curr_lang = st.session_state.lang
+                user_level = st.session_state.get('user_info', {}).get('membership_level', 'free')
+                is_premium = user_level in ['premium', 'premium_plus']
+
                 with st.spinner(get_text('msg_analyzing_tab1')):
+                    # 1. 기존 무료 데이터 (비즈니스 모델 + 구글 뉴스) 로드
                     biz_info, final_display_news = get_unified_tab1_analysis(
                         stock['name'], 
                         stock['symbol'], 
-                        st.session_state.lang, 
+                        curr_lang, 
                         stock.get('status', current_s), 
-                        stock.get('date')  # 💡 이 줄이 추가되어야 1년 초과 여부를 알 수 있습니다.
+                        stock.get('date') 
                     )
+                    # 2. 신규 프리미엄 데이터 (기관 뉴스 + 보도자료) 로드
+                    news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
 
                 st.write("<br>", unsafe_allow_html=True)
-                with st.expander(get_text('expander_biz_summary'), expanded=False):
+                
+                # =========================================================
+                # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
+                # =========================================================
+                with st.expander(get_text('expander_biz_summary'), expanded=True):
                     if biz_info:
                         st.markdown(f"""
                         <div style="background-color: #f8f9fa; padding: 22px; border-radius: 12px; border-left: 5px solid #6e8efb; color: #333; font-family: 'Pretendard', sans-serif; font-size: 15px; line-height: 1.6;">
@@ -4192,9 +4236,58 @@ with main_area.container():
                         st.error(get_text('err_no_biz_info'))
     
                 st.write("<br>", unsafe_allow_html=True)
-    
+
+                # =========================================================
+                # 🚀 [2] 기관용 금융 뉴스 요약 (Premium 전용 - Blur 적용)
+                # =========================================================
+                with st.expander(get_text('tab1_premium_news_title'), expanded=False):
+                    if is_premium:
+                        if news_summary:
+                            st.markdown(news_summary, unsafe_allow_html=True)
+                        else:
+                            st.info("데이터를 수집 및 분석 중입니다..." if curr_lang == 'ko' else "Analyzing data...")
+                    else:
+                        # 비결제자 Blur 화면
+                        blur_text = "최근 월가 기관들은 이 기업의 잉여 현금 흐름과 신규 프로젝트의 수익성에 대해 매우 긍정적인 평가를 내리고 있습니다. 특히 이번 분기에 발표된 파트너십은 향후 2년간 주당 순이익을 대폭 개선할 것으로... (이하 블러 처리)"
+                        st.markdown(f"""
+                            <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                    <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                    <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                # =========================================================
+                # 🚀 [3] 기업 공식 보도자료 요약 (Premium 전용 - Blur 적용)
+                # =========================================================
+                with st.expander(get_text('tab1_press_release_title'), expanded=False):
+                    if is_premium:
+                        if pr_summary:
+                            st.markdown(pr_summary, unsafe_allow_html=True)
+                        else:
+                            st.info("데이터를 수집 및 분석 중입니다..." if curr_lang == 'ko' else "Analyzing data...")
+                    else:
+                        # 비결제자 Blur 화면
+                        blur_text = "본 기업은 최근 핵심 소프트웨어의 메이저 업그레이드 버전을 성공적으로 런칭했으며, 글로벌 시장 점유율 확대를 위한 대규모 마케팅 캠페인을 전개할 예정임을 공식적으로 발표했습니다... (이하 블러 처리)"
+                        st.markdown(f"""
+                            <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                    <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                    <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                st.write("<br>", unsafe_allow_html=True)
+
+                # =========================================================
+                # [4] Recent News (기존 구글 뉴스 리스트 출력 - 모든 유저)
+                # =========================================================
+                st.markdown(f"#### {get_text('tab1_recent_news_title')}")
                 if final_display_news:
-                    curr_lang = st.session_state.lang
                     for i, n in enumerate(final_display_news):
                         en_title = n.get('title_en', 'No Title')
                         trans_title = n.get('translated_title') or n.get('title_ko') or n.get('title_ja') or n.get('title_jp') or n.get('title', '')
@@ -4216,6 +4309,7 @@ with main_area.container():
                         if safe_trans and safe_trans != safe_en and curr_lang != 'en': 
                             if curr_lang == 'ko': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_trans}</span>"
                             elif curr_lang == 'ja': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇯🇵 {safe_trans}</span>"
+                            elif curr_lang == 'zh': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇨🇳 {safe_trans}</span>"
 
                         s_badge = f'<span style="background:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{sentiment_label}</span>'
                         label_gen = get_text('label_general')
