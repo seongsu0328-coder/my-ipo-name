@@ -76,6 +76,38 @@ SUPPORTED_LANGS = {
 # [2] 헬퍼 함수: 과거 성공했던 '직접 전송' 방식
 # ==========================================
 
+def get_fmp_data_with_cache(symbol, api_type, url, valid_hours=24):
+    """
+    FMP API 호출 전 DB 캐시를 확인하는 통합 함수
+    api_type: 'historical', '8K', 'financials' 등 구분값
+    """
+    cache_key = f"RAW_FMP_{api_type}_{symbol}"
+    limit_time = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
+    
+    # 1. DB에서 최근 캐시 확인
+    try:
+        res = supabase.table("analysis_cache").select("content, updated_at")\
+            .eq("cache_key", cache_key).gt("updated_at", limit_time).execute()
+        if res.data:
+            return json.loads(res.data[0]['content'])
+    except: pass
+
+    # 2. 캐시 없으면 실제 API 호출
+    try:
+        response = requests.get(url, timeout=7).json()
+        if response:
+            # DB에 원본 데이터 저장 (다음 호출 방어)
+            batch_upsert("analysis_cache", [{
+                "cache_key": cache_key,
+                "content": json.dumps(response),
+                "updated_at": datetime.now().isoformat()
+            }], on_conflict="cache_key")
+            return response
+    except Exception as e:
+        print(f"❌ FMP API Error ({api_type}): {e}")
+    
+    return None
+
 def sanitize_value(v):
     if v is None or pd.isna(v): return None
     if isinstance(v, (np.floating, float)):
@@ -172,11 +204,13 @@ def run_premium_alert_engine(df_calendar):
 
         # --- 2. 기간별 통계적 유의 상승 로직 (FMP API 적용) ---
         try:
-            # FMP에서 최근 260 거래일(약 1년) 주가를 가볍게 호출 (인덱스 0이 가장 최신)
+            # 24시간 방어막이 쳐진 캐시 헬퍼 사용
             url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?timeseries=260&apikey={FMP_API_KEY}"
-            res = requests.get(url, timeout=5).json()
-            hist = res.get('historical', [])
+            res = get_fmp_data_with_cache(ticker, "HIST", url, valid_hours=24)
             
+            # res가 None이 아닐 때만 historical 데이터를 추출
+            hist = res.get('historical', []) if res else []
+                        
             if len(hist) >= 2:
                 p_1d = hist[1]['close'] # 1일 전 (어제) 종가
                 if p_1d > 0 and ((current_p - p_1d) / p_1d) * 100 >= 12.0:
@@ -1401,31 +1435,24 @@ def update_macro_data(df):
 # [수정] Tab 6: 스마트머니 통합 데이터 수집 (국회의원 & 공매도 추가)
 # ==========================================
 def fetch_smart_money_data(symbol, api_key):
-    """FMP API를 통해 SEC 내부자, 기관, 국회의원, 공매도 데이터를 모두 수집합니다."""
+    """FMP API 4종 세트를 캐싱 방어막과 함께 수집합니다."""
     data = {"insider": [], "institutional": [], "senate": [], "fail_to_deliver": []}
-    try:
-        # 1. SEC Form 4 (내부자 거래 내역 - 최근 10건)
-        in_url = f"https://financialmodelingprep.com/api/v4/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
-        in_res = requests.get(in_url, timeout=5).json()
-        if in_res and isinstance(in_res, list): data["insider"] = in_res
+    
+    # 각 API 타입별로 캐시 확인 후 호출
+    in_url = f"https://financialmodelingprep.com/api/v4/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
+    data["insider"] = get_fmp_data_with_cache(symbol, "SMART_IN", in_url) or []
 
-        # 2. SEC 13F (대형 기관 보유량 - 상위 10개 기관)
-        inst_url = f"https://financialmodelingprep.com/api/v3/institutional-holder/{symbol}?apikey={api_key}"
-        inst_res = requests.get(inst_url, timeout=5).json()
-        if inst_res and isinstance(inst_res, list): data["institutional"] = inst_res[:10]
-        
-        # 3. 🚨 [NEW] 국회의원 주식 거래 (Senate Trading)
-        senate_url = f"https://financialmodelingprep.com/api/v4/senate-trading?symbol={symbol}&apikey={api_key}"
-        senate_res = requests.get(senate_url, timeout=5).json()
-        if senate_res and isinstance(senate_res, list): data["senate"] = senate_res[:5] # 최신 5건
-        
-        # 4. 🚨 [NEW] 공매도 미결제 약정 (Fail To Deliver)
-        ftd_url = f"https://financialmodelingprep.com/api/v4/fail_to_deliver?symbol={symbol}&limit=5&apikey={api_key}"
-        ftd_res = requests.get(ftd_url, timeout=5).json()
-        if ftd_res and isinstance(ftd_res, list): data["fail_to_deliver"] = ftd_res
+    inst_url = f"https://financialmodelingprep.com/api/v3/institutional-holder/{symbol}?apikey={api_key}"
+    res_inst = get_fmp_data_with_cache(symbol, "SMART_INST", inst_url)
+    data["institutional"] = res_inst[:10] if isinstance(res_inst, list) else []
+    
+    sen_url = f"https://financialmodelingprep.com/api/v4/senate-trading?symbol={symbol}&apikey={api_key}"
+    res_sen = get_fmp_data_with_cache(symbol, "SMART_SENATE", sen_url)
+    data["senate"] = res_sen[:5] if isinstance(res_sen, list) else []
+    
+    ftd_url = f"https://financialmodelingprep.com/api/v4/fail_to_deliver?symbol={symbol}&limit=5&apikey={api_key}"
+    data["fail_to_deliver"] = get_fmp_data_with_cache(symbol, "SMART_FTD", ftd_url) or []
 
-    except Exception as e:
-        print(f"Smart Money Fetch Error for {symbol}: {e}")
     return data
 
 def run_tab6_analysis(ticker, company_name, smart_money_data):
@@ -1531,11 +1558,11 @@ Analyze the Smart Money data for {company_name} ({ticker}): {smart_money_data}
 # [추가] 프리미엄 유저 대상 통계적 급등 알림 엔진
 # ==========================================
 def run_premium_alert_engine(df_calendar):
-    print("🕵️ 프리미엄 알림 엔진 가동 (기간별 통계 모드: 1일~1년)...")
+    print("🕵️ 프리미엄 알림 엔진 가동 (FMP 캐싱 최적화 버전)...")
     today = datetime.now().date()
     new_alerts = []
     
-    # DB에서 최신 가격 가져오기
+    # DB에서 실시간 가격 맵 로드
     price_map = get_current_prices()
 
     for _, row in df_calendar.iterrows():
@@ -1546,128 +1573,99 @@ def run_premium_alert_engine(df_calendar):
         try: ipo_date = pd.to_datetime(row['date']).date()
         except: continue
         
-        # --- 1. 일정 기반 알림 (상장예정, 락업해제) ---
+        # --- 1. 일정 기반 알림 (기존 로직 유지) ---
         if ipo_date == today + timedelta(days=3):
             new_alerts.append({
-                "ticker": ticker, 
-                "alert_type": "UPCOMING", 
-                "title": f"{ticker} 상장 D-3", 
+                "ticker": ticker, "alert_type": "UPCOMING", "title": f"{ticker} 상장 D-3", 
                 "message": "상장전 월가 기관의 평가를 미리 확인하세요."
             })
         
         if ipo_date + timedelta(days=180) == today + timedelta(days=7):
             new_alerts.append({
-                "ticker": ticker, 
-                "alert_type": "LOCKUP", 
-                "title": f"{ticker} 락업해제 D-7", 
+                "ticker": ticker, "alert_type": "LOCKUP", "title": f"{ticker} 락업해제 D-7", 
                 "message": "내부자 보호예수 물량이 해제될 예정으로 주가 변동성이 올라갈 수 있습니다."
             })
 
         if current_p <= 0: continue
 
-        # --- 2. 기간별 통계적 유의 상승 로직 (FMP API 적용으로 완전 교체) ---
+        # --- 2. 기간별 통계적 유의 상승 로직 (FMP API 캐싱 적용) ---
         try:
-            # 💡 [핵심] yfinance를 버리고 FMP에서 최근 260 거래일(약 1년) 주가를 호출합니다.
+            # 💡 [교체 완료] 직접 호출 대신 캐시 방어막 함수를 사용합니다.
             url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?timeseries=260&apikey={FMP_API_KEY}"
-            res = requests.get(url, timeout=5).json()
-            hist = res.get('historical', [])
             
-            if len(hist) >= 2:
-                # FMP historical 데이터는 인덱스 0이 가장 최신(오늘/어제)입니다.
-                p_1d = hist[1]['close'] # 1일 전 종가
-                if p_1d > 0 and ((current_p - p_1d) / p_1d) * 100 >= 12.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1D", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1일 동안 {((current_p - p_1d) / p_1d) * 100:.1f}% 상승"})
+            # 주가 데이터는 하루(24시간) 동안 캐싱된 것을 사용합니다.
+            res = get_fmp_data_with_cache(ticker, "HIST", url, valid_hours=24)
             
-            if len(hist) >= 5:
-                p_1w = hist[4]['close'] # 1주일 전 종가
-                if p_1w > 0 and ((current_p - p_1w) / p_1w) * 100 >= 20.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1주 동안 {((current_p - p_1w) / p_1w) * 100:.1f}% 상승"})
+            # 데이터가 유효할 때만 로직 실행
+            if res and 'historical' in res:
+                hist = res.get('historical', [])
+                
+                # FMP 데이터는 인덱스 0이 가장 최신
+                if len(hist) >= 2:
+                    p_1d = hist[1]['close'] # 1일 전 종가
+                    if p_1d > 0 and ((current_p - p_1d) / p_1d) * 100 >= 12.0:
+                        new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1D", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1일 동안 {((current_p - p_1d) / p_1d) * 100:.1f}% 상승"})
+                
+                if len(hist) >= 5:
+                    p_1w = hist[4]['close']
+                    if p_1w > 0 and ((current_p - p_1w) / p_1w) * 100 >= 20.0:
+                        new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1주 동안 {((current_p - p_1w) / p_1w) * 100:.1f}% 상승"})
 
-            if len(hist) >= 10:
-                p_2w = hist[9]['close']
-                if p_2w > 0 and ((current_p - p_2w) / p_2w) * 100 >= 30.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_2W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 2주 동안 {((current_p - p_2w) / p_2w) * 100:.1f}% 상승"})
+                if len(hist) >= 10:
+                    p_2w = hist[9]['close']
+                    if p_2w > 0 and ((current_p - p_2w) / p_2w) * 100 >= 30.0:
+                        new_alerts.append({"ticker": ticker, "alert_type": "SURGE_2W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 2주 동안 {((current_p - p_2w) / p_2w) * 100:.1f}% 상승"})
 
-            if len(hist) >= 20:
-                p_4w = hist[19]['close']
-                if p_4w > 0 and ((current_p - p_4w) / p_4w) * 100 >= 40.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_4W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 4주 동안 {((current_p - p_4w) / p_4w) * 100:.1f}% 상승"})
+                if len(hist) >= 20:
+                    p_4w = hist[19]['close']
+                    if p_4w > 0 and ((current_p - p_4w) / p_4w) * 100 >= 40.0:
+                        new_alerts.append({"ticker": ticker, "alert_type": "SURGE_4W", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 4주 동안 {((current_p - p_4w) / p_4w) * 100:.1f}% 상승"})
 
-            if len(hist) >= 22:
-                p_1m = hist[21]['close'] # 약 1개월 전
-                if p_1m > 0 and ((current_p - p_1m) / p_1m) * 100 >= 45.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1M", "title": f"{ticker} 단기 급등 포착", "message": f"{ticker} 주가 최근 1개월 동안 {((current_p - p_1m) / p_1m) * 100:.1f}% 상승"})
+                if len(hist) >= 63:
+                    p_3m = hist[62]['close']
+                    if p_3m > 0 and ((current_p - p_3m) / p_3m) * 100 >= 60.0:
+                        new_alerts.append({"ticker": ticker, "alert_type": "SURGE_3M", "title": f"{ticker} 중기 급등 포착", "message": f"{ticker} 주가 최근 3개월 동안 {((current_p - p_3m) / p_3m) * 100:.1f}% 상승"})
 
-            if len(hist) >= 63:
-                p_3m = hist[62]['close'] # 약 3개월 전
-                if p_3m > 0 and ((current_p - p_3m) / p_3m) * 100 >= 60.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_3M", "title": f"{ticker} 중기 급등 포착", "message": f"{ticker} 주가 최근 3개월 동안 {((current_p - p_3m) / p_3m) * 100:.1f}% 상승"})
-
-            if len(hist) >= 126:
-                p_6m = hist[125]['close'] # 약 6개월 전
-                if p_6m > 0 and ((current_p - p_6m) / p_6m) * 100 >= 80.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_6M", "title": f"{ticker} 중기 급등 포착", "message": f"{ticker} 주가 최근 6개월 동안 {((current_p - p_6m) / p_6m) * 100:.1f}% 상승"})
-
-            if len(hist) >= 250:
-                p_1y = hist[-1]['close'] # 가장 오래된 데이터 (약 1년 전)
-                if p_1y > 0 and ((current_p - p_1y) / p_1y) * 100 >= 150.0:
-                    new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1Y", "title": f"{ticker} 장기 급등 포착", "message": f"{ticker} 주가 최근 1년 동안 {((current_p - p_1y) / p_1y) * 100:.1f}% 상승"})
+                if len(hist) >= 250:
+                    p_1y = hist[-1]['close'] # 약 1년 전
+                    if p_1y > 0 and ((current_p - p_1y) / p_1y) * 100 >= 150.0:
+                        new_alerts.append({"ticker": ticker, "alert_type": "SURGE_1Y", "title": f"{ticker} 장기 급등 포착", "message": f"{ticker} 주가 최근 1년 동안 {((current_p - p_1y) / p_1y) * 100:.1f}% 상승"})
         
         except Exception as e: 
             pass
-        # --- 3. 공모가 돌파 및 회복 시그널 ---
-        try: ipo_p = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
-        except: ipo_p = 0.0
 
-        if ipo_p > 0:
-            surge_pct_ipo = ((current_p - ipo_p) / ipo_p) * 100
-            
-            # [신규 추가] 공모가 대비 20% 이상 급등 시
-            if surge_pct_ipo >= 20.0:
-                new_alerts.append({
-                    "ticker": ticker, 
-                    "alert_type": "SURGE_IPO", 
-                    "title": f"{ticker} (+{surge_pct_ipo:.1f}%)", 
-                    "message": f"현재가 ${current_p:.2f}로 공모가 대비 강력한 상승세"
-                })
-            # [유지] 공모가 0~3% 회복 (바닥 확인)
-            elif 0 <= surge_pct_ipo < 3.0:
-                new_alerts.append({
-                    "ticker": ticker, 
-                    "alert_type": "REBOUND", 
-                    "title": f"{ticker} 공모가 회복", 
-                    "message": f"주가가 다시 공모가(${ipo_p}) 위로 올라섰습니다. 바닥 확인 신호입니다."
-                })
+        # --- 3. 공모가 돌파 및 회복 시그널 (기존 로직 유지) ---
+        try:
+            ipo_p = float(str(row.get('price', '0')).replace('$', '').split('-')[0])
+            if ipo_p > 0:
+                surge_pct_ipo = ((current_p - ipo_p) / ipo_p) * 100
+                if surge_pct_ipo >= 20.0:
+                    new_alerts.append({
+                        "ticker": ticker, "alert_type": "SURGE_IPO", "title": f"{ticker} (+{surge_pct_ipo:.1f}%)", 
+                        "message": f"현재가 ${current_p:.2f}로 공모가 대비 강력한 상승세"
+                    })
+                elif 0 <= surge_pct_ipo < 3.0:
+                    new_alerts.append({
+                        "ticker": ticker, "alert_type": "REBOUND", "title": f"{ticker} 공모가 회복", 
+                        "message": f"주가가 다시 공모가(${ipo_p}) 위로 올라섰습니다. 바닥 확인 신호입니다."
+                    })
+        except: pass
 
-        # =========================================================
-        # 💡 4. 월가 기관 투자심리 호조 (Upgrade) 시그널
-        # =========================================================
+        # --- 4. 월가 기관 투자심리 호조 시그널 ---
         try:
             tab4_key = f"{ticker}_Tab4_ko"
             res_tab4 = supabase.table("analysis_cache").select("content").eq("cache_key", tab4_key).execute()
-            
             if res_tab4.data:
-                import json
                 tab4_data = json.loads(res_tab4.data[0]['content'])
-                
                 rating_val = str(tab4_data.get('rating', '')).upper()
                 score_val = str(tab4_data.get('score', '0')).strip()
-                
-                is_buy = "BUY" in rating_val or "STRONG BUY" in rating_val
-                is_high_score = score_val in ["4", "5"]
-                
-                if is_buy or is_high_score:
+                if ("BUY" in rating_val) or (score_val in ["4", "5"]):
                     new_alerts.append({
-                        "ticker": ticker, 
-                        "alert_type": "INST_UPGRADE", 
-                        "title": f"{ticker} 기관투자자평가상향조정(Buy grade)", 
+                        "ticker": ticker, "alert_type": "INST_UPGRADE", "title": f"{ticker} 기관투자자평가상향조정(Buy grade)", 
                         "message": f"월가 분석 결과, 투자 의견이 '{tab4_data.get('rating')}'(으)로 평가되었습니다."
                     })
-        except Exception as e:
-            print(f"Tab 4 Alert Error for {ticker}: {e}")
-            pass
+        except: pass
             
-    # [Step 3] DB 전송 및 중복 방지 (기존 중복 코드 정리 완료)
     if new_alerts:
         batch_upsert("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
         print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 DB에 적재되었습니다.")
