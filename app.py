@@ -4227,7 +4227,7 @@ with main_area.container():
                 # =========================================================
                 # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
                 # =========================================================
-                with st.expander(get_text('expander_biz_summary'), expanded=True):
+                with st.expander(get_text('expander_biz_summary'), expanded=False):
                     if biz_info:
                         st.markdown(f"""
                         <div style="background-color: #f8f9fa; padding: 22px; border-radius: 12px; border-left: 5px solid #6e8efb; color: #333; font-family: 'Pretendard', sans-serif; font-size: 15px; line-height: 1.6;">
