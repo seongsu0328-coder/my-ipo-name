@@ -4049,89 +4049,105 @@ with main_area.container():
                 st.rerun()
 
             
-            # --- Tab 0: 주요 공시 (장애 복구 버전) ---
+            # --- Tab 0: 핵심 정보 (장애 복구 및 에러 완벽 차단 버전) ---
             if selected_sub_menu == get_text('tab_0'):
-                # 💡 1. 필수 변수 체크 (None 에러 방지)
+                # 💡 [방어막 1] 필수 상위 객체가 없으면 즉시 중단 (502 에러 방지)
                 if not stock or 'name' not in stock:
-                    st.warning("데이터를 불러오는 중입니다...")
+                    st.warning("데이터 로딩 중입니다. 잠시만 기다려 주세요.")
                     st.stop()
 
-                curr_lang = st.session_state.get('lang', 'ko')
-                user_info = st.session_state.get('user_info') or {}
-                user_level = user_info.get('membership_level', 'free')
-                stock_name = stock['name']
+                # 💡 [방어막 2] 필수 임포트 체크 (코드 중간에 있어도 안전하게 선언)
+                import re
+                import urllib.parse
+                import pandas as pd
+                from datetime import datetime
 
-                # 💡 2. 8-K 존재 여부 체크 (에러 방지를 위해 try-except로 감싸기)
-                # 매번 DB에 묻지 않도록 캐싱 적용
-                @st.cache_data(ttl=300) 
-                def safe_check_8k(name, lang):
-                    try:
-                        # supabase 객체가 정의되어 있는지 확인 후 쿼리
-                        res = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{name}_8-K_Tab0_v16_{lang}").execute()
-                        return len(res.data) > 0
-                    except Exception as e:
-                        return False # 에러 시 버튼 안 보여주는 쪽으로 안전 처리
-
-                has_8k = safe_check_8k(stock_name, curr_lang)
-
-                # 💡 3. 버튼 리스트 (topic 대신 t_name 사용으로 충돌 원천 차단)
-                final_status = str(stock.get('status', current_s)).lower()
+                # 변수 선언 (에러 방지를 위해 최상단 고정)
+                c_lang = st.session_state.get('lang', 'ko')
+                u_info = st.session_state.get('user_info') or {}
+                u_level = u_info.get('membership_level', 'free')
+                s_name = stock['name']
+                
+                # 버튼 스타일 CSS
+                st.markdown("""<style>
+                    div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; } 
+                    div.stButton > button[kind="primary"] { background-color: #d32f2f !important; color: #ffffff !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; }
+                </style>""", unsafe_allow_html=True)
+    
+                # 1. 기업 상태 확인
+                f_status = str(stock.get('status', current_s)).lower()
+                is_withdrawn = any(x in f_status for x in ['철회', '취소', 'withdrawn'])
+                is_delisted = any(x in f_status for x in ['폐지', 'delisted'])
+                
                 is_over_1y = False
                 try:
-                    ipo_dt = pd.to_datetime(stock.get('공모일_dt')).date()
-                    if (datetime.now().date() - ipo_dt).days > 365: is_over_1y = True
+                    ipo_dt_val = pd.to_datetime(stock.get('공모일_dt')).date()
+                    if (datetime.now().date() - ipo_dt_val).days > 365: is_over_1y = True
                 except: pass 
 
-                if any(x in final_status for x in ['철회', '취소']): btn_list = ["S-1", "S-1/A", "RW"]
-                elif is_over_1y: btn_list = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
-                else: btn_list = ["S-1", "S-1/A", "424B4"]
+                # 💡 버튼 리스트 구성
+                if is_withdrawn: b_list = ["S-1", "S-1/A", "F-1", "FWP", "RW"]
+                elif is_delisted: b_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4", "Form 25"]
+                elif is_over_1y: b_list = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
+                else: b_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
 
-                if has_8k: btn_list.append("8-K")
+                # 🔍 [방어막 3] 8-K 체크 (Supabase 연결 에러 시에도 앱은 살려둠)
+                has_8k_data = False
+                try:
+                    # 'supabase' 변수가 전역에 선언되어 있어야 합니다.
+                    r_8k = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{s_name}_8-K_Tab0_v16_{c_lang}").execute()
+                    if r_8k.data: has_8k_data = True
+                except: pass
 
-                # 세션 상태 초기화
-                if 'core_topic' not in st.session_state or st.session_state.core_topic not in btn_list:
-                    st.session_state.core_topic = btn_list[0]
+                if has_8k_data:
+                    if "8-K" not in b_list: b_list.append("8-K")
 
-                # 버튼 렌더링
+                # 2. 버튼 렌더링 (Topic 이름 충돌 방지를 위해 't_topic' 사용)
+                if 'core_topic' not in st.session_state or st.session_state.core_topic not in b_list:
+                    st.session_state.core_topic = b_list[0]
+
+                t_topic = st.session_state.core_topic # 💡 이제부터 모든 곳에서 t_topic만 사용!
+
                 cols = st.columns(4)
-                for idx, t_name in enumerate(btn_list):
-                    with cols[idx % 4]:
-                        if t_name == "8-K" and user_level not in ['premium', 'premium_plus']:
-                            # 비결제자용 8-K 잠금 UI
-                            st.markdown(f'<div style="background:#d32f2f; color:white; border-radius:8px; height:3.5em; display:flex; align-items:center; justify-content:center; filter:blur(1px); opacity:0.8; font-size:13px; font-weight:bold;">🚨 8-K 🔒</div>', unsafe_allow_html=True)
+                for i, btn_name in enumerate(b_list):
+                    with cols[i % 4]:
+                        if btn_name == "8-K" and u_level not in ['premium', 'premium_plus']:
+                            st.markdown(f'<div style="background:#d32f2f; color:white; border-radius:8px; height:3.5em; display:flex; align-items:center; justify-content:center; filter:blur(1.5px); opacity:0.8; font-size:12px; font-weight:bold; cursor:not-allowed;">🚨 8-K 🔒</div>', unsafe_allow_html=True)
                         else:
-                            b_type = "primary" if st.session_state.core_topic == t_name else "secondary"
-                            if st.button(t_name, key=f"fixed_btn_{t_name}", type=b_type, use_container_width=True):
-                                st.session_state.core_topic = t_name
+                            b_style = "primary" if t_topic == btn_name else "secondary"
+                            if st.button(btn_name, key=f"safety_btn_{btn_name}", type=b_style, use_container_width=True):
+                                st.session_state.core_topic = btn_name
                                 st.rerun()
 
-                # 💡 4. 데이터 표시 (핵심!)
-                target_topic = st.session_state.core_topic
-                with st.expander(f"{target_topic} 분석 리포트", expanded=True):
-                    with st.spinner("분석 중..."):
-                        # 여기서 topic 변수를 절대 쓰지 않고 target_topic만 사용
-                        res_data = get_ai_analysis(stock_name, target_topic, curr_lang)
-                        
-                        if "ERROR" in res_data:
-                            st.error("데이터를 가져오지 못했습니다.")
-                        else:
-                            import re
-                            p_list = res_data.split("|||SEP|||")
-                            # 8-K면 분석 내용(1번 인덱스), 아니면 요약(0번 인덱스)
-                            display_text = p_list[1] if (target_topic == "8-K" and len(p_list) > 1) else p_list[0]
-                            st.markdown(f'<div style="line-height:1.7;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", display_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+                # 3. 상세 요약 출력
+                st.info(get_text(f"desc_{t_topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
-                # 하단 링크 (NameError 방지를 위해 변수명 철저히 분리)
-                import urllib.parse
-                cik_val = profile.get('cik', '') if profile else ''
-                search_topic = "10-K" if target_topic in ["BS", "IS", "CF"] else target_topic
+                with st.expander(f" {t_topic} {get_text('btn_summary_view')}", expanded=True):
+                    with st.spinner("AI 분석 리포트를 불러오는 중..."):
+                        a_res = get_ai_analysis(s_name, t_topic, c_lang)
+                    
+                    if "ERROR" in a_res:
+                        st.error("데이터를 가져오지 못했습니다. 나중에 다시 시도해 주세요.")
+                    else:
+                        p_splits = a_res.split("|||SEP|||")
+                        # 8-K면 분석 내용(1번), 아니면 요약(0번)
+                        d_text = p_splits[1] if (t_topic == "8-K" and len(p_splits) > 1) else p_splits[0]
+                        st.markdown(f'<div style="line-height:1.8; text-align:justify;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+
+                # 4. 하단 SEC 링크 (NameError 완전 박멸 구역)
+                c_val = profile.get('cik', '') if 'profile' in locals() and profile else ''
+                q_topic = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
                 
-                if cik_val: 
-                    u = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_val}&type={urllib.parse.quote(search_topic)}"
+                if c_val: 
+                    s_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={c_val}&type={urllib.parse.quote(q_topic)}&owner=include&count=40"
                 else: 
-                    u = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(stock_name)}"
+                    s_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(s_name)}"
                 
-                st.link_button(f"SEC 공식 문서 확인 ({target_topic})", u, use_container_width=True)
+                st.link_button(f"SEC 공식 문서 원문 확인 ({t_topic})", s_url, use_container_width=True)
+
+                # 하단 공통 UI
+                draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
+                display_disclaimer()
                     
                 # ========================================================
                 # 5. 외부 링크 버튼
