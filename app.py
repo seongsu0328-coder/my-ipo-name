@@ -4107,13 +4107,14 @@ with main_area.container():
                 cols = st.columns(4)
                 for i, btn_name in enumerate(b_list):
                     with cols[i % 4]:
-                        # 🔒 비결제자 8-K 차단 (빨간 블러 버튼)
                         if btn_name == "8-K" and u_level not in ['premium', 'premium_plus']:
-                            st.markdown(f'<div style="background:#d32f2f; color:white; border-radius:8px; height:3.5em; display:flex; align-items:center; justify-content:center; filter:blur(1.5px); opacity:0.8; font-size:12px; font-weight:bold; cursor:not-allowed;">🚨 8-K 🔒</div>', unsafe_allow_html=True)
+                            # 비결제자 8-K (블러 처리)
+                            st.markdown(f'<div style="background:#d32f2f; color:white; ...">🚨 8-K 🔒</div>', unsafe_allow_html=True)
                         else:
-                            # 💡 대표님 요청: 8-K만 빨간색(primary), 나머지는 흰색(secondary)
-                            b_style = "primary" if btn_name == "8-K" else "secondary"
-                            if st.button(btn_name, key=f"v8_btn_{btn_name}", type=b_style, use_container_width=True):
+                            # 💡 8-K 버튼만 'primary'(빨간색), 나머지는 'secondary'(흰색)
+                            btn_style = "primary" if btn_name == "8-K" else "secondary"
+                            
+                            if st.button(btn_name, key=f"btn_{btn_name}", type=btn_style, use_container_width=True):
                                 st.session_state.core_topic = btn_name
                                 st.rerun()
 
