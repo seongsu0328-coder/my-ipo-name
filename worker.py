@@ -378,7 +378,7 @@ def fetch_fmp_8k_events(symbol, api_key):
 
 
 # ==========================================
-# [완전 교체] run_tab0_analysis 함수
+# [완전 교체] run_tab0_analysis 함수 (다국어 100% 보존 + 8-K 3문단/4~5줄 규격 통일)
 # ==========================================
 def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None):
     if not model: return
@@ -395,7 +395,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         except: pass
 
     if is_withdrawn or is_delisted or is_over_1y: valid_hours = 24 * 7  
-    else: valid_hours = 24      
+    else: valid_hours = 24       
         
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
 
@@ -407,7 +407,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
     cik = cik_mapping.get(ticker) if cik_mapping else None
 
-    # 12가지 문서의 세부 지시사항 유지
+    # 12가지 문서의 세부 지시사항 (대표님의 기존 번역 100% 유지)
     def get_localized_meta(lang, doc_type):
         meta_dict = {
             "ko": {
@@ -471,16 +471,12 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         return lang_group.get(doc_type, lang_group.get('S-1'))
 
     def get_format_instruction(lang):
-        if lang == 'en':
-            return "- Begin each paragraph with a translated **[Heading]**. Rich content, 4-5 sentences per paragraph. DO NOT bold numbers."
-        elif lang == 'ja':
-            return "- 各段落は日本語の **[見出し]** から始めてください。1段落につき4〜5文にし、数値に強調（**）は使わないでください。"
-        elif lang == 'zh':
-            return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
-        else:
-            return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5문장씩 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
+        # 💡 [복구 완료] 대표님 요청대로 4~5문장 유지
+        if lang == 'en': return "- Begin each paragraph with a translated **[Heading]**. Rich content, 4-5 sentences per paragraph. DO NOT bold numbers."
+        elif lang == 'ja': return "- 各段落は日本語の **[見出し]** から始めてください。1段落につき4〜5文にし、数値に強調（**）は使わないでください。"
+        elif lang == 'zh': return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
+        else: return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5줄(문장) 길이로 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
 
-    # 💡 [핵심] 프롬프트에 8-K 데이터(fmp_8k) 주입 및 |||SEP||| 분리 지시
     def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, fmp_8k):
         if lang == 'en':
             return f"""You are a Senior Wall Street Analyst.
@@ -488,7 +484,7 @@ Target: {company_name} ({ticker}) - {topic}
 Checkpoints: {meta['p']}
 {sec_fact_prompt}
 
-[Real-time 8-K Events (M&A, Lawsuits, Exec Changes)]:
+[Real-time 8-K Events]:
 {fmp_8k}
 
 [STRICT WRITING RULES]
@@ -497,19 +493,19 @@ Checkpoints: {meta['p']}
 
 [Structure]
 {meta['s']}
+{format_inst}
 
 |||SEP|||
 
 **[Real-time 8-K Critical Event Analysis]**
-Analyze the 8-K events above. If "No recent", state it clearly. If there are events, explain their critical impact on the stock in 3-4 sentences.
-{format_inst}"""
+Analyze the 8-K events above. If "No recent", state it clearly. If there are events, explain their critical impact on the stock in 4-5 sentences."""
 
         elif lang == 'ja':
             return f"""あなたは証券分析のエキスパートです。
 分析対象: {company_name} ({ticker}) - {topic}
 {sec_fact_prompt}
 
-[最新の8-Kイベント(M&A、訴訟、役員交代など)]:
+[最新の8-Kイベント]:
 {fmp_8k}
 
 [厳格な作成ルール]
@@ -518,19 +514,19 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
 
 [構成]
 {meta['s']}
+{format_inst}
 
 |||SEP|||
 
 **[リアルタイム8-K重大イベント分析]**
-上記の8-Kイベントを分析してください。イベントがない場合はその旨を記載し、ある場合は株価への致命的な影響を3〜4文で解説してください。
-{format_inst}"""
+上記の8-Kイベントを分析してください。イベントがない場合はその旨を記載し、ある場合は株価への致命的な影響を4〜5文で解説してください。"""
 
         elif lang == 'zh':
             return f"""您是资深证券分析师。
 分析目标: {company_name} ({ticker}) - {topic}
 {sec_fact_prompt}
 
-[最新8-K事件(并购、诉讼、高管变动等)]:
+[最新8-K事件]:
 {fmp_8k}
 
 [严格编写指南]
@@ -539,12 +535,12 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
 
 [结构要求]
 {meta['s']}
+{format_inst}
 
 |||SEP|||
 
 **[实时8-K重大事件分析]**
-分析上述8-K事件。如果没有，请明确说明。如果有，请用3-4句话解释其对股价的致命影响。
-{format_inst}"""
+分析上述8-K事件。如果没有，请明确说明。如果有，请用4-5句话解释其对股价的致命影响。"""
 
         else: # ko
             return f"""당신은 월가 출신의 전문 분석가입니다.
@@ -552,12 +548,12 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
 체크포인트: {meta['p']}
 {sec_fact_prompt}
 
-[최근 8-K 중대 이벤트 (M&A, 소송, 임원교체 등)]:
+[최근 8-K 중대 이벤트]:
 {fmp_8k}
 
-[작성 지침 - 필수 준수]
+[작성 지침]
 1. 반드시 한국어로만 작성하고 숫자에 별표(**) 강조를 쓰지 마세요.
-2. 답변은 반드시 '|||SEP|||' 구분자를 기준으로 [기본 요약]과 [프리미엄 8-K 분석] 두 부분으로 나누어 출력하세요.
+2. 답변은 반드시 '|||SEP|||' 구분자를 기준으로 [기본 요약]과 [8-K 분석] 두 부분으로 나누어 출력하세요.
 
 [내용 구성 지침]
 {meta['s']}
@@ -566,9 +562,41 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
 |||SEP|||
 
 **[실시간 8-K 중대 이벤트 분석]**
-제공된 8-K 데이터를 분석하세요. 이벤트가 없다면 "최근 보고된 돌발 악재/호재가 없습니다."라고 적으세요. 데이터가 있다면 해당 이슈가 단기 주가에 미칠 치명적 파급력을 3~4문장으로 냉철하게 분석하세요.
+제공된 8-K 데이터를 분석하세요. 이벤트가 없다면 "최근 보고된 돌발 악재/호재가 없습니다."라고 적으세요. 데이터가 있다면 해당 이슈가 단기 주가에 미칠 치명적 파급력을 4~5문장으로 냉철하게 분석하세요.
 """
 
+    # 💡 [핵심] 루프 밖에서 8-K 전용 데이터 1회만 생성 및 독립 캐싱
+    fmp_8k_data = fetch_fmp_8k_events(ticker, FMP_API_KEY)
+    
+    if "No recent" not in fmp_8k_data:
+        for lang_code in SUPPORTED_LANGS.keys():
+            cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
+            try:
+                res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key_8k).gt("updated_at", limit_time_str).execute()
+                if not res.data:
+                    # 💡 [통일] 8-K 독립 데이터 역시 "3단락 / 각 4~5문장"으로 동일하게 적용
+                    if lang_code == 'en':
+                        p_8k = f"You are a Wall Street Analyst.\nTarget: 8-K (Material Events) for {company_name} ({ticker})\nData: {fmp_8k_data}\n\n[Structure]\nPara 1: [Core Event] Summarize the most critical event from the 8-K.\nPara 2: [Financial Impact] Analyze the impact on financials and stock price.\nPara 3: [Future Outlook] Forecast management's next steps or points for investors.\n- Begin each paragraph with a **[Heading]**. Write exactly 3 paragraphs. Each paragraph should be about 4-5 sentences. DO NOT bold numbers."
+                    elif lang_code == 'ja':
+                        p_8k = f"あなたはウォール街のアナリストです。\n分析対象: {company_name} ({ticker}) 8-Kイベント\nデータ: {fmp_8k_data}\n\n[構成]\n第1段落：[核心イベント] 8-K公示の最も重要なイベントの要約\n第2段落：[財務への影響] 該当イベントが財務および株価に与える影響\n第3段落：[今後の展望] 投資家が注目すべきポイント\n- 各段落は **[見出し]** から始めてください。必ず3つの段落で作成し、各段落は約4〜5文で構成してください。数値に強調(**)は不可。"
+                    elif lang_code == 'zh':
+                        p_8k = f"您是华尔街分析师。\n分析目标: {company_name} ({ticker}) 8-K事件\n数据: {fmp_8k_data}\n\n[结构]\n第一段：[核心事件] 总结8-K公告中最核心的事件\n第二段：[财务影响] 分析该事件对财务和股价的影响\n第三段：[未来展望] 预测投资者应关注的要点\n- 每个段落以 **[副标题]** 开头。必须写3个段落，每段约4-5句话。请勿加粗数值。"
+                    else: # ko
+                        p_8k = f"당신은 월가의 전문 애널리스트입니다.\n분석 대상: {company_name} ({ticker}) 8-K 수시공시\n제공된 데이터: {fmp_8k_data}\n\n[작성 지침]\n1문단: [핵심 이벤트] 발생한 8-K 공시의 가장 중요한 사유 요약\n2문단: [재무적 파급력] 해당 이벤트가 단기 재무 지표 및 주가에 미치는 영향\n3문단: [향후 전망] 경영진의 대응 또는 투자자가 주목해야 할 포인트\n\n- 반드시 한국어로 작성하세요.\n- 각 문단은 반드시 **[소제목]**으로 시작하세요.\n- 반드시 3개의 문단으로 구분하고, 각 문단은 4~5줄(문장) 길이로 묵직하게 작성하세요.\n- 숫자에 별표(**) 강조는 절대 쓰지 마세요."
+
+                    response_8k = model.generate_content(p_8k)
+                    
+                    if response_8k and response_8k.text:
+                        # app.py 구조(parts[1] 호출)에 맞게 가짜 앞부분 강제 삽입
+                        final_8k_text = response_8k.text
+                        if "|||SEP|||" not in final_8k_text:
+                            final_8k_text = f"Summary Area|||SEP|||{final_8k_text}"
+                            
+                        batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": final_8k_text, "updated_at": datetime.now().isoformat()}], "cache_key")
+                        print(f"🚨 [{ticker}] 8-K 독립 분석 캐싱 완료 ({lang_code})")
+            except: pass
+
+    # 💡 [2] 일반 서류(S-1, 10-K 등) 루프 처리
     for topic in target_topics:
         sec_fact_prompt = ""
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
@@ -576,79 +604,30 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
         if cik:
             filed_date = check_sec_specific_filing(cik, sec_search_target)
             if filed_date:
-                sec_fact_prompt = f"\n[SEC FACT CHECK] The company officially filed '{sec_search_target}' on {filed_date}. Focus on extracting specific data from this document."
-            else:
-                sec_fact_prompt = f"\n[SEC FACT CHECK] '{sec_search_target}' not found in SEC EDGAR. Use the latest available numerical data from recent web records."
+                sec_fact_prompt = f"\n[SEC FACT CHECK] Filed on {filed_date}."
         
-        # 1. 먼저 8-K 독립 데이터부터 처리 (루프 밖에서 언어별로 1번만 실행)
-        fmp_8k_data = fetch_fmp_8k_events(ticker, FMP_API_KEY)
-        
-        if "No recent 8-K events" not in fmp_8k_data:
-            for lang_code, target_lang in SUPPORTED_LANGS.items():
-                cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
-                try:
-                    # 최신 데이터 존재 여부 확인
-                    res_8k = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key_8k).gt("updated_at", limit_time_str).execute()
-                    if not res_8k.data:
-                        meta_8k = get_localized_meta(lang_code, "S-1")
-                        # 8-K 전용 프롬프트
-                        prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, "", get_format_instruction(lang_code), fmp_8k_data)
-                        response_8k = model.generate_content(prompt_8k)
-                        
-                        if response_8k and response_8k.text:
-                            # 💡 [중요] app.py가 parts[1]을 읽을 수 있게 SEP를 강제로 넣어 저장합니다.
-                            final_8k_text = response_8k.text
-                            if "|||SEP|||" not in final_8k_text:
-                                final_8k_text = f"Summary Area|||SEP|||{final_8k_text}"
-                                
-                            batch_upsert("analysis_cache", [{
-                                "cache_key": cache_key_8k, 
-                                "content": final_8k_text, 
-                                "updated_at": datetime.now().isoformat()
-                            }], on_conflict="cache_key")
-                            print(f"🚨 [{ticker}] 8-K 분석 완료 ({lang_code})")
-                except Exception as e:
-                    print(f"❌ 8-K 생성 스킵: {e}")
-    
-        # 2. 일반 서류들 (S-1, 10-K, 10-Q 등) 처리
-        for topic in target_topics:
-            sec_fact_prompt = ""
-            sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
+        for lang_code in SUPPORTED_LANGS.keys():
+            cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
             
-            if cik:
-                filed_date = check_sec_specific_filing(cik, sec_search_target)
-                if filed_date:
-                    sec_fact_prompt = f"\n[SEC FACT CHECK] Filed on {filed_date}."
-            
-            for lang_code, target_lang in SUPPORTED_LANGS.items():
-                cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
-                
-                try:
-                    # 기존 데이터 확인
-                    res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
-                    if res.data: continue 
-                except: pass
-    
-                meta = get_localized_meta(lang_code, topic)
-                format_inst = get_format_instruction(lang_code)
-                prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, fmp_8k_data)
-                
-                # AI 호출 및 재시도 로직
-                for attempt in range(2):
-                    try:
-                        response = model.generate_content(prompt)
-                        if response and response.text:
-                            # 💡 일반 서류는 parts[0]을 사용하므로 그대로 저장해도 무방 (프롬프트에 SEP 포함됨)
-                            batch_upsert("analysis_cache", [{
-                                "cache_key": cache_key, 
-                                "content": response.text, 
-                                "updated_at": datetime.now().isoformat()
-                            }], on_conflict="cache_key")
-                            print(f"✅ [{ticker}] {topic} 완료 ({lang_code})")
-                            break
-                    except:
-                        time.sleep(1)
+            try:
+                res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+                if res.data: continue 
+            except: pass
 
+            meta = get_localized_meta(lang_code, topic)
+            format_inst = get_format_instruction(lang_code)
+            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, fmp_8k_data)
+            
+            for attempt in range(2):
+                try:
+                    response = model.generate_content(prompt)
+                    if response and response.text:
+                        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], "cache_key")
+                        print(f"✅ [{ticker}] {topic} 캐싱 완료 ({lang_code})")
+                        break
+                except:
+                    time.sleep(1)
+                    
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if not model: return
     
