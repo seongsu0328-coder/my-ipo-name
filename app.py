@@ -4119,7 +4119,8 @@ with main_area.container():
 
 
                 # 4. AI 요약 보기 및 프리미엄 8-K 섹션 (버튼 블러 UI 적용)
-                user_level = st.session_state.get('user_info', {}).get('membership_level', 'free')
+                user_info = st.session_state.get('user_info') or {}
+                user_level = user_info.get('membership_level', 'free')
 
                 # 👑 결제자 (Premium, Premium Plus): 정상적인 Expander 출력
                 if user_level in ['premium', 'premium_plus']:
