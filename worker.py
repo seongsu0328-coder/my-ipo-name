@@ -1512,6 +1512,128 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
                 time.sleep(1)
 
 # ==========================================
+# [신규 추가] Tab 3 프리미엄 요약 전용 프롬프트 (다국어 완벽 분리)
+# ==========================================
+def get_tab3_premium_prompt(lang, type_name, ticker, raw_data):
+    if lang == 'en':
+        return f"""You are a Senior Wall Street Analyst. Analyze the following [Raw Data] ({type_name}) for {ticker}.
+        
+[Strict Rules]
+1. Write ENTIRELY in English. Do not mix other languages.
+2. Write exactly 3 paragraphs.
+3. Each paragraph must be 4-5 sentences long, containing deep and professional insights.
+4. DO NOT use markdown bold (**) for numbers.
+5. Omit greetings and start the main content immediately. Maintain a cold, objective, and analytical tone.
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'ja':
+        return f"""あなたはウォール街のシニアアナリストです。提供された [Raw Data] ({type_name}) に基づいて、{ticker} の業績・見通しを日本語で深層分析してください。
+        
+[厳格な作成ルール]
+1. 全て自然な日本語のみで記述してください。
+2. 必ず3つの段落に分けて作成してください。
+3. 各段落は4〜5文で構成し、重厚で専門的な洞察を含めてください。
+4. 数値に強調記号（**）は絶対に使用しないでください。
+5. 挨拶は省略し、すぐに本題に入ってください。冷静で客観的な分析トーンを維持してください。
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'zh':
+        return f"""您是华尔街的高级分析师。请根据提供的 [Raw Data] ({type_name})，用简体中文对 {ticker} 的业绩与预期进行深度分析。
+        
+[严格编写规则]
+1. 必须完全使用简体中文编写，严禁混用其他语言。
+2. 必须严格分为3个段落。
+3. 每个段落应包含4-5句话，并提供深刻、专业的见解。
+4. 绝对不要使用星号（**）对数字进行加粗。
+5. 省略问候语，直接进入正文。保持冷静、客观和分析的基调。
+
+[Raw Data]:
+{raw_data}"""
+
+    else: # ko
+        return f"""당신은 월가 출신의 수석 애널리스트입니다. 아래 제공된 [Raw Data]({type_name})를 바탕으로 {ticker}의 실적 흐름 및 향후 전망을 한국어로 심층 분석하세요.
+        
+[작성 규칙 - 엄격 준수]
+1. 반드시 순수한 한국어로만 작성하세요.
+2. 반드시 3개의 문단으로 나누어 작성하세요.
+3. 각 문단은 4~5줄(문장) 길이로 묵직하고 전문적인 통찰을 담으세요.
+4. 숫자에 별표(**) 강조를 절대 사용하지 마세요.
+5. 인사말을 생략하고 첫 글자부터 본론만 작성하세요. 냉철하고 분석적인 어조를 유지하세요.
+
+[Raw Data]:
+{raw_data}"""
+
+
+# =========================================================
+# 🚀 [NEW] Tab 3 프리미엄 전용 데이터 수집 함수
+# =========================================================
+def run_tab3_premium_collection(ticker, company_name):
+    try:
+        limit_time_str = (datetime.now() - timedelta(hours=24)).isoformat()
+        
+        # 1. 어닝 서프라이즈 (최근 실적 발표 5건)
+        surp_url = f"https://financialmodelingprep.com/api/v3/earnings-surprises/{ticker}?limit=5&apikey={FMP_API_KEY}"
+        surp_raw = get_fmp_data_with_cache(ticker, "RAW_SURPRISE", surp_url, valid_hours=24)
+        
+        # 2. 향후 실적 전망치 (Analyst Estimates - 연간 기준 4건)
+        est_url = f"https://financialmodelingprep.com/api/v3/analyst-estimates/{ticker}?period=annual&limit=4&apikey={FMP_API_KEY}"
+        est_raw = get_fmp_data_with_cache(ticker, "RAW_ESTIMATE", est_url, valid_hours=24)
+
+        for lang_code in SUPPORTED_LANGS.keys():
+            # [A] 어닝 서프라이즈 AI 요약
+            if surp_raw:
+                surp_summary_key = f"{ticker}_PremiumSurprise_v1_{lang_code}"
+                try:
+                    res_s = supabase.table("analysis_cache").select("updated_at").eq("cache_key", surp_summary_key).gt("updated_at", limit_time_str).execute()
+                    if not res_s.data:
+                        prompt_s = get_tab3_premium_prompt(lang_code, "Earnings Surprises (Beat/Miss)", ticker, surp_raw)
+                        for attempt in range(3):
+                            try:
+                                resp_s = model.generate_content(prompt_s)
+                                if resp_s and resp_s.text:
+                                    s_paragraphs = [p.strip() for p in resp_s.text.split('\n') if len(p.strip()) > 20]
+                                    indent_size = "14px" if lang_code == "ko" else "0px"
+                                    html_s = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in s_paragraphs])
+                                    
+                                    batch_upsert("analysis_cache", [{"cache_key": surp_summary_key, "content": html_s, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                    print(f"✅ [{ticker}] 어닝서프라이즈 캐싱 완료 ({lang_code})")
+                                    break
+                            except Exception as e:
+                                print(f"❌ [Surprise AI 에러 - {lang_code}] 재시도 대기중...: {e}")
+                                time.sleep(1)
+                except: pass
+
+            # [B] 향후 실적 전망치 AI 요약
+            if est_raw:
+                est_summary_key = f"{ticker}_PremiumEstimate_v1_{lang_code}"
+                try:
+                    res_e = supabase.table("analysis_cache").select("updated_at").eq("cache_key", est_summary_key).gt("updated_at", limit_time_str).execute()
+                    if not res_e.data:
+                        prompt_e = get_tab3_premium_prompt(lang_code, "Analyst Future Estimates (Revenue & EPS)", ticker, est_raw)
+                        for attempt in range(3):
+                            try:
+                                resp_e = model.generate_content(prompt_e)
+                                if resp_e and resp_e.text:
+                                    e_paragraphs = [p.strip() for p in resp_e.text.split('\n') if len(p.strip()) > 20]
+                                    indent_size = "14px" if lang_code == "ko" else "0px"
+                                    html_e = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in e_paragraphs])
+                                    
+                                    batch_upsert("analysis_cache", [{"cache_key": est_summary_key, "content": html_e, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                    print(f"✅ [{ticker}] 실적전망치 캐싱 완료 ({lang_code})")
+                                    break
+                            except Exception as e:
+                                print(f"❌ [Estimate AI 에러 - {lang_code}] 재시도 대기중...: {e}")
+                                time.sleep(1)
+                except: pass
+
+    except Exception as e:
+        print(f"Premium Tab 3 FMP Error for {ticker}: {e}")
+
+# ==========================================
 # [수정/완전판] Tab 2: 거시 지표 수집 (FMP 연동 + 실시간 연산)
 # ==========================================
 def update_macro_data(df):
@@ -2073,8 +2195,12 @@ def main():
                     "updated_at": datetime.now().isoformat()
                 }], on_conflict="cache_key")
                 
-                # AI 리포트 생성
+                # 기존 AI 리포트 생성 (Tab 3 미시 지표)
                 run_tab3_analysis(official_symbol, name, unified_metrics)
+                
+                # 🚀 [NEW] 여기에 Tab 3 프리미엄 전용 데이터(어닝 서프라이즈, 실적 전망) 수집 함수 추가!
+                run_tab3_premium_collection(official_symbol, name)
+                
             except Exception as e:
                 print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
                 pass
