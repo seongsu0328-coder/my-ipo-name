@@ -4049,11 +4049,11 @@ with main_area.container():
                 st.rerun()
 
             
-            # --- Tab 0: 핵심 정보 (통합 및 최적화 버전) ---
+            # --- Tab 0: 핵심 정보 (내용 복구 및 8-K 전용 레드 테마) ---
             if selected_sub_menu == get_text('tab_0'):
-                # [보안] 데이터 로딩 체크
+                # [안전장치] 데이터 로딩 체크
                 if not stock or 'name' not in stock:
-                    st.warning("데이터 로딩 중입니다...")
+                    st.warning("데이터를 불러오는 중입니다...")
                     st.stop()
 
                 import re
@@ -4061,18 +4061,21 @@ with main_area.container():
                 import pandas as pd
                 from datetime import datetime
 
-                # 1. 변수 선언 (이름 통일)
+                # 1. 변수 선언 및 이름 통일 (NameError 완벽 방지)
                 c_lang = st.session_state.get('lang', 'ko')
                 u_info = st.session_state.get('user_info') or {}
                 u_level = u_info.get('membership_level', 'free')
                 s_name = stock['name'].strip()
                 
+                # [CSS] 일반 버튼(Secondary)=흰색, 8-K 전용 버튼(Primary)=빨간색
                 st.markdown("""<style>
                     div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; } 
-                    div.stButton > button[kind="primary"] { background-color: #d32f2f !important; color: #ffffff !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; }
+                    div.stButton > button[kind="primary"] { background-color: #d32f2f !important; color: #ffffff !important; border: 1px solid #d32f2f !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; }
+                    /* 선택된 일반 버튼에 파란색 테두리 강조 */
+                    div.stButton > button[kind="secondary"]:focus { border: 2px solid #004e92 !important; }
                 </style>""", unsafe_allow_html=True)
     
-                # 2. 기업 상태 및 버튼 리스트 구성
+                # 2. 기업 상태에 따른 버튼 리스트 구성
                 f_status = str(stock.get('status', current_s)).lower()
                 is_over_1y = False
                 try:
@@ -4084,7 +4087,7 @@ with main_area.container():
                 elif is_over_1y: b_list = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
                 else: b_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
 
-                # 🔍 8-K 데이터 존재 여부 체크
+                # 🔍 8-K 데이터 존재 여부 체크 (DB 조회)
                 has_8k_data = False
                 try:
                     r_8k = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{s_name}_8-K_Tab0_v16_{c_lang}").execute()
@@ -4094,64 +4097,72 @@ with main_area.container():
                 if has_8k_data and "8-K" not in b_list:
                     b_list.append("8-K")
 
-                # 활성 토픽 설정
+                # 현재 선택된 토픽 관리
                 if 'core_topic' not in st.session_state or st.session_state.core_topic not in b_list:
                     st.session_state.core_topic = b_list[0]
                 
-                t_topic = st.session_state.core_topic # 💡 통합 변수
+                t_topic = st.session_state.core_topic # 모든 로직에서 이 변수만 사용
 
-                # 3. 버튼 렌더링
+                # 3. 버튼 렌더링 (8-K만 빨간색 처리)
                 cols = st.columns(4)
                 for i, btn_name in enumerate(b_list):
                     with cols[i % 4]:
+                        # 🔒 비결제자 8-K 차단 (빨간 블러 버튼)
                         if btn_name == "8-K" and u_level not in ['premium', 'premium_plus']:
                             st.markdown(f'<div style="background:#d32f2f; color:white; border-radius:8px; height:3.5em; display:flex; align-items:center; justify-content:center; filter:blur(1.5px); opacity:0.8; font-size:12px; font-weight:bold; cursor:not-allowed;">🚨 8-K 🔒</div>', unsafe_allow_html=True)
                         else:
-                            b_style = "primary" if t_topic == btn_name else "secondary"
-                            if st.button(btn_name, key=f"safety_btn_{btn_name}", type=b_style, use_container_width=True):
+                            # 💡 대표님 요청: 8-K만 빨간색(primary), 나머지는 흰색(secondary)
+                            b_style = "primary" if btn_name == "8-K" else "secondary"
+                            if st.button(btn_name, key=f"v8_btn_{btn_name}", type=b_style, use_container_width=True):
                                 st.session_state.core_topic = btn_name
                                 st.rerun()
 
-                # 4. 상세 요약 출력
+                # 4. 상세 요약 및 분석 리포트 출력
                 st.info(get_text(f"desc_{t_topic.lower().replace('/','').replace('-','').replace(' ','')}"))
 
                 with st.expander(f" {t_topic} {get_text('btn_summary_view')}", expanded=True):
-                    with st.spinner("AI 분석 중..."):
+                    with st.spinner("분석 리포트를 불러오는 중..."):
                         a_res = get_ai_analysis(s_name, t_topic, c_lang)
                     
-                    if "ERROR" in a_res:
-                        st.error("데이터를 가져오지 못했습니다.")
+                    if not a_res or "ERROR" in a_res:
+                        st.error("데이터가 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.")
                     else:
+                        # 💡 [핵심] 공백 문제 해결: SEP가 있으면 쪼개고, 없으면 통째로 보여줌
                         p_splits = a_res.split("|||SEP|||")
-                        d_text = p_splits[1] if (t_topic == "8-K" and len(p_splits) > 1) else p_splits[0]
-                        st.markdown(f'<div style="line-height:1.8; text-align:justify;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+                        if t_topic == "8-K":
+                            # 8-K는 SEP 뒤의 분석 본문(1번)을 우선, 없으면 통째로(0번)
+                            d_text = p_splits[1] if len(p_splits) > 1 else p_splits[0]
+                        else:
+                            # S-1 등 일반 서류는 SEP 앞의 요약본(0번) 출력
+                            d_text = p_splits[0]
+                        
+                        # 최종 텍스트 렌더링
+                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
-                # 5. 외부 링크 버튼 (중복 제거 및 NameError 박멸)
-                st.write("") # 간격
+                # 5. 외부 링크 및 하단 버튼 (NameError 완벽 차단)
                 cik_val = profile.get('cik', '') if profile else ''
-                # BS, IS, CF일 때만 10-K로 검색
+                # SEC 검색 쿼리 보정
                 sec_q = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
                 
                 if cik_val: 
                     sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_val}&type={urllib.parse.quote(sec_q)}&owner=include&count=40"
                 else: 
-                    sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(s_name)}&dateRange=all"
+                    sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(s_name)}"
                 
-                # IR 사이트 링크
-                real_website = profile.get('weburl') or profile.get('website', '') if profile else ''
-                website_url = real_website if real_website else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + s_name + ' Investor Relations')}"
+                # IR 사이트
+                real_web = profile.get('weburl') or profile.get('website', '') if profile else ''
+                web_url = real_web if real_web else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + s_name + ' Investor Relations')}"
                 
-                # 버튼 UI
                 st.markdown(f"""
                     <a href="{sec_url}" target="_blank" style="text-decoration:none;">
                         <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({t_topic})</button>
                     </a>
-                    <a href="{website_url}" target="_blank" style="text-decoration:none;">
+                    <a href="{web_url}" target="_blank" style="text-decoration:none;">
                         <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button>
                     </a>
                 """, unsafe_allow_html=True)
 
-                # 하단 공통 UI
+                # 하단 공용 컴포넌트
                 draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 display_disclaimer()
 
