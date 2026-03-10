@@ -453,6 +453,11 @@ def fetch_fmp_8k_events(symbol, api_key):
 def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None):
     if not model: return
     
+    # 🚀 [에러 해결] 함수 시작하자마자 변수를 빈 값으로 초기화합니다.
+    # 이렇게 하면 아래 루프 어디서든 '정의되지 않음' 에러가 나지 않습니다.
+    sec_fact_prompt = ""
+    filing_text = ""
+    
     status_lower = str(ipo_status).lower()
     is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn'])
     is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
@@ -628,87 +633,84 @@ Checkpoints: {meta['p']}
 {format_inst}
 """
 
-    # ========================================================
-    # 💡 [중요] 아래쪽 호출 코드도 fmp_8k_data 를 빼고 수정하셔야 합니다!
-    # ========================================================
-    
-    # 💡 [핵심 교정] 8-K 전용 데이터 수집: 링크 리스트가 아닌 '진짜 본문'을 가져옵니다.
+    # ---------------------------------------------------------
+    # 💡 [핵심 교정 1] 8-K 분석 섹션: 링크 리스트가 아닌 '진짜 본문'을 분석
+    # ---------------------------------------------------------
     f_date_8k, f_text_8k = fetch_sec_filing_text(ticker, "8-K", FMP_API_KEY)
     
-    # 기존 로직과의 호환성을 위해 본문 텍스트를 fmp_8k_data에 담아줍니다.
+    # 기존 변수명 호환 및 에러 방지
     fmp_8k_data = f_text_8k if f_text_8k else "No recent 8-K events."
     
     is_new_8k = False
-    raw_cache_key = f"{ticker}_8K_RawData_v1"
+    raw_cache_key = f"{ticker}_8K_RawData_v3" # 캐시 버전 업그레이드
     
-    # 💡 본문 데이터가 실제로 존재할 때만 업데이트 검사 진행
-    if fmp_8k_data != "No recent 8-K events.":
+    if f_text_8k and len(f_text_8k) > 100:
         try:
             res_raw = supabase.table("analysis_cache").select("content").eq("cache_key", raw_cache_key).execute()
-            cached_raw = res_raw.data[0]['content'] if res_raw.data else ""
-            
-            # 최초 DB 적재 또는 본문의 앞부분 500자가 달라졌을 때 (새 공시 발생)
-            if not cached_raw or fmp_8k_data[:500] != cached_raw[:500]:
+            # 본문 앞부분 500자를 비교하여 실제 내용 변경 여부 확인
+            if not res_raw.data or f_text_8k[:500] != res_raw.data[0]['content'][:500]:
                 is_new_8k = True
-                # 캐시에는 비교용으로 앞부분 일부만 저장 (용량 절약)
-                batch_upsert("analysis_cache", [{"cache_key": raw_cache_key, "content": fmp_8k_data[:2000], "updated_at": datetime.now().isoformat()}], "cache_key")
+                # 비교용 텍스트 저장
+                batch_upsert("analysis_cache", [{"cache_key": raw_cache_key, "content": f_text_8k[:2000], "updated_at": datetime.now().isoformat()}], "cache_key")
                 
-                # 프리미엄 유저 대상 알림 발송 (여기서부터는 대표님 기존 로직 유지)
+                # 프리미엄 유저 알림 발송
                 batch_upsert("premium_alerts", [{
-                    "ticker": ticker, 
-                    "alert_type": "8K_UPDATE", 
-                    "title": f"{ticker} 8-K 업데이트", 
-                    "message": "새로운 8-K(중대 이벤트) 공시가 등록되었습니다. Tab 0에서 '진짜 본문' 분석 내용을 확인하세요."
+                    "ticker": ticker, "alert_type": "8K_UPDATE", "title": f"{ticker} 8-K 업데이트", 
+                    "message": "새로운 8-K(중대 이벤트) 공시 본문 분석이 완료되었습니다. Tab 0에서 확인하세요."
                 }], on_conflict="ticker,alert_type")
-                print(f"🔔 [{ticker}] 신규 8-K 본문 감지! 알림 발송 완료.")
-                
+                print(f"🔔 [{ticker}] 신규 8-K 본문 감지 완료.")
         except Exception as e:
             print(f"8-K 감지 에러: {e}")
 
-    # 💡 [핵심] 8-K AI 분석은 '신규 업데이트'가 감지되었을 때만 즉시 갱신 (비용 절약)
+    # 8-K AI 분석 실행 (본문 주입 방식)
     if is_new_8k:
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
-            try:
-                if lang_code == 'en':
-                    p_8k = f"You are a Wall Street Analyst.\nTarget: 8-K (Material Events) for {company_name} ({ticker})\nData: {fmp_8k_data}\n\n[Structure]\nPara 1: [Core Event] Summarize the most critical event from the 8-K.\nPara 2: [Financial Impact] Analyze the impact on financials and stock price.\nPara 3: [Future Outlook] Forecast management's next steps or points for investors.\n- Begin each paragraph with a **[Heading]**. Write exactly 3 paragraphs. Each paragraph should be about 4-5 sentences. DO NOT bold numbers."
-                elif lang_code == 'ja':
-                    p_8k = f"あなたはウォール街のアナリストです。\n分析対象: {company_name} ({ticker}) 8-Kイベント\nデータ: {fmp_8k_data}\n\n[構成]\n第1段落：[核心イベント] 8-K公示の最も重要なイベントの要約\n第2段落：[財務への影響] 該当イベントが財務および株価に与える影響\n第3段落：[今後の展望] 投資家が注目すべきポイント\n- 各段落は **[見出し]** から始めてください。必ず3つの段落で作成し、各段落は約4〜5文で構成してください。数値に強調(**)は不可。"
-                elif lang_code == 'zh':
-                    p_8k = f"您是华尔街分析师。\n分析目标: {company_name} ({ticker}) 8-K事件\n数据: {fmp_8k_data}\n\n[结构]\n第一段：[核心事件] 总结8-K公告中最核心的事件\n第二段：[财务影响] 分析该事件对财务和股价的影响\n第三段：[未来展望] 预测投资者应关注的要点\n- 每个段落以 **[副标题]** 开头。必须写3个段落，每段约4-5句话。请勿加粗数值。"
-                else: # ko
-                    p_8k = f"당신은 월가의 전문 애널리스트입니다.\n분석 대상: {company_name} ({ticker}) 8-K 수시공시\n제공된 데이터: {fmp_8k_data}\n\n[작성 지침]\n1문단: [핵심 이벤트] 발생한 8-K 공시의 가장 중요한 사유 요약\n2문단: [재무적 파급력] 해당 이벤트가 단기 재무 지표 및 주가에 미치는 영향\n3문단: [향후 전망] 경영진의 대응 또는 투자자가 주목해야 할 포인트\n\n- 반드시 한국어로 작성하세요.\n- 각 문단은 반드시 **[소제목]**으로 시작하세요.\n- 반드시 3개의 문단으로 구분하고, 각 문단은 4~5줄(문장) 길이로 묵직하게 작성하세요.\n- 숫자에 별표(**) 강조는 절대 쓰지 마세요."
+            
+            # 언어별 8-K 분석 지침 (3문단 규격 보존)
+            if lang_code == 'ko':
+                meta_8k = {"p": "Material Events", "s": "1문단: [핵심 이벤트] 발생 사유 요약\n2문단: [재무 파급력] 영향 분석\n3문단: [향후 전망] 투자 포인트"}
+            elif lang_code == 'ja':
+                meta_8k = {"p": "重要イベント", "s": "第1段落：[核心イベント] 発生理由の要約\n第2段落：[財務影響] 影響分析\n第3段落：[今後の展望] 投資ポイント"}
+            elif lang_code == 'zh':
+                meta_8k = {"p": "重大事件", "s": "第一段：[核心事件] 发生原因摘要\n第二段：[财务影响] 影响分析\n第三段：[未来展望] 投资要点"}
+            else: # en
+                meta_8k = {"p": "Material Events", "s": "Para 1: [Core Event] Reason summary\nPara 2: [Financial Impact] Analysis\nPara 3: [Future Outlook] Key points"}
 
-                # 8-K 분석 시에도 위에서 만든 localized_instruction 구조를 활용하게 바꿉니다.
-                meta_8k = {"p": "Material Events", "s": "1문단: [핵심 이벤트] 원인\n2문단: [재무 파급력] 영향\n3문단: [전망] 포인트"}
-                prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, f"Filed on {f_date_8k}", get_format_instruction(lang_code), f_text_8k[:15000])
+            # 통합 지침 함수를 사용하여 8-K 본문 주입
+            prompt_8k = get_localized_instruction(
+                lang_code, ticker, "8-K", company_name, 
+                meta_8k, 
+                f"[SEC FACT CHECK] Filed on {f_date_8k}", 
+                get_format_instruction(lang_code), 
+                f_text_8k[:15000]
+            )
+            
+            try:
                 response_8k = model.generate_content(prompt_8k)
-                
                 if response_8k and response_8k.text:
-                    # 💡 [핵심] 이제 일반 서류와 완벽히 분리되었으므로 가짜 |||SEP|||를 강제로 끼워 넣지 않고,
-                    # 그냥 순수한 8-K 리포트 텍스트 자체만 저장합니다!
-                    final_8k_text = response_8k.text.strip()
-                        
-                    batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": final_8k_text, "updated_at": datetime.now().isoformat()}], "cache_key")
-                    print(f"🚨 [{ticker}] 8-K 신규 분석 캐싱 완료 ({lang_code})")
+                    batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": response_8k.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                    print(f"🚨 [{ticker}] 8-K 본문 분석 캐싱 완료 ({lang_code})")
             except: pass
 
-    # 💡 [2] 일반 서류(S-1, 10-K 등) 루프 처리
+    # ---------------------------------------------------------
+    # 💡 [핵심 교정 2] 일반 서류 루프 (S-1, 10-K 등)
+    # ---------------------------------------------------------
     for topic in target_topics:
-        # 1. 문서 종류에 따라 소스(SEC 대상) 결정 (재무제표는 10-K에서 가져옴)
+        # 재무분석용 소스 결정
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
         
-        # 2. 🚀 [핵심 추가] 각 문서를 분석하기 직전에 실제 본문을 FMP에서 딱 한 번 가져옵니다.
+        # 🚀 루프 안에서 실제 본문을 1회 수집
         filed_date, filing_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY)
         
-        # 본문을 못 가져왔을 때의 처리 (에러 방지)
-        if not filing_text:
-            filing_text = "Filing content is currently unavailable. Please analyze based on the provided metadata only (if any)."
+        # 🚀 [에러 해결] 루프 안에서 변수를 확실히 정의하여 NameError 차단
+        current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {filed_date}." if filed_date else ""
+        current_filing_text = filing_text if filing_text else "Filing content unavailable. Analyze based on general IPO knowledge."
 
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
             
-            # 캐시 체크 (최신 데이터가 이미 있으면 통과)
+            # 캐시 체크 (24시간~7일 기준 적용)
             try:
                 res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
                 if res.data: continue 
@@ -717,15 +719,15 @@ Checkpoints: {meta['p']}
             meta = get_localized_meta(lang_code, topic)
             format_inst = get_format_instruction(lang_code)
             
-            # 💡 [수정됨] prompt 생성 시 filing_text를 인자로 전달함!
-            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, filing_text)
+            # 🚀 통합 지침 함수에 본문(current_filing_text) 전달
+            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, format_inst, current_filing_text)
             
             for attempt in range(2):
                 try:
                     response = model.generate_content(prompt)
                     if response and response.text:
-                        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], "cache_key")
-                        print(f"✅ [{ticker}] {topic} 진짜 분석 완료 ({lang_code})")
+                        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                        print(f"✅ [{ticker}] {topic} 진짜 본문 분석 완료 ({lang_code})")
                         break
                 except Exception as e:
                     print(f"❌ [{ticker}] {topic} 분석 에러 (시도 {attempt+1}): {e}")
