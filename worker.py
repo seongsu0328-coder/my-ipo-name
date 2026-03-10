@@ -559,9 +559,11 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     # 💡 [핵심] 실제 본문이 있을 경우 프롬프트에 삽입, 없을 경우 안내 메시지 처리
     base_msg = ""
     if filing_text and len(filing_text) > 100:
+        # AI가 가장 먼저 읽도록 상단에 배치될 실제 소스 텍스트
         base_msg = f"\n\n[ACTUAL SEC FILING CONTENT - MUST USE THIS AS SOURCE]\n{filing_text}\n"
     else:
-        base_msg = "\n\n(Note: Actual filing content is currently unavailable. Please provide a general structural overview of this document type for the specific company.)\n"
+        # 본문이 없을 경우를 대비한 최소한의 가이드 (소설 방지)
+        base_msg = "\n\n(Note: Actual filing content is currently unavailable. Please provide a general structural overview of this document type for the specific company based on the limited info.)\n"
 
     if lang == 'en':
         return f"""You are a Senior Wall Street Analyst.
@@ -634,7 +636,12 @@ Checkpoints: {meta['p']}
     # ========================================================
     
     # 💡 [핵심] 루프 밖에서 8-K 전용 데이터 수집 및 실시간 변동 감지
-    fmp_8k_data = fetch_fmp_8k_events(ticker, FMP_API_KEY)
+    # 기존 fetch_fmp_8k_events 호출 대신 이걸 사용하세요.
+    f_date_8k, f_text_8k = fetch_sec_filing_text(ticker, "8-K", FMP_API_KEY)
+    
+    # fmp_8k_data 변수를 쓰는 기존 로직이 있다면 f_text_8k로 대체합니다.
+    if f_text_8k:
+        # (이후 캐싱 및 알림 로직은 동일하게 유지)
     
     is_new_8k = False
     raw_cache_key = f"{ticker}_8K_RawData_v1"
@@ -678,7 +685,10 @@ Checkpoints: {meta['p']}
                 else: # ko
                     p_8k = f"당신은 월가의 전문 애널리스트입니다.\n분석 대상: {company_name} ({ticker}) 8-K 수시공시\n제공된 데이터: {fmp_8k_data}\n\n[작성 지침]\n1문단: [핵심 이벤트] 발생한 8-K 공시의 가장 중요한 사유 요약\n2문단: [재무적 파급력] 해당 이벤트가 단기 재무 지표 및 주가에 미치는 영향\n3문단: [향후 전망] 경영진의 대응 또는 투자자가 주목해야 할 포인트\n\n- 반드시 한국어로 작성하세요.\n- 각 문단은 반드시 **[소제목]**으로 시작하세요.\n- 반드시 3개의 문단으로 구분하고, 각 문단은 4~5줄(문장) 길이로 묵직하게 작성하세요.\n- 숫자에 별표(**) 강조는 절대 쓰지 마세요."
 
-                response_8k = model.generate_content(p_8k)
+                # 8-K 분석 시에도 위에서 만든 localized_instruction 구조를 활용하게 바꿉니다.
+                meta_8k = {"p": "Material Events", "s": "1문단: [핵심 이벤트] 원인\n2문단: [재무 파급력] 영향\n3문단: [전망] 포인트"}
+                prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, f"Filed on {f_date_8k}", get_format_instruction(lang_code), f_text_8k[:15000])
+                response_8k = model.generate_content(prompt_8k)
                 
                 if response_8k and response_8k.text:
                     # 💡 [핵심] 이제 일반 서류와 완벽히 분리되었으므로 가짜 |||SEP|||를 강제로 끼워 넣지 않고,
@@ -689,17 +699,13 @@ Checkpoints: {meta['p']}
                     print(f"🚨 [{ticker}] 8-K 신규 분석 캐싱 완료 ({lang_code})")
             except: pass
 
-    # 💡 [2] 일반 서류(S-1, 10-K 등) 루프 처리 (본문 주입 방식)
+    # 💡 [2] 일반 서류(S-1, 10-K 등) 루프 처리
     for topic in target_topics:
-        # BS, IS, CF 분석도 결국 10-K 본문 텍스트가 필요함
+        # 1. 문서 종류에 따라 소스(SEC 대상) 결정 (재무제표는 10-K에서 가져옴)
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
         
-        # 🚀 [교정의 핵심] 실제 본문 텍스트를 FMP에서 긁어오기
+        # 2. 🚀 [핵심 추가] 각 문서를 분석하기 직전에 실제 본문을 FMP에서 딱 한 번 가져옵니다.
         filed_date, filing_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY)
-        
-        sec_fact_prompt = ""
-        if filed_date:
-            sec_fact_prompt = f"\n[SEC FACT CHECK] Filed on {filed_date}."
         
         # 본문을 못 가져왔을 때의 처리 (에러 방지)
         if not filing_text:
