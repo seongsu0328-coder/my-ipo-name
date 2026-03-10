@@ -4147,176 +4147,120 @@ with main_area.container():
                 st.rerun()
 
             
-            # --- Tab 0: 핵심 정보 (내용 복구 및 8-K 전용 레드 테마) ---
+            # --- Tab 0: 핵심 정보 (개선된 최종본) ---
             if selected_sub_menu == get_text('tab_0'):
-                # [안전장치] 데이터 로딩 체크
-                if not stock or 'name' not in stock:
-                    st.warning("데이터를 불러오는 중입니다...")
-                    st.stop()
-
-                import re
-                import urllib.parse
-                import pandas as pd
-                from datetime import datetime
-
-                # 1. 변수 선언 및 이름 통일 (NameError 완벽 방지)
-                c_lang = st.session_state.get('lang', 'ko')
-                u_info = st.session_state.get('user_info') or {}
-                u_level = u_info.get('membership_level', 'free')
-                s_name = stock['name']
-                
-                # [CSS] 일반 버튼(Secondary)=흰색, 8-K 전용 버튼(Primary)=빨간색
+                # 1. 버튼 스타일링 (2주 전 코드의 깔끔한 하얀색/빨간색 분리)
                 st.markdown("""<style>
-                    div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; } 
-                    div.stButton > button[kind="primary"] { background-color: #d32f2f !important; color: #ffffff !important; border: 1px solid #d32f2f !important; border-radius: 8px !important; height: 3.5em !important; font-weight: bold !important; }
-                    /* 선택된 일반 버튼에 파란색 테두리 강조 */
-                    div.stButton > button[kind="secondary"]:focus { border: 2px solid #004e92 !important; }
+                    div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } 
+                    div.stButton > button[kind="secondary"]:hover { border-color: #6e8efb !important; color: #6e8efb !important; } 
+                    div.stButton > button[kind="primary"] { background-color: #d32f2f !important; color: #ffffff !important; border: 1px solid #d32f2f !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; }
+                    div.stButton > button[kind="primary"]:hover { background-color: #b71c1c !important; border-color: #b71c1c !important; }
                 </style>""", unsafe_allow_html=True)
-    
-                # 2. 기업 상태에 따른 버튼 리스트 구성
+            
+                # 2. 기업 상태 및 버튼 레이아웃 결정 (2주 전의 안정적인 구조)
                 f_status = str(stock.get('status', current_s)).lower()
+                is_withdrawn = any(x in f_status for x in ['철회', '취소', 'withdrawn'])
+                is_delisted = any(x in f_status for x in ['폐지', 'delisted'])
+                
                 is_over_1y = False
                 try:
-                    ipo_dt_val = pd.to_datetime(stock.get('공모일_dt')).date()
+                    ipo_dt_val = pd.to_datetime(stock['공모일_dt']).date()
                     if (datetime.now().date() - ipo_dt_val).days > 365: is_over_1y = True
-                except: pass 
-
-                if any(x in f_status for x in ['철회', '취소']): b_list = ["S-1", "S-1/A", "F-1", "FWP", "RW"]
-                elif is_over_1y: b_list = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
-                else: b_list = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
-
-                # 🔍 8-K 데이터 존재 여부 체크 (DB 조회)
-                has_8k_data = False
-                try:
-                    r_8k = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{s_name}_8-K_Tab0_v16_{c_lang}").execute()
-                    if r_8k.data: has_8k_data = True
                 except: pass
-
-                if has_8k_data and "8-K" not in b_list:
-                    b_list.append("8-K")
-
-                # 현재 선택된 토픽 관리
-                if 'core_topic' not in st.session_state or st.session_state.core_topic not in b_list:
-                    st.session_state.core_topic = b_list[0]
+            
+                # 버튼 리스트 생성
+                if is_withdrawn:
+                    btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("RW", "primary")]
+                    default_topic = "RW"
+                elif is_delisted:
+                    btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("424B4", "secondary"), ("Form 25", "primary")]
+                    default_topic = "Form 25"
+                elif is_over_1y:
+                    btn_layout = [("S-1", "secondary"), ("FWP", "secondary"), ("10-K", "secondary"), ("10-Q", "secondary"), ("BS", "secondary"), ("IS", "secondary"), ("CF", "secondary")]
+                    default_topic = "10-K"
+                else:
+                    btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("424B4", "secondary")]
+                    default_topic = "S-1"
+            
+                # 🔍 8-K 데이터 존재 여부 확인 (있을 때만 버튼 추가)
+                has_8k = False
+                try:
+                    r_8k = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{stock['name']}_8-K_Tab0_v16_{st.session_state.lang}").execute()
+                    if r_8k.data: has_8k = True
+                except: pass
+                if has_8k: btn_layout.append(("8-K", "primary"))
+            
+                # 현재 선택된 토픽 유효성 검사
+                valid_topics = [b[0] for b in btn_layout]
+                if 'core_topic' not in st.session_state or st.session_state.core_topic not in valid_topics:
+                    st.session_state.core_topic = default_topic
+            
+                # 버튼 렌더링
+                label_map = { "S-1": get_text('label_s1'), "S-1/A": get_text('label_s1a'), "F-1": get_text('label_f1'), "FWP": get_text('label_fwp'), "424B4": get_text('label_424b4'), "RW": get_text('label_rw'), "Form 25": get_text('label_form25'), "10-K": get_text('label_10k'), "10-Q": get_text('label_10q'), "BS": get_text('label_bs'), "IS": get_text('label_is'), "CF": get_text('label_cf'), "8-K": "🚨 8-K" }
                 
-                t_topic = st.session_state.core_topic # 모든 로직에서 이 변수만 사용
-
-                # 3. 버튼 렌더링 (8-K만 빨간색 처리)
                 cols = st.columns(4)
-                for i, btn_name in enumerate(b_list):
-                    with cols[i % 4]:
-                        if btn_name == "8-K" and u_level not in ['premium', 'premium_plus']:
-                            # 비결제자 8-K (블러 처리)
-                            st.markdown(f'<div style="background:#d32f2f; color:white; ...">🚨 8-K 🔒</div>', unsafe_allow_html=True)
-                        else:
-                            # 💡 8-K 버튼만 'primary'(빨간색), 나머지는 'secondary'(흰색)
-                            btn_style = "primary" if btn_name == "8-K" else "secondary"
-                            
-                            if st.button(btn_name, key=f"btn_{btn_name}", type=btn_style, use_container_width=True):
-                                st.session_state.core_topic = btn_name
-                                st.rerun()
-
-                # 4. 상세 요약 및 분석 리포트 출력
+                for i, (t_name, t_style) in enumerate(btn_layout):
+                    if cols[i % 4].button(label_map.get(t_name, t_name), type=t_style, use_container_width=True, key=f"btn_v2_{t_name}"):
+                        st.session_state.core_topic = t_name
+                        st.rerun()
+            
+                t_topic = st.session_state.core_topic
                 st.info(get_text(f"desc_{t_topic.lower().replace('/','').replace('-','').replace(' ','')}"))
-
+            
+                # 3. 데이터 로드 및 스마트 파싱 (공란 방지 및 포맷 최적화)
                 with st.expander(f" {t_topic} {get_text('btn_summary_view')}", expanded=True):
                     with st.spinner("분석 리포트를 불러오는 중..."):
-                        a_res = get_ai_analysis(s_name, t_topic, c_lang)
+                        a_res = get_ai_analysis(stock['name'], t_topic, st.session_state.lang)
                     
                     if not a_res or "ERROR" in a_res:
-                        st.error("데이터가 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.")
+                        st.error("데이터를 불러올 수 없습니다.")
                     else:
                         import re
-                        # 1. 원본 보존 및 마크다운 별표 제거
-                        raw_origin = a_res.strip()
-                        clean_res = raw_origin.replace("**", "").strip()
+                        # [Step 1] 구분자 및 원본 텍스트 정리
+                        raw_text = a_res.replace("|||SEP|||", "\n").replace("**", "").strip()
                         
-                        # 2. 8-K 및 일반 서류 분할
-                        if "|||SEP|||" in clean_res:
-                            parts = clean_res.split("|||SEP|||")
-                            d_text = parts[-1].strip() if t_topic == "8-K" else parts[0].strip()
-                        else:
-                            d_text = clean_res
-
-                        # 3. 💡 [안전하게 수정] 하단 찌꺼기 제거 (절단 대신 교체 방식 사용)
-                        # '최근 보고된 돌발...' 같은 멘트만 콕 집어서 삭제 (전체 절단 X)
+                        # [Step 2] 8-K가 아닐 때 하단 8-K 멘트 강제 제거
                         if t_topic != "8-K":
-                            d_text = d_text.split("8-K 분석]")[0] # 8-K 분석 섹션이 시작되면 거기서만 자름
-                            d_text = d_text.replace("최근 보고된 돌발 악재/호재가 없습니다.", "").strip()
-
-                        # 4. 상단 머리말 제거 (더 유연한 정규식)
-                        d_text = re.sub(r'^\[.*?\]\s*', '', d_text) # 맨 앞 대괄호 뭉치 하나만 제거
-                        
-                        # 5. 줄 단위 재조립 및 소제목 [ ] 포맷팅
-                        lines = d_text.split('\n')
+                            raw_text = raw_text.split("8-K 분석]")[0].split("보고된 돌발")[0].strip()
+            
+                        # [Step 3] 줄 단위로 읽으며 소제목 강제 포맷팅 (다국어 범용)
+                        lines = raw_text.split('\n')
                         final_lines = []
                         for line in lines:
-                            line_s = line.strip()
-                            if not line_s or "요약보기" in line_s or "기본 요약" in line_s: continue
+                            l = line.strip()
+                            if not l or any(x in l for x in ["요약", "분석", "Summary", "分析"]): continue
                             
-                            # 소제목 판단: 대괄호가 있거나, 짧고 마침표가 없음
-                            if (line_s.startswith('[') and line_s.endswith(']')) or \
-                               (len(line_s) < 50 and not line_s.endswith(('다', '.', '。', '？', '?'))):
-                                
-                                title = line_s.replace('[', '').replace(']', '').strip()
-                                if final_lines: final_lines.append("") 
+                            # 소제목 감지 (대괄호가 있거나, 짧고 마침표가 없음)
+                            if (l.startswith('[') and l.endswith(']')) or (len(l) < 50 and not re.search(r'[.。!?>]', l) and not l.endswith(('다', '요', 'ね', 'る', '了'))):
+                                title = l.replace('[','').replace(']','').strip()
+                                if final_lines: final_lines.append("")
                                 final_lines.append(f"<b>[{title}]</b>")
                             else:
-                                final_lines.append(line_s)
-
-                        d_text = "\n\n".join(final_lines).strip()
+                                final_lines.append(l)
                         
-                        # 🚨 [초강력 방어막] 만약 위 과정에서 글자가 다 날아갔다면 원본 그대로 출력
-                        if len(d_text) < 20:
-                            d_text = raw_origin.split("|||SEP|||")[0].replace("**", "").strip()
-
-                        # =================================================
-                        # 6. 최종 렌더링 및 8-K 프리미엄 블러
-                        # =================================================
-                        if t_topic == "8-K":
-                            # 8-K 데이터가 진짜 없는지 확인
-                            is_empty_8k = any(x in d_text for x in ["없", "No", "无", "未", "ない"])
-                            if is_premium or is_empty_8k:
-                                st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-                            else:
-                                # 비결제자 블러 처리
-                                blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다... (이하 블러 처리)"
-                                st.markdown(f"""
-                                    <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                                        <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                            <h4 style="color: #d32f2f; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                            <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_8k_blur_teaser')}</p>
-                                        </div>
-                                    </div>
-                                """, unsafe_allow_html=True)
+                        d_text = "\n\n".join(final_lines).strip()
+                        if len(d_text) < 10: d_text = raw_text # 안전장치
+            
+                        # [Step 4] 8-K 프리미엄 블러 또는 본문 렌더링
+                        if t_topic == "8-K" and not is_premium:
+                            blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다... (이하 블러 처리)"
+                            st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #d32f2f; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_8k_blur_teaser')}</p></div></div>""", unsafe_allow_html=True)
                         else:
-                            # 일반 서류 출력
                             st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-
-                # 5. 외부 링크 및 하단 버튼
-                cik_val = profile.get('cik', '') if profile else ''
+            
+                # 5. 하단 링크 및 버튼 (2주 전 코드의 깔끔한 매핑 방식)
+                import urllib.parse
+                cik = profile.get('cik', '') if profile else ''
                 sec_q = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
+                if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(sec_q)}&owner=include&count=40"
+                else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(stock['name'])}"
                 
-                if cik_val: 
-                    sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_val}&type={urllib.parse.quote(sec_q)}&owner=include&count=40"
-                else: 
-                    sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(s_name)}"
-                
-                # IR 사이트
                 real_web = profile.get('weburl') or profile.get('website', '') if profile else ''
-                web_url = real_web if real_web else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + s_name + ' Investor Relations')}"
+                web_url = real_web if real_web else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + stock['name'] + ' Investor Relations')}"
                 
-                st.markdown(f"""
-                    <a href="{sec_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;'>{get_text('btn_sec_link')} ({t_topic})</button>
-                    </a>
-                    <a href="{web_url}" target="_blank" style="text-decoration:none;">
-                        <button style='width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;'>{get_text('btn_official_web')}</button>
-                    </a>
-                """, unsafe_allow_html=True)
-
-                # 하단 공용 컴포넌트
+                st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;">{get_text("btn_sec_link")} ({t_topic})</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{web_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;">{get_text("btn_official_web")}</button></a>', unsafe_allow_html=True)
+            
                 draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 display_disclaimer()
                     
