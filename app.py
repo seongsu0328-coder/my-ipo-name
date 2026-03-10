@@ -4227,85 +4227,63 @@ with main_area.container():
                         st.error("데이터가 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.")
                     else:
                         import re
-                        raw_text = a_res.strip()
+                        # 1. 원본에서 불필요한 마크다운 별표(**)를 미리 제거하여 텍스트 매칭율을 높임
+                        clean_res = a_res.replace("**", "").strip()
                         
+                        # 2. 8-K 및 일반 서류 분리 (SEP 기준)
+                        if "|||SEP|||" in clean_res:
+                            if t_topic == "8-K":
+                                d_text = clean_res.split("|||SEP|||")[-1].strip()
+                            else:
+                                d_text = clean_res.split("|||SEP|||")[0].strip()
+                        else:
+                            d_text = clean_res
+
                         # =================================================
-                        # 1. 8-K 찌꺼기 완벽 절단 (일반 서류일 경우)
+                        # 💡 [핵심 교정] 일반 서류일 때 하단 8-K 잔여물 강제 절단
                         # =================================================
                         if t_topic != "8-K":
-                            # SEP가 있으면 앞부분만 가져옴
-                            if "|||SEP|||" in raw_text:
-                                raw_text = raw_text.split("|||SEP|||")[0].strip()
-                            
-                            # 💡 [핵심] 일반 서류인데 8-K 내용이 딸려왔다면, 그 키워드부터 뒤쪽은 통째로 버림!
-                            cut_keywords = ["**[8-K 분석]**", "[8-K 분석]", "**[실시간 8-K", "[실시간 8-K", "최근 보고된 돌발"]
-                            for kw in cut_keywords:
-                                if kw in raw_text:
-                                    raw_text = raw_text.split(kw)[0].strip()
-                        else:
-                            # 8-K 서류인 경우
-                            if "|||SEP|||" in raw_text:
-                                raw_text = raw_text.split("|||SEP|||")[-1].strip()
+                            # '8-K 분석'이나 '돌발 악재' 등의 키워드가 나오는 지점부터 아래를 싹둑 자름
+                            cut_pattern = r"(8-K|보고된|돌발|악재/호재|이벤트 분석)"
+                            match = re.search(cut_pattern, d_text)
+                            if match:
+                                # 해당 키워드가 포함된 문단(줄)의 시작점까지만 남김
+                                d_text = d_text[:match.start()].strip()
 
-                        # =================================================
-                        # 2. 상단 불필요한 머리말 완벽 청소 (마크다운 별표 포함)
-                        # =================================================
-                        bad_headers = [
-                            "**[기본 요약]**", "[기본 요약]", 
-                            "**[S-1/A 기본 요약]**", "[S-1/A 기본 요약]",
-                            "**[S-1 요약]**", "[S-1 요약]",
-                            "요약보기"
-                        ]
-                        for bh in bad_headers:
-                            raw_text = raw_text.replace(bh, "")
-                            
-                        # "[SUMA Acquisition Corp S-1 분석]" 같은 패턴 제거
-                        raw_text = re.sub(r'^\*\*\[.*?분석\]\*\*\s*', '', raw_text)
-                        raw_text = re.sub(r'^\[.*?분석\]\s*', '', raw_text)
-                        raw_text = raw_text.strip()
+                        # 3. 상단 불필요한 머리말 제거
+                        d_text = re.sub(r'^\[.*?(분석|요약)\].*?\n*', '', d_text).strip()
                         
-                        # =================================================
-                        # 🚀 3. 소제목 포맷팅 (괄호 없으면 씌워주기)
-                        # =================================================
-                        lines = raw_text.split('\n')
+                        # 4. 줄 단위 재조립 및 소제목 [ ] 포맷팅
+                        lines = d_text.split('\n')
                         final_lines = []
-                        
                         for line in lines:
                             line_s = line.strip()
-                            if not line_s:
-                                continue # 빈 줄 무시
-                                
-                            clean_line = line_s.replace('**', '').replace('###', '').replace('##', '').strip()
+                            if not line_s: continue
                             
-                            # 조건 1: 이미 대괄호 [ ] 로 묶인 소제목 형태
-                            if clean_line.startswith('[') and clean_line.endswith(']'):
-                                final_lines.append(f"\n<b>{clean_line}</b>")
-                            
-                            # 조건 2: 대괄호는 없는데 길이가 짧고 마침표(.)가 없는 제목 형태
-                            elif len(clean_line) < 40 and not re.search(r'[.。!?>]', clean_line) and not clean_line.endswith('다'):
-                                final_lines.append(f"\n<b>[{clean_line}]</b>")
+                            # 소제목 판단 (대괄호가 있거나, 짧고 다로 끝나지 않음)
+                            if (line_s.startswith('[') and line_s.endswith(']')) or \
+                               (len(line_s) < 40 and not line_s.endswith(('다', '.', '。', '？', '?'))):
                                 
-                            # 조건 3: 일반 본문 문장
+                                title = line_s.replace('[', '').replace(']', '').strip()
+                                if final_lines: final_lines.append("") # 문단 간격
+                                final_lines.append(f"<b>[{title}]</b>")
                             else:
                                 final_lines.append(line_s)
-                                
-                        # 리스트를 다시 하나의 텍스트로 결합 (문단 사이에 예쁜 여백 생성)
+
                         d_text = "\n\n".join(final_lines).strip()
                         
-                        # 최후의 방어막: 파싱하다가 원본이 날아간 경우 복구
-                        if len(d_text) < 10:
-                            d_text = a_res.replace("|||SEP|||", "\n\n").strip()
+                        # 공란 방지 최후 보루
+                        if len(d_text) < 10: d_text = clean_res.split("|||SEP|||")[0].strip()
 
                         # =================================================
-                        # 4. 마무리 화면 렌더링 및 8-K 프리미엄 블러
+                        # 5. 최종 렌더링 및 8-K 프리미엄 블러
                         # =================================================
                         if t_topic == "8-K":
                             is_empty_8k = any(x in d_text for x in ["없", "No", "无", "未", "ない"])
-                            
                             if is_premium or is_empty_8k:
                                 st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
                             else:
-                                blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다. 이는 단기 주가 변동성을 크게 확대시킬 수 있는 요인으로 판단되며 향후... (이하 블러 처리)"
+                                blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다... (이하 블러 처리)"
                                 st.markdown(f"""
                                     <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
                                         <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
