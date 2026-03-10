@@ -118,21 +118,24 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
         # 🚀 4단계: [최종 병기 가동] FMP 텍스트가 비어있다면? SEC Archive 본진에서 원문(.txt) 직접 긁어오기!
         if (not full_text or len(full_text) < 100) and cik:
             print(f"⚠️ FMP 텍스트 지연 발생. SEC 서버에서 원문 직접 추출 시도: {ticker} ({doc_type})")
+            # SEC 원문 아카이브 경로 조합
             acc_no_clean = str(accession_num).replace('-', '')
             cik_int = str(int(cik)) # URL용 CIK (앞의 0 제거)
             raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_no_clean}/{accession_num}.txt"
             
             raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=10)
             if raw_res.status_code == 200:
+                # HTML 태그 및 공백 제거로 순수 팩트만 추출
                 clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
                 clean_text = re.sub(r'\s+', ' ', clean_text)
                 full_text = clean_text
                 print(f"✅ [SEC Scraping] SEC 본진 원문 확보 완료! ({len(full_text)} 자)")
 
         if full_text and len(full_text) > 100:
-            return filed_date, full_text[:20000]
+            return filed_date, full_text[:20000] # AI 분석용 2만 자 슬라이싱
         
         return filed_date, None
+
     except Exception as e:
         print(f"❌ [{ticker}] {doc_type} 본문 추출 최종 실패: {e}")
         return None, None
@@ -508,7 +511,7 @@ def fetch_fmp_8k_events(symbol, api_key):
 
 
 # ==========================================
-# [완전 교체] run_tab0_analysis 함수 (다국어 100% 보존 + 8-K 3문단/4~5줄 규격 통일)
+# [완전 교체] run_tab0_analysis 함수 (에러 영구 차단 + 20-F 하이브리드 탐색)
 # ==========================================
 def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None):
     if not model: return
@@ -523,73 +526,9 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         else:
             print(f"⚠️ [CIK 획득 실패] {company_name}({ticker})의 고유번호를 찾을 수 없습니다.")
 
-    # 🚀 [2] 기업 상태 및 기간 분석 (기존 로직 유지)
-    status_lower = str(ipo_status).lower()
-    is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn'])
-    is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
-    
-    days_passed = 0
-    is_over_1y = False
-    if ipo_date_str:
-        try:
-            ipo_dt = pd.to_datetime(ipo_date_str).date()
-            days_passed = (datetime.now().date() - ipo_dt).days
-            if days_passed > 365: is_over_1y = True
-        except: pass
-
-    valid_hours = 168 if (is_withdrawn or is_delisted or is_over_1y) else 24
-    limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
-
-    # 대상 서류 배정
-    if is_withdrawn: target_topics = ["S-1", "S-1/A", "F-1", "RW"]
-    elif is_delisted: target_topics = ["S-1", "10-K", "20-F", "Form 25"]
-    elif is_over_1y: target_topics = ["10-K", "10-Q", "BS", "IS", "CF"]
-    else: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
-
-    # 🚀 [3] 통합 서류 루프 (우선순위 탐색 + 스마트 Bypass)
-    for topic in target_topics:
-        f_date, f_text = None, None
-        
-        # [Issue 1 & 3 해결] 재무 분석 시 문서 우선순위 탐색 (10-K -> 10-K/A -> 20-F -> 20-F/A)
-        if topic in ["BS", "IS", "CF", "10-K"]:
-            priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
-            for target in priority_targets:
-                f_date, f_text = fetch_sec_filing_text(ticker, target, FMP_API_KEY, cik)
-                if f_text and len(f_text) > 500:
-                    print(f"✅ [{ticker}] {topic} 분석 소스 확보: {target}")
-                    break
-        else:
-            f_date, f_text = fetch_sec_filing_text(ticker, topic, FMP_API_KEY, cik)
-
-        # 다국어 캐싱 및 AI 호출
-        for lang_code in SUPPORTED_LANGS.keys():
-            cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
-            try:
-                res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
-                if res.data: continue 
-            except: pass
-
-            # 본문 부재 시 안내 멘트 (Bypass)
-            if not f_text or len(f_text) < 100:
-                missing_msg = get_missing_document_message(lang_code, topic)
-                formatted_msg = f"<div style='background-color:#f8f9fa; padding:15px; border-radius:8px; color:#555; font-size:15px; line-height:1.6;'>{missing_msg}</div>"
-                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
-                continue
-
-            # 진짜 본문 분석 실행
-            current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
-            meta = get_localized_meta(lang_code, topic)
-            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, get_format_instruction(lang_code), f_text)
-            
-            try:
-                response = model.generate_content(prompt)
-                if response and response.text:
-                    batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
-                    print(f"✅ [{ticker}] {topic} 분석 완료 ({lang_code})")
-            except Exception as e:
-                print(f"❌ [{ticker}] {topic} AI 에러: {e}")
-
-    # 12가지 문서의 세부 지시사항 (대표님의 기존 번역 100% 유지)
+    # ---------------------------------------------------------
+    # 🚨 [2] 에러 원천 차단: 보조 함수들을 루프보다 무조건 먼저 선언합니다.
+    # ---------------------------------------------------------
     def get_localized_meta(lang, doc_type):
         meta_dict = {
             "ko": {
@@ -628,11 +567,11 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 "424B4": {"p": "最終価格, 引受シンジケート, 配分", "s": "第1段落：確定した公募価格の位置づけと市場需要の解釈\n第2段落：確定した調達資金の投入優先順位\n第3段落：配分に基づく上場初期の流通株式予測"},
                 "RW": {"p": "撤回理由, 市場環境, 今後の計画", "s": "第1段落：上場撤回の決定的な理由と背景\n第2段落：上場撤回が企業の財務および投資家に与える影響\n第3段落：今後の再上場またはM&Aなどの計画"},
                 "Form 25": {"p": "上場廃止理由, M&A, 株主への影響", "s": "第1段落：上場廃止の正確な理由（買収、自主的、違反など）\n第2段落：上場廃止後の既存株主の権利および株式の取り扱い\n第3段落：店頭市場（OTC）での取引可能性および今後の状態"},
-                "10-K": {"p": "通期売上高, 営業利益, セ그メント実績", "s": "第1段落：[通期実績] 過去1年間の実際の売上高と営業利益の数値($)、および成長率を明記\n第2段落：[事業分析] 各セグメント別の実績データとビジネスモデルの変化\n第3段落：[将来リスク] リスク要因が今後の財務指標に与える具体的な影響"},
+                "10-K": {"p": "通期売上高, 営業利益, セグメント実績", "s": "第1段落：[通期実績] 過去1年間の実際の売上高と営業利益の数値($)、および成長率を明記\n第2段落：[事業分析] 各セグメント別の実績データとビジネスモデルの変化\n第3段落：[将来リスク] リスク要因が今後の財務指標に与える具体的な影響"},
                 "10-Q": {"p": "四半期売上, 純利益, 現金残高", "s": "第1段落：[四半期実績] 当四半期の実際の売上($)と純利益($)および前年比を明記\n第2段落：[流動性] 現在の現金および現金同等物の実際の数値をお明記し診断\n第3段落：[ガイダンス] 次四半期の予想数値と成長の具体的な根拠"},
                 "BS": {"p": "資産合計, 負債合計, 現金等価物, 自己資本", "s": "第1段落：[資産構造] 現金同等物を含む流動・非流動資産の実際の数値(USD)を明記\n第2段落：[負債と資本] 総負債と自己資本の実際の金額($)に基づき分析\n第3段落：[結論] 数値に裏打ちされた短期支払能力と健全性の評価"},
                 "IS": {"p": "売上高, 利益率, 営業利益, 純利益, EPS", "s": "第1段落：[売上実績] 報告書に明記された実際の売上高(Revenue)数値と成長率(%)を含める\n第2段落：[収益性] 営業利益と純利益の実際のドル数値を明記し分析\n第3段落：[利益の質] EPSと利益の質を具体的なデータで要約"},
-                "CF": {"p": "営業CF, CAPEX, 財務CF, FCF", "s": "第1段落：[営業CF] 実際の営業活動によるCF数値($)を明記し評価\n第2段落：[投資とCAPEX] CAPEXの実際の金額と投資方向性を数字で分析\n第3段落：[現金の存続能力] フリーキャッシュフロー(FCF)を 직접計算(営業CF-CAPEX)して明記"}
+                "CF": {"p": "営業CF, CAPEX, 財務CF, FCF", "s": "第1段落：[営業CF] 実際の営業活動によるCF数値($)を明記し評価\n第2段落：[投資とCAPEX] CAPEXの実際の金額と投資方向性を数字で分析\n第3段落：[現金の存続能力] フリーキャッシュフロー(FCF)を 直接計算(営業CF-CAPEX)して明記"}
             },
             "zh": {
                 "S-1": {"p": "风险因素, 资金用途, MD&A", "s": "第一段：该文件中最重要的投资亮点\n第二段：实质性增长潜力及其财务意义\n第三段：一个核心风险，其连锁反应及应对措施"},
@@ -657,56 +596,54 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         elif lang == 'ja': return "- 各段落は日本語の **[見出し]** から始めてください。1段落につき4〜5文にし、数値に強調（**）は使わないでください。"
         elif lang == 'zh': return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
         else: return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5줄(문장) 길이로 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
-    
+
     def get_missing_document_message(lang, doc_type):
         msg_map = {
             "ko": {
-                "S-1": "**[Issuer Classification]** 해당 기업은 해외 국적 발행인(Foreign Issuer) 또는 SPAC으로 식별됩니다. 상세 공시 데이터는 **[F-1]** 섹션을 참조하십시오.",
-                "F-1": "**[Issuer Classification]** 미국 내국 법인(Domestic Issuer)으로 확인되었습니다. 규정에 따른 공시 내역은 **[S-1]** 섹션에서 제공됩니다.",
-                "S-1/A": "**[Filing Status]** 최초 신고서 제출 이후의 정정 신고서(S-1/A)가 아직 공시되지 않았습니다. 공모가 밴드 확정 시 실시간 업데이트됩니다.",
-                "FWP": "**[Supplemental Info]** 현재 해당 기업의 추가 로드쇼 자료나 마케팅용 자유 양식 증권신고서(FWP)가 SEC에 등록되지 않은 상태입니다.",
-                "424B4": "**[Pricing Finalization]** 최종 공모가 확정 서류(424B4)는 통상 상장 직전 24~48시간 이내에 수립됩니다. 확정 즉시 분석 리포트가 생성됩니다.",
-                "RW": "**[Offering Status]** 현재 상장 철회(RW)와 관련된 특이 사항이 발견되지 않았습니다. 상장 절차가 정상 궤도 내에서 진행 중입니다.",
-                "Form 25": "**[Listing Status]** 상장 폐지(Delisting) 관련 이벤트가 감지되지 않았습니다. 해당 종목은 정규 시장 내에서 활성 상태를 유지하고 있습니다.",
-                "DEFAULT": "**[Data Sync]** 해당 서류의 제출 기한이 도래하지 않았거나 SEC EDGAR 시스템 내의 아카이빙 작업이 진행 중입니다."
+                "S-1": "🔍 **[Issuer Classification]** 해당 기업은 해외 국적 발행인(Foreign Issuer) 또는 SPAC으로 식별됩니다. 상세 공시 데이터는 **[F-1]** 섹션을 참조하십시오.",
+                "F-1": "🔍 **[Issuer Classification]** 미국 내국 법인(Domestic Issuer)으로 확인되었습니다. 규정에 따른 공시 내역은 **[S-1]** 섹션에서 제공됩니다.",
+                "S-1/A": "⏳ **[Filing Status]** 최초 신고서 제출 이후의 정정 신고서(S-1/A)가 아직 공시되지 않았습니다. 공모가 밴드 확정 시 실시간 업데이트됩니다.",
+                "FWP": "📑 **[Supplemental Info]** 현재 해당 기업의 추가 로드쇼 자료나 마케팅용 자유 양식 증권신고서(FWP)가 SEC에 등록되지 않은 상태입니다.",
+                "424B4": "📈 **[Pricing Finalization]** 최종 공모가 확정 서류(424B4)는 통상 상장 직전 24~48시간 이내에 수립됩니다. 확정 즉시 분석 리포트가 생성됩니다.",
+                "RW": "✅ **[Offering Status]** 현재 상장 철회(RW)와 관련된 특이 사항이 발견되지 않았습니다. 상장 절차가 정상 궤도 내에서 진행 중입니다.",
+                "Form 25": "🛡️ **[Listing Status]** 상장 폐지(Delisting) 관련 이벤트가 감지되지 않았습니다. 해당 종목은 정규 시장 내에서 활성 상태를 유지하고 있습니다.",
+                "DEFAULT": "🔄 **[Data Sync]** 해당 서류의 제출 기한이 도래하지 않았거나 SEC EDGAR 시스템 내의 아카이빙 작업이 진행 중입니다."
             },
             "en": {
-                "S-1": "**[Issuer Classification]** Identified as a Foreign Issuer or SPAC. Please refer to the **[F-1]** section for primary disclosure data.",
-                "F-1": "**[Issuer Classification]** Identified as a US Domestic Issuer. Regulatory filings are provided in the **[S-1]** section.",
-                "S-1/A": "**[Filing Status]** The amended registration statement (S-1/A) following the initial filing has not yet been disclosed. Real-time updates will follow upon price band finalization.",
-                "FWP": "**[Supplemental Info]** No additional roadshow materials or Free Writing Prospectuses (FWP) have been registered with the SEC at this time.",
-                "424B4": "**[Pricing Finalization]** The final prospectus (424B4) is typically established within 24-48 hours prior to the IPO. Analysis will be generated immediately upon confirmation.",
-                "RW": "**[Offering Status]** No specific issues regarding withdrawal (RW) have been detected. The IPO process is proceeding within the normal track.",
-                "Form 25": "**[Listing Status]** No delisting events (Form 25) have been detected. The ticker remains active within the regular market.",
-                "DEFAULT": "**[Data Sync]** The filing deadline has not yet been met, or archiving within the SEC EDGAR system is currently in progress."
+                "S-1": "🔍 **[Issuer Classification]** Identified as a Foreign Issuer or SPAC. Please refer to the **[F-1]** section for primary disclosure data.",
+                "F-1": "🔍 **[Issuer Classification]** Identified as a US Domestic Issuer. Regulatory filings are provided in the **[S-1]** section.",
+                "S-1/A": "⏳ **[Filing Status]** The amended registration statement (S-1/A) following the initial filing has not yet been disclosed. Real-time updates will follow upon price band finalization.",
+                "FWP": "📑 **[Supplemental Info]** No additional roadshow materials or Free Writing Prospectuses (FWP) have been registered with the SEC at this time.",
+                "424B4": "📈 **[Pricing Finalization]** The final prospectus (424B4) is typically established within 24-48 hours prior to the IPO. Analysis will be generated immediately upon confirmation.",
+                "RW": "✅ **[Offering Status]** No specific issues regarding withdrawal (RW) have been detected. The IPO process is proceeding within the normal track.",
+                "Form 25": "🛡️ **[Listing Status]** No delisting events (Form 25) have been detected. The ticker remains active within the regular market.",
+                "DEFAULT": "🔄 **[Data Sync]** The filing deadline has not yet been met, or archiving within the SEC EDGAR system is currently in progress."
             },
             "ja": {
-                "S-1": "**[発行体分類]** 外国籍発行体（Foreign Issuer）またはSPACとして識別されました。詳細な公示データは **[F-1]** セクションをご参照ください。",
-                "F-1": "**[発行体分類]** 米国内국法人（Domestic Issuer）として確認されました。規定に基づく公示内容は **[S-1]** セクションで提供されます。",
-                "S-1/A": "**[公示ステータス]** 初回届出書提出後の訂正届出書（S-1/A）はまだ公示されていません。公募価格帯の確定時にリアルタイムで更新されます。",
-                "FWP": "**[補足情報]** 現在、当該企業の追加ロードショー資料やマーケ팅用自由方式目論見書（FWP）はSECに登録されていません。",
-                "424B4": "**[価格確定]** 最終公募価格確定書類（424B4）は通常、上場直前の24〜48時間以内に作成されます。確定次第、分析レポートが生成されます。",
-                "RW": "**[募集ステータ스]** 現在、上場撤回（RW）に関する特記事項は見当たりません。上場手続きは正常な軌道で進行中です。",
-                "Form 25": "**[上場ステータス]** 上場廃止（Delisting）関連のイベントは検知されていません。当該銘柄は正規市場内で活性状態を維持しています。",
-                "DEFAULT": "**[データ同期]** 当該書類の提出期限が未到来か、SEC EDGARシステム内でのアーカイブ処理が進行中です。"
+                "S-1": "🔍 **[発行体分類]** 外国籍発行体（Foreign Issuer）またはSPACとして識別されました。詳細な公示データは **[F-1]** セクションをご参照ください。",
+                "F-1": "🔍 **[発行体分類]** 米国内국法人（Domestic Issuer）として確認されました。規定に基づく公示内容は **[S-1]** セクションで提供されます。",
+                "S-1/A": "⏳ **[公示ステータス]** 初回届出書提出後の訂正届出書（S-1/A）はまだ公示されていません。公募価格帯の確定時にリアルタイムで更新されます。",
+                "FWP": "📑 **[補足情報]** 現在、当該企業の追加ロードショー資料やマーケティング用自由方式目論見書（FWP）はSECに登録されていません。",
+                "424B4": "📈 **[価格確定]** 最終公募価格確定書類（424B4）は通常、上場直前の24〜48時間以内に作成されます。確定次第、分析レポートが生成されます。",
+                "RW": "✅ **[募集ステータス]** 現在、上場撤回（RW）に関する特記事項は見当たりません。上場手続きは正常な軌道で進行中です。",
+                "Form 25": "🛡️ **[上場ステータス]** 上場廃止（Delisting）関連のイベントは検知されていません。当該銘柄は正規市場内で活性状態を維持しています。",
+                "DEFAULT": "🔄 **[データ同期]** 当該書類の提出期限が未到来か、SEC EDGARシステム内でのアーカイブ処理が進行中です。"
             },
             "zh": {
-                "S-1": "**[发行人分类]** 该企业被识别为外国发行人 (Foreign Issuer) 或 SPAC。请参阅 **[F-1]** 栏目获取详细公告数据。",
-                "F-1": "**[发行人分类]** 已确认该企业为美国本土发行人 (Domestic Issuer)。根据规定的公告内容请在 **[S-1]** 栏目查看。",
-                "S-1/A": "**[申报状态]** 提交首次登记表后的修订案 (S-1/A) 尚未公布。发行价区间确定后将实时更新。",
-                "FWP": "**[补充信息]** 目前该企业尚未在 SEC 注册额外的路演资料或营销用自由撰写招股说明书 (FWP)。",
-                "424B4": "**[定价确认]** 最终定价公告 (424B4) 通常在上市前 24-48 小时内完成。确认后将立即生成分析报告。",
-                "RW": "**[发行状态]** 目前未发现与撤回上市 (RW) 相关的异常情况。上市程序正处于正常推进轨道。",
-                "Form 25": "**[上市状态]** 未检测到退市 (Delisting) 相关事件。该股票在正规市场内保持活跃状态。",
-                "DEFAULT": "**[数据同步]** 该文件的提交截止日期尚未到期，或 SEC EDGAR 系统正在进行归档处理。"
+                "S-1": "🔍 **[发行人分类]** 该企业被识别为外国发行人 (Foreign Issuer) 或 SPAC。请参阅 **[F-1]** 栏目获取详细公告数据。",
+                "F-1": "🔍 **[发行人分类]** 已确认该企业为美国本土发行人 (Domestic Issuer)。根据规定的公告内容请在 **[S-1]** 栏目查看。",
+                "S-1/A": "⏳ **[申报状态]** 提交首次登记表后的修订案 (S-1/A) 尚未公布。发行价区间确定后将实时更新。",
+                "FWP": "📑 **[补充信息]** 目前该企业尚未在 SEC 注册额外的路演资料或营销用自由撰写招股说明书 (FWP)。",
+                "424B4": "📈 **[定价确认]** 最终定价公告 (424B4) 通常在上市前 24-48 小时内完成。确认后将立即生成分析报告。",
+                "RW": "✅ **[发行状态]** 目前未发现与撤回上市 (RW) 相关的异常情况。上市程序正处于正常推进轨道。",
+                "Form 25": "🛡️ **[上市状态]** 未检测到退市 (Delisting) 相关事件。该股票在正规市场内保持活跃状态。",
+                "DEFAULT": "🔄 **[数据同步]** 该文件的提交截止日期尚未到期，或 SEC EDGAR 系统正在进行归档处理。"
             }
         }
         lang_dict = msg_map.get(lang, msg_map['ko'])
         return lang_dict.get(doc_type, lang_dict.get('DEFAULT'))
-    
 
     def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, filing_text=""):
-        # 💡 [핵심] 실제 본문 주입 로직
         base_msg = ""
         if filing_text and len(filing_text) > 100:
             base_msg = f"\n\n[ACTUAL SEC FILING CONTENT - MUST USE THIS AS SOURCE]\n{filing_text}\n"
@@ -714,187 +651,107 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             base_msg = "\n\n(Note: Actual filing content is currently unavailable.)\n"
 
         if lang == 'en':
-            return f"""You are a Senior Wall Street Analyst.
-Target: {company_name} ({ticker}) - {topic}
-Checkpoints: {meta['p']}
-{sec_fact_prompt}
-{base_msg}
-
-[STRICT RULES]
-1. ALWAYS base your analysis ONLY on the provided [ACTUAL SEC FILING CONTENT]. 
-2. NEVER invent facts or business strategies not mentioned in the text.
-3. If information is missing, clearly state that it is unavailable in the filing.
-4. DO NOT use introductory phrases like "[Basic Summary]". Start directly with headings.
-
-[Structure]
-{meta['s']}
-{format_inst}"""
-
+            return f"You are a Senior Wall Street Analyst.\nTarget: {company_name} ({ticker}) - {topic}\nCheckpoints: {meta['p']}\n{sec_fact_prompt}\n{base_msg}\n[STRICT RULES]\n1. ALWAYS base your analysis ONLY on the provided [ACTUAL SEC FILING CONTENT].\n2. NEVER invent facts or business strategies not mentioned in the text.\n3. If information is missing, clearly state that it is unavailable in the filing.\n4. DO NOT use introductory phrases like '[Basic Summary]'. Start directly with headings.\n[Structure]\n{meta['s']}\n{format_inst}"
         elif lang == 'ja':
-            return f"""あなたは証券分析のエキスパートです。
-分析対象: {company_name} ({ticker}) - {topic}
-{sec_fact_prompt}
-{base_msg}
-
-[厳格な作成ルール]
-1. 提供された [ACTUAL SEC FILING CONTENT]（実際の公示内容）にのみ基づいて分析してください.
-2. 本文にない事実や戦略を捏造することは厳禁です.
-3. 全て日本語で作成してください.
-4. すぐに見出しから始めてください.
-
-[構成]
-{meta['s']}
-{format_inst}"""
-
+            return f"あなたは証券分析のエキスパートです。\n分析対象: {company_name} ({ticker}) - {topic}\n{sec_fact_prompt}\n{base_msg}\n[厳格な作成ルール]\n1. 提供された [ACTUAL SEC FILING CONTENT] にのみ基づいて分析してください.\n2. 本文にない事実や戦略を捏造することは厳禁です.\n3. 全て日本語で作成してください.\n4. すぐに見出しから始めてください.\n[構成]\n{meta['s']}\n{format_inst}"
         elif lang == 'zh':
-            return f"""您是资深证券分析师。
-分析目标: {company_name} ({ticker}) - {topic}
-{sec_fact_prompt}
-{base_msg}
-
-[严格编写指南]
-1. 必须完全基于提供的 [ACTUAL SEC FILING CONTENT]（实际公告内容）进行分析.
-2. 严禁编造任何事实或业务战略.
-3. 绝对不要写“[基本摘要]”等开场白，直接从小标题开始.
-
-[结构要求]
-{meta['s']}
-{format_inst}"""
-
+            return f"您是资深证券分析师。\n分析目标: {company_name} ({ticker}) - {topic}\n{sec_fact_prompt}\n{base_msg}\n[严格编写指南]\n1. 必须完全基于提供的 [ACTUAL SEC FILING CONTENT] 进行分析.\n2. 严禁编造任何事实或业务战略.\n3. 绝对不要写“[基本摘要]”等开场白，直接从小标题开始.\n[结构要求]\n{meta['s']}\n{format_inst}"
         else: # ko
-            return f"""당신은 월가 출신의 전문 분석가입니다.
-분석 대상: {company_name} ({ticker}) - {topic}
-체크포인트: {meta['p']}
-{sec_fact_prompt}
-{base_msg}
-
-[작성 지침 - 절대 준수]
-1. 반드시 제공된 [ACTUAL SEC FILING CONTENT](실제 서류 본문) 데이터에만 근거하여 작성하세요. 
-2. 본문에 없는 내용을 지어내는 것은 '치명적인 오류'입니다. 확실하지 않은 정보는 "데이터 미제공"으로 처리하세요.
-3. "[기본 요약]" 같은 머리말을 절대 쓰지 말고 바로 본론(소제목)부터 시작하세요.
-4. 숫자에 별표(**) 강조를 쓰지 마세요.
-
-[내용 구성 지침]
-{meta['s']}
-{format_inst}
-"""
+            return f"당신은 월가 출신의 전문 분석가입니다。\n분석 대상: {company_name} ({ticker}) - {topic}\n체크포인트: {meta['p']}\n{sec_fact_prompt}\n{base_msg}\n[작성 지침 - 절대 준수]\n1. 반드시 제공된 [ACTUAL SEC FILING CONTENT] 데이터에만 근거하여 작성하세요.\n2. 본문에 없는 내용을 지어내는 것은 '치명적인 오류'입니다. 확실하지 않은 정보는 \"데이터 미제공\"으로 처리하세요.\n3. \"[기본 요약]\" 같은 머리말을 절대 쓰지 말고 바로 본론부터 시작하세요.\n4. 숫자에 별표(**) 강조를 쓰지 마세요.\n[내용 구성 지침]\n{meta['s']}\n{format_inst}"
 
     # ---------------------------------------------------------
-    # 💡 [핵심 교정 1] 8-K 분석 섹션: 링크 리스트가 아닌 '진짜 본문'을 분석
+    # 🚀 [3] 기업 상태 및 기간 분석
+    # ---------------------------------------------------------
+    status_lower = str(ipo_status).lower()
+    is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn'])
+    is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
+    
+    days_passed = 0
+    is_over_1y = False
+    if ipo_date_str:
+        try:
+            ipo_dt = pd.to_datetime(ipo_date_str).date()
+            days_passed = (datetime.now().date() - ipo_dt).days
+            if days_passed > 365: is_over_1y = True
+        except: pass
+
+    valid_hours = 168 if (is_withdrawn or is_delisted or is_over_1y) else 24
+    limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
+
+    # 대상 서류 배정
+    if is_withdrawn: target_topics = ["S-1", "S-1/A", "F-1", "RW"]
+    elif is_delisted: target_topics = ["S-1", "10-K", "20-F", "Form 25"]
+    elif is_over_1y: target_topics = ["10-K", "10-Q", "BS", "IS", "CF"]
+    else: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
+
+    # ---------------------------------------------------------
+    # 🚀 [4] 8-K 분석 섹션
     # ---------------------------------------------------------
     f_date_8k, f_text_8k = fetch_sec_filing_text(ticker, "8-K", FMP_API_KEY, cik)
-    
-    # 기존 변수명 호환 및 에러 방지
-    fmp_8k_data = f_text_8k if f_text_8k else "No recent 8-K events."
-    
-    is_new_8k = False
-    raw_cache_key = f"{ticker}_8K_RawData_v3" # 캐시 버전 업그레이드
-    
     if f_text_8k and len(f_text_8k) > 100:
+        raw_cache_key = f"{ticker}_8K_RawData_v3"
         try:
             res_raw = supabase.table("analysis_cache").select("content").eq("cache_key", raw_cache_key).execute()
-            # 본문 앞부분 500자를 비교하여 실제 내용 변경 여부 확인
             if not res_raw.data or f_text_8k[:500] != res_raw.data[0]['content'][:500]:
-                is_new_8k = True
-                # 비교용 텍스트 저장
                 batch_upsert("analysis_cache", [{"cache_key": raw_cache_key, "content": f_text_8k[:2000], "updated_at": datetime.now().isoformat()}], "cache_key")
+                batch_upsert("premium_alerts", [{"ticker": ticker, "alert_type": "8K_UPDATE", "title": f"{ticker} 8-K 업데이트", "message": "새로운 8-K(중대 이벤트) 공시 본문 분석이 완료되었습니다."}], on_conflict="ticker,alert_type")
                 
-                # 프리미엄 유저 알림 발송
-                batch_upsert("premium_alerts", [{
-                    "ticker": ticker, "alert_type": "8K_UPDATE", "title": f"{ticker} 8-K 업데이트", 
-                    "message": "새로운 8-K(중대 이벤트) 공시 본문 분석이 완료되었습니다. Tab 0에서 확인하세요."
-                }], on_conflict="ticker,alert_type")
-                print(f"🔔 [{ticker}] 신규 8-K 본문 감지 완료.")
-        except Exception as e:
-            print(f"8-K 감지 에러: {e}")
-
-    # 8-K AI 분석 실행 (본문 주입 방식)
-    if is_new_8k:
-        for lang_code in SUPPORTED_LANGS.keys():
-            cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
-            
-            # 언어별 8-K 분석 지침 (3문단 규격 보존)
-            if lang_code == 'ko':
-                meta_8k = {"p": "Material Events", "s": "1문단: [핵심 이벤트] 발생 사유 요약\n2문단: [재무 파급력] 영향 분석\n3문단: [향후 전망] 투자 포인트"}
-            elif lang_code == 'ja':
-                meta_8k = {"p": "重要イベント", "s": "第1段落：[核心イベント] 発生理由の要約\n第2段落：[財務影響] 影響分析\n第3段落：[今後の展望] 投資ポイント"}
-            elif lang_code == 'zh':
-                meta_8k = {"p": "重大事件", "s": "第一段：[核心事件] 发生原因摘要\n第二段：[财务影响] 影响分析\n第三段：[未来展望] 投资要点"}
-            else: # en
-                meta_8k = {"p": "Material Events", "s": "Para 1: [Core Event] Reason summary\nPara 2: [Financial Impact] Analysis\nPara 3: [Future Outlook] Key points"}
-
-            # 통합 지침 함수를 사용하여 8-K 본문 주입
-            prompt_8k = get_localized_instruction(
-                lang_code, ticker, "8-K", company_name, 
-                meta_8k, 
-                f"[SEC FACT CHECK] Filed on {f_date_8k}", 
-                get_format_instruction(lang_code), 
-                f_text_8k[:15000]
-            )
-            
-            try:
-                response_8k = model.generate_content(prompt_8k)
-                if response_8k and response_8k.text:
-                    batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": response_8k.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
-                    print(f"🚨 [{ticker}] 8-K 본문 분석 캐싱 완료 ({lang_code})")
-            except: pass
+                for lang_code in SUPPORTED_LANGS.keys():
+                    cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
+                    meta_8k = {"p": "Material Events", "s": "1문단: [핵심 이벤트] 발생 사유 요약\n2문단: [재무 파급력] 영향 분석\n3문단: [향후 전망] 투자 포인트"} if lang_code == 'ko' else {"p": "Material Events", "s": "Para 1\nPara 2\nPara 3"}
+                    prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, f"[SEC FACT CHECK] Filed on {f_date_8k}", get_format_instruction(lang_code), f_text_8k[:15000])
+                    try:
+                        resp_8k = model.generate_content(prompt_8k)
+                        if resp_8k and resp_8k.text:
+                            batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": resp_8k.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                    except: pass
+        except: pass
 
     # ---------------------------------------------------------
-    # 💡 [결함 1, 3 해결] 일반 서류 및 재무제표 통합 분석 루프
+    # 🚀 [5] 통합 서류 루프 (우선순위 탐색 + 스마트 Bypass 적용)
     # ---------------------------------------------------------
     for topic in target_topics:
         f_date, f_text = None, None
         
-        # 🚀 [Issue 1 & 3] 재무 분석(BS, IS, CF, 10-K) 시 문서 우선순위 탐색
-        # 상장 1년 이상 기업으로 분류된 경우에만 이 로직이 실행됩니다.
+        # [Issue 1 & 3 해결] 재무 분석 시 문서 우선순위 탐색 (10-K -> 10-K/A -> 20-F -> 20-F/A)
         if topic in ["BS", "IS", "CF", "10-K"]:
-            # 우선순위: 내국 연간보고서 -> 내국 정정본 -> 해외 연간보고서 -> 해외 정정본
             priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
-            
             for target in priority_targets:
                 f_date, f_text = fetch_sec_filing_text(ticker, target, FMP_API_KEY, cik)
-                # 의미 있는 본문(500자 이상)을 찾으면 즉시 탐색 중단
                 if f_text and len(f_text) > 500:
-                    print(f"✅ [{ticker}] {topic} 분석 소스 확보: {target} (Source Date: {f_date})")
+                    print(f"✅ [{ticker}] {topic} 분석 소스 확보: {target}")
                     break
         else:
-            # 그 외 일반 서류(S-1, 424B4, FWP 등)는 기존 방식대로 1회 검색
             f_date, f_text = fetch_sec_filing_text(ticker, topic, FMP_API_KEY, cik)
 
-        # --- 여기서부터 AI 호출 및 캐싱 로직 ---
+        # 다국어 캐싱 및 AI 호출
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
-            
             try:
                 res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
                 if res.data: continue 
             except: pass
 
-            # 🚀 [스마트 Bypass] 모든 우선순위 문서를 뒤졌음에도 본문이 100자 미만인 경우
+            # 스마트 Bypass (부재 시 안내 멘트)
             if not f_text or len(f_text) < 100:
                 missing_msg = get_missing_document_message(lang_code, topic)
                 formatted_msg = f"<div style='background-color:#f8f9fa; padding:15px; border-radius:8px; color:#555; font-size:15px; line-height:1.6;'>{missing_msg}</div>"
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
-                print(f"✅ [{ticker}] {topic} 최종 서류 부재 - 안내 멘트 적용 ({lang_code})")
                 continue
 
-            # 🚀 진짜 본문 분석 (RAG)
+            # 진짜 본문 분석 실행
             current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
             meta = get_localized_meta(lang_code, topic)
-            format_inst = get_format_instruction(lang_code)
+            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, get_format_instruction(lang_code), f_text)
             
-            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, format_inst, f_text)
-            
-            for attempt in range(2):
-                try:
-                    response = model.generate_content(prompt)
-                    if response and response.text:
-                        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
-                        print(f"✅ [{ticker}] {topic} 분석 완료 ({lang_code})")
-                        break
-                except Exception as e:
-                    print(f"❌ [{ticker}] {topic} AI 에러 (시도 {attempt+1}): {e}")
-                    time.sleep(1)
+            try:
+                response = model.generate_content(prompt)
+                if response and response.text:
+                    batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                    print(f"✅ [{ticker}] {topic} 진짜 본문 분석 완료 ({lang_code})")
+            except Exception as e:
+                print(f"❌ [{ticker}] {topic} AI 에러: {e}")
+                time.sleep(1)
                     
 # ==========================================
 # [신규 추가] Tab 1 프리미엄 요약 전용 프롬프트 생성 함수 (다국어 분리 완벽 적용)
