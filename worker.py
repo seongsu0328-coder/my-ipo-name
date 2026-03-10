@@ -118,24 +118,21 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
         # 🚀 4단계: [최종 병기 가동] FMP 텍스트가 비어있다면? SEC Archive 본진에서 원문(.txt) 직접 긁어오기!
         if (not full_text or len(full_text) < 100) and cik:
             print(f"⚠️ FMP 텍스트 지연 발생. SEC 서버에서 원문 직접 추출 시도: {ticker} ({doc_type})")
-            # SEC 원문 아카이브 경로 조합
             acc_no_clean = str(accession_num).replace('-', '')
             cik_int = str(int(cik)) # URL용 CIK (앞의 0 제거)
             raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_no_clean}/{accession_num}.txt"
             
             raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=10)
             if raw_res.status_code == 200:
-                # HTML 태그 및 공백 제거로 순수 팩트만 추출
                 clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
                 clean_text = re.sub(r'\s+', ' ', clean_text)
                 full_text = clean_text
                 print(f"✅ [SEC Scraping] SEC 본진 원문 확보 완료! ({len(full_text)} 자)")
 
         if full_text and len(full_text) > 100:
-            return filed_date, full_text[:20000] # AI 분석용 2만 자 슬라이싱
+            return filed_date, full_text[:20000]
         
         return filed_date, None
-
     except Exception as e:
         print(f"❌ [{ticker}] {doc_type} 본문 추출 최종 실패: {e}")
         return None, None
@@ -516,55 +513,81 @@ def fetch_fmp_8k_events(symbol, api_key):
 def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None):
     if not model: return
     
-    # 🚀 [에러 해결] 함수 시작하자마자 변수를 빈 값으로 초기화합니다.
-    # 이렇게 하면 아래 루프 어디서든 '정의되지 않음' 에러가 나지 않습니다.
-    sec_fact_prompt = ""
-    filing_text = ""
-    
+    # 🚀 [1] CIK 실시간 확보 로직 (PAYP 성공의 열쇠)
+    cik = cik_mapping.get(ticker) if (cik_mapping is not None) else None
+    if not cik:
+        cik = get_fallback_cik(ticker, company_name, FMP_API_KEY)
+        if cik:
+            if cik_mapping is not None: cik_mapping[ticker] = cik
+            print(f"🔍 [CIK 실시간 획득] {company_name}({ticker}) -> {cik} 추적 성공")
+        else:
+            print(f"⚠️ [CIK 획득 실패] {company_name}({ticker})의 고유번호를 찾을 수 없습니다.")
+
+    # 🚀 [2] 기업 상태 및 기간 분석 (기존 로직 유지)
     status_lower = str(ipo_status).lower()
     is_withdrawn = any(x in status_lower for x in ['철회', '취소', 'withdrawn'])
     is_delisted = any(x in status_lower for x in ['폐지', 'delisted'])
     
     days_passed = 0
     is_over_1y = False
-    is_over_3m = False
-    
     if ipo_date_str:
         try:
             ipo_dt = pd.to_datetime(ipo_date_str).date()
             days_passed = (datetime.now().date() - ipo_dt).days
             if days_passed > 365: is_over_1y = True
-            if days_passed > 90: is_over_3m = True
         except: pass
 
-    # 💡 3개월 이상 지났거나 폐지/철회된 경우 7일에 한 번 캐싱, 그 외는 1일
-    if is_withdrawn or is_delisted or is_over_3m or is_over_1y: 
-        valid_hours = 24 * 7  
-    else: 
-        valid_hours = 24        
-        
+    valid_hours = 168 if (is_withdrawn or is_delisted or is_over_1y) else 24
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
 
-    # 기업 생애주기별 타겟 공시 문서 분기
-    if is_withdrawn: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "RW"]
-    elif is_delisted: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4", "Form 25"]
-    elif is_over_1y: target_topics = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
+    # 대상 서류 배정
+    if is_withdrawn: target_topics = ["S-1", "S-1/A", "F-1", "RW"]
+    elif is_delisted: target_topics = ["S-1", "10-K", "20-F", "Form 25"]
+    elif is_over_1y: target_topics = ["10-K", "10-Q", "BS", "IS", "CF"]
     else: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
 
-    # 1. 기존 매핑 데이터에서 CIK 확인
-    cik = cik_mapping.get(ticker) if (cik_mapping is not None) else None
-    
-    # 2. 매핑에 없는 경우 3중 추적 엔진 가동
-    if not cik:
-        cik = get_fallback_cik(ticker, company_name, FMP_API_KEY)
+    # 🚀 [3] 통합 서류 루프 (우선순위 탐색 + 스마트 Bypass)
+    for topic in target_topics:
+        f_date, f_text = None, None
         
-        if cik:
-            # 실시간으로 찾은 CIK를 매핑 테이블에 업데이트 (다음 루프 시 속도 향상)
-            if cik_mapping is not None:
-                cik_mapping[ticker] = cik
-            print(f"🔍 [CIK 실시간 획득] {company_name}({ticker}) -> {cik} 추적 성공")
+        # [Issue 1 & 3 해결] 재무 분석 시 문서 우선순위 탐색 (10-K -> 10-K/A -> 20-F -> 20-F/A)
+        if topic in ["BS", "IS", "CF", "10-K"]:
+            priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
+            for target in priority_targets:
+                f_date, f_text = fetch_sec_filing_text(ticker, target, FMP_API_KEY, cik)
+                if f_text and len(f_text) > 500:
+                    print(f"✅ [{ticker}] {topic} 분석 소스 확보: {target}")
+                    break
         else:
-            print(f"⚠️ [CIK 획득 실패] {company_name}({ticker})의 고유번호를 찾을 수 없습니다.")
+            f_date, f_text = fetch_sec_filing_text(ticker, topic, FMP_API_KEY, cik)
+
+        # 다국어 캐싱 및 AI 호출
+        for lang_code in SUPPORTED_LANGS.keys():
+            cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
+            try:
+                res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+                if res.data: continue 
+            except: pass
+
+            # 본문 부재 시 안내 멘트 (Bypass)
+            if not f_text or len(f_text) < 100:
+                missing_msg = get_missing_document_message(lang_code, topic)
+                formatted_msg = f"<div style='background-color:#f8f9fa; padding:15px; border-radius:8px; color:#555; font-size:15px; line-height:1.6;'>{missing_msg}</div>"
+                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
+                continue
+
+            # 진짜 본문 분석 실행
+            current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
+            meta = get_localized_meta(lang_code, topic)
+            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, get_format_instruction(lang_code), f_text)
+            
+            try:
+                response = model.generate_content(prompt)
+                if response and response.text:
+                    batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                    print(f"✅ [{ticker}] {topic} 분석 완료 ({lang_code})")
+            except Exception as e:
+                print(f"❌ [{ticker}] {topic} AI 에러: {e}")
 
     # 12가지 문서의 세부 지시사항 (대표님의 기존 번역 100% 유지)
     def get_localized_meta(lang, doc_type):
