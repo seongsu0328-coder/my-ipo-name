@@ -4147,9 +4147,9 @@ with main_area.container():
                 st.rerun()
 
             
-            # --- Tab 0: 핵심 정보 (안정성 + 고도화 파싱 통합본) ---
+            # --- Tab 0: 핵심 정보 (8-K 찌꺼기 제거 및 밀착 레이아웃 통합본) ---
             if selected_sub_menu == get_text('tab_0'):
-                # 1. 버튼 스타일링 (2주 전의 깔끔한 디자인 유지)
+                # 1. 버튼 스타일링 (깔끔한 디자인 유지)
                 st.markdown("""<style>
                     div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } 
                     div.stButton > button[kind="secondary"]:hover { border-color: #6e8efb !important; color: #6e8efb !important; } 
@@ -4181,7 +4181,7 @@ with main_area.container():
                     btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("424B4", "secondary")]
                     default_topic = "S-1"
             
-                # 🔍 8-K 데이터 존재 여부 확인 (있을 때만 버튼 추가)
+                # 🔍 8-K 데이터 존재 여부 확인
                 has_8k = False
                 try:
                     r_8k = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{stock['name']}_8-K_Tab0_v16_{st.session_state.lang}").execute()
@@ -4204,7 +4204,7 @@ with main_area.container():
                 t_topic = st.session_state.core_topic
                 st.info(get_text(f"desc_{t_topic.lower().replace('/','').replace('-','').replace(' ','')}"))
             
-                # 3. 데이터 로드 및 고도화 파싱 (찌꺼기 제거 및 밀착 레이아웃)
+                # 3. 데이터 로드 및 고도화 파싱
                 with st.expander(f" {t_topic} {get_text('btn_summary_view')}", expanded=True):
                     with st.spinner("분석 리포트를 불러오는 중..."):
                         a_res = get_ai_analysis(stock['name'], t_topic, st.session_state.lang)
@@ -4216,14 +4216,23 @@ with main_area.container():
                         # [Step 1] 기본 텍스트 정리
                         raw_text = a_res.replace("|||SEP|||", "\n").replace("**", "").strip()
                         
+                        # 💡 [핵심] 일반 서류 탭일 때 8-K 흔적 강제 절단 로직 보강
                         if t_topic != "8-K":
-                            raw_text = raw_text.split("8-K 분석]")[0].split("보고된 돌발")[0].strip()
+                            # 아래 키워드 중 하나라도 발견되면 그 지점부터 뒤는 싹둑 자름
+                            stop_keywords = ["실시간 8-K", "8-K 분석", "보고된 돌발", "중대 이벤트"]
+                            for skw in stop_keywords:
+                                if skw in raw_text:
+                                    raw_text = raw_text.split(skw)[0].strip()
+                            
+                            # 자르고 난 뒤 맨 마지막 글자가 '[' 로 남아있다면 그것도 지움
+                            raw_text = raw_text.rstrip('[ ').strip()
             
-                        # [Step 2] 하단 미완성 찌꺼기([] , [최근] 등) 제거
+                        # [Step 2] 하단 미완성 찌꺼기 제거
                         lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
                         while lines:
                             last_l = lines[-1]
-                            if last_l == "[]" or (last_l.startswith('[') and len(last_l) < 10) or (len(last_l) < 7 and not re.search(r'[.。!?>]', last_l)):
+                            # 빈 괄호, 짧은 제목 찌꺼기([] , [최근] 등) 제거
+                            if last_l == "[]" or (last_l.startswith('[') and len(last_l) < 15) or (len(last_l) < 7 and not re.search(r'[.。!?>]', last_l)):
                                 lines.pop()
                             else:
                                 break
@@ -4234,7 +4243,6 @@ with main_area.container():
                         for line in lines:
                             if any(x in line for x in ["기본 요약", "요약보기", "분석 결과"]): continue
                             
-                            # 소제목 감지 로직
                             is_heading = (line.startswith('[') and line.endswith(']')) or \
                                          (len(line) < 55 and not re.search(r'[.。!?>]', line) and not line.endswith(('다', '요', 'ね', 'る', '了')))
                             
@@ -4252,7 +4260,7 @@ with main_area.container():
                         if len(d_text) < 15: d_text = raw_text.replace('\n', '<br>')
             
                         # [Step 4] 출력 및 8-K 프리미엄 블러
-                        if t_topic == "8-K" and not is_premium:
+                        if t_topic == "8-8K" or (t_topic == "8-K" and not is_premium):
                             blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다... (이하 블러 처리)"
                             st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #d32f2f; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_8k_blur_teaser')}</p></div></div>""", unsafe_allow_html=True)
                         else:
@@ -4260,9 +4268,9 @@ with main_area.container():
             
                 # 4. 외부 링크 및 하단 버튼
                 import urllib.parse
-                cik = profile.get('cik', '') if profile else ''
-                sec_q = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
-                if cik: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={urllib.parse.quote(sec_q)}&owner=include&count=40"
+                cik_val = profile.get('cik', '') if profile else ''
+                sec_q_val = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
+                if cik_val: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_val}&type={urllib.parse.quote(sec_q_val)}&owner=include&count=40"
                 else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(stock['name'])}"
                 
                 real_web = profile.get('weburl') or profile.get('website', '') if profile else ''
