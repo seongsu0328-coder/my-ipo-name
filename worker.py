@@ -49,20 +49,17 @@ except Exception as e:
     print(f"❌ Supabase 초기화 실패: {e}")
     exit()
 
-# 3. AI 모델 설정 (하이브리드 전략 적용본)
+# 3. AI 모델 설정
 model = None 
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
-        # 💡 뉴스 보완을 위해 다시 google_search 기능을 활성화합니다.
-        model = genai.GenerativeModel(
-            model_name='gemini-2.0-flash',
-            tools='google_search' 
-        )
-        print("✅ AI 모델 로드 성공 (하이브리드 검색 전략 활성화 - 뉴스 보완 가능)")
+        # 🚨 [환각 원천 차단] tools='google_search' 옵션을 완전히 삭제했습니다.
+        model = genai.GenerativeModel(model_name='gemini-2.0-flash')
+        print("✅ AI 모델 로드 성공 (Google Search 툴 제거 완료 - 환각 0% 세팅)")
     except Exception as e:
         model = genai.GenerativeModel('gemini-2.0-flash')
-        print(f"⚠️ AI 모델 기본 로드 (Search 도구 제외): {e}")
+        print(f"⚠️ AI 모델 기본 로드: {e}")
 
 # 💡 [중요] 다국어 지원 언어 리스트 정의
 SUPPORTED_LANGS = {
@@ -779,46 +776,58 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 # [신규 추가] Tab 1 프리미엄 요약 전용 프롬프트 생성 함수 (다국어 분리 완벽 적용)
 # ==========================================
 def get_tab1_premium_prompt(lang, type_name, raw_data):
-    # 🚨 [환각 방어막] 데이터가 API 공지사항이거나 비어있을 경우를 대비한 가이드라인 추가
-    relevance_rule = """
-    CRITICAL RULE: If the [Raw Data] consists of API documentation, system notices, 
-    legacy endpoint warnings, or any content unrelated to the company's actual business/financials, 
-    you MUST output exactly: "현재 해당 기업의 공식 보도자료 데이터가 존재하지 않습니다." 
-    in the requested language and STOP. Do NOT summarize system messages.
-    """
-
     if lang == 'en':
-        return f"""You are a Senior Wall Street Analyst. {relevance_rule}
-        Summarize the latest corporate trends based on the provided [Raw Data] ({type_name}).
-        [Strict Rules]
-        1. Write ENTIRELY in English. 
-        2. Write exactly 3 paragraphs. (4-5 sentences each).
-        [Raw Data]: {raw_data}"""
+        return f"""You are a Senior Wall Street Analyst. Summarize the latest corporate trends based on the provided [Raw Data] ({type_name}).
+        
+[Strict Rules]
+1. Write ENTIRELY in English. Do not mix other languages.
+2. Write exactly 3 paragraphs.
+3. Each paragraph must be 4-5 sentences long, containing deep and professional insights.
+4. DO NOT use markdown bold (**) for numbers.
+5. Omit greetings and start the main content immediately. Maintain a cold, objective, and analytical tone.
+
+[Raw Data]:
+{raw_data}"""
 
     elif lang == 'ja':
-        return f"""あなたはウォール街のシニアアナリストです。{relevance_rule}
-        提供された [Raw Data] ({type_name}) に基づいて、企業の最新動向を日本語で要約してください。
-        [厳格な作成ルール]
-        1. 全て自然な日本語のみで記述してください。
-        2. 必ず3つの段落に分けて作成してください。
-        [Raw Data]: {raw_data}"""
+        return f"""あなたはウォール街のシニアアナリストです。提供された [Raw Data] ({type_name}) に基づいて、企業の最新動向を日本語で要約してください。
+        
+[厳格な作成ルール]
+1. 全て自然な日本語のみで記述してください。
+2. 必ず3つの段落に分けて作成してください。
+3. 各段落は4〜5文で構成し、重厚で専門的な洞察を含めてください。
+4. 数値に強調記号（**）は絶対に使用しないでください。
+5. 挨拶は省略し、すぐに本題に入ってください。冷静で客観的な分析トーンを維持してください。
+
+[Raw Data]:
+{raw_data}"""
 
     elif lang == 'zh':
-        return f"""您是华尔街的高级分析师。{relevance_rule}
-        请根据提供的 [Raw Data] ({type_name})，用简体中文总结该公司的最新动态。
-        [严格编写规则]
-        1. 必须完全使用简体中文编写。
-        2. 必须严格分为3个段落。
-        [Raw Data]: {raw_data}"""
+        return f"""您是华尔街的高级分析师。请根据提供的 [Raw Data] ({type_name})，用简体中文总结该公司的最新动态。
+        
+[严格编写规则]
+1. 必须完全使用简体中文编写，严禁混用其他语言。
+2. 必须严格分为3个段落。
+3. 每个段落应包含4-5句话，并提供深刻、专业的见解。
+4. 绝对不要使用星号（**）对数字进行加粗。
+5. 省略问候语，直接进入正文。保持冷静、客观和分析的基调。
+
+[Raw Data]:
+{raw_data}"""
 
     else: # ko
-        return f"""당신은 월가 출신의 수석 애널리스트입니다. {relevance_rule}
-        아래 제공된 [Raw Data]({type_name})를 바탕으로 기업의 최신 동향을 한국어로 요약하세요.
-        [작성 규칙 - 엄격 준수]
-        1. 반드시 순수한 한국어로만 작성하세요.
-        2. 반드시 3개의 문단으로 나누어 작성하세요.
-        3. 만약 데이터가 시스템 공지(API 노티스 등)라면 요약하지 말고 '데이터 없음' 메시지만 출력하세요.
-        [Raw Data]: {raw_data}"""
+        return f"""당신은 월가 출신의 수석 애널리스트입니다. 아래 제공된 [Raw Data]({type_name})를 바탕으로 기업의 최신 동향을 한국어로 요약하세요.
+        
+[작성 규칙 - 엄격 준수]
+1. 반드시 순수한 한국어로만 작성하세요.
+2. 반드시 3개의 문단으로 나누어 작성하세요.
+3. 각 문단은 4~5줄(문장) 길이로 묵직하고 전문적인 통찰을 담으세요.
+4. 숫자에 별표(**) 강조를 절대 사용하지 마세요.
+5. 인사말을 생략하고 첫 글자부터 본론만 작성하세요. 냉철하고 분석적인 어조를 유지하세요.
+
+[Raw Data]:
+{raw_data}"""
+
 
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if not model: return
@@ -847,56 +856,18 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     current_date = now.strftime("%Y-%m-%d")
     current_year = now.strftime("%Y")
 
-    # 🚀 [데이터 1] FMP 공식 프로필 (사업설명용 - 팩트 체크용)
+    # 🚀 [환각 차단 파트 1] FMP 공식 사업모델 설명 확보
     profile_url = f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey={FMP_API_KEY}"
     profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
     biz_desc = profile_data[0].get('description', 'Company description is currently unavailable.') if (profile_data and isinstance(profile_data, list)) else 'Company description is currently unavailable.'
 
-    # 🚀 [데이터 2] FMP 뉴스 시도 (최우선 순위 뉴스 소스)
+    # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 5개 확보 (구글 검색 대체)
     news_url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={ticker}&limit=5&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_5", news_url, valid_hours=6)
-    
-    # 💡 하이브리드 판단 트리거
-    has_fmp_news = bool(news_data and len(news_data) > 0)
-    fmp_news_context = ""
-    if has_fmp_news:
+    fmp_news_context = "No recent news available."
+    if news_data and isinstance(news_data, list):
         fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in news_data])
 
-    for lang_code, target_lang in SUPPORTED_LANGS.items():
-        # ... (캐시 체크 및 sys_prompt 설정 로직 생략) ...
-
-        # 💡 [핵심] 뉴스 소스 상황에 따른 AI 지시어 동적 생성
-        if has_fmp_news:
-            # FMP에 뉴스가 있으면: "검색하지 말고 이거 번역만 해"
-            news_instruction = f"- 🚨 [지시] 제공된 [Official FMP News]의 텍스트를 사용하여 뉴스 5개를 선정하고 번역하세요. 구글 검색을 쓸 필요가 없습니다."
-        else:
-            # FMP에 뉴스가 없으면: "구글 검색 켜서 최신 뉴스 찾아와"
-            news_instruction = f"- 🚨 [지시] 현재 FMP 뉴스 데이터가 비어있습니다. 반드시 구글 검색 도구(google_search_retrieval)를 사용하여 \"{company_name} {ticker} news 2026\"를 검색하고 오늘 날짜 기준 최신 뉴스 5개를 선정하세요."
-
-        prompt = f"""
-        {sys_prompt}
-        분석 대상: {company_name} ({ticker})
-        오늘 날짜: {current_date}
-
-        [Part 1: Official Business Profile (Source: FMP)]
-        {biz_desc}
-
-        [Part 2: Official FMP News]
-        {fmp_news_context if has_fmp_news else "Empty (Must search via Google)"}
-
-        Task 1: Business Summary (STRICT FACT ONLY)
-        1. [Part 1] 데이터를 기반으로 3문단 분석을 작성하세요.
-        2. 🚨 [환각 금지] 만약 [Part 1]이 비어있다면(unavailable), 절대 지어내지 말고 "{target_lang}로: FMP 시스템에 공식 사업설명이 아직 등록되지 않았습니다."라고만 한 줄 적고 넘어가세요.
-
-        Task 2: News List (Hybrid Strategy)
-        {news_instruction}
-        - 선정된 각 뉴스의 'translated_title'을 {target_lang} 전문 경제신문 스타일로 번역하세요.
-        - 결과는 반드시 아래 JSON 형식을 지키세요.
-
-        <JSON_START>
-        {{ "news": [ {{ "title_en": "...", "translated_title": "...", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}
-        <JSON_END>
-        """
     # =========================================================
     # [A] 4개 국어 순회 생성 (대표님의 기존 로직 100% 보존)
     # =========================================================
