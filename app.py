@@ -4210,7 +4210,8 @@ with main_area.container():
                 st.info(get_text(f"desc_{t_topic.lower().replace('/','').replace('-','').replace(' ','')}"))
             
                 # 3. 데이터 로드 및 고도화 파싱
-                with st.expander(f" {t_topic} {get_text('btn_summary_view')}", expanded=True):
+                # 💡 [수정] expanded=False 로 변경하여 기본적으로 카드가 '닫혀 있도록' 설정합니다.
+                with st.expander(f" {t_topic} {get_text('btn_summary_view')}", expanded=False):
                     with st.spinner("분석 리포트를 불러오는 중..."):
                         a_res = get_ai_analysis(stock['name'], t_topic, st.session_state.lang)
                     
@@ -4223,20 +4224,17 @@ with main_area.container():
                         
                         # 💡 [핵심] 일반 서류 탭일 때 8-K 흔적 강제 절단 로직 보강
                         if t_topic != "8-K":
-                            # 아래 키워드 중 하나라도 발견되면 그 지점부터 뒤는 싹둑 자름
                             stop_keywords = ["실시간 8-K", "8-K 분석", "보고된 돌발", "중대 이벤트"]
                             for skw in stop_keywords:
                                 if skw in raw_text:
                                     raw_text = raw_text.split(skw)[0].strip()
                             
-                            # 자르고 난 뒤 맨 마지막 글자가 '[' 로 남아있다면 그것도 지움
                             raw_text = raw_text.rstrip('[ ').strip()
             
                         # [Step 2] 하단 미완성 찌꺼기 제거
                         lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
                         while lines:
                             last_l = lines[-1]
-                            # 빈 괄호, 짧은 제목 찌꺼기([] , [최근] 등) 제거
                             if last_l == "[]" or (last_l.startswith('[') and len(last_l) < 15) or (len(last_l) < 7 and not re.search(r'[.。!?>]', last_l)):
                                 lines.pop()
                             else:
@@ -4265,12 +4263,25 @@ with main_area.container():
                         if len(d_text) < 15: d_text = raw_text.replace('\n', '<br>')
             
                         # [Step 4] 출력 및 8-K 프리미엄 블러
-                        # 💡 [수정] 8-K 메뉴이고, 프리미엄 회원이 아닐 때만 블러 처리!
                         if t_topic == "8-K" and not is_premium:
-                            blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다... (이하 블러 처리)"
-                            st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #d32f2f; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_8k_blur_teaser')}</p></div></div>""", unsafe_allow_html=True)
+                            # 🚨 [수정] 대표님이 요청하신 뉴욕타임스 스타일의 세련된 "🔒 Premium Only" 뱃지 블러 화면 적용!
+                            locked_8k_html = """
+                            <div style="position: relative; width: 100%; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; margin-top: 10px;">
+                                <div style="filter: blur(5px); opacity: 0.5; padding: 25px; background-color: #f8f9fa; color: #555; font-size: 15px; line-height: 1.6;">
+                                    <b>[핵심 이벤트]</b><br>최근 발생한 주요 공시 사유 요약 내용이 이곳에 표시됩니다. 회사의 재무 상태 및 주가에 영향을 줄 수 있는 중대한 결정 사항입니다.<br><br>
+                                    <b>[재무 파급력]</b><br>해당 이벤트가 기업의 매출, 영업이익, 현금흐름 등에 미치는 단기 및 장기적 파급 효과 분석이 이곳에 표시됩니다.<br><br>
+                                    <b>[향후 전망]</b><br>투자자가 주의 깊게 살펴봐야 할 핵심 투자 포인트와 향후 예상 시나리오입니다.
+                                </div>
+                                
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%;">
+                                    <span style="background-color: rgba(32, 33, 36, 0.85); color: #ffffff; padding: 12px 24px; border-radius: 30px; font-weight: 600; font-size: 16px; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                        🔒 Premium Only
+                                    </span>
+                                </div>
+                            </div>
+                            """
+                            st.markdown(locked_8k_html, unsafe_allow_html=True)
                         else:
-                            # 💡 프리미엄 회원이거나 8-K가 아닌 일반 공시일 경우 정상적으로 텍스트 노출
                             st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text}</div>', unsafe_allow_html=True)
             
                 # 4. 외부 링크 및 하단 버튼
