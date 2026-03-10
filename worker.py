@@ -74,13 +74,13 @@ SUPPORTED_LANGS = {
 
 def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
     """
-    [혁신적 결함 해결] FMP API 티커 검색 -> 실패 시 SEC EDGAR CIK 직접 검색 하이브리드 엔진
+    [최종 진화형] FMP 검색 -> SEC CIK 우회 -> FMP 텍스트 실패 시 SEC 원문 직접 스크래핑
     """
     try:
         accession_num = None
         filed_date = None
 
-        # 1. 1차 시도: FMP API에 티커(Ticker)로 검색
+        # 1. FMP API 티커 검색
         search_url = f"https://financialmodelingprep.com/api/v3/sec_filings/{ticker}?type={doc_type}&limit=1&apikey={api_key}"
         r = requests.get(search_url, timeout=5)
         if r.status_code == 200 and r.json():
@@ -88,12 +88,11 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
             accession_num = filing_info.get('accessionNumber')
             filed_date = filing_info.get('fillingDate')
 
-        # 🚀 2. 2차 시도 (치명적 결함 해결!): FMP가 티커를 못 찾으면, SEC EDGAR에 CIK로 직접 찔러서 고유문서번호를 탈취!
+        # 2. FMP 실패 시 SEC EDGAR CIK 우회 검색
         if not accession_num and cik:
-            time.sleep(0.5) # SEC 초당 10회 호출 제한 방어
+            time.sleep(0.5)
             sec_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
             sec_res = requests.get(sec_url, headers=SEC_HEADERS, timeout=5)
-            
             if sec_res.status_code == 200:
                 filings = sec_res.json().get('filings', {}).get('recent', {})
                 forms = filings.get('form', [])
@@ -101,24 +100,40 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
                 acc_nums = filings.get('accessionNumber', [])
                 
                 for i, form in enumerate(forms):
-                    # F-1 검색 시 F-1/A 등도 포착하도록 유연한 검색
                     if doc_type.upper() in str(form).upper():
                         accession_num = acc_nums[i]
                         filed_date = dates[i]
-                        print(f"🕵️‍♂️ [SEC Bypass] FMP 실패 우회 성공! SEC에서 {ticker}의 {doc_type} 문서 식별됨.")
+                        print(f"🕵️‍♂️ [SEC Bypass] SEC 데이터베이스에서 {ticker}의 {doc_type} 문서 번호 식별 성공!")
                         break
 
-        # 3. 양쪽 다 없으면 진짜 없는 서류임
         if not accession_num:
             return filed_date, None
 
-        # 4. 확보한 문서번호(accessionNumber)로 FMP에 텍스트 본문 강제 추출 요청
+        # 3. 문서번호로 FMP에서 텍스트 추출 시도
         text_url = f"https://financialmodelingprep.com/api/v4/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
         txt_res = requests.get(text_url, timeout=7)
+        full_text = ""
         
         if txt_res.status_code == 200 and txt_res.json():
             full_text = txt_res.json()[0].get('content', '')
-            return filed_date, full_text[:20000] 
+
+        # 🚀 4. [최종 병기] FMP가 텍스트 변환을 못했다면? SEC 원문 직접 스크래핑!
+        if not full_text and cik:
+            print(f"⚠️ FMP 텍스트 변환 지연. SEC 서버 원문(Archive) 직접 추출 시도: {ticker} ({doc_type})")
+            acc_no_dash = str(accession_num).replace('-', '')
+            cik_int = str(int(cik)) # SEC URL은 앞의 0을 빼야 함
+            sec_doc_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_no_dash}/{accession_num}.txt"
+            
+            doc_res = requests.get(sec_doc_url, headers=SEC_HEADERS, timeout=10)
+            if doc_res.status_code == 200:
+                # HTML 태그 싹 밀어버리고 순수 텍스트만 추출
+                clean_text = re.sub(r'<[^>]+>', ' ', doc_res.text)
+                clean_text = re.sub(r'\s+', ' ', clean_text)
+                full_text = clean_text
+                print(f"✅ [SEC Scraping] SEC 원문 직접 추출 대성공! ({len(full_text)} bytes)")
+
+        if full_text:
+            return filed_date, full_text[:20000]
         
         return filed_date, None
 
@@ -385,6 +400,17 @@ def get_sec_master_mapping():
         print(f"SEC Mapping Error: {e}")
         return {}, {}
 
+def get_cik_from_sec(ticker):
+    """SEC EDGAR 실시간 검색을 통해 미상장/해외 기업의 CIK를 동적으로 찾아냅니다."""
+    try:
+        url = f"https://www.sec.gov/cgi-bin/browse-edgar?CIK={ticker}&action=getcompany&output=atom"
+        res = requests.get(url, headers=SEC_HEADERS, timeout=5)
+        match = re.search(r'<cik>(\d+)</cik>', res.text)
+        if match:
+            return str(match.group(1)).zfill(10)
+    except: pass
+    return None
+
 def check_sec_specific_filing(cik, target_form):
     """특정 CIK 기업이 10-K, RW, S-1 등의 서류를 제출했는지 확인하고 가장 최근 날짜를 반환합니다."""
     try:
@@ -507,6 +533,12 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     else: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
 
     cik = cik_mapping.get(ticker) if cik_mapping else None
+    if not cik:
+        cik = get_cik_from_sec(ticker)
+        if cik:
+            if cik_mapping is not None:
+                cik_mapping[ticker] = cik
+            print(f"🔍 [CIK 획득] 명단에 없는 {ticker}의 CIK({cik})를 실시간으로 찾아냈습니다.")
 
     # 12가지 문서의 세부 지시사항 (대표님의 기존 번역 100% 유지)
     def get_localized_meta(lang, doc_type):
