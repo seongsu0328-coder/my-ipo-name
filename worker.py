@@ -727,43 +727,35 @@ Checkpoints: {meta['p']}
             except: pass
 
     # ---------------------------------------------------------
-    # 💡 [핵심 교정 2] 일반 서류 루프 (S-1, 10-K 등)
+    # 💡 일반 서류 루프 (스마트 Bypass 적용 및 변수 에러 완벽 해결)
     # ---------------------------------------------------------
     for topic in target_topics:
-        # 재무분석용 소스 결정
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
         
-        # 🚀 루프 안에서 실제 본문을 1회 수집
-        filed_date, filing_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY)
+        # 🚀 [오타 수정 완료] f_date와 f_text로 변수명을 정확히 통일했습니다.
+        f_date, f_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY)
         
-        # 🚀 [에러 해결] 루프 안에서 변수를 확실히 정의하여 NameError 차단
-        current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {filed_date}." if filed_date else ""
-        current_filing_text = f_text if f_text else "API_SYNC_DELAY"
-
-        # 💡 [교정] 본문이 없으면 AI를 부르지 않도록 흐름을 통제합니다.
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
-            
             try:
                 res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
                 if res.data: continue 
             except: pass
 
-            # 🚀 [핵심 교정] 본문이 아예 없거나 너무 짧으면, AI 호출 생략(Bypass) 후 안내 멘트 즉시 저장
+            # 🚀 [핵심] 본문이 아예 없거나 너무 짧으면, AI 호출 생략(Bypass) 후 안내 멘트 즉시 저장
             if not f_text or len(f_text) < 100:
                 missing_msg = get_missing_document_message(lang_code, topic)
                 formatted_msg = f"<div style='background-color:#f8f9fa; padding:15px; border-radius:8px; color:#555; font-size:15px; line-height:1.6;'>{missing_msg}</div>"
                 
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
                 print(f"✅ [{ticker}] {topic} 서류 부재 - 맞춤 안내 멘트 적용 완료 ({lang_code})")
-                continue # AI를 부르지 않고 곧바로 다음 언어로 넘어감 (속도/비용 최적화)
+                continue # 다음 언어로 넘어가며 AI 호출은 건너뜀
 
-            # 🚀 본문이 충분히 있을 때만 정상적으로 AI 프롬프트 생성 및 호출
+            # 🚀 본문이 있는 경우에만 RAG 방식으로 AI 프롬프트 생성 및 호출
             current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
             meta = get_localized_meta(lang_code, topic)
             format_inst = get_format_instruction(lang_code)
             
-            # 수치 강제 로직이 포함된 프롬프트에 텍스트 주입
             prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, format_inst, f_text)
             
             for attempt in range(2):
