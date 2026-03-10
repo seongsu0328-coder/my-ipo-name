@@ -4353,26 +4353,23 @@ with main_area.container():
                 # =========================================================
                 # 🚀 [3] 기업 공식 보도자료 요약 (Premium 전용 - Blur 적용)
                 # =========================================================
-                with st.expander(get_text('tab1_press_release_title'), expanded=False):
-                    if is_premium:
-                        if pr_summary:
+                # 💡 [UI 제어] DB에 진짜 요약 데이터가 존재할 때만 Expander를 생성합니다.
+                if pr_summary:
+                    with st.expander(get_text('tab1_press_release_title'), expanded=False):
+                        if is_premium:
                             st.markdown(pr_summary, unsafe_allow_html=True)
                         else:
-                            st.info("데이터를 수집 및 분석 중입니다..." if curr_lang == 'ko' else "Analyzing data...")
-                    else:
-                        # 비결제자 Blur 화면
-                        blur_text = "본 기업은 최근 핵심 소프트웨어의 메이저 업그레이드 버전을 성공적으로 런칭했으며, 글로벌 시장 점유율 확대를 위한 대규모 마케팅 캠페인을 전개할 예정임을 공식적으로 발표했습니다... (이하 블러 처리)"
-                        st.markdown(f"""
-                            <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                                <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                    <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                    <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                            # 비결제자 Blur 화면
+                            blur_text = "본 기업은 최근 핵심 소프트웨어의 메이저 업그레이드 버전을 성공적으로 런칭했으며, 글로벌 시장 점유율 확대를 위한 대규모 마케팅 캠페인을 전개할 예정임을 공식적으로 발표했습니다... (이하 블러 처리)"
+                            st.markdown(f"""
+                                <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                    <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                        <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                        <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                    </div>
                                 </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-
-                st.write("<br>", unsafe_allow_html=True)
+                            """, unsafe_allow_html=True)
 
                 # =========================================================
                 # [4] Recent News (기존 구글 뉴스 리스트 출력 - 모든 유저)
@@ -4783,54 +4780,27 @@ with main_area.container():
                 # =========================================================
                 # 🚀 [NEW] 어닝 서프라이즈 내역 (Premium 전용 - Blur 적용)
                 # =========================================================
-                # (여기가 get_premium_tab3_summaries를 부르는 곳입니다)
                 surp_summary, est_summary = get_premium_tab3_summaries(sid, curr_lang)
                 
-                with st.expander(get_text('tab3_surprise_title'), expanded=False):
-                    raw_info = st.session_state.get('user_info')
-                    user_info = raw_info if raw_info is not None else {}
-                    user_level = user_info.get('membership_level', 'free')
-                    is_premium = user_level in ['premium', 'premium_plus']
-                    
-                    if is_premium:
-                        if surp_summary:
+                # 💡 [UI 제어] 데이터가 있을 때만 렌더링
+                if surp_summary:
+                    with st.expander(get_text('tab3_surprise_title'), expanded=False):
+                        if is_premium:
                             st.markdown(surp_summary, unsafe_allow_html=True)
                         else:
-                            st.info("데이터를 수집 및 분석 중입니다..." if curr_lang == 'ko' else "Analyzing data...")
-                    else:
-                        # 비결제자 Blur 화면
-                        blur_text = "최근 4분기 연속으로 월가 애널리스트들의 주당순이익(EPS) 예상치를 평균 15% 이상 상회(Beat)하는 어닝 서프라이즈를 기록했습니다. 이는 동종 업계 대비 압도적인 비용 통제 능력을... (이하 블러 처리)"
-                        st.markdown(f"""
-                            <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                                <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                    <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                    <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
+                            blur_text = "최근 4분기 연속으로 월가 애널리스트들의 주당순이익(EPS) 예상치를 평균 15% 이상 상회(Beat)하는 어닝 서프라이즈를 기록했습니다. 이는 동종 업계 대비 압도적인 비용 통제 능력을... (이하 블러 처리)"
+                            st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p></div></div>""", unsafe_allow_html=True)
 
                 # =========================================================
                 # 🚀 [NEW] 향후 실적 전망치 (Premium 전용 - Blur 적용)
                 # =========================================================
-                with st.expander(get_text('tab3_estimate_title'), expanded=False):
-                    if is_premium:
-                        if est_summary:
+                if est_summary:
+                    with st.expander(get_text('tab3_estimate_title'), expanded=False):
+                        if is_premium:
                             st.markdown(est_summary, unsafe_allow_html=True)
                         else:
-                            st.info("데이터를 수집 및 분석 중입니다..." if curr_lang == 'ko' else "Analyzing data...")
-                    else:
-                        # 비결제자 Blur 화면
-                        blur_text = "월가 컨센서스에 따르면, 내년도 예상 매출액은 전년 대비 약 35% 폭증할 것으로 추정되며, 주당순이익(EPS) 역시 적자에서 흑자로 턴어라운드(Turnaround)할 강력한 모멘텀을... (이하 블러 처리)"
-                        st.markdown(f"""
-                            <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                                <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                    <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                    <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)    
+                            blur_text = "월가 컨센서스에 따르면, 내년도 예상 매출액은 전년 대비 약 35% 폭증할 것으로 추정되며, 주당순이익(EPS) 역시 적자에서 흑자로 턴어라운드(Turnaround)할 강력한 모멘텀을... (이하 블러 처리)"
+                            st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p></div></div>""", unsafe_allow_html=True)
 
                 # --- 💡 3. 참고문헌 Expander (Tab 3 전용) ---
                 with st.expander(get_text('expander_references'), expanded=False):
@@ -4964,46 +4934,24 @@ with main_area.container():
                 # =========================================================
                 # 🚀 [NEW] 투자의견 변화추이 (Premium 전용 - Blur 적용)
                 # =========================================================
-                with st.expander(get_text('tab4_upgrades_title'), expanded=False):
-                    if is_premium:
-                        if ud_summary:
+                if ud_summary:
+                    with st.expander(get_text('tab4_upgrades_title'), expanded=False):
+                        if is_premium:
                             st.markdown(ud_summary, unsafe_allow_html=True)
                         else:
-                            st.info("데이터를 수집 및 분석 중입니다..." if curr_lang == 'ko' else "Analyzing data...")
-                    else:
-                        # 비결제자 Blur 화면
-                        blur_text = "모건스탠리는 최근 이 기업의 투자의견을 'Neutral'에서 'Buy'로 상향 조정했습니다. 목표가 역시 기존 대비 15% 상향된 수치를 제시하며 기관들의 강력한 매수세가 관측되고 있습니다... (이하 블러 처리)"
-                        st.markdown(f"""
-                            <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                                <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                    <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                    <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
+                            blur_text = "모건스탠리는 최근 이 기업의 투자의견을 'Neutral'에서 'Buy'로 상향 조정했습니다. 목표가 역시 기존 대비 15% 상향된 수치를 제시하며 기관들의 강력한 매수세가 관측되고 있습니다... (이하 블러 처리)"
+                            st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p></div></div>""", unsafe_allow_html=True)
 
                 # =========================================================
                 # 🚀 [NEW] Sector내 비교 (Premium 전용 - Blur 적용)
                 # =========================================================
-                with st.expander(get_text('tab4_peers_title'), expanded=False):
-                    if is_premium:
-                        if peers_summary:
+                if peers_summary:
+                    with st.expander(get_text('tab4_peers_title'), expanded=False):
+                        if is_premium:
                             st.markdown(peers_summary, unsafe_allow_html=True)
                         else:
-                            st.info("데이터를 수집 및 분석 중입니다..." if curr_lang == 'ko' else "Analyzing data...")
-                    else:
-                        # 비결제자 Blur 화면
-                        blur_text = "동일 섹터 내 경쟁사인 주요 상장사들과 비교할 때 본 기업의 주가수익비율(PER)은 상대적으로 저평가 구간에 머물러 있습니다. 이는 시장 점유율 확보 전략이... (이하 블러 처리)"
-                        st.markdown(f"""
-                            <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                                <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                    <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                    <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
+                            blur_text = "동일 섹터 내 경쟁사인 주요 상장사들과 비교할 때 본 기업의 주가수익비율(PER)은 상대적으로 저평가 구간에 머물러 있습니다. 이는 시장 점유율 확보 전략이... (이하 블러 처리)"
+                            st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p></div></div>""", unsafe_allow_html=True)
 
                 # =========================================================
                 # [기존 기능 유지] 4. References 영역
