@@ -72,34 +72,52 @@ SUPPORTED_LANGS = {
     'zh': '简体中文(Simplified Chinese)'
 }
 
-def fetch_sec_filing_text(ticker, doc_type, api_key):
+def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
     """
-    FMP API를 사용하여 특정 티커의 가장 최근 공시 서류 본문을 가져옵니다.
+    [혁신적 결함 해결] FMP API 티커 검색 -> 실패 시 SEC EDGAR CIK 직접 검색 하이브리드 엔진
     """
     try:
-        # 1. 먼저 해당 티커의 특정 문서(doc_type) 리스트를 조회하여 최신 URL/AccessionNumber 확보
+        accession_num = None
+        filed_date = None
+
+        # 1. 1차 시도: FMP API에 티커(Ticker)로 검색
         search_url = f"https://financialmodelingprep.com/api/v3/sec_filings/{ticker}?type={doc_type}&limit=1&apikey={api_key}"
-        r = requests.get(search_url)
-        if r.status_code != 200 or not r.json():
-            return None, None
+        r = requests.get(search_url, timeout=5)
+        if r.status_code == 200 and r.json():
+            filing_info = r.json()[0]
+            accession_num = filing_info.get('accessionNumber')
+            filed_date = filing_info.get('fillingDate')
 
-        filing_info = r.json()[0]
-        # FMP v4 Full Text API는 'accessionNumber'가 필요함
-        accession_num = filing_info.get('accessionNumber')
-        filed_date = filing_info.get('fillingDate')
+        # 🚀 2. 2차 시도 (치명적 결함 해결!): FMP가 티커를 못 찾으면, SEC EDGAR에 CIK로 직접 찔러서 고유문서번호를 탈취!
+        if not accession_num and cik:
+            time.sleep(0.5) # SEC 초당 10회 호출 제한 방어
+            sec_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+            sec_res = requests.get(sec_url, headers=SEC_HEADERS, timeout=5)
+            
+            if sec_res.status_code == 200:
+                filings = sec_res.json().get('filings', {}).get('recent', {})
+                forms = filings.get('form', [])
+                dates = filings.get('filingDate', [])
+                acc_nums = filings.get('accessionNumber', [])
+                
+                for i, form in enumerate(forms):
+                    # F-1 검색 시 F-1/A 등도 포착하도록 유연한 검색
+                    if doc_type.upper() in str(form).upper():
+                        accession_num = acc_nums[i]
+                        filed_date = dates[i]
+                        print(f"🕵️‍♂️ [SEC Bypass] FMP 실패 우회 성공! SEC에서 {ticker}의 {doc_type} 문서 식별됨.")
+                        break
 
+        # 3. 양쪽 다 없으면 진짜 없는 서류임
         if not accession_num:
             return filed_date, None
 
-        # 2. Accession Number를 이용해 실제 텍스트 본문을 가져옴
-        # 주의: 본문이 매우 길 수 있으므로 v4 엔드포인트 사용
+        # 4. 확보한 문서번호(accessionNumber)로 FMP에 텍스트 본문 강제 추출 요청
         text_url = f"https://financialmodelingprep.com/api/v4/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
-        txt_res = requests.get(text_url)
+        txt_res = requests.get(text_url, timeout=7)
         
-        if txt_res.status_code == 200:
-            # 리스트 형태로 반환되므로 첫 번째 요소의 'content' 추출
+        if txt_res.status_code == 200 and txt_res.json():
             full_text = txt_res.json()[0].get('content', '')
-            # AI 토큰 제한을 고려하여 핵심 부분(앞부분 15,000자 ~ 20,000자)만 슬라이싱
             return filed_date, full_text[:20000] 
         
         return filed_date, None
@@ -669,7 +687,7 @@ Checkpoints: {meta['p']}
     # ---------------------------------------------------------
     # 💡 [핵심 교정 1] 8-K 분석 섹션: 링크 리스트가 아닌 '진짜 본문'을 분석
     # ---------------------------------------------------------
-    f_date_8k, f_text_8k = fetch_sec_filing_text(ticker, "8-K", FMP_API_KEY)
+    f_date_8k, f_text_8k = fetch_sec_filing_text(ticker, "8-K", FMP_API_KEY, cik)
     
     # 기존 변수명 호환 및 에러 방지
     fmp_8k_data = f_text_8k if f_text_8k else "No recent 8-K events."
@@ -733,7 +751,7 @@ Checkpoints: {meta['p']}
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
         
         # 🚀 1. 변수 이름을 f_date 와 f_text 로 완벽히 통일해서 받아옵니다.
-        f_date, f_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY)
+        f_date, f_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY, cik)
         
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
