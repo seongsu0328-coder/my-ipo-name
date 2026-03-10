@@ -4226,16 +4226,46 @@ with main_area.container():
                     if not a_res or "ERROR" in a_res:
                         st.error("데이터가 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.")
                     else:
-                        # 💡 [핵심] 공백 문제 해결: SEP가 있으면 쪼개고, 없으면 통째로 보여줌
-                        p_splits = a_res.split("|||SEP|||")
-                        if t_topic == "8-K":
-                            d_text = p_splits[1] if len(p_splits) > 1 else p_splits[0]
-                        else:
-                            # 앞부분이 공백이면 8-K 분석이 포함된 원본 전체를 보여줌
-                            d_text = p_splits[0].strip() if p_splits[0].strip() else a_res.replace("|||SEP|||", "\n\n")
+                        import re
                         
-                        # 최종 텍스트 렌더링
-                        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+                        # 1. 💡 [핵심 방어막] 과거 캐시에 들어간 불필요한 머리말과 공백 1차 제거
+                        clean_res = a_res.replace("[기본 요약]", "").replace("[실시간 8-K 중대 이벤트 분석]", "").strip()
+                        
+                        # 2. 문서 종류에 따른 분기 처리
+                        if t_topic == "8-K":
+                            # 8-K 문서인 경우
+                            if "|||SEP|||" in clean_res:
+                                d_text = clean_res.split("|||SEP|||")[-1].strip()
+                            else:
+                                d_text = clean_res.strip()
+                                
+                            # 💡 사용자의 기획 의도 완벽 반영: 8-K 탭이 존재한다면 무조건 블러 처리!
+                            if is_premium:
+                                d_text = re.sub(r'\n{3,}', '\n\n', d_text)
+                                st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+                            else:
+                                # 🚨 비결제자 프리미엄 블러 화면 (예외 없이 무조건 적용)
+                                blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다. 이는 단기 주가 변동성을 크게 확대시킬 수 있는 요인으로 판단되며 향후... (이하 블러 처리)"
+                                st.markdown(f"""
+                                    <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                        <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                            <h4 style="color: #d32f2f; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                            <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_8k_blur_teaser')}</p>
+                                        </div>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                                
+                        else:
+                            # S-1, 10-K 등 일반 서류인 경우
+                            d_text = clean_res.split("|||SEP|||")[0].strip()
+                            
+                            # 💡 과거 캐시에 남아있는 8-K "없습니다" 멘트 찌꺼기 2차 강제 절단 (아예 안 보이게 처리)
+                            if "최근 보고된 돌발" in d_text:
+                                d_text = d_text.split("최근 보고된 돌발")[0].strip()
+                                
+                            d_text = re.sub(r'\n{3,}', '\n\n', d_text)
+                            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
                 # 5. 외부 링크 및 하단 버튼 (NameError 완벽 차단)
                 cik_val = profile.get('cik', '') if profile else ''
