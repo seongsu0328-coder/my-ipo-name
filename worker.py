@@ -817,37 +817,49 @@ Checkpoints: {meta['p']}
             except: pass
 
     # ---------------------------------------------------------
-    # 💡 일반 서류 루프 (스마트 Bypass 적용 및 변수 오타 완전 해결!)
+    # 💡 [결함 1, 3 해결] 일반 서류 및 재무제표 통합 분석 루프
     # ---------------------------------------------------------
     for topic in target_topics:
-        sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
-        f_date, f_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY, cik)
+        f_date, f_text = None, None
         
-        # 🚀 1. 변수 이름을 f_date 와 f_text 로 완벽히 통일해서 받아옵니다.
-        f_date, f_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY, cik)
-        
+        # 🚀 [Issue 1 & 3] 재무 분석(BS, IS, CF, 10-K) 시 문서 우선순위 탐색
+        # 상장 1년 이상 기업으로 분류된 경우에만 이 로직이 실행됩니다.
+        if topic in ["BS", "IS", "CF", "10-K"]:
+            # 우선순위: 내국 연간보고서 -> 내국 정정본 -> 해외 연간보고서 -> 해외 정정본
+            priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
+            
+            for target in priority_targets:
+                f_date, f_text = fetch_sec_filing_text(ticker, target, FMP_API_KEY, cik)
+                # 의미 있는 본문(500자 이상)을 찾으면 즉시 탐색 중단
+                if f_text and len(f_text) > 500:
+                    print(f"✅ [{ticker}] {topic} 분석 소스 확보: {target} (Source Date: {f_date})")
+                    break
+        else:
+            # 그 외 일반 서류(S-1, 424B4, FWP 등)는 기존 방식대로 1회 검색
+            f_date, f_text = fetch_sec_filing_text(ticker, topic, FMP_API_KEY, cik)
+
+        # --- 여기서부터 AI 호출 및 캐싱 로직 ---
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
+            
             try:
                 res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
                 if res.data: continue 
             except: pass
 
-            # 🚀 2. f_text 를 사용하여 본문 부재 여부 검사 (Bypass 적용)
+            # 🚀 [스마트 Bypass] 모든 우선순위 문서를 뒤졌음에도 본문이 100자 미만인 경우
             if not f_text or len(f_text) < 100:
                 missing_msg = get_missing_document_message(lang_code, topic)
                 formatted_msg = f"<div style='background-color:#f8f9fa; padding:15px; border-radius:8px; color:#555; font-size:15px; line-height:1.6;'>{missing_msg}</div>"
-                
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
-                print(f"✅ [{ticker}] {topic} 서류 부재 - 맞춤 안내 멘트 적용 완료 ({lang_code})")
-                continue # AI 호출 건너뜀
+                print(f"✅ [{ticker}] {topic} 최종 서류 부재 - 안내 멘트 적용 ({lang_code})")
+                continue
 
-            # 🚀 3. 정상적으로 본문이 있으면 AI 호출
+            # 🚀 진짜 본문 분석 (RAG)
             current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
             meta = get_localized_meta(lang_code, topic)
             format_inst = get_format_instruction(lang_code)
             
-            # 여기서도 통일된 f_text 변수를 정확히 주입합니다!
             prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, format_inst, f_text)
             
             for attempt in range(2):
@@ -855,10 +867,10 @@ Checkpoints: {meta['p']}
                     response = model.generate_content(prompt)
                     if response and response.text:
                         batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
-                        print(f"✅ [{ticker}] {topic} 진짜 본문 분석 완료 ({lang_code})")
+                        print(f"✅ [{ticker}] {topic} 분석 완료 ({lang_code})")
                         break
                 except Exception as e:
-                    print(f"❌ [{ticker}] {topic} 분석 에러 (시도 {attempt+1}): {e}")
+                    print(f"❌ [{ticker}] {topic} AI 에러 (시도 {attempt+1}): {e}")
                     time.sleep(1)
                     
 # ==========================================
