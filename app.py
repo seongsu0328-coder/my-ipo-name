@@ -4793,6 +4793,10 @@ with main_area.container():
                 # =========================================================
                 surp_summary, est_summary = get_premium_tab3_summaries(sid, curr_lang)
                 
+                # 👇 [여기에 2줄 추가] Tab 3에서도 프리미엄 여부를 확인하도록 변수를 선언합니다.
+                user_info = st.session_state.get('user_info') if isinstance(st.session_state.get('user_info'), dict) else {}
+                is_premium = user_info.get('membership_level', 'free') in ['premium', 'premium_plus']
+
                 # 💡 [UI 제어] 데이터가 있을 때만 렌더링하고, 결제 여부에 따라 블러를 씌웁니다!
                 if surp_summary:
                     with st.expander(get_text('tab3_surprise_title'), expanded=False):
