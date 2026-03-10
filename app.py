@@ -4149,6 +4149,11 @@ with main_area.container():
             
             # --- Tab 0: 핵심 정보 (8-K 찌꺼기 제거 및 밀착 레이아웃 통합본) ---
             if selected_sub_menu == get_text('tab_0'):
+                # 💡 [핵심 에러 해결] Tab 0 안에서도 user_info를 불러와 is_premium 상태를 정의해 줍니다!
+                raw_info = st.session_state.get('user_info')
+                user_info = raw_info if isinstance(raw_info, dict) else {}
+                user_level = user_info.get('membership_level', 'free')
+                is_premium = user_level in ['premium', 'premium_plus']
                 # 1. 버튼 스타일링 (깔끔한 디자인 유지)
                 st.markdown("""<style>
                     div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } 
