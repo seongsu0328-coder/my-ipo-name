@@ -4252,12 +4252,35 @@ with main_area.container():
                         # 언어에 상관없이 '제목/안내말 찌꺼기'로 간주하고 무조건 날려버립니다.
                         while len(blocks) > 1 and len(blocks[0]) < 120 and not re.search(r'[.。!?>]', blocks[0]):
                             blocks.pop(0)
-                            
-                        # 깔끔하게 본론만 남은 블록들을 다시 합치고 위아래 공백을 완벽히 제거합니다.
-                        d_text = "\n\n".join(blocks).strip()
 
                         # =================================================
-                        # [3단계] 렌더링 및 8-K 프리미엄 스마트 블러 적용
+                        # 🚀 [3단계] 강제 포맷팅: AI가 대괄호 [ ] 를 빼먹었을 경우 강제 씌우기
+                        # =================================================
+                        final_blocks = []
+                        for b in blocks:
+                            # 각 문단을 '첫 줄(소제목 유력 후보)'과 '나머지(본문)'으로 분리 시도
+                            lines = b.split('\n', 1) 
+                            
+                            # 첫 줄이 존재하고 너무 길지 않은 경우(소제목으로 판단)
+                            if len(lines) == 2 and len(lines[0]) < 80: 
+                                title = lines[0].strip().replace('**', '') # 마크다운 별표 제거
+                                content = lines[1].strip()
+                                
+                                # 대괄호가 없으면 강제로 씌우기
+                                if not title.startswith('['): title = f"[{title}"
+                                if not title.endswith(']'): title = f"{title}]"
+                                
+                                # 예쁘게 조합해서 저장 (굵은 글씨 효과 추가)
+                                final_blocks.append(f"<b>{title}</b>\n{content}")
+                            else:
+                                # 문단이 통짜이거나 조건이 안 맞으면 그대로 저장
+                                final_blocks.append(b)
+                                
+                        # 깔끔하게 본론만 남은 블록들을 다시 합치고 위아래 공백을 완벽히 제거합니다.
+                        d_text = "\n\n".join(final_blocks).strip()
+
+                        # =================================================
+                        # [4단계] 렌더링 및 8-K 프리미엄 스마트 블러 적용
                         # =================================================
                         if t_topic == "8-K":
                             # 이벤트가 없는지(Empty) 다국어로 감지
