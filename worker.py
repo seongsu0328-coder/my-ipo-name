@@ -634,34 +634,48 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         elif lang == 'ja': return "- 各段落は日本語の **[見出し]** から始めてください。1段落につき4〜5文にし、数値に強調（**）は使わないでください。"
         elif lang == 'zh': return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
         else: return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5줄(문장) 길이로 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
+    
     def get_missing_document_message(lang, doc_type):
         msg_map = {
             "ko": {
-                "S-1": "💡 해당 기업은 해외 국적 기업이거나 특수 목적 상장(SPAC)일 가능성이 높습니다. 해외 기업의 경우 S-1 대신 **[F-1]** 서류 탭을 확인해 주세요.",
-                "F-1": "💡 해당 기업은 미국 내국 법인이므로 해외 기업 전용 서류인 F-1을 제출하지 않습니다. **[S-1]** 서류 탭을 확인해 주세요.",
-                "S-1/A": "💡 아직 최초 증권신고서(S-1) 제출 이후, 수정본(S-1/A)이 제출되지 않은 상태입니다.",
-                "FWP": "💡 FWP(로드쇼 등 추가 홍보 자료)는 기업의 선택적 제출 서류입니다. 현재 제출된 내역이 없습니다.",
-                "424B4": "💡 424B4(최종 공모가 확정 서류)는 보통 상장 1~2일 전 또는 상장 당일에 제출됩니다. 아직 공모가가 최종 확정되지 않았습니다.",
-                "RW": "💡 현재 상장 철회(RW) 서류가 제출되지 않았습니다. 상장 절차가 정상적으로 진행 중입니다.",
-                "Form 25": "💡 현재 상장 폐지(Form 25) 관련 서류가 제출되지 않았습니다. 정상 상장 유지 중입니다.",
-                "DEFAULT": "💡 아직 해당 서류의 제출 기한이 도래하지 않았거나, SEC 데이터베이스 업데이트 대기 중입니다."
+                "S-1": "**[Issuer Classification]** 해당 기업은 해외 국적 발행인(Foreign Issuer) 또는 SPAC으로 식별됩니다. 상세 공시 데이터는 **[F-1]** 섹션을 참조하십시오.",
+                "F-1": "**[Issuer Classification]** 미국 내국 법인(Domestic Issuer)으로 확인되었습니다. 규정에 따른 공시 내역은 **[S-1]** 섹션에서 제공됩니다.",
+                "S-1/A": "**[Filing Status]** 최초 신고서 제출 이후의 정정 신고서(S-1/A)가 아직 공시되지 않았습니다. 공모가 밴드 확정 시 실시간 업데이트됩니다.",
+                "FWP": "**[Supplemental Info]** 현재 해당 기업의 추가 로드쇼 자료나 마케팅용 자유 양식 증권신고서(FWP)가 SEC에 등록되지 않은 상태입니다.",
+                "424B4": "**[Pricing Finalization]** 최종 공모가 확정 서류(424B4)는 통상 상장 직전 24~48시간 이내에 수립됩니다. 확정 즉시 분석 리포트가 생성됩니다.",
+                "RW": "**[Offering Status]** 현재 상장 철회(RW)와 관련된 특이 사항이 발견되지 않았습니다. 상장 절차가 정상 궤도 내에서 진행 중입니다.",
+                "Form 25": "**[Listing Status]** 상장 폐지(Delisting) 관련 이벤트가 감지되지 않았습니다. 해당 종목은 정규 시장 내에서 활성 상태를 유지하고 있습니다.",
+                "DEFAULT": "**[Data Sync]** 해당 서류의 제출 기한이 도래하지 않았거나 SEC EDGAR 시스템 내의 아카이빙 작업이 진행 중입니다."
             },
             "en": {
-                "S-1": "💡 Likely a foreign issuer or SPAC. Please check the **[F-1]** tab instead.",
-                "F-1": "💡 This is a US domestic company. Please check the **[S-1]** tab instead.",
-                "424B4": "💡 Form 424B4 is typically filed 1-2 days before IPO. Not available yet.",
-                "FWP": "💡 FWP is an optional promotional document. None filed currently.",
-                "DEFAULT": "💡 Filing not yet due or pending update in the SEC database."
+                "S-1": "**[Issuer Classification]** Identified as a Foreign Issuer or SPAC. Please refer to the **[F-1]** section for primary disclosure data.",
+                "F-1": "**[Issuer Classification]** Identified as a US Domestic Issuer. Regulatory filings are provided in the **[S-1]** section.",
+                "S-1/A": "**[Filing Status]** The amended registration statement (S-1/A) following the initial filing has not yet been disclosed. Real-time updates will follow upon price band finalization.",
+                "FWP": "**[Supplemental Info]** No additional roadshow materials or Free Writing Prospectuses (FWP) have been registered with the SEC at this time.",
+                "424B4": "**[Pricing Finalization]** The final prospectus (424B4) is typically established within 24-48 hours prior to the IPO. Analysis will be generated immediately upon confirmation.",
+                "RW": "**[Offering Status]** No specific issues regarding withdrawal (RW) have been detected. The IPO process is proceeding within the normal track.",
+                "Form 25": "**[Listing Status]** No delisting events (Form 25) have been detected. The ticker remains active within the regular market.",
+                "DEFAULT": "**[Data Sync]** The filing deadline has not yet been met, or archiving within the SEC EDGAR system is currently in progress."
             },
             "ja": {
-                "S-1": "💡 海外企業またはSPACの可能性が高いです。**[F-1]**タブをご確認ください。",
-                "424B4": "💡 424B4(最終公募価格)は通常、上場の1〜2日前に提出されます。まだ確定していません。",
-                "DEFAULT": "💡 該当書類はまだ提出されていないか、データベースの更新待ちです。"
+                "S-1": "**[発行体分類]** 外国籍発行体（Foreign Issuer）またはSPACとして識別されました。詳細な公示データは **[F-1]** セクションをご参照ください。",
+                "F-1": "**[発行体分類]** 米国内국法人（Domestic Issuer）として確認されました。規定に基づく公示内容は **[S-1]** セクションで提供されます。",
+                "S-1/A": "**[公示ステータス]** 初回届出書提出後の訂正届出書（S-1/A）はまだ公示されていません。公募価格帯の確定時にリアルタイムで更新されます。",
+                "FWP": "**[補足情報]** 現在、当該企業の追加ロードショー資料やマーケ팅用自由方式目論見書（FWP）はSECに登録されていません。",
+                "424B4": "**[価格確定]** 最終公募価格確定書類（424B4）は通常、上場直前の24〜48時間以内に作成されます。確定次第、分析レポートが生成されます。",
+                "RW": "**[募集ステータ스]** 現在、上場撤回（RW）に関する特記事項は見当たりません。上場手続きは正常な軌道で進行中です。",
+                "Form 25": "**[上場ステータス]** 上場廃止（Delisting）関連のイベントは検知されていません。当該銘柄は正規市場内で活性状態を維持しています。",
+                "DEFAULT": "**[データ同期]** 当該書類の提出期限が未到来か、SEC EDGARシステム内でのアーカイブ処理が進行中です。"
             },
             "zh": {
-                "S-1": "💡 可能是外国企业或SPAC。请查看 **[F-1]** 标签页。",
-                "424B4": "💡 424B4（最终定价文件）通常在上市前1-2天提交。目前尚未发布。",
-                "DEFAULT": "💡 该文件尚未到期提交，或正在等待数据库更新。"
+                "S-1": "**[发行人分类]** 该企业被识别为外国发行人 (Foreign Issuer) 或 SPAC。请参阅 **[F-1]** 栏目获取详细公告数据。",
+                "F-1": "**[发行人分类]** 已确认该企业为美国本土发行人 (Domestic Issuer)。根据规定的公告内容请在 **[S-1]** 栏目查看。",
+                "S-1/A": "**[申报状态]** 提交首次登记表后的修订案 (S-1/A) 尚未公布。发行价区间确定后将实时更新。",
+                "FWP": "**[补充信息]** 目前该企业尚未在 SEC 注册额外的路演资料或营销用自由撰写招股说明书 (FWP)。",
+                "424B4": "**[定价确认]** 最终定价公告 (424B4) 通常在上市前 24-48 小时内完成。确认后将立即生成分析报告。",
+                "RW": "**[发行状态]** 目前未发现与撤回上市 (RW) 相关的异常情况。上市程序正处于正常推进轨道。",
+                "Form 25": "**[上市状态]** 未检测到退市 (Delisting) 相关事件。该股票在正规市场内保持活跃状态。",
+                "DEFAULT": "**[数据同步]** 该文件的提交截止日期尚未到期，或 SEC EDGAR 系统正在进行归档处理。"
             }
         }
         lang_dict = msg_map.get(lang, msg_map['ko'])
