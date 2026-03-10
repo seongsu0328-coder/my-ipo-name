@@ -662,23 +662,50 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         else:
             base_msg = "\n\n(Note: Actual filing content is currently unavailable.)\n"
 
-        # 🚨 [AI 통제 규칙 2.0] 추상적 표현 금지 및 숫자 강박증 주입
-        common_rules = """
+        # 🚨 [언어별 맞춤형 철권 통제 규칙]
+        if lang == 'en':
+            common_rules = """
 [STRICT RULES FOR WALL STREET ANALYST]
 1. HARD NUMBERS ONLY: Extract Revenue, Profit, MAU, GMV, or Market Share figures. If a number exists in the text, it MUST be in the summary.
 2. NO VAGUE FILLERS: Never use phrases like "aims to increase awareness." Replace them with specific data.
 3. NO AI CHAT: 🚨 DO NOT use phrases like "Here is the report" or "Understood". Start the very first word with the actual analysis.
 4. NO MAIN TITLE: 🚨 DO NOT write a main title or report header like "## Company Analysis Report" at the top. Just output the 3 paragraphs directly.
+5. LANGUAGE PURITY: 🚨 You MUST write entirely in English. DO NOT mix any other languages.
 """
+            return f"You are a Lead Buy-Side Analyst.\nTarget: {company_name} ({ticker}) - {topic}\n{sec_fact_prompt}\n{base_msg}\n{common_rules}\n[Structure]\n{meta['s']}\n{format_inst}"
 
-        if lang == 'en':
-            return f"You are a Lead Buy-Side Analyst.\nTarget: {company_name} ({ticker}) - {topic}\nCheckpoints: {meta['p']}\n{sec_fact_prompt}\n{base_msg}\n{common_rules}\n[Structure]\n{meta['s']}\n{format_inst}"
         elif lang == 'ja':
+            common_rules = """
+[ウォール街アナリストのための厳格な規則]
+1. 数値データ必須: 売上、利益、MAU、GMV、または市場シェアの数値を必ず抽出してください。本文に数値がある場合、必ず要約に含めてください。
+2. 曖昧な表現禁止: 「認知度向上を目指す」のような曖昧なフレーズは使用せず、具体的なデータに置き換えてください。
+3. AIの挨拶禁止: 🚨 「承知いたしました」「レポートは以下の通りです」などの挨拶は絶対に使用しないでください。最初の文字からすぐに分析内容を始めてください。
+4. メインタイトル禁止: 🚨 最上部に「## 企業分析レポート」のような見出しやタイトルは絶対に書かないでください。すぐに3つの段落のみを出力してください。
+5. 言語の純粋性: 🚨 全て自然な日本語のみで記述してください。英語の文章を混ぜないでください。企業名/ティッカー以外のすべての専門用語は日本語に翻訳してください。
+"""
             return f"あなたはバイサイドのシニアアナリストです。\n分析対象: {company_name} ({ticker}) - {topic}\n{sec_fact_prompt}\n{base_msg}\n{common_rules}\n[構成]\n{meta['s']}\n{format_inst}"
+
         elif lang == 'zh':
+            common_rules = """
+[华尔街分析师的严格规则]
+1. 必须包含具体数据: 请提取营收、利润、MAU、GMV或市场份额等数据。如果原文中有数字，摘要中必须包含。
+2. 禁止模糊表达: 绝对不要使用“旨在提高知名度”等模糊词语。请用具体数据代替。
+3. 禁止AI问候语: 🚨 绝对不要使用“好的”、“以下是报告”等词语。从第一个字开始直接输出分析内容。
+4. 禁止主标题: 🚨 绝对不要在顶部写“## 公司分析报告”之类的主标题。直接输出3个段落即可。
+5. 语言纯洁性: 🚨 必须完全使用简体中文编写。严禁混入英文句子。除特定的公司名称/代码外，所有专业术语必须翻译成中文。
+"""
             return f"您是买方资深分析师。\n分析目标: {company_name} ({ticker}) - {topic}\n{sec_fact_prompt}\n{base_msg}\n{common_rules}\n[结构要求]\n{meta['s']}\n{format_inst}"
+
         else: # ko
-            return f"당신은 월스트리트 바이사이드(Buy-side) 수석 애널리스트입니다.\n분석 대상: {company_name} ({ticker}) - {topic}\n체크포인트: {meta['p']}\n{sec_fact_prompt}\n{base_msg}\n{common_rules}\n[내용 구성 지침]\n{meta['s']}\n{format_inst}"
+            common_rules = """
+[월스트리트 애널리스트를 위한 엄격한 작성 규칙]
+1. 수치 데이터 필수: 매출, 이익, MAU, GMV 또는 시장 점유율 수치를 반드시 추출하세요. 원문에 숫자가 있다면 요약본에 무조건 포함되어야 합니다.
+2. 추상적 표현 금지: "인지도를 높이는 것을 목표로 한다" 같은 모호한 문구를 절대 쓰지 말고, 구체적인 데이터로 대체하세요.
+3. AI 인사말 금지: 🚨 "알겠습니다", "요약해 드리겠습니다" 같은 인사말이나 서론을 절대 쓰지 마세요. 첫 글자부터 곧바로 분석 내용(본론)만 출력하세요.
+4. 메인 제목 금지: 🚨 글 맨 위에 "## 기업 분석 보고서" 같은 메인 제목(타이틀)을 절대 달지 마세요. 곧바로 3개의 문단만 작성하세요.
+5. 언어 순수성: 🚨 반드시 순수한 한국어로만 작성하세요. 영어 문장을 섞어 쓰지 마세요. 고유한 기업명/티커를 제외한 모든 영단어는 한국어로 번역하세요.
+"""
+            return f"당신은 월스트리트 바이사이드(Buy-side) 수석 애널리스트입니다.\n분석 대상: {company_name} ({ticker}) - {topic}\n{sec_fact_prompt}\n{base_msg}\n{common_rules}\n[내용 구성 지침]\n{meta['s']}\n{format_inst}"
     # ---------------------------------------------------------
     # 🚀 [3] 기업 상태 및 기간 분석
     # ---------------------------------------------------------
@@ -1037,8 +1064,14 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         pr_url = f"https://financialmodelingprep.com/api/v3/press-releases/{ticker}?limit=5&apikey={FMP_API_KEY}"
         pr_raw = get_fmp_data_with_cache(ticker, "RAW_PR", pr_url, valid_hours=12)
 
+        # 💡 [환각 방어막] FMP가 보도자료 대신 '레거시 API 지원 중단' 같은 찌꺼기 공지를 주면 강제로 쳐냅니다.
+        is_pr_valid = False
+        pr_str = str(pr_raw).lower()
+        if pr_raw and len(pr_str) > 100 and "legacy api" not in pr_str and "deprecated" not in pr_str:
+            is_pr_valid = True
+
         for lang_code in SUPPORTED_LANGS.keys():
-            if pr_raw:
+            if is_pr_valid: # 정상적인 보도자료일 때만 AI 요약 실행!
                 pr_summary_key = f"{ticker}_PressReleaseSummary_v1_{lang_code}"
                 try:
                     res_p = supabase.table("analysis_cache").select("updated_at").eq("cache_key", pr_summary_key).gt("updated_at", limit_time_str).execute()
