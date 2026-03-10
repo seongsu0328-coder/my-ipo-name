@@ -579,8 +579,8 @@ Checkpoints: {meta['p']}
 {meta['s']}
 {format_inst}"""
 
-    elif lang == 'ja':
-        return f"""あなたは証券分析のエキスパートです。
+        elif lang == 'ja':
+            return f"""あなたは証券分析のエキスパートです。
 分析対象: {company_name} ({ticker}) - {topic}
 {sec_fact_prompt}
 {base_msg}
