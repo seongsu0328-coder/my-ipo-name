@@ -387,16 +387,36 @@ def get_sec_master_mapping():
         print(f"SEC Mapping Error: {e}")
         return {}, {}
 
-def get_cik_from_sec(ticker):
-    """SEC EDGAR 실시간 검색을 통해 미상장/해외 기업의 CIK를 동적으로 찾아냅니다."""
+def get_fallback_cik(ticker, company_name, api_key):
+    """[3중 추적 엔진] 명단에 없는 기업의 CIK를 3가지 방법으로 기어코 찾아냅니다."""
+    # 1단계: FMP 기업 프로필 API에서 직접 추출
+    try:
+        url = f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey={api_key}"
+        res = requests.get(url, timeout=5).json()
+        if res and isinstance(res, list) and 'cik' in res[0] and res[0]['cik']:
+            return str(res[0]['cik']).zfill(10)
+    except: pass
+
+    # 2단계: SEC EDGAR에 티커(Ticker)로 강제 검색
     try:
         url = f"https://www.sec.gov/cgi-bin/browse-edgar?CIK={ticker}&action=getcompany&output=atom"
         res = requests.get(url, headers=SEC_HEADERS, timeout=5)
         match = re.search(r'<cik>(\d+)</cik>', res.text)
-        if match:
-            return str(match.group(1)).zfill(10)
+        if match: return str(match.group(1)).zfill(10)
     except: pass
+    
+    # 3단계: SEC EDGAR에 '회사 이름'으로 강제 검색
+    if company_name:
+        try:
+            clean_name = str(company_name).split()[0].replace(',', '').strip()
+            url = f"https://www.sec.gov/cgi-bin/browse-edgar?company={clean_name}&action=getcompany&output=atom"
+            res = requests.get(url, headers=SEC_HEADERS, timeout=5)
+            match = re.search(r'<cik>(\d+)</cik>', res.text)
+            if match: return str(match.group(1)).zfill(10)
+        except: pass
+        
     return None
+
 
 def check_sec_specific_filing(cik, target_form):
     """특정 CIK 기업이 10-K, RW, S-1 등의 서류를 제출했는지 확인하고 가장 최근 날짜를 반환합니다."""
@@ -519,14 +539,20 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     elif is_over_1y: target_topics = ["S-1", "FWP", "10-K", "10-Q", "BS", "IS", "CF"]
     else: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
 
-    cik = cik_mapping.get(ticker) if cik_mapping else None
+    # 1. 기존 매핑 데이터에서 CIK 확인
+    cik = cik_mapping.get(ticker) if (cik_mapping is not None) else None
+    
+    # 2. 매핑에 없는 경우 3중 추적 엔진 가동
     if not cik:
-        # 3중 추적 엔진 가동
         cik = get_fallback_cik(ticker, company_name, FMP_API_KEY)
+        
         if cik:
+            # 실시간으로 찾은 CIK를 매핑 테이블에 업데이트 (다음 루프 시 속도 향상)
             if cik_mapping is not None:
                 cik_mapping[ticker] = cik
-            print(f"🔍 [CIK 획득 대성공!] 명단에 숨어있던 {ticker}의 CIK({cik})를 찾아냈습니다.")
+            print(f"🔍 [CIK 실시간 획득] {company_name}({ticker}) -> {cik} 추적 성공")
+        else:
+            print(f"⚠️ [CIK 획득 실패] {company_name}({ticker})의 고유번호를 찾을 수 없습니다.")
 
     # 12가지 문서의 세부 지시사항 (대표님의 기존 번역 100% 유지)
     def get_localized_meta(lang, doc_type):
