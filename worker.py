@@ -604,10 +604,15 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         return lang_group.get(doc_type, fallback_meta)
 
     def get_format_instruction(lang):
-        if lang == 'en': return "- Begin each paragraph with a translated **[Heading]**. Rich content, 4-5 sentences per paragraph. DO NOT bold numbers."
-        elif lang == 'ja': return "- 各段落は日本語の **[見出し]** から始めてください。1段落につき4〜5文にし、数値に強調（**）は使わないでください。"
-        elif lang == 'zh': return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
-        else: return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5줄(문장) 길이로 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
+        # 💡 [복원 및 강화] **[소제목]** 형식 유지 + 줄바꿈(Enter 2번) 강제 + 분량(4~5문장) 통제 + 숫자 강조 금지
+        if lang == 'en': 
+            return "- Write exactly 3 paragraphs. Separate each paragraph with a blank line (Enter twice).\n- Each paragraph MUST be 4-5 sentences long.\n- Begin each paragraph with a bold subheading like **[Subheading]**.\n- DO NOT bold numbers."
+        elif lang == 'ja': 
+            return "- 必ず3つの段落に分け、各段落の間には空行（Enter 2回）を入れてください。\n- 各段落は必ず4〜5文で構成してください。\n- 各段落の先頭は必ず **[見出し]** のように太字にして始めてください。\n- 本文の数値に太字（**）は絶対に使用しないでください。"
+        elif lang == 'zh': 
+            return "- 必须严格分为3个段落，每段之间留有空行（按两下Enter）。\n- 每个段落必须包含4-5个句子。\n- 每个段落必须以加粗的 **[副标题]** 开头。\n- 绝对不要对正文中的数字使用加粗。"
+        else: 
+            return "- 반드시 3개의 문단으로 작성하며, 문단과 문단 사이에는 반드시 '빈 줄(Enter 2번)'을 넣어 분리하세요.\n- 각 문단은 반드시 4~5줄(문장) 길이로 작성하세요.\n- 각 문단은 반드시 **[소제목]** 형태로 굵게 강조하여 시작하세요.\n- 단, 본문 내용의 '숫자'에는 절대 강조(**) 기호를 쓰지 마세요."
 
     def get_missing_document_message(lang, doc_type):
         msg_map = {
@@ -747,15 +752,15 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 for lang_code in SUPPORTED_LANGS.keys():
                     cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
                     
-                    # 💡 [복구 완료] 4개 국어 8-K 전용 지시사항 100% 반영
+                    # 💡 [핵심 수정] 8-K도 다른 서류들과 동일하게 "소제목 형태"를 강제하도록 문구 변경!
                     if lang_code == 'ko':
-                        meta_8k = {"p": "Material Events", "s": "1문단: [핵심 이벤트] 발생 사유 요약\n2문단: [재무 파급력] 영향 분석\n3문단: [향후 전망] 투자 포인트"}
+                        meta_8k = {"p": "Material Events", "s": "1문단: **[핵심 이벤트]** 발생 사유 요약\n2문단: **[재무 파급력]** 영향 분석\n3문단: **[향후 전망]** 투자 포인트"}
                     elif lang_code == 'ja':
-                        meta_8k = {"p": "重要イベント", "s": "第1段落：[核心イベント] 発生理由の要約\n第2段落：[財務影響] 影響分析\n第3段落：[今後の展望] 投資ポイント"}
+                        meta_8k = {"p": "重要イベント", "s": "第1段落：**[核心イベント]** 発生理由の要約\n第2段落：**[財務影響]** 影響分析\n第3段落：**[今後の展望]** 投資ポイント"}
                     elif lang_code == 'zh':
-                        meta_8k = {"p": "重大事件", "s": "第一段：[核心事件] 发生原因摘要\n第二段：[财务影响] 影响分析\n第三段：[未来展望] 投资要点"}
+                        meta_8k = {"p": "重大事件", "s": "第一段：**[核心事件]** 发生原因摘要\n第二段：**[财务影响]** 影响分析\n第三段：**[未来展望]** 投资要点"}
                     else: # en
-                        meta_8k = {"p": "Material Events", "s": "Para 1: [Core Event] Reason summary\nPara 2: [Financial Impact] Analysis\nPara 3: [Future Outlook] Key points"}
+                        meta_8k = {"p": "Material Events", "s": "Para 1: **[Core Event]** Reason summary\nPara 2: **[Financial Impact]** Analysis\nPara 3: **[Future Outlook]** Key points"}
                         
                     prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, f"[SEC FACT CHECK] Filed on {f_date_8k}", get_format_instruction(lang_code), f_text_8k[:40000])
                     
