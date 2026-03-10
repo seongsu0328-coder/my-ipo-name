@@ -72,6 +72,42 @@ SUPPORTED_LANGS = {
     'zh': '简体中文(Simplified Chinese)'
 }
 
+def fetch_sec_filing_text(ticker, doc_type, api_key):
+    """
+    FMP API를 사용하여 특정 티커의 가장 최근 공시 서류 본문을 가져옵니다.
+    """
+    try:
+        # 1. 먼저 해당 티커의 특정 문서(doc_type) 리스트를 조회하여 최신 URL/AccessionNumber 확보
+        search_url = f"https://financialmodelingprep.com/api/v3/sec_filings/{ticker}?type={doc_type}&limit=1&apikey={api_key}"
+        r = requests.get(search_url)
+        if r.status_code != 200 or not r.json():
+            return None, None
+
+        filing_info = r.json()[0]
+        # FMP v4 Full Text API는 'accessionNumber'가 필요함
+        accession_num = filing_info.get('accessionNumber')
+        filed_date = filing_info.get('fillingDate')
+
+        if not accession_num:
+            return filed_date, None
+
+        # 2. Accession Number를 이용해 실제 텍스트 본문을 가져옴
+        # 주의: 본문이 매우 길 수 있으므로 v4 엔드포인트 사용
+        text_url = f"https://financialmodelingprep.com/api/v4/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
+        txt_res = requests.get(text_url)
+        
+        if txt_res.status_code == 200:
+            # 리스트 형태로 반환되므로 첫 번째 요소의 'content' 추출
+            full_text = txt_res.json()[0].get('content', '')
+            # AI 토큰 제한을 고려하여 핵심 부분(앞부분 15,000자 ~ 20,000자)만 슬라이싱
+            return filed_date, full_text[:20000] 
+        
+        return filed_date, None
+
+    except Exception as e:
+        print(f"❌ [{ticker}] {doc_type} 본문 로드 실패: {e}")
+        return None, None
+
 # ==========================================
 # [2] 헬퍼 함수: 과거 성공했던 '직접 전송' 방식
 # ==========================================
@@ -519,57 +555,74 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         elif lang == 'zh': return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
         else: return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5줄(문장) 길이로 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
 
-   def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst):
-        # 💡 [핵심 수정] 8-K 파라미터 삭제. |||SEP||| 지시 삭제. 불필요한 머리말([기본 요약]) 강제 금지.
-        if lang == 'en':
-            return f"""You are a Senior Wall Street Analyst.
+   def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, filing_text=""):
+    # 💡 [핵심] 실제 본문이 있을 경우 프롬프트에 삽입, 없을 경우 안내 메시지 처리
+    base_msg = ""
+    if filing_text and len(filing_text) > 100:
+        base_msg = f"\n\n[ACTUAL SEC FILING CONTENT - MUST USE THIS AS SOURCE]\n{filing_text}\n"
+    else:
+        base_msg = "\n\n(Note: Actual filing content is currently unavailable. Please provide a general structural overview of this document type for the specific company.)\n"
+
+    if lang == 'en':
+        return f"""You are a Senior Wall Street Analyst.
 Target: {company_name} ({ticker}) - {topic}
 Checkpoints: {meta['p']}
 {sec_fact_prompt}
+{base_msg}
 
-[STRICT WRITING RULES]
-1. Write ENTIRELY in English. DO NOT use markdown bold (**) for numbers.
-2. DO NOT use introductory phrases like "[Basic Summary]" or "Here is the summary". Start directly with the headings.
+[STRICT RULES]
+1. ALWAYS base your analysis ONLY on the provided [ACTUAL SEC FILING CONTENT]. 
+2. NEVER invent facts or business strategies not mentioned in the text.
+3. If information is missing, clearly state that it is unavailable in the filing.
+4. DO NOT use introductory phrases like "[Basic Summary]". Start directly with headings.
 
 [Structure]
 {meta['s']}
 {format_inst}"""
 
-        elif lang == 'ja':
-            return f"""あなたは証券分析のエキスパートです。
+    elif lang == 'ja':
+        return f"""あなたは証券分析のエキスパートです。
 分析対象: {company_name} ({ticker}) - {topic}
 {sec_fact_prompt}
+{base_msg}
 
 [厳格な作成ルール]
-1. 全て日本語で作成し、数値に強調(**)は使用しないでください。
-2. 「[基本要約]」のような不要な前置きは絶対に書かず、すぐに見出しから始めてください。
+1. 提供された [ACTUAL SEC FILING CONTENT]（実際の公示内容）にのみ基づいて分析してください。
+2. 本文にない事実や戦略を捏造することは厳禁です。
+3. 情報が不足している場合は「該当事項なし」と記述してください。
+4. すぐに見出しから始めてください。
 
 [構成]
 {meta['s']}
 {format_inst}"""
 
-        elif lang == 'zh':
-            return f"""您是资深证券分析师。
+    elif lang == 'zh':
+        return f"""您是资深证券分析师。
 分析目标: {company_name} ({ticker}) - {topic}
 {sec_fact_prompt}
+{base_msg}
 
 [严格编写指南]
-1. 必须完全使用简体中文编写，严禁对数值加粗(**)。
-2. 绝对不要写“[基本摘要]”等不必要的开场白，直接从小标题开始。
+1. 必须完全基于提供的 [ACTUAL SEC FILING CONTENT]（实际公告内容）进行分析。
+2. 严禁编造事实或业务战略。如果数据缺失，请如实说明。
+3. 绝对不要写“[基本摘要]”等开场白，直接从小标题开始。
 
 [结构要求]
 {meta['s']}
 {format_inst}"""
 
-        else: # ko
-            return f"""당신은 월가 출신의 전문 분석가입니다.
+    else: # ko
+        return f"""당신은 월가 출신의 전문 분석가입니다.
 분석 대상: {company_name} ({ticker}) - {topic}
 체크포인트: {meta['p']}
 {sec_fact_prompt}
+{base_msg}
 
-[작성 지침]
-1. 반드시 한국어로만 작성하고 숫자에 별표(**) 강조를 쓰지 마세요.
-2. "[기본 요약]"이나 "요약해 드리겠습니다" 같은 불필요한 머리말을 절대 쓰지 말고 바로 본론(소제목)부터 시작하세요.
+[작성 지침 - 절대 준수]
+1. 반드시 제공된 [ACTUAL SEC FILING CONTENT](실제 서류 본문) 데이터에만 근거하여 작성하세요. 
+2. 본문에 없는 내용을 지어내는 것은 '치명적인 오류'입니다. 확실하지 않은 정보는 "데이터 미제공"으로 처리하세요.
+3. "[기본 요약]" 같은 머리말을 절대 쓰지 말고 바로 본론(소제목)부터 시작하세요.
+4. 숫자에 별표(**) 강조를 쓰지 마세요.
 
 [내용 구성 지침]
 {meta['s']}
@@ -636,19 +689,26 @@ Checkpoints: {meta['p']}
                     print(f"🚨 [{ticker}] 8-K 신규 분석 캐싱 완료 ({lang_code})")
             except: pass
 
-    # 💡 [2] 일반 서류(S-1, 10-K 등) 루프 처리
+    # 💡 [2] 일반 서류(S-1, 10-K 등) 루프 처리 (본문 주입 방식)
     for topic in target_topics:
-        sec_fact_prompt = ""
+        # BS, IS, CF 분석도 결국 10-K 본문 텍스트가 필요함
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
         
-        if cik:
-            filed_date = check_sec_specific_filing(cik, sec_search_target)
-            if filed_date:
-                sec_fact_prompt = f"\n[SEC FACT CHECK] Filed on {filed_date}."
+        # 🚀 [교정의 핵심] 실제 본문 텍스트를 FMP에서 긁어오기
+        filed_date, filing_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY)
         
+        sec_fact_prompt = ""
+        if filed_date:
+            sec_fact_prompt = f"\n[SEC FACT CHECK] Filed on {filed_date}."
+        
+        # 본문을 못 가져왔을 때의 처리 (에러 방지)
+        if not filing_text:
+            filing_text = "Filing content is currently unavailable. Please analyze based on the provided metadata only (if any)."
+
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
             
+            # 캐시 체크 (최신 데이터가 이미 있으면 통과)
             try:
                 res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
                 if res.data: continue 
@@ -657,17 +717,18 @@ Checkpoints: {meta['p']}
             meta = get_localized_meta(lang_code, topic)
             format_inst = get_format_instruction(lang_code)
             
-            # 🚨 [중요] 여기서 fmp_8k_data 인자를 뺐습니다!
-            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, sec_fact_prompt, format_inst)
+            # 💡 [수정됨] prompt 생성 시 filing_text를 인자로 전달함!
+            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, filing_text)
             
             for attempt in range(2):
                 try:
                     response = model.generate_content(prompt)
                     if response and response.text:
                         batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text, "updated_at": datetime.now().isoformat()}], "cache_key")
-                        print(f"✅ [{ticker}] {topic} 캐싱 완료 ({lang_code})")
+                        print(f"✅ [{ticker}] {topic} 진짜 분석 완료 ({lang_code})")
                         break
-                except:
+                except Exception as e:
+                    print(f"❌ [{ticker}] {topic} 분석 에러 (시도 {attempt+1}): {e}")
                     time.sleep(1)
                     
 # ==========================================
