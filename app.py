@@ -4229,7 +4229,9 @@ with main_area.container():
                         import re
                         raw_text = a_res.strip()
                         
-                        # 1. 과거 구분자(|||SEP|||) 및 8-K 찌꺼기 1차 분리
+                        # =================================================
+                        # 1. 8-K 및 일반 서류 분리 (SEP 기준)
+                        # =================================================
                         if "|||SEP|||" in raw_text:
                             if t_topic == "8-K":
                                 raw_text = raw_text.split("|||SEP|||")[-1].strip()
@@ -4239,57 +4241,56 @@ with main_area.container():
                             if t_topic != "8-K" and "최근 보고된 돌발" in raw_text:
                                 raw_text = raw_text.split("최근 보고된 돌발")[0].strip()
 
-                        # 2. 쓸데없는 최상단 머리말 제거 ([S-1 요약] 등)
-                        raw_text = re.sub(r'^\[.*?(분석|요약)\].*?\n+', '', raw_text)
-                        raw_text = re.sub(r'^\*\*\[.*?(분석|요약)\]\*\*.*?\n+', '', raw_text)
+                        # =================================================
+                        # 2. 느슨하고 안전한 찌꺼기 청소 (글이 날아가지 않게 조심!)
+                        # =================================================
+                        # AI가 자주 실수하는 특정 머리말 패턴만 콕 집어서 제거합니다.
+                        bad_headers = [
+                            "[기본 요약]", "**[기본 요약]**", "[S-1 요약]", "[S-1/A 요약]",
+                            "[실시간 8-K 중대 이벤트 분석]", "**[실시간 8-K 중대 이벤트 분석]**",
+                            "요약보기", "[S-1/A 기본 요약]"
+                        ]
+                        for bh in bad_headers:
+                            raw_text = raw_text.replace(bh, "")
+                        
+                        # [SUMA Acquisition Corp S-1 분석] 같이 회사 이름이 들어간 패턴만 살짝 지움
+                        raw_text = re.sub(r'^\[.*?분석\]\s*', '', raw_text)
                         
                         # =================================================
-                        # 🚀 [핵심] 한 줄씩 읽으며 소제목 강제 포맷팅 및 조립
+                        # 🚀 3. 소제목 포맷팅 (괄호 없으면 씌워주기)
                         # =================================================
                         lines = raw_text.split('\n')
-                        formatted_lines = []
+                        final_lines = []
                         
                         for line in lines:
                             line_s = line.strip()
                             if not line_s:
-                                continue # 빈 줄은 무시 (나중에 예쁘게 다시 넣음)
+                                continue # 빈 줄은 무시 (나중에 합칠 때 일정하게 띄움)
                                 
-                            # 마크다운 별표 등 지저분한 기호 제거
                             clean_line = line_s.replace('**', '').replace('###', '').replace('##', '').strip()
                             
-                            # '기본 요약' 같은 찌꺼기가 한 줄을 통째로 차지하면 날려버림
-                            if "기본 요약" in clean_line or "이벤트 분석" in clean_line or clean_line == "요약보기":
-                                continue
-                                
-                            # 💡 [소제목 감지기] 대괄호로 감싸져 있거나, 짧고 마침표가 없으면 소제목으로 인정!
-                            is_heading = False
+                            # 조건 1: 이미 대괄호 [ ] 로 예쁘게 묶인 경우 -> 굵게(<b>) 변환
                             if clean_line.startswith('[') and clean_line.endswith(']'):
-                                is_heading = True
-                            elif len(clean_line) < 60 and not re.search(r'[.。!?>]', clean_line) and not clean_line.endswith('다'):
-                                is_heading = True
+                                final_lines.append(f"\n<b>{clean_line}</b>")
+                            
+                            # 조건 2: 대괄호는 없는데 길이가 40자 미만이고 마침표(.)가 없는 제목 형태일 경우 -> 괄호 씌우고 굵게!
+                            elif len(clean_line) < 40 and not re.search(r'[.。!?>]', clean_line) and not clean_line.endswith('다'):
+                                final_lines.append(f"\n<b>[{clean_line}]</b>")
                                 
-                            if is_heading:
-                                # 괄호가 없으면 강제로 씌우기
-                                if not clean_line.startswith('['): clean_line = f"[{clean_line}"
-                                if not clean_line.endswith(']'): clean_line = f"{clean_line}]"
-                                
-                                # 문단 구분을 위해 소제목 위에 빈 줄 삽입 후 굵은 글씨(<b>) 적용
-                                if formatted_lines:
-                                    formatted_lines.append("") 
-                                formatted_lines.append(f"<b>{clean_line}</b>")
+                            # 조건 3: 일반 본문 문장 (그냥 그대로 둠)
                             else:
-                                # 일반 본문 문장이면 그대로 이어 붙임
-                                formatted_lines.append(line_s)
+                                final_lines.append(line_s)
                                 
-                        # 리스트를 다시 하나의 텍스트로 결합
-                        d_text = "\n".join(formatted_lines).strip()
+                        # 리스트를 다시 하나의 텍스트로 결합 (문단 사이에 여백 생성)
+                        d_text = "\n\n".join(final_lines).strip()
                         
-                        # 최후의 방어막: 파싱 과정에서 텍스트가 모두 증발했다면 원본 복구
-                        if not d_text:
-                            d_text = raw_text.replace("|||SEP|||", "\n").strip()
+                        # 🚨 [최후의 방어막] 만약 파싱하다가 글자가 다 지워져서 10글자도 안 남았다면?
+                        # -> 원본 텍스트(raw_text)를 무조건 살려내서 공란이 나오는 것을 100% 방지!
+                        if len(d_text) < 10:
+                            d_text = a_res.replace("|||SEP|||", "\n\n").strip()
 
                         # =================================================
-                        # [마무리] 화면 렌더링 및 8-K 프리미엄 블러
+                        # 4. 마무리 화면 렌더링 및 8-K 프리미엄 블러
                         # =================================================
                         if t_topic == "8-K":
                             # 8-K 데이터가 없는지 감지
@@ -4298,7 +4299,6 @@ with main_area.container():
                             if is_premium or is_empty_8k:
                                 st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
                             else:
-                                # 🚨 데이터가 '있는데' 비결제자인 경우 무조건 자물쇠 노출
                                 blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다. 이는 단기 주가 변동성을 크게 확대시킬 수 있는 요인으로 판단되며 향후... (이하 블러 처리)"
                                 st.markdown(f"""
                                     <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
@@ -4310,7 +4310,6 @@ with main_area.container():
                                     </div>
                                 """, unsafe_allow_html=True)
                         else:
-                            # S-1 등 일반 서류 정상 출력
                             st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
                 # 5. 외부 링크 및 하단 버튼
