@@ -555,7 +555,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         else: return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5줄(문장) 길이로 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
 
     def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, filing_text=""):
-        # 💡 [핵심] 이제 수직선상으로 위 함수와 딱 맞습니다.
+        # 💡 [핵심] 실제 본문 주입 로직
         base_msg = ""
         if filing_text and len(filing_text) > 100:
             base_msg = f"\n\n[ACTUAL SEC FILING CONTENT - MUST USE THIS AS SOURCE]\n{filing_text}\n"
@@ -586,32 +586,32 @@ Checkpoints: {meta['p']}
 {base_msg}
 
 [厳格な作成ルール]
-1. 提供された [ACTUAL SEC FILING CONTENT]（実際の公示内容）にのみ基づいて分析してください。
-2. 本文にない事実や戦略を捏造することは厳禁です。
-3. 情報が不足している場合は「該当事項なし」と記述してください。
-4. すぐに見出しから始めてください。
+1. 提供された [ACTUAL SEC FILING CONTENT]（実際の公示内容）にのみ基づいて分析してください.
+2. 本文にない事実や戦略を捏造することは厳禁です.
+3. 全て日本語で作成してください.
+4. すぐに見出しから始めてください.
 
 [構成]
 {meta['s']}
 {format_inst}"""
 
-    elif lang == 'zh':
-        return f"""您是资深证券分析师。
+        elif lang == 'zh':
+            return f"""您是资深证券分析师。
 分析目标: {company_name} ({ticker}) - {topic}
 {sec_fact_prompt}
 {base_msg}
 
 [严格编写指南]
-1. 必须完全基于提供的 [ACTUAL SEC FILING CONTENT]（实际公告内容）进行分析。
-2. 严禁编造事实或业务战略。如果数据缺失，请如实说明。
-3. 绝对不要写“[基本摘要]”等开场白，直接从小标题开始。
+1. 必须完全基于提供的 [ACTUAL SEC FILING CONTENT]（实际公告内容）进行分析.
+2. 严禁编造任何事实或业务战略.
+3. 绝对不要写“[基本摘要]”等开场白，直接从小标题开始.
 
 [结构要求]
 {meta['s']}
 {format_inst}"""
 
-    else: # ko
-        return f"""당신은 월가 출신의 전문 분석가입니다.
+        else: # ko
+            return f"""당신은 월가 출신의 전문 분석가입니다.
 분석 대상: {company_name} ({ticker}) - {topic}
 체크포인트: {meta['p']}
 {sec_fact_prompt}
