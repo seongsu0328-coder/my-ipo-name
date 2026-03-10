@@ -4228,25 +4228,46 @@ with main_area.container():
                     else:
                         import re
                         
-                        # 1. 원본 텍스트 보존
                         raw_text = a_res.strip()
                         
                         # =================================================
-                        # [A] 8-K 문서인 경우 (무조건 프리미엄 블러)
+                        # [1단계] 과거 데이터 분리 (|||SEP||| 가 있는 경우만 동작)
+                        # =================================================
+                        if "|||SEP|||" in raw_text:
+                            if t_topic == "8-K":
+                                raw_text = raw_text.split("|||SEP|||")[-1].strip()
+                            else:
+                                raw_text = raw_text.split("|||SEP|||")[0].strip()
+                        else:
+                            if t_topic != "8-K" and "최근 보고된 돌발" in raw_text:
+                                raw_text = raw_text.split("최근 보고된 돌발")[0].strip()
+
+                        # =================================================
+                        # 💡 [2단계] 다국어 범용: 첫 문단 위 공란 및 머리말 완벽 제거
+                        # =================================================
+                        # 문단(\n\n 이상) 단위로 텍스트를 쪼갭니다.
+                        blocks = [b.strip() for b in re.split(r'\n{2,}', raw_text) if b.strip()]
+                        
+                        # 맨 위 블록이 길이가 짧고(120자 미만), 완결된 문장 부호(. 。 ! ? 등)가 없다면
+                        # 언어에 상관없이 '제목/안내말 찌꺼기'로 간주하고 무조건 날려버립니다.
+                        while len(blocks) > 1 and len(blocks[0]) < 120 and not re.search(r'[.。!?>]', blocks[0]):
+                            blocks.pop(0)
+                            
+                        # 깔끔하게 본론만 남은 블록들을 다시 합치고 위아래 공백을 완벽히 제거합니다.
+                        d_text = "\n\n".join(blocks).strip()
+
+                        # =================================================
+                        # [3단계] 렌더링 및 8-K 프리미엄 스마트 블러 적용
                         # =================================================
                         if t_topic == "8-K":
-                            parts = raw_text.split("|||SEP|||")
-                            # 8-K 내용은 보통 뒤쪽(마지막 조각)에 있음
-                            d_text = parts[-1].strip() if len(parts) > 1 else raw_text
+                            # 이벤트가 없는지(Empty) 다국어로 감지
+                            is_empty_8k = any(x in d_text for x in ["없", "No", "无", "未", "ない"])
                             
-                            # 불필요한 머리말 제거
-                            d_text = d_text.replace("[실시간 8-K 중대 이벤트 분석]", "").replace("**[실시간 8-K 중대 이벤트 분석]**", "").strip()
-                            
-                            # 💡 8-K 탭이 존재하면 비결제자에게는 예외 없이 블러 처리!
-                            if is_premium:
-                                d_text = re.sub(r'\n{3,}', '\n\n', d_text)
+                            # 프리미엄 유저이거나, 애초에 이벤트가 없을 경우 정상 출력
+                            if is_premium or is_empty_8k:
                                 st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
                             else:
+                                # 🚨 데이터가 '있는데' 비결제자인 경우에만 무조건 블러 + 자물쇠 노출
                                 blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다. 이는 단기 주가 변동성을 크게 확대시킬 수 있는 요인으로 판단되며 향후... (이하 블러 처리)"
                                 st.markdown(f"""
                                     <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
@@ -4257,33 +4278,8 @@ with main_area.container():
                                         </div>
                                     </div>
                                 """, unsafe_allow_html=True)
-
-                        # =================================================
-                        # [B] S-1, 10-K 등 일반 서류인 경우
-                        # =================================================
                         else:
-                            parts = raw_text.split("|||SEP|||")
-                            d_text = parts[0].strip()
-                            
-                            # 💡 [방어막 1] 구분자가 맨 앞에 있어서 첫 조각이 텅 비었다면 두 번째 조각을 가져옴
-                            if not d_text and len(parts) > 1:
-                                d_text = parts[1].strip()
-                                
-                            # 💡 [방어막 2] 과거 8-K 찌꺼기가 묻어있다면 강제로 잘라냄
-                            for keyword in ["[8-K", "최근 보고된 돌발"]:
-                                if keyword in d_text:
-                                    d_text = d_text.split(keyword)[0].strip()
-                            
-                            # 불필요한 머리말 청소
-                            d_text = d_text.replace("[기본 요약]", "").replace("**[기본 요약]**", "").strip()
-                            
-                            # 💡 [방어막 3] 이것저것 다 잘라냈는데도 빈칸이라면? 원본을 통째로 복구
-                            if not d_text:
-                                d_text = raw_text.replace("|||SEP|||", "\n")
-                                d_text = d_text.split("[8-K")[0].split("최근 보고된")[0].strip()
-                                
-                            # 엔터키 압축 및 렌더링
-                            d_text = re.sub(r'\n{3,}', '\n\n', d_text)
+                            # S-1 등 일반 서류 정상 출력
                             st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
                 # 5. 외부 링크 및 하단 버튼 (NameError 완벽 차단)
@@ -4311,7 +4307,6 @@ with main_area.container():
                 # 하단 공용 컴포넌트
                 draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 display_disclaimer()
-
                     
             # --- Tab 1: 뉴스 & 심층 분석 ---
             elif selected_sub_menu == get_text('tab_1'):
