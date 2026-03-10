@@ -59,12 +59,18 @@ if GENAI_API_KEY:
         model_strict = genai.GenerativeModel('gemini-2.0-flash')
         
         # [데이터 공백 방어용] FMP 데이터가 비어있을 때 구글링으로 채워넣는 하이브리드 모델
-        # 💡 [진짜 최신 규격] tools 파라미터는 리스트 안에 딕셔너리 형태로 넣어야 합니다.
-        model_search = genai.GenerativeModel(
-            model_name='gemini-2.0-flash', 
-            tools=[{'google_search': {}}] 
-        )
-        print("✅ AI 하이브리드 모델 로드 성공 (Strict & Search 분리 완료)")
+        # 💡 [초강력 우회] 구글 SDK 버그를 피하기 위해 내부 Protobuf 객체로 직접 도구를 생성합니다.
+        try:
+            search_tool = genai.protos.Tool(google_search=genai.protos.GoogleSearch())
+            model_search = genai.GenerativeModel(
+                model_name='gemini-2.0-flash', 
+                tools=[search_tool] 
+            )
+            print("✅ AI 하이브리드 모델 로드 성공 (Google Search 활성화 완료)")
+        except Exception as e_tool:
+            print(f"⚠️ 구글 검색 도구 강제 비활성화 (SDK 버전 호환 문제). 안전한 Strict 모델로만 구동합니다: {e_tool}")
+            model_search = None  # 껍데기가 되면 우리가 만들어둔 방어막이 알아서 model_strict로 교체해줍니다!
+
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
 
