@@ -4227,12 +4227,9 @@ with main_area.container():
                         st.error("데이터가 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.")
                     else:
                         import re
-                        
                         raw_text = a_res.strip()
                         
-                        # =================================================
-                        # [1단계] 과거 데이터 분리 (|||SEP||| 가 있는 경우만 동작)
-                        # =================================================
+                        # 1. 과거 구분자(|||SEP|||) 및 8-K 찌꺼기 1차 분리
                         if "|||SEP|||" in raw_text:
                             if t_topic == "8-K":
                                 raw_text = raw_text.split("|||SEP|||")[-1].strip()
@@ -4242,55 +4239,66 @@ with main_area.container():
                             if t_topic != "8-K" and "최근 보고된 돌발" in raw_text:
                                 raw_text = raw_text.split("최근 보고된 돌발")[0].strip()
 
-                        # =================================================
-                        # 💡 [2단계] 다국어 범용: 첫 문단 위 공란 및 머리말 완벽 제거
-                        # =================================================
-                        # 문단(\n\n 이상) 단위로 텍스트를 쪼갭니다.
-                        blocks = [b.strip() for b in re.split(r'\n{2,}', raw_text) if b.strip()]
+                        # 2. 쓸데없는 최상단 머리말 제거 ([S-1 요약] 등)
+                        raw_text = re.sub(r'^\[.*?(분석|요약)\].*?\n+', '', raw_text)
+                        raw_text = re.sub(r'^\*\*\[.*?(분석|요약)\]\*\*.*?\n+', '', raw_text)
                         
-                        # 맨 위 블록이 길이가 짧고(120자 미만), 완결된 문장 부호(. 。 ! ? 등)가 없다면
-                        # 언어에 상관없이 '제목/안내말 찌꺼기'로 간주하고 무조건 날려버립니다.
-                        while len(blocks) > 1 and len(blocks[0]) < 120 and not re.search(r'[.。!?>]', blocks[0]):
-                            blocks.pop(0)
-
                         # =================================================
-                        # 🚀 [3단계] 강제 포맷팅: AI가 대괄호 [ ] 를 빼먹었을 경우 강제 씌우기
+                        # 🚀 [핵심] 한 줄씩 읽으며 소제목 강제 포맷팅 및 조립
                         # =================================================
-                        final_blocks = []
-                        for b in blocks:
-                            # 각 문단을 '첫 줄(소제목 유력 후보)'과 '나머지(본문)'으로 분리 시도
-                            lines = b.split('\n', 1) 
+                        lines = raw_text.split('\n')
+                        formatted_lines = []
+                        
+                        for line in lines:
+                            line_s = line.strip()
+                            if not line_s:
+                                continue # 빈 줄은 무시 (나중에 예쁘게 다시 넣음)
+                                
+                            # 마크다운 별표 등 지저분한 기호 제거
+                            clean_line = line_s.replace('**', '').replace('###', '').replace('##', '').strip()
                             
-                            # 첫 줄이 존재하고 너무 길지 않은 경우(소제목으로 판단)
-                            if len(lines) == 2 and len(lines[0]) < 80: 
-                                title = lines[0].strip().replace('**', '') # 마크다운 별표 제거
-                                content = lines[1].strip()
+                            # '기본 요약' 같은 찌꺼기가 한 줄을 통째로 차지하면 날려버림
+                            if "기본 요약" in clean_line or "이벤트 분석" in clean_line or clean_line == "요약보기":
+                                continue
                                 
-                                # 대괄호가 없으면 강제로 씌우기
-                                if not title.startswith('['): title = f"[{title}"
-                                if not title.endswith(']'): title = f"{title}]"
+                            # 💡 [소제목 감지기] 대괄호로 감싸져 있거나, 짧고 마침표가 없으면 소제목으로 인정!
+                            is_heading = False
+                            if clean_line.startswith('[') and clean_line.endswith(']'):
+                                is_heading = True
+                            elif len(clean_line) < 60 and not re.search(r'[.。!?>]', clean_line) and not clean_line.endswith('다'):
+                                is_heading = True
                                 
-                                # 예쁘게 조합해서 저장 (굵은 글씨 효과 추가)
-                                final_blocks.append(f"<b>{title}</b>\n{content}")
+                            if is_heading:
+                                # 괄호가 없으면 강제로 씌우기
+                                if not clean_line.startswith('['): clean_line = f"[{clean_line}"
+                                if not clean_line.endswith(']'): clean_line = f"{clean_line}]"
+                                
+                                # 문단 구분을 위해 소제목 위에 빈 줄 삽입 후 굵은 글씨(<b>) 적용
+                                if formatted_lines:
+                                    formatted_lines.append("") 
+                                formatted_lines.append(f"<b>{clean_line}</b>")
                             else:
-                                # 문단이 통짜이거나 조건이 안 맞으면 그대로 저장
-                                final_blocks.append(b)
+                                # 일반 본문 문장이면 그대로 이어 붙임
+                                formatted_lines.append(line_s)
                                 
-                        # 깔끔하게 본론만 남은 블록들을 다시 합치고 위아래 공백을 완벽히 제거합니다.
-                        d_text = "\n\n".join(final_blocks).strip()
+                        # 리스트를 다시 하나의 텍스트로 결합
+                        d_text = "\n".join(formatted_lines).strip()
+                        
+                        # 최후의 방어막: 파싱 과정에서 텍스트가 모두 증발했다면 원본 복구
+                        if not d_text:
+                            d_text = raw_text.replace("|||SEP|||", "\n").strip()
 
                         # =================================================
-                        # [4단계] 렌더링 및 8-K 프리미엄 스마트 블러 적용
+                        # [마무리] 화면 렌더링 및 8-K 프리미엄 블러
                         # =================================================
                         if t_topic == "8-K":
-                            # 이벤트가 없는지(Empty) 다국어로 감지
+                            # 8-K 데이터가 없는지 감지
                             is_empty_8k = any(x in d_text for x in ["없", "No", "无", "未", "ない"])
                             
-                            # 프리미엄 유저이거나, 애초에 이벤트가 없을 경우 정상 출력
                             if is_premium or is_empty_8k:
-                                st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+                                st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
                             else:
-                                # 🚨 데이터가 '있는데' 비결제자인 경우에만 무조건 블러 + 자물쇠 노출
+                                # 🚨 데이터가 '있는데' 비결제자인 경우 무조건 자물쇠 노출
                                 blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다. 이는 단기 주가 변동성을 크게 확대시킬 수 있는 요인으로 판단되며 향후... (이하 블러 처리)"
                                 st.markdown(f"""
                                     <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
@@ -4303,9 +4311,9 @@ with main_area.container():
                                 """, unsafe_allow_html=True)
                         else:
                             # S-1 등 일반 서류 정상 출력
-                            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+                            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
-                # 5. 외부 링크 및 하단 버튼 (NameError 완벽 차단)
+                # 5. 외부 링크 및 하단 버튼
                 cik_val = profile.get('cik', '') if profile else ''
                 sec_q = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
                 
