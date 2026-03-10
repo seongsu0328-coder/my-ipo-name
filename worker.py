@@ -558,6 +558,39 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         elif lang == 'ja': return "- 各段落は日本語の **[見出し]** から始めてください。1段落につき4〜5文にし、数値に強調（**）は使わないでください。"
         elif lang == 'zh': return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
         else: return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5줄(문장) 길이로 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
+    def get_missing_document_message(lang, doc_type):
+        msg_map = {
+            "ko": {
+                "S-1": "💡 해당 기업은 해외 국적 기업이거나 특수 목적 상장(SPAC)일 가능성이 높습니다. 해외 기업의 경우 S-1 대신 **[F-1]** 서류 탭을 확인해 주세요.",
+                "F-1": "💡 해당 기업은 미국 내국 법인이므로 해외 기업 전용 서류인 F-1을 제출하지 않습니다. **[S-1]** 서류 탭을 확인해 주세요.",
+                "S-1/A": "💡 아직 최초 증권신고서(S-1) 제출 이후, 수정본(S-1/A)이 제출되지 않은 상태입니다.",
+                "FWP": "💡 FWP(로드쇼 등 추가 홍보 자료)는 기업의 선택적 제출 서류입니다. 현재 제출된 내역이 없습니다.",
+                "424B4": "💡 424B4(최종 공모가 확정 서류)는 보통 상장 1~2일 전 또는 상장 당일에 제출됩니다. 아직 공모가가 최종 확정되지 않았습니다.",
+                "RW": "💡 현재 상장 철회(RW) 서류가 제출되지 않았습니다. 상장 절차가 정상적으로 진행 중입니다.",
+                "Form 25": "💡 현재 상장 폐지(Form 25) 관련 서류가 제출되지 않았습니다. 정상 상장 유지 중입니다.",
+                "DEFAULT": "💡 아직 해당 서류의 제출 기한이 도래하지 않았거나, SEC 데이터베이스 업데이트 대기 중입니다."
+            },
+            "en": {
+                "S-1": "💡 Likely a foreign issuer or SPAC. Please check the **[F-1]** tab instead.",
+                "F-1": "💡 This is a US domestic company. Please check the **[S-1]** tab instead.",
+                "424B4": "💡 Form 424B4 is typically filed 1-2 days before IPO. Not available yet.",
+                "FWP": "💡 FWP is an optional promotional document. None filed currently.",
+                "DEFAULT": "💡 Filing not yet due or pending update in the SEC database."
+            },
+            "ja": {
+                "S-1": "💡 海外企業またはSPACの可能性が高いです。**[F-1]**タブをご確認ください。",
+                "424B4": "💡 424B4(最終公募価格)は通常、上場の1〜2日前に提出されます。まだ確定していません。",
+                "DEFAULT": "💡 該当書類はまだ提出されていないか、データベースの更新待ちです。"
+            },
+            "zh": {
+                "S-1": "💡 可能是外国企业或SPAC。请查看 **[F-1]** 标签页。",
+                "424B4": "💡 424B4（最终定价文件）通常在上市前1-2天提交。目前尚未发布。",
+                "DEFAULT": "💡 该文件尚未到期提交，或正在等待数据库更新。"
+            }
+        }
+        lang_dict = msg_map.get(lang, msg_map['ko'])
+        return lang_dict.get(doc_type, lang_dict.get('DEFAULT'))
+    
 
     def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, filing_text=""):
         # 💡 [핵심] 실제 본문 주입 로직
@@ -705,22 +738,33 @@ Checkpoints: {meta['p']}
         
         # 🚀 [에러 해결] 루프 안에서 변수를 확실히 정의하여 NameError 차단
         current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {filed_date}." if filed_date else ""
-        current_filing_text = filing_text if filing_text else "Filing content unavailable. Analyze based on general IPO knowledge."
+        current_filing_text = f_text if f_text else "API_SYNC_DELAY"
 
+        # 💡 [교정] 본문이 없으면 AI를 부르지 않도록 흐름을 통제합니다.
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
             
-            # 캐시 체크 (24시간~7일 기준 적용)
             try:
                 res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
                 if res.data: continue 
             except: pass
 
+            # 🚀 [핵심 교정] 본문이 아예 없거나 너무 짧으면, AI 호출 생략(Bypass) 후 안내 멘트 즉시 저장
+            if not f_text or len(f_text) < 100:
+                missing_msg = get_missing_document_message(lang_code, topic)
+                formatted_msg = f"<div style='background-color:#f8f9fa; padding:15px; border-radius:8px; color:#555; font-size:15px; line-height:1.6;'>{missing_msg}</div>"
+                
+                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
+                print(f"✅ [{ticker}] {topic} 서류 부재 - 맞춤 안내 멘트 적용 완료 ({lang_code})")
+                continue # AI를 부르지 않고 곧바로 다음 언어로 넘어감 (속도/비용 최적화)
+
+            # 🚀 본문이 충분히 있을 때만 정상적으로 AI 프롬프트 생성 및 호출
+            current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
             meta = get_localized_meta(lang_code, topic)
             format_inst = get_format_instruction(lang_code)
             
-            # 🚀 통합 지침 함수에 본문(current_filing_text) 전달
-            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, format_inst, current_filing_text)
+            # 수치 강제 로직이 포함된 프롬프트에 텍스트 주입
+            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, format_inst, f_text)
             
             for attempt in range(2):
                 try:
