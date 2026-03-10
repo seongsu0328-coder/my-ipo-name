@@ -4228,23 +4228,25 @@ with main_area.container():
                     else:
                         import re
                         
-                        # 1. 💡 [핵심 방어막] 과거 캐시에 들어간 불필요한 머리말과 공백 1차 제거
-                        clean_res = a_res.replace("[기본 요약]", "").replace("[실시간 8-K 중대 이벤트 분석]", "").strip()
+                        # 1. 원본 텍스트 보존
+                        raw_text = a_res.strip()
                         
-                        # 2. 문서 종류에 따른 분기 처리
+                        # =================================================
+                        # [A] 8-K 문서인 경우 (무조건 프리미엄 블러)
+                        # =================================================
                         if t_topic == "8-K":
-                            # 8-K 문서인 경우
-                            if "|||SEP|||" in clean_res:
-                                d_text = clean_res.split("|||SEP|||")[-1].strip()
-                            else:
-                                d_text = clean_res.strip()
-                                
-                            # 💡 사용자의 기획 의도 완벽 반영: 8-K 탭이 존재한다면 무조건 블러 처리!
+                            parts = raw_text.split("|||SEP|||")
+                            # 8-K 내용은 보통 뒤쪽(마지막 조각)에 있음
+                            d_text = parts[-1].strip() if len(parts) > 1 else raw_text
+                            
+                            # 불필요한 머리말 제거
+                            d_text = d_text.replace("[실시간 8-K 중대 이벤트 분석]", "").replace("**[실시간 8-K 중대 이벤트 분석]**", "").strip()
+                            
+                            # 💡 8-K 탭이 존재하면 비결제자에게는 예외 없이 블러 처리!
                             if is_premium:
                                 d_text = re.sub(r'\n{3,}', '\n\n', d_text)
                                 st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
                             else:
-                                # 🚨 비결제자 프리미엄 블러 화면 (예외 없이 무조건 적용)
                                 blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다. 이는 단기 주가 변동성을 크게 확대시킬 수 있는 요인으로 판단되며 향후... (이하 블러 처리)"
                                 st.markdown(f"""
                                     <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
@@ -4255,21 +4257,37 @@ with main_area.container():
                                         </div>
                                     </div>
                                 """, unsafe_allow_html=True)
-                                
+
+                        # =================================================
+                        # [B] S-1, 10-K 등 일반 서류인 경우
+                        # =================================================
                         else:
-                            # S-1, 10-K 등 일반 서류인 경우
-                            d_text = clean_res.split("|||SEP|||")[0].strip()
+                            parts = raw_text.split("|||SEP|||")
+                            d_text = parts[0].strip()
                             
-                            # 💡 과거 캐시에 남아있는 8-K "없습니다" 멘트 찌꺼기 2차 강제 절단 (아예 안 보이게 처리)
-                            if "최근 보고된 돌발" in d_text:
-                                d_text = d_text.split("최근 보고된 돌발")[0].strip()
+                            # 💡 [방어막 1] 구분자가 맨 앞에 있어서 첫 조각이 텅 비었다면 두 번째 조각을 가져옴
+                            if not d_text and len(parts) > 1:
+                                d_text = parts[1].strip()
                                 
+                            # 💡 [방어막 2] 과거 8-K 찌꺼기가 묻어있다면 강제로 잘라냄
+                            for keyword in ["[8-K", "최근 보고된 돌발"]:
+                                if keyword in d_text:
+                                    d_text = d_text.split(keyword)[0].strip()
+                            
+                            # 불필요한 머리말 청소
+                            d_text = d_text.replace("[기본 요약]", "").replace("**[기본 요약]**", "").strip()
+                            
+                            # 💡 [방어막 3] 이것저것 다 잘라냈는데도 빈칸이라면? 원본을 통째로 복구
+                            if not d_text:
+                                d_text = raw_text.replace("|||SEP|||", "\n")
+                                d_text = d_text.split("[8-K")[0].split("최근 보고된")[0].strip()
+                                
+                            # 엔터키 압축 및 렌더링
                             d_text = re.sub(r'\n{3,}', '\n\n', d_text)
                             st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
 
                 # 5. 외부 링크 및 하단 버튼 (NameError 완벽 차단)
                 cik_val = profile.get('cik', '') if profile else ''
-                # SEC 검색 쿼리 보정
                 sec_q = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
                 
                 if cik_val: 
