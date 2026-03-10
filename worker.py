@@ -74,58 +74,70 @@ SUPPORTED_LANGS = {
 
 def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
     """
-    [결함 해결] CIK를 활용하여 FMP와 SEC EDGAR를 하이브리드로 추적하는 스크래퍼
+    [무적의 하이브리드 엔진] FMP 검색 -> SEC 우회 -> FMP 텍스트 실패 시 SEC 본진 원문 직접 추출
     """
     try:
         accession_num = None
         filed_date = None
 
-        # 1차: FMP에 CIK 번호(없으면 티커)를 직접 던져서 문서번호 획득
+        # 1단계: FMP API 티커/CIK 검색
         search_target = cik if cik else ticker
         search_url = f"https://financialmodelingprep.com/api/v3/sec_filings/{search_target}?type={doc_type}&limit=1&apikey={api_key}"
         r = requests.get(search_url, timeout=5)
-        
         if r.status_code == 200 and r.json():
             filing_info = r.json()[0]
             accession_num = filing_info.get('accessionNumber')
             filed_date = filing_info.get('fillingDate')
 
-        # 2차: 1차가 실패했을 경우, SEC 서버에 직접 접속하여 문서번호 탈취!
+        # 2단계: FMP 실패 시 SEC EDGAR 고유번호(CIK)로 직접 우회 추적
         if not accession_num and cik:
-            time.sleep(0.5)
+            time.sleep(0.5) 
             sec_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
             sec_res = requests.get(sec_url, headers=SEC_HEADERS, timeout=5)
             if sec_res.status_code == 200:
                 filings = sec_res.json().get('filings', {}).get('recent', {})
                 forms = filings.get('form', [])
-                dates = filings.get('filingDate', [])
                 acc_nums = filings.get('accessionNumber', [])
-                
+                dates = filings.get('filingDate', [])
                 for i, form in enumerate(forms):
-                    # F-1, 424B4 등 정확한 서류 매칭
                     if doc_type.upper() in str(form).upper():
                         accession_num = acc_nums[i]
                         filed_date = dates[i]
-                        print(f"🕵️‍♂️ [SEC Bypass] {ticker}의 {doc_type} 문서를 SEC에서 직접 찾아냈습니다: {accession_num}")
+                        print(f"🕵️‍♂️ [SEC Bypass] {ticker}의 {doc_type} 번호 탈취 성공: {accession_num}")
                         break
 
-        # 양쪽 다 뒤졌는데 없으면 진짜 없는 서류임
-        if not accession_num:
-            return None, None
+        if not accession_num: return None, None
 
-        # 3차: 확보한 정확한 문서번호로 FMP에서 텍스트 본문 강제 추출
+        # 3단계: FMP v4 텍스트 추출 시도
         text_url = f"https://financialmodelingprep.com/api/v4/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
         txt_res = requests.get(text_url, timeout=7)
-        
+        full_text = ""
         if txt_res.status_code == 200 and txt_res.json():
             full_text = txt_res.json()[0].get('content', '')
-            if full_text:
-                return filed_date, full_text[:20000] 
+
+        # 🚀 4단계: [최종 병기 가동] FMP 텍스트가 비어있다면? SEC Archive 본진에서 원문(.txt) 직접 긁어오기!
+        if (not full_text or len(full_text) < 100) and cik:
+            print(f"⚠️ FMP 텍스트 지연 발생. SEC 서버에서 원문 직접 추출 시도: {ticker} ({doc_type})")
+            # SEC 원문 아카이브 경로 조합
+            acc_no_clean = str(accession_num).replace('-', '')
+            cik_int = str(int(cik)) # URL용 CIK (앞의 0 제거)
+            raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_no_clean}/{accession_num}.txt"
+            
+            raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=10)
+            if raw_res.status_code == 200:
+                # HTML 태그 및 공백 제거로 순수 팩트만 추출
+                clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
+                clean_text = re.sub(r'\s+', ' ', clean_text)
+                full_text = clean_text
+                print(f"✅ [SEC Scraping] SEC 본진 원문 확보 완료! ({len(full_text)} 자)")
+
+        if full_text and len(full_text) > 100:
+            return filed_date, full_text[:20000] # AI 분석용 2만 자 슬라이싱
         
         return filed_date, None
 
     except Exception as e:
-        print(f"❌ [{ticker}] {doc_type} 본문 로드 실패: {e}")
+        print(f"❌ [{ticker}] {doc_type} 본문 추출 최종 실패: {e}")
         return None, None
 
 # ==========================================
