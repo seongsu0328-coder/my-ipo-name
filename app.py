@@ -4230,31 +4230,39 @@ with main_area.container():
                         raw_text = a_res.strip()
                         
                         # =================================================
-                        # 1. 8-K 및 일반 서류 분리 (SEP 기준)
+                        # 1. 8-K 찌꺼기 완벽 절단 (일반 서류일 경우)
                         # =================================================
-                        if "|||SEP|||" in raw_text:
-                            if t_topic == "8-K":
-                                raw_text = raw_text.split("|||SEP|||")[-1].strip()
-                            else:
+                        if t_topic != "8-K":
+                            # SEP가 있으면 앞부분만 가져옴
+                            if "|||SEP|||" in raw_text:
                                 raw_text = raw_text.split("|||SEP|||")[0].strip()
+                            
+                            # 💡 [핵심] 일반 서류인데 8-K 내용이 딸려왔다면, 그 키워드부터 뒤쪽은 통째로 버림!
+                            cut_keywords = ["**[8-K 분석]**", "[8-K 분석]", "**[실시간 8-K", "[실시간 8-K", "최근 보고된 돌발"]
+                            for kw in cut_keywords:
+                                if kw in raw_text:
+                                    raw_text = raw_text.split(kw)[0].strip()
                         else:
-                            if t_topic != "8-K" and "최근 보고된 돌발" in raw_text:
-                                raw_text = raw_text.split("최근 보고된 돌발")[0].strip()
+                            # 8-K 서류인 경우
+                            if "|||SEP|||" in raw_text:
+                                raw_text = raw_text.split("|||SEP|||")[-1].strip()
 
                         # =================================================
-                        # 2. 느슨하고 안전한 찌꺼기 청소 (글이 날아가지 않게 조심!)
+                        # 2. 상단 불필요한 머리말 완벽 청소 (마크다운 별표 포함)
                         # =================================================
-                        # AI가 자주 실수하는 특정 머리말 패턴만 콕 집어서 제거합니다.
                         bad_headers = [
-                            "[기본 요약]", "**[기본 요약]**", "[S-1 요약]", "[S-1/A 요약]",
-                            "[실시간 8-K 중대 이벤트 분석]", "**[실시간 8-K 중대 이벤트 분석]**",
-                            "요약보기", "[S-1/A 기본 요약]"
+                            "**[기본 요약]**", "[기본 요약]", 
+                            "**[S-1/A 기본 요약]**", "[S-1/A 기본 요약]",
+                            "**[S-1 요약]**", "[S-1 요약]",
+                            "요약보기"
                         ]
                         for bh in bad_headers:
                             raw_text = raw_text.replace(bh, "")
-                        
-                        # [SUMA Acquisition Corp S-1 분석] 같이 회사 이름이 들어간 패턴만 살짝 지움
+                            
+                        # "[SUMA Acquisition Corp S-1 분석]" 같은 패턴 제거
+                        raw_text = re.sub(r'^\*\*\[.*?분석\]\*\*\s*', '', raw_text)
                         raw_text = re.sub(r'^\[.*?분석\]\s*', '', raw_text)
+                        raw_text = raw_text.strip()
                         
                         # =================================================
                         # 🚀 3. 소제목 포맷팅 (괄호 없으면 씌워주기)
@@ -4265,27 +4273,26 @@ with main_area.container():
                         for line in lines:
                             line_s = line.strip()
                             if not line_s:
-                                continue # 빈 줄은 무시 (나중에 합칠 때 일정하게 띄움)
+                                continue # 빈 줄 무시
                                 
                             clean_line = line_s.replace('**', '').replace('###', '').replace('##', '').strip()
                             
-                            # 조건 1: 이미 대괄호 [ ] 로 예쁘게 묶인 경우 -> 굵게(<b>) 변환
+                            # 조건 1: 이미 대괄호 [ ] 로 묶인 소제목 형태
                             if clean_line.startswith('[') and clean_line.endswith(']'):
                                 final_lines.append(f"\n<b>{clean_line}</b>")
                             
-                            # 조건 2: 대괄호는 없는데 길이가 40자 미만이고 마침표(.)가 없는 제목 형태일 경우 -> 괄호 씌우고 굵게!
+                            # 조건 2: 대괄호는 없는데 길이가 짧고 마침표(.)가 없는 제목 형태
                             elif len(clean_line) < 40 and not re.search(r'[.。!?>]', clean_line) and not clean_line.endswith('다'):
                                 final_lines.append(f"\n<b>[{clean_line}]</b>")
                                 
-                            # 조건 3: 일반 본문 문장 (그냥 그대로 둠)
+                            # 조건 3: 일반 본문 문장
                             else:
                                 final_lines.append(line_s)
                                 
-                        # 리스트를 다시 하나의 텍스트로 결합 (문단 사이에 여백 생성)
+                        # 리스트를 다시 하나의 텍스트로 결합 (문단 사이에 예쁜 여백 생성)
                         d_text = "\n\n".join(final_lines).strip()
                         
-                        # 🚨 [최후의 방어막] 만약 파싱하다가 글자가 다 지워져서 10글자도 안 남았다면?
-                        # -> 원본 텍스트(raw_text)를 무조건 살려내서 공란이 나오는 것을 100% 방지!
+                        # 최후의 방어막: 파싱하다가 원본이 날아간 경우 복구
                         if len(d_text) < 10:
                             d_text = a_res.replace("|||SEP|||", "\n\n").strip()
 
@@ -4293,7 +4300,6 @@ with main_area.container():
                         # 4. 마무리 화면 렌더링 및 8-K 프리미엄 블러
                         # =================================================
                         if t_topic == "8-K":
-                            # 8-K 데이터가 없는지 감지
                             is_empty_8k = any(x in d_text for x in ["없", "No", "无", "未", "ない"])
                             
                             if is_premium or is_empty_8k:
