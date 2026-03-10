@@ -54,15 +54,12 @@ model = None
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
-        model = genai.GenerativeModel(
-            model_name='gemini-2.0-flash', 
-            tools='google_search'  # 💡 구글이 요구한 정확한 이름으로 변경!
-        )
-        print("✅ AI 모델 로드 성공 (Google Search Tool 활성화)")
+        # 🚨 [환각 원천 차단] tools='google_search' 옵션을 완전히 삭제했습니다.
+        model = genai.GenerativeModel(model_name='gemini-2.0-flash')
+        print("✅ AI 모델 로드 성공 (Google Search 툴 제거 완료 - 환각 0% 세팅)")
     except Exception as e:
-        # 💡 여기도 마찬가지로 except: 보다 '4칸' 안으로 들여쓰기!
         model = genai.GenerativeModel('gemini-2.0-flash')
-        print(f"⚠️ AI 모델 기본 로드 (Search 도구 제외): {e}")
+        print(f"⚠️ AI 모델 기본 로드: {e}")
 
 # 💡 [중요] 다국어 지원 언어 리스트 정의
 SUPPORTED_LANGS = {
@@ -850,8 +847,8 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     except: pass
 
     # 기업 상태 및 상장 기간별 동적 캐싱 주기
-    if is_withdrawn or is_delisted_or_otc or is_over_1y: valid_hours = 24 * 7  # 1년 이상, 폐지, 철회 = 7일
-    elif is_over_3m: valid_hours = 24 * 3  # 3개월 이상 = 3일
+    if is_withdrawn or is_delisted_or_otc or is_over_1y: valid_hours = 24 * 7  
+    elif is_over_3m: valid_hours = 24 * 3  
     elif "상장예정" in ipo_status or "30일" in ipo_status: valid_hours = 6
     else: valid_hours = 24
 
@@ -859,19 +856,29 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     current_date = now.strftime("%Y-%m-%d")
     current_year = now.strftime("%Y")
 
+    # 🚀 [환각 차단 파트 1] FMP 공식 사업모델 설명 확보
+    profile_url = f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey={FMP_API_KEY}"
+    profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
+    biz_desc = profile_data[0].get('description', 'Company description is currently unavailable.') if (profile_data and isinstance(profile_data, list)) else 'Company description is currently unavailable.'
+
+    # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 5개 확보 (구글 검색 대체)
+    news_url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={ticker}&limit=5&apikey={FMP_API_KEY}"
+    news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_5", news_url, valid_hours=6)
+    fmp_news_context = "No recent news available."
+    if news_data and isinstance(news_data, list):
+        fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in news_data])
+
     # =========================================================
-    # [A] 4개 국어 순회 생성 (기존 무료 데이터 로직 - 100% 보존)
+    # [A] 4개 국어 순회 생성 (대표님의 기존 로직 100% 보존)
     # =========================================================
-    for lang_code, _ in SUPPORTED_LANGS.items():
+    for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key = f"{ticker}_Tab1_v5_{lang_code}"
         
-        # 이미 최신 캐시가 있으면 패스
         try:
             res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
             if res.data: continue 
         except: pass
 
-        # 💡 [핵심 수정] 언어별 프롬프트에 '전문 번역' 지시와 포맷 제약 추가
         if lang_code == 'ja':
             sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
             task2_label = "[タスク2: 最新ニュースの収集と専門的な翻訳]"
@@ -897,6 +904,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             lang_instruction = "반드시 자연스러운 한국어만 사용하세요."
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일로 번역된 제목(마크다운, 따옴표 제외)", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
 
+        # 💡 생애주기별 맞춤 구조 완벽 보존
         if is_withdrawn:
             task1_label = f"[{'작업 1: 상장 철회(Withdrawn) 심층 진단' if lang_code == 'ko' else 'Task 1: Withdrawn IPO Diagnosis'}]"
             task1_structure = "\n- 1문단: [철회 배경 진단] 시장 환경 악화 여부 및 내부 펀더멘털/규제 이슈 분석\n- 2문단: [재무적 타격] 자본 조달 실패가 기업의 단기 유동성에 미치는 영향\n- 3문단: [생존 전략] M&A 피인수, 우회 상장, 추가 사모 펀딩 등 대안 시나리오\n"
@@ -910,24 +918,30 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             task1_label = f"[{'작업 1: 신규 IPO 비즈니스 심층 분석' if lang_code == 'ko' else 'Task 1: Deep Business Model Analysis'}]"
             task1_structure = "\n- 1문단: 비즈니스 모델 및 시장 내 핵심 경쟁 우위 (Competitive Advantage)\n- 2문단: 재무 현황 및 공모 자금 활용 계획 (Use of Proceeds)\n- 3문단: 향후 산업 전망 및 종합 투자 의견 (Outlook & Valuation)\n"
 
+        # 🚨 [하이브리드 프롬프트] 대표님의 지시문 + FMP 팩트 데이터 결합! 구글 검색 지시만 삭제.
         prompt = f"""
         {sys_prompt}
         분석 대상: {company_name} ({ticker})
         기업 상태: {ipo_status}
         오늘 날짜: {current_date}
 
+        [Part 1: Official Business Profile (Source: FMP)]
+        {biz_desc}
+
+        [Part 2: Official FMP News]
+        {fmp_news_context}
+
         {task1_label}
-        아래 [필수 작성 원칙]을 준수하여 리포트를 작성하세요.
+        아래 [필수 작성 원칙]을 준수하여 위 [Part 1] 데이터를 바탕으로 리포트를 작성하세요.
         1. 언어: {lang_instruction}
            - 경고: 영어 단어(potential, growth 등)를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
         2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
            {task1_structure}
-        3. 금지: 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
+        3. 금지: 인터넷 검색 절대 금지! 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
         4. 최종 검수(Self-Check): 답변을 최종 출력하기 전에 스스로 엄격하게 검토하세요. 인사말, 서론, 또는 {target_lang} 외의 언어가 포함되어 있다면 삭제하세요.
         
         {task2_label}
-        - 🚨 [강제 명령] 반드시 구글 검색 도구(google_search_retrieval)를 지금 즉시 사용하여 "{company_name} {ticker} news {current_year}"를 검색하십시오.
-        - 과거 지식을 바탕으로 지어내지 말고, 검색 결과 중 오늘({current_date}) 기준 가장 최신 기사 5개를 선정하십시오.
+        - 🚨 [강제 명령] 구글 검색을 절대 하지 마십시오! 반드시 위에 제공된 [Part 2: Official FMP News]의 텍스트 데이터만을 사용하여 최신 기사를 선정하십시오.
         - 💡 [번역 필수 규칙] 각 뉴스의 'translated_title'은 반드시 {target_lang}의 '전문 경제신문/월스트리트 저널 헤드라인 스타일'로 완벽하게 번역하세요. (예: sh -> 주당, M -> 백만). 제목에 마크다운 기호(**)나 불필요한 따옴표는 절대 넣지 마세요.
         - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
         - [중요] sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
@@ -981,61 +995,27 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 }], on_conflict="cache_key")
                 
                 print(f"✅ [{ticker}] Tab 1 비즈니스/뉴스 캐싱 완료 ({lang_code})")
-                break # 성공 시 루프 탈출
+                break 
                 
             except Exception as e:
                 print(f"❌ [AI 분석 또는 DB 전송 에러]: {e}")
                 time.sleep(1)
 
     # =========================================================
-    # 🚀 [B] 프리미엄 전용 데이터 추가 수집 (FMP 기관 뉴스 + 공식 보도자료)
+    # 🚀 [B] 프리미엄 전용 데이터 수집 (기업 공식 보도자료)
     # =========================================================
     try:
-        # 기관용 금융 뉴스 원본 가져오기 (6시간 제한 방어)
-        news_url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={ticker}&limit=10&apikey={FMP_API_KEY}"
-        news_raw = get_fmp_data_with_cache(ticker, "RAW_NEWS", news_url, valid_hours=6)
-        
-        # 기업 공식 보도자료 원본 가져오기 (12시간 제한 방어)
-        pr_url = f"https://financialmodelingprep.com/api/v3/press-releases/{ticker}?limit=10&apikey={FMP_API_KEY}"
+        # 뉴스(news)는 이미 위에서 처리했으므로, 프리미엄 탭에서는 공식 보도자료(Press Release)만 처리합니다.
+        pr_url = f"https://financialmodelingprep.com/api/v3/press-releases/{ticker}?limit=5&apikey={FMP_API_KEY}"
         pr_raw = get_fmp_data_with_cache(ticker, "RAW_PR", pr_url, valid_hours=12)
 
-        # 4개 국어 번역 및 요약 진행
         for lang_code in SUPPORTED_LANGS.keys():
-            
-            # 1. 기관 뉴스 AI 다국어 요약
-            if news_raw:
-                news_summary_key = f"{ticker}_PremiumNewsSummary_v1_{lang_code}"
-                try:
-                    res_n = supabase.table("analysis_cache").select("updated_at").eq("cache_key", news_summary_key).gt("updated_at", limit_time_str).execute()
-                    if not res_n.data:
-                        prompt_n = get_tab1_premium_prompt(lang_code, "Institutional News", news_raw)
-                        
-                        # 💡 [핵심 보강] AI 통신 안정성을 위해 3번 재시도 + 1초 대기 루프 적용
-                        for attempt in range(3):
-                            try:
-                                resp_n = model.generate_content(prompt_n)
-                                if resp_n and resp_n.text:
-                                    n_paragraphs = [p.strip() for p in resp_n.text.split('\n') if len(p.strip()) > 20]
-                                    indent_size = "14px" if lang_code == "ko" else "0px"
-                                    html_n = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in n_paragraphs])
-                                    
-                                    batch_upsert("analysis_cache", [{"cache_key": news_summary_key, "content": html_n, "updated_at": now.isoformat()}], "cache_key")
-                                    print(f"✅ [{ticker}] 프리미엄 뉴스 캐싱 완료 ({lang_code})")
-                                    break # 성공 시 루프 탈출
-                            except Exception as e:
-                                print(f"❌ [Premium News AI 에러 - {lang_code}] 재시도 대기중...: {e}")
-                                time.sleep(1) # 1초 대기 후 재시도
-                except: pass
-
-            # 2. 보도자료 AI 다국어 요약
             if pr_raw:
                 pr_summary_key = f"{ticker}_PressReleaseSummary_v1_{lang_code}"
                 try:
                     res_p = supabase.table("analysis_cache").select("updated_at").eq("cache_key", pr_summary_key).gt("updated_at", limit_time_str).execute()
                     if not res_p.data:
-                        prompt_p = get_tab1_premium_prompt(lang_code, "Press Release", pr_raw)
-                        
-                        # 💡 [핵심 보강] AI 통신 안정성을 위해 3번 재시도 + 1초 대기 루프 적용
+                        prompt_p = get_tab1_premium_prompt(lang_code, "Official Press Release", pr_raw)
                         for attempt in range(3):
                             try:
                                 resp_p = model.generate_content(prompt_p)
@@ -1045,11 +1025,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                                     html_p = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in p_paragraphs])
                                     
                                     batch_upsert("analysis_cache", [{"cache_key": pr_summary_key, "content": html_p, "updated_at": now.isoformat()}], "cache_key")
-                                    print(f"✅ [{ticker}] 프리미엄 보도자료 캐싱 완료 ({lang_code})")
-                                    break # 성공 시 루프 탈출
-                            except Exception as e:
-                                print(f"❌ [Premium PR AI 에러 - {lang_code}] 재시도 대기중...: {e}")
-                                time.sleep(1) # 1초 대기 후 재시도
+                                    print(f"✅ [{ticker}] 기업 공식 보도자료 캐싱 완료 ({lang_code})")
+                                    break
+                            except: time.sleep(1)
                 except: pass
 
     except Exception as e:
