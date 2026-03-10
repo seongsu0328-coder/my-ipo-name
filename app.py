@@ -4163,7 +4163,7 @@ with main_area.container():
                 c_lang = st.session_state.get('lang', 'ko')
                 u_info = st.session_state.get('user_info') or {}
                 u_level = u_info.get('membership_level', 'free')
-                s_name = stock['name'].strip()
+                s_name = stock['name']
                 
                 # [CSS] 일반 버튼(Secondary)=흰색, 8-K 전용 버튼(Primary)=빨간색
                 st.markdown("""<style>
@@ -4229,11 +4229,10 @@ with main_area.container():
                         # 💡 [핵심] 공백 문제 해결: SEP가 있으면 쪼개고, 없으면 통째로 보여줌
                         p_splits = a_res.split("|||SEP|||")
                         if t_topic == "8-K":
-                            # 8-K는 SEP 뒤의 분석 본문(1번)을 우선, 없으면 통째로(0번)
                             d_text = p_splits[1] if len(p_splits) > 1 else p_splits[0]
                         else:
-                            # S-1 등 일반 서류는 SEP 앞의 요약본(0번) 출력
-                            d_text = p_splits[0]
+                            # 앞부분이 공백이면 8-K 분석이 포함된 원본 전체를 보여줌
+                            d_text = p_splits[0].strip() if p_splits[0].strip() else a_res.replace("|||SEP|||", "\n\n")
                         
                         # 최종 텍스트 렌더링
                         st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", d_text).replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
