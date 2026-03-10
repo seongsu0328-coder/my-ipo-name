@@ -59,9 +59,10 @@ if GENAI_API_KEY:
         model_strict = genai.GenerativeModel('gemini-2.0-flash')
         
         # [데이터 공백 방어용] FMP 데이터가 비어있을 때 구글링으로 채워넣는 하이브리드 모델
+        # 💡 [핵심 수정] 구글 최신 규격에 맞게 'google_search_retrieval' -> 'google_search' 로 변경!
         model_search = genai.GenerativeModel(
             model_name='gemini-2.0-flash', 
-            tools=[{'google_search_retrieval': {}}]
+            tools='google_search' 
         )
         print("✅ AI 하이브리드 모델 로드 성공 (Strict & Search 분리 완료)")
     except Exception as e:
@@ -517,7 +518,7 @@ def fetch_fmp_8k_events(symbol, api_key):
 # [완전 교체] run_tab0_analysis 함수 (에러 영구 차단 + 20-F 하이브리드 탐색)
 # ==========================================
 def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None):
-    if not model: return
+    if 'model_strict' not in globals() or not model_strict: return
     
     # 🚀 [1] CIK 실시간 확보 로직 (PAYP 성공의 열쇠)
     cik = cik_mapping.get(ticker) if (cik_mapping is not None) else None
@@ -725,7 +726,8 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, f"[SEC FACT CHECK] Filed on {f_date_8k}", get_format_instruction(lang_code), f_text_8k[:40000])
                     
                     try:
-                        resp_8k = model.generate_content(prompt_8k)
+                        # 💡 [핵심 수정] model -> model_strict 로 이름 변경!
+                        resp_8k = model_strict.generate_content(prompt_8k)
                         if resp_8k and resp_8k.text:
                             batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": resp_8k.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
                             print(f"🚨 [{ticker}] 8-K 본문 분석 캐싱 완료 ({lang_code})")
@@ -933,7 +935,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         # 🚨 [하이브리드 프롬프트 분기]
         if is_fmp_poor:
             search_directive = f"""
-            - 🚨 [강제 명령] FMP 제공 데이터가 부족합니다. 즉시 구글 검색 도구를 사용하여 "{company_name} {ticker} business model" 및 "news {current_year}"를 검색하십시오.
+            - 🚨 [강제 명령] FMP 제공 데이터가 부족합니다. 즉시 구글 검색 도구(google_search)를 사용하여 "{company_name} {ticker} business model" 및 "news {current_year}"를 검색하십시오.
             - 검색된 실제 팩트를 기반으로 리포트를 작성하세요.
             """
         else:
