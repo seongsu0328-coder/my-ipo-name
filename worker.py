@@ -549,24 +549,21 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         return lang_group.get(doc_type, lang_group.get('S-1'))
 
     def get_format_instruction(lang):
-        # 💡 [복구 완료] 대표님 요청대로 4~5문장 유지
         if lang == 'en': return "- Begin each paragraph with a translated **[Heading]**. Rich content, 4-5 sentences per paragraph. DO NOT bold numbers."
         elif lang == 'ja': return "- 各段落は日本語の **[見出し]** から始めてください。1段落につき4〜5文にし、数値に強調（**）は使わないでください。"
         elif lang == 'zh': return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
         else: return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5줄(문장) 길이로 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
 
-   def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, filing_text=""):
-    # 💡 [핵심] 실제 본문이 있을 경우 프롬프트에 삽입, 없을 경우 안내 메시지 처리
-    base_msg = ""
-    if filing_text and len(filing_text) > 100:
-        # AI가 가장 먼저 읽도록 상단에 배치될 실제 소스 텍스트
-        base_msg = f"\n\n[ACTUAL SEC FILING CONTENT - MUST USE THIS AS SOURCE]\n{filing_text}\n"
-    else:
-        # 본문이 없을 경우를 대비한 최소한의 가이드 (소설 방지)
-        base_msg = "\n\n(Note: Actual filing content is currently unavailable. Please provide a general structural overview of this document type for the specific company based on the limited info.)\n"
+    def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, filing_text=""):
+        # 💡 [핵심] 이제 수직선상으로 위 함수와 딱 맞습니다.
+        base_msg = ""
+        if filing_text and len(filing_text) > 100:
+            base_msg = f"\n\n[ACTUAL SEC FILING CONTENT - MUST USE THIS AS SOURCE]\n{filing_text}\n"
+        else:
+            base_msg = "\n\n(Note: Actual filing content is currently unavailable.)\n"
 
-    if lang == 'en':
-        return f"""You are a Senior Wall Street Analyst.
+        if lang == 'en':
+            return f"""You are a Senior Wall Street Analyst.
 Target: {company_name} ({ticker}) - {topic}
 Checkpoints: {meta['p']}
 {sec_fact_prompt}
