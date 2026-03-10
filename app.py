@@ -4353,13 +4353,13 @@ with main_area.container():
                 # =========================================================
                 # 🚀 [3] 기업 공식 보도자료 요약 (Premium 전용 - Blur 적용)
                 # =========================================================
-                # 💡 [UI 제어] DB에 진짜 요약 데이터가 존재할 때만 Expander를 생성합니다.
+                # 💡 [UI 제어] 데이터가 있을 때만 렌더링하고, 결제 여부에 따라 블러를 씌웁니다!
                 if pr_summary:
                     with st.expander(get_text('tab1_press_release_title'), expanded=False):
                         if is_premium:
                             st.markdown(pr_summary, unsafe_allow_html=True)
                         else:
-                            # 비결제자 Blur 화면
+                            # 비결제자 Blur 화면 (데이터가 있어도 가짜 텍스트를 블러 처리해서 보여줌)
                             blur_text = "본 기업은 최근 핵심 소프트웨어의 메이저 업그레이드 버전을 성공적으로 런칭했으며, 글로벌 시장 점유율 확대를 위한 대규모 마케팅 캠페인을 전개할 예정임을 공식적으로 발표했습니다... (이하 블러 처리)"
                             st.markdown(f"""
                                 <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
@@ -4782,7 +4782,7 @@ with main_area.container():
                 # =========================================================
                 surp_summary, est_summary = get_premium_tab3_summaries(sid, curr_lang)
                 
-                # 💡 [UI 제어] 데이터가 있을 때만 렌더링
+                # 💡 [UI 제어] 데이터가 있을 때만 렌더링하고, 결제 여부에 따라 블러를 씌웁니다!
                 if surp_summary:
                     with st.expander(get_text('tab3_surprise_title'), expanded=False):
                         if is_premium:
@@ -4931,9 +4931,11 @@ with main_area.container():
                         else: st.warning(f"{eval_label}: {s_list.get(score_val, 'N/A')}")
                         st.caption(f"ℹ️ {score_desc}")
 
+                
                 # =========================================================
                 # 🚀 [NEW] 투자의견 변화추이 (Premium 전용 - Blur 적용)
                 # =========================================================
+                # 💡 [UI 제어] 데이터가 있을 때만 렌더링하고, 결제 여부에 따라 블러를 씌웁니다!
                 if ud_summary:
                     with st.expander(get_text('tab4_upgrades_title'), expanded=False):
                         if is_premium:
@@ -4952,7 +4954,6 @@ with main_area.container():
                         else:
                             blur_text = "동일 섹터 내 경쟁사인 주요 상장사들과 비교할 때 본 기업의 주가수익비율(PER)은 상대적으로 저평가 구간에 머물러 있습니다. 이는 시장 점유율 확보 전략이... (이하 블러 처리)"
                             st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p></div></div>""", unsafe_allow_html=True)
-
                 # =========================================================
                 # [기존 기능 유지] 4. References 영역
                 # =========================================================
