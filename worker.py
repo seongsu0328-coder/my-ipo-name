@@ -918,7 +918,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             task1_label = f"[{'작업 1: 신규 IPO 비즈니스 심층 분석' if lang_code == 'ko' else 'Task 1: Deep Business Model Analysis'}]"
             task1_structure = "\n- 1문단: 비즈니스 모델 및 시장 내 핵심 경쟁 우위 (Competitive Advantage)\n- 2문단: 재무 현황 및 공모 자금 활용 계획 (Use of Proceeds)\n- 3문단: 향후 산업 전망 및 종합 투자 의견 (Outlook & Valuation)\n"
 
-        # 🚨 [하이브리드 프롬프트] 대표님의 지시문 + FMP 팩트 데이터 결합! 구글 검색 지시만 삭제.
+        # 🚨 [하이브리드 프롬프트] 데이터가 없을 때의 행동 지침(Fallback)을 명확히 추가!
         prompt = f"""
         {sys_prompt}
         분석 대상: {company_name} ({ticker})
@@ -934,17 +934,16 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         {task1_label}
         아래 [필수 작성 원칙]을 준수하여 위 [Part 1] 데이터를 바탕으로 리포트를 작성하세요.
         1. 언어: {lang_instruction}
-           - 경고: 영어 단어(potential, growth 등)를 중간에 그대로 노출하는 비문을 절대 금지합니다. 완벽하게 {target_lang} 어휘로 번역하세요.
-        2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. 문단 사이에는 줄바꿈을 명확히 넣으세요.
+        2. 🚨 [환각 완전 금지] 만약 [Part 1]의 내용이 'Company description is currently unavailable.' 이거나 비어있다면, 절대 내용을 지어내거나 유추하지 마세요! 3문단 규칙을 무시하고 오직 다음 한 문장만 {target_lang}로 출력하고 Task 1을 종료하세요: "FMP 시스템에 아직 해당 기업의 공식 비즈니스 모델 데이터가 업데이트되지 않았습니다."
+        3. 포맷 (데이터가 있을 때만 적용): 반드시 3개의 문단으로 나누어 작성하세요.
            {task1_structure}
-        3. 금지: 인터넷 검색 절대 금지! 제목, 소제목, 특수기호, 불렛포인트(-)를 절대 쓰지 마세요. 인사말 없이 바로 본론부터 시작하세요.
-        4. 최종 검수(Self-Check): 답변을 최종 출력하기 전에 스스로 엄격하게 검토하세요. 인사말, 서론, 또는 {target_lang} 외의 언어가 포함되어 있다면 삭제하세요.
+        4. 금지: 인터넷 검색 금지. 유추 금지. 제목, 소제목, 불렛포인트(-) 금지.
         
         {task2_label}
-        - 🚨 [강제 명령] 구글 검색을 절대 하지 마십시오! 반드시 위에 제공된 [Part 2: Official FMP News]의 텍스트 데이터만을 사용하여 최신 기사를 선정하십시오.
-        - 💡 [번역 필수 규칙] 각 뉴스의 'translated_title'은 반드시 {target_lang}의 '전문 경제신문/월스트리트 저널 헤드라인 스타일'로 완벽하게 번역하세요. (예: sh -> 주당, M -> 백만). 제목에 마크다운 기호(**)나 불필요한 따옴표는 절대 넣지 마세요.
-        - 각 뉴스는 아래 JSON 형식으로 답변의 맨 마지막에 첨부하세요. 
-        - [중요] sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
+        - 반드시 위에 제공된 [Part 2: Official FMP News]의 텍스트 데이터만을 사용하여 번역하십시오. 구글 검색 절대 금지.
+        - 만약 [Part 2]의 내용이 'No recent news available.' 이라면 빈 리스트 [] 를 반환하세요.
+        - 각 뉴스의 'translated_title'은 {target_lang}의 '전문 경제신문 헤드라인 스타일'로 번역하세요.
+        - sentiment 값은 시스템 로직을 위해 무조건 "긍정", "부정", "일반" 중 하나를 한국어로 적으세요.
 
         <JSON_START>
         {json_format}
