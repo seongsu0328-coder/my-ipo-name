@@ -532,64 +532,66 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     def get_localized_meta(lang, doc_type):
         meta_dict = {
             "ko": {
-                "S-1": {"p": "Risk Factors, Use of Proceeds, MD&A", "s": "1문단: 발견된 가장 중요한 투자 포인트\n2문단: 실질적 성장 가능성과 재무적 의미\n3문단: 핵심 리스크 1가지와 그 파급 효과 및 대응책"},
-                "S-1/A": {"p": "Pricing Terms, Dilution, Changes", "s": "1문단: 이전 S-1 대비 변경된 핵심 사항\n2문단: 제시된 공모가 범위의 적정성 및 수요예측 분위기\n3문단: 기존 주주 가치 희석 정도와 투자 매력도"},
-                "F-1": {"p": "Foreign Risk, Accounting (GAAP), ADS Structure", "s": "1문단: 기업이 글로벌 시장에서 가진 독보적인 경쟁 우위\n2문단: 환율, 정치, 회계 등 해외 기업 특유의 리스크\n3문단: 미국 예탁 증서(ADS) 구조가 주주 권리에 미치는 영향"},
-                "FWP": {"p": "Graphics, Strategy, Highlights", "s": "1문단: 경영진이 로드쇼에서 강조하는 미래 성장 비전\n2문단: 경쟁사 대비 기술적/사업적 차별화 포인트\n3문단: 자료 톤앤매너로 유추할 수 있는 시장 공략 의지"},
-                "424B4": {"p": "Final Price, Underwriting, IPO Outcome", "s": "1문단: 확정 공모가의 위치와 시장 수요 해석\n2문단: 확정된 조달 자금의 투입 우선순위\n3문단: 주관사단 및 배정 물량 바탕 상장 초기 유통물량 예측"},
-                "RW": {"p": "Withdrawal Reason, Market Condition, Future Plans", "s": "1문단: 상장 철회(Withdrawal) 결정적 사유 및 배경\n2문단: 상장 철회가 기업 재무 및 기존 투자자에게 미치는 영향\n3문단: 향후 재상장 또는 M&A 등 향후 계획"},
-                "Form 25": {"p": "Delisting Reason, M&A, Shareholder Impact", "s": "1문단: 상장 폐지(Delisting)의 정확한 사유\n2문단: 상장 폐지 후 기존 주주의 권리 및 주식 처리 방안\n3문단: 장외시장(OTC) 거래 가능성 및 향후 기업 상태"},
-                "10-K": {"p": "Annual Revenue, Operating Income, Net Income, Growth Rate", "s": "1문단: [연간 성과] 지난 1년간의 실제 매출액과 영업이익 수치($) 및 전년비 성장률 명시\n2문단: [사업 확장] 경영진이 강조한 핵심 사업부별 실적 데이터와 비즈니스 모델 변화\n3문단: [리스크] 새롭게 부각된 위험 요소가 향후 재무 수치에 미칠 수 있는 구체적 영향"},
-                "10-Q": {"p": "Quarterly Revenue, Net Income, Cash Balances", "s": "1문단: [분기 실적] 이번 분기 실제 매출($) 및 순이익($) 성과와 전년 동기 대비 증감률 명시\n2문단: [현금 현황] 현재 보유한 현금 및 현금성 자산의 실제 수치와 단기 유동성 분석\n3문단: [가이던스] 경영진이 제시한 다음 분기 예상 수치 및 성장의 구체적 근거"},
-                "BS": {"p": "Total Assets, Total Liabilities, Cash & Equivalents, Total Debt, Equity", "s": "1문단: [자산 구조] 현금성 자산을 포함한 유동 자산과 비유동 자산의 실제 수치(USD)를 공시 서류에서 찾아 명시\n2문단: [부채와 자본] 총부채와 자기자본의 실제 금액($)을 바탕으로 부채비율 분석 및 재무 리스크 진단\n3문단: [결론] 위 수치를 근거로 한 기업의 실질적인 재무 건전성 및 지급 능력 최종 평가"},
-                "IS": {"p": "Revenue Growth, Gross Margin, Operating Income, Net Income, EPS", "s": "1문단: [매출 성과] 서류에 기재된 실제 매출액(Revenue) 수치와 전년 대비 성장률(%)을 반드시 포함\n2문단: [이익률 평가] 영업이익(Operating Income)과 순이익(Net Income)의 실제 달러 수치를 명시하고 마진 분석\n3문단: [수익성 품질] 주당순이익(EPS)과 일회성 비용 유무를 통해 본 기업의 실질적 수익 창출력 요약"},
-                "CF": {"p": "Operating CF, Investing CF(CAPEX), Financing CF, Free Cash Flow(FCF)", "s": "1문단: [영업현금흐름] 실제 영업활동 현금흐름 수치를 명시하고 기업의 핵심 현금 창출력 평가\n2문단: [투자 및 CAPEX] 자본적 지출(CAPEX)의 실제 금액과 투자 방향성을 구체적인 숫자로 분석\n3문단: [현금 생존력] 잉여현금흐름(FCF)을 직접 계산(영업CF - CAPEX)하여 명시하고 향후 자금 조달 필요성 진단"}
+                "S-1": {"p": "Risk Factors, Use of Proceeds, MD&A", "s": "1문단: [핵심 비즈니스 및 스케일] 비즈니스 모델과 MAU, 매출 등 구체적 수치 명시\n2문단: [수익화 및 성장 전략] 시장 규모(TAM) 및 공모 자금의 실질적 사용처\n3문단: [치명적 리스크] 단순 나열이 아닌, 재무/운영에 타격을 줄 가장 치명적인 리스크 1가지"},
+                "S-1/A": {"p": "Pricing Terms, Dilution, Changes", "s": "1문단: [변경 사항] 이전 S-1 대비 변경된 핵심 펀더멘털이나 수치\n2문단: [밸류에이션] 제시된 공모가 범위와 그에 따른 시가총액/밸류에이션 분석\n3문단: [주주 영향] 기존 주주 가치 희석 정도와 신규 투자자 관점의 매력도"},
+                "F-1": {"p": "Business Scale, Foreign Risk, ADS Structure", "s": "1문단: [비즈니스 스케일 및 우위] MAU, 거래액(GMV), 매출 등 구체적 지표를 동반한 시장 지배력\n2문단: [지배구조 및 주주 권리] ADS 발행 구조 및 지배주주(Controlled Company) 지분율이 일반 주주에게 미치는 영향\n3문단: [로컬 리스크] 환율, 해당 국가 특유의 규제 등 외국 국적 기업으로서의 재무적/정치적 리스크"},
+                "FWP": {"p": "Roadshow Highlights, Growth Strategy", "s": "1문단: [핵심 투자 하이라이트] 경영진이 투자자에게 세일즈하는 핵심 비전과 성장 지표\n2문단: [시장 확장 전략] 구체적인 타겟 시장(TAM) 및 신규 수익 모델\n3문단: [공략 의지 및 톤앤매너] 숫자로 뒷받침된 회사의 목표 달성 가능성 (※ 주의: 인수단 연락처 등 법적 문구 무시)"},
+                "424B4": {"p": "Final Price, Underwriting, IPO Outcome", "s": "1문단: [최종 가격 및 수요] 확정 공모가의 위치(상단/하단)와 시장 수요 해석\n2문단: [자금 조달 규모] 확정된 조달 자금 총액과 최우선 투입처\n3문단: [유통 물량] 주관사단 및 배정 물량 바탕 상장 초기 유통물량/오버행 예측"},
+                "RW": {"p": "Withdrawal Reason, Market Condition", "s": "1문단: [철회 사유] 상장 철회(Withdrawal)를 결정하게 된 핵심 배경\n2문단: [재무적 타격] 자본 조달 실패가 기업 유동성에 미치는 영향\n3문단: [향후 행보] 재상장 시도 또는 M&A 피인수 등 대안 시나리오"},
+                "Form 25": {"p": "Delisting Reason, Shareholder Impact", "s": "1문단: [상장 폐지 사유] 자발적 상폐, 피인수, 규정 위반 등 정확한 사유\n2문단: [주주 권리] 상장 폐지 후 기존 주식의 처리 방안 및 주주 권리\n3문단: [향후 상태] 장외시장(OTC) 거래 가능성 및 향후 기업 존속 여부"},
+                "10-K": {"p": "Annual Revenue, Operating Income, Growth Rate", "s": "1문단: [연간 성과] 지난 1년간의 실제 매출액($)과 영업이익($), 전년비 성장률(%)\n2문단: [사업 확장] 핵심 사업부별 실적 기여도와 비즈니스 모델 변화\n3문단: [리스크 전망] 향후 재무 수치에 직접적 타격을 줄 수 있는 위험 요소"},
+                "10-Q": {"p": "Quarterly Revenue, Net Income, Cash Balances", "s": "1문단: [분기 실적] 이번 분기 실제 매출($) 및 순이익($), 전년 동기 대비 증감률(%)\n2문단: [현금 현황] 보유 현금성 자산의 실제 수치와 단기 유동성 분석\n3문단: [가이던스] 경영진이 제시한 다음 분기 예상 수치 및 성장 근거"},
+                "BS": {"p": "Total Assets, Total Liabilities, Cash, Debt", "s": "1문단: [자산 구조] 현금성 자산을 포함한 유동/비유동 자산의 실제 수치($)\n2문단: [부채와 자본] 총부채와 자기자본의 실제 금액($) 및 부채비율\n3문단: [건전성 진단] 수치를 근거로 한 실질적인 단기 지급 능력 및 런웨이 평가"},
+                "IS": {"p": "Revenue Growth, Margins, EPS", "s": "1문단: [매출 성과] 실제 매출액(Revenue) 수치와 전년 대비 성장률(%)\n2문단: [이익률 평가] 영업이익과 순이익의 실제 수치($)를 통한 마진 분석\n3문단: [수익성 품질] 주당순이익(EPS)과 일회성 비용 유무를 통한 수익 창출력 요약"},
+                "CF": {"p": "Operating CF, CAPEX, FCF", "s": "1문단: [영업현금흐름] 영업활동 현금흐름 수치($)를 통한 자체 자금 창출력 평가\n2문단: [투자 및 CAPEX] 자본적 지출(CAPEX)의 실제 금액과 투자 방향성\n3문단: [현금 생존력] 잉여현금흐름(FCF) 도출 및 추가 자금 조달 필요성 진단"}
             },
             "en": {
-                "S-1": {"p": "Risk Factors, Use of Proceeds, MD&A", "s": "Para 1: The most important investment points found in this document.\nPara 2: Real business growth potential and financial implications.\nPara 3: One core risk, its ripple effects, and countermeasures."},
-                "S-1/A": {"p": "Pricing Terms, Dilution, Changes", "s": "Para 1: Core changes compared to the previous S-1.\nPara 2: Appropriateness of pricing terms and expected demand.\nPara 3: Dilution for new investors and investment attractiveness."},
-                "F-1": {"p": "Foreign Risk, Accounting (GAAP), ADS Structure", "s": "Para 1: The company's unique competitive advantage in the global market.\nPara 2: Specific risks for foreign companies (FX, politics, accounting).\nPara 3: Impact of the ADS structure on shareholder rights."},
-                "FWP": {"p": "Graphics, Strategy, Highlights", "s": "Para 1: Future growth vision emphasized by management in the roadshow.\nPara 2: Technical/business differentiation points against competitors.\nPara 3: Market penetration willingness inferred from the tone and manner."},
-                "424B4": {"p": "Final Price, Underwriting, IPO Outcome", "s": "Para 1: Interpretation of the final IPO price and market demand.\nPara 2: Priority of how the raised funds will be used.\nPara 3: Expected initial float based on underwriters and lock-ups."},
-                "RW": {"p": "Withdrawal Reason, Market Condition, Future Plans", "s": "Para 1: Decisive reason and background for the IPO withdrawal.\nPara 2: Impact of the withdrawal on corporate finance and existing investors.\nPara 3: Future plans such as M&A or re-attempting IPO."},
-                "Form 25": {"p": "Delisting Reason, M&A, Shareholder Impact", "s": "Para 1: Exact reason for delisting (M&A, voluntary, violations, etc.).\nPara 2: Impact on shareholder rights and stock treatment after delisting.\nPara 3: Possibility of OTC trading and future corporate status."},
-                "10-K": {"p": "Annual Revenue, Operating Income, Net Income, Growth Rate", "s": "Para 1: [Annual Performance] State actual Revenue and Operating Income ($) from the past year with growth rates.\nPara 2: [Business Expansion] Core segment performance data and strategic model changes emphasized by management.\nPara 3: [Risks] Specific numerical impact of emerging risk factors on future financial metrics."},
-                "10-Q": {"p": "Quarterly Revenue, Net Income, Cash Balances", "s": "Para 1: [Quarterly Results] State actual Revenue ($) and Net Income ($) for this quarter with YoY growth.\nPara 2: [Cash Status] Mention actual cash and cash equivalents and assess short-term liquidity.\nPara 3: [Guidance] Specific numerical guidance for the next quarter and its fundamental drivers."},
-                "BS": {"p": "Total Assets, Total Liabilities, Cash, Debt, Equity", "s": "Para 1: [Asset Structure] List actual USD values for current and non-current assets including cash from the filing.\nPara 2: [Solvency] Use actual debt and equity figures ($) to analyze the debt-to-equity ratio and financial risks.\nPara 3: [Verdict] Final evaluation of short-term liquidity and long-term solvency based on the numbers."},
-                "IS": {"p": "Revenue Growth, Margins, Operating Income, Net Income, EPS", "s": "Para 1: [Top-line] Explicitly include actual Revenue figures and YoY growth (%) from the document.\nPara 2: [Profitability] Analyze Operating and Net Income using actual dollar amounts and margin trends.\nPara 3: [Earnings Quality] Summarize EPS and long-term profitability based on real data points."},
-                "CF": {"p": "Operating CF, Investing CF(CAPEX), Financing CF, FCF", "s": "Para 1: [Operating CF] State actual cash flow from operations ($) and evaluate core cash generation.\nPara 2: [Investing & CAPEX] Analyze actual CAPEX figures and investment direction using dollar amounts.\nPara 3: [Cash Runway] Calculate and state Free Cash Flow (FCF) using reported figures and assess funding needs."}
+                "S-1": {"p": "Risk Factors, Use of Proceeds, MD&A", "s": "Para 1: [Core Business & Scale] Specify business model and concrete figures like MAU and Revenue.\nPara 2: [Monetization & Growth Strategy] Market size (TAM) and actual use of proceeds.\nPara 3: [Critical Risk] One most critical risk that will impact financials/operations, not just a simple list."},
+                "S-1/A": {"p": "Pricing Terms, Dilution, Changes", "s": "Para 1: [Changes] Core fundamentals or numbers changed compared to the previous S-1.\nPara 2: [Valuation] Proposed price band and resulting market cap/valuation analysis.\nPara 3: [Shareholder Impact] Dilution for existing shareholders and attractiveness for new investors."},
+                "F-1": {"p": "Business Scale, Foreign Risk, ADS Structure", "s": "Para 1: [Business Scale & Edge] Market dominance backed by specific metrics like MAU, GMV, and Revenue.\nPara 2: [Governance & Shareholder Rights] ADS issuance structure and impact of the Controlled Company status on retail shareholders.\nPara 3: [Local Risks] Financial/political risks as a foreign entity, such as FX and local regulations."},
+                "FWP": {"p": "Roadshow Highlights, Growth Strategy", "s": "Para 1: [Key Investment Highlights] Core vision and growth metrics pitched by management to investors.\nPara 2: [Market Expansion Strategy] Specific target market (TAM) and new revenue models.\nPara 3: [Commitment & Tone] Feasibility of company goals backed by numbers (※ NOTE: Ignore legal boilerplate like underwriter contacts)."},
+                "424B4": {"p": "Final Price, Underwriting, IPO Outcome", "s": "Para 1: [Final Price & Demand] Position of the final IPO price (top/bottom) and market demand interpretation.\nPara 2: [Fundraising Scale] Total amount raised and top priority for fund deployment.\nPara 3: [Float Volume] Expected initial float/overhang based on underwriter allocations."},
+                "RW": {"p": "Withdrawal Reason, Market Condition", "s": "Para 1: [Withdrawal Reason] Core background behind the decision to withdraw the IPO.\nPara 2: [Financial Impact] Impact of the fundraising failure on corporate liquidity.\nPara 3: [Future Plans] Alternative scenarios like re-IPO attempts or M&A acquisition."},
+                "Form 25": {"p": "Delisting Reason, Shareholder Impact", "s": "Para 1: [Delisting Reason] Exact reason such as voluntary, M&A, or regulatory violation.\nPara 2: [Shareholder Rights] Treatment of existing shares and shareholder rights post-delisting.\nPara 3: [Future Status] Possibility of OTC trading and future corporate existence."},
+                "10-K": {"p": "Annual Revenue, Operating Income, Growth Rate", "s": "Para 1: [Annual Performance] Actual Revenue ($), Operating Income ($), and YoY Growth Rate (%) over the past year.\nPara 2: [Business Expansion] Performance contribution by core segments and business model changes.\nPara 3: [Risk Outlook] Risk factors that could directly impact future financial metrics."},
+                "10-Q": {"p": "Quarterly Revenue, Net Income, Cash Balances", "s": "Para 1: [Quarterly Results] Actual Revenue ($), Net Income ($), and YoY Growth Rate (%) for this quarter.\nPara 2: [Cash Status] Actual figures of cash equivalents and short-term liquidity analysis.\nPara 3: [Guidance] Management's expected figures for the next quarter and basis for growth."},
+                "BS": {"p": "Total Assets, Total Liabilities, Cash, Debt", "s": "Para 1: [Asset Structure] Actual figures ($) of current/non-current assets including cash equivalents.\nPara 2: [Liabilities & Equity] Actual figures ($) of total debt, equity, and debt-to-equity ratio.\nPara 3: [Solvency Diagnosis] Practical assessment of short-term liquidity and runway based on the numbers."},
+                "IS": {"p": "Revenue Growth, Margins, EPS", "s": "Para 1: [Revenue Performance] Actual Revenue figures and YoY Growth Rate (%).\nPara 2: [Margin Evaluation] Margin analysis using actual figures ($) of Operating and Net Income.\nPara 3: [Earnings Quality] Summary of profit generation capability via EPS and presence of one-off costs."},
+                "CF": {"p": "Operating CF, CAPEX, FCF", "s": "Para 1: [Operating CF] Assessment of self-funding capability via actual Operating Cash Flow ($).\nPara 2: [Investment & CAPEX] Actual amount of Capital Expenditures (CAPEX) and investment direction.\nPara 3: [Cash Survival] Derivation of Free Cash Flow (FCF) and diagnosis of additional funding needs."}
             },
             "ja": {
-                "S-1": {"p": "リスク要因, 資金使途, MD&A", "s": "第1段落：この文書で確認できる最も重要な投資ポイント\n第2段落：実質的な成長可能性と財務的意味\n第3段落：核心的なリスク1つ、その波及効果および対応策"},
-                "S-1/A": {"p": "需要予測, 希薄化, 変更点", "s": "第1段落：前回のS-1からの主な変更点\n第2段落：提示された公募価格帯の妥当性と需要予測の雰囲気\n第3段落：既存株主の価値希薄化の程度と投資魅力度"},
-                "F-1": {"p": "地政学的リスク, 会計差異, ADS構造", "s": "第1段落：企業がグローバル市場で持つ独自の競争優位性\n第2段落：為替、政治、会計など海外企業特有のリスク\n第3段落：ADS構造が株主の権利に与える影響"},
-                "FWP": {"p": "戦略, ハイライト, 市場シェア", "s": "第1段落：経営陣がロードショーで強調する未来の成長ビジョン\n第2段落：競합他社と比較した技術的・事業的な差別化ポイント\n第3段落：資料のトーンから推測される市場攻略への意欲"},
-                "424B4": {"p": "最終価格, 引受シンジケート, 配分", "s": "第1段落：確定した公募価格の位置づけと市場需要の解釈\n第2段落：確定した調達資金の投入優先順位\n第3段落：配分に基づく上場初期の流通株式予測"},
-                "RW": {"p": "撤回理由, 市場環境, 今後の計画", "s": "第1段落：上場撤回の決定的な理由と背景\n第2段落：上場撤回が企業の財務および投資家に与える影響\n第3段落：今後の再上場またはM&Aなどの計画"},
-                "Form 25": {"p": "上場廃止理由, M&A, 株主への影響", "s": "第1段落：上場廃止の正確な理由（買収、自主的、違反など）\n第2段落：上場廃止後の既存株主の権利および株式の取り扱い\n第3段落：店頭市場（OTC）での取引可能性および今後の状態"},
-                "10-K": {"p": "通期売上高, 営業利益, セグメント実績", "s": "第1段落：[通期実績] 過去1年間の実際の売上高と営業利益の数値($)、および成長率を明記\n第2段落：[事業分析] 各セグメント別の実績データとビジネスモデルの変化\n第3段落：[将来リスク] リスク要因が今後の財務指標に与える具体的な影響"},
-                "10-Q": {"p": "四半期売上, 純利益, 現金残高", "s": "第1段落：[四半期実績] 当四半期の実際の売上($)と純利益($)および前年比を明記\n第2段落：[流動性] 現在の現金および現金同等物の実際の数値をお明記し診断\n第3段落：[ガイダンス] 次四半期の予想数値と成長の具体的な根拠"},
-                "BS": {"p": "資産合計, 負債合計, 現金等価物, 自己資本", "s": "第1段落：[資産構造] 現金同等物を含む流動・非流動資産の実際の数値(USD)を明記\n第2段落：[負債と資本] 総負債と自己資本の実際の金額($)に基づき分析\n第3段落：[結論] 数値に裏打ちされた短期支払能力と健全性の評価"},
-                "IS": {"p": "売上高, 利益率, 営業利益, 純利益, EPS", "s": "第1段落：[売上実績] 報告書に明記された実際の売上高(Revenue)数値と成長率(%)を含める\n第2段落：[収益性] 営業利益と純利益の実際のドル数値を明記し分析\n第3段落：[利益の質] EPSと利益の質を具体的なデータで要約"},
-                "CF": {"p": "営業CF, CAPEX, 財務CF, FCF", "s": "第1段落：[営業CF] 実際の営業活動によるCF数値($)を明記し評価\n第2段落：[投資とCAPEX] CAPEXの実際の金額と投資方向性を数字で分析\n第3段落：[現金の存続能力] フリーキャッシュフロー(FCF)を 直接計算(営業CF-CAPEX)して明記"}
+                "S-1": {"p": "リスク要因, 資金使途, MD&A", "s": "第1段落：[中核事業と規模] ビジネスモデルとMAU、売上などの具体的数値を明記\n第2段落：[収益化と成長戦略] 市場規模(TAM)と公募資金の実質的な使途\n第3段落：[致命的リスク] 単なる羅列ではなく、財務/運営に打撃を与える最も致命的なリスク1つ"},
+                "S-1/A": {"p": "条件決定, 希薄化, 変更点", "s": "第1段落：[変更事項] 以前のS-1と比較して変更された中核ファンダメンタルズや数値\n第2段落：[バリュエーション] 提示された公募価格帯とそれに伴う時価総額/バリュエーション分析\n第3段落：[株主への影響] 既存株主の価値希薄化の程度と新規投資家視点での魅力度"},
+                "F-1": {"p": "事業規模, 海外リスク, ADS構造", "s": "第1段落：[事業規模と優位性] MAU、取引額(GMV)、売上などの具体的指標を伴う市場支配力\n第2段落：[ガバナンスと株主の権利] ADS発行構造および支配株主(Controlled Company)の持分比率が一般株主に与える影響\n第3段落：[ローカルリスク] 為替、当該国特有の規制など外国籍企業としての財務的/政治的リスク"},
+                "FWP": {"p": "ロードショーのハイライト, 成長戦略", "s": "第1段落：[中核投資ハイライト] 経営陣が投資家にアピールする中核ビジョンと成長指標\n第2段落：[市場拡張戦略] 具体的なターゲット市場(TAM)と新規収益モデル\n第3段落：[攻略の意志とトーン] 数値で裏付けられた目標達成の可能性（※注意：引受人の連絡先などの免責事項は無視）"},
+                "424B4": {"p": "最終価格, 引受シンジケート, 上場結果", "s": "第1段落：[最終価格と需要] 確定公募価格の位置(上限/下限)と市場需要の解釈\n第2段落：[資金調達規模] 確定した調達資金総額と最優先の投入先\n第3段落：[流通株式数] 引受シンジケートおよび配分物量に基づく上場初期の流通株式/オーバーハング予測"},
+                "RW": {"p": "撤回理由, 市場環境", "s": "第1段落：[撤回事由] 上場撤回(Withdrawal)を決定した中核的な背景\n第2段落：[財務的打撃] 資金調達の失敗が企業の流動性に与える影響\n第3段落：[今後の動向] 再上場の試みまたはM&Aによる買収などの代替シナリオ"},
+                "Form 25": {"p": "上場廃止理由, 株主への影響", "s": "第1段落：[上場廃止事由] 自主的廃止、買収、規定違反などの正確な理由\n第2段落：[株主の権利] 上場廃止後の既存株式の処理方法および株主の権利\n第3段落：[今後の状態] 店頭市場(OTC)での取引の可能性および今後の企業の存続可否"},
+                "10-K": {"p": "通期売上高, 営業利益, 成長率", "s": "第1段落：[通期実績] 過去1年間の実際の売上高($)と営業利益($)、前年比成長率(%)\n第2段落：[事業拡張] 中核事業セグメント別の業績貢献度とビジネスモデルの変化\n第3段落：[リスク展望] 今後の財務数値に直接的な打撃を与え得る危険要因"},
+                "10-Q": {"p": "四半期売上, 純利益, 現金残高", "s": "第1段落：[四半期実績] 当四半期の実際の売上($)および純利益($)、前年同期比増減率(%)\n第2段落：[現金状況] 保有する現金性資産の実際の数値と短期流動性分析\n第3段落：[ガイダンス] 経営陣が提示した次四半期の予想数値と成長の根拠"},
+                "BS": {"p": "資産合計, 負債合計, 現金, 負債", "s": "第1段落：[資産構造] 現金性資産を含む流動/非流動資産の実際の数値($)\n第2段落：[負債と資本] 総負債と自己資本の実際の金額($)および負債比率\n第3段落：[健全性診断] 数値に基づく実質的な短期支払能力およびランウェイの評価"},
+                "IS": {"p": "売上成長, 利益率, EPS", "s": "第1段落：[売上実績] 実際の売上高(Revenue)数値と前年比成長率(%)\n第2段落：[利益率評価] 営業利益と純利益の実際の数値($)を通じたマージン分析\n第3段落：[収益の質] EPSと一過性費用の有無を通じた収益創出力の要約"},
+                "CF": {"p": "営業CF, CAPEX, FCF", "s": "第1段落：[営業キャッシュフロー] 営業CF数値($)を通じた独自の資金創出力の評価\n第2段落：[投資とCAPEX] 資本的支出(CAPEX)の実際の金額と投資の方向性\n第3段落：[現金の生存力] フリーキャッシュフロー(FCF)の算出および追加資金調達の必要性診断"}
             },
             "zh": {
-                "S-1": {"p": "风险因素, 资金用途, MD&A", "s": "第一段：该文件中最重要的投资亮点\n第二段：实质性增长潜力及其财务意义\n第三段：一个核心风险，其连锁反应及应对措施"},
-                "S-1/A": {"p": "定价条款, 股权稀释, 变更点", "s": "第一段：与之前S-1相比的核心变化\n第二段：定价区间的合理性及需求氛围分析\n第三段：现有股东的价值稀释程度及投资吸引力"},
-                "F-1": {"p": "地缘政治风险, 会计差异, ADS结构", "s": "第一段：企业在全球市场中独有的竞争优势\n第二段：外汇、政治、会计等海外企业特有风险分析\n第三段：ADS结构对股东权利的影响"},
-                "FWP": {"p": "战略, 亮点, 市场份额", "s": "第一段：管理层在路演中强调的未来增长愿景\n第二段：与竞争对手相比的技术/业务差异化优势\n第三段：从资料基调推测的市场开拓意愿"},
-                "424B4": {"p": "最终价格, 承销, IPO结果", "s": "第一段：最终发行价的定位及市场需求解读\n第二段：确定募集资金的投入优先顺序\n第三段：基于配售情况的上市初期流通股预测"},
-                "RW": {"p": "撤回原因, 市场环境, 未来计划", "s": "第一段：该企业撤回上市的决定性原因及背景\n第二段：撤回上市对企业财务及现有投资者的影响\n第三段：未来再次上市或并购等计划"},
-                "Form 25": {"p": "退市原因, 并购, 股东影响", "s": "第一段：退市的准确原因（并购、自愿退市、违规等）\n第二段：退市后现有股东的权利及股票处理方案\n第三段：场外市场（OTC）交易的可能性及未来状态"},
-                "10-K": {"p": "年度营收, 营业利润, 各板块数据", "s": "第一段：[年度表现] 明确列出过去一年的实际营收和营业利润数值($)及增长率\n第二段：[业务分析] 核心业务板块业绩数据及商业模式变化\n第三段：[风险展望] 风险因素对未来财务指标的具体影响"},
-                "10-Q": {"p": "季度营收, 净利润, 现金储备", "s": "第一段：[季度业绩] 明确列出本季度实际营收($)和净利润($)及同比变化\n第二段：[现金状况] 明确列出当前的现金及现金等价物数值\n第三段：[指引] 管理层给出的下季度预期数值及短期增长的依据"},
-                "BS": {"p": "总资产, 总负债, 现金及等价物, 权益", "s": "第一段：[资产结构] 明确列出流动资产和非流动资产的实际美元金额(USD)\n第二段：[负债与资本] 使用总负债和股东权益的实际金额($)评估稳定性\n第三段：[结论] 基于上述具体数值评估企业的偿债能力"},
-                "IS": {"p": "营收增长, 毛利率, 净利润, EPS", "s": "第一段：[营收表现] 必须包含报告中列出的实际营收数值及同比增长率(%)\n第二段：[盈利指标] 使用实际美元金额分析营业利润和净利润\n第三段：[收益质量] 结合EPS总结企业的实际盈利能力"},
-                "CF": {"p": "经营CF, 投资CF, 筹资CF, FCF", "s": "第一段：[经营现金流] 明确列出实际经营活动现金流数值($)并评估造血能力\n第二段：[投资与支出] 基于金额分析资本支出(CAPEX)的具体数值\n第三段：[现金流存续] 明确计算并列出自由现金流(FCF)情况"}
+                "S-1": {"p": "风险因素, 资金用途, MD&A", "s": "第一段：[核心业务与规模] 明确业务模型及MAU、营收等具体数据\n第二段：[变现与增长战略] 市场规模(TAM)及募集资金的实际用途\n第三段：[致命风险] 指出1个将对财务/运营造成打击的最致命风险，而非简单罗列"},
+                "S-1/A": {"p": "定价条款, 股权稀释, 变更点", "s": "第一段：[变更事项] 与此前S-1相比，核心基本面或数据的变化\n第二段：[估值] 给出的发行价区间及相应的市值/估值分析\n第三段：[股东影响] 现有股东价值的稀释程度及对新投资者的吸引力"},
+                "F-1": {"p": "业务规模, 海外风险, ADS结构", "s": "第一段：[业务规模与优势] 带有MAU、交易额(GMV)、营收等具体指标的市场统治力\n第二段：[治理与股东权利] ADS发行结构及控股股东(Controlled Company)持股比例对散户的影响\n第三段：[本地风险] 汇率、该国特有监管等作为外国企业的财务/政治风险"},
+                "FWP": {"p": "路演亮点, 增长战略", "s": "第一段：[核心投资亮点] 管理层向投资者推介的核心愿景与增长指标\n第二段：[市场扩张战略] 具体的目标市场(TAM)及新的盈利模式\n第三段：[攻坚意愿与基调] 用数据支撑的公司目标达成可能性（※注意：忽略承销商联系方式等免责声明）"},
+                "424B4": {"p": "最终价格, 承销, IPO结果", "s": "第一段：[最终价格与需求] 最终定价的位置(上限/下限)及市场需求解读\n第二段：[融资规模] 确定的融资总额及最优先的资金投入方向\n第三段：[流通盘] 基于承销团及配售情况的上市初期流通股/抛压预测"},
+                "RW": {"p": "撤回原因, 市场环境", "s": "第一段：[撤回原因] 决定撤回上市(Withdrawal)的核心背景\n第二段：[财务打击] 融资失败对企业流动性的影响\n第三段：[未来动向] 尝试重新上市或被M&A收购等替代方案"},
+                "Form 25": {"p": "退市原因, 股东影响", "s": "第一段：[退市原因] 自愿退市、被收购、违规等准确原因\n第二段：[股东权利] 退市后现有股票的处理方案及股东权利\n第三段：[未来状态] 场外市场(OTC)交易的可能性及企业未来的存续状态"},
+                "10-K": {"p": "年度营收, 营业利润, 增长率", "s": "第一段：[年度表现] 过去一年的实际营收($)和营业利润($)，及同比增幅(%)\n第二段：[业务扩张] 核心业务板块的业绩贡献度及商业模式的变化\n第三段：[风险展望] 可能对未来财务数据造成直接打击的危险因素"},
+                "10-Q": {"p": "季度营收, 净利润, 现金储备", "s": "第一段：[季度业绩] 本季度的实际营收($)和净利润($)，及同比增幅(%)\n第二段：[现金状况] 持有的现金及现金等价物实际数值与短期流动性分析\n第三段：[业绩指引] 管理层给出的下季度预期数值及增长依据"},
+                "BS": {"p": "总资产, 总负债, 现金, 债务", "s": "第一段：[资产结构] 包含现金等价物的流动/非流动资产的实际数值($)\n第二段：[负债与资本] 总负债和股东权益的实际金额($)及资产负债率\n第三段：[健康度诊断] 基于数据对短期偿债能力及资金存续期的实质性评估"},
+                "IS": {"p": "营收增长, 毛利率, EPS", "s": "第一段：[营收表现] 实际营收(Revenue)数值及同比增长率(%)\n第二段：[利润率评估] 通过营业利润和净利润的实际数值($)进行利润率分析\n第三段：[收益质量] 结合每股收益(EPS)及有无一次性费用总结盈利能力"},
+                "CF": {"p": "经营CF, CAPEX, FCF", "s": "第一段：[经营现金流] 通过经营活动现金流数值($)评估企业的自我造血能力\n第二段：[投资与CAPEX] 资本支出(CAPEX)的实际金额及投资方向\n第三段：[现金存续力] 推算自由现金流(FCF)并诊断是否需要额外融资"}
             }
         }
         lang_group = meta_dict.get(lang, meta_dict['ko'])
-        return lang_group.get(doc_type, lang_group.get('S-1'))
+        # Fallback to Korean structure if a doc type is somehow missing
+        fallback_meta = meta_dict['ko'].get(doc_type, meta_dict['ko']['S-1'])
+        return lang_group.get(doc_type, fallback_meta)
 
     def get_format_instruction(lang):
         if lang == 'en': return "- Begin each paragraph with a translated **[Heading]**. Rich content, 4-5 sentences per paragraph. DO NOT bold numbers."
@@ -600,44 +602,44 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     def get_missing_document_message(lang, doc_type):
         msg_map = {
             "ko": {
-                "S-1": "🔍 **[Issuer Classification]** 해당 기업은 해외 국적 발행인(Foreign Issuer) 또는 SPAC으로 식별됩니다. 상세 공시 데이터는 **[F-1]** 섹션을 참조하십시오.",
-                "F-1": "🔍 **[Issuer Classification]** 미국 내국 법인(Domestic Issuer)으로 확인되었습니다. 규정에 따른 공시 내역은 **[S-1]** 섹션에서 제공됩니다.",
-                "S-1/A": "⏳ **[Filing Status]** 최초 신고서 제출 이후의 정정 신고서(S-1/A)가 아직 공시되지 않았습니다. 공모가 밴드 확정 시 실시간 업데이트됩니다.",
-                "FWP": "📑 **[Supplemental Info]** 현재 해당 기업의 추가 로드쇼 자료나 마케팅용 자유 양식 증권신고서(FWP)가 SEC에 등록되지 않은 상태입니다.",
-                "424B4": "📈 **[Pricing Finalization]** 최종 공모가 확정 서류(424B4)는 통상 상장 직전 24~48시간 이내에 수립됩니다. 확정 즉시 분석 리포트가 생성됩니다.",
-                "RW": "✅ **[Offering Status]** 현재 상장 철회(RW)와 관련된 특이 사항이 발견되지 않았습니다. 상장 절차가 정상 궤도 내에서 진행 중입니다.",
-                "Form 25": "🛡️ **[Listing Status]** 상장 폐지(Delisting) 관련 이벤트가 감지되지 않았습니다. 해당 종목은 정규 시장 내에서 활성 상태를 유지하고 있습니다.",
-                "DEFAULT": "🔄 **[Data Sync]** 해당 서류의 제출 기한이 도래하지 않았거나 SEC EDGAR 시스템 내의 아카이빙 작업이 진행 중입니다."
+                "S-1": "**[Issuer Classification]** 해당 기업은 해외 국적 발행인(Foreign Issuer) 또는 SPAC으로 식별됩니다. 상세 공시 데이터는 **[F-1]** 섹션을 참조하십시오.",
+                "F-1": "**[Issuer Classification]** 미국 내국 법인(Domestic Issuer)으로 확인되었습니다. 규정에 따른 공시 내역은 **[S-1]** 섹션에서 제공됩니다.",
+                "S-1/A": "**[Filing Status]** 최초 신고서 제출 이후의 정정 신고서(S-1/A)가 아직 공시되지 않았습니다. 공모가 밴드 확정 시 실시간 업데이트됩니다.",
+                "FWP": "**[Supplemental Info]** 현재 해당 기업의 추가 로드쇼 자료나 마케팅용 자유 양식 증권신고서(FWP)가 SEC에 등록되지 않은 상태입니다.",
+                "424B4": "**[Pricing Finalization]** 최종 공모가 확정 서류(424B4)는 통상 상장 직전 24~48시간 이내에 수립됩니다. 확정 즉시 분석 리포트가 생성됩니다.",
+                "RW": "**[Offering Status]** 현재 상장 철회(RW)와 관련된 특이 사항이 발견되지 않았습니다. 상장 절차가 정상 궤도 내에서 진행 중입니다.",
+                "Form 25": "**[Listing Status]** 상장 폐지(Delisting) 관련 이벤트가 감지되지 않았습니다. 해당 종목은 정규 시장 내에서 활성 상태를 유지하고 있습니다.",
+                "DEFAULT": "**[Data Sync]** 해당 서류의 제출 기한이 도래하지 않았거나 SEC EDGAR 시스템 내의 아카이빙 작업이 진행 중입니다."
             },
             "en": {
-                "S-1": "🔍 **[Issuer Classification]** Identified as a Foreign Issuer or SPAC. Please refer to the **[F-1]** section for primary disclosure data.",
-                "F-1": "🔍 **[Issuer Classification]** Identified as a US Domestic Issuer. Regulatory filings are provided in the **[S-1]** section.",
-                "S-1/A": "⏳ **[Filing Status]** The amended registration statement (S-1/A) following the initial filing has not yet been disclosed. Real-time updates will follow upon price band finalization.",
-                "FWP": "📑 **[Supplemental Info]** No additional roadshow materials or Free Writing Prospectuses (FWP) have been registered with the SEC at this time.",
-                "424B4": "📈 **[Pricing Finalization]** The final prospectus (424B4) is typically established within 24-48 hours prior to the IPO. Analysis will be generated immediately upon confirmation.",
-                "RW": "✅ **[Offering Status]** No specific issues regarding withdrawal (RW) have been detected. The IPO process is proceeding within the normal track.",
-                "Form 25": "🛡️ **[Listing Status]** No delisting events (Form 25) have been detected. The ticker remains active within the regular market.",
-                "DEFAULT": "🔄 **[Data Sync]** The filing deadline has not yet been met, or archiving within the SEC EDGAR system is currently in progress."
+                "S-1": "**[Issuer Classification]** Identified as a Foreign Issuer or SPAC. Please refer to the **[F-1]** section for primary disclosure data.",
+                "F-1": "**[Issuer Classification]** Identified as a US Domestic Issuer. Regulatory filings are provided in the **[S-1]** section.",
+                "S-1/A": "**[Filing Status]** The amended registration statement (S-1/A) following the initial filing has not yet been disclosed. Real-time updates will follow upon price band finalization.",
+                "FWP": "**[Supplemental Info]** No additional roadshow materials or Free Writing Prospectuses (FWP) have been registered with the SEC at this time.",
+                "424B4": "**[Pricing Finalization]** The final prospectus (424B4) is typically established within 24-48 hours prior to the IPO. Analysis will be generated immediately upon confirmation.",
+                "RW": "**[Offering Status]** No specific issues regarding withdrawal (RW) have been detected. The IPO process is proceeding within the normal track.",
+                "Form 25": "**[Listing Status]** No delisting events (Form 25) have been detected. The ticker remains active within the regular market.",
+                "DEFAULT": "**[Data Sync]** The filing deadline has not yet been met, or archiving within the SEC EDGAR system is currently in progress."
             },
             "ja": {
-                "S-1": "🔍 **[発行体分類]** 外国籍発行体（Foreign Issuer）またはSPACとして識別されました。詳細な公示データは **[F-1]** セクションをご参照ください。",
-                "F-1": "🔍 **[発行体分類]** 米国内국法人（Domestic Issuer）として確認されました。規定に基づく公示内容は **[S-1]** セクションで提供されます。",
-                "S-1/A": "⏳ **[公示ステータス]** 初回届出書提出後の訂正届出書（S-1/A）はまだ公示されていません。公募価格帯の確定時にリアルタイムで更新されます。",
-                "FWP": "📑 **[補足情報]** 現在、当該企業の追加ロードショー資料やマーケティング用自由方式目論見書（FWP）はSECに登録されていません。",
-                "424B4": "📈 **[価格確定]** 最終公募価格確定書類（424B4）は通常、上場直前の24〜48時間以内に作成されます。確定次第、分析レポートが生成されます。",
-                "RW": "✅ **[募集ステータス]** 現在、上場撤回（RW）に関する特記事項は見当たりません。上場手続きは正常な軌道で進行中です。",
-                "Form 25": "🛡️ **[上場ステータス]** 上場廃止（Delisting）関連のイベントは検知されていません。当該銘柄は正規市場内で活性状態を維持しています。",
-                "DEFAULT": "🔄 **[データ同期]** 当該書類の提出期限が未到来か、SEC EDGARシステム内でのアーカイブ処理が進行中です。"
+                "S-1": "**[発行体分類]** 外国籍発行体（Foreign Issuer）またはSPACとして識別されました。詳細な公示データは **[F-1]** セクションをご参照ください。",
+                "F-1": "**[発行体分類]** 米国内국法人（Domestic Issuer）として確認されました。規定に基づく公示内容は **[S-1]** セクションで提供されます。",
+                "S-1/A": "**[公示ステータス]** 初回届出書提出後の訂正届出書（S-1/A）はまだ公示されていません。公募価格帯の確定時にリアルタイムで更新されます。",
+                "FWP": "**[補足情報]** 現在、当該企業の追加ロードショー資料やマーケティング用自由方式目論見書（FWP）はSECに登録されていません。",
+                "424B4": "**[価格確定]** 最終公募価格確定書類（424B4）は通常、上場直前の24〜48時間以内に作成されます。確定次第、分析レポートが生成されます。",
+                "RW": "**[募集ステータス]** 現在、上場撤回（RW）に関する特記事項は見当たりません。上場手続きは正常な軌道で進行中です。",
+                "Form 25": "**[上場ステータス]** 上場廃止（Delisting）関連のイベントは検知されていません。当該銘柄は正規市場内で活性状態を維持しています。",
+                "DEFAULT": "**[データ同期]** 当該書類の提出期限が未到来か、SEC EDGARシステム内でのアーカイブ処理が進行中です。"
             },
             "zh": {
-                "S-1": "🔍 **[发行人分类]** 该企业被识别为外国发行人 (Foreign Issuer) 或 SPAC。请参阅 **[F-1]** 栏目获取详细公告数据。",
-                "F-1": "🔍 **[发行人分类]** 已确认该企业为美国本土发行人 (Domestic Issuer)。根据规定的公告内容请在 **[S-1]** 栏目查看。",
-                "S-1/A": "⏳ **[申报状态]** 提交首次登记表后的修订案 (S-1/A) 尚未公布。发行价区间确定后将实时更新。",
-                "FWP": "📑 **[补充信息]** 目前该企业尚未在 SEC 注册额外的路演资料或营销用自由撰写招股说明书 (FWP)。",
-                "424B4": "📈 **[定价确认]** 最终定价公告 (424B4) 通常在上市前 24-48 小时内完成。确认后将立即生成分析报告。",
-                "RW": "✅ **[发行状态]** 目前未发现与撤回上市 (RW) 相关的异常情况。上市程序正处于正常推进轨道。",
-                "Form 25": "🛡️ **[上市状态]** 未检测到退市 (Delisting) 相关事件。该股票在正规市场内保持活跃状态。",
-                "DEFAULT": "🔄 **[数据同步]** 该文件的提交截止日期尚未到期，或 SEC EDGAR 系统正在进行归档处理。"
+                "S-1": "**[发行人分类]** 该企业被识别为外国发行人 (Foreign Issuer) 或 SPAC。请参阅 **[F-1]** 栏目获取详细公告数据。",
+                "F-1": "**[发行人分类]** 已确认该企业为美国本土发行人 (Domestic Issuer)。根据规定的公告内容请在 **[S-1]** 栏目查看。",
+                "S-1/A": "**[申报状态]** 提交首次登记表后的修订案 (S-1/A) 尚未公布。发行价区间确定后将实时更新。",
+                "FWP": "**[补充信息]** 目前该企业尚未在 SEC 注册额外的路演资料或营销用自由撰写招股说明书 (FWP)。",
+                "424B4": "**[定价确认]** 最终定价公告 (424B4) 通常在上市前 24-48 小时内完成。确认后将立即生成分析报告。",
+                "RW": "**[发行状态]** 目前未发现与撤回上市 (RW) 相关的异常情况。上市程序正处于正常推进轨道。",
+                "Form 25": "**[上市状态]** 未检测到退市 (Delisting) 相关事件。该股票在正规市场内保持活跃状态。",
+                "DEFAULT": "**[数据同步]** 该文件的提交截止日期尚未到期，或 SEC EDGAR 系统正在进行归档处理。"
             }
         }
         lang_dict = msg_map.get(lang, msg_map['ko'])
@@ -650,15 +652,23 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         else:
             base_msg = "\n\n(Note: Actual filing content is currently unavailable.)\n"
 
-        if lang == 'en':
-            return f"You are a Senior Wall Street Analyst.\nTarget: {company_name} ({ticker}) - {topic}\nCheckpoints: {meta['p']}\n{sec_fact_prompt}\n{base_msg}\n[STRICT RULES]\n1. ALWAYS base your analysis ONLY on the provided [ACTUAL SEC FILING CONTENT].\n2. NEVER invent facts or business strategies not mentioned in the text.\n3. If information is missing, clearly state that it is unavailable in the filing.\n4. DO NOT use introductory phrases like '[Basic Summary]'. Start directly with headings.\n[Structure]\n{meta['s']}\n{format_inst}"
-        elif lang == 'ja':
-            return f"あなたは証券分析のエキスパートです。\n分析対象: {company_name} ({ticker}) - {topic}\n{sec_fact_prompt}\n{base_msg}\n[厳格な作成ルール]\n1. 提供された [ACTUAL SEC FILING CONTENT] にのみ基づいて分析してください.\n2. 本文にない事実や戦略を捏造することは厳禁です.\n3. 全て日本語で作成してください.\n4. すぐに見出しから始めてください.\n[構成]\n{meta['s']}\n{format_inst}"
-        elif lang == 'zh':
-            return f"您是资深证券分析师。\n分析目标: {company_name} ({ticker}) - {topic}\n{sec_fact_prompt}\n{base_msg}\n[严格编写指南]\n1. 必须完全基于提供的 [ACTUAL SEC FILING CONTENT] 进行分析.\n2. 严禁编造任何事实或业务战略.\n3. 绝对不要写“[基本摘要]”等开场白，直接从小标题开始.\n[结构要求]\n{meta['s']}\n{format_inst}"
-        else: # ko
-            return f"당신은 월가 출신의 전문 분석가입니다。\n분석 대상: {company_name} ({ticker}) - {topic}\n체크포인트: {meta['p']}\n{sec_fact_prompt}\n{base_msg}\n[작성 지침 - 절대 준수]\n1. 반드시 제공된 [ACTUAL SEC FILING CONTENT] 데이터에만 근거하여 작성하세요.\n2. 본문에 없는 내용을 지어내는 것은 '치명적인 오류'입니다. 확실하지 않은 정보는 \"데이터 미제공\"으로 처리하세요.\n3. \"[기본 요약]\" 같은 머리말을 절대 쓰지 말고 바로 본론부터 시작하세요.\n4. 숫자에 별표(**) 강조를 쓰지 마세요.\n[내용 구성 지침]\n{meta['s']}\n{format_inst}"
+        # 🚨 [AI의 멱살을 잡는 마스터 프롬프트] 숫자를 강제하고, 면책조항을 무시하게 만듦
+        common_rules = """
+[STRICT RULES FOR WALL STREET ANALYST]
+1. YOU MUST EXTRACT HARD NUMBERS: Always include specific figures (e.g., MAU, Revenue $, Growth %, TAM, GMV) found in the text. If it says "leading", find the number that proves it.
+2. IGNORE BOILERPLATE: Completely ignore legal disclaimers, underwriter contact info, and forward-looking statement warnings. Focus ONLY on business highlights and financials.
+3. NO HALLUCINATION: Base your analysis ONLY on the provided text.
+4. NO INTRODUCTIONS: Start immediately with the first heading. Do NOT say 'Here is the analysis'.
+"""
 
+        if lang == 'en':
+            return f"You are a Lead Buy-Side Analyst.\nTarget: {company_name} ({ticker}) - {topic}\nCheckpoints: {meta['p']}\n{sec_fact_prompt}\n{base_msg}\n{common_rules}\n[Structure]\n{meta['s']}\n{format_inst}"
+        elif lang == 'ja':
+            return f"あなたはバイサイドのシニアアナリストです。\n分析対象: {company_name} ({ticker}) - {topic}\n{sec_fact_prompt}\n{base_msg}\n{common_rules}\n[構成]\n{meta['s']}\n{format_inst}"
+        elif lang == 'zh':
+            return f"您是买方资深分析师。\n分析目标: {company_name} ({ticker}) - {topic}\n{sec_fact_prompt}\n{base_msg}\n{common_rules}\n[结构要求]\n{meta['s']}\n{format_inst}"
+        else: # ko
+            return f"당신은 월스트리트 바이사이드(Buy-side) 수석 애널리스트입니다.\n분석 대상: {company_name} ({ticker}) - {topic}\n체크포인트: {meta['p']}\n{sec_fact_prompt}\n{base_msg}\n{common_rules}\n[내용 구성 지침]\n{meta['s']}\n{format_inst}"
     # ---------------------------------------------------------
     # 🚀 [3] 기업 상태 및 기간 분석
     # ---------------------------------------------------------
