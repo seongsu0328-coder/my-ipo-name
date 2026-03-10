@@ -4147,9 +4147,9 @@ with main_area.container():
                 st.rerun()
 
             
-            # --- Tab 0: 핵심 정보 (개선된 최종본) ---
+            # --- Tab 0: 핵심 정보 (안정성 + 고도화 파싱 통합본) ---
             if selected_sub_menu == get_text('tab_0'):
-                # 1. 버튼 스타일링 (2주 전 코드의 깔끔한 하얀색/빨간색 분리)
+                # 1. 버튼 스타일링 (2주 전의 깔끔한 디자인 유지)
                 st.markdown("""<style>
                     div.stButton > button[kind="secondary"] { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #dcdcdc !important; border-radius: 8px !important; height: 3em !important; font-weight: bold !important; } 
                     div.stButton > button[kind="secondary"]:hover { border-color: #6e8efb !important; color: #6e8efb !important; } 
@@ -4157,7 +4157,7 @@ with main_area.container():
                     div.stButton > button[kind="primary"]:hover { background-color: #b71c1c !important; border-color: #b71c1c !important; }
                 </style>""", unsafe_allow_html=True)
             
-                # 2. 기업 상태 및 버튼 레이아웃 결정 (2주 전의 안정적인 구조)
+                # 2. 기업 상태 및 버튼 레이아웃 결정
                 f_status = str(stock.get('status', current_s)).lower()
                 is_withdrawn = any(x in f_status for x in ['철회', '취소', 'withdrawn'])
                 is_delisted = any(x in f_status for x in ['폐지', 'delisted'])
@@ -4168,7 +4168,6 @@ with main_area.container():
                     if (datetime.now().date() - ipo_dt_val).days > 365: is_over_1y = True
                 except: pass
             
-                # 버튼 리스트 생성
                 if is_withdrawn:
                     btn_layout = [("S-1", "secondary"), ("S-1/A", "secondary"), ("F-1", "secondary"), ("FWP", "secondary"), ("RW", "primary")]
                     default_topic = "RW"
@@ -4190,24 +4189,22 @@ with main_area.container():
                 except: pass
                 if has_8k: btn_layout.append(("8-K", "primary"))
             
-                # 현재 선택된 토픽 유효성 검사
                 valid_topics = [b[0] for b in btn_layout]
                 if 'core_topic' not in st.session_state or st.session_state.core_topic not in valid_topics:
                     st.session_state.core_topic = default_topic
             
-                # 버튼 렌더링
                 label_map = { "S-1": get_text('label_s1'), "S-1/A": get_text('label_s1a'), "F-1": get_text('label_f1'), "FWP": get_text('label_fwp'), "424B4": get_text('label_424b4'), "RW": get_text('label_rw'), "Form 25": get_text('label_form25'), "10-K": get_text('label_10k'), "10-Q": get_text('label_10q'), "BS": get_text('label_bs'), "IS": get_text('label_is'), "CF": get_text('label_cf'), "8-K": "🚨 8-K" }
                 
                 cols = st.columns(4)
                 for i, (t_name, t_style) in enumerate(btn_layout):
-                    if cols[i % 4].button(label_map.get(t_name, t_name), type=t_style, use_container_width=True, key=f"btn_v2_{t_name}"):
+                    if cols[i % 4].button(label_map.get(t_name, t_name), type=t_style, use_container_width=True, key=f"btn_tab0_final_{t_name}"):
                         st.session_state.core_topic = t_name
                         st.rerun()
             
                 t_topic = st.session_state.core_topic
                 st.info(get_text(f"desc_{t_topic.lower().replace('/','').replace('-','').replace(' ','')}"))
             
-                # 3. 데이터 로드 및 스마트 파싱 (공란 방지 및 포맷 최적화)
+                # 3. 데이터 로드 및 고도화 파싱 (찌꺼기 제거 및 밀착 레이아웃)
                 with st.expander(f" {t_topic} {get_text('btn_summary_view')}", expanded=True):
                     with st.spinner("분석 리포트를 불러오는 중..."):
                         a_res = get_ai_analysis(stock['name'], t_topic, st.session_state.lang)
@@ -4216,39 +4213,52 @@ with main_area.container():
                         st.error("데이터를 불러올 수 없습니다.")
                     else:
                         import re
-                        # [Step 1] 구분자 및 원본 텍스트 정리
+                        # [Step 1] 기본 텍스트 정리
                         raw_text = a_res.replace("|||SEP|||", "\n").replace("**", "").strip()
                         
-                        # [Step 2] 8-K가 아닐 때 하단 8-K 멘트 강제 제거
                         if t_topic != "8-K":
                             raw_text = raw_text.split("8-K 분석]")[0].split("보고된 돌발")[0].strip()
             
-                        # [Step 3] 줄 단위로 읽으며 소제목 강제 포맷팅 (다국어 범용)
-                        lines = raw_text.split('\n')
-                        final_lines = []
-                        for line in lines:
-                            l = line.strip()
-                            if not l or any(x in l for x in ["요약", "분석", "Summary", "分析"]): continue
-                            
-                            # 소제목 감지 (대괄호가 있거나, 짧고 마침표가 없음)
-                            if (l.startswith('[') and l.endswith(']')) or (len(l) < 50 and not re.search(r'[.。!?>]', l) and not l.endswith(('다', '요', 'ね', 'る', '了'))):
-                                title = l.replace('[','').replace(']','').strip()
-                                if final_lines: final_lines.append("")
-                                final_lines.append(f"<b>[{title}]</b>")
+                        # [Step 2] 하단 미완성 찌꺼기([] , [최근] 등) 제거
+                        lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
+                        while lines:
+                            last_l = lines[-1]
+                            if last_l == "[]" or (last_l.startswith('[') and len(last_l) < 10) or (len(last_l) < 7 and not re.search(r'[.。!?>]', last_l)):
+                                lines.pop()
                             else:
-                                final_lines.append(l)
-                        
-                        d_text = "\n\n".join(final_lines).strip()
-                        if len(d_text) < 10: d_text = raw_text # 안전장치
+                                break
             
-                        # [Step 4] 8-K 프리미엄 블러 또는 본문 렌더링
+                        # [Step 3] HTML 조립 (제목-본문 밀착)
+                        formatted_html = ""
+                        last_was_heading = False
+                        for line in lines:
+                            if any(x in line for x in ["기본 요약", "요약보기", "분석 결과"]): continue
+                            
+                            # 소제목 감지 로직
+                            is_heading = (line.startswith('[') and line.endswith(']')) or \
+                                         (len(line) < 55 and not re.search(r'[.。!?>]', line) and not line.endswith(('다', '요', 'ね', 'る', '了')))
+                            
+                            if is_heading:
+                                title = line.replace('[', '').replace(']', '').strip()
+                                if formatted_html: formatted_html += "<br><br>"
+                                formatted_html += f"<b>[{title}]</b><br>"
+                                last_was_heading = True
+                            else:
+                                if last_was_heading: formatted_html += line
+                                else: formatted_html += " " + line
+                                last_was_heading = False
+            
+                        d_text = formatted_html.strip()
+                        if len(d_text) < 15: d_text = raw_text.replace('\n', '<br>')
+            
+                        # [Step 4] 출력 및 8-K 프리미엄 블러
                         if t_topic == "8-K" and not is_premium:
                             blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다... (이하 블러 처리)"
                             st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #d32f2f; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_8k_blur_teaser')}</p></div></div>""", unsafe_allow_html=True)
                         else:
-                            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
+                            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text}</div>', unsafe_allow_html=True)
             
-                # 5. 하단 링크 및 버튼 (2주 전 코드의 깔끔한 매핑 방식)
+                # 4. 외부 링크 및 하단 버튼
                 import urllib.parse
                 cik = profile.get('cik', '') if profile else ''
                 sec_q = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
