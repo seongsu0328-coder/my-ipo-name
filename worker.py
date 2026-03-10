@@ -74,21 +74,23 @@ SUPPORTED_LANGS = {
 
 def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
     """
-    [최종 진화형] FMP 검색 -> SEC CIK 우회 -> FMP 텍스트 실패 시 SEC 원문 직접 스크래핑
+    [결함 해결] CIK를 활용하여 FMP와 SEC EDGAR를 하이브리드로 추적하는 스크래퍼
     """
     try:
         accession_num = None
         filed_date = None
 
-        # 1. FMP API 티커 검색
-        search_url = f"https://financialmodelingprep.com/api/v3/sec_filings/{ticker}?type={doc_type}&limit=1&apikey={api_key}"
+        # 1차: FMP에 CIK 번호(없으면 티커)를 직접 던져서 문서번호 획득
+        search_target = cik if cik else ticker
+        search_url = f"https://financialmodelingprep.com/api/v3/sec_filings/{search_target}?type={doc_type}&limit=1&apikey={api_key}"
         r = requests.get(search_url, timeout=5)
+        
         if r.status_code == 200 and r.json():
             filing_info = r.json()[0]
             accession_num = filing_info.get('accessionNumber')
             filed_date = filing_info.get('fillingDate')
 
-        # 2. FMP 실패 시 SEC EDGAR CIK 우회 검색
+        # 2차: 1차가 실패했을 경우, SEC 서버에 직접 접속하여 문서번호 탈취!
         if not accession_num and cik:
             time.sleep(0.5)
             sec_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
@@ -100,40 +102,25 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
                 acc_nums = filings.get('accessionNumber', [])
                 
                 for i, form in enumerate(forms):
+                    # F-1, 424B4 등 정확한 서류 매칭
                     if doc_type.upper() in str(form).upper():
                         accession_num = acc_nums[i]
                         filed_date = dates[i]
-                        print(f"🕵️‍♂️ [SEC Bypass] SEC 데이터베이스에서 {ticker}의 {doc_type} 문서 번호 식별 성공!")
+                        print(f"🕵️‍♂️ [SEC Bypass] {ticker}의 {doc_type} 문서를 SEC에서 직접 찾아냈습니다: {accession_num}")
                         break
 
+        # 양쪽 다 뒤졌는데 없으면 진짜 없는 서류임
         if not accession_num:
-            return filed_date, None
+            return None, None
 
-        # 3. 문서번호로 FMP에서 텍스트 추출 시도
+        # 3차: 확보한 정확한 문서번호로 FMP에서 텍스트 본문 강제 추출
         text_url = f"https://financialmodelingprep.com/api/v4/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
         txt_res = requests.get(text_url, timeout=7)
-        full_text = ""
         
         if txt_res.status_code == 200 and txt_res.json():
             full_text = txt_res.json()[0].get('content', '')
-
-        # 🚀 4. [최종 병기] FMP가 텍스트 변환을 못했다면? SEC 원문 직접 스크래핑!
-        if not full_text and cik:
-            print(f"⚠️ FMP 텍스트 변환 지연. SEC 서버 원문(Archive) 직접 추출 시도: {ticker} ({doc_type})")
-            acc_no_dash = str(accession_num).replace('-', '')
-            cik_int = str(int(cik)) # SEC URL은 앞의 0을 빼야 함
-            sec_doc_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_no_dash}/{accession_num}.txt"
-            
-            doc_res = requests.get(sec_doc_url, headers=SEC_HEADERS, timeout=10)
-            if doc_res.status_code == 200:
-                # HTML 태그 싹 밀어버리고 순수 텍스트만 추출
-                clean_text = re.sub(r'<[^>]+>', ' ', doc_res.text)
-                clean_text = re.sub(r'\s+', ' ', clean_text)
-                full_text = clean_text
-                print(f"✅ [SEC Scraping] SEC 원문 직접 추출 대성공! ({len(full_text)} bytes)")
-
-        if full_text:
-            return filed_date, full_text[:20000]
+            if full_text:
+                return filed_date, full_text[:20000] 
         
         return filed_date, None
 
@@ -534,11 +521,12 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
     cik = cik_mapping.get(ticker) if cik_mapping else None
     if not cik:
-        cik = get_cik_from_sec(ticker)
+        # 3중 추적 엔진 가동
+        cik = get_fallback_cik(ticker, company_name, FMP_API_KEY)
         if cik:
             if cik_mapping is not None:
                 cik_mapping[ticker] = cik
-            print(f"🔍 [CIK 획득] 명단에 없는 {ticker}의 CIK({cik})를 실시간으로 찾아냈습니다.")
+            print(f"🔍 [CIK 획득 대성공!] 명단에 숨어있던 {ticker}의 CIK({cik})를 찾아냈습니다.")
 
     # 12가지 문서의 세부 지시사항 (대표님의 기존 번역 100% 유지)
     def get_localized_meta(lang, doc_type):
@@ -781,6 +769,7 @@ Checkpoints: {meta['p']}
     # ---------------------------------------------------------
     for topic in target_topics:
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
+        f_date, f_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY, cik)
         
         # 🚀 1. 변수 이름을 f_date 와 f_text 로 완벽히 통일해서 받아옵니다.
         f_date, f_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY, cik)
