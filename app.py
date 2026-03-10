@@ -4260,7 +4260,7 @@ with main_area.container():
                         if len(d_text) < 15: d_text = raw_text.replace('\n', '<br>')
             
                         # [Step 4] 출력 및 8-K 프리미엄 블러
-                        if t_topic == "8-8K" or (t_topic == "8-K" and not is_premium):
+                        if t_topic == "8-K" or (t_topic == "8-K" and not is_premium):
                             blur_text = "최근 공시된 8-K(중대 이벤트)에 따르면, 이 기업은 경영진 변경 및 대규모 자본 조달과 관련된 중대한 결정을 내렸습니다... (이하 블러 처리)"
                             st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #d32f2f; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_8k_blur_teaser')}</p></div></div>""", unsafe_allow_html=True)
                         else:
