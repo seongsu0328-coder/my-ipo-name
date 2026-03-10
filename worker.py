@@ -129,7 +129,7 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
                 print(f"✅ [SEC Scraping] SEC 본진 원문 확보 완료! ({len(full_text)} 자)")
 
         if full_text and len(full_text) > 100:
-            return filed_date, full_text[:20000] # AI 분석용 2만 자 슬라이싱
+            return filed_date, full_text[:40000] # AI 분석용 4만 자 슬라이싱
         
         return filed_date, None
 
@@ -649,13 +649,13 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         else:
             base_msg = "\n\n(Note: Actual filing content is currently unavailable.)\n"
 
-        # 🚨 [AI의 멱살을 잡는 마스터 프롬프트] 숫자를 강제하고, 면책조항을 무시하게 만듦
+        # 🚨 [AI 통제 규칙 2.0] 추상적 표현 금지 및 숫자 강박증 주입
         common_rules = """
 [STRICT RULES FOR WALL STREET ANALYST]
-1. YOU MUST EXTRACT HARD NUMBERS: Always include specific figures (e.g., MAU, Revenue $, Growth %, TAM, GMV) found in the text. If it says "leading", find the number that proves it.
-2. IGNORE BOILERPLATE: Completely ignore legal disclaimers, underwriter contact info, and forward-looking statement warnings. Focus ONLY on business highlights and financials.
-3. NO HALLUCINATION: Base your analysis ONLY on the provided text.
-4. NO INTRODUCTIONS: Start immediately with the first heading. Do NOT say 'Here is the analysis'.
+1. HARD NUMBERS ONLY: Your success depends on finding numbers. You MUST extract Revenue, Profit, MAU, GMV, or Market Share figures. If a number exists in the text, it MUST be in the summary.
+2. NO VAGUE FILLERS: Never use phrases like "aims to increase awareness," "seeks to expand," or "likely to use." These are considered hallucinations of uncertainty. Replace them with "The company reports X users" or "allocated $Y for Z."
+3. FACTUAL CERTAINTY: If specific data is missing, state "[Data not in filing]" instead of writing generic marketing sentences. 
+4. IGNORE BOILERPLATE: Skip all underwriter lists, SEC registration warnings, and "how to read this" instructions.
 """
 
         if lang == 'en':
@@ -716,7 +716,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     else: # en
                         meta_8k = {"p": "Material Events", "s": "Para 1: [Core Event] Reason summary\nPara 2: [Financial Impact] Analysis\nPara 3: [Future Outlook] Key points"}
                         
-                    prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, f"[SEC FACT CHECK] Filed on {f_date_8k}", get_format_instruction(lang_code), f_text_8k[:15000])
+                    prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, f"[SEC FACT CHECK] Filed on {f_date_8k}", get_format_instruction(lang_code), f_text_8k[:40000])
                     
                     try:
                         resp_8k = model.generate_content(prompt_8k)
