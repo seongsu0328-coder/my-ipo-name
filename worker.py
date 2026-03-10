@@ -727,12 +727,12 @@ Checkpoints: {meta['p']}
             except: pass
 
     # ---------------------------------------------------------
-    # 💡 일반 서류 루프 (스마트 Bypass 적용 및 변수 에러 완벽 해결)
+    # 💡 일반 서류 루프 (스마트 Bypass 적용 및 변수 오타 완전 해결!)
     # ---------------------------------------------------------
     for topic in target_topics:
         sec_search_target = "10-K" if topic in ["BS", "IS", "CF"] else topic
         
-        # 🚀 [오타 수정 완료] f_date와 f_text로 변수명을 정확히 통일했습니다.
+        # 🚀 1. 변수 이름을 f_date 와 f_text 로 완벽히 통일해서 받아옵니다.
         f_date, f_text = fetch_sec_filing_text(ticker, sec_search_target, FMP_API_KEY)
         
         for lang_code in SUPPORTED_LANGS.keys():
@@ -742,20 +742,21 @@ Checkpoints: {meta['p']}
                 if res.data: continue 
             except: pass
 
-            # 🚀 [핵심] 본문이 아예 없거나 너무 짧으면, AI 호출 생략(Bypass) 후 안내 멘트 즉시 저장
+            # 🚀 2. f_text 를 사용하여 본문 부재 여부 검사 (Bypass 적용)
             if not f_text or len(f_text) < 100:
                 missing_msg = get_missing_document_message(lang_code, topic)
                 formatted_msg = f"<div style='background-color:#f8f9fa; padding:15px; border-radius:8px; color:#555; font-size:15px; line-height:1.6;'>{missing_msg}</div>"
                 
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
                 print(f"✅ [{ticker}] {topic} 서류 부재 - 맞춤 안내 멘트 적용 완료 ({lang_code})")
-                continue # 다음 언어로 넘어가며 AI 호출은 건너뜀
+                continue # AI 호출 건너뜀
 
-            # 🚀 본문이 있는 경우에만 RAG 방식으로 AI 프롬프트 생성 및 호출
+            # 🚀 3. 정상적으로 본문이 있으면 AI 호출
             current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
             meta = get_localized_meta(lang_code, topic)
             format_inst = get_format_instruction(lang_code)
             
+            # 여기서도 통일된 f_text 변수를 정확히 주입합니다!
             prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, format_inst, f_text)
             
             for attempt in range(2):
