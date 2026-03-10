@@ -519,70 +519,47 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         elif lang == 'zh': return "- 每个段落以中文 **[副标题]** 开头。每段4-5句，请勿对数值进行加粗处理。"
         else: return "- 각 문단은 반드시 **[소제목]**으로 시작하세요. 각 문단마다 4~5줄(문장) 길이로 작성하며, 숫자에 강조(**)는 절대 사용하지 마세요."
 
-    def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, fmp_8k):
+   def get_localized_instruction(lang, ticker, topic, company_name, meta, sec_fact_prompt, format_inst):
+        # 💡 [핵심 수정] 8-K 파라미터 삭제. |||SEP||| 지시 삭제. 불필요한 머리말([기본 요약]) 강제 금지.
         if lang == 'en':
             return f"""You are a Senior Wall Street Analyst.
 Target: {company_name} ({ticker}) - {topic}
 Checkpoints: {meta['p']}
 {sec_fact_prompt}
 
-[Real-time 8-K Events]:
-{fmp_8k}
-
 [STRICT WRITING RULES]
 1. Write ENTIRELY in English. DO NOT use markdown bold (**) for numbers.
-2. Separate your response into exactly TWO parts using '|||SEP|||'.
+2. DO NOT use introductory phrases like "[Basic Summary]" or "Here is the summary". Start directly with the headings.
 
 [Structure]
 {meta['s']}
-{format_inst}
-
-|||SEP|||
-
-**[Real-time 8-K Critical Event Analysis]**
-Analyze the 8-K events above. If "No recent", state it clearly. If there are events, explain their critical impact on the stock in 4-5 sentences."""
+{format_inst}"""
 
         elif lang == 'ja':
             return f"""あなたは証券分析のエキスパートです。
 分析対象: {company_name} ({ticker}) - {topic}
 {sec_fact_prompt}
 
-[最新の8-Kイベント]:
-{fmp_8k}
-
 [厳格な作成ルール]
 1. 全て日本語で作成し、数値に強調(**)は使用しないでください。
-2. 回答は必ず '|||SEP|||' を使用して2つの部分に分けてください。
+2. 「[基本要約]」のような不要な前置きは絶対に書かず、すぐに見出しから始めてください。
 
 [構成]
 {meta['s']}
-{format_inst}
-
-|||SEP|||
-
-**[リアルタイム8-K重大イベント分析]**
-上記の8-Kイベントを分析してください。イベントがない場合はその旨を記載し、ある場合は株価への致命的な影響を4〜5文で解説してください。"""
+{format_inst}"""
 
         elif lang == 'zh':
             return f"""您是资深证券分析师。
 分析目标: {company_name} ({ticker}) - {topic}
 {sec_fact_prompt}
 
-[最新8-K事件]:
-{fmp_8k}
-
 [严格编写指南]
 1. 必须完全使用简体中文编写，严禁对数值加粗(**)。
-2. 回答必须使用 '|||SEP|||' 严格分为两部分。
+2. 绝对不要写“[基本摘要]”等不必要的开场白，直接从小标题开始。
 
 [结构要求]
 {meta['s']}
-{format_inst}
-
-|||SEP|||
-
-**[实时8-K重大事件分析]**
-分析上述8-K事件。如果没有，请明确说明。如果有，请用4-5句话解释其对股价的致命影响。"""
+{format_inst}"""
 
         else: # ko
             return f"""당신은 월가 출신의 전문 분석가입니다.
@@ -590,23 +567,19 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
 체크포인트: {meta['p']}
 {sec_fact_prompt}
 
-[최근 8-K 중대 이벤트]:
-{fmp_8k}
-
 [작성 지침]
 1. 반드시 한국어로만 작성하고 숫자에 별표(**) 강조를 쓰지 마세요.
-2. 답변은 반드시 '|||SEP|||' 구분자를 기준으로 [기본 요약]과 [8-K 분석] 두 부분으로 나누어 출력하세요.
+2. "[기본 요약]"이나 "요약해 드리겠습니다" 같은 불필요한 머리말을 절대 쓰지 말고 바로 본론(소제목)부터 시작하세요.
 
 [내용 구성 지침]
 {meta['s']}
 {format_inst}
-
-|||SEP|||
-
-**[실시간 8-K 중대 이벤트 분석]**
-제공된 8-K 데이터를 분석하세요. 이벤트가 없다면 "최근 보고된 돌발 악재/호재가 없습니다."라고 적으세요. 데이터가 있다면 해당 이슈가 단기 주가에 미칠 치명적 파급력을 4~5문장으로 냉철하게 분석하세요.
 """
 
+    # ========================================================
+    # 💡 [중요] 아래쪽 호출 코드도 fmp_8k_data 를 빼고 수정하셔야 합니다!
+    # ========================================================
+    
     # 💡 [핵심] 루프 밖에서 8-K 전용 데이터 수집 및 실시간 변동 감지
     fmp_8k_data = fetch_fmp_8k_events(ticker, FMP_API_KEY)
     
@@ -643,7 +616,6 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
             try:
-                # [통일] 8-K 독립 데이터 역시 "3단락 / 각 4~5문장"으로 동일하게 적용 (기존 지침 유지)
                 if lang_code == 'en':
                     p_8k = f"You are a Wall Street Analyst.\nTarget: 8-K (Material Events) for {company_name} ({ticker})\nData: {fmp_8k_data}\n\n[Structure]\nPara 1: [Core Event] Summarize the most critical event from the 8-K.\nPara 2: [Financial Impact] Analyze the impact on financials and stock price.\nPara 3: [Future Outlook] Forecast management's next steps or points for investors.\n- Begin each paragraph with a **[Heading]**. Write exactly 3 paragraphs. Each paragraph should be about 4-5 sentences. DO NOT bold numbers."
                 elif lang_code == 'ja':
@@ -656,10 +628,9 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
                 response_8k = model.generate_content(p_8k)
                 
                 if response_8k and response_8k.text:
-                    # app.py 구조(parts[1] 호출)에 맞게 가짜 앞부분 강제 삽입
-                    final_8k_text = response_8k.text
-                    if "|||SEP|||" not in final_8k_text:
-                        final_8k_text = f"Summary Area|||SEP|||{final_8k_text}"
+                    # 💡 [핵심] 이제 일반 서류와 완벽히 분리되었으므로 가짜 |||SEP|||를 강제로 끼워 넣지 않고,
+                    # 그냥 순수한 8-K 리포트 텍스트 자체만 저장합니다!
+                    final_8k_text = response_8k.text.strip()
                         
                     batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": final_8k_text, "updated_at": datetime.now().isoformat()}], "cache_key")
                     print(f"🚨 [{ticker}] 8-K 신규 분석 캐싱 완료 ({lang_code})")
@@ -685,7 +656,9 @@ Analyze the 8-K events above. If "No recent", state it clearly. If there are eve
 
             meta = get_localized_meta(lang_code, topic)
             format_inst = get_format_instruction(lang_code)
-            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, sec_fact_prompt, format_inst, fmp_8k_data)
+            
+            # 🚨 [중요] 여기서 fmp_8k_data 인자를 뺐습니다!
+            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, sec_fact_prompt, format_inst)
             
             for attempt in range(2):
                 try:
