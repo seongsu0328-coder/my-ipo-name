@@ -635,39 +635,36 @@ Checkpoints: {meta['p']}
     # 💡 [중요] 아래쪽 호출 코드도 fmp_8k_data 를 빼고 수정하셔야 합니다!
     # ========================================================
     
-    # 💡 [핵심] 루프 밖에서 8-K 전용 데이터 수집 및 실시간 변동 감지
-    # 기존 fetch_fmp_8k_events 호출 대신 이걸 사용하세요.
+    # 💡 [핵심 교정] 8-K 전용 데이터 수집: 링크 리스트가 아닌 '진짜 본문'을 가져옵니다.
     f_date_8k, f_text_8k = fetch_sec_filing_text(ticker, "8-K", FMP_API_KEY)
     
-    # fmp_8k_data 변수를 쓰는 기존 로직이 있다면 f_text_8k로 대체합니다.
-    if f_text_8k:
-        # (이후 캐싱 및 알림 로직은 동일하게 유지)
+    # 기존 로직과의 호환성을 위해 본문 텍스트를 fmp_8k_data에 담아줍니다.
+    fmp_8k_data = f_text_8k if f_text_8k else "No recent 8-K events."
     
     is_new_8k = False
     raw_cache_key = f"{ticker}_8K_RawData_v1"
     
-    if "No recent" not in fmp_8k_data:
+    # 💡 본문 데이터가 실제로 존재할 때만 업데이트 검사 진행
+    if fmp_8k_data != "No recent 8-K events.":
         try:
             res_raw = supabase.table("analysis_cache").select("content").eq("cache_key", raw_cache_key).execute()
             cached_raw = res_raw.data[0]['content'] if res_raw.data else ""
             
-            if not cached_raw:
-                # 최초 DB 적재 시 (알림 폭탄 방지)
+            # 최초 DB 적재 또는 본문의 앞부분 500자가 달라졌을 때 (새 공시 발생)
+            if not cached_raw or fmp_8k_data[:500] != cached_raw[:500]:
                 is_new_8k = True
-                batch_upsert("analysis_cache", [{"cache_key": raw_cache_key, "content": fmp_8k_data, "updated_at": datetime.now().isoformat()}], "cache_key")
-            elif fmp_8k_data != cached_raw:
-                # 🚨 기존 텍스트와 달라짐 = 새로운 8-K 업데이트 발생!
-                is_new_8k = True
-                batch_upsert("analysis_cache", [{"cache_key": raw_cache_key, "content": fmp_8k_data, "updated_at": datetime.now().isoformat()}], "cache_key")
+                # 캐시에는 비교용으로 앞부분 일부만 저장 (용량 절약)
+                batch_upsert("analysis_cache", [{"cache_key": raw_cache_key, "content": fmp_8k_data[:2000], "updated_at": datetime.now().isoformat()}], "cache_key")
                 
-                # 프리미엄 유저 대상 알림 발송
+                # 프리미엄 유저 대상 알림 발송 (여기서부터는 대표님 기존 로직 유지)
                 batch_upsert("premium_alerts", [{
                     "ticker": ticker, 
                     "alert_type": "8K_UPDATE", 
                     "title": f"{ticker} 8-K 업데이트", 
-                    "message": "새로운 8-K(중대 이벤트) 공시가 등록되었습니다. Tab 0에서 최신 분석 내용을 확인하세요."
+                    "message": "새로운 8-K(중대 이벤트) 공시가 등록되었습니다. Tab 0에서 '진짜 본문' 분석 내용을 확인하세요."
                 }], on_conflict="ticker,alert_type")
-                print(f"🔔 [{ticker}] 신규 8-K 감지! 알림 발송 완료.")
+                print(f"🔔 [{ticker}] 신규 8-K 본문 감지! 알림 발송 완료.")
+                
         except Exception as e:
             print(f"8-K 감지 에러: {e}")
 
