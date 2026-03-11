@@ -1499,6 +1499,15 @@ def get_premium_tab3_summaries(ticker, lang_code):
     return surp_summary, est_summary
 
 @st.cache_data(show_spinner=False, ttl=600)
+def get_premium_tab3_revenue(ticker, lang_code):
+    """[Tab 3] 부문별 매출 비중 AI 요약본을 DB에서 가져옵니다."""
+    try:
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_PremiumRevenueSeg_v1_{lang_code}").execute()
+        if res.data: return res.data[0]['content']
+    except: pass
+    return ""
+
+@st.cache_data(show_spinner=False, ttl=600)
 def get_premium_tab4_summaries(ticker, lang_code):
     """[Tab 4] 투자의견 히스토리 및 경쟁사 비교 AI 요약본을 DB에서 가져옵니다."""
     ud_summary, peers_summary = "", ""
@@ -2310,6 +2319,13 @@ UI_TEXT = {
         'en': 'Global mega-funds like BlackRock use ESG scores as key investment metrics. The detailed analysis of this company\'s Environmental, Social, and Governance risks... (Blurred)',
         'ja': '最近、ブラックロックなどのグローバルメガファンドは投資の核心指標としてESG等級を活用しています。該当企業の環境(E)、社会(S)、ガバナンス(G)リスクに対する詳細な評価スコアは... (以下ぼかし処理)',
         'zh': '最近，包括贝莱德在内的全球大型基金都将ESG评级作为核心投资指标。关于该企业环境(E)、社会(S)和治理(G)风险的全球评估分数及详细分析报告... (以下模糊处理)'
+    },
+    'tab3_revenue_title': {'ko': '📊 부문별 매출 비중 (Revenue Segmentation)', 'en': '📊 Revenue Segmentation', 'ja': '📊 部門別売上比率', 'zh': '📊 各部门营收占比'},
+    'desc_revenue_blur': {
+        'ko': '이 기업의 진정한 캐시카우(Cash Cow)는 어디일까요? 전체 매출의 60% 이상을 차지하는 주력 사업 부문과, 전년 대비 40% 이상 폭발적으로 고성장 중인 신규 사업 부문의 구체적인 매출 비중 및 영업이익 기여도는... (이하 블러 처리)',
+        'en': 'Where is this company\'s true cash cow? The specific revenue breakdown of the flagship business generating over 60% of sales, and the newly emerging sector growing at 40% YoY... (Blurred)',
+        'ja': 'この企業の真のキャッシュカウ（Cash Cow）はどこでしょうか？全体の売上の60%以上を占める主力事業部門と、前年比40%以上で爆発的に高成長している新規事業部門の具体的な売上比率および営業利益貢献度は... (以下ぼかし処理)',
+        'zh': '这家企业真正的摇钱树(Cash Cow)在哪里？占总营收60%以上的主力业务部门，以及同比增长超40%的爆发性新业务部门的具体营收占比和营业利润贡献度是... (以下模糊处理)'
     },
      
     # ==========================================
@@ -4909,31 +4925,26 @@ with main_area.container():
                             blur_text = "월가 컨센서스에 따르면, 내년도 예상 매출액은 전년 대비 약 35% 폭증할 것으로 추정되며, 주당순이익(EPS) 역시 적자에서 흑자로 턴어라운드(Turnaround)할 강력한 모멘텀을... (이하 블러 처리)"
                             st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p></div></div>""", unsafe_allow_html=True)
 
-                # --- 💡 3. 참고문헌 Expander (Tab 3 전용) ---
-                with st.expander(get_text('expander_references'), expanded=False):
-                    # 🚀 [신규 추가] FMP 공식 프리미엄 데이터 출처 링크
+                # =========================================================
+                # 🚀 [NEW] Tab 3 부문별 매출 비중 (Revenue Segmentation) 프리미엄 섹션
+                # =========================================================
+                rev_summary = get_premium_tab3_revenue(sid, st.session_state.lang)
                 
-                    st.markdown(f"- [Financial Modeling Prep: {stock['name']} Financial Summary & Valuation](https://financialmodelingprep.com/financial-summary/{sid})")
-                  
-
-                    st.markdown("""<style>.ref-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; } .ref-title { font-weight: bold; color: #004e92; text-decoration: none; font-size: 0.95rem; } .ref-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e9ecef; color: #495057; font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; } .ref-summary { font-size: 0.85rem; color: #666666; margin-top: 3px; } .ref-btn { background: #fff; border: 1px solid #ddd; padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; color: #555; text-decoration: none; white-space: nowrap; }</style>""", unsafe_allow_html=True)
-                    
-                    # (이하 기존 학술 논문 리스트 로직 유지)
-                    if curr_lang == 'ko': sum_vc = "VC 투자가 상장 시 갖는 공신력 분석"; sum_rock = "정보 비대칭성과 공모가 저평가 메커니즘"
-                    elif curr_lang == 'ja': sum_vc = "VC投資が上場時に持つ公信力の分析"; sum_rock = "情報の非対称性と公募価格の割安メカニズム"
-                    else: sum_vc = "Analyzing the credibility of VC certification."; sum_rock = "Information asymmetry and pricing mechanism."
-                    
-                    references_tab3 = [
-                        {"label": get_text('ref_label_growth'), "title": "The Long-Run Performance of IPOs", "author": "Jay R. Ritter (1991)", "summary": get_text('ref_sum_ipo'), "link": "https://scholar.google.com/scholar?q=Jay+R.+Ritter+1991"},
-                        {"label": get_text('ref_label_fundamental'), "title": "New Lists: Fundamentals and Survival Rates", "author": "Fama & French (2004)", "summary": get_text('ref_sum_withdrawal'), "link": "https://scholar.google.com/scholar?q=Fama+French+2004"},
-                        {"label": get_text('ref_label_accounting'), "title": "Earnings Management and the Long-Run Performance", "author": "Teoh, Welch, & Wong (1998)", "summary": get_text('ref_sum_overheat'), "link": "https://scholar.google.com/scholar?q=Teoh+Welch+Wong+1998"},
-                        {"label": get_text('ref_label_vc'), "title": "The Role of Venture Capital", "author": "Barry et al. (1990)", "summary": sum_vc, "link": "https://www.sciencedirect.com/science/article/abs/pii/0304405X9090006L"},
-                        {"label": get_text('ref_label_underpricing'), "title": "Why New Issues are Underpriced", "author": "Kevin Rock (1986)", "summary": sum_rock, "link": "https://www.sciencedirect.com/science/article/pii/0304405X86900541"}
-                    ]
-                    
-                    st.info(f"💡 {get_text('caption_google_search')} (Source: **{data_source}**)")
-                    for ref in references_tab3:
-                        st.markdown(f"<div class='ref-item'><div style='flex:1; padding-right: 10px;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div class='ref-summary'>{ref['summary']}, {ref['author']}</div></div><div><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
+                if rev_summary:
+                    with st.expander(get_text('tab3_revenue_title'), expanded=False):
+                        if is_premium:
+                            st.markdown(rev_summary, unsafe_allow_html=True)
+                        else:
+                            blur_text = get_text('desc_revenue_blur')
+                            st.markdown(f"""
+                                <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                    <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                        <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                        <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
             
                 draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", ['opt_overvalued', 'sentiment_neutral', 'opt_undervalued'], current_p)
                 display_disclaimer()
