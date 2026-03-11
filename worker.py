@@ -2262,6 +2262,22 @@ def main():
     WORKER_START_TIME = time.time()
     MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간(19,800초)
     
+    # 💡 [핵심 추가] 워커 시작 시간 기록 및 최대 허용 시간(5.5시간) 설정
+    import time
+    WORKER_START_TIME = time.time()
+    MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간(19,800초)
+
+    # =======================================================
+    # 🚨 [운영자 테스트 모드] 강제 AAPL 주입 및 프리미엄 로깅
+    # =======================================================
+    print("\n" + "="*60)
+    print("🚨 [운영자 테스트 모드 가동] 모든 종목을 무시하고 'AAPL' 1개만 정밀 분석합니다.")
+    print("="*60 + "\n")
+    
+    # 💡 [핵심 수정] target_df를 AAPL 1개짜리로 강제 덮어쓰기!
+    target_df = pd.DataFrame([{"symbol": "AAPL", "name": "Apple Inc", "date": "1980-12-12", "status": "Active"}])
+    total = len(target_df)
+
     for idx, row in target_df.iterrows():
         # 💡 [핵심 추가] 5.5시간이 넘어가면 깃허브 강제 종료를 막기 위해 스스로 안전하게 멈춤
         if time.time() - WORKER_START_TIME > MAX_RUN_TIME_SEC:
@@ -2329,6 +2345,20 @@ def main():
             # 👆 [여기까지 추가 완료!]
             
             time.sleep(1.2)
+            
+            # =======================================================
+            # 👑 [운영자 품질 검수 리포트 출력] (테스트 모드 전용)
+            # =======================================================
+            print("\n" + "👑"*25)
+            print(f"👑 [프리미엄 데이터 생성 완료: {original_symbol}]")
+            print("👑 Supabase의 'analysis_cache' 테이블에서 아래 Key를 검색해 내용을 검수하세요!")
+            print(f" 1. [보도자료] {original_symbol}_PressReleaseSummary_v1_ko")
+            print(f" 2. [어닝서프] {original_symbol}_PremiumSurprise_v1_ko")
+            print(f" 3. [실적전망] {original_symbol}_PremiumEstimate_v1_ko")
+            print(f" 4. [투자의견] {original_symbol}_PremiumUpgrades_v1_ko")
+            print(f" 5. [섹터비교] {original_symbol}_PremiumPeers_v1_ko")
+            print(f" 6. [스마트머니] {original_symbol}_Tab6_SmartMoney_v1_ko")
+            print("👑"*25 + "\n")
             
         except Exception as e:
             print(f"⚠️ {original_symbol} 분석 건너뜀: {e}")
