@@ -1680,6 +1680,109 @@ def fetch_analyst_estimates(symbol, api_key):
     except Exception as e: 
         print(f"Analyst Data Fetch Error for {symbol}: {e}")
     return data
+
+# ==========================================
+# [신규 추가] Tab 4 프리미엄 요약 전용 프롬프트 및 수집 함수 (M&A 및 인수합병)
+# ==========================================
+def get_tab4_ma_premium_prompt(lang, ticker, raw_data):
+    if lang == 'en':
+        return f"""You are a Lead M&A Analyst on Wall Street. Summarize the latest Mergers and Acquisitions (M&A) data for {ticker}.
+[Strict Rules]
+1. Write ENTIRELY in English. DO NOT mix other languages.
+2. Write exactly 3 paragraphs:
+   - Para 1: [Recent M&A Transactions & Targets]
+   - Para 2: [Deal Size & Strategic Purpose]
+   - Para 3: [Synergy & Valuation Impact]
+3. Each paragraph must be 4-5 sentences long, packed with specific deal values and professional insights.
+4. DO NOT use markdown bold (**) for numbers.
+5. Omit greetings and start immediately with a professional, objective tone.
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'ja':
+        return f"""あなたはウォール街のシニアM&Aアナリストです。提供されたデータに基づき、{ticker}の最新の「M&Aおよび企業買収履歴」を日本語で深層要約してください。
+[厳格な作成ルール]
+1. 全て自然な日本語のみで記述してください。
+2. 必ず以下の3つの段落に分けて作成してください：
+   - 第1段落: [最近のM&A取引とターゲット企業]
+   - 第2段落: [取引規模と戦略的目的]
+   - 第3段落: [シナジー効果とバリュエーションへの影響]
+3. 各段落は4〜5文で構成し、具体的な買収金額と専門的な洞察を含めてください。
+4. 数値に強調記号（**）は絶対に使用しないでください。
+5. 挨拶は省略し、すぐに本題に入ってください。冷静で客観的な分析トーンを維持してください。
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'zh':
+        return f"""您是华尔街的资深并购(M&A)分析师。请根据提供的数据，用简体中文深度总结 {ticker} 的最新「M&A及企业并购记录」。
+[严格编写规则]
+1. 必须完全使用简体中文编写，严禁混用其他语言。
+2. 必须严格分为以下3个段落：
+   - 第一段: [近期并购交易与目标企业]
+   - 第二段: [交易规模与战略目的]
+   - 第三段: [协同效应与估值(Valuation)影响]
+3. 每个段落应包含4-5句话，并提供具体的交易金额和深刻的专业见解。
+4. 绝对不要使用星号（**）对数字进行加粗。
+5. 省略问候语，直接进入正文。保持冷静、客观和分析的基调。
+
+[Raw Data]:
+{raw_data}"""
+
+    else: # ko
+        return f"""당신은 월가 수석 M&A 애널리스트입니다. 제공된 데이터를 바탕으로 {ticker}의 최신 'M&A 및 기업 인수합병 내역'을 한국어로 심층 요약하세요.
+[작성 규칙 - 엄격 준수]
+1. 반드시 순수한 한국어로만 작성하세요.
+2. 반드시 아래 3개의 문단으로 나누어 작성하세요:
+   - 1문단: [최근 인수합병(M&A) 내역 및 타겟 기업]
+   - 2문단: [거래 규모 및 전략적 목적]
+   - 3문단: [시너지 효과 및 기업가치(Valuation) 파급력]
+3. 각 문단은 4~5줄(문장) 길이로 구체적인 인수 금액($) 수치를 포함해 작성하세요.
+4. 숫자에 별표(**) 강조를 절대 사용하지 마세요.
+5. 인사말을 생략하고 첫 글자부터 본론만 작성하세요. 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 격식 있고 정중한 존댓말(합쇼체)로 작성하세요. (예: ~합니다, ~입니다, ~됩니다, ~전망됩니다 등). 절대 '~한다', '~이다' 형태의 평어체를 사용하지 마세요.
+
+[Raw Data]:
+{raw_data}"""
+
+def run_tab4_ma_premium_collection(ticker, company_name):
+    """Tab 4의 프리미엄 데이터(M&A 내역)를 수집하고 요약하여 캐싱합니다."""
+    if 'model_strict' not in globals() or not model_strict: return
+    try:
+        limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # M&A도 자주 안 터지므로 7일 유지
+        
+        # FMP의 M&A 데이터 호출
+        url = f"https://financialmodelingprep.com/api/v4/mergers-and-acquisitions?symbol={ticker}&apikey={FMP_API_KEY}"
+        ma_raw = get_fmp_data_with_cache(ticker, "RAW_MA_HISTORY", url, valid_hours=168)
+        
+        is_ma_valid = isinstance(ma_raw, list) and len(ma_raw) > 0
+
+        for lang_code in SUPPORTED_LANGS.keys():
+            if is_ma_valid:
+                ma_summary_key = f"{ticker}_PremiumMA_v1_{lang_code}"
+                try:
+                    res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", ma_summary_key).gt("updated_at", limit_time_str).execute()
+                    if not res.data:
+                        # M&A 내역 텍스트 변환 (최대 10개)
+                        import json
+                        content = json.dumps(ma_raw[:10]) 
+                        prompt = get_tab4_ma_premium_prompt(lang_code, ticker, content)
+                        
+                        for attempt in range(3):
+                            try:
+                                resp = model_strict.generate_content(prompt)
+                                if resp and resp.text:
+                                    paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
+                                    indent_size = "14px" if lang_code == "ko" else "0px"
+                                    html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+                                    
+                                    batch_upsert("analysis_cache", [{"cache_key": ma_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                    print(f"✅ [{ticker}] M&A 분석 캐싱 완료 ({lang_code})")
+                                    break
+                            except Exception as e: time.sleep(1)
+                except: pass
+    except Exception as e:
+        print(f"Tab4 Premium M&A Error for {ticker}: {e}")
     
 # ==========================================
 # [수정] 11개 지표 + 4단락 구조로 통합된 워커용 프롬프트
