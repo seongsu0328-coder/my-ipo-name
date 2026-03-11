@@ -2378,27 +2378,26 @@ UI_TEXT = {
         'zh': '市场估值水平'
     },
     
-   # 통합 카드용 간략 설명 (카드 타이틀로 사용됨)
-    'tab2_card1_desc': {
+   # [Tab 2] 3D 통합 카드 타이틀 (명확히 _title 키값으로 저장)
+    'tab2_card1_title': {
         'ko': 'IPO 투기 심리 및 유동성', 
-        'en': 'IPO Speculative Sentiment & Liquidity', 
+        'en': 'IPO Speculative Sentiment', 
         'ja': 'IPO投機心理と流動性', 
         'zh': 'IPO投机情绪与流动性'
     },
-    
-    'tab2_card2_desc': {
+    'tab2_card2_title': {
         'ko': '신규 공급 및 질적 리스크', 
-        'en': 'New Supply & Quality Risk', 
+        'en': 'Supply Glut & Quality Risk', 
         'ja': '新規供給と質的低下リスク', 
         'zh': '新增供给与质量风险'
     },
-    
-    'tab2_card3_desc': {
+    'tab2_card3_title': {
         'ko': '글로벌 거시경제', 
         'en': 'Global Macroeconomy', 
         'ja': 'グローバルマクロ経済', 
         'zh': '全球宏观经济'
     },
+    
     # ==========================================
     # 9. Tab 4: 기관평가
     # ==========================================
@@ -4617,16 +4616,17 @@ with main_area.container():
                     res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"Global_Market_Summary_{lang}").execute()
                     sum_text = res_sum.data[0]['content'] if res_sum.data else ""
                     
+                    # 💡 [요청 반영] 대체 텍스트(Fallback) 완전 삭제! 없으면 빈칸 처리.
                     try:
                         ai_parts = [p.strip() for p in sum_text.split('|||SEP|||')]
-                        c1_sum = ai_parts[0] if len(ai_parts) > 0 else get_text('tab2_card1_desc')
-                        c2_sum = ai_parts[1] if len(ai_parts) > 1 else get_text('tab2_card2_desc')
-                        c3_sum = ai_parts[2] if len(ai_parts) > 2 else get_text('tab2_card3_desc')
+                        c1_sum = ai_parts[0] if len(ai_parts) > 0 else ""
+                        c2_sum = ai_parts[1] if len(ai_parts) > 1 else ""
+                        c3_sum = ai_parts[2] if len(ai_parts) > 2 else ""
                     except:
-                        c1_sum, c2_sum, c3_sum = get_text('tab2_card1_desc'), get_text('tab2_card2_desc'), get_text('tab2_card3_desc')
+                        c1_sum = c2_sum = c3_sum = ""
 
                     # 🚀 [핵심 2] 하단 익스팬더용 '전문 리포트' 로드 (Global_Market_Dashboard)
-                    full_market_report = get_market_dashboard_analysis(md, lang) 
+                    full_market_report = get_market_dashboard_analysis(md, lang)
 
                 # 💡 [CSS] 4~5문장 분량을 소화하기 위해 group-desc의 높이와 스크롤 최적화
                 st.markdown("""
