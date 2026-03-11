@@ -2263,66 +2263,90 @@ def update_macro_data(df):
     }], on_conflict="cache_key")
 
     # =======================================================
-    # [C] AI 리포트 생성 및 다국어 캐싱
+    # [C] AI 리포트 생성 및 다국어 캐싱 (논리 3단계: 의미-해석-결론)
     # =======================================================
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_report = f"Global_Market_Dashboard_{lang_code}"
         
-        if lang_code == 'en':
-            prompt = f"""You are a Chief Market Strategist on Wall Street.
-            Based on the current data (VIX: {data['vix']:.2f}, S&P500 PE: {data['pe_ratio']:.1f}, Buffett Indicator: {data['buffett_val']:.1f}%), assess the U.S. market condition.
-            
+        # 분석용 데이터 그룹 구성 (학술적 명칭 적용)
+        group1_data = f"IPO 초기 수익률 {data['ipo_return']}% / IPO 상장 철회율 {data['withdrawal_rate']}%"
+        group2_data = f"상장 파이프라인 {data['ipo_volume']}건 / 미수익 기업 상장 비중 {data['unprofitable_pct']}%"
+        group3_data = f"변동성 및 투자심리(VIX {data['vix']:.2f}, Fear&Greed {data['fear_greed']:.0f}) / 시장 가치 평가(버핏지수 {data['buffett_val']:.1f}%, S&P500 PE {data['pe_ratio']:.1f})"
+
+        if lang_code == 'ko':
+            prompt = "당신은 월가 수석 전략가입니다. 아래 지표들을 종합하여 3단계 논리 구조의 마켓 다이아그노시스(Market Diagnosis) 리포트를 작성하세요."
+            instruction = f"""
+            [분석 대상 데이터]
+            - {group1_data}
+            - {group2_data}
+            - {group3_data}
+
+            [작성 규칙 - 엄격 준수]
+            1. 반드시 3개의 구절로 작성하고, 각 구절 사이에는 반드시 '|||SEP|||'를 넣으세요.
+            2. 각 구절의 단계별 역할:
+               - 첫 번째 구절(의미): 위 지표들이 IPO 시장과 거시 경제에서 가지는 학술적/실무적 의미(지표의 정의와 중요성)를 설명하세요.
+               - 두 번째 구절(해석): 현재 수집된 실제 데이터 수치를 바탕으로 각 지표가 현재 시장에서 가리키는 현상을 전문적으로 해석하세요.
+               - 세 번째 구절(결론): 앞선 의미와 해석을 통합하여 현재 미국 시장에 대한 최종 투자 전략 및 결론을 내리세요.
+            3. 각 구절은 1~2문장으로 작성하며, 전체 리포트는 3~5문장 내외로 아주 간결하게 핵심만 짚으십시오.
+            4. 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 격식 있고 정중한 존댓말(합쇼체)로 작성하세요. 절대 '~한다', '~이다' 형태의 평어체를 사용하지 마세요.
+            5. 인사말을 생략하고 첫 글자부터 곧바로 본론만 출력하세요.
+            """
+        elif lang_code == 'en':
+            prompt = "You are a Lead Wall Street Strategist. Provide a synthesized 3-part market diagnosis based on the data."
+            instruction = f"""
+            [Data Summary]: {group1_data}, {group2_data}, {group3_data}
+
             [STRICT WRITING RULES]
-            1. Write ENTIRELY in English.
-            2. Write a concise summary in 3-5 lines.
-            3. 🚨 NEVER use introductory phrases like "Understood", "Here is the summary", or "Market Diagnosis:". Do not use titles or headers.
-            4. Start immediately with the cold, objective market analysis from the very first word.
+            1. Write exactly 3 segments separated by the delimiter '|||SEP|||'.
+            2. Segment Roles:
+               - Seg 1 (Meaning): Explain the academic and practical significance of these indicators.
+               - Seg 2 (Interpretation): Interpret the current raw data values and what they specifically indicate about the market conditions now.
+               - Seg 3 (Conclusion): Synthesize the meaning and interpretation to provide a final investment verdict and strategic conclusion.
+            3. Each segment must be 1-2 sentences (3-5 sentences total). Be extremely concise.
+            4. Tone: Maintain a professional, objective, and analytical tone. Omit all greetings.
             """
-            
         elif lang_code == 'ja':
-            prompt = f"""あなたはウォール街のチーフ市場ストラテジストです。
-            現在のデータ（VIX: {data['vix']:.2f}, S&P500 PE: {data['pe_ratio']:.1f}x, バフェット指数: {data['buffett_val']:.1f}%）に基づいて、米国市場の状況を診断してください。
-            
+            prompt = "あなたはウォール街のチーフ市場ストラテジストです。3段階の論理構成で市場診断レポートを作成してください。"
+            instruction = f"""
+            [データ要約]: {group1_data}, {group2_data}, {group3_data}
+
             [厳格な作成ルール]
-            1. 必ず日本語のみで作成してください。
-            2. 3〜5行の簡潔な文章で作成してください。
-            3. 🚨 「承知いたしました」「要約します」「現在の米国市場の診断：」などの挨拶、前置き、見出しは絶対に書かないでください。
-            4. 最初の文字からすぐに、客観的で専門的な市場分析の内容のみを出力してください。
+            1. 必ず3つのセグメントで構成し、各セグメントの間には必ず '|||SEP|||' を入れてください。
+            2. 各セグ먼트의 역할:
+               - 第1セグメント（意味）：これらの指標がIPO市場およびマクロ経済において持つ学術的・実務的な意味を説明してください。
+               - 第2セグメント（解釈）：現在の数치를基に、各指標が現在の市場でどのような現象を示しているか解釈してください。
+               - 第3セグメント（結論）：意味と解釈を統合し、現在の米国市場に対する最終的な投資戦略の結論を出してください。
+            3. 長さ：各セグメントは1〜2文、全体で3〜5文程度の簡潔な内容にしてください。
+            4. 語尾：必ず「〜です」「〜ます」形式の、非常に丁寧で格調高いビジネス敬語（です・ます調）を使用してください。挨拶は不要です。
             """
-            
         elif lang_code == 'zh':
-            prompt = f"""您是华尔街的首席市场策略师。
-            根据当前数据（VIX: {data['vix']:.2f}, 标普500 PE: {data['pe_ratio']:.1f}x, 巴菲特指标: {data['buffett_val']:.1f}%），诊断美国市场状况。
-            
-            [严格编写指南]
-            1. 必须只用简体中文编写。
-            2. 写成3~5行的简明段落。
-            3. 🚨 绝对不要使用“好的”、“为您总结”、“当前美国市场诊断：”等问候语、开场白或标题。
-            4. 从第一个字开始，直接输出客观、专业的市场分析正文。
-            """
-            
-        else: # ko
-            prompt = f"""당신은 월가의 수석 시장 전략가입니다.
-            현재 데이터(VIX: {data['vix']:.2f}, S&P500 PE: {data['pe_ratio']:.1f}x, 버핏지수: {data['buffett_val']:.1f}%) 기반으로 미국 시장 상태를 진단하세요.
-            
-            [작성 가이드 - 필수 준수]
-            1. 반드시 한국어로 작성하세요.
-            2. 3~5줄의 간결한 줄글 형태로 작성하세요.
-            3. 🚨 절대 "알겠습니다", "요약해 드리겠습니다", "현재 미국 시장 진단:" 같은 인사말, 서론, 제목을 쓰지 마세요.
-            4. 첫 글자부터 곧바로 냉철한 시장 분석 내용(본론)만 출력하세요.
+            prompt = "您是华尔街的首席市场策略师。请按照三阶段逻辑撰写一份简明的宏观市场诊断报告。"
+            instruction = f"""
+            [数据摘要]: {group1_data}, {group2_data}, {group3_data}
+
+            [严格编写规则]
+            1. 必须严格分为3个部分，每部分之间用 '|||SEP|||' 隔开。
+            2. 各部分角色：
+               - 第一部分（含义）：解释这些指标在IPO市场和宏观经济中的学术及实务意义。
+               - 第二部分（解读）：结合当前的实际数值，解读这些指标所反映的当前市场现状。
+               - 第三部分（结论）：整合上述含义与解读，给出对当前美国市场的最终投资策略结论。
+            3. 篇幅：每部分1-2句话，总篇幅控制在3-5句左右，力求精炼。
+            4. 语气：必须使用极其庄重、专业且礼貌的正式书面用语。请省略任何问候语。
             """
 
         try:
-            # 🚨 [수정] model -> model_strict 로 변경
-            ai_resp = model_strict.generate_content(prompt).text.strip()
+            # 🚨 [환각 방지] model_strict 모델 사용 (Prompt + Instruction 결합)
+            ai_resp = model_strict.generate_content(prompt + instruction).text.strip()
             
-            # 한글 오염 방어 (한국어가 아닐 때 한글이 섞여 있으면 스킵)
+            # 한글 오염 방어막 (한국어 외 언어에서 한글 발견 시 스킵)
             if lang_code != 'ko':
                 if re.search(r'[가-힣]', ai_resp):
                     time.sleep(1); continue
                     
             batch_upsert("analysis_cache", [{"cache_key": cache_key_report, "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-        except: pass
+            print(f"🌍 Tab 2 논리적 통합 리포트 캐싱 완료 ({lang_code})")
+        except Exception as e:
+            print(f"❌ Tab 2 AI Report Error ({lang_code}): {e}")
 
 # ==========================================
 # [수정] Tab 6: 스마트머니 통합 데이터 수집 (국회의원 & 공매도 추가)
