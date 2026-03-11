@@ -2113,7 +2113,7 @@ UI_TEXT = {
     # ==========================================
     # 7. Tab 1: 주요뉴스
     # ==========================================
-    'expander_biz_summary': {'ko': '비즈니스 모델 요약 보기', 'en': 'View Business Model Summary', 'ja': 'ビジネスモデル要約表示', 'zh': '查看商业模式摘要'},
+    'expander_biz_summary': {'ko': '공식 기업소개', 'en': 'Official Corporate Overview', 'ja': '公式企業紹介', 'zh': '官方企业介绍'},
     'caption_google_search': {'ko': 'Google Search 기반으로 실시간 분석 및 뉴스를 제공합니다.', 'en': 'Real-time analysis based on Google Search.', 'ja': 'Google検索に基づいたリアルタイム分析を提供します。', 'zh': '基于Google Search提供实时分析和新闻。'},
     'sentiment_positive': {'ko': '긍정적', 'en': 'Positive', 'ja': '肯定的', 'zh': '积极'},
     'sentiment_neutral': {'ko': '중립적', 'en': 'Neutral', 'ja': '中立的', 'zh': '中立'},
