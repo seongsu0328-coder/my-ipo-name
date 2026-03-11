@@ -4342,24 +4342,22 @@ with main_area.container():
                 # =========================================================
                 # 🚀 [2] 기관용 금융 뉴스 요약 (Premium 전용 - Blur 적용)
                 # =========================================================
-                with st.expander(get_text('tab1_premium_news_title'), expanded=False):
-                    if is_premium:
-                        if news_summary:
+                if news_summary:  # 💡 [핵심] 데이터가 있을 때만 아예 Expander를 만듭니다!
+                    with st.expander(get_text('tab1_premium_news_title'), expanded=False):
+                        if is_premium:
                             st.markdown(news_summary, unsafe_allow_html=True)
                         else:
-                            st.info("데이터를 수집 및 분석 중입니다..." if curr_lang == 'ko' else "Analyzing data...")
-                    else:
-                        # 비결제자 Blur 화면
-                        blur_text = "최근 월가 기관들은 이 기업의 잉여 현금 흐름과 신규 프로젝트의 수익성에 대해 매우 긍정적인 평가를 내리고 있습니다. 특히 이번 분기에 발표된 파트너십은 향후 2년간 주당 순이익을 대폭 개선할 것으로... (이하 블러 처리)"
-                        st.markdown(f"""
-                            <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                                <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                    <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                    <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                            # 비결제자 Blur 화면
+                            blur_text = "최근 월가 기관들은 이 기업의 잉여 현금 흐름과 신규 프로젝트의 수익성에 대해 매우 긍정적인 평가를 내리고 있습니다. 특히 이번 분기에 발표된 파트너십은 향후 2년간 주당 순이익을 대폭 개선할 것으로... (이하 블러 처리)"
+                            st.markdown(f"""
+                                <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                    <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                        <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                        <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                    </div>
                                 </div>
-                            </div>
-                        """, unsafe_allow_html=True)
+                            """, unsafe_allow_html=True)
 
                 # =========================================================
                 # 🚀 [3] 기업 공식 보도자료 요약 (Premium 전용 - Blur 적용)
