@@ -2336,10 +2336,47 @@ UI_TEXT = {
         'ja': 'この企業の真のキャッシュカウ（Cash Cow）はどこでしょうか？全体の売上の60%以上を占める主力事業部門と、前年比40%以上で爆発的に高成長している新規事業部門の具体的な売上比率および営業利益貢献度は... (以下ぼかし処理)',
         'zh': '这家企业真正的摇钱树(Cash Cow)在哪里？占总营收60%以上的主力业务部门，以及同比增长超40%的爆发性新业务部门的具体营收占比和营业利润贡献度是... (以下模糊处理)'
     },
-    # 통합 카드 타이틀
-    'tab2_card1_title': {'ko': 'IPO 시장심리', 'en': 'IPO Market Sentiment', 'ja': 'IPO市場心理', 'zh': 'IPO市场情绪'},
-    'tab2_card2_title': {'ko': 'IPO 공급 및 질적위험', 'en': 'IPO Supply & Quality Risk', 'ja': 'IPO供給と質的リスク', 'zh': 'IPO供应及质量风险'},
-    'tab2_card3_title': {'ko': '미국 증시펀더멘털', 'en': 'US Market Fundamentals', 'ja': '米国市場ファンダメンタルズ', 'zh': '美国股市基本面'},
+    # [Card 1] IPO Sentiment (초기 수익성과 철회율)
+    'label_ret_name': {
+        'ko': 'IPO 초기 수익률', 
+        'en': 'IPO Initial Return', # 학계 공식 명칭
+        'ja': 'IPO初期収益率', 
+        'zh': 'IPO初期收益率'
+    },
+    'label_with_name': {
+        'ko': 'IPO 상장 철회율', 
+        'en': 'IPO Withdrawal Rate', # 금융권 표준 명칭
+        'ja': 'IPO取下げ率', 
+        'zh': 'IPO撤回率'
+    },
+
+    # [Card 2] Supply & Quality (공급량과 질적 분석)
+    'label_vol_name': {
+        'ko': '상장 파이프라인(30일)', # Upcoming보다 전문적인 표현
+        'en': 'IPO Pipeline (30d)', 
+        'ja': '上場パイプライン', 
+        'zh': 'IPO排队数量'
+    },
+    'label_unprof_name': {
+        'ko': '미수익 기업 상장 비중', # '적자'보다 정제된 학술적 용어
+        'en': 'Unprofitable IPO Share', # Jay Ritter 교수 논문 표준 용어
+        'ja': '未収益企業の上場比率', 
+        'zh': '未盈利企业发行占比'
+    },
+
+    # [Card 3] Market Fundamentals (거시 환경)
+    'label_vix_fg_name': {
+        'ko': '변동성 및 투자심리', # Fear보다 Sentiment가 학계 표준
+        'en': 'Volatility & Sentiment', 
+        'ja': '変動性および投資心理', 
+        'zh': '波动率及投资情绪'
+    },
+    'label_buff_pe_name': {
+        'ko': '시장 가치 평가(Valuation)', 
+        'en': 'Market Valuation', 
+        'ja': '市場バリュエーション', 
+        'zh': '市场估值水平'
+    },
     
     # 통합 카드용 간략 설명
     'tab2_card1_desc': {'ko': '투자자들의 투기적 광기와 시장의 유동성을 동시에 측정합니다.', 'en': 'Measures speculative mania and market liquidity.', 'ja': '投資家の投機的熱狂と市場の流動性を測定します。', 'zh': '同时衡量投资者的投机狂热和市场流动性。'},
@@ -4557,20 +4594,28 @@ with main_area.container():
                 with st.spinner(get_text('msg_analyzing_macro')):
                     all_df_tab2 = all_df if 'all_df' in locals() else get_extended_ipo_data(MY_API_KEY)
                     md = get_cached_market_status(all_df_tab2, MY_API_KEY)
+                    
+                    # 🚀 [핵심] AI가 생성한 3단계 논리 리포트 로드 및 분리
+                    raw_ai_report = get_market_dashboard_analysis(md, st.session_state.lang)
+                    try:
+                        ai_parts = [p.strip() for p in raw_ai_report.split('|||SEP|||')]
+                        c1_sum = ai_parts[0] if len(ai_parts) > 0 else get_text('tab2_card1_desc')
+                        c2_sum = ai_parts[1] if len(ai_parts) > 1 else get_text('tab2_card2_desc')
+                        c3_sum = ai_parts[2] if len(ai_parts) > 2 else get_text('tab2_card3_desc')
+                    except:
+                        c1_sum, c2_sum, c3_sum = get_text('tab2_card1_desc'), get_text('tab2_card2_desc'), get_text('tab2_card3_desc')
 
-                # 💡 [CSS] 통합 그룹 카드 및 내부 그리드 스타일링
+                # 💡 [CSS] 고도화된 통합 그리드 카드 디자인
                 st.markdown("""
                 <style>
-                    .group-card { background:#ffffff; padding:22px; border-radius:18px; border:1px solid #e0e0e0; margin-bottom:20px; box-shadow:0 6px 15px rgba(0,0,0,0.05); min-height: 260px; display: flex; flex-direction: column; }
-                    .group-title { font-size:17px; font-weight:800; color:#111; margin-bottom:6px; display:flex; align-items:center; }
-                    .group-desc { font-size:12.5px; color:#777; margin-bottom:18px; line-height:1.4; height: 36px; overflow: hidden; }
-                    .sub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex-grow: 1; }
-                    .sub-item { background:#f9f9fb; padding:12px; border-radius:12px; border: 1px solid #f0f0f0; display: flex; flex-direction: column; justify-content: center; }
-                    .sub-label { font-size:11px; color:#999; font-weight:700; margin-bottom:4px; text-transform: uppercase; letter-spacing: 0.5px; }
-                    .sub-value-row { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
-                    .sub-value { font-size:18px; font-weight:800; color:#004e92; }
-                    .sub-badge { font-size:10px; padding: 2px 6px; border-radius:5px; font-weight:bold; }
-                    /* 상태별 색상 */
+                    .group-card { background:#ffffff; padding:20px; border-radius:18px; border:1px solid #e0e0e0; margin-bottom:20px; box-shadow:0 4px 12px rgba(0,0,0,0.05); min-height: 280px; display: flex; flex-direction: column; }
+                    .group-title { font-size:16px; font-weight:800; color:#111; margin-bottom:10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }
+                    .group-desc { font-size:13px; color:#004e92; font-weight:600; margin-bottom:18px; line-height:1.5; background:#f0f7ff; padding:12px; border-radius:10px; border-left: 4px solid #004e92; flex-grow: 0; }
+                    .sub-grid { display: grid; grid-template-columns: 1fr; gap: 8px; flex-grow: 1; }
+                    .sub-item { background:#f9f9fb; padding:10px 14px; border-radius:10px; border: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+                    .sub-label { font-size:12px; color:#666; font-weight:500; }
+                    .sub-value { font-size:15px; font-weight:700; color:#111; }
+                    .sub-badge { font-size:10px; padding: 2px 6px; border-radius:5px; font-weight:bold; margin-left:8px; }
                     .bg-hot { background-color:#ffebee; color:#c62828; }
                     .bg-cold { background-color:#e3f2fd; color:#1565c0; }
                     .bg-good { background-color:#e8f5e9; color:#2e7d32; }
@@ -4578,86 +4623,46 @@ with main_area.container():
                 </style>
                 """, unsafe_allow_html=True)
 
-                # 헬퍼 함수: 상태 배지 및 클래스 생성
                 def get_badge(status_key):
-                    stat_map = {
-                        "over": (get_text('over') or "과열", "bg-hot"), 
-                        "good": (get_text('good') or "적정", "bg-good"),
-                        "cold": (get_text('cold') or "침체", "bg-cold"), 
-                        "risk": (get_text('risk') or "위험", "bg-hot"),
-                        "greed": (get_text('greed') or "탐욕", "bg-hot"), 
-                        "fear": (get_text('fear') or "공포", "bg-cold"),
-                        "high": (get_text('high') or "고가", "bg-hot"), 
-                        "normal": (get_text('normal') or "보통", "bg-neutral")
-                    }
+                    stat_map = {"over": ("과열", "bg-hot"), "good": ("적정", "bg-good"), "cold": ("침체", "bg-cold"), "risk": ("위험", "bg-hot"), "greed": ("탐욕", "bg-hot"), "fear": ("공포", "bg-cold"), "high": ("고가", "bg-hot"), "normal": ("보통", "bg-neutral")}
                     label, cls = stat_map.get(status_key, ("-", "bg-neutral"))
                     return f'<span class="sub-badge {cls}">{label}</span>'
 
-                # --- 3개 통합 카드 레이아웃 시작 ---
+                # --- 3개 통합 카드 렌더링 ---
                 col1, col2, col3 = st.columns(3)
-                curr_lang = st.session_state.lang
 
-                # [Card 1] IPO 시장 심리 (수익률 + 철회율)
-                with col1:
+                with col1: # [Card 1] IPO Initial Return & Withdrawal Rate
                     ret = md.get('ipo_return', 0); w_rate = md.get('withdrawal_rate', 0)
-                    ret_stat = "over" if ret >= 20 else "good" if ret >= 0 else "cold"
-                    w_stat = "over" if w_rate < 5 else "good"
                     st.markdown(f"""<div class="group-card">
-                        <div class="group-title">{get_text('tab2_card1_title')}</div>
-                        <div class="group-desc">{get_text('tab2_card1_desc')}</div>
+                        <div class="group-title">🚀 {get_text('tab2_card1_title')}</div>
+                        <div class="group-desc"><b>Basis:</b> {c1_sum}</div>
                         <div class="sub-grid">
-                            <div class="sub-item">
-                                <div class="sub-label">Avg. Return</div>
-                                <div class="sub-value-row"><span class="sub-value">{ret:+.1f}%</span>{get_badge(ret_stat)}</div>
-                            </div>
-                            <div class="sub-item">
-                                <div class="sub-label">Withdrawal</div>
-                                <div class="sub-value-row"><span class="sub-value">{w_rate:.1f}%</span>{get_badge(w_stat)}</div>
-                            </div>
+                            <div class="sub-item"><span class="sub-label">{get_text('label_ret_name')}</span><span class="sub-value">{ret:+.1f}%{get_badge("over" if ret>=20 else "good")}</span></div>
+                            <div class="sub-item"><span class="sub-label">{get_text('label_with_name')}</span><span class="sub-value">{w_rate:.1f}%{get_badge("over" if w_rate<5 else "good")}</span></div>
                         </div>
                     </div>""", unsafe_allow_html=True)
 
-                # [Card 2] IPO 공급 및 질적 위험 (건수 + 적자비율)
-                with col2:
-                    vol = md.get('ipo_volume', 0); unprof = md.get('unprofitable_pct', 0)
-                    vol_stat = "over" if vol >= 15 else "normal"
-                    unprof_stat = "risk" if unprof >= 80 else "good"
+                with col2: # [Card 2] IPO Pipeline & Quality
+                    vol = md.get('ipo_volume', 0); unp = md.get('unprofitable_pct', 0)
                     st.markdown(f"""<div class="group-card">
-                        <div class="group-title">{get_text('tab2_card2_title')}</div>
-                        <div class="group-desc">{get_text('tab2_card2_desc')}</div>
+                        <div class="group-title">⚠️ {get_text('tab2_card2_title')}</div>
+                        <div class="group-desc"><b>Analysis:</b> {c2_sum}</div>
                         <div class="sub-grid">
-                            <div class="sub-item">
-                                <div class="sub-label">Upcoming (30d)</div>
-                                <div class="sub-value-row"><span class="sub-value">{vol}건</span>{get_badge(vol_stat)}</div>
-                            </div>
-                            <div class="sub-item">
-                                <div class="sub-label">Unprofitable</div>
-                                <div class="sub-value-row"><span class="sub-value">{unprof:.0f}%</span>{get_badge(unprof_stat)}</div>
-                            </div>
+                            <div class="sub-item"><span class="sub-label">{get_text('label_vol_name')}</span><span class="sub-value">{vol}건{get_badge("over" if vol>=15 else "normal")}</span></div>
+                            <div class="sub-item"><span class="sub-label">{get_text('label_unprof_name')}</span><span class="sub-value">{unp:.0f}%{get_badge("risk" if unp>=80 else "good")}</span></div>
                         </div>
                     </div>""", unsafe_allow_html=True)
 
-                # [Card 3] 미국 증시 펀더멘털 (VIX, PE, Buffett, Fear/Greed)
-                with col3:
+                with col3: # [Card 3] Market Valuation & Sentiment
                     vix = md.get('vix', 20); buff = md.get('buffett_val', 100); pe = md.get('pe_ratio', 20); fg = md.get('fear_greed', 50)
-                    vix_stat = "greed" if vix <= 15 else "fear" if vix >= 25 else "normal"
-                    pe_stat = "high" if pe > 25 else "good"
                     st.markdown(f"""<div class="group-card">
-                        <div class="group-title">{get_text('tab2_card3_title')}</div>
-                        <div class="group-desc">{get_text('tab2_card3_desc')}</div>
+                        <div class="group-title">🌍 {get_text('tab2_card3_title')}</div>
+                        <div class="group-desc"><b>Verdict:</b> {c3_sum}</div>
                         <div class="sub-grid">
-                            <div class="sub-item" style="padding: 8px;">
-                                <div class="sub-label">VIX / F&G</div>
-                                <div class="sub-value-row"><span class="sub-value" style="font-size:15px;">{vix:.1f} / {fg:.0f}</span>{get_badge(vix_stat)}</div>
-                            </div>
-                            <div class="sub-item" style="padding: 8px;">
-                                <div class="sub-label">Buffett / PE</div>
-                                <div class="sub-value-row"><span class="sub-value" style="font-size:15px;">{buff:.0f}% / {pe:.1f}x</span>{get_badge(pe_stat)}</div>
-                            </div>
+                            <div class="sub-item"><span class="sub-label">{get_text('label_vix_fg_name')}</span><span class="sub-value">{vix:.1f} / {fg:.0f}{get_badge("greed" if vix<=15 else "normal")}</span></div>
+                            <div class="sub-item"><span class="sub-label">{get_text('label_buff_pe_name')}</span><span class="sub-value">{buff:.0f}% / {pe:.1f}x{get_badge("high" if pe>25 else "good")}</span></div>
                         </div>
                     </div>""", unsafe_allow_html=True)
-
-                st.write("<br>", unsafe_allow_html=True)
             
                 # =========================================================
                 # 🚀 [NEW] Tab 2 기업 ESG 평가 등급 프리미엄 섹션
