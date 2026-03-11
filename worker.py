@@ -2716,6 +2716,7 @@ def main():
             try:
                 analyst_metrics = fetch_analyst_estimates(official_symbol, FMP_API_KEY)
                 run_tab4_analysis(official_symbol, name, c_status, c_date, analyst_metrics)
+                run_tab4_ma_premium_collection(official_symbol, name) # 👈 🚀 여기에 추가하시면 됩니다!
             except Exception as e:
                 print(f"Tab4 Analyst Data Error for {official_symbol}: {e}")
                 pass
