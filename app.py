@@ -677,6 +677,15 @@ def get_premium_tab1_summaries(ticker, lang_code):
         print(f"Premium Tab1 Cache Error: {e}")
         
     return news_summary, pr_summary
+
+@st.cache_data(show_spinner=False, ttl=600)
+def get_premium_tab0_ec(ticker, lang_code):
+    """[Tab 0] 어닝 콜 AI 요약본을 DB에서 가져옵니다."""
+    try:
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_PremiumEarningsCall_v1_{lang_code}").execute()
+        if res.data: return res.data[0]['content']
+    except: pass
+    return ""
     
 @st.cache_data(show_spinner=False, ttl=600)
 def get_ai_analysis(company_name, topic, lang_code):
@@ -2108,6 +2117,13 @@ UI_TEXT = {
         'en': '👑 Go Premium to Unlock',
         'ja': '👑 プレミアムを購読して確認する',
         'zh': '👑 订阅高级会员查看'
+    },
+    'tab0_ec_title': {'ko': '🎙️ 어닝 콜 (Earnings Call) 핵심 요약', 'en': '🎙️ Earnings Call Summary', 'ja': '🎙️ アーニングコール要約', 'zh': '🎙️ 财报电话会议摘要'},
+    'desc_ec_blur': {
+        'ko': '이번 분기 어닝 콜에서 경영진은 향후 잉여현금흐름(FCF) 마진율 개선 및 신사업 추진에 대한 강력한 가이던스를 제시했습니다... (이하 블러 처리)',
+        'en': 'During this earnings call, management provided strong guidance on margin improvement and new business expansions... (Blurred)',
+        'ja': '今回のアーニングコールで経営陣は、今後のマージン改善および新規事業に関する強力なガイダンスを提示しました... (以下ぼかし処理)',
+        'zh': '在本次财报电话会议中，管理层就未来利润率改善及新业务推进给出了强有力的指引... (以下模糊处理)'
     },
     
     # ==========================================
@@ -4294,9 +4310,29 @@ with main_area.container():
                 real_web = profile.get('weburl') or profile.get('website', '') if profile else ''
                 web_url = real_web if real_web else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + stock['name'] + ' Investor Relations')}"
                 
-                st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 8px;">{get_text("btn_sec_link")} ({t_topic})</button></a>', unsafe_allow_html=True)
-                st.markdown(f'<a href="{web_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #333333; color:#333333; border-radius:10px; font-weight:bold; cursor:pointer;">{get_text("btn_official_web")}</button></a>', unsafe_allow_html=True)
-            
+                st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 12px;">{get_text("btn_sec_link")} ({t_topic})</button></a>', unsafe_allow_html=True)
+
+                # =========================================================
+                # 🚀 [NEW] 어닝 콜 (Earnings Call) 프리미엄 섹션
+                # =========================================================
+                ec_summary = get_premium_tab0_ec(sid, st.session_state.lang)
+                
+                if ec_summary:
+                    with st.expander(get_text('tab0_ec_title'), expanded=False):
+                        if is_premium:
+                            st.markdown(ec_summary, unsafe_allow_html=True)
+                        else:
+                            blur_text = get_text('desc_ec_blur')
+                            st.markdown(f"""
+                                <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                    <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                        <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                        <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                            
                 draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 display_disclaimer()
                     
