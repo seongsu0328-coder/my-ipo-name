@@ -686,6 +686,15 @@ def get_premium_tab0_ec(ticker, lang_code):
         if res.data: return res.data[0]['content']
     except: pass
     return ""
+
+@st.cache_data(show_spinner=False, ttl=600)
+def get_premium_tab2_esg(ticker, lang_code):
+    """[Tab 2] ESG 평가 AI 요약본을 DB에서 가져옵니다."""
+    try:
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_PremiumESG_v1_{lang_code}").execute()
+        if res.data: return res.data[0]['content']
+    except: pass
+    return ""
     
 @st.cache_data(show_spinner=False, ttl=600)
 def get_ai_analysis(company_name, topic, lang_code):
@@ -2294,6 +2303,13 @@ UI_TEXT = {
     'tab3_estimate_title': {
         'ko': '향후 실적전망 (Analyst Estimates)', 'en': 'Analyst Estimates', 
         'ja': '今後の業績予想 (アナリスト予測)', 'zh': '未来业绩预期 (分析师预测)'
+    },
+    'tab2_esg_title': {'ko': 'ESG 심층평가(글로벌 기관기준)', 'en': 'Corporate ESG Evaluation', 'ja': '企業ESG深層評価', 'zh': '企业ESG深度评估'},
+    'desc_esg_blur': {
+        'ko': '최근 블랙록 등 글로벌 메가 펀드들은 투자의 핵심 지표로 ESG 등급을 활용합니다. 해당 기업의 환경(E), 사회(S), 지배구조(G) 리스크에 대한 글로벌 평가 점수와 세부 분석 리포트는... (이하 블러 처리)',
+        'en': 'Global mega-funds like BlackRock use ESG scores as key investment metrics. The detailed analysis of this company\'s Environmental, Social, and Governance risks... (Blurred)',
+        'ja': '最近、ブラックロックなどのグローバルメガファンドは投資の核心指標としてESG等級を活用しています。該当企業の環境(E)、社会(S)、ガバナンス(G)リスクに対する詳細な評価スコアは... (以下ぼかし処理)',
+        'zh': '最近，包括贝莱德在内的全球大型基金都将ESG评级作为核心投资指标。关于该企业环境(E)、社会(S)和治理(G)风险的全球评估分数及详细分析报告... (以下模糊处理)'
     },
      
     # ==========================================
@@ -4608,18 +4624,32 @@ with main_area.container():
     
                     st.markdown(f"<div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #004e92;'><div style='font-size:14px; line-height:1.6; color:#333; text-align:justify;'>{ai_market_comment}</div></div>", unsafe_allow_html=True)
             
-                with st.expander(get_text('expander_references'), expanded=False):
-                    references = [
-                        { "label": get_text('ref_label_ipo'), "title": "Initial Public Offerings", "author": "Jay R. Ritter", "summary": get_text('ref_sum_ipo'), "link": "https://site.warrington.ufl.edu/ritter/ipo-data/" },
-                        { "label": get_text('ref_label_overheat'), "title": "'Hot Issue' Markets", "author": "Ibbotson & Jaffe (1975)", "summary": get_text('ref_sum_overheat'), "link": "https://scholar.google.com/scholar?q=Ibbotson+Jaffe+1975+Hot+Issue+Markets" },
-                        { "label": get_text('ref_label_withdrawal'), "title": "The Choice Between IPOs", "author": "Dunbar (1998)", "summary": get_text('ref_sum_withdrawal'), "link": "https://scholar.google.com/scholar?q=Dunbar+1995" },
-                        { "label": get_text('ref_label_vix'), "title": "VIX White Paper", "author": "CBOE", "summary": get_text('ref_sum_vix'), "link": "https://www.cboe.com/micro/vix/vixwhite.pdf" },
-                        { "label": get_text('ref_label_buffett'), "title": "Warren Buffett on the Stock Market", "author": "Warren Buffett (2001)", "summary": get_text('ref_sum_buffett'), "link": "https://www.gurufocus.com/news/122602" },
-                        { "label": get_text('ref_label_cape'), "title": "U.S. Stock Markets 1871-Present", "author": "Robert Shiller", "summary": get_text('ref_sum_cape'), "link": "http://www.econ.yale.edu/~shiller/data.htm" },
-                        { "label": get_text('ref_label_feargreed'), "title": "Fear & Greed Index", "author": "CNN Business", "summary": get_text('ref_sum_feargreed'), "link": "https://edition.cnn.com/markets/fear-and-greed" }
-                    ]
-                    for ref in references:
-                        st.markdown(f"<div class='ref-item'><div style='flex:1;'><div class='ref-badge'>{ref['label']}</div><br><a href='{ref['link']}' target='_blank' class='ref-title'>📄 {ref['title']}</a><div style='font-size: 13px; color: #666;'>{ref['summary']}, {ref['author']}</div></div><div style='margin-left: 15px;'><a href='{ref['link']}' target='_blank' class='ref-btn'>{get_text('btn_view_original')}</a></div></div>", unsafe_allow_html=True)
+                # =========================================================
+                # 🚀 [NEW] Tab 2 기업 ESG 평가 등급 프리미엄 섹션
+                # =========================================================
+                # 💡 [방어막] 유저 결제 상태 확인
+                raw_info = st.session_state.get('user_info')
+                user_info = raw_info if isinstance(raw_info, dict) else {}
+                user_level = user_info.get('membership_level', 'free')
+                is_premium = user_level in ['premium', 'premium_plus']
+                
+                esg_summary = get_premium_tab2_esg(sid, st.session_state.lang)
+                
+                if esg_summary:
+                    with st.expander(get_text('tab2_esg_title'), expanded=False):
+                        if is_premium:
+                            st.markdown(esg_summary, unsafe_allow_html=True)
+                        else:
+                            blur_text = get_text('desc_esg_blur')
+                            st.markdown(f"""
+                                <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                    <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                        <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                        <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
             
                 draw_decision_box("macro", get_text('decision_macro_outlook'), ['opt_bubble', 'sentiment_neutral', 'opt_recession'], current_p)
                 display_disclaimer()  
