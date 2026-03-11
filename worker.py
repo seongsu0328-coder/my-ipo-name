@@ -83,21 +83,23 @@ SUPPORTED_LANGS = {
 }
 
 def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
-    """
-    [무적의 하이브리드 엔진] FMP 검색 -> SEC 우회 -> FMP 텍스트 실패 시 SEC 본진 원문 직접 추출
-    """
     try:
         accession_num = None
         filed_date = None
 
-        # 1단계: FMP API 티커/CIK 검색
         search_target = cik if cik else ticker
         search_url = f"https://financialmodelingprep.com/api/v3/sec_filings/{search_target}?type={doc_type}&limit=1&apikey={api_key}"
         r = requests.get(search_url, timeout=5)
-        if r.status_code == 200 and r.json():
-            filing_info = r.json()[0]
-            accession_num = filing_info.get('accessionNumber')
-            filed_date = filing_info.get('fillingDate')
+        
+        if r.status_code == 200:
+            res_data = r.json()
+            # 🚨 [디버깅 추가]
+            if isinstance(res_data, dict) and "Error Message" in res_data:
+                print(f"🚫 [Tab 0 SEC 검색 차단됨: {doc_type}] -> {res_data['Error Message']}")
+            elif isinstance(res_data, list) and len(res_data) > 0:
+                filing_info = res_data[0]
+                accession_num = filing_info.get('accessionNumber')
+                filed_date = filing_info.get('fillingDate')
 
         # 2단계: FMP 실패 시 SEC EDGAR 고유번호(CIK)로 직접 우회 추적
         if not accession_num and cik:
@@ -122,27 +124,30 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
         text_url = f"https://financialmodelingprep.com/api/v4/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
         txt_res = requests.get(text_url, timeout=7)
         full_text = ""
-        if txt_res.status_code == 200 and txt_res.json():
-            full_text = txt_res.json()[0].get('content', '')
+        if txt_res.status_code == 200:
+            txt_data = txt_res.json()
+            # 🚨 [디버깅 추가]
+            if isinstance(txt_data, dict) and "Error Message" in txt_data:
+                print(f"🚫 [Tab 0 SEC 텍스트 차단됨: {doc_type}] -> {txt_data['Error Message']}")
+            elif isinstance(txt_data, list) and len(txt_data) > 0:
+                full_text = txt_data[0].get('content', '')
 
-        # 🚀 4단계: [최종 병기 가동] FMP 텍스트가 비어있다면? SEC Archive 본진에서 원문(.txt) 직접 긁어오기!
+        # 4단계: SEC Archive 본진에서 원문 직접 긁어오기
         if (not full_text or len(full_text) < 100) and cik:
             print(f"⚠️ FMP 텍스트 지연 발생. SEC 서버에서 원문 직접 추출 시도: {ticker} ({doc_type})")
-            # SEC 원문 아카이브 경로 조합
             acc_no_clean = str(accession_num).replace('-', '')
-            cik_int = str(int(cik)) # URL용 CIK (앞의 0 제거)
+            cik_int = str(int(cik))
             raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_no_clean}/{accession_num}.txt"
             
             raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=10)
             if raw_res.status_code == 200:
-                # HTML 태그 및 공백 제거로 순수 팩트만 추출
                 clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
                 clean_text = re.sub(r'\s+', ' ', clean_text)
                 full_text = clean_text
                 print(f"✅ [SEC Scraping] SEC 본진 원문 확보 완료! ({len(full_text)} 자)")
 
         if full_text and len(full_text) > 100:
-            return filed_date, full_text[:40000] # AI 분석용 4만 자 슬라이싱
+            return filed_date, full_text[:40000]
         
         return filed_date, None
 
@@ -157,15 +162,13 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
 def get_fmp_data_with_cache(symbol, api_type, url, valid_hours=24):
     """
     FMP API 호출 전 DB 캐시를 확인하는 통합 함수
-    api_type: 'historical', '8K', 'financials' 등 구분값
     """
     cache_key = f"RAW_FMP_{api_type}_{symbol}"
     limit_time = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
     
     # 1. DB에서 최근 캐시 확인
     try:
-        res = supabase.table("analysis_cache").select("content, updated_at")\
-            .eq("cache_key", cache_key).gt("updated_at", limit_time).execute()
+        res = supabase.table("analysis_cache").select("content, updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time).execute()
         if res.data:
             return json.loads(res.data[0]['content'])
     except: pass
@@ -173,16 +176,22 @@ def get_fmp_data_with_cache(symbol, api_type, url, valid_hours=24):
     # 2. 캐시 없으면 실제 API 호출
     try:
         response = requests.get(url, timeout=7).json()
+        
+        # 🚨 [핵심 방어막] FMP가 딕셔너리로 "Error Message"를 보내면 절대 DB에 저장하지 않고 뱉어냅니다!
+        if isinstance(response, dict) and ("Error Message" in response or "Error" in response):
+            print(f"🚫 [FMP API 권한 차단됨] {api_type} \n -> URL: {url} \n -> 사유: {response.get('Error Message', 'Unknown Error')}")
+            return None  # None을 반환해야 앱이 N/A로 안전하게 처리함
+            
         if response:
-            # DB에 원본 데이터 저장 (다음 호출 방어)
             batch_upsert("analysis_cache", [{
                 "cache_key": cache_key,
                 "content": json.dumps(response),
                 "updated_at": datetime.now().isoformat()
             }], on_conflict="cache_key")
             return response
+            
     except Exception as e:
-        print(f"❌ FMP API Error ({api_type}): {e}")
+        print(f"❌ FMP API 통신 에러 ({api_type}): {e}")
     
     return None
 
@@ -463,44 +472,43 @@ def check_sec_specific_filing(cik, target_form):
 # ==========================================
 
 def fetch_fmp_8k_events(symbol, api_key):
-    """[Tab 0] 기업의 최근 8-K(중대 이벤트: M&A, 소송, 임원교체 등)를 가져옵니다."""
     try:
         url = f"https://financialmodelingprep.com/api/v3/sec_filings/{symbol}?type=8-K&limit=3&apikey={api_key}"
         res = requests.get(url, timeout=5).json()
+        if isinstance(res, dict) and "Error Message" in res:
+            print(f"🚫 [Tab 0 8-K 차단됨] -> {res['Error Message']}")
+            return "No recent 8-K events."
         if res and isinstance(res, list) and len(res) > 0:
             events = [f"- Date: {r.get('fillingDate')} | Link: {r.get('finalLink')}" for r in res]
             return "\n".join(events)
         return "No recent 8-K events."
-    except Exception as e:
-        print(f"8-K Fetch Error for {symbol}: {e}")
-        return "No recent 8-K events."
+    except: return "No recent 8-K events."
 
 def fetch_fmp_premium_news(symbol, api_key):
-    """[Tab 1] FMP의 기관용 실시간 금융 뉴스(블룸버그, 로이터 등) 및 보도자료를 가져옵니다."""
     try:
         url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={symbol}&limit=5&apikey={api_key}"
         res = requests.get(url, timeout=5).json()
+        if isinstance(res, dict) and "Error Message" in res:
+            print(f"🚫 [Tab 1 프리미엄 뉴스 차단됨] -> {res['Error Message']}")
+            return "No recent premium news."
         if res and isinstance(res, list) and len(res) > 0:
             news_list = [f"- [{r.get('publishedDate')}] {r.get('title')} (Source: {r.get('site')})" for r in res]
             return "\n".join(news_list)
         return "No recent premium news."
-    except Exception as e:
-        print(f"Premium News Fetch Error for {symbol}: {e}")
-        return "No recent premium news."
+    except: return "No recent premium news."
 
 def fetch_fmp_earnings_call(symbol, api_key):
-    """[Tab 1] 가장 최근 분기의 어닝콜(경영진 실적발표 Q&A) 스크립트 전문을 가져옵니다."""
     try:
         url = f"https://financialmodelingprep.com/api/v3/earning_call_transcript/{symbol}?limit=1&apikey={api_key}"
         res = requests.get(url, timeout=5).json()
+        if isinstance(res, dict) and "Error Message" in res:
+            print(f"🚫 [Tab 1 어닝콜 차단됨] -> {res['Error Message']}")
+            return "No earnings call transcript available."
         if res and isinstance(res, list) and len(res) > 0:
-            # 텍스트가 너무 길면 토큰 초과 우려가 있으므로 앞부분(경영진 주요 발언)만 3000자로 자름
             content = res[0].get('content', '')[:3000]
             return f"[Quarter: {res[0].get('quarter')} / Year: {res[0].get('year')}]\n{content}..."
         return "No earnings call transcript available."
-    except Exception as e:
-        print(f"Earnings Call Fetch Error for {symbol}: {e}")
-        return "No earnings call transcript available."
+    except: return "No earnings call transcript available."
 
 
 # ==========================================
@@ -1381,32 +1389,26 @@ def get_tab4_premium_prompt(lang, type_name, ticker, raw_data):
 # [수정] FMP 프리미엄 11개 지표 통합 수집 헬퍼 (안전망 강화 버전)
 # ==========================================
 def fetch_premium_financials(symbol, api_key):
-    """app.py와 동일하게 11가지 핵심 지표를 모두 수집하여 딕셔너리로 반환합니다."""
-    
-    # 💡 [핵심 방어막] API 응답이 아예 없을 경우를 대비해 모든 필수 키를 기본값으로 미리 초기화합니다.
-    # 이렇게 하면 app.py에서 언제 꺼내 쓰든 KeyError가 절대 발생하지 않습니다.
+    """11가지 핵심 지표를 모두 수집하며, 권한 에러 발생 시 로그를 띄웁니다."""
     fin_data = {
-        'growth': 'N/A',
-        'net_margin': 'N/A',
-        'op_margin': 'N/A',
-        'pe': 'N/A',
-        'roe': 'N/A',
-        'debt_equity': 'N/A',
-        'pb': 'N/A',
-        'accruals': 'Unknown',
-        'dcf_price': 'N/A',
-        'current_price': 'N/A',
-        'rating': 'N/A',
-        'recommendation': 'N/A',
-        'health_score': 'N/A'
+        'growth': 'N/A', 'net_margin': 'N/A', 'op_margin': 'N/A', 'pe': 'N/A',
+        'roe': 'N/A', 'debt_equity': 'N/A', 'pb': 'N/A', 'accruals': 'Unknown',
+        'dcf_price': 'N/A', 'current_price': 'N/A', 'rating': 'N/A',
+        'recommendation': 'N/A', 'health_score': 'N/A'
     }
     
+    def safe_fmp_get(url, name):
+        res = requests.get(url, timeout=5).json()
+        if isinstance(res, dict) and "Error Message" in res:
+            print(f"🚫 [재무 데이터 차단됨: {name}] -> {res['Error Message']}")
+            return []
+        return res
+
     try:
-        # 1. 손익계산서 (매출, 순이익, 성장률)
+        # 1. 손익계산서
         inc_url = f"https://financialmodelingprep.com/api/v3/income-statement/{symbol}?limit=2&apikey={api_key}"
-        inc_res = requests.get(inc_url, timeout=5).json()
-        net_inc = 0
-        if inc_res and isinstance(inc_res, list) and len(inc_res) > 0:
+        inc_res = safe_fmp_get(inc_url, "Income Statement")
+        if isinstance(inc_res, list) and len(inc_res) > 0:
             rev = float(inc_res[0].get('revenue', 0))
             net_inc = float(inc_res[0].get('netIncome', 0))
             op_inc = float(inc_res[0].get('operatingIncome', 0))
@@ -1416,10 +1418,10 @@ def fetch_premium_financials(symbol, api_key):
             fin_data['net_margin'] = f"{(net_inc / rev) * 100:.1f}%" if rev else "N/A"
             fin_data['op_margin'] = f"{(op_inc / rev) * 100:.1f}%" if rev else "N/A"
         
-        # 2. 주요 지표 (PE, ROE, PB, D/E)
+        # 2. 주요 지표
         m_url = f"https://financialmodelingprep.com/api/v3/key-metrics-ttm/{symbol}?apikey={api_key}"
-        m_res = requests.get(m_url, timeout=5).json()
-        if m_res and isinstance(m_res, list) and len(m_res) > 0:
+        m_res = safe_fmp_get(m_url, "Key Metrics TTM")
+        if isinstance(m_res, list) and len(m_res) > 0:
             m = m_res[0]
             fin_data['pe'] = f"{m.get('peRatioTTM', 0):.1f}x" if m.get('peRatioTTM') else "N/A"
             fin_data['roe'] = f"{m.get('roeTTM', 0) * 100:.1f}%" if m.get('roeTTM') else "N/A"
@@ -1428,24 +1430,24 @@ def fetch_premium_financials(symbol, api_key):
 
         # 3. 현금흐름 (Accruals)
         cf_url = f"https://financialmodelingprep.com/api/v3/cash-flow-statement/{symbol}?limit=1&apikey={api_key}"
-        cf_res = requests.get(cf_url, timeout=5).json()
-        if cf_res and isinstance(cf_res, list) and len(cf_res) > 0 and fin_data['net_margin'] != 'N/A':
+        cf_res = safe_fmp_get(cf_url, "Cash Flow")
+        if isinstance(cf_res, list) and len(cf_res) > 0 and fin_data['net_margin'] != 'N/A':
             ocf = float(cf_res[0].get('operatingCashFlow', 0))
-            fin_data['accruals'] = "Low" if (net_inc - ocf) <= 0 else "High"
+            fin_data['accruals'] = "Low" if (fin_data.get('netIncome', 0) - ocf) <= 0 else "High"
         else:
             fin_data['accruals'] = "Unknown"
 
         # 4. DCF 적정주가
         dcf_url = f"https://financialmodelingprep.com/api/v3/discounted-cash-flow/{symbol}?apikey={api_key}"
-        dcf_res = requests.get(dcf_url, timeout=5).json()
-        if dcf_res and isinstance(dcf_res, list) and len(dcf_res) > 0:
+        dcf_res = safe_fmp_get(dcf_url, "DCF")
+        if isinstance(dcf_res, list) and len(dcf_res) > 0:
             fin_data['dcf_price'] = f"${dcf_res[0].get('dcf', 0.0):.2f}"
             fin_data['current_price'] = f"${dcf_res[0].get('Stock Price', 0.0):.2f}"
 
         # 5. 퀀트 Rating
         r_url = f"https://financialmodelingprep.com/api/v3/rating/{symbol}?apikey={api_key}"
-        r_res = requests.get(r_url, timeout=5).json()
-        if r_res and isinstance(r_res, list) and len(r_res) > 0:
+        r_res = safe_fmp_get(r_url, "Quant Rating")
+        if isinstance(r_res, list) and len(r_res) > 0:
             fin_data['rating'] = r_res[0].get('rating', 'N/A')
             fin_data['recommendation'] = r_res[0].get('ratingRecommendation', 'N/A')
             fin_data['health_score'] = r_res[0].get('ratingScore', 'N/A')
@@ -1460,23 +1462,24 @@ def fetch_premium_financials(symbol, api_key):
 # [신규 추가] FMP 애널리스트 목표가 & 컨센서스 수집 헬퍼
 # ==========================================
 def fetch_analyst_estimates(symbol, api_key):
-    """월가 애널리스트들의 평균 목표가와 투자의견을 수집합니다."""
     data = {"target": "N/A", "high": "N/A", "low": "N/A", "consensus": "N/A"}
     try:
-        # 1. Price Target (목표가)
         pt_url = f"https://financialmodelingprep.com/api/v4/price-target-consensus?symbol={symbol}&apikey={api_key}"
         pt_res = requests.get(pt_url, timeout=5).json()
-        if pt_res and isinstance(pt_res, list) and len(pt_res) > 0:
+        if isinstance(pt_res, dict) and "Error Message" in pt_res:
+            print(f"🚫 [Tab 4 목표가 차단됨] -> {pt_res['Error Message']}")
+        elif isinstance(pt_res, list) and len(pt_res) > 0 and isinstance(pt_res[0], dict):
             data['target'] = pt_res[0].get('targetConsensus', 'N/A')
             data['high'] = pt_res[0].get('targetHigh', 'N/A')
             data['low'] = pt_res[0].get('targetLow', 'N/A')
-        
-        # 2. Analyst Recommendation (투자의견)
+
         rec_url = f"https://financialmodelingprep.com/api/v3/analyst-stock-recommendations/{symbol}?limit=1&apikey={api_key}"
         rec_res = requests.get(rec_url, timeout=5).json()
-        if rec_res and isinstance(rec_res, list) and len(rec_res) > 0:
+        if isinstance(rec_res, dict) and "Error Message" in rec_res:
+            print(f"🚫 [Tab 4 투자의견 차단됨] -> {rec_res['Error Message']}")
+        elif isinstance(rec_res, list) and len(rec_res) > 0 and isinstance(rec_res[0], dict):
             data['consensus'] = rec_res[0].get('ratingRecommendation', 'N/A')
-    except Exception as e:
+    except Exception as e: 
         print(f"Analyst Data Fetch Error for {symbol}: {e}")
     return data
     
@@ -1809,35 +1812,33 @@ def update_macro_data(df):
         q_url = f"https://financialmodelingprep.com/api/v3/quote/^VIX,SPY,^W5000?apikey={FMP_API_KEY}"
         q_res = requests.get(q_url, timeout=5).json()
         
-        if isinstance(q_res, list):
+        # 🚨 [디버깅 추가]
+        if isinstance(q_res, dict) and "Error Message" in q_res:
+            print(f"🚫 [Tab 2 거시지표 차단됨] -> {q_res['Error Message']}")
+        elif isinstance(q_res, list):
             q_map = {item['symbol']: item for item in q_res}
-            
-            # VIX 지수 업데이트
-            if '^VIX' in q_map:
-                data["vix"] = float(q_map['^VIX'].get('price', 20.0))
-            
-            # SPY PE Ratio 업데이트
-            if 'SPY' in q_map:
-                data["pe_ratio"] = float(q_map['SPY'].get('pe', 24.5))
-                
-            # Buffett Indicator 연산 (미국 전체 시총 / GDP)
+            if '^VIX' in q_map: data["vix"] = float(q_map['^VIX'].get('price', 20.0))
+            if 'SPY' in q_map: data["pe_ratio"] = float(q_map['SPY'].get('pe', 24.5))
             if '^W5000' in q_map:
                 w5000_price = float(q_map['^W5000'].get('price', 0))
                 if w5000_price > 0:
                     estimated_market_cap_trillion = (w5000_price * 1.1) / 1000
-                    current_us_gdp_trillion = 28.0 # 2024-2025 미국 명목 GDP
+                    current_us_gdp_trillion = 28.0 
                     data["buffett_val"] = (estimated_market_cap_trillion / current_us_gdp_trillion) * 100
 
         # Fear & Greed Index (FMP Market Risk Premium API 우회 활용)
         r_url = f"https://financialmodelingprep.com/api/v4/market_risk_premium?apikey={FMP_API_KEY}"
         r_res = requests.get(r_url, timeout=5).json()
-        if isinstance(r_res, list) and len(r_res) > 0:
+        
+        # 🚨 [디버깅 추가]
+        if isinstance(r_res, dict) and "Error Message" in r_res:
+            print(f"🚫 [Tab 2 Market Risk 차단됨] -> {r_res['Error Message']}")
+        elif isinstance(r_res, list) and len(r_res) > 0:
             us_risk = next((item for item in r_res if item.get('country') == 'United States'), None)
             if us_risk:
                 risk_premium = float(us_risk.get('totalEquityRiskPremium', 5.0))
-                # 리스크 프리미엄이 낮을수록(안전하다고 느낄수록) 탐욕(Greed) 수치는 높음
                 fg_score = 100 - ((risk_premium - 3.0) * 20)
-                data["fear_greed"] = max(0, min(100, fg_score)) # 0~100 사이로 제한
+                data["fear_greed"] = max(0, min(100, fg_score)) 
 
     except Exception as e:
         print(f"Macro Fetch Error: {e}")
