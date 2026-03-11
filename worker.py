@@ -88,7 +88,7 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
         filed_date = None
 
         search_target = cik if cik else ticker
-        search_url = f"https://financialmodelingprep.com/api/v3/sec_filings/{search_target}?type={doc_type}&limit=1&apikey={api_key}"
+        search_url = f"https://financialmodelingprep.com/stable/sec-filings?symbol={search_target}&type={doc_type}&limit=1&apikey={api_key}"
         r = requests.get(search_url, timeout=5)
         
         if r.status_code == 200:
@@ -121,7 +121,7 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
         if not accession_num: return None, None
 
         # 3단계: FMP v4 텍스트 추출 시도
-        text_url = f"https://financialmodelingprep.com/api/v4/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
+        text_url = f"https://financialmodelingprep.com/stable/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
         txt_res = requests.get(text_url, timeout=7)
         full_text = ""
         if txt_res.status_code == 200:
@@ -422,7 +422,7 @@ def get_fallback_cik(ticker, company_name, api_key):
     """[3중 추적 엔진] 명단에 없는 기업의 CIK를 3가지 방법으로 기어코 찾아냅니다."""
     # 1단계: FMP 기업 프로필 API에서 직접 추출
     try:
-        url = f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey={api_key}"
+        url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={api_key}"
         res = requests.get(url, timeout=5).json()
         if res and isinstance(res, list) and 'cik' in res[0] and res[0]['cik']:
             return str(res[0]['cik']).zfill(10)
@@ -468,25 +468,30 @@ def check_sec_specific_filing(cik, target_form):
         return None
 
 # ==========================================
-# [신규] FMP 프리미엄 헬퍼 함수 (Tab 0, Tab 1 용)
+# [신규 추가] FMP 프리미엄 헬퍼 함수 (Tab 0 용)
 # ==========================================
-
 def fetch_fmp_8k_events(symbol, api_key):
+    """[Tab 0] 기업의 최근 8-K(중대 이벤트: M&A, 소송, 임원교체 등)를 가져옵니다."""
     try:
-        url = f"https://financialmodelingprep.com/api/v3/sec_filings/{symbol}?type=8-K&limit=3&apikey={api_key}"
+        # 💡 [주소 수정 완료] stable 버전 적용
+        url = f"https://financialmodelingprep.com/stable/sec-filings?symbol={symbol}&type=8-K&limit=3&apikey={api_key}"
         res = requests.get(url, timeout=5).json()
+        
         if isinstance(res, dict) and "Error Message" in res:
             print(f"🚫 [Tab 0 8-K 차단됨] -> {res['Error Message']}")
             return "No recent 8-K events."
+            
         if res and isinstance(res, list) and len(res) > 0:
             events = [f"- Date: {r.get('fillingDate')} | Link: {r.get('finalLink')}" for r in res]
             return "\n".join(events)
         return "No recent 8-K events."
-    except: return "No recent 8-K events."
+    except Exception as e:
+        print(f"8-K Fetch Error for {symbol}: {e}")
+        return "No recent 8-K events."
 
 def fetch_fmp_premium_news(symbol, api_key):
     try:
-        url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={symbol}&limit=5&apikey={api_key}"
+        url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={symbol}&limit=5&apikey={api_key}"
         res = requests.get(url, timeout=5).json()
         if isinstance(res, dict) and "Error Message" in res:
             print(f"🚫 [Tab 1 프리미엄 뉴스 차단됨] -> {res['Error Message']}")
@@ -499,7 +504,7 @@ def fetch_fmp_premium_news(symbol, api_key):
 
 def fetch_fmp_earnings_call(symbol, api_key):
     try:
-        url = f"https://financialmodelingprep.com/api/v3/earning_call_transcript/{symbol}?limit=1&apikey={api_key}"
+        url = f"https://financialmodelingprep.com/stable/earning-call-transcript?symbol={symbol}&limit=1&apikey={api_key}"
         res = requests.get(url, timeout=5).json()
         if isinstance(res, dict) and "Error Message" in res:
             print(f"🚫 [Tab 1 어닝콜 차단됨] -> {res['Error Message']}")
@@ -517,7 +522,7 @@ def fetch_fmp_earnings_call(symbol, api_key):
 def fetch_fmp_8k_events(symbol, api_key):
     """[Tab 0] 기업의 최근 8-K(중대 이벤트: M&A, 소송, 임원교체 등)를 가져옵니다."""
     try:
-        url = f"https://financialmodelingprep.com/api/v3/sec_filings/{symbol}?type=8-K&limit=3&apikey={api_key}"
+        url = f"https://financialmodelingprep.com/stable/sec-filings?symbol={symbol}&type=8-K&limit=3&apikey={api_key}"
         res = requests.get(url, timeout=5).json()
         if res and isinstance(res, list) and len(res) > 0:
             events = [f"- Date: {r.get('fillingDate')} | Link: {r.get('finalLink')}" for r in res]
@@ -894,7 +899,7 @@ def run_tab0_premium_collection(ticker, company_name):
     try:
         limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # 어닝콜은 자주 안바뀌므로 7일 유지
         
-        url = f"https://financialmodelingprep.com/api/v3/earning_call_transcript/{ticker}?limit=1&apikey={FMP_API_KEY}"
+        url = f"https://financialmodelingprep.com/stable/earning-call-transcript?symbol={ticker}&limit=1&apikey={FMP_API_KEY}"
         ec_raw = get_fmp_data_with_cache(ticker, "RAW_EARNINGS_CALL", url, valid_hours=168)
         
         is_ec_valid = isinstance(ec_raw, list) and len(ec_raw) > 0
@@ -995,7 +1000,7 @@ def run_tab2_premium_collection(ticker, company_name):
     try:
         limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # ESG는 자주 안 바뀌므로 7일 유지
         
-        url = f"https://financialmodelingprep.com/api/v4/esg-environmental-social-governance-data?symbol={ticker}&apikey={FMP_API_KEY}"
+        url = f"https://financialmodelingprep.com/stable/esg-environmental-social-governance-data?symbol={ticker}&apikey={FMP_API_KEY}"
         esg_raw = get_fmp_data_with_cache(ticker, "RAW_ESG", url, valid_hours=168)
         
         is_esg_valid = isinstance(esg_raw, list) and len(esg_raw) > 0
@@ -1111,12 +1116,12 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     current_year = now.strftime("%Y")
 
     # 🚀 [환각 차단 파트 1] FMP 공식 사업모델 설명 확보
-    profile_url = f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey={FMP_API_KEY}"
+    profile_url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={FMP_API_KEY}"
     profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
     biz_desc = profile_data[0].get('description', '') if (profile_data and isinstance(profile_data, list)) else ''
 
     # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 15개 확보 (AI가 5개를 골라낼 수 있도록 풀을 넓힘)
-    news_url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={ticker}&limit=15&apikey={FMP_API_KEY}"
+    news_url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={ticker}&limit=15&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_5", news_url, valid_hours=6)
     
     fmp_news_context = ""
@@ -1275,7 +1280,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     # 🚀 [B] 프리미엄 전용 데이터 수집 (기업 공식 보도자료)
     # =========================================================
     try:
-        pr_url = f"https://financialmodelingprep.com/api/v4/press-releases?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
+        pr_url = f"https://financialmodelingprep.com/stable/press-releases?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
         pr_raw = get_fmp_data_with_cache(ticker, "RAW_PR", pr_url, valid_hours=12)
 
         # 🚨 [환각 완벽 차단] FMP가 보낸 데이터가 에러 딕셔너리({})가 아닌 정상 리스트([])일 때만 통과!
@@ -1606,7 +1611,7 @@ def fetch_premium_financials(symbol, api_key):
 
     try:
         # 1. 손익계산서
-        inc_url = f"https://financialmodelingprep.com/api/v3/income-statement/{symbol}?limit=2&apikey={api_key}"
+        inc_url = f"https://financialmodelingprep.com/stable/income-statement?symbol={symbol}&limit=2&apikey={api_key}"
         inc_res = safe_fmp_get(inc_url, "Income Statement")
         if isinstance(inc_res, list) and len(inc_res) > 0:
             rev = float(inc_res[0].get('revenue', 0))
@@ -1619,7 +1624,7 @@ def fetch_premium_financials(symbol, api_key):
             fin_data['op_margin'] = f"{(op_inc / rev) * 100:.1f}%" if rev else "N/A"
         
         # 2. 주요 지표
-        m_url = f"https://financialmodelingprep.com/api/v3/key-metrics-ttm/{symbol}?apikey={api_key}"
+        m_url = f"https://financialmodelingprep.com/stable/key-metrics-ttm?symbol={symbol}&apikey={api_key}"
         m_res = safe_fmp_get(m_url, "Key Metrics TTM")
         if isinstance(m_res, list) and len(m_res) > 0:
             m = m_res[0]
@@ -1629,7 +1634,7 @@ def fetch_premium_financials(symbol, api_key):
             fin_data['pb'] = m.get('pbRatioTTM', 'N/A')
 
         # 3. 현금흐름 (Accruals)
-        cf_url = f"https://financialmodelingprep.com/api/v3/cash-flow-statement/{symbol}?limit=1&apikey={api_key}"
+        cf_url = f"https://financialmodelingprep.com/stable/cash-flow-statement?symbol={symbol}&limit=1&apikey={api_key}"
         cf_res = safe_fmp_get(cf_url, "Cash Flow")
         if isinstance(cf_res, list) and len(cf_res) > 0 and fin_data['net_margin'] != 'N/A':
             ocf = float(cf_res[0].get('operatingCashFlow', 0))
@@ -1638,14 +1643,14 @@ def fetch_premium_financials(symbol, api_key):
             fin_data['accruals'] = "Unknown"
 
         # 4. DCF 적정주가
-        dcf_url = f"https://financialmodelingprep.com/api/v3/discounted-cash-flow/{symbol}?apikey={api_key}"
+        dcf_url = f"https://financialmodelingprep.com/stable/discounted-cash-flow?symbol={symbol}&apikey={api_key}"
         dcf_res = safe_fmp_get(dcf_url, "DCF")
         if isinstance(dcf_res, list) and len(dcf_res) > 0:
             fin_data['dcf_price'] = f"${dcf_res[0].get('dcf', 0.0):.2f}"
             fin_data['current_price'] = f"${dcf_res[0].get('Stock Price', 0.0):.2f}"
 
         # 5. 퀀트 Rating
-        r_url = f"https://financialmodelingprep.com/api/v3/rating/{symbol}?apikey={api_key}"
+        r_url = f"https://financialmodelingprep.com/stable/rating?symbol={symbol}&apikey={api_key}"
         r_res = safe_fmp_get(r_url, "Quant Rating")
         if isinstance(r_res, list) and len(r_res) > 0:
             fin_data['rating'] = r_res[0].get('rating', 'N/A')
@@ -1664,7 +1669,7 @@ def fetch_premium_financials(symbol, api_key):
 def fetch_analyst_estimates(symbol, api_key):
     data = {"target": "N/A", "high": "N/A", "low": "N/A", "consensus": "N/A"}
     try:
-        pt_url = f"https://financialmodelingprep.com/api/v4/price-target-consensus?symbol={symbol}&apikey={api_key}"
+        pt_url = f"https://financialmodelingprep.com/stable/price-target-consensus?symbol={symbol}&apikey={api_key}"
         pt_res = requests.get(pt_url, timeout=5).json()
         if isinstance(pt_res, dict) and "Error Message" in pt_res:
             print(f"🚫 [Tab 4 목표가 차단됨] -> {pt_res['Error Message']}")
@@ -1673,7 +1678,7 @@ def fetch_analyst_estimates(symbol, api_key):
             data['high'] = pt_res[0].get('targetHigh', 'N/A')
             data['low'] = pt_res[0].get('targetLow', 'N/A')
 
-        rec_url = f"https://financialmodelingprep.com/api/v3/analyst-stock-recommendations/{symbol}?limit=1&apikey={api_key}"
+        rec_url = f"https://financialmodelingprep.com/stable/analyst-stock-recommendations?symbol={symbol}&limit=1&apikey={api_key}"
         rec_res = requests.get(rec_url, timeout=5).json()
         if isinstance(rec_res, dict) and "Error Message" in rec_res:
             print(f"🚫 [Tab 4 투자의견 차단됨] -> {rec_res['Error Message']}")
@@ -1754,7 +1759,7 @@ def run_tab4_ma_premium_collection(ticker, company_name):
         limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # M&A도 자주 안 터지므로 7일 유지
         
         # FMP의 M&A 데이터 호출
-        url = f"https://financialmodelingprep.com/api/v4/mergers-and-acquisitions?symbol={ticker}&apikey={FMP_API_KEY}"
+        url = f"https://financialmodelingprep.com/stable/mergers-and-acquisitions?symbol={ticker}&apikey={FMP_API_KEY}"
         ma_raw = get_fmp_data_with_cache(ticker, "RAW_MA_HISTORY", url, valid_hours=168)
         
         is_ma_valid = isinstance(ma_raw, list) and len(ma_raw) > 0
@@ -2001,10 +2006,10 @@ def run_tab3_premium_collection(ticker, company_name):
     try:
         limit_time_str = (datetime.now() - timedelta(hours=24)).isoformat()
         
-        surp_url = f"https://financialmodelingprep.com/api/v4/earnings-surprises?symbol={ticker}&apikey={FMP_API_KEY}"
+        surp_url = f"https://financialmodelingprep.com/stable/earnings-surprises?symbol={ticker}&apikey={FMP_API_KEY}"
         surp_raw = get_fmp_data_with_cache(ticker, "RAW_SURPRISE", surp_url, valid_hours=24)
         
-        est_url = f"https://financialmodelingprep.com/api/v4/analyst-estimates?symbol={ticker}&apikey={FMP_API_KEY}"
+        est_url = f"https://financialmodelingprep.com/stable/analyst-estimates?symbol={ticker}&apikey={FMP_API_KEY}"
         est_raw = get_fmp_data_with_cache(ticker, "RAW_ESTIMATE", est_url, valid_hours=24)
 
         # 🚨 [환각 방어막] 진짜 데이터인지 엄격 검사
@@ -2123,7 +2128,7 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # 매출 비중은 연간/분기 데이터이므로 7일 캐싱
         
         # FMP의 Product Segmentation 데이터 호출 (1년치)
-        url = f"https://financialmodelingprep.com/api/v4/revenue-product-segmentation?symbol={ticker}&structure=flat&period=annual&apikey={FMP_API_KEY}"
+        url = f"https://financialmodelingprep.com/stable/revenue-product-segmentation?symbol={ticker}&structure=flat&period=annual&apikey={FMP_API_KEY}"
         rev_raw = get_fmp_data_with_cache(ticker, "RAW_REVENUE_SEGMENT", url, valid_hours=168)
         
         # FMP API v4는 딕셔너리 형태로 리턴되는 경우가 많아 리스트로 감싸거나 변환 확인
@@ -2218,7 +2223,7 @@ def update_macro_data(df):
     # [B] FMP API 기반 거시 경제 지표 연동
     # ---------------------------------------------------------
     try:
-        q_url = f"https://financialmodelingprep.com/api/v3/quote/^VIX,SPY,^W5000?apikey={FMP_API_KEY}"
+        q_url = f"https://financialmodelingprep.com/stable/quote?symbol=^VIX,SPY,^W5000&apikey={FMP_API_KEY}"
         q_res = requests.get(q_url, timeout=5).json()
         
         if isinstance(q_res, dict) and "Error Message" in q_res:
@@ -2234,7 +2239,7 @@ def update_macro_data(df):
                     current_us_gdp_trillion = 28.0 
                     data["buffett_val"] = (estimated_market_cap_trillion / current_us_gdp_trillion) * 100
 
-        r_url = f"https://financialmodelingprep.com/api/v4/market_risk_premium?apikey={FMP_API_KEY}"
+        r_url = f"https://financialmodelingprep.com/stable/market-risk-premium?apikey={FMP_API_KEY}"
         r_res = requests.get(r_url, timeout=5).json()
         
         if isinstance(r_res, dict) and "Error Message" in r_res:
@@ -2389,18 +2394,18 @@ def fetch_smart_money_data(symbol, api_key):
     data = {"insider": [], "institutional": [], "senate": [], "fail_to_deliver": []}
     
     # 각 API 타입별로 캐시 확인 후 호출
-    in_url = f"https://financialmodelingprep.com/api/v4/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
+    in_url = f"https://financialmodelingprep.com/stable/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
     data["insider"] = get_fmp_data_with_cache(symbol, "SMART_IN", in_url) or []
 
-    inst_url = f"https://financialmodelingprep.com/api/v3/institutional-holder/{symbol}?apikey={api_key}"
+    inst_url = f"https://financialmodelingprep.com/stable/institutional-holder?symbol={symbol}&apikey={api_key}"
     res_inst = get_fmp_data_with_cache(symbol, "SMART_INST", inst_url)
     data["institutional"] = res_inst[:10] if isinstance(res_inst, list) else []
     
-    sen_url = f"https://financialmodelingprep.com/api/v4/senate-trading?symbol={symbol}&apikey={api_key}"
+    sen_url = f"https://financialmodelingprep.com/stable/senate-trading?symbol={symbol}&apikey={api_key}"
     res_sen = get_fmp_data_with_cache(symbol, "SMART_SENATE", sen_url)
     data["senate"] = res_sen[:5] if isinstance(res_sen, list) else []
     
-    ftd_url = f"https://financialmodelingprep.com/api/v4/fail_to_deliver?symbol={symbol}&limit=5&apikey={api_key}"
+    ftd_url = f"https://financialmodelingprep.com/stable/fail_to_deliver?symbol={symbol}&limit=5&apikey={api_key}"
     data["fail_to_deliver"] = get_fmp_data_with_cache(symbol, "SMART_FTD", ftd_url) or []
 
     return data
@@ -2544,8 +2549,7 @@ def run_premium_alert_engine(df_calendar):
         # --- 2. 기간별 통계적 유의 상승 로직 (FMP API 캐싱 적용) ---
         try:
             # 💡 [교체 완료] 직접 호출 대신 캐시 방어막 함수를 사용합니다.
-            url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?timeseries=260&apikey={FMP_API_KEY}"
-            
+            url = f"https://financialmodelingprep.com/stable/historical-price-eod/full?symbol={ticker}&timeseries=260&apikey={FMP_API_KEY}"
             # 주가 데이터는 하루(24시간) 동안 캐싱된 것을 사용합니다.
             res = get_fmp_data_with_cache(ticker, "HIST", url, valid_hours=24)
             
@@ -2637,7 +2641,7 @@ def main():
 
     print("\n📋 [stock_cache] 명단 업데이트 및 신규 편입 식별 시작...")
     
-    # 💡 [신규 추가 1] 기존 DB에서 추적 중이던 전체 Ticker 목록 불러오기
+    # [신규 추가 1] 기존 DB에서 추적 중이던 전체 Ticker 목록 불러오기
     try:
         res_known = supabase.table("stock_cache").select("symbol").execute()
         known_tickers = {item['symbol'] for item in res_known.data}
@@ -2648,16 +2652,16 @@ def main():
     now_iso = datetime.now().isoformat()
     today_date = datetime.now().date()
     stock_list = []
-    sudden_additions = [] # 💡 [신규 추가 2] 갑자기 등장한 기업(SPAC 등) 담을 바구니
+    sudden_additions = [] 
     
     for _, row in df.iterrows():
         sym = str(row['symbol'])
         
-        # 💡 [신규 추가 3] 신규 편입(스팩/직상장) 식별 로직
+        # [신규 추가 3] 신규 편입(스팩/직상장) 식별 로직
         try: ipo_dt = pd.to_datetime(row['date']).date()
         except: ipo_dt = today_date
         
-        # 기존 DB에 없었고(신규), 상장일이 오늘이거나 이미 지났다면 '예고 없이 상장된 기업'으로 판별
+        # 기존 DB에 없었고(신규), 상장일이 오늘이거나 이미 지났다면 판별
         if known_tickers and (sym not in known_tickers) and (ipo_dt <= today_date):
             sudden_additions.append(sym)
             
@@ -2667,16 +2671,15 @@ def main():
             "last_updated": now_iso 
         })
         
-    # 💡 [신규 추가 4] 식별된 스팩/직상장 리스트를 app.py가 읽을 수 있도록 DB에 저장
+    # [신규 추가 4] 식별된 스팩/직상장 리스트를 DB에 저장
     if sudden_additions:
         try:
             old_res = supabase.table("analysis_cache").select("content").eq("cache_key", "SUDDEN_ADDITIONS_LIST").execute()
             if old_res.data:
                 old_list = json.loads(old_res.data[0]['content'])
-                sudden_additions = list(set(old_list + sudden_additions)) # 기존 리스트와 병합 및 중복 제거
+                sudden_additions = list(set(old_list + sudden_additions))
         except: pass
         
-        # get_target_stocks 함수가 df를 리턴하기 직전에 추가:
         batch_upsert("analysis_cache", [{
             "cache_key": "IPO_CALENDAR_DATA",
             "content": df.to_json(orient='records'),
@@ -2688,8 +2691,8 @@ def main():
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
     update_macro_data(df)
     
-    # ------------------ 이하 기존 로직 완벽히 동일 ------------------
-    print("🔥 타겟 종목 선별 중 (35일 상장예정 + 6개월 신규상장 + 수익률 상위 50위)...")
+    # ------------------ 💡 18개월 이내 상장 기업 타겟팅 ------------------
+    print("🔥 타겟 종목 선별 중 (35일 상장예정 + 18개월 신규상장)...")
     price_map = get_current_prices() 
     
     today = datetime.now()
@@ -2697,21 +2700,15 @@ def main():
     
     target_symbols = set()
     
+    # 1. 상장 예정(35일)
     upcoming = df[(df['dt'] > today) & (df['dt'] <= today + timedelta(days=35))]
     target_symbols.update(upcoming['symbol'].tolist())
     print(f"   -> 상장 예정(35일): {len(upcoming)}개")
     
-    past_6m = df[(df['dt'] >= today - timedelta(days=180)) & (df['dt'] <= today)]
-    target_symbols.update(past_6m['symbol'].tolist())
-    print(f"   -> 최근 상장(6개월): {len(past_6m)}개")
-    
-    try:
-        # 과거 상장 기업 전체 포함 (수익률 계산 및 Top 50 제한 완전 해제)
-        past_all = df[df['dt'] <= today].copy()
-        target_symbols.update(past_all['symbol'].tolist())
-        print(f"   -> 전체 과거 상장 종목 포함: {len(past_all)}개 (제한 해제)")
-    except Exception as e:
-        print(f"   ⚠️ 타겟 종목 합산 에러: {e}")
+    # 2. 최근 상장(18개월 = 540일)
+    past_18m = df[(df['dt'] >= today - timedelta(days=540)) & (df['dt'] <= today)]
+    target_symbols.update(past_18m['symbol'].tolist())
+    print(f"   -> 최근 상장(18개월): {len(past_18m)}개")
 
     print(f"✅ 최종 분석 대상: 총 {len(target_symbols)}개 종목 (중복 제거)")
 
@@ -2724,33 +2721,15 @@ def main():
     
     print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 종목 다국어 캐싱)...")
     
-    print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 종목 다국어 캐싱)...")
-    
-    # 💡 [핵심 추가] 워커 시작 시간 기록 및 최대 허용 시간(5.5시간) 설정
-    import time
-    WORKER_START_TIME = time.time()
-    MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간(19,800초)
-    
-    # 💡 [핵심 추가] 워커 시작 시간 기록 및 최대 허용 시간(5.5시간) 설정
     import time
     WORKER_START_TIME = time.time()
     MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간(19,800초)
 
-    # =======================================================
-    # 🚨 [운영자 테스트 모드] 강제 AAPL 주입 및 프리미엄 로깅 FMP유료 inflow확인용.
-    # =======================================================
-    print("\n" + "="*60)
-    print("🚨 [운영자 테스트 모드 가동] 모든 종목을 무시하고 'AAPL' 1개만 정밀 분석합니다.")
-    print("="*60 + "\n")
-    
-    # 💡 [핵심 수정] target_df를 AAPL 1개짜리로 강제 덮어쓰기!
-    target_df = pd.DataFrame([{"symbol": "AAPL", "name": "Apple Inc", "date": "1980-12-12", "status": "Active"}])
-    total = len(target_df)
-
+    # 🚨 AAPL 테스트 모드 삭제 완료. 18개월 타겟 전체 루프 시작!
     for idx, row in target_df.iterrows():
-        # 💡 [핵심 추가] 5.5시간이 넘어가면 깃허브 강제 종료를 막기 위해 스스로 안전하게 멈춤
+        # 5.5시간 강제 종료 방어막
         if time.time() - WORKER_START_TIME > MAX_RUN_TIME_SEC:
-            print("⏳ [알림] 깃허브 6시간 제한 임박! 서버 강제 다운을 막기 위해 작업을 안전하게 일시 중단합니다. (다음 워커가 이어서 작업합니다)")
+            print("⏳ [알림] 깃허브 6시간 제한 임박! 서버 강제 다운을 막기 위해 작업을 일시 중단합니다.")
             break
 
         original_symbol = row.get('symbol')
@@ -2770,68 +2749,48 @@ def main():
             c_status = row.get('status', 'Active')
             c_date = row.get('date', None)
             
+            # Tab 0 & Tab 1 (기본 + 프리미엄)
             run_tab1_analysis(official_symbol, name, c_status, c_date)
             run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping)
             run_tab0_premium_collection(official_symbol, name)
-            run_tab2_premium_collection(official_symbol, name) # 👈 이 1줄을 추가!
+            run_tab2_premium_collection(official_symbol, name) 
             
-            # 👇 [핵심 추가] Tab 4: FMP 월가 애널리스트 목표가 데이터 수집 및 연동
+            # Tab 4: 목표가 수집 및 투자의견/M&A
             try:
                 analyst_metrics = fetch_analyst_estimates(official_symbol, FMP_API_KEY)
                 run_tab4_analysis(official_symbol, name, c_status, c_date, analyst_metrics)
-                run_tab4_ma_premium_collection(official_symbol, name) # 👈 🚀 여기에 추가하시면 됩니다!
+                run_tab4_ma_premium_collection(official_symbol, name) 
             except Exception as e:
                 print(f"Tab4 Analyst Data Error for {official_symbol}: {e}")
                 pass
-            # 👆 [여기까지 추가 완료!]
             
+            # Tab 3: 11지표 통합 수집 및 재무 분석
             try:
-                # 11지표 통합 수집 헬퍼 함수 호출
                 unified_metrics = fetch_premium_financials(official_symbol, FMP_API_KEY)
                 
-                # 🚨 [신규 추가] app.py가 카드를 그릴 수 있도록 순수 재무 숫자 데이터도 DB에 저장!
                 batch_upsert("analysis_cache", [{
                     "cache_key": f"{official_symbol}_Raw_Financials",
                     "content": json.dumps(unified_metrics, ensure_ascii=False),
                     "updated_at": datetime.now().isoformat()
                 }], on_conflict="cache_key")
                 
-                # 기존 AI 리포트 생성 (Tab 3 미시 지표)
                 run_tab3_analysis(official_symbol, name, unified_metrics)
-                
-                # 🚀 [NEW] 여기에 Tab 3 프리미엄 전용 데이터(어닝 서프라이즈, 실적 전망) 수집 함수 추가!
                 run_tab3_premium_collection(official_symbol, name)
-                run_tab3_revenue_premium_collection(official_symbol, name) # 👈 이 1줄을 추가!
+                run_tab3_revenue_premium_collection(official_symbol, name) 
                 
             except Exception as e:
                 print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
                 pass
-            # 👆 여기까지 덮어쓰기 완료! 👆
 
-            # 👇 [여기에 신규 추가!!] Tab 6 스마트머니 수집 및 분석 실행
+            # Tab 6: 스마트머니 수집 및 분석
             try:
                 smart_money_data = fetch_smart_money_data(official_symbol, FMP_API_KEY)
                 run_tab6_analysis(official_symbol, name, smart_money_data)
             except Exception as e:
                 print(f"Tab6 Smart Money Error for {official_symbol}: {e}")
                 pass
-            # 👆 [여기까지 추가 완료!]
             
             time.sleep(1.2)
-            
-            # =======================================================
-            # 👑 [운영자 품질 검수 리포트 출력] (테스트 모드 전용)
-            # =======================================================
-            print("\n" + "👑"*25)
-            print(f"👑 [프리미엄 데이터 생성 완료: {original_symbol}]")
-            print("👑 Supabase의 'analysis_cache' 테이블에서 아래 Key를 검색해 내용을 검수하세요!")
-            print(f" 1. [보도자료] {original_symbol}_PressReleaseSummary_v1_ko")
-            print(f" 2. [어닝서프] {original_symbol}_PremiumSurprise_v1_ko")
-            print(f" 3. [실적전망] {original_symbol}_PremiumEstimate_v1_ko")
-            print(f" 4. [투자의견] {original_symbol}_PremiumUpgrades_v1_ko")
-            print(f" 5. [섹터비교] {original_symbol}_PremiumPeers_v1_ko")
-            print(f" 6. [스마트머니] {original_symbol}_Tab6_SmartMoney_v1_ko")
-            print("👑"*25 + "\n")
             
         except Exception as e:
             print(f"⚠️ {original_symbol} 분석 건너뜀: {e}")
@@ -2839,7 +2798,7 @@ def main():
 
     run_premium_alert_engine(df)
     
-    # 💡 [핵심 추가] 메인 워커 작업이 끝난 후에도 앱에 생존 신고를 넣습니다.
+    # 💡 [생존 신고] 메인 워커 작업이 끝난 후 앱에 상태 알림
     batch_upsert("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
             
     print(f"\n🏁 모든 작업 종료: {datetime.now()}")
