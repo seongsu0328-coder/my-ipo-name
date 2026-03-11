@@ -2157,7 +2157,7 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         print(f"Tab3 Premium Revenue Seg Error for {ticker}: {e}")
 
 # ==========================================
-# [수정/완전판] Tab 2: 거시 지표 수집 (FMP 연동 + 실시간 연산)
+# [수정/완전판] Tab 2: 거시 지표 수집 (FMP 연동 + 실시간 연산 + 이중 AI 분석)
 # ==========================================
 def update_macro_data(df):
     """Tab 2: 실제 FMP 데이터 및 실시간 IPO 데이터를 활용한 거시 지표 연산 및 AI 리포트 생성"""
@@ -2167,7 +2167,7 @@ def update_macro_data(df):
     valid_hours = 24
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
     
-    # 💡 [핵심 최적화] 캐시를 먼저 검사해서 24시간이 안 지났으면 연산 자체를 스킵 (API 비용 절대 방어)
+    # 💡 [핵심 최적화] 캐시를 먼저 검사해서 24시간이 안 지났으면 연산 자체를 스킵 (API 비용 방어)
     try:
         res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", "Market_Dashboard_Metrics").gt("updated_at", limit_time_str).execute()
         if res.data: 
@@ -2218,11 +2218,9 @@ def update_macro_data(df):
     # [B] FMP API 기반 거시 경제 지표 연동
     # ---------------------------------------------------------
     try:
-        # VIX(변동성 지수), SPY(S&P 500 ETF), ^W5000(Wilshire 5000) 동시 호출
         q_url = f"https://financialmodelingprep.com/api/v3/quote/^VIX,SPY,^W5000?apikey={FMP_API_KEY}"
         q_res = requests.get(q_url, timeout=5).json()
         
-        # 🚨 [디버깅 추가]
         if isinstance(q_res, dict) and "Error Message" in q_res:
             print(f"🚫 [Tab 2 거시지표 차단됨] -> {q_res['Error Message']}")
         elif isinstance(q_res, list):
@@ -2236,11 +2234,9 @@ def update_macro_data(df):
                     current_us_gdp_trillion = 28.0 
                     data["buffett_val"] = (estimated_market_cap_trillion / current_us_gdp_trillion) * 100
 
-        # Fear & Greed Index (FMP Market Risk Premium API 우회 활용)
         r_url = f"https://financialmodelingprep.com/api/v4/market_risk_premium?apikey={FMP_API_KEY}"
         r_res = requests.get(r_url, timeout=5).json()
         
-        # 🚨 [디버깅 추가]
         if isinstance(r_res, dict) and "Error Message" in r_res:
             print(f"🚫 [Tab 2 Market Risk 차단됨] -> {r_res['Error Message']}")
         elif isinstance(r_res, list) and len(r_res) > 0:
@@ -2253,9 +2249,7 @@ def update_macro_data(df):
     except Exception as e:
         print(f"Macro Fetch Error: {e}")
 
-    # =======================================================
-    # 🚨 [DB 저장] 연산된 최종 숫자 데이터를 DB에 저장 (app.py 호환)
-    # =======================================================
+    # 🚨 [DB 저장] 연산된 숫자 데이터 저장 (app.py 호환)
     batch_upsert("analysis_cache", [{
         "cache_key": "Market_Dashboard_Metrics",
         "content": json.dumps(data),
@@ -2263,90 +2257,129 @@ def update_macro_data(df):
     }], on_conflict="cache_key")
 
     # =======================================================
-    # [C] AI 리포트 생성 및 다국어 캐싱 (논리 3단계: 의미-해석-결론)
+    # 🚀 [C] AI 리포트 생성 (1. 카드별 Specific 요약 / 2. Matrix 통합 리포트)
     # =======================================================
+    # 데이터 그룹 분리 정의 (인과관계 분석용)
+    g1_context = f"심리 지표 (초기 수익률 {data['ipo_return']}%, 상장 철회율 {data['withdrawal_rate']}%)"
+    g2_context = f"공급 및 질적 지표 (상장 예정 물량 {data['ipo_volume']}건, 적자 기업 비중 {data['unprofitable_pct']}%)"
+    g3_context = f"거시 지표 (VIX {data['vix']}, Fear&Greed {data['fear_greed']}, 버핏지수 {data['buffett_val']}%, S&P500 PE {data['pe_ratio']}x)"
+
     for lang_code, target_lang in SUPPORTED_LANGS.items():
-        cache_key_report = f"Global_Market_Dashboard_{lang_code}"
+        cache_key_summary = f"Global_Market_Summary_{lang_code}"
+        cache_key_full = f"Global_Market_Dashboard_{lang_code}"
         
-        # 분석용 데이터 그룹 구성 (학술적 명칭 적용)
-        group1_data = f"IPO 초기 수익률 {data['ipo_return']}% / IPO 상장 철회율 {data['withdrawal_rate']}%"
-        group2_data = f"상장 파이프라인 {data['ipo_volume']}건 / 미수익 기업 상장 비중 {data['unprofitable_pct']}%"
-        group3_data = f"변동성 및 투자심리(VIX {data['vix']:.2f}, Fear&Greed {data['fear_greed']:.0f}) / 시장 가치 평가(버핏지수 {data['buffett_val']:.1f}%, S&P500 PE {data['pe_ratio']:.1f})"
-
+        # ----------------------------------------------------
+        # 💡 [Call 1] 카드 3장용 Specific 요약 프롬프트 (각 카드별 4~5문장 심층 분석)
+        # ----------------------------------------------------
         if lang_code == 'ko':
-            prompt = "당신은 월가 수석 전략가입니다. 아래 지표들을 종합하여 3단계 논리 구조의 마켓 다이아그노시스(Market Diagnosis) 리포트를 작성하세요."
-            instruction = f"""
-            [분석 대상 데이터]
-            - {group1_data}
-            - {group2_data}
-            - {group3_data}
-
-            [작성 규칙 - 엄격 준수]
-            1. 반드시 3개의 구절로 작성하고, 각 구절 사이에는 반드시 '|||SEP|||'를 넣으세요.
-            2. 각 구절의 단계별 역할:
-               - 첫 번째 구절(의미): 위 지표들이 IPO 시장과 거시 경제에서 가지는 학술적/실무적 의미(지표의 정의와 중요성)를 설명하세요.
-               - 두 번째 구절(해석): 현재 수집된 실제 데이터 수치를 바탕으로 각 지표가 현재 시장에서 가리키는 현상을 전문적으로 해석하세요.
-               - 세 번째 구절(결론): 앞선 의미와 해석을 통합하여 현재 미국 시장에 대한 최종 투자 전략 및 결론을 내리세요.
-            3. 각 구절은 1~2문장으로 작성하며, 전체 리포트는 3~5문장 내외로 아주 간결하게 핵심만 짚으십시오.
-            4. 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 격식 있고 정중한 존댓말(합쇼체)로 작성하세요. 절대 '~한다', '~이다' 형태의 평어체를 사용하지 마세요.
-            5. 인사말을 생략하고 첫 글자부터 곧바로 본론만 출력하세요.
+            sum_p = f"당신은 월가 수석 전략가입니다. 아래 3개 그룹의 지표를 금융공학적 관점에서 분석하여 각 카드에 들어갈 심층 코멘트를 작성하세요.\n1그룹: {g1_context}\n2그룹: {g2_context}\n3그룹: {g3_context}"
+            sum_i = """
+            [작성 규칙 - Specific Summary]
+            1. 반드시 3개의 구절로 작성하고 각 구절 사이에는 '|||SEP|||'를 넣으세요.
+            2. [1구절-심리(카드1)]: 초기 수익률과 철회율 데이터를 바탕으로 현재 투자자들의 투기적 광기 및 위험 선호도(Risk-on/off)를 구체적으로 진단하세요.
+            3. [2구절-위험(카드2)]: 상장 예정 물량과 미수익 기업 비중을 결합하여 시장의 공급 과잉('공급 폭탄') 및 질적 저하 리스크를 분석하세요.
+            4. [3구절-거시(카드3)]: 변동성(VIX/F&G)과 밸류에이션(PE/버핏지수)을 결합하여 현재 증시 펀더멘털의 과열 여부와 가격 정당성을 평가하세요.
+            5. 분량 및 어조: 각 구절은 반드시 '4~5줄(문장)'의 깊이 있는 분량으로 작성하세요. 모든 문장은 '~습니다', '~ㅂ니다' 형태의 격식 있는 정중체(합쇼체)를 유지하세요.
             """
         elif lang_code == 'en':
-            prompt = "You are a Lead Wall Street Strategist. Provide a synthesized 3-part market diagnosis based on the data."
-            instruction = f"""
-            [Data Summary]: {group1_data}, {group2_data}, {group3_data}
-
-            [STRICT WRITING RULES]
-            1. Write exactly 3 segments separated by the delimiter '|||SEP|||'.
-            2. Segment Roles:
-               - Seg 1 (Meaning): Explain the academic and practical significance of these indicators.
-               - Seg 2 (Interpretation): Interpret the current raw data values and what they specifically indicate about the market conditions now.
-               - Seg 3 (Conclusion): Synthesize the meaning and interpretation to provide a final investment verdict and strategic conclusion.
-            3. Each segment must be 1-2 sentences (3-5 sentences total). Be extremely concise.
-            4. Tone: Maintain a professional, objective, and analytical tone. Omit all greetings.
+            sum_p = f"Lead Wall Street Strategist. Provide specific causal analysis for 3 segments:\nGrp 1: {g1_context}\nGrp 2: {g2_context}\nGrp 3: {g3_context}"
+            sum_i = """
+            [Strict Rules]
+            1. Write exactly 3 segments separated by '|||SEP|||'.
+            2. Seg 1 (Card 1 - Sentiment): Diagnose speculative mania and liquidity using IPO Returns and Withdrawal Rates.
+            3. Seg 2 (Card 2 - Risk): Analyze supply glut and quality degradation using Pipeline volume and Unprofitable ratio.
+            4. Seg 3 (Card 3 - Macro): Evaluate market overheating using Volatility (VIX/F&G) and Valuation (PE/Buffett).
+            5. Length & Tone: Each segment MUST be exactly 4-5 sentences long, providing deep analysis. Maintain a professional, cold, and objective tone.
             """
         elif lang_code == 'ja':
-            prompt = "あなたはウォール街のチーフ市場ストラテジストです。3段階の論理構成で市場診断レポートを作成してください。"
-            instruction = f"""
-            [データ要約]: {group1_data}, {group2_data}, {group3_data}
-
-            [厳格な作成ルール]
-            1. 必ず3つのセグメントで構成し、各セグメントの間には必ず '|||SEP|||' を入れてください。
-            2. 各セグ먼트의 역할:
-               - 第1セグメント（意味）：これらの指標がIPO市場およびマクロ経済において持つ学術的・実務的な意味を説明してください。
-               - 第2セグメント（解釈）：現在の数치를基に、各指標が現在の市場でどのような現象を示しているか解釈してください。
-               - 第3セグメント（結論）：意味と解釈を統合し、現在の米国市場に対する最終的な投資戦略の結論を出してください。
-            3. 長さ：各セグメントは1〜2文、全体で3〜5文程度の簡潔な内容にしてください。
-            4. 語尾：必ず「〜です」「〜ます」形式の、非常に丁寧で格調高いビジネス敬語（です・ます調）を使用してください。挨拶は不要です。
+            sum_p = f"ウォール街のシニアストラテジストです。以下の3グループの指標を金融工学の観点から分析し、各カード用の深層コメントを作成してください。\nG1: {g1_context}\nG2: {g2_context}\nG3: {g3_context}"
+            sum_i = """
+            [作成規則]
+            1. 必ず3つのセグメントに分け、間に '|||SEP|||' を入れてください。
+            2. 第1部 (カード1 - 心理): 初期収益率と撤回率に基づき、投資家の投機的熱狂とリスク選好度を診断してください。
+            3. 第2部 (カード2 - リスク): 上場予定件数と赤字企業比率を結合し、市場の供給過剰および質的低下リスクを分析してください。
+            4. 第3部 (カード3 - マクロ): ボラティリティとバリュエーションを結合し、現在の市場ファンダメンタルズの過熱感を評価してください。
+            5. 分量と語尾: 各セグメントは必ず「4〜5文」の深みのある内容で作成してください。必ず「〜です/ます」調の丁寧なビジネス敬語を使用してください。
             """
-        elif lang_code == 'zh':
-            prompt = "您是华尔街的首席市场策略师。请按照三阶段逻辑撰写一份简明的宏观市场诊断报告。"
-            instruction = f"""
-            [数据摘要]: {group1_data}, {group2_data}, {group3_data}
-
-            [严格编写规则]
-            1. 必须严格分为3个部分，每部分之间用 '|||SEP|||' 隔开。
-            2. 各部分角色：
-               - 第一部分（含义）：解释这些指标在IPO市场和宏观经济中的学术及实务意义。
-               - 第二部分（解读）：结合当前的实际数值，解读这些指标所反映的当前市场现状。
-               - 第三部分（结论）：整合上述含义与解读，给出对当前美国市场的最终投资策略结论。
-            3. 篇幅：每部分1-2句话，总篇幅控制在3-5句左右，力求精炼。
-            4. 语气：必须使用极其庄重、专业且礼貌的正式书面用语。请省略任何问候语。
+        else: # zh
+            sum_p = f"华尔街首席战略家。请从金融工程角度分析以下3组指标，为每张卡片撰写深度摘要。\n组1: {g1_context}\n组2: {g2_context}\n组3: {g3_context}"
+            sum_i = """
+            [编写规则]
+            1. 必须严格分为3个部分，中间用 '|||SEP|||' 隔开。
+            2. 第一部分 (卡片1 - 情绪): 结合初期收益率与撤回率，具体诊断当前投资者的投机狂热与风险偏好状态。
+            3. 第二部分 (卡片2 - 风险): 结合上市排队数量与亏损企业占比，分析市场供给过剩及质量下降的风险。
+            4. 第三部分 (卡片3 - 宏观): 结合波动率与估值水平，评估当前股市基本面是否过热及价格合理性。
+            5. 篇幅与语气: 每部分必须包含 4-5 句话，提供有深度的逻辑分析。必须使用专业、严谨的正式书面用语。
             """
 
+        # ----------------------------------------------------
+        # 💡 [Call 2] 통합 분석용 Matrix 프로토콜 프롬프트/인스트럭션
+        # ----------------------------------------------------
+        if lang_code == 'ko':
+            full_p = f"당신은 월가의 수석 투자 전략가입니다. 다음 모든 지표를 바탕으로 'Global Macro Strategic Matrix' 프로토콜에 따라 심층 시장 진단 보고서를 작성하세요.\n데이터: {g1_context}, {g2_context}, {g3_context}"
+            full_i = """
+            [분석 프로토콜 준수 지시]
+            1. [Valuation Check]: 버핏지수와 PE를 통해 전체 증시의 밸류에이션 부담 수준을 먼저 진단하세요.
+            2. [Market Liquidity]: IPO 파이프라인의 물량과 수익성을 결합하여 자본시장의 자금 흡수 능력을 평가하세요.
+            3. [Sentiment Analysis]: VIX와 초기 수익률을 통해 시장의 기저 심리가 '투기적 탐욕'인지 '합리적 낙관'인지 규명하세요.
+            4. [Strategic Verdict]: 위 분석을 종합하여 현재 포트폴리오 관점에서 '공격적 매수', '선별적 접근', '현금 비중 확대' 중 최적의 투자 전략을 제시하세요.
+            5. 문단 구분 없이 5~7줄의 단일 문단 리포트로 작성하며, 인사말 없이 곧바로 본론부터 시작하세요. 반드시 '~습니다/ㅂ니다' 정중체를 유지하세요.
+            """
+        elif lang_code == 'en':
+            full_p = f"Senior Strategy Report. Analyze all indicators based on the 'Global Macro Strategic Matrix' protocol.\nData: {g1_context}, {g2_context}, {g3_context}"
+            full_i = """
+            [Protocol Instructions]
+            1. [Valuation Check]: Diagnose valuation burden using the Buffett Indicator and PE ratio.
+            2. [Market Liquidity]: Evaluate capital market absorption capacity using IPO volume and profitability.
+            3. [Sentiment Analysis]: Distinguish between 'Speculative Greed' and 'Rational Optimism' using VIX and Returns.
+            4. [Strategic Verdict]: Synthesize the above to derive the optimal portfolio strategy (Aggressive Buy, Selective Approach, or Cash Heavy).
+            5. Write a cohesive 5-7 line paragraph. Professional tone, no greetings.
+            """
+        elif lang_code == 'ja':
+            full_p = f"シニア投資ストラテジストです。次の全指標に基づき、「グローバル・マクロ戦略マトリックス」に従って深層市場診断レポートを作成してください。\nデータ: {g1_context}, {g2_context}, {g3_context}"
+            full_i = """
+            [分析プロトコル指示]
+            1. [Valuation Check]: バフェット指数とPEから株式市場全体のバリュエーション負担を診断。
+            2. [Market Liquidity]: IPO物量と収益性から資本市場の資金吸収能力を評価。
+            3. [Sentiment Analysis]: VIXと初期収益率から市場心理が投機的か理性的か究明。
+            4. [Strategic Verdict]: 分析を統合し、最適なポートフォリオ戦略を提示。
+            5. 段落を分けず、5〜7行の単一段落で作成。挨拶不要、格調高い「〜です/ます」調の敬語を使用。
+            """
+        else: # zh
+            full_p = f"华尔街资深策略师。请根据“全球宏观战略矩阵”协议，结合以下所有指标撰写深度市场诊断报告。\n数据: {g1_context}, {g2_context}, {g3_context}"
+            full_i = """
+            [协议指示]
+            1. [估值检查]: 通过巴菲特指标和PE诊断股市估值负担。
+            2. [市场流动性]: 结合IPO数量与质量评估资本市场的资金吸收能力。
+            3. [情绪分析]: 通过VIX和初期收益率区分市场心理是投机贪婪还是理性乐观。
+            4. [战略结论]: 综合以上得出最佳投资组合策略（积极买入、精选个股、持有现金）。
+            5. 写成5-7行的一段话落，不要分段。省略问候语，使用专业严谨的书面表达。
+            """
+
+        # ----------------------------------------------------
+        # 🚀 [API 호출 및 DB 캐싱 분리 실행]
+        # ----------------------------------------------------
         try:
-            # 🚨 [환각 방지] model_strict 모델 사용 (Prompt + Instruction 결합)
-            ai_resp = model_strict.generate_content(prompt + instruction).text.strip()
+            # 1. 3D 카드용 Specific 요약 생성 (Call 1)
+            res_sum = model_strict.generate_content(sum_p + sum_i).text.strip()
             
-            # 한글 오염 방어막 (한국어 외 언어에서 한글 발견 시 스킵)
-            if lang_code != 'ko':
-                if re.search(r'[가-힣]', ai_resp):
-                    time.sleep(1); continue
-                    
-            batch_upsert("analysis_cache", [{"cache_key": cache_key_report, "content": ai_resp, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-            print(f"🌍 Tab 2 논리적 통합 리포트 캐싱 완료 ({lang_code})")
+            # 한글 오염 방어
+            if lang_code != 'ko' and re.search(r'[가-힣]', res_sum): time.sleep(1)
+            else:
+                batch_upsert("analysis_cache", [{"cache_key": cache_key_summary, "content": res_sum, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+
+            # 2. 전문 익스팬더용 Matrix 통합 리포트 생성 (Call 2)
+            res_full = model_strict.generate_content(full_p + full_i).text.strip()
+            
+            if lang_code != 'ko' and re.search(r'[가-힣]', res_full): time.sleep(1)
+            else:
+                batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_full, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+
+            print(f"🌍 Tab 2 고도화 이중 리포트 캐싱 완료 ({lang_code})")
+            
         except Exception as e:
             print(f"❌ Tab 2 AI Report Error ({lang_code}): {e}")
+            time.sleep(1)
 
 # ==========================================
 # [수정] Tab 6: 스마트머니 통합 데이터 수집 (국회의원 & 공매도 추가)
