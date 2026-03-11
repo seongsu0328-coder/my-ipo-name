@@ -93,7 +93,6 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
         
         if r.status_code == 200:
             res_data = r.json()
-            # 🚨 [디버깅 추가]
             if isinstance(res_data, dict) and "Error Message" in res_data:
                 print(f"🚫 [Tab 0 SEC 검색 차단됨: {doc_type}] -> {res_data['Error Message']}")
             elif isinstance(res_data, list) and len(res_data) > 0:
@@ -101,7 +100,6 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
                 accession_num = filing_info.get('accessionNumber')
                 filed_date = filing_info.get('fillingDate')
 
-        # 2단계: FMP 실패 시 SEC EDGAR 고유번호(CIK)로 직접 우회 추적
         if not accession_num and cik:
             time.sleep(0.5) 
             sec_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
@@ -120,19 +118,17 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
 
         if not accession_num: return None, None
 
-        # 3단계: FMP v4 텍스트 추출 시도
+        # 💡 [Stable 주소로 교체 완료]
         text_url = f"https://financialmodelingprep.com/stable/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
         txt_res = requests.get(text_url, timeout=7)
         full_text = ""
         if txt_res.status_code == 200:
             txt_data = txt_res.json()
-            # 🚨 [디버깅 추가]
             if isinstance(txt_data, dict) and "Error Message" in txt_data:
                 print(f"🚫 [Tab 0 SEC 텍스트 차단됨: {doc_type}] -> {txt_data['Error Message']}")
             elif isinstance(txt_data, list) and len(txt_data) > 0:
                 full_text = txt_data[0].get('content', '')
 
-        # 4단계: SEC Archive 본진에서 원문 직접 긁어오기
         if (not full_text or len(full_text) < 100) and cik:
             print(f"⚠️ FMP 텍스트 지연 발생. SEC 서버에서 원문 직접 추출 시도: {ticker} ({doc_type})")
             acc_no_clean = str(accession_num).replace('-', '')
@@ -473,7 +469,7 @@ def check_sec_specific_filing(cik, target_form):
 def fetch_fmp_8k_events(symbol, api_key):
     """[Tab 0] 기업의 최근 8-K(중대 이벤트: M&A, 소송, 임원교체 등)를 가져옵니다."""
     try:
-        # 💡 [주소 수정 완료] stable 버전 적용
+        # 💡 [Stable 주소로 교체 완료]
         url = f"https://financialmodelingprep.com/stable/sec-filings?symbol={symbol}&type=8-K&limit=3&apikey={api_key}"
         res = requests.get(url, timeout=5).json()
         
@@ -488,7 +484,7 @@ def fetch_fmp_8k_events(symbol, api_key):
     except Exception as e:
         print(f"8-K Fetch Error for {symbol}: {e}")
         return "No recent 8-K events."
-
+        
 def fetch_fmp_premium_news(symbol, api_key):
     try:
         url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={symbol}&limit=5&apikey={api_key}"
@@ -1795,7 +1791,6 @@ def run_tab4_ma_premium_collection(ticker, company_name):
 # [수정] 11개 지표 + 4단락 구조로 통합된 워커용 프롬프트
 # ==========================================
 def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
-    # 🚨 [수정] model -> model_strict 로 방어막 변경
     if 'model_strict' not in globals() or not model_strict: return False
     
     days_passed = 0
@@ -1813,7 +1808,6 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
     
     for lang_code, target_lang in SUPPORTED_LANGS.items():
-        # 💡 [캐시키 일치] app.py와 완벽히 동일한 캐시키 사용
         cache_key = f"{ticker}_Tab3_v2_Premium_{lang_code}"
         
         try:
@@ -1924,11 +1918,10 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
                [Risk & Solvency]
                [Analyst Conclusion]
             3. 어조: 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 격식 있고 정중한 존댓말(합쇼체)로 작성하십시오. (예: ~합니다, ~입니다, ~됩니다, ~전망됩니다 등). 절대 '~한다', '~이다' 형태의 평어체를 사용하지 마세요.
-            4. 내용: 제공된 데이터의 '실제 수치'를 반드시 포함하여 해석하세요. 데이터가 없을 경우 숫자를 지어내지 말고 데이터가 제공되지 않았습니다라고 하세요.""" 강조를 절대 하지 마세요. (총 12~15줄 내외)"""
+            4. 내용: 제공된 데이터의 '실제 수치'를 반드시 포함하여 해석하세요. 데이터가 없을 경우 숫자를 지어내지 말고 데이터가 제공되지 않았습니다라고 하세요. 숫자에 별표(**) 강조를 절대 하지 마세요. (총 12~15줄 내외)"""
         
         for attempt in range(3):
             try:
-                # 🚨 [수정] model -> model_strict 로 변경
                 response = model_strict.generate_content(prompt)
                 res_text = response.text
                 
@@ -2641,7 +2634,6 @@ def main():
 
     print("\n📋 [stock_cache] 명단 업데이트 및 신규 편입 식별 시작...")
     
-    # [신규 추가 1] 기존 DB에서 추적 중이던 전체 Ticker 목록 불러오기
     try:
         res_known = supabase.table("stock_cache").select("symbol").execute()
         known_tickers = {item['symbol'] for item in res_known.data}
@@ -2657,11 +2649,9 @@ def main():
     for _, row in df.iterrows():
         sym = str(row['symbol'])
         
-        # [신규 추가 3] 신규 편입(스팩/직상장) 식별 로직
         try: ipo_dt = pd.to_datetime(row['date']).date()
         except: ipo_dt = today_date
         
-        # 기존 DB에 없었고(신규), 상장일이 오늘이거나 이미 지났다면 판별
         if known_tickers and (sym not in known_tickers) and (ipo_dt <= today_date):
             sudden_additions.append(sym)
             
@@ -2671,7 +2661,6 @@ def main():
             "last_updated": now_iso 
         })
         
-    # [신규 추가 4] 식별된 스팩/직상장 리스트를 DB에 저장
     if sudden_additions:
         try:
             old_res = supabase.table("analysis_cache").select("content").eq("cache_key", "SUDDEN_ADDITIONS_LIST").execute()
@@ -2687,7 +2676,6 @@ def main():
         }], on_conflict="cache_key")
         print(f"✨ 신규 편입(스팩/직상장) 누적 {len(sudden_additions)}개 식별 및 DB 저장 완료.")
 
-    # 기존 저장 로직 정상 수행
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
     update_macro_data(df)
     
