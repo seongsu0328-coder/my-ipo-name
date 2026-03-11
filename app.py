@@ -4589,29 +4589,36 @@ with main_area.container():
                 draw_decision_box("news", get_text('decision_news_impression'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 display_disclaimer()
                 
-            # --- Tab 2: 실시간 시장 과열 진단 (3개 카드 통합 버전) ---
+            # --- Tab 2: 실시간 시장 과열 진단 (3개 통합 카드 + 이중 AI 분석 적용) ---
             elif selected_sub_menu == get_text('tab_2'):
                 with st.spinner(get_text('msg_analyzing_macro')):
+                    # 1. 지표 데이터 로드
                     all_df_tab2 = all_df if 'all_df' in locals() else get_extended_ipo_data(MY_API_KEY)
                     md = get_cached_market_status(all_df_tab2, MY_API_KEY)
+                    lang = st.session_state.lang
                     
-                    # 🚀 [핵심] AI가 생성한 3단계 논리 리포트 로드 및 분리
-                    raw_ai_report = get_market_dashboard_analysis(md, st.session_state.lang)
+                    # 🚀 [핵심 1] 3D 카드용 '심층 요약 조각' 로드 (Global_Market_Summary)
+                    res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"Global_Market_Summary_{lang}").execute()
+                    sum_text = res_sum.data[0]['content'] if res_sum.data else ""
+                    
                     try:
-                        ai_parts = [p.strip() for p in raw_ai_report.split('|||SEP|||')]
+                        ai_parts = [p.strip() for p in sum_text.split('|||SEP|||')]
                         c1_sum = ai_parts[0] if len(ai_parts) > 0 else get_text('tab2_card1_desc')
                         c2_sum = ai_parts[1] if len(ai_parts) > 1 else get_text('tab2_card2_desc')
                         c3_sum = ai_parts[2] if len(ai_parts) > 2 else get_text('tab2_card3_desc')
                     except:
                         c1_sum, c2_sum, c3_sum = get_text('tab2_card1_desc'), get_text('tab2_card2_desc'), get_text('tab2_card3_desc')
 
-                # 💡 [CSS] 고도화된 통합 그리드 카드 디자인
+                    # 🚀 [핵심 2] 하단 익스팬더용 '전문 리포트' 로드 (Global_Market_Dashboard)
+                    full_market_report = get_market_dashboard_analysis(md, lang) 
+
+                # 💡 [CSS] 4~5문장 분량을 소화하기 위해 group-desc의 높이와 스크롤 최적화
                 st.markdown("""
                 <style>
-                    .group-card { background:#ffffff; padding:20px; border-radius:18px; border:1px solid #e0e0e0; margin-bottom:20px; box-shadow:0 4px 12px rgba(0,0,0,0.05); min-height: 280px; display: flex; flex-direction: column; }
+                    .group-card { background:#ffffff; padding:20px; border-radius:18px; border:1px solid #e0e0e0; margin-bottom:20px; box-shadow:0 4px 12px rgba(0,0,0,0.05); min-height: 380px; display: flex; flex-direction: column; }
                     .group-title { font-size:16px; font-weight:800; color:#111; margin-bottom:10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }
-                    .group-desc { font-size:13px; color:#004e92; font-weight:600; margin-bottom:18px; line-height:1.5; background:#f0f7ff; padding:12px; border-radius:10px; border-left: 4px solid #004e92; flex-grow: 0; }
-                    .sub-grid { display: grid; grid-template-columns: 1fr; gap: 8px; flex-grow: 1; }
+                    .group-desc { font-size:13px; color:#004e92; font-weight:500; margin-bottom:18px; line-height:1.6; background:#f0f7ff; padding:15px; border-radius:10px; border-left: 4px solid #004e92; flex-grow: 1; overflow-y: auto; min-height: 130px; }
+                    .sub-grid { display: grid; grid-template-columns: 1fr; gap: 8px; flex-grow: 0; margin-top: auto; }
                     .sub-item { background:#f9f9fb; padding:10px 14px; border-radius:10px; border: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
                     .sub-label { font-size:12px; color:#666; font-weight:500; }
                     .sub-value { font-size:15px; font-weight:700; color:#111; }
@@ -4631,38 +4638,49 @@ with main_area.container():
                 # --- 3개 통합 카드 렌더링 ---
                 col1, col2, col3 = st.columns(3)
 
-                with col1: # [Card 1] IPO Initial Return & Withdrawal Rate
+                with col1: # [Card 1] IPO 시장 심리
                     ret = md.get('ipo_return', 0); w_rate = md.get('withdrawal_rate', 0)
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">🚀 {get_text('tab2_card1_title')}</div>
-                        <div class="group-desc"><b>Basis:</b> {c1_sum}</div>
+                        <div class="group-desc"><b>💡 AI 심리 진단:</b><br><br>{c1_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">{get_text('label_ret_name')}</span><span class="sub-value">{ret:+.1f}%{get_badge("over" if ret>=20 else "good")}</span></div>
                             <div class="sub-item"><span class="sub-label">{get_text('label_with_name')}</span><span class="sub-value">{w_rate:.1f}%{get_badge("over" if w_rate<5 else "good")}</span></div>
                         </div>
                     </div>""", unsafe_allow_html=True)
 
-                with col2: # [Card 2] IPO Pipeline & Quality
+                with col2: # [Card 2] IPO 공급 및 질적 위험
                     vol = md.get('ipo_volume', 0); unp = md.get('unprofitable_pct', 0)
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">⚠️ {get_text('tab2_card2_title')}</div>
-                        <div class="group-desc"><b>Analysis:</b> {c2_sum}</div>
+                        <div class="group-desc"><b>💡 AI 리스크 진단:</b><br><br>{c2_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">{get_text('label_vol_name')}</span><span class="sub-value">{vol}건{get_badge("over" if vol>=15 else "normal")}</span></div>
                             <div class="sub-item"><span class="sub-label">{get_text('label_unprof_name')}</span><span class="sub-value">{unp:.0f}%{get_badge("risk" if unp>=80 else "good")}</span></div>
                         </div>
                     </div>""", unsafe_allow_html=True)
 
-                with col3: # [Card 3] Market Valuation & Sentiment
+                with col3: # [Card 3] 미국 증시 펀더멘털
                     vix = md.get('vix', 20); buff = md.get('buffett_val', 100); pe = md.get('pe_ratio', 20); fg = md.get('fear_greed', 50)
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">🌍 {get_text('tab2_card3_title')}</div>
-                        <div class="group-desc"><b>Verdict:</b> {c3_sum}</div>
+                        <div class="group-desc"><b>💡 AI 거시 진단:</b><br><br>{c3_sum}</div>
                         <div class="sub-grid">
-                            <div class="sub-item"><span class="sub-label">{get_text('label_vix_fg_name')}</span><span class="sub-value">{vix:.1f} / {fg:.0f}{get_badge("greed" if vix<=15 else "normal")}</span></div>
-                            <div class="sub-item"><span class="sub-label">{get_text('label_buff_pe_name')}</span><span class="sub-value">{buff:.0f}% / {pe:.1f}x{get_badge("high" if pe>25 else "good")}</span></div>
+                            <div class="sub-item"><span class="sub-label">{get_text('label_vix_fg_name')}</span><span class="sub-value" style="font-size:14px;">{vix:.1f} / {fg:.0f}{get_badge("greed" if vix<=15 else "normal")}</span></div>
+                            <div class="sub-item"><span class="sub-label">{get_text('label_buff_pe_name')}</span><span class="sub-value" style="font-size:14px;">{buff:.0f}% / {pe:.1f}x{get_badge("high" if pe>25 else "good")}</span></div>
                         </div>
                     </div>""", unsafe_allow_html=True)
+
+                st.write("<br>", unsafe_allow_html=True)
+
+                # 💡 [복구 완료] 거시지표 통합 분석 리포트 전문 보기 (Matrix 프로토콜 적용)
+                with st.expander(get_text('expander_macro_analysis'), expanded=False): 
+                    st.markdown(f"""
+                        <div style='background-color:#f8f9fa; padding:22px; border-radius:12px; border-left: 5px solid #004e92; font-size:15px; line-height:1.8; color:#333; text-align:justify;'>
+                            <b>📊 Global Macro Strategic Matrix 진단</b><br><br>
+                            {full_market_report}
+                        </div>
+                    """, unsafe_allow_html=True)
             
                 # =========================================================
                 # 🚀 [NEW] Tab 2 기업 ESG 평가 등급 프리미엄 섹션
