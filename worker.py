@@ -906,7 +906,7 @@ def run_tab0_premium_collection(ticker, company_name):
     try:
         limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # 어닝콜은 자주 안바뀌므로 7일 유지
         
-        url = f"https://financialmodelingprep.com/api/v3/earning_call_transcript/{ticker}?limit=1&apikey={FMP_API_KEY}"
+        url = f"https://financialmodelingprep.com/stable/earning-call-transcript?symbol={ticker}&limit=1&apikey={FMP_API_KEY}"
         ec_raw = get_fmp_data_with_cache(ticker, "RAW_EARNINGS_CALL", url, valid_hours=168)
         
         is_ec_valid = isinstance(ec_raw, list) and len(ec_raw) > 0
@@ -1007,7 +1007,7 @@ def run_tab2_premium_collection(ticker, company_name):
     try:
         limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # ESG는 자주 안 바뀌므로 7일 유지
         
-        url = f"https://financialmodelingprep.com/api/v4/esg-environmental-social-governance-data?symbol={ticker}&apikey={FMP_API_KEY}"
+        url = f"https://financialmodelingprep.com/stable/esg-environmental-social-governance-data?symbol={ticker}&apikey={FMP_API_KEY}"
         esg_raw = get_fmp_data_with_cache(ticker, "RAW_ESG", url, valid_hours=168)
         
         is_esg_valid = isinstance(esg_raw, list) and len(esg_raw) > 0
@@ -1287,7 +1287,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     # 🚀 [B] 프리미엄 전용 데이터 수집 (기업 공식 보도자료)
     # =========================================================
     try:
-        pr_url = f"https://financialmodelingprep.com/api/v3/press-releases/{ticker}?limit=5&apikey={FMP_API_KEY}"
+        pr_url = f"https://financialmodelingprep.com/stable/press-releases?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
         pr_raw = get_fmp_data_with_cache(ticker, "RAW_PR", pr_url, valid_hours=12)
 
         # 🚨 [환각 완벽 차단] FMP가 보낸 데이터가 에러 딕셔너리({})가 아닌 정상 리스트([])일 때만 통과!
@@ -1767,7 +1767,7 @@ def run_tab4_ma_premium_collection(ticker, company_name):
         limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # M&A도 자주 안 터지므로 7일 유지
         
         # FMP의 M&A 데이터 호출
-        url = f"https://financialmodelingprep.com/api/v4/mergers-and-acquisitions-search?name={ticker}&apikey={FMP_API_KEY}"
+        url = f"https://financialmodelingprep.com/stable/mergers-and-acquisitions?symbol={ticker}&apikey={FMP_API_KEY}"
         ma_raw = get_fmp_data_with_cache(ticker, "RAW_MA_HISTORY", url, valid_hours=168)
         
         is_ma_valid = isinstance(ma_raw, list) and len(ma_raw) > 0
@@ -2011,10 +2011,10 @@ def run_tab3_premium_collection(ticker, company_name):
     try:
         limit_time_str = (datetime.now() - timedelta(hours=24)).isoformat()
         
-        surp_url = f"https://financialmodelingprep.com/api/v3/earnings-surprises/{ticker}?apikey={FMP_API_KEY}"
+        surp_url = f"https://financialmodelingprep.com/stable/earnings-surprises?symbol={ticker}&apikey={FMP_API_KEY}"
         surp_raw = get_fmp_data_with_cache(ticker, "RAW_SURPRISE", surp_url, valid_hours=24)
         
-        est_url = f"https://financialmodelingprep.com/api/v3/analyst-estimates/{ticker}?limit=2&apikey={FMP_API_KEY}"
+        est_url = f"https://financialmodelingprep.com/stable/analyst-estimates?symbol={ticker}&limit=2&apikey={FMP_API_KEY}"
         est_raw = get_fmp_data_with_cache(ticker, "RAW_ESTIMATE", est_url, valid_hours=24)
 
         # 🚨 [환각 방어막] 진짜 데이터인지 엄격 검사
@@ -2398,19 +2398,19 @@ def fetch_smart_money_data(symbol, api_key):
     """FMP API 4종 세트를 캐싱 방어막과 함께 수집합니다."""
     data = {"insider": [], "institutional": [], "senate": [], "fail_to_deliver": []}
     
-    # ✅ 모두 기존에 잘 작동하던 v4 주소로 원상 복구 완료
-    in_url = f"https://financialmodelingprep.com/api/v4/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
+    # 기존 v4로 되어있던 4줄을 모두 stable로 덮어씌워 주세요.
+    in_url = f"https://financialmodelingprep.com/stable/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
     data["insider"] = get_fmp_data_with_cache(symbol, "SMART_IN", in_url) or []
 
-    inst_url = f"https://financialmodelingprep.com/api/v4/institutional-ownership/symbol/{symbol}?apikey={api_key}"
+    inst_url = f"https://financialmodelingprep.com/stable/institutional-ownership?symbol={symbol}&apikey={api_key}"
     res_inst = get_fmp_data_with_cache(symbol, "SMART_INST", inst_url)
     data["institutional"] = res_inst[:10] if isinstance(res_inst, list) else []
     
-    sen_url = f"https://financialmodelingprep.com/api/v4/senate-trading?symbol={symbol}&apikey={api_key}"
+    sen_url = f"https://financialmodelingprep.com/stable/senate-trading?symbol={symbol}&apikey={api_key}"
     res_sen = get_fmp_data_with_cache(symbol, "SMART_SENATE", sen_url)
     data["senate"] = res_sen[:5] if isinstance(res_sen, list) else []
     
-    ftd_url = f"https://financialmodelingprep.com/api/v4/fail_to_deliver?symbol={symbol}&page=0&apikey={api_key}"
+    ftd_url = f"https://financialmodelingprep.com/stable/fail-to-deliver?symbol={symbol}&page=0&apikey={api_key}"
     data["fail_to_deliver"] = get_fmp_data_with_cache(symbol, "SMART_FTD", ftd_url) or []
 
     return data
