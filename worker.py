@@ -826,7 +826,105 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             except Exception as e:
                 print(f"❌ [{ticker}] {topic} AI 에러: {e}")
                 time.sleep(1)
-                    
+
+def get_tab0_ec_premium_prompt(lang, ticker, raw_data):
+    if lang == 'en':
+        return f"""You are a Lead Buy-Side Analyst on Wall Street. Summarize the latest Earnings Call Transcript for {ticker}.
+[Strict Rules]
+1. Write ENTIRELY in English. DO NOT mix other languages.
+2. Write exactly 3 paragraphs:
+   - Para 1: [Key Financials & Guidance]
+   - Para 2: [Strategic Updates & Growth Drivers]
+   - Para 3: [Q&A Highlights]
+3. Each paragraph must be 4-5 sentences long, packed with hard numbers and professional insights.
+4. DO NOT use markdown bold (**) for numbers.
+5. Omit greetings and start the main content immediately with a cold, objective tone.
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'ja':
+        return f"""あなたはウォール街のシニア・バイサイドアナリストです。提供されたデータに基づき、{ticker}の最新のアーニングコール(Earnings Call)を日本語で深層要約してください。
+[厳格な作成ルール]
+1. 全て自然な日本語のみで記述してください。
+2. 必ず以下の3つの段落に分けて作成してください：
+   - 第1段落: [核心業績とガイダンス]
+   - 第2段落: [戦略アップデートと成長ドライバー]
+   - 第3段落: [Q&Aハイライト]
+3. 各段落は4〜5文で構成し、具体的な数値と専門的な洞察を含めてください。
+4. 数値に強調記号（**）は絶対に使用しないでください。
+5. 挨拶は省略し、すぐに本題に入ってください。冷静で客観的な分析トーンを維持してください。
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'zh':
+        return f"""您是华尔街的资深买方分析师。请根据提供的数据，用简体中文深度总结 {ticker} 的最新财报电话会议(Earnings Call)。
+[严格编写规则]
+1. 必须完全使用简体中文编写，严禁混用其他语言。
+2. 必须严格分为以下3个段落：
+   - 第一段: [核心业绩与财务指引]
+   - 第二段: [战略更新与增长驱动力]
+   - 第三段: [问答环节(Q&A)亮点]
+3. 每个段落应包含4-5句话，并提供具体数据和深刻的专业见解。
+4. 绝对不要使用星号（**）对数字进行加粗。
+5. 省略问候语，直接进入正文。保持冷静、客观和分析的基调。
+
+[Raw Data]:
+{raw_data}"""
+
+    else: # ko
+        return f"""당신은 월가 수석 바이사이드(Buy-side) 애널리스트입니다. 제공된 데이터를 바탕으로 {ticker}의 최신 어닝 콜(Earnings Call) 스크립트를 한국어로 심층 요약하세요.
+[작성 규칙 - 엄격 준수]
+1. 반드시 순수한 한국어로만 작성하세요.
+2. 반드시 아래 3개의 문단으로 나누어 작성하세요:
+   - 1문단: [핵심 실적 및 향후 가이던스]
+   - 2문단: [경영진 전략 업데이트 및 성장 동력]
+   - 3문단: [애널리스트 Q&A 세션 핵심 하이라이트]
+3. 각 문단은 4~5줄(문장) 길이로 묵직하고 구체적인 수치를 포함해 작성하세요.
+4. 숫자에 별표(**) 강조를 절대 사용하지 마세요.
+5. 인사말을 생략하고 첫 글자부터 본론만 작성하세요. 문장별로 ~입니다, ~합니다, ~습니다로 마무리 하세요.
+
+[Raw Data]:
+{raw_data}"""
+
+def run_tab0_premium_collection(ticker, company_name):
+    """Tab 0의 프리미엄 데이터(어닝 콜)를 수집하고 요약하여 캐싱합니다."""
+    if 'model_strict' not in globals() or not model_strict: return
+    try:
+        limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # 어닝콜은 자주 안바뀌므로 7일 유지
+        
+        url = f"https://financialmodelingprep.com/api/v3/earning_call_transcript/{ticker}?limit=1&apikey={FMP_API_KEY}"
+        ec_raw = get_fmp_data_with_cache(ticker, "RAW_EARNINGS_CALL", url, valid_hours=168)
+        
+        is_ec_valid = isinstance(ec_raw, list) and len(ec_raw) > 0
+
+        for lang_code in SUPPORTED_LANGS.keys():
+            if is_ec_valid:
+                ec_summary_key = f"{ticker}_PremiumEarningsCall_v1_{lang_code}"
+                try:
+                    res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", ec_summary_key).gt("updated_at", limit_time_str).execute()
+                    if not res.data:
+                        # 텍스트가 너무 길면 AI 토큰 초과 우려가 있으므로 앞부분 15,000자만 발췌 (보통 가이던스와 CEO 연설 위주)
+                        content = ec_raw[0].get('content', '')[:15000] 
+                        prompt = get_tab0_ec_premium_prompt(lang_code, ticker, content)
+                        
+                        for attempt in range(3):
+                            try:
+                                resp = model_strict.generate_content(prompt)
+                                if resp and resp.text:
+                                    paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
+                                    indent_size = "14px" if lang_code == "ko" else "0px"
+                                    html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+                                    
+                                    batch_upsert("analysis_cache", [{"cache_key": ec_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                    print(f"✅ [{ticker}] 어닝 콜 요약 캐싱 완료 ({lang_code})")
+                                    break
+                            except Exception as e: time.sleep(1)
+                except: pass
+    except Exception as e:
+        print(f"Tab0 Premium EC Error for {ticker}: {e}")
+
 # ==========================================
 # [신규 추가] Tab 1 프리미엄 요약 전용 프롬프트 생성 함수 (다국어 분리 완벽 적용)
 # ==========================================
@@ -917,8 +1015,8 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
     biz_desc = profile_data[0].get('description', '') if (profile_data and isinstance(profile_data, list)) else ''
 
-    # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 5개 확보
-    news_url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={ticker}&limit=5&apikey={FMP_API_KEY}"
+    # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 15개 확보 (AI가 5개를 골라낼 수 있도록 풀을 넓힘)
+    news_url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={ticker}&limit=15&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_5", news_url, valid_hours=6)
     
     fmp_news_context = ""
@@ -2304,6 +2402,7 @@ def main():
             
             run_tab1_analysis(official_symbol, name, c_status, c_date)
             run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping)
+            run_tab0_premium_collection(official_symbol, name) # 👈 이 1줄을 추가!
             
             # 👇 [핵심 추가] Tab 4: FMP 월가 애널리스트 목표가 데이터 수집 및 연동
             try:
