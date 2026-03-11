@@ -1945,6 +1945,110 @@ def run_tab3_premium_collection(ticker, company_name):
         print(f"Premium Tab 3 FMP Error for {ticker}: {e}")
 
 # ==========================================
+# [신규 추가] Tab 3 프리미엄 요약 전용 프롬프트 및 수집 함수 (부문별 매출 비중)
+# ==========================================
+def get_tab3_revenue_premium_prompt(lang, ticker, raw_data):
+    if lang == 'en':
+        return f"""You are a Lead Equity Analyst on Wall Street. Summarize the Revenue Product Segmentation data for {ticker}.
+[Strict Rules]
+1. Write ENTIRELY in English. DO NOT mix other languages.
+2. Write exactly 3 paragraphs:
+   - Para 1: [Core Business Segments & Revenue Breakdown]
+   - Para 2: [Growth Drivers & Profitability Contribution]
+   - Para 3: [Diversification & Risk Assessment]
+3. Each paragraph must be 4-5 sentences long, packed with specific revenue percentages and professional insights.
+4. DO NOT use markdown bold (**) for numbers.
+5. Omit greetings and start immediately with a professional, objective tone.
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'ja':
+        return f"""あなたはウォール街のシニア・エクイティ・アナリストです。提供されたデータに基づき、{ticker}の「部門別売上比率 (Revenue Segmentation)」を日本語で深層要約してください。
+[厳格な作成ルール]
+1. 全て自然な日本語のみで記述してください。
+2. 必ず以下の3つの段落に分けて作成してください：
+   - 第1段落: [中核事業部門と売上比率]
+   - 第2段落: [成長牽引部門と収益貢献度]
+   - 第3段落: [事業多角化の水準とリスク]
+3. 各段落は4〜5文で構成し、具体的な売上比率（％）と専門的な洞察を含めてください。
+4. 数値に強調記号（**）は絶対に使用しないでください。
+5. 挨拶は省略し、すぐに本題に入ってください。冷静で客観的な分析トーンを維持してください。
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'zh':
+        return f"""您是华尔街的资深股票分析师。请根据提供的数据，用简体中文深度总结 {ticker} 的「各部门营收占比 (Revenue Segmentation)」。
+[严格编写规则]
+1. 必须完全使用简体中文编写，严禁混用其他语言。
+2. 必须严格分为以下3个段落：
+   - 第一段: [核心业务部门及营收占比]
+   - 第二段: [增长驱动部门与盈利贡献度]
+   - 第三段: [业务多元化水平及风险评估]
+3. 每个段落应包含4-5句话，并提供具体的营收百分比和深刻的专业见解。
+4. 绝对不要使用星号（**）对数字进行加粗。
+5. 省略问候语，直接进入正文。保持冷静、客观和分析的基调。
+
+[Raw Data]:
+{raw_data}"""
+
+    else: # ko
+        return f"""당신은 월가 수석 주식 애널리스트입니다. 제공된 데이터를 바탕으로 {ticker}의 '부문별 매출 비중(Revenue Segmentation)'을 한국어로 심층 요약하세요.
+[작성 규칙 - 엄격 준수]
+1. 반드시 순수한 한국어로만 작성하세요.
+2. 반드시 아래 3개의 문단으로 나누어 작성하세요:
+   - 1문단: [핵심 사업 부문 및 매출 비중]
+   - 2문단: [성장 주도 부문 및 수익성 기여도]
+   - 3문단: [사업 다각화 수준 및 집중 리스크 평가]
+3. 각 문단은 4~5줄(문장) 길이로 구체적인 매출 비중(%) 수치를 포함해 작성하세요.
+4. 숫자에 별표(**) 강조를 절대 사용하지 마세요.
+5. 인사말을 생략하고 첫 글자부터 본론만 작성하세요. 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 격식 있고 정중한 존댓말(합쇼체)로 작성하세요. (예: ~합니다, ~입니다, ~됩니다, ~전망됩니다 등). 절대 '~한다', '~이다' 형태의 평어체를 사용하지 마세요.
+
+[Raw Data]:
+{raw_data}"""
+
+def run_tab3_revenue_premium_collection(ticker, company_name):
+    """Tab 3의 프리미엄 데이터(부문별 매출 비중)를 수집하고 요약하여 캐싱합니다."""
+    if 'model_strict' not in globals() or not model_strict: return
+    try:
+        limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # 매출 비중은 연간/분기 데이터이므로 7일 캐싱
+        
+        # FMP의 Product Segmentation 데이터 호출 (1년치)
+        url = f"https://financialmodelingprep.com/api/v4/revenue-product-segmentation?symbol={ticker}&structure=flat&period=annual&apikey={FMP_API_KEY}"
+        rev_raw = get_fmp_data_with_cache(ticker, "RAW_REVENUE_SEGMENT", url, valid_hours=168)
+        
+        # FMP API v4는 딕셔너리 형태로 리턴되는 경우가 많아 리스트로 감싸거나 변환 확인
+        is_rev_valid = (isinstance(rev_raw, list) and len(rev_raw) > 0) or (isinstance(rev_raw, dict) and len(rev_raw) > 0 and "Error Message" not in rev_raw)
+
+        for lang_code in SUPPORTED_LANGS.keys():
+            if is_rev_valid:
+                rev_summary_key = f"{ticker}_PremiumRevenueSeg_v1_{lang_code}"
+                try:
+                    res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", rev_summary_key).gt("updated_at", limit_time_str).execute()
+                    if not res.data:
+                        # 텍스트 형태(JSON String)로 변환하여 AI에게 전달
+                        import json
+                        content = json.dumps(rev_raw[0] if isinstance(rev_raw, list) else rev_raw) 
+                        prompt = get_tab3_revenue_premium_prompt(lang_code, ticker, content)
+                        
+                        for attempt in range(3):
+                            try:
+                                resp = model_strict.generate_content(prompt)
+                                if resp and resp.text:
+                                    paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
+                                    indent_size = "14px" if lang_code == "ko" else "0px"
+                                    html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+                                    
+                                    batch_upsert("analysis_cache", [{"cache_key": rev_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                    print(f"✅ [{ticker}] 매출 비중 분석 캐싱 완료 ({lang_code})")
+                                    break
+                            except Exception as e: time.sleep(1)
+                except: pass
+    except Exception as e:
+        print(f"Tab3 Premium Revenue Seg Error for {ticker}: {e}")
+
+# ==========================================
 # [수정/완전판] Tab 2: 거시 지표 수집 (FMP 연동 + 실시간 연산)
 # ==========================================
 def update_macro_data(df):
@@ -2530,6 +2634,7 @@ def main():
                 
                 # 🚀 [NEW] 여기에 Tab 3 프리미엄 전용 데이터(어닝 서프라이즈, 실적 전망) 수집 함수 추가!
                 run_tab3_premium_collection(official_symbol, name)
+                run_tab3_revenue_premium_collection(official_symbol, name) # 👈 이 1줄을 추가!
                 
             except Exception as e:
                 print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
