@@ -2378,11 +2378,27 @@ UI_TEXT = {
         'zh': '市场估值水平'
     },
     
-    # 통합 카드용 간략 설명
-    'tab2_card1_desc': {'ko': '투자자들의 투기적 광기와 시장의 유동성을 동시에 측정합니다.', 'en': 'Measures speculative mania and market liquidity.', 'ja': '投資家の投機的熱狂と市場の流動性を測定します。', 'zh': '同时衡量投资者的投机狂热和市场流动性。'},
-    'tab2_card2_desc': {'ko': '상장 물량의 급증과 질적 저하(적자 기업)를 감시합니다.', 'en': 'Monitors supply surges and deteriorating IPO quality.', 'ja': '上場物量の急増と質的低下（赤字企業）を監視します。', 'zh': '监控上市数量激增和质量下降（亏损企业）。'},
-    'tab2_card3_desc': {'ko': '개별 주식을 넘어 미국 전체 시장의 밸류에이션을 평가합니다.', 'en': 'Evaluates the valuation of the entire US stock market.', 'ja': '米国市場全体のバリュエーションを評価します。', 'zh': '评估整个美国股市的估值。'},
-     
+   # 통합 카드용 간략 설명 (카드 타이틀로 사용됨)
+    'tab2_card1_desc': {
+        'ko': 'IPO 투기 심리 및 유동성', 
+        'en': 'IPO Speculative Sentiment & Liquidity', 
+        'ja': 'IPO投機心理と流動性', 
+        'zh': 'IPO投机情绪与流动性'
+    },
+    
+    'tab2_card2_desc': {
+        'ko': '신규 공급 및 질적 리스크', 
+        'en': 'New Supply & Quality Risk', 
+        'ja': '新規供給と質的低下リスク', 
+        'zh': '新增供给与质量风险'
+    },
+    
+    'tab2_card3_desc': {
+        'ko': '글로벌 거시경제', 
+        'en': 'Global Macroeconomy', 
+        'ja': 'グローバルマクロ経済', 
+        'zh': '全球宏观经济'
+    },
     # ==========================================
     # 9. Tab 4: 기관평가
     # ==========================================
