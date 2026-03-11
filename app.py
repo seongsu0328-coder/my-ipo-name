@@ -4875,16 +4875,29 @@ with main_area.container():
                 st.write("<br>", unsafe_allow_html=True)
 
                 # =========================================================
-                # [기존 기능 유지] 1. 월가 컨센서스 & 목표 주가
+                # 🚀 [수정 완료] 1. 월가 컨센서스 & 목표 주가 (Premium 일관성 적용)
                 # =========================================================
                 target_price_val = str(result.get('target_price', 'N/A')).strip()
+                has_pt_data = target_price_val not in ['N/A', '', 'None']
                 
-                with st.expander(get_text('expander_wallstreet_pt'), expanded=False):
-                    if target_price_val == 'N/A' or target_price_val == '':
-                        st.info("현재 FMP 월가 애널리스트 평균 목표가 데이터가 제공되지 않는 종목입니다." if curr_lang == 'ko' else "Target price data is currently unavailable.")
-                    else:
-                        st.success(f"🎯 **평균 목표 주가 (Target Price) : {target_price_val}**")
-                        st.caption("※ FMP Premium에서 실시간으로 수집된 월가 애널리스트 평균(Consensus) 데이터입니다." if curr_lang == 'ko' else "※ Wall Street Consensus from FMP Premium.")
+                # 💡 [UI 제어] 데이터가 있을 때만 렌더링하고, 결제 여부에 따라 블러를 씌웁니다!
+                if has_pt_data:
+                    with st.expander(get_text('expander_wallstreet_pt'), expanded=False):
+                        if is_premium:
+                            st.success(f"🎯 **평균 목표 주가 (Target Price) : {target_price_val}**")
+                            st.caption("※ FMP Premium에서 실시간으로 수집된 월가 애널리스트 평균(Consensus) 데이터입니다." if curr_lang == 'ko' else "※ Wall Street Consensus from FMP Premium.")
+                        else:
+                            # 비결제자용 블러 화면
+                            blur_text = "월가 주요 투자은행(IB)들이 제시한 평균 목표 주가는 현재가 대비 약 25% 상승 여력이 있는 것으로 분석되었습니다. 기관들의 세부 매수/매도 비율과 적정 주가 범위는... (이하 블러 처리)"
+                            st.markdown(f"""
+                                <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                    <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                        <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                        <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
             
                 # =========================================================
                 # [기존 기능 유지] 2. 르네상스 & 시킹알파 요약
