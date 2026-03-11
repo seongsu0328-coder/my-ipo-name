@@ -4417,49 +4417,77 @@ with main_area.container():
                             """, unsafe_allow_html=True)
 
                 # =========================================================
-                # [4] Recent News (기존 구글 뉴스 리스트 출력 - 모든 유저)
+                # 🚀 [4] Recent News (UI 통합 최적화 버전)
                 # =========================================================
                 st.markdown(f"#### {get_text('tab1_recent_news_title')}")
+                
                 if final_display_news:
+                    # 1개의 큰 카드 컨테이너 시작
+                    news_html = """
+                    <div style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); margin-bottom: 20px;">
+                    """
+                    
                     for i, n in enumerate(final_display_news):
                         en_title = n.get('title_en', 'No Title')
                         trans_title = n.get('translated_title') or n.get('title_ko') or n.get('title_ja') or n.get('title_jp') or n.get('title', '')
                         
                         raw_sentiment = n.get('sentiment', '일반')
-                        if raw_sentiment == "긍정": sentiment_label = get_text('sentiment_positive')
-                        elif raw_sentiment == "부정": sentiment_label = get_text('sentiment_negative')
-                        else: sentiment_label = get_text('sentiment_neutral')
+                        if "긍정" in raw_sentiment or "肯定" in raw_sentiment: 
+                            sentiment_label = get_text('sentiment_positive')
+                            s_color = "#1e8e3e"
+                            s_bg = "#e6f4ea"
+                        elif "부정" in raw_sentiment or "否定" in raw_sentiment: 
+                            sentiment_label = get_text('sentiment_negative')
+                            s_color = "#d93025"
+                            s_bg = "#fce8e6"
+                        else: 
+                            sentiment_label = get_text('sentiment_neutral')
+                            s_color = "#5f6368"
+                            s_bg = "#f1f3f4"
                         
-                        bg_color = n.get('bg', '#f1f3f4')
-                        text_color = n.get('color', '#5f6368')
                         news_link = n.get('link', '#')
                         news_date = n.get('date', 'Recent')
-    
+                        
                         safe_en = str(en_title).replace("$", "\$")
                         safe_trans = str(trans_title).replace("$", "\$")
                         
                         sub_title_html = ""
                         if safe_trans and safe_trans != safe_en and curr_lang != 'en': 
-                            if curr_lang == 'ko': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇰🇷 {safe_trans}</span>"
-                            elif curr_lang == 'ja': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇯🇵 {safe_trans}</span>"
-                            elif curr_lang == 'zh': sub_title_html = f"<br><span style='font-size:14px; color:#555; font-weight:400;'>🇨🇳 {safe_trans}</span>"
+                            if curr_lang == 'ko': sub_title_html = f"<div style='font-size:14.5px; color:#555; font-weight:500; margin-top:3px;'>🇰🇷 {safe_trans}</div>"
+                            elif curr_lang == 'ja': sub_title_html = f"<div style='font-size:14.5px; color:#555; font-weight:500; margin-top:3px;'>🇯🇵 {safe_trans}</div>"
+                            elif curr_lang == 'zh': sub_title_html = f"<div style='font-size:14.5px; color:#555; font-weight:500; margin-top:3px;'>🇨🇳 {safe_trans}</div>"
 
-                        s_badge = f'<span style="background:{bg_color}; color:{text_color}; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:5px;">{sentiment_label}</span>'
+                        s_badge = f'<span style="background:{s_bg}; color:{s_color}; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:bold; margin-left:8px;">{sentiment_label}</span>'
                         label_gen = get_text('label_general')
                         
-                        st.markdown(f"""
-                            <a href="{news_link}" target="_blank" style="text-decoration:none; color:inherit;">
-                                <div style="padding:15px; border:1px solid #eee; border-radius:10px; margin-bottom:10px; box-shadow:0 2px 5px rgba(0,0,0,0.03);">
-                                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                                        <div><span style="color:#6e8efb; font-weight:bold;">TOP {i+1}</span> <span style="color:#888; font-size:12px;">| {label_gen}</span>{s_badge}</div>
-                                        <small style="color:#bbb;">{news_date}</small>
+                        # 마지막 아이템이면 하단 테두리 선(border-bottom) 제거
+                        border_style = "border-bottom: 1px solid #f0f0f0; margin-bottom: 15px; padding-bottom: 15px;" if i < len(final_display_news) - 1 else "margin-bottom: 5px;"
+                        
+                        news_html += f"""
+                            <div style="{border_style}">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                                    <div style="display:flex; align-items:center;">
+                                        <span style="color:#004e92; font-weight:800; font-size:13px; letter-spacing:0.5px;">TOP {i+1}</span> 
+                                        <span style="color:#ccc; font-size:12px; margin: 0 6px;">|</span>
+                                        <span style="color:#888; font-size:12px;">{label_gen}</span>
+                                        {s_badge}
                                     </div>
-                                    <div style="margin-top:8px; font-weight:600; font-size:15px; line-height:1.4;">
-                                        {safe_en}{sub_title_html}
-                                    </div>
+                                    <div style="color:#aaa; font-size:11px;">{news_date}</div>
                                 </div>
-                            </a>
-                        """, unsafe_allow_html=True)
+                                <a href="{news_link}" target="_blank" style="text-decoration:none; display:block; transition: opacity 0.2s;">
+                                    <div style="color:#222; font-weight:700; font-size:15px; line-height:1.4;">
+                                        {safe_en}
+                                    </div>
+                                    {sub_title_html}
+                                </a>
+                            </div>
+                        """
+                    
+                    # 큰 카드 닫기
+                    news_html += "</div>"
+                    
+                    # 렌더링
+                    st.markdown(news_html, unsafe_allow_html=True)
                 else:
                     st.warning(get_text('err_no_news'))
     
