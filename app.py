@@ -1533,6 +1533,15 @@ def get_sudden_additions():
         pass
     return set()
 
+@st.cache_data(show_spinner=False, ttl=600)
+def get_premium_tab4_ma(ticker, lang_code):
+    """[Tab 4] M&A 내역 AI 요약본을 DB에서 가져옵니다."""
+    try:
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_PremiumMA_v1_{lang_code}").execute()
+        if res.data: return res.data[0]['content']
+    except: pass
+    return ""
+
 
 # ---------------------------------------------------------
 # ✅ [메인] Supabase 연동 캐싱 함수 (이걸 호출하세요)
@@ -2390,6 +2399,13 @@ UI_TEXT = {
     'tab4_peers_title': {
         'ko': 'Sector내 비교', 'en': 'Peer Comparison', 
         'ja': 'セクター内比較', 'zh': '行业内比较'
+    },
+    'tab4_ma_title': {'ko': '🤝 M&A 및 기업 인수합병 내역', 'en': '🤝 M&A Transactions & Targets', 'ja': '🤝 M&Aおよび企業買収履歴', 'zh': '🤝 M&A及企业并购记录'},
+    'desc_ma_blur': {
+        'ko': '이 기업이 최근 진행한 인수합병(M&A) 딜의 정확한 규모와 타겟 기업은 어디일까요? 월가 IB들이 분석한 합병 시너지 효과와 향후 밸류에이션(Valuation)에 미치는 파급력은... (이하 블러 처리)',
+        'en': 'What is the exact size and target of this company\'s recent M&A deals? The synergy effect and future valuation impact analyzed by Wall Street IBs are... (Blurred)',
+        'ja': 'この企業が最近行ったM&Aの正確な規模とターゲット企業はどこでしょうか？ウォール街のIBが分析した合併シナジー効果と今後のバリュエーションへの波及力は... (以下ぼかし処理)',
+        'zh': '这家企业近期进行的并购(M&A)交易的确切规模和目标企业是谁？华尔街投行分析的合并协同效应及其对未来估值(Valuation)的影响是... (以下模糊处理)'
     },
     
     
@@ -5085,20 +5101,27 @@ with main_area.container():
                         else:
                             blur_text = "동일 섹터 내 경쟁사인 주요 상장사들과 비교할 때 본 기업의 주가수익비율(PER)은 상대적으로 저평가 구간에 머물러 있습니다. 이는 시장 점유율 확보 전략이... (이하 블러 처리)"
                             st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p></div></div>""", unsafe_allow_html=True)
+                
                 # =========================================================
-                # [기존 기능 유지] 4. References 영역
+                # 🚀 [NEW] Tab 4 M&A 및 기업 인수합병 내역 프리미엄 섹션
                 # =========================================================
-                with st.expander("References", expanded=False):
-                    st.markdown(f"- [Financial Modeling Prep: {stock['name']} Institutional Consensus](https://financialmodelingprep.com/financial-summary/{q})")
-                    
-                    if sources:
-                        for src in sources: st.markdown(f"- [{src['title']}]({src['link']})")
-                    else: st.caption(get_text('err_no_links'))
-
-                    st.markdown(f"- [Renaissance Capital: {stock['name']} {get_text('label_detail_data')}](https://www.google.com/search?q=site:renaissancecapital.com+{q})")
-                    st.markdown(f"- [Seeking Alpha: {stock['name']} {get_text('label_deep_analysis')}](https://seekingalpha.com/symbol/{q}/analysis)")
-                    st.markdown(f"- [Morningstar: {stock['name']} {get_text('label_research_result')}](https://www.morningstar.com/search?query={q})")
-                    st.markdown(f"- [Google Finance: {stock['name']} {get_text('label_market_trend')}](https://www.google.com/finance/quote/{q}:NASDAQ)")
+                ma_summary = get_premium_tab4_ma(sid, st.session_state.lang)
+                
+                if ma_summary:
+                    with st.expander(get_text('tab4_ma_title'), expanded=False):
+                        if is_premium:
+                            st.markdown(ma_summary, unsafe_allow_html=True)
+                        else:
+                            blur_text = get_text('desc_ma_blur')
+                            st.markdown(f"""
+                                <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                    <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                        <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                        <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
             
                 draw_decision_box("ipo_report", get_text('decision_final_institutional'), ['btn_buy', 'sentiment_neutral', 'btn_sell'], current_p)
                 display_disclaimer()
