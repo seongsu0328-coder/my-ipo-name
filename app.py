@@ -2397,6 +2397,24 @@ UI_TEXT = {
         'ja': 'グローバルマクロ経済', 
         'zh': '全球宏观经济'
     },
+    'tab3_card1_title': {
+        'ko': '비즈니스 성장 및 수익성', 
+        'en': 'Business Growth & Profitability', 
+        'ja': 'ビジネス成長と収益性', 
+        'zh': '业务增长与盈利能力'
+    },
+    'tab3_card2_title': {
+        'ko': '재무 건전성 및 이익 품질', 
+        'en': 'Financial Health & Quality', 
+        'ja': '財務健全性と利益の質', 
+        'zh': '财务健康与利润质量'
+    },
+    'tab3_card3_title': {
+        'ko': '시장 가치 평가 (Valuation)', 
+        'en': 'Market Valuation', 
+        'ja': '市場バリュエーション', 
+        'zh': '市场估值水平'
+    },
     
     # ==========================================
     # 9. Tab 4: 기관평가
@@ -4728,242 +4746,137 @@ with main_area.container():
                 draw_decision_box("macro", get_text('decision_macro_outlook'), ['opt_bubble', 'sentiment_neutral', 'opt_recession'], current_p)
                 display_disclaimer()  
             
-            # --- Tab 3: 개별 기업 평가 ---
+            # --- Tab 3: 개별 기업 재무 평가 (3개 통합 카드 + 이중 AI 분석) ---
             elif selected_sub_menu == get_text('tab_3'):
                 curr_lang = st.session_state.lang
                 is_ko = (curr_lang == 'ko')
 
-                # 💡 [핵심] 오리지널 명품 카드 디자인 CSS 완벽 복원
+                with st.spinner(get_text('msg_analyzing_financial')):
+                    # 1. 워커가 저장한 재무 숫자 데이터 로드
+                    fin_data = get_cached_raw_financials(stock['symbol'])
+                    
+                    # 피오트로스키 점수 추출
+                    if fin_data:
+                        raw_p_score = clean_value(fin_data.get('health_score', 0))
+                        fin_data['piotroski_score_raw'] = int(raw_p_score)
+
+                    data_source = "FMP Premium API" if (fin_data and len(fin_data) > 5) else "Data Unavailable"
+                    
+                    # 🚀 [핵심 1] 3D 카드용 '심층 요약 조각' 로드 (Tab3_Summary)
+                    res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"{sid}_Tab3_Summary_{curr_lang}").execute()
+                    sum_text = res_sum.data[0]['content'] if res_sum.data else ""
+                    
+                    # 💡 [대체 텍스트 완전 삭제] 캐시가 없으면 빈칸 처리
+                    try:
+                        ai_parts = [p.strip() for p in sum_text.split('|||SEP|||')]
+                        c1_sum = ai_parts[0] if len(ai_parts) > 0 else ""
+                        c2_sum = ai_parts[1] if len(ai_parts) > 1 else ""
+                        c3_sum = ai_parts[2] if len(ai_parts) > 2 else ""
+                    except:
+                        c1_sum = c2_sum = c3_sum = ""
+
+                    # 🚀 [핵심 2] 하단 익스팬더용 '논문 기반 CFA 전문 리포트' 로드 (Tab3_v2_Premium)
+                    full_financial_report = get_financial_report_analysis(stock['name'], sid, {}, curr_lang)
+
+                # 💡 [CSS] 4~5문장 소화용 높이와 스크롤 최적화
                 st.markdown("""
                 <style>
-                    /* 메인 카드 디자인 */
-                    .metric-card { background-color:#ffffff; padding:15px; border-radius:12px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.03); height: 100%; min-height: 220px; display: flex; flex-direction: column; justify-content: space-between; }
-                    .metric-header { font-weight:bold; font-size:16px; color:#111; margin-bottom:5px; }
-                    .metric-value-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; justify-content: flex-start; }
-                    .metric-value { font-size:20px; font-weight:800; color:#004e92; white-space: nowrap; }
-                    .metric-desc { font-size:13px; color:#555; line-height:1.5; margin-bottom:10px; flex-grow: 1; }
-                    .metric-footer { font-size:11px; color:#999; margin-top:5px; border-top:1px solid #f0f0f0; padding-top:8px; font-style: italic; }
-                    
-                    /* 상태별 배지(Badge) 색상 */
-                    .st-badge { font-size:12px; padding: 3px 8px; border-radius:6px; font-weight:bold; vertical-align: middle; margin-left: 5px; }
-                    .st-hot { background-color:#ffebee; color:#c62828; }
-                    .st-cold { background-color:#e3f2fd; color:#1565c0; }
-                    .st-good { background-color:#e8f5e9; color:#2e7d32; }
-                    .st-neutral { background-color:#f5f5f5; color:#616161; }
-                    
-                    /* 하단 분석 텍스트용 */
-                    .unified-text { font-size: 0.95rem !important; line-height: 1.6 !important; color: #222222; }
+                    .group-card { background:#ffffff; padding:20px; border-radius:18px; border:1px solid #e0e0e0; margin-bottom:20px; box-shadow:0 4px 12px rgba(0,0,0,0.05); min-height: 400px; display: flex; flex-direction: column; }
+                    .group-title { font-size:16px; font-weight:800; color:#111; margin-bottom:10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }
+                    .group-desc { font-size:13px; color:#004e92; font-weight:500; margin-bottom:18px; line-height:1.6; background:#f0f7ff; padding:15px; border-radius:10px; border-left: 4px solid #004e92; flex-grow: 1; overflow-y: auto; min-height: 150px; }
+                    .sub-grid { display: grid; grid-template-columns: 1fr; gap: 8px; flex-grow: 0; margin-top: auto; }
+                    .sub-item { background:#f9f9fb; padding:10px 14px; border-radius:10px; border: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+                    .sub-label { font-size:12px; color:#666; font-weight:500; }
+                    .sub-value { font-size:15px; font-weight:700; color:#111; }
+                    .sub-badge { font-size:10px; padding: 2px 6px; border-radius:5px; font-weight:bold; margin-left:8px; }
+                    .bg-hot { background-color:#ffebee; color:#c62828; }
+                    .bg-cold { background-color:#e3f2fd; color:#1565c0; }
+                    .bg-good { background-color:#e8f5e9; color:#2e7d32; }
+                    .bg-neutral { background-color:#f5f5f5; color:#616161; }
                 </style>
                 """, unsafe_allow_html=True)
-            
-                with st.spinner(get_text('msg_analyzing_financial')):
-                    fin_data = get_cached_raw_financials(stock['symbol'])
-                
-                # 💡 [여기 추가] 피오트로스키 점수(9점 만점) 추출 로직
-                if fin_data:
-                    # FMP에서 제공하는 piotroskiScore 필드를 가져옵니다. (없으면 0)
-                    raw_p_score = clean_value(fin_data.get('health_score', 0))
-                    fin_data['piotroski_score_raw'] = int(raw_p_score)
 
-                data_source = "Unknown"
-                is_data_available = False
-            
-                if fin_data and len(fin_data) > 5:
-                    is_data_available = True
-                    data_source = "FMP Premium API"
-                else:
-                    is_data_available = False
-                    data_source = "Data Unavailable"
-            
-                # 워커가 이미 계산해 둔 accruals 값을 그대로 가져옵니다 (문자열 연산 에러 원천 차단)
-                accruals_status = str(fin_data.get('accruals', 'Unknown')) if is_data_available else "Unknown"
-    
-    
-                # 안전하게 값 추출 시도 (워커가 보낸 N/A 문자열도 위 함수가 0.0으로 잡아줍니다)
-                rev_val = clean_value(fin_data.get('revenue', 0))
-                net_m_val = clean_value(fin_data.get('net_margin', 0))
-                op_m_val = clean_value(fin_data.get('op_margin', net_m_val))
+                def get_badge(status_key):
+                    stat_map = {"over": ("경고", "bg-hot"), "good": ("우수", "bg-good"), "cold": ("침체", "bg-cold"), "risk": ("위험", "bg-hot"), "neutral": ("보통", "bg-neutral")}
+                    label, cls = stat_map.get(status_key, ("-", "bg-neutral"))
+                    return f'<span class="sub-badge {cls}">{label}</span>'
+
+                # --- 데이터 전처리 ---
                 growth = clean_value(fin_data.get('growth', 0))
-                roe_val = clean_value(fin_data.get('roe', 0))
+                net_m_val = clean_value(fin_data.get('net_margin', 0))
                 de_ratio = clean_value(fin_data.get('debt_equity', 0))
-                pe_val = clean_value(fin_data.get('pe', fin_data.get('forward_pe', 0))) # 워커의 키 'pe' 호환
-    
-                # 화면에 보여줄 문자열 포맷팅 (워커가 만들어둔 포맷이 있으면 우선 사용)
-                growth_display = fin_data.get('growth', f"{growth:+.1f}%") if str(fin_data.get('growth')) not in ["N/A", "None", ""] else "N/A"
-                net_m_display = fin_data.get('net_margin', f"{net_m_val:.1f}%") if str(fin_data.get('net_margin')) not in ["N/A", "None", ""] else "N/A"
-                opm_display = fin_data.get('op_margin', f"{op_m_val:.2f}%") if str(fin_data.get('op_margin')) not in ["N/A", "None", ""] else "N/A"
-    
-                # 💡 [순서 재배치] 3456 (첫 줄) / 7812 (둘째 줄)
-                r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
-                r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
-    
-                # --- [첫 번째 줄: 3, 4, 5, 6] ---
+                pe_val = clean_value(fin_data.get('pe', fin_data.get('forward_pe', 0)))
+                accruals_status = str(fin_data.get('accruals', 'Unknown'))
+                
+                growth_disp = fin_data.get('growth', f"{growth:+.1f}%") if str(fin_data.get('growth')) not in ["N/A", "None", ""] else "N/A"
+                net_m_disp = fin_data.get('net_margin', f"{net_m_val:.1f}%") if str(fin_data.get('net_margin')) not in ["N/A", "None", ""] else "N/A"
+                de_disp = f"{de_ratio:.1f}%" if de_ratio > 0 else "N/A"
+                pe_disp = f"{pe_val:.1f}x" if pe_val > 0 else "N/A"
+                
+                dcf_raw = str(fin_data.get('dcf_price', '0')).replace('$', '').replace(',', '').strip()
+                dcf_p = float(dcf_raw) if dcf_raw not in ['N/A', 'Unknown', 'None', ''] else 0.0
+                gap_pct = ((dcf_p - current_p) / current_p * 100) if current_p > 0 and dcf_p > 0 else 0
 
-                # [카드 3: 기존 Sales Growth]
-                with r1_c1:
-                    display_val = growth_display
-                    if display_val != "N/A": status, st_cls = ("🔥 High-Growth" if not is_ko else "🔥 고성장", "st-hot") if growth > 20 else ("✅ Stable" if not is_ko else "✅ 안정", "st-good") if growth > 5 else ("⚠️ Slowdown" if not is_ko else "⚠️ 둔화", "st-neutral")
-                    else: status, st_cls = ("🔍 N/A", "st-neutral")
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Sales Growth</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_growth')}</div><div class='metric-footer'>Theory: Jay Ritter (1991)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
-    
-                # [카드 4: 기존 Net Margin]
-                with r1_c2:
-                    display_val = net_m_display
-                    if display_val != "N/A": status, st_cls = ("✅ Profit" if not is_ko else "✅ 흑자", "st-good") if net_m_val > 0 else ("🚨 Loss" if not is_ko else "🚨 적자", "st-hot")
-                    else: status, st_cls = ("🔍 N/A", "st-neutral")
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Net Margin (Profit)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_net_margin')}</div><div class='metric-footer'>Theory: Fama & French (2004)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
-    
-                # [카드 5: 기존 Accruals Quality]
-                with r1_c3:
-                    val = accruals_status
-                    status = ("✅ Solid" if not is_ko else "✅ 건전") if val == "Low" else ("🚨 Caution" if not is_ko else "🚨 주의") if val == "High" else "🔍 N/A"
-                    st_cls = "st-good" if val == "Low" else "st-hot" if val == "High" else "st-neutral"
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Accruals Quality</div><div class='metric-value-row'><span class='metric-value'>{val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_accruals')}</div><div class='metric-footer'>Theory: Teoh et al. (1998)<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
-    
-                # [카드 6: 기존 Debt / Equity]
-                with r1_c4:
-                    display_val = f"{de_ratio:.1f}%" if de_ratio > 0 else "N/A"
-                    status, st_cls = ("✅ Stable" if not is_ko else "✅ 안정", "st-good") if (0 < de_ratio < 100) else ("🔍 N/A", "st-neutral")
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Debt / Equity</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_debt_equity')}</div><div class='metric-footer'>Ref: Standard Ratio<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
-    
-                # --- [두 번째 줄: 7, 8, 1, 2] ---
+                up_rate = ((current_p - off_val) / off_val * 100) if current_p > 0 and off_val > 0 else 0
+                perf_disp = f"{up_rate:+.1f}%" if current_p > 0 and off_val > 0 else "N/A"
 
-                # [카드 7: 기존 Market Performance]
-                with r2_c1:
-                    if current_p > 0 and off_val > 0:
-                        up_rate = ((current_p - off_val) / off_val) * 100
-                        display_val, status, st_cls = (f"{up_rate:+.1f}%", ("🚀 Surge" if not is_ko else "🚀 급등") if up_rate > 20 else ("⚖️ Fair" if not is_ko else "⚖️ 적정"), "st-hot" if up_rate > 20 else "st-good")
-                    else: 
-                        if ipo_dt < today:
-                            display_val = get_text('status_otc_delayed')
-                            status = ("⚠️ OTC" if not is_ko else "⚠️ 지연")
-                            st_cls = "st-neutral"
-                        else:
-                            display_val = get_text('status_waiting')
-                            status = ("⏳ IPO" if not is_ko else "⏳ 예정")
-                            st_cls = "st-neutral"
+                # --- 3개 통합 카드 렌더링 ---
+                col1, col2, col3 = st.columns(3)
 
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Market Performance</div><div class='metric-value-row'><span class='metric-value' style='font-size:1.1rem;'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{get_text('desc_performance')}</div><div class='metric-footer'>Theory: Kevin Rock (1986)<br><b>Data Source: Live Price</b></div></div>", unsafe_allow_html=True)
-    
-                # [카드 8: 기존 Forward PER]
-                with r2_c2:
-                    display_val = f"{pe_val:.1f}x" if pe_val > 0 else "N/A"
-                    if display_val != "N/A": status, st_cls = ("⭐ 저평가" if is_ko else "⭐ Value", "st-good") if pe_val < 20 else ("⚠️ 고평가" if is_ko else "⚠️ Overvalued", "st-hot")
-                    else: status, st_cls = ("🔍 N/A", "st-neutral")
-                    desc = get_text('tab3_per_desc') # UI_TEXT에 추가한 키값 사용
-                    st.markdown(f"<div class='metric-card'><div class='metric-header'>Forward PER</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Ref: Valuation Multiple<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+                with col1: # [Card 1] 비즈니스 성장 및 수익성
+                    st.markdown(f"""<div class="group-card">
+                        <div class="group-title">🚀 {get_text('tab3_card1_title')}</div>
+                        <div class="group-desc"><b>💡 AI 실적 진단:</b><br><br>{c1_sum}</div>
+                        <div class="sub-grid">
+                            <div class="sub-item"><span class="sub-label">Sales Growth</span><span class="sub-value">{growth_disp}{get_badge("good" if growth > 5 else "over" if growth < 0 else "neutral")}</span></div>
+                            <div class="sub-item"><span class="sub-label">Net Margin</span><span class="sub-value">{net_m_disp}{get_badge("good" if net_m_val > 0 else "over")}</span></div>
+                            <div class="sub-item"><span class="sub-label">Piotroski Score</span><span class="sub-value">{fin_data.get('piotroski_score_raw', 0)}/9{get_badge("good" if fin_data.get('piotroski_score_raw', 0) >= 6 else "over" if fin_data.get('piotroski_score_raw', 0) <= 3 else "neutral")}</span></div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
 
-                # [카드 1: 프리미엄 DCF 적정주가]
-                with r2_c3:
-                    # 💡 워커가 보낸 문자열("$15.50" 또는 "N/A")에서 달러 기호를 떼고 숫자로 안전하게 변환
-                    raw_dcf = str(fin_data.get('dcf_price', '0')).replace('$', '').replace(',', '').strip()
-                    try:
-                        dcf_p = float(raw_dcf) if raw_dcf not in ['N/A', 'Unknown', 'None', ''] else 0.0
-                    except:
-                        dcf_p = 0.0
-                    
-                    # 💡 안전하게 변환된 숫자(dcf_p)를 바탕으로 괴리율 및 표시 텍스트 계산
-                    gap_pct = ((dcf_p - current_p) / current_p * 100) if current_p > 0 and dcf_p > 0 else 0
-                    display_val = f"${dcf_p:.2f}" if dcf_p > 0 else "N/A"
-                    
-                    if dcf_p > 0: 
-                        status, st_cls = (f"✅ {gap_pct:.1f}% 저평가" if is_ko else f"✅ {gap_pct:.1f}% Undervalued", "st-good") if gap_pct > 0 else (f"🚨 {abs(gap_pct):.1f}% 고평가" if is_ko else f"🚨 {abs(gap_pct):.1f}% Overvalued", "st-hot")
-                    else: 
-                        status, st_cls = ("🔍 N/A", "st-neutral")
-                        
-                    desc = get_text('tab3_dcf_desc')
-                    st.markdown(f"<div class='metric-card' style='border: 2px solid #e3f2fd;'><div class='metric-header'>FMP Target (DCF)</div><div class='metric-value-row'><span class='metric-value'>{display_val}</span><span class='st-badge {st_cls}'>{status}</span></div><div class='metric-desc'>{desc}</div><div class='metric-footer'>Model: FMP Valuation<br><b>Data Source: {data_source}</b></div></div>", unsafe_allow_html=True)
+                with col2: # [Card 2] 재무 건전성
+                    acc_badge = "good" if accruals_status == "Low" else "over" if accruals_status == "High" else "neutral"
+                    st.markdown(f"""<div class="group-card">
+                        <div class="group-title">🛡️ {get_text('tab3_card2_title')}</div>
+                        <div class="group-desc"><b>💡 AI 건전성 진단:</b><br><br>{c2_sum}</div>
+                        <div class="sub-grid">
+                            <div class="sub-item"><span class="sub-label">Debt / Equity</span><span class="sub-value">{de_disp}{get_badge("good" if 0 < de_ratio < 100 else "over" if de_ratio >= 100 else "neutral")}</span></div>
+                            <div class="sub-item"><span class="sub-label">Accruals Quality</span><span class="sub-value">{accruals_status}{get_badge(acc_badge)}</span></div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
 
-                # [카드 2: 프리미엄 Quant Rating - 9점 만점 피오트로스키 버전]
-                with r2_c4:
-                    raw_p_score = fin_data.get('piotroski_score_raw', 0)
-                    r_grade = fin_data.get('rating', 'N/A') # A, B, C 등급 유지
-                    
-                    if raw_p_score > 0:
-                        # 점수대별 배지 로직 (7-9: 우량, 4-6: 보통, 0-3: 주의)
-                        if raw_p_score >= 7:
-                            status = f"🔥 {get_text('tab3_score')} {raw_p_score} / 9"
-                            st_cls = "st-hot" # 빨간색/강력
-                        elif raw_p_score >= 4:
-                            status = f"✅ {get_text('tab3_score')} {raw_p_score} / 9"
-                            st_cls = "st-good" # 녹색/안정
-                        else:
-                            status = f"🚨 {get_text('tab3_score')} {raw_p_score} / 9"
-                            st_cls = "st-neutral" # 회색/주의
-                    else:
-                        status, st_cls = ("🔍 N/A", "st-neutral")
+                with col3: # [Card 3] 밸류에이션
+                    st.markdown(f"""<div class="group-card">
+                        <div class="group-title">⚖️ {get_text('tab3_card3_title')}</div>
+                        <div class="group-desc"><b>💡 AI 밸류에이션 진단:</b><br><br>{c3_sum}</div>
+                        <div class="sub-grid">
+                            <div class="sub-item"><span class="sub-label">Forward P/E</span><span class="sub-value">{pe_disp}{get_badge("good" if 0 < pe_val < 25 else "over" if pe_val >= 25 else "neutral")}</span></div>
+                            <div class="sub-item"><span class="sub-label">DCF Gap</span><span class="sub-value">{gap_pct:+.1f}%{get_badge("good" if gap_pct > 0 else "over" if gap_pct < 0 else "neutral")}</span></div>
+                            <div class="sub-item"><span class="sub-label">IPO Return</span><span class="sub-value">{perf_disp}{get_badge("over" if up_rate > 20 else "good" if up_rate >= 0 else "cold")}</span></div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
 
-                    # 디자인은 대표님의 오리지널 '명품 카드' 양식을 그대로 유지합니다.
+                st.write("<br>", unsafe_allow_html=True)
+
+                # 💡 [하단 전문 복구] 논문 기반 CFA 퀀트 리포트
+                with st.expander(get_text('expander_academic_analysis'), expanded=False): 
                     st.markdown(f"""
-                        <div class='metric-card' style='border: 2px solid #e3f2fd;'>
-                            <div class='metric-header'>{get_text('tab3_quant_title')}</div>
-                            <div class='metric-value-row'>
-                                <span class='metric-value'>{r_grade}</span>
-                                <span class='st-badge {st_cls}'>{status}</span>
-                            </div>
-                            <div class='metric-desc'>{get_text('tab3_quant_desc')}</div>
-                            <div class='metric-footer'>Model: Piotroski F-Score (9 Metrics)<br><b>Data Source: {data_source}</b></div>
+                        <div style='background-color:#f8f9fa; padding:22px; border-radius:12px; border-left: 5px solid #004e92; font-size:15px; line-height:1.8; color:#333; text-align:justify;'>
+                            <b>🎓 CFA Quant Deep-Dive Analysis</b><br><br>
+                            {full_financial_report}
                         </div>
                     """, unsafe_allow_html=True)
-    
-                # --- 💡 1. 재무분석 Expander (이제 이 안에는 AI 텍스트 리포트만 깔끔하게 나옵니다) ---
-                with st.expander(get_text('expander_financial_analysis'), expanded=False):
-                    if is_data_available:
-                        # 💡 [핵심 방어막] 워커가 이미 예쁘게 만들어준 문자열을 그대로 넘기도록 수정
-                        ai_metrics = {
-                            "growth": growth_display, 
-                            "net_margin": net_m_display, 
-                            "op_margin": opm_display, 
-                            "roe": f"{roe_val:.1f}%", 
-                            "debt_equity": f"{de_ratio:.1f}%", 
-                            "pe": f"{pe_val:.1f}x" if pe_val > 0 else "N/A", 
-                            "accruals": accruals_status,
-                            "current_price": f"${current_p:.2f}" if current_p > 0 else "N/A",
-                            "dcf_price": str(fin_data.get('dcf_price', 'N/A')), # 문자열 그대로 전달
-                            "rating": str(fin_data.get('rating', 'N/A')),
-                            "health_score": str(fin_data.get('health_score', 'N/A')),
-                            "pb": str(fin_data.get('price_to_book', 'N/A'))
-                        }
-                        
-                        with st.spinner(get_text('msg_analyzing_financial')):
-                            ai_report = get_financial_report_analysis(stock['name'], stock['symbol'], ai_metrics, curr_lang)
-                        
-                        st.info(ai_report)
-                        st.caption("※ 본 분석은 월스트리트 기관용 데이터(FMP Premium)를 바탕으로 생성된 전문가용 심층 리포트입니다." if is_ko else "※ Generated based on FMP Premium data.")
-                    else: 
-                        st.warning(get_text('err_no_biz_info'))
-
-                # --- 💡 2. 논문기반 분석 Expander ---
-                with st.expander(get_text('expander_academic_analysis'), expanded=False):
                     st.caption(f"Data Source: {data_source} / Currency: USD")
-                    if is_data_available:
-                        if curr_lang == 'ko':
-                            growth_status_text = "고성장" if growth > 20 else "안정적" if growth > 5 else "정체"
-                            quality_status_text = "우수" if roe_val > 15 else "보통"
-                            st.markdown(f"<div class='unified-text'><b>1. 성장성 및 생존 분석 (Jay Ritter, 1991)</b><br>현재 매출 성장률은 <b>{growth_status_text}</b> 단계입니다. Ritter의 이론에 따르면 상장 초기 고성장 기업은 향후 3~5년간 '성장 둔화의 함정'을 조심해야 하며, 현재 수치는 {'긍정적 시그널' if growth > 10 else '주의가 필요한 시그널'}로 해석됩니다.<br><br><b>2. 수익성 품질 및 자본 구조 (Fama & French, 2004)</b><br>수익성 지표(Net Margin/ROE)는 <b>{quality_status_text}</b> 등급입니다. 본 기업은 {'상대적으로 견고한 이익 체력' if roe_val > 10 else '영업 효율성 개선이 선행되어야 하는 체력'}을 보유하고 있습니다.<br><br><b>3. 정보 비대칭 및 회계 품질 (Teoh et al., 1998)</b><br>발생액 품질(Accruals Quality)이 <b>{accruals_status}</b> 상태입니다. 이는 경영진의 이익 조정 가능성이 {'낮음' if accruals_status == 'Low' else '존재함'}을 의미합니다.</div>", unsafe_allow_html=True)
-                            st.info(f"**AI 종합 판정:** 학술적 관점에서 본 기업은 **{growth_status_text}** 성격이 강하며, 정보 불확실성은 일정 부분 해소된 상태입니다.")
-                        elif curr_lang == 'ja':
-                            growth_status_text = "高成長" if growth > 20 else "安定的" if growth > 5 else "停滞"
-                            quality_status_text = "優秀" if roe_val > 15 else "普通"
-                            st.markdown(f"<div class='unified-text'><b>1. 成長性と生存分析 (Jay Ritter, 1991)</b><br>現在の売上成長率は<b>{growth_status_text}</b>段階です。Ritterの理論によると、上場初期の高成長企業は今後3〜5年間の「成長鈍化の罠」に注意すべきであり、現在の数値は{'肯定的なシグナル' if growth > 10 else '注意が必要なシグナル'}と解釈されます。<br><br><b>2. 収益性の質と資本構造 (Fama & French, 2004)</b><br>収益性指標(Net Margin/ROE)は<b>{quality_status_text}</b>レベルです。この企業は{'比較的堅固な利益創出力' if roe_val > 10 else '営業効率の改善が先行されるべき体力'}を保持しています。<br><br><b>3. 情報の非対称性と会計の質 (Teoh et al., 1998)</b><br>発生額の質(Accruals Quality)が<b>{accruals_status}</b>の状態です。これは経営陣による利益調整の可能性が{'低い' if accruals_status == 'Low' else '存在する'}ことを意味します。</div>", unsafe_allow_html=True)
-                            st.info(f"**AI 総合判定:** 学術的な観点から、この企業は**{growth_status_text}**の性格が強く、情報の不確実性は一定部分解消された状態です。")
-                        else:
-                            growth_status_text = "High-Growth" if growth > 20 else "Stable" if growth > 5 else "Stagnant"
-                            quality_status_text = "High-Quality" if roe_val > 15 else "Average"
-                            st.markdown(f"<div class='unified-text'><b>1. Growth & Survival Analysis (Jay Ritter, 1991)</b><br>Current revenue growth is in the <b>{growth_status_text}</b> stage. According to Ritter's theory, high-growth firms should beware of the 'growth trap' in the next 3-5 years. Current metrics indicate a {'positive' if growth > 10 else 'cautionary'} signal.<br><br><b>2. Profitability & Capital Structure (Fama & French, 2004)</b><br>Profitability (Net Margin/ROE) is rated as <b>{quality_status_text}</b>. This firm possesses {'relatively solid earnings power' if roe_val > 10 else 'room for operational improvement'}.<br><br><b>3. Information Asymmetry & Accounting Quality (Teoh et al., 1998)</b><br>Accruals quality is <b>{accruals_status}</b>, implying the risk of earnings management by executives is {'low' if accruals_status == 'Low' else 'notable'}.</div>", unsafe_allow_html=True)
-                            st.info(f"**AI Verdict:** Academically, this firm exhibits **{growth_status_text}** characteristics with manageable information uncertainty.")
-                    else: st.warning(get_text('err_no_biz_info'))
 
                 # =========================================================
-                # 🚀 [NEW] 어닝 서프라이즈 내역 (Premium 전용 - Blur 적용)
+                # 🚀 [Premium 섹션 완벽 복원] 어닝 서프라이즈, 실적 전망치, 부문별 매출
                 # =========================================================
                 surp_summary, est_summary = get_premium_tab3_summaries(sid, curr_lang)
                 
-                # 👇 [여기에 2줄 추가] Tab 3에서도 프리미엄 여부를 확인하도록 변수를 선언합니다.
+                # 유저 프리미엄 권한 확인
                 user_info = st.session_state.get('user_info') if isinstance(st.session_state.get('user_info'), dict) else {}
                 is_premium = user_info.get('membership_level', 'free') in ['premium', 'premium_plus']
 
-                # 💡 [UI 제어] 데이터가 있을 때만 렌더링하고, 결제 여부에 따라 블러를 씌웁니다!
                 if surp_summary:
                     with st.expander(get_text('tab3_surprise_title'), expanded=False):
                         if is_premium:
@@ -4972,9 +4885,6 @@ with main_area.container():
                             blur_text = "최근 4분기 연속으로 월가 애널리스트들의 주당순이익(EPS) 예상치를 평균 15% 이상 상회(Beat)하는 어닝 서프라이즈를 기록했습니다. 이는 동종 업계 대비 압도적인 비용 통제 능력을... (이하 블러 처리)"
                             st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p></div></div>""", unsafe_allow_html=True)
 
-                # =========================================================
-                # 🚀 [NEW] 향후 실적 전망치 (Premium 전용 - Blur 적용)
-                # =========================================================
                 if est_summary:
                     with st.expander(get_text('tab3_estimate_title'), expanded=False):
                         if is_premium:
@@ -4983,11 +4893,7 @@ with main_area.container():
                             blur_text = "월가 컨센서스에 따르면, 내년도 예상 매출액은 전년 대비 약 35% 폭증할 것으로 추정되며, 주당순이익(EPS) 역시 적자에서 흑자로 턴어라운드(Turnaround)할 강력한 모멘텀을... (이하 블러 처리)"
                             st.markdown(f"""<div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;"><div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div><div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;"><h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4><p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p></div></div>""", unsafe_allow_html=True)
 
-                # =========================================================
-                # 🚀 [NEW] Tab 3 부문별 매출 비중 (Revenue Segmentation) 프리미엄 섹션
-                # =========================================================
                 rev_summary = get_premium_tab3_revenue(sid, st.session_state.lang)
-                
                 if rev_summary:
                     with st.expander(get_text('tab3_revenue_title'), expanded=False):
                         if is_premium:
@@ -5003,7 +4909,10 @@ with main_area.container():
                                     </div>
                                 </div>
                             """, unsafe_allow_html=True)
-            
+
+                # =========================================================
+                # 🚀 [의사결정 및 면책조항 완벽 복원]
+                # =========================================================
                 draw_decision_box("company", f"{stock['name']} {get_text('decision_valuation_verdict')}", ['opt_overvalued', 'sentiment_neutral', 'opt_undervalued'], current_p)
                 display_disclaimer()
     
