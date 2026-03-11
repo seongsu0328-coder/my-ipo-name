@@ -883,7 +883,7 @@ def get_tab0_ec_premium_prompt(lang, ticker, raw_data):
    - 3문단: [애널리스트 Q&A 세션 핵심 하이라이트]
 3. 각 문단은 4~5줄(문장) 길이로 묵직하고 구체적인 수치를 포함해 작성하세요.
 4. 숫자에 별표(**) 강조를 절대 사용하지 마세요.
-5. 인사말을 생략하고 첫 글자부터 본론만 작성하세요. 문장별로 ~입니다, ~합니다, ~습니다로 마무리 하세요.
+5. 인사말을 생략하고 첫 글자부터 본론만 작성하세요. 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 격식 있고 정중한 존댓말(합쇼체)로 작성하세요. (예: ~합니다, ~입니다, ~됩니다, ~전망됩니다 등). 절대 '~한다', '~이다' 형태의 평어체를 사용하지 마세요.
 
 [Raw Data]:
 {raw_data}"""
@@ -924,6 +924,106 @@ def run_tab0_premium_collection(ticker, company_name):
                 except: pass
     except Exception as e:
         print(f"Tab0 Premium EC Error for {ticker}: {e}")
+
+# ==========================================
+# [신규 추가] Tab 2 프리미엄 요약 전용 프롬프트 및 수집 함수 (ESG 등급)
+# ==========================================
+def get_tab2_esg_premium_prompt(lang, ticker, raw_data):
+    if lang == 'en':
+        return f"""You are a Lead ESG Analyst on Wall Street. Summarize the latest ESG (Environmental, Social, Governance) data for {ticker}.
+[Strict Rules]
+1. Write ENTIRELY in English. DO NOT mix other languages.
+2. Write exactly 3 paragraphs:
+   - Para 1: [Environmental Impact & Risk]
+   - Para 2: [Social Responsibility]
+   - Para 3: [Corporate Governance & Ethics]
+3. Each paragraph must be 4-5 sentences long, packed with specific ESG scores and professional insights.
+4. DO NOT use markdown bold (**) for numbers.
+5. Omit greetings and start immediately with a professional, objective tone.
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'ja':
+        return f"""あなたはウォール街のシニアESGアナリストです。提供されたデータに基づき、{ticker}の最新のESG(環境、社会、ガバナンス)評価を日本語で深層要約してください。
+[厳格な作成ルール]
+1. 全て自然な日本語のみで記述してください。
+2. 必ず以下の3つの段落に分けて作成してください：
+   - 第1段落: [環境への影響とリスク (E)]
+   - 第2段落: [社会的責任 (S)]
+   - 第3段落: [企業統治と倫理 (G)]
+3. 各段落は4〜5文で構成し、具体的なESGスコアと専門的な洞察を含めてください。
+4. 数値に強調記号（**）は絶対に使用しないでください。
+5. 挨拶は省略し、すぐに本題に入ってください。冷静で客観的な分析トーンを維持してください。
+
+[Raw Data]:
+{raw_data}"""
+
+    elif lang == 'zh':
+        return f"""您是华尔街的资深ESG分析师。请根据提供的数据，用简体中文深度总结 {ticker} 的最新ESG（环境、社会、治理）评级。
+[严格编写规则]
+1. 必须完全使用简体中文编写，严禁混用其他语言。
+2. 必须严格分为以下3个段落：
+   - 第一段: [环境影响与风险 (E)]
+   - 第二段: [社会责任 (S)]
+   - 第三段: [公司治理与伦理 (G)]
+3. 每个段落应包含4-5句话，并提供具体的ESG分数和深刻的专业见解。
+4. 绝对不要使用星号（**）对数字进行加粗。
+5. 省略问候语，直接进入正文。保持冷静、客观和分析的基调。
+
+[Raw Data]:
+{raw_data}"""
+
+    else: # ko
+        return f"""당신은 월가 수석 ESG 애널리스트입니다. 제공된 데이터를 바탕으로 {ticker}의 최신 ESG(환경, 사회, 지배구조) 평가 등급을 한국어로 심층 요약하세요.
+[작성 규칙 - 엄격 준수]
+1. 반드시 순수한 한국어로만 작성하세요.
+2. 반드시 아래 3개의 문단으로 나누어 작성하세요:
+   - 1문단: [환경(E) 리스크 및 지속가능성]
+   - 2문단: [사회적(S) 책임 및 파급력]
+   - 3문단: [지배구조(G) 및 투명성 평가]
+3. 각 문단은 4~5줄(문장) 길이로 구체적인 ESG 점수를 포함해 작성하세요.
+4. 숫자에 별표(**) 강조를 절대 사용하지 마세요.
+5. 인사말을 생략하고 첫 글자부터 본론만 작성하세요. 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 격식 있고 정중한 존댓말(합쇼체)로 작성하세요. (예: ~합니다, ~입니다, ~됩니다, ~전망됩니다 등). 절대 '~한다', '~이다' 형태의 평어체를 사용하지 마세요.
+
+[Raw Data]:
+{raw_data}"""
+
+def run_tab2_premium_collection(ticker, company_name):
+    """Tab 2의 프리미엄 데이터(ESG 평가)를 수집하고 요약하여 캐싱합니다."""
+    if 'model_strict' not in globals() or not model_strict: return
+    try:
+        limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # ESG는 자주 안 바뀌므로 7일 유지
+        
+        url = f"https://financialmodelingprep.com/api/v4/esg-environmental-social-governance-data?symbol={ticker}&apikey={FMP_API_KEY}"
+        esg_raw = get_fmp_data_with_cache(ticker, "RAW_ESG", url, valid_hours=168)
+        
+        is_esg_valid = isinstance(esg_raw, list) and len(esg_raw) > 0
+
+        for lang_code in SUPPORTED_LANGS.keys():
+            if is_esg_valid:
+                esg_summary_key = f"{ticker}_PremiumESG_v1_{lang_code}"
+                try:
+                    res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", esg_summary_key).gt("updated_at", limit_time_str).execute()
+                    if not res.data:
+                        content = str(esg_raw[0]) # 첫 번째 요소(최신 ESG 데이터) 추출
+                        prompt = get_tab2_esg_premium_prompt(lang_code, ticker, content)
+                        
+                        for attempt in range(3):
+                            try:
+                                resp = model_strict.generate_content(prompt)
+                                if resp and resp.text:
+                                    paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
+                                    indent_size = "14px" if lang_code == "ko" else "0px"
+                                    html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+                                    
+                                    batch_upsert("analysis_cache", [{"cache_key": esg_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                    print(f"✅ [{ticker}] ESG 분석 캐싱 완료 ({lang_code})")
+                                    break
+                            except Exception as e: time.sleep(1)
+                except: pass
+    except Exception as e:
+        print(f"Tab2 Premium ESG Error for {ticker}: {e}")
 
 # ==========================================
 # [신규 추가] Tab 1 프리미엄 요약 전용 프롬프트 생성 함수 (다국어 분리 완벽 적용)
@@ -2402,7 +2502,8 @@ def main():
             
             run_tab1_analysis(official_symbol, name, c_status, c_date)
             run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping)
-            run_tab0_premium_collection(official_symbol, name) # 👈 이 1줄을 추가!
+            run_tab0_premium_collection(official_symbol, name)
+            run_tab2_premium_collection(official_symbol, name) # 👈 이 1줄을 추가!
             
             # 👇 [핵심 추가] Tab 4: FMP 월가 애널리스트 목표가 데이터 수집 및 연동
             try:
