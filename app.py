@@ -4657,8 +4657,8 @@ with main_area.container():
                 with col1: # [Card 1] IPO 시장 심리
                     ret = md.get('ipo_return', 0); w_rate = md.get('withdrawal_rate', 0)
                     st.markdown(f"""<div class="group-card">
-                        <div class="group-title">🚀 {get_text('tab2_card1_title')}</div>
-                        <div class="group-desc"><b>💡 AI 심리 진단:</b><br><br>{c1_sum}</div>
+                        <div class="group-title">{get_text('tab2_card1_title')}</div>
+                        <div class="group-desc"><b>💡 AI Sentiment analysis:</b><br><br>{c1_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">{get_text('label_ret_name')}</span><span class="sub-value">{ret:+.1f}%{get_badge("over" if ret>=20 else "good")}</span></div>
                             <div class="sub-item"><span class="sub-label">{get_text('label_with_name')}</span><span class="sub-value">{w_rate:.1f}%{get_badge("over" if w_rate<5 else "good")}</span></div>
@@ -4668,8 +4668,8 @@ with main_area.container():
                 with col2: # [Card 2] IPO 공급 및 질적 위험
                     vol = md.get('ipo_volume', 0); unp = md.get('unprofitable_pct', 0)
                     st.markdown(f"""<div class="group-card">
-                        <div class="group-title">⚠️ {get_text('tab2_card2_title')}</div>
-                        <div class="group-desc"><b>💡 AI 리스크 진단:</b><br><br>{c2_sum}</div>
+                        <div class="group-title">{get_text('tab2_card2_title')}</div>
+                        <div class="group-desc"><b>💡 AI Risk analysis:</b><br><br>{c2_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">{get_text('label_vol_name')}</span><span class="sub-value">{vol}건{get_badge("over" if vol>=15 else "normal")}</span></div>
                             <div class="sub-item"><span class="sub-label">{get_text('label_unprof_name')}</span><span class="sub-value">{unp:.0f}%{get_badge("risk" if unp>=80 else "good")}</span></div>
@@ -4679,8 +4679,8 @@ with main_area.container():
                 with col3: # [Card 3] 미국 증시 펀더멘털
                     vix = md.get('vix', 20); buff = md.get('buffett_val', 100); pe = md.get('pe_ratio', 20); fg = md.get('fear_greed', 50)
                     st.markdown(f"""<div class="group-card">
-                        <div class="group-title">🌍 {get_text('tab2_card3_title')}</div>
-                        <div class="group-desc"><b>💡 AI 거시 진단:</b><br><br>{c3_sum}</div>
+                        <div class="group-title">{get_text('tab2_card3_title')}</div>
+                        <div class="group-desc"><b>💡 AI Macro analysis:</b><br><br>{c3_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">{get_text('label_vix_fg_name')}</span><span class="sub-value" style="font-size:14px;">{vix:.1f} / {fg:.0f}{get_badge("greed" if vix<=15 else "normal")}</span></div>
                             <div class="sub-item"><span class="sub-label">{get_text('label_buff_pe_name')}</span><span class="sub-value" style="font-size:14px;">{buff:.0f}% / {pe:.1f}x{get_badge("high" if pe>25 else "good")}</span></div>
