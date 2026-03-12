@@ -4407,97 +4407,64 @@ with main_area.container():
             
                         # [Step 4] 출력 및 8-K 프리미엄 블러 처리
 if t_topic == "8-K" and not is_premium:
-    # ✅ 다른 프리미엄 카드와 통일된 디자인 (불필요한 스타일 제거)
-    locked_8k_html = """
-    <div style="position: relative; width: 100%; margin-top: 10px;">
-        <div style="filter: blur(5px); opacity: 0.4; padding: 15px; line-height: 1.6; user-select: none;">
-            <b>[핵심 이벤트]</b><br>
-            최근 발생한 주요 공시 사유 요약 내용이 이곳에 표시됩니다. 회사의 재무 상태 및 주가에 영향을 줄 수 있는 중대한 결정 사항입니다.<br><br>
-            <b>[재무 파급력]</b><br>
-            해당 이벤트가 기업의 매출, 영업이익, 현금흐름 등에 미치는 단기 및 장기적 파급 효과 분석이 이곳에 표시됩니다.<br><br>
-            <b>[향후 전망]</b><br>
-            투자자가 주의 깊게 살펴봐야 할 핵심 투자 포인트와 향후 예상 시나리오입니다.
-        </div>
+            # 🔒 비결제자 전용 블러 처리
+            locked_8k_html = """
+            <div style="position: relative; width: 100%; margin-top: 10px;">
+                <div style="filter: blur(5px); opacity: 0.4; padding: 15px; line-height: 1.6; user-select: none;">
+                    <b>[핵심 이벤트]</b><br>최근 발생한 주요 공시 사유 요약 내용이 표시됩니다...<br><br>
+                    <b>[재무 파급력]</b><br>해당 이벤트가 기업에 미치는 파급 효과 분석이...
+                </div>
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%;">
+                    <span style="background-color: rgba(32, 33, 36, 0.85); color: #ffffff; padding: 12px 24px; border-radius: 30px; font-weight: 600;">🔒 Premium Only</span>
+                </div>
+            </div>
+            """
+            st.markdown(locked_8k_html, unsafe_allow_html=True)
         
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%;">
-            <span style="background-color: rgba(32, 33, 36, 0.85); color: #ffffff; padding: 12px 24px; border-radius: 30px; font-weight: 600; font-size: 16px; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                🔒 Premium Only
-            </span>
-        </div>
-    </div>
-    """
-    st.markdown(locked_8k_html, unsafe_allow_html=True)
-else:
-        # ✅ 결제 회원 혹은 일반 공시 출력
-        if d_text:
-            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; white-space: pre-wrap;">{d_text}</div>', unsafe_allow_html=True)
         else:
-            st.info("해당 서류의 분석 리포트를 생성 중이거나 데이터가 없습니다.")
-        
-        # --- 여기서부터 들여쓰기 위치를 'if d_text' 라인과 똑같이 맞췄습니다 ---
-        
-        # 4. 외부 링크 및 하단 버튼
-        import urllib.parse
-        cik_val = profile.get('cik', '') if profile else ''
-        sec_q_val = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
-        
-        if cik_val: 
-            sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_val}&type={urllib.parse.quote(sec_q_val)}&owner=include&count=40"
-        else: 
-            sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(stock['name'])}"
-        
-        real_web = profile.get('weburl') or profile.get('website', '') if profile else ''
-        web_url = real_web if real_web else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + stock['name'] + ' Investor Relations')}"
-        
-        st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 12px;">{get_text("btn_sec_link")} ({t_topic})</button></a>', unsafe_allow_html=True)
-        # =========================================================
-        # 🚀 [NEW] 어닝 콜 (Earnings Call) 프리미엄 섹션
-        # =========================================================
-        ec_summary = get_premium_tab0_ec(sid, st.session_state.lang)
-        
-        if ec_summary:
-            with st.expander(get_text('tab0_ec_title'), expanded=False):
-                if is_premium:
-                    st.markdown(ec_summary, unsafe_allow_html=True)
-                else:
-                    blur_text = get_text('desc_ec_blur')
-                    st.markdown(f"""
-                        <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                            <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-        
-        # --- Tab 0 (공시 분석)의 맨 마지막 부분 ---
-        draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
-        display_disclaimer()
+            # ✅ 결제 회원 혹은 일반 공시용 (8-K가 아니거나 결제한 경우)
+            if d_text:
+                st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; white-space: pre-wrap;">{d_text}</div>', unsafe_allow_html=True)
+            else:
+                st.info("분석 리포트를 생성 중이거나 데이터가 없습니다.")
+            
+            # 4. 외부 링크 및 하단 버튼
+            import urllib.parse
+            cik_val = profile.get('cik', '') if profile else ''
+            sec_q_val = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
+            
+            if cik_val: 
+                sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_val}&type={urllib.parse.quote(sec_q_val)}&owner=include&count=40"
+            else: 
+                sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(stock['name'])}"
+            
+            st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 12px;">{get_text("btn_sec_link")} ({t_topic})</button></a>', unsafe_allow_html=True)
 
-    # 🚨 [중요] 이 elif는 위쪽 어딘가에 있는 if selected_sub_menu == get_text('tab_0'): 문장과
-    # 왼쪽 시작점이 '완벽하게' 수직으로 일치해야 합니다. (보통 1탭 또는 4/8칸 공백)
+            # 🚀 어닝 콜 (Earnings Call) 섹션
+            ec_summary = get_premium_tab0_ec(sid, st.session_state.lang)
+            if ec_summary:
+                with st.expander(get_text('tab0_ec_title'), expanded=False):
+                    if is_premium:
+                        st.markdown(ec_summary, unsafe_allow_html=True)
+                    else:
+                        blur_text = get_text('desc_ec_blur')
+                        st.markdown(f'<div style="filter: blur(5.5px); opacity: 0.4; padding: 20px;">{blur_text}</div>', unsafe_allow_html=True)
+            
+            # 하단 의사결정 박스
+            draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
+            display_disclaimer()
+
+    # 🚨 [중요] 이 elif는 Tab 0를 구성하는 'if selected_sub_menu == ...'와 수직 정렬되어야 합니다.
     elif selected_sub_menu == get_text('tab_1'):
         curr_lang = st.session_state.lang
-        
-        # user_info 안전 장치
         user_info = st.session_state.get('user_info') or {}
         user_level = user_info.get('membership_level', 'free')
         is_premium = user_level in ['premium', 'premium_plus']
 
         with st.spinner(get_text('msg_analyzing_tab1')):
-            # 1. 무료 데이터 분석 로드
-            biz_info, final_display_news = get_unified_tab1_analysis(
-                stock['name'], 
-                stock['symbol'], 
-                curr_lang, 
-                stock.get('status', current_s), 
-                stock.get('date') 
-            )
-            # 2. 프리미엄 데이터 요약 로드
+            biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'], curr_lang, stock.get('status', current_s), stock.get('date'))
             news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
 
-        # spinner 블록이 끝난 후 실행 (들여쓰기 8칸 또는 2탭 위치)
         st.write("<br>", unsafe_allow_html=True)
                 
             # =========================================================
