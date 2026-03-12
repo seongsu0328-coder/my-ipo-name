@@ -58,17 +58,22 @@ if GENAI_API_KEY:
         # [환각 원천 차단용] 엄격한 모델
         model_strict = genai.GenerativeModel('gemini-2.0-flash')
         
-        # 🚨 [검색 도구 완벽 수정] 구글 최신 SDK 방식 적용
+        # 🚨 [검색 도구 무적 로딩] 버전 상관없이 무조건 켜지게 3중 방어막 적용
         try:
-            # 과거의 복잡한 protos 방식 대신, 가장 안정적인 문자열 호출 방식 사용
-            model_search = genai.GenerativeModel(
-                model_name='gemini-2.0-flash', 
-                tools='google_search_retrieval' 
-            )
+            model_search = genai.GenerativeModel('gemini-2.0-flash', tools='google_search_retrieval')
+        except:
+            try:
+                model_search = genai.GenerativeModel('gemini-2.0-flash', tools=[{"google_search_retrieval": {}}])
+            except:
+                try:
+                    search_tool = genai.protos.Tool(google_search=genai.protos.GoogleSearch())
+                    model_search = genai.GenerativeModel('gemini-2.0-flash', tools=[search_tool])
+                except Exception as e_tool:
+                    print(f"⚠️ 구글 검색 도구 최종 실패: {e_tool}")
+                    model_search = None
+                    
+        if model_search:
             print("✅ AI 하이브리드 모델 로드 성공 (Google Search 100% 활성화 완료)")
-        except Exception as e_tool:
-            print(f"⚠️ 구글 검색 도구 강제 비활성화: {e_tool}")
-            model_search = None 
 
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
@@ -1232,9 +1237,11 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in valid_news])
 
     # 💡 [하이브리드 판단 강화] 
-    # 기업 설명이 50자 미만이거나, 진짜(필터링된) 뉴스가 1개도 없으면 구글 검색 투입!
     is_fmp_poor = (len(biz_desc) < 50) or (len(valid_news) == 0)
-    current_model = model_search if (is_fmp_poor and model_search is not None) else model_strict
+    
+    # 🚨 [수정] 진짜 검색 모델이 배정되었을 때만 can_search를 True로 만듭니다.
+    can_search = is_fmp_poor and (model_search is not None)
+    current_model = model_search if can_search else model_strict
 
     # =========================================================
     # [A] 4개 국어 순회 생성
@@ -2090,11 +2097,15 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
 
         # 💡 [하이브리드 판단 최상단 배치] FMP에서 성장률이나 PER이 N/A라면 재무 데이터가 비어있다고 판단!
         is_fmp_fin_poor = (str(metrics.get('growth', 'N/A')) == 'N/A' and str(metrics.get('pe', 'N/A')) == 'N/A')
-        current_tab3_model = model_search if (is_fmp_fin_poor and model_search is not None) else model_strict
+        
+        # 🚨 [수정] 진짜 검색 능력이 있는 모델일 때만 검색을 허락합니다.
+        can_fin_search = is_fmp_fin_poor and (model_search is not None)
+        current_tab3_model = model_search if can_fin_search else model_strict
         
         search_directive = ""
-        if is_fmp_fin_poor:
-            search_directive = f"\n🚨 [Force Search] FMP 데이터가 없습니다.  당신에게 부여된 'Google Search Tool'을 반드시 지금 즉시 실행하여 '{company_name} {ticker} recent revenue net income financial margins ratios'를 검색하고, 검색된 **실제 재무 수치(매출, 순이익 등)**를 바탕으로 리포트를 작성하세요. '데이터가 없다'는 변명은 절대 금지합니다."
+        # 🚨 [핵심 변경] 일반 모델에게 검색하라고 화내지 않도록 조건 변경!
+        if can_fin_search:
+            search_directive = f"\n🚨 [Force Search] FMP 데이터가 없습니다. 당신에게 부여된 'Google Search Tool'을 반드시 지금 즉시 실행하여 '{company_name} {ticker} recent revenue net income financial margins ratios'를 검색하고, 검색된 **실제 재무 수치(매출, 순이익 등)**를 바탕으로 리포트를 작성하세요. '데이터가 없다'는 변명은 절대 금지합니다."
 
         # ----------------------------------------------------
         # 🚀 [Call 1] 3D 카드 3장용 Specific 심층 요약 프롬프트
