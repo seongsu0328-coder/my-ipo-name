@@ -1202,7 +1202,7 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 {raw_data}"""
 
 # ==========================================
-# [완벽 복구] Tab 1: 뉴스 및 비즈니스 (단일 JSON & 은탄환 파싱)
+#[완벽 복구] Tab 1: 뉴스 및 비즈니스 (가짜 뉴스 환각 방지 + 유연한 검색)
 # ==========================================
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return
@@ -1228,7 +1228,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
     limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
     current_date = now.strftime("%Y-%m-%d")
-    current_year = now.strftime("%Y")
 
     profile_url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={FMP_API_KEY}"
     profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
@@ -1255,61 +1254,89 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         if lang_code == 'ko':
             sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다."
             lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n🚨 모든 문장의 끝은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하십시오."
-            search_directive = f"🚨 [강제 검색] FMP 데이터가 부족합니다. 즉시 구글 검색 도구를 사용하여 '{company_name} {ticker} business model' 및 '{company_name} 최신 뉴스'를 검색하십시오." if can_search else "🚨 [환각 금지] 오직 제공된 [Part 1], [Part 2] 데이터만 사용하세요."
             
-           if is_withdrawn:
-            t1_label = "[작업 1: 상장 철회(Withdrawn) 심층 진단]"
-            t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 철회 배경 진단\n- 재무적 타격\n- 생존 전략"
-        elif is_delisted_or_otc:
-            t1_label = "[작업 1: OTC/장외시장 거래 리스크 진단]"
-            t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 장외 편입 배경\n- 투자 리스크\n- 장기 전망"
-        elif is_over_1y:
-            t1_label = "[작업 1: 상장 1년 차 펀더멘털 점검]"
-            t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 목표 달성도\n- 수익성 평가\n- 자본 효율성"
-        else:
-            t1_label = "[작업 1: 신규 IPO 비즈니스 심층 분석]"
-            t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 비즈니스 모델 및 핵심 제품 설명\n- 시장 점유율 및 주요 경쟁사와의 명확한 경쟁 우위 비교\n- 향후 신사업 확장 계획 및 최근 산업 트렌드"
+            # 💡 [환각 방지 로직 적용] 최대 5개까지 찾되, 없으면 없는 대로 출력하라고 명시
+            if can_search:
+                search_directive = f"🚨 [강제 검색] FMP 데이터가 부족합니다. 즉시 구글 검색 도구를 사용하여 '{company_name} {ticker} business model' 및 '{company_name} latest news'를 검색하십시오."
+                news_rule = "- 🚨 [Part 2]의 데이터가 5개 미만입니다. 구글 검색을 활용해 관련 최신 뉴스를 최대 5개(Top 5)까지 보완하세요. **단, 실제 뉴스가 부족하다면 절대 가짜 뉴스를 지어내지 말고(환각 금지) 찾은 개수만큼만(예: 2~3개) 출력하세요.**"
+            else:
+                search_directive = "🚨 [환각 금지] 오직 제공된 [Part 1], [Part 2] 데이터만 사용하세요."
+                news_rule = "- [Part 2]의 뉴스 데이터를 바탕으로 최신순 상위 5개를 추출하세요."
+            
+            if is_withdrawn:
+                t1_label = "[작업 1: 상장 철회(Withdrawn) 심층 진단]"
+                t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 철회 배경 진단\n- 재무적 타격\n- 생존 전략"
+            elif is_delisted_or_otc:
+                t1_label = "[작업 1: OTC/장외시장 거래 리스크 진단]"
+                t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 장외 편입 배경\n- 투자 리스크\n- 장기 전망"
+            elif is_over_1y:
+                t1_label = "[작업 1: 상장 1년 차 펀더멘털 점검]"
+                t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 목표 달성도\n- 수익성 평가\n- 자본 효율성"
+            else:
+                t1_label = "[작업 1: 신규 IPO 비즈니스 심층 분석]"
+                t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 비즈니스 모델 및 핵심 제품 설명\n- 시장 점유율 및 주요 경쟁사와의 명확한 경쟁 우위 비교\n- 향후 신사업 확장 계획 및 최근 산업 트렌드"
                 
             t2_label = "[작업 2: 최신 뉴스 수집 및 전문 번역]"
             json_format = f"""{{
-  "biz_summary": "여기에 {t1_struct} 에 맞춘 3문단 분석 내용을 넣으세요. (문단 구분을 위해 반드시 \\n\\n 을 사용하세요)",
-  "news_list": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일로 번역된 제목(마크다운 제외)", "link": "URL", "sentiment": "긍정/부정/일반 중 택1", "date": "YYYY-MM-DD" }} ]
+  "biz_summary": "여기에 {t1_struct} 에 맞춘 3문단 분석 내용을 넣으세요. (문단 구분은 반드시 \\n\\n 사용)",
+  "news_list":[ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일 번역", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
 }}"""
 
         elif lang_code == 'en':
             sys_prompt = "You are a senior analyst at a top-tier brokerage research center."
             lang_instruction = "Your entire response MUST be strictly in Professional English."
-            search_directive = f"🚨 [TOOL USE] FMP data is missing. IMMEDIATELY use Google Search for '{company_name} {ticker} business model' and its latest news." if can_search else "🚨 [STRICT RULE] Write ONLY using the text data provided below."
+            
+            if can_search:
+                search_directive = f"🚨 [TOOL USE] FMP data is missing. IMMEDIATELY use Google Search for '{company_name} {ticker} business model' and '{company_name} latest news'."
+                news_rule = "- 🚨 [Part 2] has less than 5 items. Use Google Search to find up to 5 recent news items. **However, if there are not enough real news articles, DO NOT invent fake news (No Hallucination). Just output the ones you actually found.**"
+            else:
+                search_directive = "🚨 [STRICT RULE] Write ONLY using the text data provided below."
+                news_rule = "- Extract the top 5 latest news items from [Part 2]."
+            
             t1_label = "[Task 1: Deep Business Model Analysis]"
             t1_struct = "- Para 1: Business model\n- Para 2: Market share & Edge\n- Para 3: Future plans"
             t2_label = "[Task 2: Latest News Collection]"
             json_format = f"""{{
-  "biz_summary": "3 paragraphs of analysis based on: {t1_struct} (use \\n\\n for line breaks)",
-  "news_list": [ {{ "title_en": "Original", "translated_title": "Professional WSJ style headline", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
+  "biz_summary": "3 paragraphs based on: {t1_struct} (use \\n\\n for line breaks)",
+  "news_list":[ {{ "title_en": "Original Title", "translated_title": "Professional WSJ style headline", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
 }}"""
 
         elif lang_code == 'ja':
             sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。"
             lang_instruction = "必ず自然で専門的な日本語のみで作成してください。"
-            search_directive = f"🚨 [強制検索] データが不足しています。直ちにGoogle検索で「{company_name} {ticker} business model」および最新ニュースを検索してください。" if can_search else "🚨 [厳格な規則] 以下に提供されたテキストデータのみを使用してください。"
-            t1_label = "[タスク 1: 新規IPOビジネス深層分析]"
+            
+            if can_search:
+                search_directive = f"🚨 [強制検索] データが不足しています。直ちにGoogle検索で「{company_name} {ticker} business model」および最新ニュースを検索してください。"
+                news_rule = "- 🚨 [Part 2]のデータが5件未満です。Google検索を活用して関連する最新ニュースを最大5件まで補完してください。**ただし、実際のニュースが不足している場合は絶対に捏造せず（ハルシネーション禁止）、見つかった分だけを出力してください。**"
+            else:
+                search_directive = "🚨[厳格な規則] 以下に提供されたテキストデータのみを使用してください。"
+                news_rule = "-[Part 2]のデータから最新順に上位5件を抽出してください。"
+            
+            t1_label = "[タスク 1: ビジネス深層分析]"
             t1_struct = "- 第1段落: ビジネスモデル\n- 第2段落: 市場シェアと競争優位性\n- 第3段落: 今後の拡張計画"
             t2_label = "[タスク 2: 最新ニュースの収集と翻訳]"
             json_format = f"""{{
   "biz_summary": "{t1_struct} に基づく3段落の分析 (改行は \\n\\n を使用)",
-  "news_list": [ {{ "title_en": "Original", "translated_title": "日経新聞風のタイトル", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
+  "news_list":[ {{ "title_en": "Original Title", "translated_title": "日経新聞風のタイトル", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
 }}"""
 
         else: # zh
             sys_prompt = "您是顶尖券商研究中心的高级分析师。"
             lang_instruction = "必须只用自然流畅的专业简体中文编写。"
-            search_directive = f"🚨 [强制搜索] FMP数据不足。请立即使用Google搜索查找“{company_name} {ticker} business model”以及最新新闻。" if can_search else "🚨 [严格规则] 只能使用下面提供的文本数据进行编写。"
-            t1_label = "[任务 1: 新 IPO 业务深度分析]"
+            
+            if can_search:
+                search_directive = f"🚨[强制搜索] 数据不足。请立即使用Google搜索查找“{company_name} {ticker} business model”以及最新新闻。"
+                news_rule = "- 🚨 [Part 2] 的数据少于5条。请利用Google搜索寻找相关最新新闻，最多补齐至5条。**注意：如果实际新闻不足，绝对不要编造假新闻（禁止幻觉），只需输出实际找到的数量即可。**"
+            else:
+                search_directive = "🚨 [严格规则] 只能使用下面提供的文本数据进行编写。"
+                news_rule = "- 仅从 [Part 2] 中提取最新的 5 条新闻。"
+                
+            t1_label = "[任务 1: 业务深度分析]"
             t1_struct = "- 第一段: 商业模式\n- 第二段: 市场份额与竞争优势\n- 第三段: 未来扩张计划"
             t2_label = "[任务 2: 收集最新新闻并专业翻译]"
             json_format = f"""{{
   "biz_summary": "基于 {t1_struct} 的3段分析 (使用 \\n\\n 换行)",
-  "news_list": [ {{ "title_en": "Original", "translated_title": "财经新闻头条风格", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
+  "news_list":[ {{ "title_en": "Original Title", "translated_title": "财经新闻头条风格", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
 }}"""
 
         prompt = f"""
@@ -1327,7 +1354,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         {search_directive}
         [Strict Rules]
         1. Language: {lang_instruction}
-        2. YOU MUST OUTPUT ONLY A VALID JSON OBJECT. NO greetings, NO markdown outside the JSON.
+        2. {news_rule}
+        3. YOU MUST OUTPUT ONLY A VALID JSON OBJECT. NO greetings, NO markdown outside the JSON.
+        4. The 'sentiment' value MUST be output in english as one of: "Positive", "Negative", "Neutral".
         
         <JSON_START>
         {json_format}
@@ -1340,43 +1369,39 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 if not response or not response.text: time.sleep(1); continue
                 
                 full_text = response.text
-                
-                # 🚨 [은탄환 파싱] 무조건 첫 '{' 와 마지막 '}' 사이 추출
                 start_idx = full_text.find('{')
                 end_idx = full_text.rfind('}')
                 
                 if start_idx != -1 and end_idx != -1:
                     json_str = full_text[start_idx:end_idx+1]
-                    try:
-                        parsed = json.loads(json_str, strict=False)
-                        biz_text = parsed.get("biz_summary", "")
-                        news_list = parsed.get("news_list", [])
-                        
-                        if isinstance(news_list, list):
-                            news_list = news_list[:5]
-                            for n in news_list:
-                                s_val = str(n.get('sentiment', 'Neutral')).lower()
-                                if "pos" in s_val or "긍정" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                                elif "neg" in s_val or "부정" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
-                                else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
+                    parsed = json.loads(json_str, strict=False)
+                    
+                    biz_text = parsed.get("biz_summary", "")
+                    news_list = parsed.get("news_list",[])
+                    
+                    if isinstance(news_list, list):
+                        news_list = news_list[:5] # 무조건 5개까지만 커트
+                        for n in news_list:
+                            s_val = str(n.get('sentiment', 'Neutral')).lower()
+                            if "pos" in s_val or "긍정" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                            elif "neg" in s_val or "부정" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
+                            else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
 
-                        # HTML 렌더링 (줄바꿈 문자를 기준으로 분할)
-                        paragraphs = [p.strip() for p in biz_text.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
-                        indent = "14px" if lang_code == "ko" else "0px"
-                        html_output = "".join([f'<p style="display:block; text-indent:{indent}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in paragraphs])
+                    # HTML 렌더링
+                    paragraphs =[p.strip() for p in biz_text.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
+                    indent = "14px" if lang_code == "ko" else "0px"
+                    html_output = "".join([f'<p style="display:block; text-indent:{indent}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in paragraphs])
 
-                        batch_upsert("analysis_cache", [{
-                            "cache_key": cache_key,
-                            "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
-                            "updated_at": now.isoformat()
-                        }], on_conflict="cache_key")
-                        
-                        print(f"✅ [{ticker}] Tab 1 분석 성공 ({lang_code}) - {'Search' if is_fmp_poor else 'Strict'}")
-                        break 
-                    except Exception as e:
-                        print(f"JSON Parse Error in Tab 1: {e}")
-                time.sleep(1)
+                    batch_upsert("analysis_cache",[{
+                        "cache_key": cache_key,
+                        "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
+                        "updated_at": now.isoformat()
+                    }], on_conflict="cache_key")
+                    
+                    print(f"✅[{ticker}] Tab 1 분석 성공 ({lang_code}) - {'Search' if is_fmp_poor else 'Strict'} ({len(news_list)} News)")
+                    break 
             except Exception as e:
+                print(f"JSON Parse Error in Tab 1: {e}")
                 time.sleep(1)
                 
     # =========================================================
