@@ -1249,30 +1249,78 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         if can_search:
             search_instr = f"🚨 [TOOL USE] FMP data is missing. USE Google Search for '{company_name} {ticker} business model' and its latest news. DO NOT use placeholders like 'N/A' or 'Unknown'."
 
-        # 언어별 설정
+        # [1] 언어별 상세 지침 설정 (Task 1: 수치 기반 목표 및 경쟁사 비교 중심)
         if lang_code == 'ko':
             lang_rule = "반드시 전문적인 한국어로 작성하세요."
             sentiment_rule = "긍정, 부정, 일반 중 하나"
+            task_instr = """
+            [Task 1: Business Analysis]
+            작성 지침: 기업의 핵심 비즈니스 모델, 경쟁 우위, 향후 성장 전략을 설명하세요. 경쟁 우위는 구체적인 기업명을 명시해서 비교를 하도록 하세요. 향후 성장 전략에 대해선 과거 재무, 매출, 수익 등을 직접적 수치로 검토하고, 이를 바탕으로 미래의 구체적인 목표치(Target)가 어떻게 되는지 상세히 서술하세요.
+            [Task 2: Latest News]
+            작성 지침: 실시간 검색 결과나 제공된 뉴스 중 가장 중요한 5개를 선별하세요.
+            [출력 규칙 - 절대 엄수]
+            반드시 아래 JSON 포맷으로만 응답하세요. 서론, 인사말, 마크다운 기호(```) 등 JSON 외부의 텍스트는 절대 금지합니다.
+            """
+        elif lang_code == 'en':
+            lang_rule = "Must write in Professional English."
+            sentiment_rule = "Positive, Negative, Neutral"
+            task_instr = """
+            [Task 1: Business Analysis]
+            Instruction: Explain the company's core business model, competitive advantages, and future growth strategies. For competitive advantages, provide a comparison by explicitly naming specific competitors. For future growth strategies, review past financials, revenue, and earnings using direct numerical data, and describe in detail what the specific future targets/goals are based on that data.
+            [Task 2: Latest News]
+            Instruction: Select the 5 most important news items from real-time search results or provided data.
+            [Output Rules - STRICT COMPLIANCE]
+            Respond EXCLUSIVELY in the JSON format below. Any text outside the JSON, such as introductions, greetings, or markdown symbols (```), is strictly prohibited.
+            """
         elif lang_code == 'ja':
-            lang_rule = "必ず日本語で記述してください。"
+            lang_rule = "必ず専門的な日本語で記述してください。"
             sentiment_rule = "Positive, Negative, Neutral"
-        else:
-            lang_rule = f"Must write in {target_lang}."
+            task_instr = """
+            [Task 1: Business Analysis]
+            作成指針：企業の核心的なビジネスモデル、競合優位性、および今後の成長戦略を説明してください。競合優位性については、具体的な企業名を明示して比較を行ってください。今後の成長戦略については、過去の財務、売上、利益などを直接的な数値で検討し、それに基づいた将来の具体的な目標値（Target）がどのようになっているか詳細に記述してください。
+            [Task 2: Latest News]
+            作成指針：リアルタイムの検索結果または提供されたニュースの中から、最も重要な5件を選別してください。
+            [출력 규칙 - 厳守]
+            必ず以下のJSON形式でのみ回答してください。導入文、挨拶、マークダウン記号（```）など、JSON外部のテキストは一切禁止します。
+            """
+        elif lang_code == 'zh':
+            lang_rule = "必须使用专业的简体中文编写。"
             sentiment_rule = "Positive, Negative, Neutral"
+            task_instr = """
+            [Task 1: Business Analysis]
+            编写指南：说明公司的核心商业模式、竞争优势及未来增长战略。在竞争优势方面，需明确列出具体公司名称进行对比；在未来增长战略方面，需利用直接的财务、营收、利润等数据回顾过往业绩，并以此为基础详细阐述未来的具体目标数值 (Target)。
+            [Task 2: Latest News]
+            编写指南：从实时搜索结果或提供的新闻中筛选出最重要的5条。
+            [输出规则 - 严格遵守]
+            必须仅以下方的 JSON 格式进行响应。严禁在 JSON 之外出现任何文本，如前言、问候语或 Markdown 符号 (```)。
+            """
 
+        # [2] 최종 프롬프트 조합 (기존 구조 유지)
         prompt = f"""
         {lang_rule}
         {search_instr}
         분석 대상: {company_name} ({ticker})
         오늘 날짜: {current_date}
 
-        [Task 1: Business Analysis]
-        작성 지침: 기업의 핵심 비즈니스 모델, 경쟁 우위, 향후 성장 전략을 3개 문단으로 상세히 분석하세요. 
-        [Task 2: Latest News]
-        작성 지침: 실시간 검색 결과나 제공된 뉴스 중 가장 중요한 5개를 선별하세요.
+        {task_instr}
 
-        [출력 규칙 - 절대 엄수]
-        반드시 아래 JSON 포맷으로만 응답하세요. 서론, 인사말, 마크다운 기호(```) 등 JSON 외부의 텍스트는 절대 금지합니다.
+        {{
+          "biz_summary": "여기에 3문단의 비즈니스 분석 내용을 넣으세요. (줄바꿈은 \\n 사용)",
+          "news_list": [
+            {{ "title_en": "English Title", "translated_title": "번역된 제목", "link": "URL", "sentiment": "{sentiment_rule}", "date": "YYYY-MM-DD" }}
+          ]
+        }}
+        """
+
+        # [2] 최종 프롬프트 조합
+        prompt = f"""
+        {lang_rule}
+        {search_instr}
+        분석 대상: {company_name} ({ticker})
+        오늘 날짜: {current_date}
+
+        {task_instr}
+
         {{
           "biz_summary": "여기에 3문단의 비즈니스 분석 내용을 넣으세요. (줄바꿈은 \\n 사용)",
           "news_list": [
