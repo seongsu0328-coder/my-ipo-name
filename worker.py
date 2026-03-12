@@ -1781,14 +1781,14 @@ def get_tab4_ma_premium_prompt(lang, ticker, raw_data):
 {raw_data}"""
 
 def run_tab4_ma_premium_collection(ticker, company_name):
-        """Tab 4의 프리미엄 데이터(M&A 내역)를 수집하고 요약하여 캐싱합니다."""
-        if 'model_strict' not in globals() or not model_strict: return
-        try:
-            limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # M&A도 자주 안 터지므로 7일 유지
-            
-            # FMP의 M&A 데이터 호출
-            url = f"https://financialmodelingprep.com/stable/mergers-and-acquisitions?symbol={ticker}&apikey={FMP_API_KEY}"
-            ma_raw = get_fmp_data_with_cache(ticker, "RAW_MA_HISTORY", url, valid_hours=168)
+    """Tab 4의 프리미엄 데이터(M&A 내역)를 수집하고 요약하여 캐싱합니다."""
+    if 'model_strict' not in globals() or not model_strict: return
+    try:
+        limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # M&A도 자주 안 터지므로 7일 유지
+        
+        # FMP의 M&A 데이터 호출 (Stable 규격)
+        url = f"https://financialmodelingprep.com/stable/search-mergers-acquisitions?name={ticker}&apikey={FMP_API_KEY}"
+        ma_raw = get_fmp_data_with_cache(ticker, "RAW_MA_HISTORY", url, valid_hours=168)
         
         is_ma_valid = isinstance(ma_raw, list) and len(ma_raw) > 0
 
