@@ -2135,51 +2135,67 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             """
 
         # ----------------------------------------------------
-        # 🚀 [Call 2] 하단 전문(Academic CFA 리포트) - 수치 인용 강제 및 투덜거림 차단
+        # 🚀 [Call 2] 하단 전문(Academic CFA 리포트) - 하이브리드 전략 & 철권 포맷팅
         # ----------------------------------------------------
+        # 💡 [하이브리드 판단] FMP에서 매출 성장률(growth)이나 PER(pe)이 N/A라면 재무 데이터가 비어있다고 판단!
+        is_fmp_fin_poor = (str(metrics.get('growth', 'N/A')) == 'N/A' and str(metrics.get('pe', 'N/A')) == 'N/A')
+        current_tab3_model = model_search if (is_fmp_fin_poor and model_search is not None) else model_strict
+        
+        search_directive = ""
+        if is_fmp_fin_poor:
+            search_directive = f"\n🚨 [Force Search] FMP 데이터가 없습니다. 즉시 Google Search를 사용하여 '{company_name} {ticker} recent revenue net income financial margins ratios'를 검색하고, 검색된 **실제 재무 수치(매출, 순이익 등)**를 바탕으로 리포트를 작성하세요. '데이터가 없다'는 변명은 절대 금지합니다."
+
         if lang_code == 'en':
-            full_p = f"Write a CFA deep-dive report for {company_name}({ticker}) using: {g1_context}, {g2_context}, {g3_context}."
+            full_p = f"Write a Buy-Side Quant deep-dive report for {company_name}({ticker}) using: {g1_context}, {g2_context}, {g3_context}.{search_directive}"
             full_i = """
             [Strict Rules]
-            1. NO MAIN TITLES.
-            2. 🚨 QUOTE HARD NUMBERS: You MUST base your analysis on the specific numerical data provided (e.g., Growth %, Margins, Debt/Equity, P/E, DCF). Do not make abstract claims without backing them up with these exact figures.
-            3. Use EXACTLY 3 bold subheadings: **[Business Engine & Growth]**, **[Financial Health]**, **[Valuation Verdict]**. Separate paragraphs with a blank line (Enter twice).
-            4. 🚨 NEVER complain about missing/N/A data. State objectively: "As a pre-IPO company, quantitative evaluation will be available post-listing."
+            1. NO MAIN TITLES or emojis (e.g., Do not write "🎓 CFA Quant Deep-Dive Analysis").
+            2. 🚨 QUOTE HARD NUMBERS: You MUST base your analysis on specific numerical data. Do not make abstract claims.
+            3. 🚨 FINANCIAL RATIOS: To enhance professional depth, actively refer to and incorporate up to 10 standard financial metrics and ratios (e.g., ROE, Debt-to-Equity, Operating Margin, Current Ratio) commonly used in standard financial analysis, where data permits.
+            4. Use EXACTLY 3 subheadings with brackets ONLY: [Business Engine & Growth], [Financial Health & Profitability], [Valuation Verdict]. DO NOT use markdown bold (**).
+            5. 🚨 Write the paragraph immediately on the next line after the subheading WITHOUT a blank line. Each paragraph MUST be 4-5 sentences long.
+            6. NEVER complain about missing data.
             """
         elif lang_code == 'ja':
-            full_p = f"以下のデータで {company_name}({ticker}) のCFA深層分析レポートを作成してください: {g1_context}, {g2_context}, {g3_context}."
+            full_p = f"以下のデータを用いて {company_name}({ticker}) のクオンツ深層分析レポートを作成してください: {g1_context}, {g2_context}, {g3_context}.{search_directive}"
             full_i = """
-            [規則]
-            1. メインタイトルは不要です。
-            2. 🚨 数値の引用必須: 提供された具体的な数値（売上成長率、利益率、負債比率、PER、DCF価格など）を必ず根拠として記述し、数値のない抽象的な表現は避けてください。
-            3. 必ず3つの太字の小見出しを使用してください：**[ビジネスエンジンと成長性]**, **[財務健全性]**, **[バリュエーションと結論]**。段落間は空行で区切ってください。
-            4. 🚨 「データがないため評価できない」という言い訳は禁止。「上場前企業のため、定量的な評価は上場後に行われます」と客観的に記述してください。
+            [厳格な規則]
+            1. メインタイトルや絵文字（例: 🎓 CFA Quant Deep-Dive Analysis）は絶対に使用しないでください。
+            2. 🚨 具体的な数値を必ず引用: 抽象的な表現は避けてください。
+            3. 🚨 財務指標の活用: 分析の専門性を高めるため、データが許す限り、標準的な財務分析で一般的に使用される主要な財務指標や比率（ROE、負債比率、営業利益率など）を最大10個程度参照し、積極的に組み込んでください。
+            4. 必ず3つの小見出しを括弧のみで使用してください: [ビジネスエンジンと成長性], [財務健全性と収益性], [バリュエーションと最終結論]。マークダウンの太字(**)は禁止です。
+            5. 🚨 小見出しの直後の行に、空行を入れずに本文を書き始めてください。各段落は必ず4〜5文で構成してください。
+            6. 「データがない」という言い訳は絶対にしないでください。
             """
         elif lang_code == 'zh':
-            full_p = f"请使用以下数据为 {company_name}({ticker}) 撰写CFA深度分析报告: {g1_context}, {g2_context}, {g3_context}."
+            full_p = f"请使用以下数据为 {company_name}({ticker}) 撰写量化深度分析报告: {g1_context}, {g2_context}, {g3_context}.{search_directive}"
             full_i = """
-            [规则]
-            1. 不要写主标题。
-            2. 🚨 必须引用具体数据: 必须基于提供的具体数值（如营收增长率、利润率、负债率、PE、DCF等）进行分析，拒绝没有任何数据支撑的抽象表达。
-            3. 必须使用3个加粗的副标题：**[业务引擎与增长性]**、**[财务健康度]**、**[估值与最终结论]**。段落之间留空行。
-            4. 🚨 绝对不要抱怨数据缺失(N/A)。请客观陈述：“该企业处于拟上市阶段，定量评估将在上市后更新。”
+            [严格规则]
+            1. 绝对不要写主标题或表情符号（例如：🎓 CFA Quant Deep-Dive Analysis）。
+            2. 🚨 必须引用具体数据: 拒绝没有任何数据支撑的抽象表达。
+            3. 🚨 财务指标的应用: 为提升专业深度，在数据允许的范围内，请积极参考并融入标准财务分析中普遍使用的核心财务指标和比率（如 ROE、资产负债率、营业利润率等），最多10个左右。
+            4. 必须使用3个带方括号的副标题，绝对不要使用Markdown加粗(**): [业务引擎与增长性], [财务健康与盈利能力], [估值与最终结论]。
+            5. 🚨 副标题后的下一行直接开始写正文，中间绝对不要留空行。每个段落必须包含4-5句话。
+            6. 绝对不要抱怨数据缺失。
             """
         else: # ko
-            full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 CFA 심층 분석 리포트를 작성하세요: {g1_context}, {g2_context}, {g3_context}."
+            full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 바이사이드 퀀트 심층 분석 리포트를 작성하세요: {g1_context}, {g2_context}, {g3_context}.{search_directive}"
             full_i = """
             [작성 규칙 - 절대 엄수]
-            1. 메인 제목(## 회사명 분석)을 쓰지 마세요.
-            2. 🚨 구체적 수치 인용 필수: 반드시 제공된 FMP 재무제표 및 미시지표의 '정확한 수치(성장률, 마진율, 부채비율, PER, DCF 등)'를 본문에 직접 인용하여 분석의 근거로 삼으세요. 수치가 없는 뜬구름 잡는 소리는 배제하세요.
-            3. 반드시 아래 3개의 굵은 소제목을 사용하여 3단락으로 작성하고, 단락 사이는 줄바꿈(Enter 2번)으로 구분하세요.
-               **[비즈니스 엔진 및 성장성]**, **[재무 건전성]**, **[밸류에이션 및 최종 결론]**
-            4. 🚨 유저에게 'N/A라서 평가하기 어렵습니다' 같은 변명을 절대 쓰지 마세요. "상장 예정 기업으로 정량적 평가는 상장 이후 업데이트됩니다" 등 객관적인 팩트로 깔끔하게 처리하세요.
+            1. 메인 제목이나 이모지(예: 🎓 CFA Quant Deep-Dive Analysis)를 절대 쓰지 마세요. 첫 글자부터 바로 소제목으로 시작하세요.
+            2. 🚨 구체적 수치 인용 필수: 반드시 검색되거나 제공된 '정확한 수치'를 본문에 직접 인용하여 분석하세요. 수치가 없는 추상적인 문장은 배제하세요.
+            3. 🚨 핵심 재무 비율(Ratio) 활용: 분석의 전문성을 높이기 위해, 데이터가 허락하는 선에서 표준적인 재무 분석에 보편적으로 사용되는 핵심 지표 및 비율(예: ROE, 영업이익률, 부채비율, 유동비율 등)을 10개 내외로 적극 참고하여 문맥에 자연스럽게 녹여내세요.
+            4. 반드시 아래 3개의 소제목을 괄호만 사용하여 3단락으로 작성하세요: [비즈니스 엔진 및 성장성], [재무 건전성 및 수익성], [밸류에이션 및 최종 결론]. 소제목에 마크다운 굵은 글씨(**)는 절대 사용하지 마세요.
+            5. 🚨 소제목을 쓴 후, 바로 다음 줄(빈 줄 없이)에 본문 내용을 이어서 작성하세요. 각 단락은 반드시 4~5문장 길이로 작성하세요. 단락이 끝날 때만 빈 줄을 띄우세요.
+            6. '데이터가 없어 분석이 어렵다'는 변명이나 투덜거림은 절대 쓰지 마세요.
+            7. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중하고 전문적인 어조를 유지하세요.
             """
 
         try:
             res_s = model_strict.generate_content(sum_p + sum_i).text.strip()
             batch_upsert("analysis_cache", [{"cache_key": cache_key_sum, "content": res_s, "updated_at": datetime.now().isoformat()}], "cache_key")
 
-            res_f = model_strict.generate_content(full_p + full_i).text.strip()
+            res_f = current_tab3_model.generate_content(full_p + full_i).text.strip()
             batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_f, "updated_at": datetime.now().isoformat()}], "cache_key")
             
             print(f"🌍 Tab 3 미시 지표 이중 리포트 렌더링 최적화 완료 ({lang_code})")
@@ -2518,39 +2534,43 @@ def update_macro_data(df):
             3. 严禁使用数字编号或标题。必须仅用 '|||SEP|||' 隔开。使用专业简体中文编写。
             """
 
-        # (기존 코드) 💡 [Call 2] 하단 전문(Global Macro Strategic Matrix)
+        # 💡 [Call 2] 하단 전문(Global Macro Strategic Matrix)
         if lang_code == 'ko':
             full_p = f"월가 수석 전략가로서 다음 데이터를 바탕으로 현재 글로벌 거시경제 및 IPO 시장 환경에 대한 심층 분석 리포트를 작성하세요.\n[1번]: {g1_context}\n[2번]: {g2_context}\n[3번]: {g3_context}"
             full_i = """
             [작성 규칙]
-            1. 제목(## 분석 등)은 절대 쓰지 마세요.
-            2. 반드시 3개의 소제목을 굵은 글씨(**[시장 유동성 및 투기 심리]**, **[공급 리스크 및 질적 평가]**, **[매크로 환경 및 밸류에이션]**)로 나누어 작성하세요. 단락 사이는 줄바꿈 하세요.
-            3. 제공된 수치(VIX, PE 등)를 반드시 본문에 포함하여 근거로 제시하세요.
-            4. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
+            1. 메인 제목(## 분석 등)은 절대 쓰지 마세요.
+            2. 반드시 3개의 소제목을 괄호만 사용하여 작성하세요: [시장 유동성 및 투기 심리], [공급 리스크 및 질적 평가], [매크로 환경 및 밸류에이션]. 소제목에 마크다운 굵은 글씨(**)는 절대 사용하지 마세요.
+            3. 🚨 소제목을 쓴 후, 바로 다음 줄(빈 줄 없이)에 본문 내용을 작성하세요. (단, 하나의 단락이 끝나고 다음 소제목으로 넘어갈 때만 빈 줄을 한 번 띄우세요.)
+            4. 제공된 수치(VIX, PE 등)를 반드시 본문에 포함하여 근거로 제시하세요.
+            5. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
             """
         elif lang_code == 'en':
             full_p = f"Write a deep-dive macroeconomic report using this data:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
             full_i = """
             [Rules]
             1. NO MAIN TITLE.
-            2. Use EXACTLY 3 bold subheadings: **[Market Liquidity & Speculation]**, **[Supply Risk & Quality]**, **[Macro Environment & Valuation]**.
-            3. You MUST quote the exact numbers provided (VIX, PE, etc.).
+            2. Use EXACTLY 3 subheadings with brackets only: [Market Liquidity & Speculation], [Supply Risk & Quality], [Macro Environment & Valuation]. DO NOT use markdown bold (**).
+            3. 🚨 Write the paragraph immediately on the next line after the subheading WITHOUT a blank line. Only separate different sections (end of paragraph and the next subheading) with a blank line.
+            4. You MUST quote the exact numbers provided.
             """
         elif lang_code == 'ja':
             full_p = f"次のデータを用いてマクロ経済の深層分析レポートを作成してください:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
             full_i = """
             [規則]
             1. メインタイトルは禁止。
-            2. 必ず3つの太字小見出しを使用: **[市場の流動性と投機心理]**, **[供給リスクと質的評価]**, **[マクロ環境とバリュエーション]**。
-            3. 提供された数値（VIX、PEなど）を必ず本文に引用してください。
+            2. 必ず3つの小見出しを括弧のみで使用してください: [市場の流動性と投機心理], [供給リスクと質的評価], [マクロ環境とバリュエーション]。マークダウンの太字(**)は絶対に使用しないでください。
+            3. 🚨 小見出しの直後の行に、空行を入れずに本文を書き始めてください。セクション間（本文の終わりと次の小見出しの間）のみ空行を入れてください。
+            4. 提供された数値を必ず引用してください。
             """
         else: # zh
             full_p = f"请使用以下数据撰写宏观经济深度分析报告:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
             full_i = """
             [规则]
             1. 严禁写主标题。
-            2. 必须使用3个加粗副标题: **[市场流动性与投机情绪]**, **[供给风险与质量评估]**, **[宏观环境与估值]**。
-            3. 必须在正文中引用提供的具体数据（VIX、PE等）。
+            2. 必须使用3个带方括号的副标题，绝对不要使用Markdown加粗(**): [市场流动性与投机情绪], [供给风险与质量评估], [宏观环境与估值]。
+            3. 🚨 副标题后的下一行直接开始写正文，中间绝对不要留空行。仅在段落结束与下一个副标题之间留空行。
+            4. 必须在正文中引用提供的具体数据。
             """
 
         # 🚀 [복구 완료] 실제로 AI를 호출하고 DB에 저장하는 누락되었던 로직
