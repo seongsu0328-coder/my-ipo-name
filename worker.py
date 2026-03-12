@@ -58,34 +58,16 @@ if GENAI_API_KEY:
         # [1] 환각 원천 차단용 일반 모델
         model_strict = genai.GenerativeModel('gemini-2.0-flash')
         
-        # 🚨 [2] 하이브리드 엔진 - 구글 공식 Grounding(검색) 설정 방식 적용
+        # 🚨 [2] 하이브리드 엔진 - 구글 서버 400 에러를 원천 차단하는 최신 단일 규격
         try:
-            # 구글 API 서버가 요구하는 최신 'google_search' 필드를 
-            # 딕셔너리 구조 내에서 'dynamic_retrieval' 옵션과 함께 주입하는 것이 공식 표준입니다.
             model_search = genai.GenerativeModel(
                 model_name='gemini-2.0-flash',
-                tools=[{
-                    "google_search_retrieval": {
-                        "dynamic_retrieval_config": {
-                            "mode": "unspecified",
-                            "dynamic_threshold": 0.06  # 0.06은 구글 권장 기본값입니다.
-                        }
-                    }
-                }]
+                tools=[{"google_search": {}}]
             )
-            # 만약 위 방식이 서버 환경에 따라 400 에러를 낸다면 아래의 가장 단순한 형태를 2차 시도합니다.
             print("✅ AI 하이브리드 모델 로드 성공 (Google Search 엔진 공식 설정 완료)")
-        except Exception as e_inner:
-            try:
-                # 최신 백엔드 전용 필드명 직접 시도
-                model_search = genai.GenerativeModel(
-                    model_name='gemini-2.0-flash',
-                    tools=[{"google_search": {}}]
-                )
-                print("✅ AI 하이브리드 모델 로드 성공 (Google Search 단순 모드)")
-            except Exception as e_last:
-                print(f"⚠️ 구글 검색 도구 로드 최종 실패: {e_last}")
-                model_search = None
+        except Exception as e_tool:
+            print(f"⚠️ 구글 검색 도구 로드 최종 실패: {e_tool}")
+            model_search = None
 
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
