@@ -87,19 +87,18 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
         accession_num = None
         filed_date = None
 
-        search_target = cik if cik else ticker
-        search_url = f"https://financialmodelingprep.com/stable/sec-filings?symbol={search_target}&type={doc_type}&limit=1&apikey={api_key}"
+        # [1단계: FMP 1차 탐색] FMP API는 숫자(CIK)를 받으면 고장 나므로, 무조건 '티커(문자)'로 먼저 검색합니다.
+        search_url = f"https://financialmodelingprep.com/stable/sec-filings?symbol={ticker}&type={doc_type}&limit=1&apikey={api_key}"
         r = requests.get(search_url, timeout=5)
         
         if r.status_code == 200:
             res_data = r.json()
-            if isinstance(res_data, dict) and "Error Message" in res_data:
-                print(f"🚫 [Tab 0 SEC 검색 차단됨: {doc_type}] -> {res_data['Error Message']}")
-            elif isinstance(res_data, list) and len(res_data) > 0:
-                filing_info = res_data[0]
-                accession_num = filing_info.get('accessionNumber')
-                filed_date = filing_info.get('fillingDate')
+            if isinstance(res_data, list) and len(res_data) > 0:
+                accession_num = res_data[0].get('accessionNumber')
+                filed_date = res_data[0].get('fillingDate')
 
+        # [2단계: SEC EDGAR CIK 우회] 🚨 대표님 의도 복원!
+        # 티커가 변경되었거나 신규 상장이라 FMP가 못 찾은 경우, CIK를 이용해 SEC 공식 서버를 강제로 뒤집니다.
         if not accession_num and cik:
             time.sleep(0.5) 
             sec_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
@@ -109,14 +108,49 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
                 forms = filings.get('form', [])
                 acc_nums = filings.get('accessionNumber', [])
                 dates = filings.get('filingDate', [])
+                
                 for i, form in enumerate(forms):
+                    # F-1/A 등 파생 서류명까지 유연하게 잡아냄
                     if doc_type.upper() in str(form).upper():
                         accession_num = acc_nums[i]
                         filed_date = dates[i]
-                        print(f"🕵️‍♂️ [SEC Bypass] {ticker}의 {doc_type} 번호 탈취 성공: {accession_num}")
+                        print(f"🕵️‍♂️ [SEC Bypass] 티커 변경/누락 극복! {ticker}의 {doc_type} 번호 CIK로 탈취 성공: {accession_num}")
                         break
 
+        # 번호를 끝내 못 찾았으면 종료
         if not accession_num: return None, None
+
+        # [3단계: 본문 텍스트 추출] 찾은 문서 번호로 텍스트를 가져옵니다.
+        text_url = f"https://financialmodelingprep.com/stable/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
+        txt_res = requests.get(text_url, timeout=7)
+        full_text = ""
+        if txt_res.status_code == 200:
+            txt_data = txt_res.json()
+            if isinstance(txt_data, list) and len(txt_data) > 0:
+                full_text = txt_data[0].get('content', '')
+
+        # [4단계: 최후의 보루] FMP 텍스트 변환이 늦어지면 SEC에서 생원문을 직접 긁어옵니다.
+        if (not full_text or len(full_text) < 100) and cik:
+            print(f"⚠️ FMP 텍스트 지연 발생. SEC 서버에서 원문 직접 추출 시도: {ticker} ({doc_type})")
+            acc_no_clean = str(accession_num).replace('-', '')
+            cik_int = str(int(cik))
+            raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_no_clean}/{accession_num}.txt"
+            
+            raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=10)
+            if raw_res.status_code == 200:
+                clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
+                clean_text = re.sub(r'\s+', ' ', clean_text)
+                full_text = clean_text
+                print(f"✅ [SEC Scraping] SEC 본진 원문 확보 완료! ({len(full_text)} 자)")
+
+        if full_text and len(full_text) > 100:
+            return filed_date, full_text[:40000]
+        
+        return filed_date, None
+
+    except Exception as e:
+        print(f"❌ [{ticker}] {doc_type} 본문 추출 최종 실패: {e}")
+        return None, None
 
         # 💡 [Stable 주소로 교체 완료]
         text_url = f"https://financialmodelingprep.com/stable/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
@@ -810,16 +844,25 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     for topic in target_topics:
         f_date, f_text = None, None
         
-        # [Issue 1 & 3 해결] 재무 분석 시 문서 우선순위 탐색 (10-K -> 10-K/A -> 20-F -> 20-F/A)
+        # 🚨 [확장 완료] 각 서류별로 수정본이나 대체 서류까지 싹 다 뒤져서 찾아옵니다!
         if topic in ["BS", "IS", "CF", "10-K"]:
             priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
-            for target in priority_targets:
-                f_date, f_text = fetch_sec_filing_text(ticker, target, FMP_API_KEY, cik)
-                if f_text and len(f_text) > 500:
-                    print(f"✅ [{ticker}] {topic} 분석 소스 확보: {target}")
-                    break
+        elif topic == "F-1":
+            priority_targets = ["F-1", "F-1/A", "20-F"] 
+        elif topic == "S-1":
+            priority_targets = ["S-1", "S-1/A"]
+        elif topic == "424B4":
+            # 424B4가 없더라도 424B3, 424B5로 공모가가 확정되는 경우 추적
+            priority_targets = ["424B4", "424B3", "424B5"]
         else:
-            f_date, f_text = fetch_sec_filing_text(ticker, topic, FMP_API_KEY, cik)
+            priority_targets = [topic]
+
+        # 우선순위 리스트를 순회하며 하나라도 500자 이상 확보되면 멈춤
+        for target in priority_targets:
+            f_date, f_text = fetch_sec_filing_text(ticker, target, FMP_API_KEY, cik)
+            if f_text and len(f_text) > 500:
+                print(f"✅ [{ticker}] {topic} 분석 소스 확보 완료: {target}")
+                break
 
         # 다국어 캐싱 및 AI 호출
         for lang_code in SUPPORTED_LANGS.keys():
@@ -1166,16 +1209,25 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     else:
         biz_desc = ""
 
-    # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 15개 확보
+    # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 확보 및 정밀 필터링
     news_url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={ticker}&limit=15&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_15", news_url, valid_hours=6)
     
-    fmp_news_context = ""
-    if isinstance(news_data, list): # news_data가 리스트임을 보장
-        fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in news_data if n])
+    valid_news = []
+    if isinstance(news_data, list):
+        for n in news_data:
+            if not n: continue
+            # 🚨 [가짜 뉴스 차단] 뉴스의 심볼이 해당 티커와 정확히 일치하는지 검증
+            if str(n.get('symbol', '')).upper() == ticker.upper():
+                valid_news.append(n)
 
-    # 💡 [하이브리드 판단] biz_desc는 이제 절대 None이 아니므로 len()에서 에러가 나지 않습니다.
-    is_fmp_poor = len(biz_desc) < 50
+    fmp_news_context = ""
+    if valid_news:
+        fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in valid_news])
+
+    # 💡 [하이브리드 판단 강화] 
+    # 기업 설명이 50자 미만이거나, 진짜(필터링된) 뉴스가 1개도 없으면 구글 검색 투입!
+    is_fmp_poor = (len(biz_desc) < 50) or (len(valid_news) == 0)
     current_model = model_search if (is_fmp_poor and model_search is not None) else model_strict
 
     # =========================================================
@@ -2459,7 +2511,56 @@ def update_macro_data(df):
             3. 严禁使用数字编号或标题。必须仅用 '|||SEP|||' 隔开。使用专业简体中文编写。
             """
 
-        # 💡 [Call 2] 하단 전문(Global Macro Strategic Matrix)
+        # (기존 코드) 💡 [Call 2] 하단 전문(Global Macro Strategic Matrix)
+        if lang_code == 'ko':
+            full_p = f"월가 수석 전략가로서 다음 데이터를 바탕으로 현재 글로벌 거시경제 및 IPO 시장 환경에 대한 심층 분석 리포트를 작성하세요.\n[1번]: {g1_context}\n[2번]: {g2_context}\n[3번]: {g3_context}"
+            full_i = """
+            [작성 규칙]
+            1. 제목(## 분석 등)은 절대 쓰지 마세요.
+            2. 반드시 3개의 소제목을 굵은 글씨(**[시장 유동성 및 투기 심리]**, **[공급 리스크 및 질적 평가]**, **[매크로 환경 및 밸류에이션]**)로 나누어 작성하세요. 단락 사이는 줄바꿈 하세요.
+            3. 제공된 수치(VIX, PE 등)를 반드시 본문에 포함하여 근거로 제시하세요.
+            4. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
+            """
+        elif lang_code == 'en':
+            full_p = f"Write a deep-dive macroeconomic report using this data:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
+            full_i = """
+            [Rules]
+            1. NO MAIN TITLE.
+            2. Use EXACTLY 3 bold subheadings: **[Market Liquidity & Speculation]**, **[Supply Risk & Quality]**, **[Macro Environment & Valuation]**.
+            3. You MUST quote the exact numbers provided (VIX, PE, etc.).
+            """
+        elif lang_code == 'ja':
+            full_p = f"次のデータを用いてマクロ経済の深層分析レポートを作成してください:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
+            full_i = """
+            [規則]
+            1. メインタイトルは禁止。
+            2. 必ず3つの太字小見出しを使用: **[市場の流動性と投機心理]**, **[供給リスクと質的評価]**, **[マクロ環境とバリュエーション]**。
+            3. 提供された数値（VIX、PEなど）を必ず本文に引用してください。
+            """
+        else: # zh
+            full_p = f"请使用以下数据撰写宏观经济深度分析报告:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
+            full_i = """
+            [规则]
+            1. 严禁写主标题。
+            2. 必须使用3个加粗副标题: **[市场流动性与投机情绪]**, **[供给风险与质量评估]**, **[宏观环境与估值]**。
+            3. 必须在正文中引用提供的具体数据（VIX、PE等）。
+            """
+
+        # 🚀 [복구 완료] 실제로 AI를 호출하고 DB에 저장하는 누락되었던 로직
+        try:
+            # 1. 3D 카드 요약 3개 조각 생성 및 저장
+            res_sum = model_strict.generate_content(sum_p + sum_i)
+            if res_sum and res_sum.text:
+                batch_upsert("analysis_cache", [{"cache_key": cache_key_summary, "content": res_sum.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+
+            # 2. 하단 전문 리포트 생성 및 저장
+            res_full = model_strict.generate_content(full_p + full_i)
+            if res_full and res_full.text:
+                batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_full.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                
+            print(f"✅ 거시 지표 AI 분석 완료 ({lang_code})")
+        except Exception as e:
+            print(f"❌ 거시 지표 AI 에러 ({lang_code}): {e}")
 
 # ==========================================
 # [수정] Tab 6: 스마트머니 통합 데이터 수집 (국회의원 & 공매도 추가)
