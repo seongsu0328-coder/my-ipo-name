@@ -4457,74 +4457,72 @@ with main_area.container():
             draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
             display_disclaimer()
 
-    # 🚨 이 elif는 Tab 0를 시작한 'if selected_sub_menu == get_text("tab_0"):' 줄과 수직 정렬되어야 합니다.
-    elif selected_sub_menu == get_text('tab_1'):
-        curr_lang = st.session_state.lang
-        
-        # user_info 안전 장치
-        user_info = st.session_state.get('user_info') or {}
-        user_level = user_info.get('membership_level', 'free')
-        is_premium = user_level in ['premium', 'premium_plus']
+            # 🚨 [여기서부터 12칸 들여쓰기 시작] --- Tab 1: 주요뉴스 ---
+            elif selected_sub_menu == get_text('tab_1'):
+                curr_lang = st.session_state.lang
+                
+                # user_info 안전 장치
+                user_info = st.session_state.get('user_info') or {}
+                user_level = user_info.get('membership_level', 'free')
+                is_premium = user_level in ['premium', 'premium_plus']
 
-        with st.spinner(get_text('msg_analyzing_tab1')):
-            # 1. 무료 데이터 분석 로드
-            biz_info, final_display_news = get_unified_tab1_analysis(
-                stock['name'], 
-                stock['symbol'], 
-                curr_lang, 
-                stock.get('status', 'Unknown'), 
-                stock.get('date') 
-            )
-            # 2. 프리미엄 데이터 요약 로드
-            news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
+                with st.spinner(get_text('msg_analyzing_tab1')):
+                    # 1. 무료 데이터 분석 로드
+                    biz_info, final_display_news = get_unified_tab1_analysis(
+                        stock['name'], 
+                        stock['symbol'], 
+                        curr_lang, 
+                        stock.get('status', 'Unknown'), 
+                        stock.get('date') 
+                    )
+                    # 2. 프리미엄 데이터 요약 로드
+                    news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
 
-        # 🚨 여기서부터 모든 줄의 시작 위치가 'curr_lang'과 똑같아야 합니다.
-        st.write("<br>", unsafe_allow_html=True)
-        
-        # =========================================================
-        # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
-        # =========================================================
-        with st.expander(get_text('expander_biz_summary'), expanded=False):
-            if biz_info:
-                st.markdown(f"""
-                <div style="background-color: #f8f9fa; padding: 22px; border-radius: 12px; border-left: 5px solid #6e8efb; color: #333; font-family: 'Pretendard', sans-serif; font-size: 15px; line-height: 1.6;">
-                    {biz_info}
-                </div>
-                """, unsafe_allow_html=True)
-                st.caption(get_text('caption_google_search'))
-            else:
-                st.error(get_text('err_no_biz_info'))
-
-        # =========================================================
-        # 🚀 [2] 기관용 금융 뉴스 요약 (Premium 전용 - Blur 적용)
-        # =========================================================
-        if news_summary: 
-            with st.expander(get_text('tab1_premium_news_title'), expanded=False):
-                if is_premium:
-                    st.markdown(news_summary, unsafe_allow_html=True)
-                else:
-                    # 비결제자 Blur 화면
-                    blur_text = "최근 월가 기관들은 이 기업의 잉여 현금 흐름과 신규 프로젝트의 수익성에 대해 매우 긍정적인 평가를 내리고 있습니다... (이하 생략)"
-                    st.markdown(f"""
-                        <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                            <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
-                            </div>
+                st.write("<br>", unsafe_allow_html=True)
+                
+                # =========================================================
+                # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
+                # =========================================================
+                with st.expander(get_text('expander_biz_summary'), expanded=False):
+                    if biz_info:
+                        st.markdown(f"""
+                        <div style="background-color: #f8f9fa; padding: 22px; border-radius: 12px; border-left: 5px solid #6e8efb; color: #333; font-family: 'Pretendard', sans-serif; font-size: 15px; line-height: 1.6;">
+                            {biz_info}
                         </div>
-                    """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
+                        st.caption(get_text('caption_google_search'))
+                    else:
+                        st.error(get_text('err_no_biz_info'))
+
+                # =========================================================
+                # 🚀 [2] 기관용 금융 뉴스 요약 (Premium 전용 - Blur 적용)
+                # =========================================================
+                if news_summary: 
+                    with st.expander(get_text('tab1_premium_news_title'), expanded=False):
+                        if is_premium:
+                            st.markdown(news_summary, unsafe_allow_html=True)
+                        else:
+                            # 비결제자 Blur 화면
+                            blur_text = "최근 월가 기관들은 이 기업의 잉여 현금 흐름과 신규 프로젝트의 수익성에 대해 매우 긍정적인 평가를 내리고 있습니다... (이하 생략)"
+                            st.markdown(f"""
+                                <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                                    <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                        <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                        <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
 
                 # =========================================================
                 # 🚀 [3] 기업 공식 보도자료 요약 (Premium 전용 - Blur 적용)
                 # =========================================================
-                # 💡 [UI 제어] 데이터가 있을 때만 렌더링하고, 결제 여부에 따라 블러를 씌웁니다!
                 if pr_summary:
                     with st.expander(get_text('tab1_press_release_title'), expanded=False):
                         if is_premium:
                             st.markdown(pr_summary, unsafe_allow_html=True)
                         else:
-                            # 비결제자 Blur 화면 (데이터가 있어도 가짜 텍스트를 블러 처리해서 보여줌)
+                            # 비결제자 Blur 화면
                             blur_text = "본 기업은 최근 핵심 소프트웨어의 메이저 업그레이드 버전을 성공적으로 런칭했으며, 글로벌 시장 점유율 확대를 위한 대규모 마케팅 캠페인을 전개할 예정임을 공식적으로 발표했습니다... (이하 블러 처리)"
                             st.markdown(f"""
                                 <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
@@ -4542,10 +4540,9 @@ with main_area.container():
                 st.markdown(f"#### {get_text('tab1_recent_news_title')}")
                 
                 if final_display_news:
-                    # 1개의 큰 카드 컨테이너 시작
-                    news_html = """
+                    news_html = '''
                     <div style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); margin-bottom: 20px;">
-                    """
+                    '''
                     
                     for i, n in enumerate(final_display_news):
                         en_title = n.get('title_en', 'No Title')
@@ -4568,8 +4565,8 @@ with main_area.container():
                         news_link = n.get('link', '#')
                         news_date = n.get('date', 'Recent')
                         
-                        safe_en = str(en_title).replace("$", "\$")
-                        safe_trans = str(trans_title).replace("$", "\$")
+                        safe_en = str(en_title).replace("$", "\\$")
+                        safe_trans = str(trans_title).replace("$", "\\$")
                         
                         sub_title_html = ""
                         if safe_trans and safe_trans != safe_en and curr_lang != 'en': 
@@ -4580,10 +4577,9 @@ with main_area.container():
                         s_badge = f'<span style="background:{s_bg}; color:{s_color}; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:bold; margin-left:8px;">{sentiment_label}</span>'
                         label_gen = get_text('label_general')
                         
-                        # 마지막 아이템이면 하단 테두리 선(border-bottom) 제거
                         border_style = "border-bottom: 1px solid #f0f0f0; margin-bottom: 15px; padding-bottom: 15px;" if i < len(final_display_news) - 1 else "margin-bottom: 5px;"
                         
-                        news_html += f"""
+                        news_html += f'''
                             <div style="{border_style}">
                                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
                                     <div style="display:flex; align-items:center;">
@@ -4601,16 +4597,13 @@ with main_area.container():
                                     {sub_title_html}
                                 </a>
                             </div>
-                        """
+                        '''
                     
-                    # 큰 카드 닫기
                     news_html += "</div>"
-                    
-                    # 렌더링
                     st.markdown(news_html, unsafe_allow_html=True)
                 else:
                     st.warning(get_text('err_no_news'))
-    
+
                 st.write("<br>", unsafe_allow_html=True)
                 draw_decision_box("news", get_text('decision_news_impression'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 display_disclaimer()
