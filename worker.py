@@ -2368,7 +2368,7 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         except: pass
 
         # =====================================================================
-        # 💡 [요청 반영] N/A 스팩 처리 안내문을 4개 국어로 완벽히 번역 및 분리!
+        # 💡 [요청 반영] N/A 스팩 처리 안내문 + |||SEP||| 텍스트 분할 방식 적용
         # =====================================================================
         if lang_code == 'ko':
             na_handling_rule = "만약 지표가 N/A이거나 Pre-revenue라면, 이는 데이터 누락이 아니라 해당 기업이 초기 단계(SPAC, 바이오 임상 등)임을 의미합니다. '평가할 수 없다'고 하지 말고, 초기 기업의 특성에 맞춰 잠재력이나 리스크를 평가하세요."
@@ -2377,14 +2377,13 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             sum_p = f"""당신은 퀀트 애널리스트입니다. {company_name}({ticker})의 지표를 해석하여 대시보드 카드를 작성하세요.
 [데이터]: {g1_context} | {g2_context} | {g3_context}
 🚨 {na_handling_rule}
-{search_directive}[카드 작성 규칙 - JSON 강제]
-1. 반드시 아래 JSON 형식으로만 출력하세요. 절대 마크다운(```json)을 붙이거나 다른 말을 쓰지 마세요.
-2. 모든 문장은 '~습니다/합니다' 체를 사용하세요. 각 카드는 4~5문장입니다.
-{{
-  "card1": "(성장성 및 수익성 진단 4~5문장)",
-  "card2": "(재무 건전성 및 이익 질 진단 4~5문장)",
-  "card3": "(시장 가치 평가 4~5문장)"
-}}"""
+{search_directive}
+[카드 작성 규칙 - 절대 엄수]
+1. 당신의 답변은 웹사이트의 서로 다른 3개의 독립된 카드에 각각 들어갈 텍스트입니다. 절대 JSON이나 마크다운을 쓰지 마세요.
+2. 반드시 아래의 정확한 포맷으로만 출력하세요.
+   [포맷]: (성장성 및 수익성 진단 4~5문장) |||SEP||| (재무 건전성 및 이익 질 진단 4~5문장) |||SEP||| (시장 가치 평가 4~5문장)
+3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요. 모든 문장은 '~습니다/합니다' 체를 사용하세요.
+"""
             
             full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 '표준 정통 재무 분석 리포트'를 작성하세요.\n[비율 데이터]: {g1_context}, {g2_context}, {g3_context}\n[핵심 원시 데이터]: {g4_context}\n🚨 {na_handling_rule}\n{search_directive}"
             full_i = """
@@ -2406,12 +2405,12 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
 Data: {g1_context} | {g2_context} | {g3_context}
 🚨 Rule: {na_handling_rule}
 {search_directive}
-[STRICT JSON RULE] Output ONLY in this JSON format:
-{{
-  "card1": "Growth & profitability (4-5 sentences)",
-  "card2": "Health & earnings quality (4-5 sentences)",
-  "card3": "Market valuation (4-5 sentences)"
-}}"""
+[STRICT FORMAT RULE]
+1. Output EXACTLY 3 independent text blocks. DO NOT use JSON or markdown.
+2. Output FORMAT MUST BE EXACTLY as below:
+   [Format]: (Growth & profitability 4-5 sentences) |||SEP||| (Health & earnings quality 4-5 sentences) |||SEP||| (Market valuation 4-5 sentences)
+3. Separate strictly by '|||SEP|||'. Do not use any other line breaks.
+"""
             full_p = f"Write a standard financial report for {company_name}({ticker}).\n[Ratio Data]: {g1_context}, {g2_context}, {g3_context}\n[Raw Data]: {g4_context}\n🚨 Rule: {na_handling_rule}\n{search_directive}"
             full_i = """[STRICT RULES] 1. NO MAIN TITLES or emojis. 2. QUOTE HARD NUMBERS from the [Raw Data]. 3. Incorporate up to 10 standard financial metrics. 4. Use EXACTLY 3 subheadings with brackets ONLY:[Profitability & Growth Analysis], [Financial Health & Cash Flow],[Valuation & Final Verdict]. DO NOT use markdown bold (**). 5. Write 4-5 sentences immediately after subheadings. 6. NEVER complain about missing data."""
 
@@ -2423,12 +2422,12 @@ Data: {g1_context} | {g2_context} | {g3_context}
 データ: {g1_context} | {g2_context} | {g3_context}
 🚨 規則: {na_handling_rule}
 {search_directive}
-[厳格なJSON規則] 以下のJSON形式のみで出力:
-{{
-  "card1": "成長性と収益性 (4〜5文)",
-  "card2": "財務健全性 (4〜5文)",
-  "card3": "バリュエーション (4〜5文)"
-}}"""
+[厳格な出力フォーマット規則]
+1. 3つの完全に独立したテキストのみを出力してください。JSONやマークダウンは絶対に使用しないでください。
+2. 必ず以下のフォーマットのみで出力してください:
+   [フォーマット]: (成長性と収益性 4〜5文) |||SEP||| (財務健全性 4〜5文) |||SEP||| (バリュエーション 4〜5文)
+3. 区切り文字 '|||SEP|||' のみを使用し、その他の改行などは入れないでください。丁寧な日本語を使用してください。
+"""
             full_p = f"{company_name}({ticker}) の本格的財務分析レポートを作成してください。\n[比率データ]: {g1_context}, {g2_context}, {g3_context}\n[原データ]: {g4_context}\n🚨 規則: {na_handling_rule}\n{search_directive}"
             full_i = """[厳格な規則] 1. メインタイトルや絵文字は禁止。 2.[原データ]から具体的な数値を引用。 3. 主要な数値を10個程度参照。 4. 3つの小見出しを括弧のみで使用:[収益性と成長性の分析],[財務健全性とキャッシュフロー],[適正価値と総合投資意見]。太字(**)禁止。 5. 小見出しの直後に本文(4〜5文)を開始。 6. 「データがない」という言い訳禁止。 7. 丁寧な日本語を使用。"""
 
@@ -2440,19 +2439,19 @@ Data: {g1_context} | {g2_context} | {g3_context}
 数据: {g1_context} | {g2_context} | {g3_context}
 🚨 规则：{na_handling_rule}
 {search_directive}
-[严格的JSON规则] 仅输出以下JSON格式:
-{{
-  "card1": "增长与盈利能力 (4-5句话)",
-  "card2": "财务健康 (4-5句话)",
-  "card3": "市场估值 (4-5句话)"
-}}"""
+[严格格式规则]
+1. 必须输出3段完全独立的纯文本。绝对不要使用JSON或Markdown。
+2. 必须严格按照以下格式输出:
+   [格式]: (增长与盈利能力 4-5句话) |||SEP||| (财务健康 4-5句话) |||SEP||| (市场估值 4-5句话)
+3. 仅使用 '|||SEP|||' 作为分隔符，不要加入任何其他换行符。
+"""
             full_p = f"请撰写 {company_name}({ticker}) 的深度财务分析报告。\n[比率数据]: {g1_context}, {g2_context}, {g3_context}\n[原始数据]: {g4_context}\n🚨 规则：{na_handling_rule}\n{search_directive}"
             full_i = """[严格规则] 1. 绝对不要写主标题或表情符号。 2. 必须引用[原始数据]中的具体数据。 3. 融入约10个核心数值。 4. 使用3个带方括号的副标题，绝对不要加粗(**): [盈利能力与增长性分析], [财务健康与现金流],[合理估值与综合投资意见]。 5. 副标题后写4-5句话。 6. 绝对不要抱怨数据缺失。"""
 
+        # ----------------------------------------------------
+        # [Call 1] 3D 카드 생성 (JSON 파싱으로 완벽한 |||SEP||| 조립)
+        # ----------------------------------------------------
         try:
-            # ----------------------------------------------------
-            # [Call 1] 3D 카드 생성 (JSON 파싱으로 완벽한 |||SEP||| 조립)
-            # ----------------------------------------------------
             res_sum = current_tab3_model.generate_content(sum_p)
             if res_sum and res_sum.text:
                 full_text = res_sum.text
@@ -2469,19 +2468,24 @@ Data: {g1_context} | {g2_context} | {g3_context}
                     
                     clean_sum = f"{c1} |||SEP||| {c2} |||SEP||| {c3}"
                     batch_upsert("analysis_cache",[{"cache_key": cache_key_sum, "content": clean_sum, "updated_at": datetime.now().isoformat()}], "cache_key")
+        except Exception as e:
+            print(f"❌ [{ticker}] Tab 3 카드 요약 에러 ({lang_code}): {e}")
 
-            # ----------------------------------------------------
-            # [Call 2] 하단 전문 리포트 생성 (정규식 필터링)
-            # ----------------------------------------------------
+        # ----------------------------------------------------
+        # [Call 2] 하단 전문 리포트 생성 (정규식 필터링 및 HTML 렌더링)
+        # ----------------------------------------------------
+        try:
             res_full = current_tab3_model.generate_content(full_p + full_i)
             if res_full and res_full.text:
                 clean_full = res_full.text.strip()
                 
+                # 서론, 인사말, 이모지, 마크다운 굵은글씨 등 완벽 필터링
                 clean_full = re.sub(r'^(알겠습니다|네,|작성하겠습니다|요청하신|보고서입니다|Understood).*?(\n|$)', '', clean_full, flags=re.IGNORECASE | re.MULTILINE).strip()
                 clean_full = re.sub(r'(?i)(🎓|📊|📈|💡|🚀|CFA Quant Deep-Dive Analysis|CFA Quant|기업 분석 보고서|재무 분석 보고서)', '', clean_full).strip()
                 clean_full = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_full) # 굵은글씨 파괴
                 
-                paragraphs =[p.strip() for p in clean_full.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
+                # 🚨 [추가 방어막] p.lstrip('-*• ') 를 통해 단락 맨 앞의 하이픈이나 기호를 강제로 뜯어냅니다.
+                paragraphs = [p.lstrip('-*• ').strip() for p in clean_full.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 
                 html_full = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
@@ -2490,8 +2494,7 @@ Data: {g1_context} | {g2_context} | {g3_context}
                 
             print(f"✅[{ticker}] Tab 3 미시 지표 분석 완료 ({lang_code})")
         except Exception as e:
-            print(f"❌ [{ticker}] Tab 3 미시 지표 AI 에러 ({lang_code}): {e}")
-            time.sleep(1)
+            print(f"❌ [{ticker}] Tab 3 전문 리포트 에러 ({lang_code}): {e}")
             
 # ==========================================
 # [신규 추가] Tab 3 프리미엄 요약 전용 프롬프트 (다국어 완벽 분리)
