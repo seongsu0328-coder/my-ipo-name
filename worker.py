@@ -55,21 +55,20 @@ model_search = None
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
-        # [환각 원천 차단용] 오직 주어진 FMP 데이터만 요약하는 엄격한 모델
+        # [환각 원천 차단용] 엄격한 모델
         model_strict = genai.GenerativeModel('gemini-2.0-flash')
         
-        # [데이터 공백 방어용] FMP 데이터가 비어있을 때 구글링으로 채워넣는 하이브리드 모델
-        # 💡 [초강력 우회] 구글 SDK 버그를 피하기 위해 내부 Protobuf 객체로 직접 도구를 생성합니다.
+        # 🚨 [검색 도구 완벽 수정] 구글 최신 SDK 방식 적용
         try:
-            search_tool = genai.protos.Tool(google_search=genai.protos.GoogleSearch())
+            # 과거의 복잡한 protos 방식 대신, 가장 안정적인 문자열 호출 방식 사용
             model_search = genai.GenerativeModel(
                 model_name='gemini-2.0-flash', 
-                tools=[search_tool] 
+                tools='google_search_retrieval' 
             )
-            print("✅ AI 하이브리드 모델 로드 성공 (Google Search 활성화 완료)")
+            print("✅ AI 하이브리드 모델 로드 성공 (Google Search 100% 활성화 완료)")
         except Exception as e_tool:
-            print(f"⚠️ 구글 검색 도구 강제 비활성화 (SDK 버전 호환 문제). 안전한 Strict 모델로만 구동합니다: {e_tool}")
-            model_search = None  # 껍데기가 되면 우리가 만들어둔 방어막이 알아서 model_strict로 교체해줍니다!
+            print(f"⚠️ 구글 검색 도구 강제 비활성화: {e_tool}")
+            model_search = None 
 
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
@@ -2095,7 +2094,7 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         
         search_directive = ""
         if is_fmp_fin_poor:
-            search_directive = f"\n🚨 [Force Search] FMP 데이터가 없습니다. 즉시 Google Search를 사용하여 '{company_name} {ticker} recent revenue net income financial margins ratios'를 검색하고, 검색된 **실제 재무 수치(매출, 순이익 등)**를 바탕으로 리포트를 작성하세요. '데이터가 없다'는 변명은 절대 금지합니다."
+            search_directive = f"\n🚨 [Force Search] FMP 데이터가 없습니다.  당신에게 부여된 'Google Search Tool'을 반드시 지금 즉시 실행하여 '{company_name} {ticker} recent revenue net income financial margins ratios'를 검색하고, 검색된 **실제 재무 수치(매출, 순이익 등)**를 바탕으로 리포트를 작성하세요. '데이터가 없다'는 변명은 절대 금지합니다."
 
         # ----------------------------------------------------
         # 🚀 [Call 1] 3D 카드 3장용 Specific 심층 요약 프롬프트
