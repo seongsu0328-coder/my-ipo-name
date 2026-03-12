@@ -2,6 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components # [추가] GA4 스크립트 실행용
 import traceback
 import sys
+import urllib.parse
 
 # [중요] 에러를 잡기 위해 전체 코드를 try로 감쌉니다.
 try:
@@ -4435,7 +4436,6 @@ else:
         st.info("해당 서류의 분석 리포트를 생성 중이거나 데이터가 없습니다.")
             
                 # 4. 외부 링크 및 하단 버튼
-                import urllib.parse
                 cik_val = profile.get('cik', '') if profile else ''
                 sec_q_val = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
                 if cik_val: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_val}&type={urllib.parse.quote(sec_q_val)}&owner=include&count=40"
