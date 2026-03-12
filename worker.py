@@ -1058,7 +1058,7 @@ def run_tab2_premium_collection(ticker, company_name):
         print(f"Tab2 Premium ESG Error for {ticker}: {e}")
 
 # ==========================================
-# [신규 추가] Tab 1 프리미엄 요약 전용 프롬프트 생성 함수 (다국어 분리 완벽 적용)
+# [수정] Tab 1 프리미엄 요약 전용 프롬프트 생성 함수 (다국어 분리 완벽 적용)
 # ==========================================
 def get_tab1_premium_prompt(lang, type_name, raw_data):
     if lang == 'en':
@@ -1066,56 +1066,70 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
         
 [Strict Rules]
 1. Write ENTIRELY in English. Do not mix other languages.
-2. Write exactly 3 paragraphs.
-3. Each paragraph must be 4-5 sentences long, containing deep and professional insights.
-4. DO NOT use markdown bold (**) for numbers.
-5. Omit greetings and start the main content immediately. Maintain a cold, objective, and analytical tone.
+2. Write exactly 3 paragraphs (4-5 sentences each).
+3. You MUST include the following elements based on the data and your professional insights:
+   - Para 1: Core products/services, primary target audience, and main revenue composition.
+   - Para 2: Key competitors, market position, recent trends, and future strategic plans.
+   - Para 3: Potential risk factors, operational challenges, and overall analytical evaluation.
+4. Replace vague statements with concrete numerical data (%, $, volume, market share, etc.) wherever possible.
+5. DO NOT use markdown bold (**) for numbers.
+6. Omit greetings and start the main content immediately. Maintain a cold, objective, and analytical tone.
 
 [Raw Data]:
 {raw_data}"""
 
     elif lang == 'ja':
-        return f"""あなたはウォール街のシニアアナリストです。提供された [Raw Data] ({type_name}) に基づいて、企業の最新動向を日本語で要約してください。
+        return f"""あなたはウォール街のシニアアナリストです。提供された [Raw Data] ({type_name}) を分析し、非常に詳細で密度の高い企業インテリジェンスレポートを日本語で作成してください。
         
 [厳格な作成ルール]
 1. 全て自然な日本語のみで記述してください。
-2. 必ず3つの段落に分けて作成してください。
-3. 各段落は4〜5文で構成し、重厚で専門的な洞察を含めてください。
-4. 数値に強調記号（**）は絶対に使用しないでください。
-5. 挨拶は省略し、すぐに本題に入ってください。冷静で客観的な分析トーンを維持してください。
+2. 必ず3つの段落（各4〜5文）に分けて作成してください。
+3. データと専門的な洞察に基づき、以下の要素を必ず含めてください：
+   - 第1段落: 主力製品・サービス、主要ターゲット顧客層、および中核となる売上構成。
+   - 第2段落: 主要な競合他社、市場でのポジション、最近の動向、および今後の成長計画。
+   - 第3段落: 潜在的なリスク要因、経営上の課題、およびアナリストとしての総合評価。
+4. 曖昧な表現を避け、可能な限り具体的な数値（%、$、数量、市場シェアなど）を活用してください。
+5. 数値に強調記号（**）は絶対に使用しないでください。
+6. 挨拶は省略し、すぐに本題に入ってください。冷静で客観的な分析トーンを維持してください。
 
 [Raw Data]:
 {raw_data}"""
 
     elif lang == 'zh':
-        return f"""您是华尔街的高级分析师。请根据提供的 [Raw Data] ({type_name})，用简体中文总结该公司的最新动态。
+        return f"""您是华尔街的高级分析师。请分析提供的 [Raw Data] ({type_name})，并用简体中文提供一份高度详细、高密度的企业情报报告。
         
 [严格编写规则]
 1. 必须完全使用简体中文编写，严禁混用其他语言。
-2. 必须严格分为3个段落。
-3. 每个段落应包含4-5句话，并提供深刻、专业的见解。
-4. 绝对不要使用星号（**）对数字进行加粗。
-5. 省略问候语，直接进入正文。保持冷静、客观和分析的基调。
+2. 必须严格分为3个段落（每段4-5句话）。
+3. 结合数据与专业见解，必须包含以下核心要素：
+   - 第一段: 核心产品/服务、主要目标客户群以及主要营收构成。
+   - 第二段: 主要竞争对手、市场地位、近期动态以及未来的战略规划。
+   - 第三段: 潜在的风险因素、运营挑战以及分析师视角的综合评估。
+4. 拒绝模糊表达，尽可能使用具体的数据（如 %、$、数量、市场份额等）来支撑分析。
+5. 绝对不要使用星号（**）对数字进行加粗。
+6. 省略问候语，直接进入正文。保持冷静、客观和分析的基调。
 
 [Raw Data]:
 {raw_data}"""
 
     else: # ko
-        return f"""당신은 월가 출신의 수석 애널리스트입니다. 아래 제공된 [Raw Data]({type_name})를 바탕으로 기업의 최신 동향을 한국어로 요약하세요.
+        return f"""당신은 월가 출신의 수석 애널리스트입니다. 아래 제공된 [Raw Data]({type_name})를 심층 분석하여, 내용의 밀도가 매우 높은 전문가용 기업 동향 리포트를 한국어로 작성하세요.
         
 [작성 규칙 - 엄격 준수]
 1. 반드시 순수한 한국어로만 작성하세요.
-2. 반드시 3개의 문단으로 나누어 작성하세요.
-3. 각 문단은 4~5줄(문장) 길이로 묵직하고 전문적인 통찰을 담으세요.
-4. 숫자에 별표(**) 강조를 절대 사용하지 마세요.
-5. 인사말을 생략하고 첫 글자부터 본론만 작성하세요. 냉철하고 분석적인 어조를 유지하세요.
+2. 반드시 3개의 문단으로 나누어 작성하며, 각 문단은 4~5줄(문장) 길이로 상세히 작성하세요.
+3. 아래의 필수 요소를 반드시 포함하여 묵직하고 전문적인 통찰을 담아내세요:
+   - 1문단: 기업의 주력 제품/서비스, 주요 마케팅(타겟) 대상, 그리고 주요 매출을 이루는 구성
+   - 2문단: 시장 내 주요 경쟁 상대, 최근 동향 및 향후 성장 계획
+   - 3문단: 잠재적 위험 요소(리스크) 및 월가 애널리스트 관점의 종합 평가
+4. 추상적인 표현을 배제하고 가급적 구체적인 수치(%, $, 수량, 점유율 등)를 적극적으로 활용하세요.
+5. 숫자에 별표(**) 강조를 절대 사용하지 마세요.
+6. 인사말을 생략하고 첫 글자부터 본론만 작성하며, '~습니다', '~ㅂ니다' 형태의 냉철하고 분석적인 어조를 유지하세요.
 
 [Raw Data]:
 {raw_data}"""
 
-
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
-    # 💡 [핵심 교체] 전역 변수에서 두 모델을 모두 가져옵니다.
     if 'model_strict' not in globals(): return
     
     now = datetime.now()
@@ -1147,17 +1161,16 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
     biz_desc = profile_data[0].get('description', '') if (profile_data and isinstance(profile_data, list)) else ''
 
-    # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 15개 확보 (AI가 5개를 골라낼 수 있도록 풀을 넓힘)
+    # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 15개 확보
     news_url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={ticker}&limit=15&apikey={FMP_API_KEY}"
-    news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_5", news_url, valid_hours=6)
+    news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_15", news_url, valid_hours=6)
     
     fmp_news_context = ""
     if news_data and isinstance(news_data, list):
         fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in news_data])
 
-   # 💡 [하이브리드 판단] FMP 데이터가 너무 비어있으면 구글 검색 모델로 땜빵!
-    is_fmp_poor = len(biz_desc) < 50 or len(fmp_news_context) < 50
-    # 🚨 [핵심 수정] model_search가 None일 경우 안전한 model_strict로 자동 전환 (에러 원천 차단)
+    # 💡 [하이브리드 판단] FMP 데이터가 너무 비어있으면 구글 검색 모델로 땜빵!
+    is_fmp_poor = len(biz_desc) < 50
     current_model = model_search if (is_fmp_poor and model_search is not None) else model_strict
 
     # =========================================================
@@ -1193,34 +1206,31 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
             task2_label = "[작업 2: 최신 뉴스 수집 및 전문 번역]"
             target_lang = "한국어(Korean)"
-            lang_instruction = """반드시 자연스러운 한국어만 사용하세요. 
-            모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 격식 있고 정중한 존댓말(합쇼체)로 작성해 주십시오. (예: ~합니다, ~입니다, ~됩니다, ~전망됩니다 등). 
-            절대 '~한다', '~이다' 형태의 평어체를 사용하지 마세요."""
-            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일로 번역된 제목(마크다운, 따옴표 제외)", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+            lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 존댓말로 작성해 주십시오."
+            json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일로 번역된 제목(마크다운 제외)", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
 
-        # 💡 생애주기별 맞춤 구조 보존
-        if is_withdrawn:
-            task1_label = f"[{'작업 1: 상장 철회(Withdrawn) 심층 진단' if lang_code == 'ko' else 'Task 1: Withdrawn IPO Diagnosis'}]"
-            task1_structure = "\n- 1문단: [철회 배경 진단] 시장 환경 악화 여부 및 내부 펀더멘털/규제 이슈 분석\n- 2문단: [재무적 타격] 자본 조달 실패가 기업의 단기 유동성에 미치는 영향\n- 3문단: [생존 전략] M&A 피인수, 우회 상장, 추가 사모 펀딩 등 대안 시나리오\n"
-        elif is_delisted_or_otc:
-            task1_label = f"[{'작업 1: OTC/장외시장 거래 리스크 진단' if lang_code == 'ko' else 'Task 1: OTC Market Risk Analysis'}]"
-            task1_structure = "\n- 1문단: [장외 편입 배경] 비즈니스 모델 요약 및 정규 시장 미진입(또는 강등) 사유\n- 2문단: [투자 리스크] 거래량 부족에 따른 유동성 위험(Liquidity Risk) 및 정보 비대칭성 진단\n- 3문단: [장기 전망] 사업 지속 가능성(Going Concern) 및 정규 시장 재진입 가능성\n"
-        elif is_over_1y:
-            task1_label = f"[{'작업 1: 상장 1년 차 펀더멘털 점검' if lang_code == 'ko' else 'Task 1: Post-IPO Fundamental Check'}]"
-            task1_structure = "\n- 1문단: [목표 달성도] IPO 당시 제시했던 비전 대비 현재 핵심 펀더멘털 달성 여부\n- 2문단: [수익성 평가] 흑자 전환(Path to Profitability) 현황 및 잉여현금흐름(FCF)\n- 3문단: [자본 효율성] 투자(CAPEX/R&D) 성과 및 장기적 주주 가치 환원 전략\n"
-        else:
-            task1_label = f"[{'작업 1: 신규 IPO 비즈니스 심층 분석' if lang_code == 'ko' else 'Task 1: Deep Business Model Analysis'}]"
-            task1_structure = "\n- 1문단: 비즈니스 모델 및 시장 내 핵심 경쟁 우위 (Competitive Advantage)\n- 2문단: 재무 현황 및 공모 자금 활용 계획 (Use of Proceeds)\n- 3문단: 향후 산업 전망 및 종합 투자 의견 (Outlook & Valuation)\n"
-
-        # 🚨 [하이브리드 프롬프트 분기]
+        # 🚨 [핵심 변경] FMP 데이터 유무에 따른 프롬프트 완벽 분리
         if is_fmp_poor:
+            # 대안 1: S-1 사업 개요를 바탕으로 구글 검색을 결합하는 '상장 예정 기업용' 특화 프롬프트
+            task1_label = f"[{'작업 1: S-1 기반 비즈니스 심층 요약' if lang_code == 'ko' else 'Task 1: S-1 Based Business Overview'}]"
+            task1_structure = """
+            - 🚨 [차별화 규칙] 재무 상태나 상장 조건, 리스크는 다른 탭에서 다루므로 절대 언급하지 마세요.
+            - 오직 이 회사의 "핵심 제품/서비스", "수익 모델(돈 버는 법)", "최신 트렌드 및 시장 점유율"에만 집중하세요.
+            - 가급적 구체적인 수치(MAU, 매출 비중 등)를 기반으로 작성하세요.
+            - 1문단: 비즈니스 모델 및 핵심 제품/서비스
+            - 2문단: 구체적 수치를 동반한 시장 지배력 및 수익 구조
+            - 3문단: 향후 성장 동력 및 최신 트렌드
+            """
             search_directive = f"""
-            - 🚨 [강제 명령] FMP 제공 데이터가 부족합니다. 즉시 구글 검색 도구(google_search)를 사용하여 "{company_name} {ticker} business model" 및 "news {current_year}"를 검색하십시오.
-            - 검색된 실제 팩트를 기반으로 리포트를 작성하세요.
+            - 🚨 [강제 검색] FMP 데이터가 없습니다. 즉시 구글 검색을 통해 "{company_name} {ticker} business model" 을 찾아주세요.
+            - 필요시 SEC S-1 공시 자료의 내용이라고 가정하고 상세히 요약하세요.
             """
         else:
+            # 대안 2: FMP 데이터가 있을 때의 일반적인 분석 (기존 로직 유지)
+            task1_label = f"[{'작업 1: 신규 IPO 비즈니스 심층 분석' if lang_code == 'ko' else 'Task 1: Deep Business Model Analysis'}]"
+            task1_structure = "\n- 1문단: 비즈니스 모델 및 시장 내 핵심 경쟁 우위\n- 2문단: 재무 현황 및 공모 자금 활용 계획\n- 3문단: 향후 산업 전망 및 종합 투자 의견\n"
             search_directive = f"""
-            - 🚨 [환각 완전 금지] 오직 아래 제공된 [Part 1]과 [Part 2] 텍스트 데이터만을 사용하여 작성하십시오. 구글 검색 및 유추 절대 금지.
+            - 🚨 [환각 완전 금지] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오. 구글 검색 및 유추 절대 금지.
             """
 
         prompt = f"""
@@ -1237,14 +1247,12 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         {task1_label}
         {search_directive}
         1. 언어: {lang_instruction}
-        2. 🚨 [메인 타이틀 금지] "## Company Analysis" 같은 거창한 메인 제목을 절대 쓰지 마세요. 바로 문단부터 시작하세요.
-        3. 포맷: 반드시 3개의 문단으로 나누어 작성하세요.
-           {task1_structure}
-        4. 금지: 제목, 소제목, 불렛포인트(-) 금지.
+        2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. (각 문단은 4~5문장 길이)
+            {task1_structure}
+        3. 금지: "## Company Analysis" 같은 메인 제목 금지. 숫자 및 강조 표시(**) 금지.
         
         {task2_label}
-        - 만약 [Part 2] 또는 검색 결과에 아무 뉴스도 없다면, 무리해서 지어내지 말고 빈 리스트 [] 를 반환하세요.
-        - 각 뉴스의 'translated_title'은 {target_lang}의 '전문 경제신문 헤드라인 스타일'로 번역하세요.
+        - 만약 [Part 2]에 아무 뉴스도 없다면, 무리해서 지어내지 말고 빈 리스트 [] 를 반환하세요.
         - sentiment 값은 시스템을 위해 반드시 "긍정", "부정", "일반" 중 하나로 한국어로 출력하세요.
         
         <JSON_START>
@@ -1254,7 +1262,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
         for attempt in range(3):
             try:
-                # 💡 [핵심] FMP 데이터 유무에 따라 동적으로 선택된 모델 사용
                 response = current_model.generate_content(prompt)
                 full_text = response.text
 
@@ -1276,7 +1283,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 if json_str: biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
                 else: biz_analysis = full_text.split("{")[0].replace("<JSON_START>", "").strip()
 
-                biz_analysis = re.sub(r'#.*', '', biz_analysis).strip() # 추가적으로 마크다운 해딩 제거
+                biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
                 paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
                 
                 indent_size = "14px" if lang_code == "ko" else "0px"
