@@ -2257,26 +2257,6 @@ def update_macro_data(df):
             """
 
         # 💡 [Call 2] 하단 전문(Global Macro Strategic Matrix)
-        if lang_code == 'en':
-            full_p = f"Write a deep-dive market diagnosis report based on the 'Global Macro Strategic Matrix'.\nData: {g1_context}, {g2_context}, {g3_context}"
-            full_i = "[Instructions]\nWrite a SINGLE cohesive paragraph of 5-7 sentences evaluating Valuation, Liquidity, Sentiment, and Strategic Verdict. DO NOT use line breaks or subheadings. Omit greetings."
-        elif lang_code == 'ja':
-            full_p = f"「グローバル・マクロ戦略マトリックス」に従って深層市場診断レポートを作成してください。\nデータ: {g1_context}, {g2_context}, {g3_context}"
-            full_i = "[指示]\nバリュエーション、流動性、心理、戦略的結論を評価する5〜7文の単一段落で作成してください。見出しや改行は絶対にしないでください。"
-        elif lang_code == 'zh':
-            full_p = f"请根据“全球宏观战略矩阵”撰写深度市场诊断报告。\n数据: {g1_context}, {g2_context}, {g3_context}"
-            full_i = "[指示]\n请写成一段包含5-7句话的单一段落，评估估值、流动性、情绪和战略结论。绝对不要分段或换行，不要使用副标题。"
-        else: # ko
-            full_p = f"'Global Macro Strategic Matrix' 프로토콜에 따라 심층 시장 진단 보고서를 작성하세요.\n데이터: {g1_context}, {g2_context}, {g3_context}"
-            full_i = "[지시사항]\n밸류에이션, 유동성, 심리, 투자 전략을 아우르는 5~7줄의 단일 문단(줄바꿈 없음) 리포트로 작성하세요. 인사말이나 소제목을 절대 쓰지 마세요. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요."
-
-        try:
-            res_sum = model_strict.generate_content(sum_p + sum_i).text.strip()
-            batch_upsert("analysis_cache", [{"cache_key": cache_key_summary, "content": res_sum, "updated_at": datetime.now().isoformat()}], "cache_key")
-
-            res_full = model_strict.generate_content(full_p + full_i).text.strip()
-            batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_full, "updated_at": datetime.now().isoformat()}], "cache_key")
-        except Exception as e: pass
 
 # ==========================================
 # [수정] Tab 6: 스마트머니 통합 데이터 수집 (국회의원 & 공매도 추가)
