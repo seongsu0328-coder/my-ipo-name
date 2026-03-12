@@ -4475,8 +4475,7 @@ else:
         draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
         display_disclaimer()
 
-    # 🚨 [여기 중요] 이 elif는 위쪽의 if selected_sub_menu == get_text('tab_0'): 줄과 
-    # 왼쪽 시작 세로선이 '완벽하게' 일치해야 합니다. (보통 스페이스 8칸 위치)
+# 🚨 [여기 중요] elif는 스페이스 8칸 위치로 빼고, 그 아래 내용들은 12칸 위치로 맞췄습니다.
         elif selected_sub_menu == get_text('tab_1'):
             curr_lang = st.session_state.lang
             
@@ -4497,21 +4496,22 @@ else:
                 # 2. 프리미엄 데이터 요약 로드
                 news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
 
+            # spinner 블록이 끝난 후 실행되도록 들여쓰기 조정 (스페이스 12칸)
             st.write("<br>", unsafe_allow_html=True)
                 
-                # =========================================================
-                # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
-                # =========================================================
-                with st.expander(get_text('expander_biz_summary'), expanded=False):
-                    if biz_info:
-                        st.markdown(f"""
-                        <div style="background-color: #f8f9fa; padding: 22px; border-radius: 12px; border-left: 5px solid #6e8efb; color: #333; font-family: 'Pretendard', sans-serif; font-size: 15px; line-height: 1.6;">
-                            {biz_info}
-                        </div>
-                        """, unsafe_allow_html=True)
-                        st.caption(get_text('caption_google_search'))
-                    else:
-                        st.error(get_text('err_no_biz_info'))
+            # =========================================================
+            # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
+            # =========================================================
+            with st.expander(get_text('expander_biz_summary'), expanded=False):
+                if biz_info:
+                    st.markdown(f"""
+                    <div style="background-color: #f8f9fa; padding: 22px; border-radius: 12px; border-left: 5px solid #6e8efb; color: #333; font-family: 'Pretendard', sans-serif; font-size: 15px; line-height: 1.6;">
+                        {biz_info}
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.caption(get_text('caption_google_search'))
+                else:
+                    st.error(get_text('err_no_biz_info'))
     
                
 
