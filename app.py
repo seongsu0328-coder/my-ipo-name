@@ -4706,12 +4706,14 @@ with main_area.container():
 
                 st.write("<br>", unsafe_allow_html=True)
 
-                # 💡 [복구 완료] 거시지표 통합 분석 리포트 전문 보기 (Matrix 프로토콜 적용)
+                # 💡 [복구 완료] 거시지표 통합 분석 리포트 전문 보기
                 with st.expander(get_text('expander_macro_analysis'), expanded=False): 
+                    # AI가 만든 줄바꿈(\n)을 HTML 줄바꿈(<br>)으로 변환하여 깨짐 방지
+                    formatted_report = full_market_report.replace('\n', '<br>')
+                    
                     st.markdown(f"""
                         <div style='background-color:#f8f9fa; padding:22px; border-radius:12px; border-left: 5px solid #004e92; font-size:15px; line-height:1.8; color:#333; text-align:justify;'>
-                            
-                            {full_market_report}
+                            {formatted_report}
                         </div>
                     """, unsafe_allow_html=True)
             
