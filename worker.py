@@ -2198,7 +2198,7 @@ def run_tab4_ma_premium_collection(ticker, company_name):
         print(f"Tab4 Premium M&A Error for {ticker}: {e}")
     
 # ==========================================
-# [완벽 수정] Tab 3: 미시 지표 (독립된 3D 카드 요약 + 표준 재무분석 리포트)
+# [완벽 수정] Tab 3: 미시 지표 (수치 복구 전처리 + 기존 프롬프트 유지 + 포맷 강제)
 # ==========================================
 def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return False
@@ -2216,6 +2216,55 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     can_fin_search = is_fmp_fin_poor and (model_search is not None)
     current_tab3_model = model_search if can_fin_search else model_strict
     
+    # 💡 [요청 반영] 현재 연도 기준으로 최근 3년 동적 계산 (예: "2024 2025 2026")
+    curr_yr = datetime.now().year
+    past_3_years = f"{curr_yr-2} {curr_yr-1} {curr_yr}"
+    
+    # =====================================================================
+    # 🚀[핵심 신규 추가] 재무 데이터 N/A 복구 전처리 로직 (카드 UI 완벽 표출용)
+    # =====================================================================
+    if can_fin_search:
+        print(f"🔍 [{ticker}] FMP 재무 데이터 누락 감지. 구글 검색으로 수치 복구 시도 중...")
+        recovery_prompt = f"""
+        Search Google for the latest financial results of {company_name} ({ticker}) for the years {past_3_years}.
+        Find the revenue growth rate, net income margin, and debt-to-equity ratio.
+        Output ONLY a valid JSON. Do not include markdown formatting.
+        {{
+            "growth": "value with % or N/A",
+            "net_margin": "value with % or N/A",
+            "debt_equity": "value with % or N/A"
+        }}
+        """
+        try:
+            rec_res = current_tab3_model.generate_content(recovery_prompt)
+            if rec_res and rec_res.text:
+                text = rec_res.text
+                json_str = text[text.find('{'):text.rfind('}')+1]
+                rec_data = json.loads(json_str)
+                
+                updated = False
+                if rec_data.get("growth") and rec_data["growth"] != "N/A": 
+                    metrics["growth"] = rec_data["growth"]
+                    updated = True
+                if rec_data.get("net_margin") and rec_data["net_margin"] != "N/A": 
+                    metrics["net_margin"] = rec_data["net_margin"]
+                    updated = True
+                if rec_data.get("debt_equity") and rec_data["debt_equity"] != "N/A": 
+                    metrics["debt_equity"] = rec_data["debt_equity"]
+                    updated = True
+                    
+                if updated:
+                    # 복구된 숫자를 DB에 즉시 덮어씌워 앱 화면의 N/A를 제거!
+                    batch_upsert("analysis_cache",[{
+                        "cache_key": f"{ticker}_Raw_Financials",
+                        "content": json.dumps(metrics, ensure_ascii=False),
+                        "updated_at": datetime.now().isoformat()
+                    }], on_conflict="cache_key")
+                    print(f"✅ [{ticker}] 누락된 재무 수치 복구 성공! (앱 UI 연동 완료)")
+        except Exception as e:
+            print(f"⚠️ [{ticker}] 수치 복구 실패: {e}")
+
+    # (복구된 숫자가 반영된 최신 Context 생성)
     g1_context = f"[Business Growth & Profitability] Sales Growth: {metrics.get('growth', 'N/A')}, Net Margin: {metrics.get('net_margin', 'N/A')}, Piotroski Score: {metrics.get('health_score', 'N/A')}/9"
     g2_context = f"[Financial Health & Quality] Debt to Equity: {metrics.get('debt_equity', 'N/A')}, Accruals Quality: {metrics.get('accruals', 'Unknown')}"
     g3_context = f"[Market Valuation] Forward P/E: {metrics.get('pe', 'N/A')}, DCF Target Price: {metrics.get('dcf_price', 'N/A')}, Current Price: {metrics.get('current_price', 'N/A')}"
@@ -2225,13 +2274,13 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         cache_key_full = f"{ticker}_Tab3_v2_Premium_{lang_code}"
         
         try:
-            # 캐시가 이미 존재하면 건너뜀 (만약 기존에 공백으로 저장된 것이 있다면 Supabase에서 지워야 함)
             res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key_full).gt("updated_at", limit_time_str).execute()
             if res.data: continue 
         except: pass
 
+        # 💡 [요청 반영] 프롬프트 원형 유지 + 3년 치 검색 + 소제목 제거 & 들여쓰기 강제
         if lang_code == 'ko':
-            search_directive = f"\n🚨 [강제 검색] 즉시 구글 검색을 통해 '{company_name} {ticker} 2024 2025 실적'을 검색하여 실제 수치(매출 등)를 반드시 활용하세요." if can_fin_search else ""
+            search_directive = f"\n🚨 [강제 검색] 즉시 구글 검색을 통해 '{company_name} {ticker} {past_3_years} 실적'을 검색하여 실제 수치(매출 등)를 반드시 활용하세요." if can_fin_search else ""
             
             sum_p = f"당신은 데이터 출력기입니다. {company_name}({ticker})의 3개 카드 요약을 출력하세요.\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
             sum_i = """
@@ -2244,59 +2293,59 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             full_p = f"당신은 월가 퀀트 애널리스트입니다. {company_name}({ticker})의 재무 분석 리포트를 작성하세요.\n데이터: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
             full_i = """
             [절대 규칙]
-            1. 🚨 이모지(🎓 등)나 메인 제목("CFA 리포트" 등)을 절대 쓰지 마세요. 첫 글자는 무조건 첫 번째 소제목으로 시작하세요.
-            2. 검색되거나 제공된 '정확한 수치'(매출액 등 절대수치 포함 10개 내외)를 인용하세요.
-            3. 소제목 3개 필수: **[수익성 및 성장성 분석]**, **[재무 건전성 및 현금흐름]**, **[적정 가치 및 종합 투자의견]**
-            4. 소제목 다음 줄에 본문을 작성하고 '~습니다/합니다' 어투 유지.
+            1. 🚨 이모지(🎓 등)나 메인 제목("CFA 리포트" 등)을 절대 쓰지 마세요.
+            2. 🚨 소제목(예: **[수익성 및 성장성 분석]**)은 절대 쓰지 마세요. 전체 글은 오직 3개의 자연스러운 문단으로만 구성하세요.
+            3. 각 문단의 첫 시작은 반드시 들여쓰기(스페이스바 2칸)를 적용하여 자연스럽게 시작하세요.
+            4. 검색되거나 제공된 '정확한 수치'(매출액 등 절대수치 포함 10개 내외)를 인용하세요.
+            5. 모든 문장은 '~습니다/합니다' 어투를 유지하세요.
             """
         elif lang_code == 'en':
-            search_directive = f"\n🚨 [FORCE SEARCH] Use Google Search for '{company_name} {ticker} financial results 2024 2025' and include exact numbers." if can_fin_search else ""
+            search_directive = f"\n🚨 [FORCE SEARCH] Use Google Search for '{company_name} {ticker} financial results {past_3_years}' and include exact numbers." if can_fin_search else ""
             sum_p = f"Write 3 card summaries for {company_name}({ticker}).\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
             sum_i = """[STRICT] Output exactly 3 text blocks separated ONLY by '|||SEP|||'. NO line breaks inside blocks."""
             full_p = f"Write a financial analysis report for {company_name}({ticker}).\nData: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
-            full_i = """[STRICT] 1. NO emojis, NO main title. Start immediately with the first subheading. 2. Use subheadings: **[Profitability & Growth Analysis]**, **[Financial Health & Cash Flow]**, **[Valuation & Final Verdict]**. 3. Quote hard numbers."""
+            full_i = """[STRICT] 1. NO emojis, NO main title. 2. 🚨 ABSOLUTELY NO SUBHEADINGS. Write exactly 3 natural paragraphs. 3. Start each paragraph with an indent (2 spaces). 4. Quote hard numbers."""
         elif lang_code == 'ja':
-            search_directive = f"\n🚨 [強制検索] Google検索で「{company_name} {ticker} 2024 2025 financial results」を検索し、具体的な数値を含めてください。" if can_fin_search else ""
+            search_directive = f"\n🚨 [強制検索] Google検索で「{company_name} {ticker} {past_3_years} financial results」を検索し、具体的な数値を含めてください。" if can_fin_search else ""
             sum_p = f"{company_name}({ticker})の3つのカード要約を作成してください。\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
             sum_i = """[厳格] 挨拶禁止。3つのテキストを必ず '|||SEP|||' で区切って出力。"""
             full_p = f"{company_name}({ticker})の財務分析レポートを作成してください。\nデータ: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
-            full_i = """[厳格] 1. 挨拶や絵文字(🎓など)、メインタイトルは絶対禁止。小見出し: **[収益性と成長性の分析]**, **[財務健全性とキャッシュフロー]**, **[適正価値と総合投資意見]** のみ使用。 3. 具体的な数値を引用。"""
+            full_i = """[厳格] 1. 挨拶や絵文字(🎓など)、メインタイトルは絶対禁止。 2. 🚨 小見出しは絶対に使用しないでください。3つの自然な段落のみで構成してください。 3. 各段落の先頭は字下げ(スペース)で始めてください。 4. 具体的な数値を引用してください。"""
         else: # zh
-            search_directive = f"\n🚨 [强制搜索] 使用Google搜索“{company_name} {ticker} 2024 2025 financial results”并包含具体数据。" if can_fin_search else ""
+            search_directive = f"\n🚨 [强制搜索] 使用Google搜索“{company_name} {ticker} {past_3_years} financial results”并包含具体数据。" if can_fin_search else ""
             sum_p = f"请为 {company_name}({ticker}) 撰写3个卡片摘要。\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
             sum_i = """[严格] 绝对不要写问候语。仅输出由 '|||SEP|||' 分隔的3段纯文本。"""
             full_p = f"请为 {company_name}({ticker}) 撰写财务分析报告。\n数据: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
-            full_i = """[严格] 1. 绝对禁止表情符号(🎓)和主标题。直接使用副标题: **[盈利能力与增长性分析]**, **[财务健康与现金流]**, **[合理估值与综合投资意见]**。 3. 引用具体数据。"""
+            full_i = """[严格] 1. 绝对禁止表情符号(🎓)和主标题。 2. 🚨 绝对不要使用副标题。请仅写3个自然的段落。 3. 每个段落开头请缩进（空两格）。 4. 引用具体数据。"""
 
         try:
-            # ----------------------------------------------------
-            # 1. 3D 카드 요약 생성 (|||SEP||| 분할 안전망 추가)
-            # ----------------------------------------------------
+            # 1. 3D 카드 요약 생성 (|||SEP||| 분할 안전망 적용)
             res_sum = current_tab3_model.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
                 clean_sum = res_sum.text.strip()
                 clean_sum = re.sub(r'^(알겠습니다|네,|작성하겠습니다|Understood|Certainly|Here is).*?(\n|$)', '', clean_sum, flags=re.IGNORECASE).strip()
                 
-                # 🚨 [안전망 추가] AI가 말을 안 듣고 줄바꿈으로만 답했을 경우, 프론트엔드 에러 방지를 위해 강제로 |||SEP||| 삽입
+                # 🚨 [안전망 추가] AI가 말을 안 듣고 줄바꿈으로만 답했을 경우 강제 보정
                 if "|||SEP|||" not in clean_sum:
                     parts =[p.strip() for p in clean_sum.split('\n') if len(p.strip()) > 10]
-                    clean_sum = " |||SEP||| ".join(parts[:3]) # 최대 3개 카드 포맷 강제 생성
+                    clean_sum = " |||SEP||| ".join(parts[:3]) 
 
                 clean_sum = clean_sum.replace('\n', ' ').strip()
                 batch_upsert("analysis_cache",[{"cache_key": cache_key_sum, "content": clean_sum, "updated_at": datetime.now().isoformat()}], "cache_key")
 
-            # ----------------------------------------------------
-            # 2. 하단 전문 리포트 생성 (HTML <p> 태그 래핑 추가)
-            # ----------------------------------------------------
+            # 2. 하단 전문 리포트 생성 (소제목 방어벽 및 HTML 래핑)
             res_full = current_tab3_model.generate_content(full_p + full_i)
             if res_full and res_full.text:
                 clean_full = res_full.text.strip()
-                # 서론/인사말 및 불필요한 이모지 제거
+                
+                # 서론/인사말, 불필요한 이모지 및 메인 제목 찌꺼기 제거
                 clean_full = re.sub(r'^(알겠습니다|네,|작성하겠습니다|요청하신|보고서입니다|Understood).*?(\n|$)', '', clean_full, flags=re.IGNORECASE | re.MULTILINE).strip()
                 clean_full = re.sub(r'(?i)(🎓|📊|📈|💡|🚀|CFA Quant Deep-Dive Analysis|CFA Quant|기업 분석 보고서|재무 분석 보고서)', '', clean_full).strip()
-                clean_full = re.sub(r'^\*\*(🎓|CFA|Quant|기업 분석).*?\*\*\s*\n', '', clean_full, flags=re.IGNORECASE).strip()
                 
-                # 🚨 [핵심 추가] 프론트엔드가 렌더링할 수 있도록 HTML <p> 태그로 래핑
+                # 🚨 [추가 방어벽] 혹시라도 AI가 소제목(## 블라블라)을 썼을 경우를 대비해 마크다운 제목 포맷 강제 삭제
+                clean_full = re.sub(r'^#+\s*.*$', '', clean_full, flags=re.MULTILINE).strip()
+                clean_full = re.sub(r'^\*\*\[?.*\]?\*\*\s*$', '', clean_full, flags=re.MULTILINE).strip()
+                
                 paragraphs =[p.strip() for p in clean_full.split('\n') if p.strip() and len(p.strip()) > 10]
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 
@@ -2304,9 +2353,9 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
                 
                 batch_upsert("analysis_cache",[{"cache_key": cache_key_full, "content": html_full, "updated_at": datetime.now().isoformat()}], "cache_key")
                 
-            print(f"✅ [{ticker}] Tab 3 미시 지표 분석 완료 ({lang_code}) - {'Search' if can_fin_search else 'Strict'}")
+            print(f"✅ [{ticker}] Tab 3 미시 지표 분석 완료 ({lang_code}) - {'Search (N/A 수치 복구됨!)' if can_fin_search else 'Strict'}")
         except Exception as e:
-            print(f"❌ [{ticker}] Tab 3 미시 지표 AI 에러 ({lang_code}): {e}")
+            print(f"❌[{ticker}] Tab 3 미시 지표 AI 에러 ({lang_code}): {e}")
             time.sleep(1)
             
 # ==========================================
