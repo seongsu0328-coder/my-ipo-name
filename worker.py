@@ -912,16 +912,22 @@ def get_tab0_ec_premium_prompt(lang, ticker, raw_data):
 {raw_data}"""
 
 def run_tab0_premium_collection(ticker, company_name):
-        """Tab 0의 프리미엄 데이터(어닝 콜)를 수집하고 요약하여 캐싱합니다."""
-        if 'model_strict' not in globals() or not model_strict: return
+    """Tab 0의 프리미엄 데이터(어닝 콜)를 수집하고 요약하여 캐싱합니다."""
+    if 'model_strict' not in globals() or not model_strict: return
+    try:
+        limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # 어닝콜은 자주 안바뀌므로 7일 유지
+        
+        # 💡 [안전망 추가] 연도와 분기를 먼저 찾고 최신 트랜스크립트를 호출 (400 에러 완벽 방지)
         try:
-            limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # 어닝콜은 자주 안바뀌므로 7일 유지
-            
-            # 연도와 분기를 먼저 찾고 최신 트랜스크립트를 호출 (400 에러 완벽 방지)
-            list_res = requests.get(f"https://financialmodelingprep.com/stable/earnings-transcript-list?symbol={ticker}&apikey={FMP_API_KEY}").json()
+            list_url = f"https://financialmodelingprep.com/stable/earnings-transcript-list?symbol={ticker}&apikey={FMP_API_KEY}"
+            list_res = requests.get(list_url, timeout=5).json()
             latest = list_res[0] if (isinstance(list_res, list) and len(list_res) > 0) else {"year": "2024", "quarter": 1}
-            url = f"https://financialmodelingprep.com/stable/earning-call-transcript?symbol={ticker}&year={latest.get('year')}&quarter={latest.get('quarter')}&apikey={FMP_API_KEY}"
-            ec_raw = get_fmp_data_with_cache(ticker, "RAW_EARNINGS_CALL", url, valid_hours=168)
+        except:
+            latest = {"year": "2024", "quarter": 1}
+
+        url = f"https://financialmodelingprep.com/stable/earning-call-transcript?symbol={ticker}&year={latest.get('year')}&quarter={latest.get('quarter')}&apikey={FMP_API_KEY}"
+        ec_raw = get_fmp_data_with_cache(ticker, "RAW_EARNINGS_CALL", url, valid_hours=168)
+        
         is_ec_valid = isinstance(ec_raw, list) and len(ec_raw) > 0
 
         for lang_code in SUPPORTED_LANGS.keys():
@@ -930,7 +936,7 @@ def run_tab0_premium_collection(ticker, company_name):
                 try:
                     res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", ec_summary_key).gt("updated_at", limit_time_str).execute()
                     if not res.data:
-                        # 텍스트가 너무 길면 AI 토큰 초과 우려가 있으므로 앞부분 15,000자만 발췌 (보통 가이던스와 CEO 연설 위주)
+                        # 텍스트가 너무 길면 AI 토큰 초과 우려가 있으므로 앞부분 15,000자만 발췌
                         content = ec_raw[0].get('content', '')[:15000] 
                         prompt = get_tab0_ec_premium_prompt(lang_code, ticker, content)
                         
