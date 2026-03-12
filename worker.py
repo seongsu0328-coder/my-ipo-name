@@ -1209,29 +1209,113 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 존댓말로 작성해 주십시오."
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일로 번역된 제목(마크다운 제외)", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
 
-        # 🚨 [핵심 변경] FMP 데이터 유무에 따른 프롬프트 완벽 분리
+        # 🚨 [핵심 변경] FMP 데이터 유무 및 다국어(ko, en, ja, zh)에 따른 프롬프트 완벽 분리
         if is_fmp_poor:
-            # 대안 1: S-1 사업 개요를 바탕으로 구글 검색을 결합하는 '상장 예정 기업용' 특화 프롬프트
-            task1_label = f"[{'작업 1: S-1 기반 비즈니스 심층 요약' if lang_code == 'ko' else 'Task 1: S-1 Based Business Overview'}]"
-            task1_structure = """
-            - 🚨 [차별화 규칙] 재무 상태나 상장 조건, 리스크는 다른 탭에서 다루므로 절대 언급하지 마세요.
-            - 오직 이 회사의 "핵심 제품/서비스", "수익 모델(돈 버는 법)", "최신 트렌드 및 시장 점유율"에만 집중하세요.
-            - 가급적 구체적인 수치(MAU, 매출 비중 등)를 기반으로 작성하세요.
-            - 1문단: 비즈니스 모델 및 핵심 제품/서비스
-            - 2문단: 구체적 수치를 동반한 시장 지배력 및 수익 구조
-            - 3문단: 향후 성장 동력 및 최신 트렌드
-            """
-            search_directive = f"""
-            - 🚨 [강제 검색] FMP 데이터가 없습니다. 즉시 구글 검색을 통해 "{company_name} {ticker} business model" 을 찾아주세요.
-            - 필요시 SEC S-1 공시 자료의 내용이라고 가정하고 상세히 요약하세요.
-            """
+            if lang_code == 'en':
+                task1_label = "[Task 1: S-1 Based Deep Business Overview]"
+                task1_structure = """
+                - 🚨 [Differentiation] DO NOT mention financials, IPO terms, or risks (covered in other tabs).
+                - 🚨 [Must Include 1] Include specific numbers (MAU, revenue breakdown, market share, etc.) instead of vague descriptions.
+                - 🚨 [Must Include 2] Clearly describe competitive advantages (or disadvantages) by comparing with key peers.
+                - Para 1: Business model and core products/services with specific figures.
+                - Para 2: Market share, revenue structure, and clear competitive advantage/disadvantage against peers.
+                - Para 3: Future expansion plans and latest market trends.
+                """
+                search_directive = f"""
+                - 🚨 [Force Search] FMP data is insufficient. IMMEDIATELY use Google Search for "{company_name} {ticker} business model" and "{company_name} market share competitors".
+                - Summarize in great detail based on actual facts and figures from the search.
+                """
+            elif lang_code == 'ja':
+                task1_label = "[タスク 1: S-1ベースのビジネス深層要約]"
+                task1_structure = """
+                - 🚨 [差別化ルール] 財務状況、上場条件、リスクは他のタブで扱うため、絶対に言及しないでください。
+                - 🚨 [必須項目 1] 曖昧な説明を避け、具体的な数値（MAU、売上比率、シェアなど）を必ず含めてください。
+                - 🚨 [必須項目 2] 主要な競合他社（Peers）との明確な比較を通じて、この企業ならではの競争優位性（または劣位性）を必ず記述してください。
+                - 第1段落: 具体的な数値を伴うビジネスモデルと主要製品/サービスの説明。
+                - 第2段落: 市場シェア、収益構造、および主要な競合他社との明確な競争優位性/劣位性の比較。
+                - 第3段落: 今後の新規事業拡張計画および最新の市場トレンド。
+                """
+                search_directive = f"""
+                - 🚨 [強制検索] FMPデータが不足しています。直ちにGoogle検索で「{company_name} {ticker} business model」、「{company_name} market share competitors」を検索してください。
+                - 検索された「実際の事実と数値」に基づいて、非常に詳細に要約してください。
+                """
+            elif lang_code == 'zh':
+                task1_label = "[任务 1: 基于 S-1 的业务深度摘要]"
+                task1_structure = """
+                - 🚨 [差异化规则] 绝对不要提及财务状况、上市条件或风险（这些在其他标签页中处理）。
+                - 🚨 [必须包含 1] 必须包含具体数据（如MAU、营收占比、市场份额等），拒绝模糊表达。
+                - 🚨 [必须包含 2] 必须通过与主要竞争对手（Peers）的明确比较，阐述该企业独有的竞争优势（或劣势）。
+                - 第一段: 包含具体数据的商业模式及核心产品/服务说明。
+                - 第二段: 市场份额、盈利结构，以及与主要竞争对手的明确竞争优劣势比较。
+                - 第三段: 未来的新业务扩张计划及最新市场趋势。
+                """
+                search_directive = f"""
+                - 🚨 [强制搜索] FMP数据不足。请立即使用Google搜索查找“{company_name} {ticker} business model”和“{company_name} market share competitors”。
+                - 基于搜索到的“实际事实和数据”进行非常详细的总结。
+                """
+            else: # ko
+                task1_label = "[작업 1: S-1 기반 비즈니스 심층 요약]"
+                task1_structure = """
+                - 🚨 [차별화 규칙] 재무 상태나 상장 조건, 리스크는 다른 탭에서 다루므로 절대 언급하지 마세요.
+                - 🚨 [필수 포함 1] 막연한 설명 대신 가급적 구체적인 수치(MAU, 매출 비중, 점유율 등)를 반드시 1개 이상 포함하세요.
+                - 🚨 [필수 포함 2] 주요 경쟁사(Peers)와의 명확한 비교를 통해 이 기업만의 경쟁 우위(또는 열위)를 반드시 서술하세요.
+                - 1문단: 구체적 수치를 동반한 비즈니스 모델 및 핵심 제품/서비스 설명
+                - 2문단: 시장 점유율, 수익 구조, 그리고 주요 경쟁사와의 명확한 경쟁 우위/열위 비교
+                - 3문단: 향후 신사업 확장 계획 및 최신 시장 트렌드
+                """
+                search_directive = f"""
+                - 🚨 [강제 검색] FMP 데이터가 부족합니다. 즉시 구글 검색을 통해 "{company_name} {ticker} business model", "{company_name} market share competitors"를 찾아주세요.
+                - 검색된 '실제 팩트와 수치'를 바탕으로 매우 상세히 요약하세요.
+                """
         else:
-            # 대안 2: FMP 데이터가 있을 때의 일반적인 분석 (기존 로직 유지)
-            task1_label = f"[{'작업 1: 신규 IPO 비즈니스 심층 분석' if lang_code == 'ko' else 'Task 1: Deep Business Model Analysis'}]"
-            task1_structure = "\n- 1문단: 비즈니스 모델 및 시장 내 핵심 경쟁 우위\n- 2문단: 재무 현황 및 공모 자금 활용 계획\n- 3문단: 향후 산업 전망 및 종합 투자 의견\n"
-            search_directive = f"""
-            - 🚨 [환각 완전 금지] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오. 구글 검색 및 유추 절대 금지.
-            """
+            if lang_code == 'en':
+                task1_label = "[Task 1: Deep Business Model Analysis]"
+                task1_structure = """
+                - 🚨 [Must Include 1] Include specific numbers (revenue breakdown, user count, etc.) instead of vague descriptions.
+                - 🚨 [Must Include 2] Clearly describe competitive advantages (or disadvantages) by comparing with key peers.
+                - Para 1: Business model and core products/services with specific figures.
+                - Para 2: Market share, revenue structure, and clear competitive advantage/disadvantage against peers.
+                - Para 3: Future expansion plans and industry trends.
+                """
+                search_directive = """
+                - 🚨 [Strict Rule] Write ONLY using the [Part 1] text data provided below. Google search and hallucination are strictly prohibited.
+                """
+            elif lang_code == 'ja':
+                task1_label = "[タスク 1: 新規IPOビジネス深層分析]"
+                task1_structure = """
+                - 🚨 [必須項目 1] 曖昧な説明を避け、具体的な数値（売上比率、ユーザー数など）を必ず含めてください。
+                - 🚨 [必須項目 2] 主要な競合他社（Peers）との明確な比較を通じて、この企業ならではの競争優位性（または劣位性）を必ず記述してください。
+                - 第1段落: 具体的な数値を伴うビジネスモデルと主要製品/サービスの説明。
+                - 第2段落: 市場シェア、収益構造、および主要な競合他社との明確な競争優位性/劣位性の比較。
+                - 第3段落: 今後の新規事業拡張計画および業界トレンド。
+                """
+                search_directive = """
+                - 🚨 [厳格な規則] 以下に提供された [Part 1] のテキストデータのみを使用して作成してください。Google検索や推測は絶対に禁止です。
+                """
+            elif lang_code == 'zh':
+                task1_label = "[任务 1: 新 IPO 业务深度分析]"
+                task1_structure = """
+                - 🚨 [必须包含 1] 必须包含具体数据（如营收占比、用户数等），拒绝模糊表达。
+                - 🚨 [必须包含 2] 必须通过与主要竞争对手（Peers）的明确比较，阐述该企业独有的竞争优势（或劣势）。
+                - 第一段: 包含具体数据的商业模式及核心产品/服务说明。
+                - 第二段: 市场份额、盈利结构，以及与主要竞争对手的明确竞争优劣势比较。
+                - 第三段: 未来的新业务扩张计划及行业趋势。
+                """
+                search_directive = """
+                - 🚨 [严格规则] 只能使用下面提供的 [Part 1] 文本数据进行编写。严禁使用Google搜索和主观臆测。
+                """
+            else: # ko
+                task1_label = "[작업 1: 신규 IPO 비즈니스 심층 분석]"
+                task1_structure = """
+                - 🚨 [필수 포함 1] 막연한 설명 대신 가급적 구체적인 수치(매출 비중, 가입자 수 등)를 반드시 포함하세요.
+                - 🚨 [필수 포함 2] 주요 경쟁사(Peers)와의 명확한 비교를 통해 이 기업만의 경쟁 우위(또는 열위)를 반드시 서술하세요.
+                - 1문단: 구체적 수치를 동반한 비즈니스 모델 및 핵심 제품/서비스 설명
+                - 2문단: 시장 점유율, 수익 구조, 그리고 주요 경쟁사와의 명확한 경쟁 우위/열위 비교
+                - 3문단: 향후 신사업 확장 계획 및 산업 트렌드
+                """
+                search_directive = """
+                - 🚨 [환각 완전 금지] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오. 구글 검색 및 유추 절대 금지.
+                """
 
         prompt = f"""
         {sys_prompt}
@@ -1249,7 +1333,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         1. 언어: {lang_instruction}
         2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. (각 문단은 4~5문장 길이)
             {task1_structure}
-        3. 금지: "## Company Analysis" 같은 메인 제목 금지. 숫자 및 강조 표시(**) 금지.
+        3. 금지: 🚨 "알겠습니다", "작성하겠습니다" 같은 AI 특유의 대답이나 인사말은 절대 금지합니다! 글의 첫 글자부터 곧바로 기업 분석 본문을 시작하세요. "## Company Analysis" 같은 제목이나 숫자 넘버링도 금지합니다.
         
         {task2_label}
         - 만약 [Part 2]에 아무 뉴스도 없다면, 무리해서 지어내지 말고 빈 리스트 [] 를 반환하세요.
