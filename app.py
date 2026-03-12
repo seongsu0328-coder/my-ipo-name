@@ -4471,32 +4471,31 @@ else:
                         </div>
                     """, unsafe_allow_html=True)
         
-        # 하단 의사결정 박스 및 면책조항 (들여쓰기 위치 주의)
         draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
         display_disclaimer()
-                    
-            # --- Tab 1: 뉴스 & 심층 분석 ---
-            elif selected_sub_menu == get_text('tab_1'):
-                curr_lang = st.session_state.lang
-                
-                # 💡 [에러 해결] user_info가 None일 경우를 대비해 빈 딕셔너리({})로 안전하게 감싸줍니다.
-                user_info = st.session_state.get('user_info') or {}
-                user_level = user_info.get('membership_level', 'free')
-                is_premium = user_level in ['premium', 'premium_plus']
 
-                with st.spinner(get_text('msg_analyzing_tab1')):
-                    # 1. 기존 무료 데이터 (비즈니스 모델 + 구글 뉴스) 로드
-                    biz_info, final_display_news = get_unified_tab1_analysis(
-                        stock['name'], 
-                        stock['symbol'], 
-                        curr_lang, 
-                        stock.get('status', current_s), 
-                        stock.get('date') 
-                    )
-                    # 2. 신규 프리미엄 데이터 (기관 뉴스 + 보도자료) 로드
-                    news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
+    # 🚨 여기서부터 'if selected_sub_menu == ...' 라인과 세로 줄을 똑같이 맞춰야 합니다.
+    elif selected_sub_menu == get_text('tab_1'):
+        curr_lang = st.session_state.lang
+        
+        # 💡 [에러 해결] user_info가 None일 경우를 대비해 빈 딕셔너리({})로 안전하게 감싸줍니다.
+        user_info = st.session_state.get('user_info') or {}
+        user_level = user_info.get('membership_level', 'free')
+        is_premium = user_level in ['premium', 'premium_plus']
 
-                st.write("<br>", unsafe_allow_html=True)
+        with st.spinner(get_text('msg_analyzing_tab1')):
+            # 1. 기존 무료 데이터 (비즈니스 모델 + 구글 뉴스) 로드
+            biz_info, final_display_news = get_unified_tab1_analysis(
+                stock['name'], 
+                stock['symbol'], 
+                curr_lang, 
+                stock.get('status', current_s), 
+                stock.get('date') 
+            )
+            # 2. 신규 프리미엄 데이터 (기관 뉴스 + 보도자료) 로드
+            news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
+
+        st.write("<br>", unsafe_allow_html=True)
                 
                 # =========================================================
                 # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
