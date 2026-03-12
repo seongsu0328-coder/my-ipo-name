@@ -1820,7 +1820,7 @@ def run_tab4_ma_premium_collection(ticker, company_name):
         print(f"Tab4 Premium M&A Error for {ticker}: {e}")
     
 # ==========================================
-# [수정] 11개 지표 + 4단락 구조로 통합된 워커용 프롬프트
+# [수정/완전판] Tab 3: 미시 지표 (독립된 3D 카드 요약 + 논문 전문 동시 생성)
 # ==========================================
 def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return False
@@ -1831,139 +1831,89 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             days_passed = (datetime.now().date() - pd.to_datetime(ipo_date_str).date()).days
     except: pass
 
-    # [조건 5] 3개월 이내 기업은 7일(168시간), 3개월 초과는 한 달(30일 = 720시간)
-    if days_passed > 90:
-        valid_hours = 24 * 30
-    else:
-        valid_hours = 24 * 7 
-        
+    valid_hours = 24 * 30 if days_passed > 90 else 24 * 7 
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
     
     for lang_code, target_lang in SUPPORTED_LANGS.items():
-        cache_key = f"{ticker}_Tab3_v2_Premium_{lang_code}"
+        cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
+        cache_key_full = f"{ticker}_Tab3_v2_Premium_{lang_code}"
         
         try:
-            res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+            res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key_full).gt("updated_at", limit_time_str).execute()
             if res.data: continue 
         except: pass
 
-        if lang_code == 'en':
-            prompt = f"""You are a Lead Quant Analyst on Wall Street with a CFA charter.
-            Write an in-depth financial and investment analysis report for {company_name} ({ticker}) based strictly on the comprehensive data below.
+        g1_context = f"Growth/Profitability (Revenue Growth: {metrics.get('growth', 'N/A')}, Net Margin: {metrics.get('net_margin', 'N/A')}, Piotroski Score: {metrics.get('health_score', 'N/A')}/9)"
+        g2_context = f"Health/Quality (Debt/Equity: {metrics.get('debt_equity', 'N/A')}, Accruals Quality: {metrics.get('accruals', 'Unknown')})"
+        g3_context = f"Valuation (Forward PE: {metrics.get('pe', 'N/A')}, DCF Price: {metrics.get('dcf_price', 'N/A')}, Current Price: {metrics.get('current_price', 'N/A')})"
 
-            [Financial & Premium Data]
-            - Revenue Growth (YoY): {metrics.get('growth', 'N/A')}
-            - Net Margin: {metrics.get('net_margin', 'N/A')}
-            - OPM (Operating Margin): {metrics.get('op_margin', 'N/A')}
-            - ROE: {metrics.get('roe', 'N/A')}
-            - D/E Ratio: {metrics.get('debt_equity', 'N/A')}
-            - Forward PER: {metrics.get('pe', 'N/A')}
-            - Accruals Quality: {metrics.get('accruals', 'Unknown')}
-            - Current Price: {metrics.get('current_price', 'N/A')}
-            - DCF Value (Target Price): {metrics.get('dcf_price', 'N/A')}
-            - Quant Rating: {metrics.get('rating', 'N/A')} (Score: {metrics.get('health_score', 'N/A')}/5)
-            - Recommendation: {metrics.get('recommendation', 'N/A')}
-
-            [Writing Guidelines]
-            1. Language: Write STRICTLY and ENTIRELY in English. Do not mix Korean.
-            2. Format: You MUST use the following 4 headings to separate your paragraphs:
-               [Valuation & Market Position]
-               [Operating Performance]
-               [Risk & Solvency]
-               [Analyst Conclusion]
-            3. Content: YOU MUST INCLUDE THE EXACT NUMBERS from the data above. Interpret what the numbers imply. If a value is 'N/A', state that 'data is currently unavailable'. DO NOT use bold (**) for numbers or headings. (12-15 lines total)"""
-
+        # ----------------------------------------------------
+        # 🚀 [Call 1] 3D 카드 3장용 Specific 심층 요약 프롬프트 (완벽 분리)
+        # ----------------------------------------------------
+        if lang_code == 'ko':
+            sum_p = f"월가 애널리스트로서 {company_name}({ticker})의 재무 데이터를 바탕으로 3개의 독립된 대시보드 카드 요약을 작성하세요.\n[1번 카드]: {g1_context}\n[2번 카드]: {g2_context}\n[3번 카드]: {g3_context}"
+            sum_i = """
+            [UI 카드 작성 규칙 - 절대 엄수]
+            1. 당신의 답변은 웹사이트의 서로 다른 3개의 독립된 카드에 각각 들어갈 텍스트입니다. 자연스럽게 이어지는 에세이가 아닙니다.
+            2. 반드시 아래의 정확한 포맷으로만 출력하세요. 숫자 넘버링(1. 2.)이나 별도의 제목은 절대 쓰지 마세요.
+               [포맷]: (1번 카드: 매출과 마진을 바탕으로 본업 경쟁력 및 수익성 진단 3~4문장) |||SEP||| (2번 카드: 부채와 발생액 품질로 재무 생존력 및 건전성 진단 3~4문장) |||SEP||| (3번 카드: PER/DCF를 통해 현재 주가 과열 여부 및 밸류에이션 진단 3~4문장)
+            3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요.
+            4. 마이너스 수치나 데이터가 없어도 있는 그대로 팩트만 객관적으로 서술하세요. 절대 "데이터가 부족하여 판단할 수 없습니다"라고 변명하지 마세요.
+            5. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
+            """
+        elif lang_code == 'en':
+            sum_p = f"Write 3 independent financial dashboard card summaries for {company_name}({ticker}).\n[Card 1]: {g1_context}\n[Card 2]: {g2_context}\n[Card 3]: {g3_context}"
+            sum_i = """
+            [UI Card Rules]
+            1. Output EXACTLY 3 independent texts for 3 separate UI cards. Do not write a flowing essay.
+            2. Output FORMAT MUST BE: (Card 1: Diagnose business competitiveness and profitability using revenue and margins in 3-4 sentences) |||SEP||| (Card 2: Evaluate financial survival capacity using debt and accruals in 3-4 sentences) |||SEP||| (Card 3: Assess valuation and stock overheating using PE and DCF in 3-4 sentences).
+            3. DO NOT use numbers (1. 2. 3.) or titles. Separate strictly by '|||SEP|||'.
+            4. NEVER complain about missing data. State objective facts based on given numbers. Write in English.
+            """
         elif lang_code == 'ja':
-            prompt = f"""あなたはCFA資格を保有するウォール街のシニアクオンツアナリストです。
-            以下の包括的なデータに厳密に基づいて、{company_name} ({ticker})の深層財務および投資分析レポートを作成してください。
-
-            [財務およびプレミアムデータ]
-            - 売上成長率(YoY): {metrics.get('growth', 'N/A')}
-            - 純利益率(Net Margin): {metrics.get('net_margin', 'N/A')}
-            - 営業利益率(OPM): {metrics.get('op_margin', 'N/A')}
-            - ROE: {metrics.get('roe', 'N/A')}
-            - 負債比率(D/E): {metrics.get('debt_equity', 'N/A')}
-            - 予想PER: {metrics.get('pe', 'N/A')}
-            - 発生額の質(Accruals): {metrics.get('accruals', 'Unknown')}
-            - 現在の株価(Current Price): {metrics.get('current_price', 'N/A')}
-            - DCF目標株価(DCF Value): {metrics.get('dcf_price', 'N/A')}
-            - クオンツ評価(Quant Rating): {metrics.get('rating', 'N/A')} (スコア: {metrics.get('health_score', 'N/A')}/5)
-            - 投資判断(Recommendation): {metrics.get('recommendation', 'N/A')}
-
-            [作成ガイドライン]
-            1. 言語: 全て自然な日本語のみで記述してください。韓国語は絶対に混ぜないでください。
-            2. 形式: 以下の4つの見出しを**必ず**使用して段落を分けてください。
-               [Valuation & Market Position]
-               [Operating Performance]
-               [Risk & Solvency]
-               [Analyst Conclusion]
-            3. 内容: 上記のデータから正確な数値を必ず含め、それが持つ意味を解釈してください。値が「N/A」の場合はデータが存在しないと明記してください。数値や見出しに強調(**)は使わないでください。(全体で12〜15行程度)"""
-
+            sum_p = f"{company_name}({ticker})の財務について、3つの独立したダッシュボードカード要約を作成してください。\n[カード1]: {g1_context}\n[カード2]: {g2_context}\n[カード3]: {g3_context}"
+            sum_i = """
+            [UIカード作成規則]
+            1. 3つの異なるカードに挿入される、完全に独立した3つの文章を出力してください。
+            2. フォーマット: (カード1: 売上とマージンに基づく本業の競争力と収益性診断 3〜4文) |||SEP||| (カード2: 負債と発生額の質による財務的生存能力の評価 3〜4文) |||SEP||| (カード3: PERとDCFを通じた株価の過熱感とバリュエーション診断 3〜4文)
+            3. 番号(1. 2.)や見出しは禁止です。区切り文字 '|||SEP|||' のみを使用してください。
+            4. 「データ不足で評価できません」という不満は絶対に書かないでください。丁寧な日本語を使用してください。
+            """
         elif lang_code == 'zh':
-            prompt = f"""您是拥有CFA资格的华尔街首席量化分析师。
-            请严格根据以下综合数据，撰写关于 {company_name} ({ticker}) 的深度财务与投资分析报告。
+            sum_p = f"请为 {company_name}({ticker}) 的财务数据撰写3个独立的仪表板卡片摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}"
+            sum_i = """
+            [UI卡片规则]
+            1. 必须输出3段完全独立的文字，用于3个不同的UI卡片。不要写成连贯的文章。
+            2. 格式必须为: (卡片1: 基于营收和利润率诊断主业竞争力和盈利能力 3-4句话) |||SEP||| (卡片2: 通过债务和应计利润质量评估财务生存能力 3-4句话) |||SEP||| (卡片3: 通过PE和DCF诊断当前股价是否过热 3-4句话)
+            3. 严禁使用数字编号或标题。必须仅用 '|||SEP|||' 隔开。
+            4. 绝对不要抱怨“数据不足无法评估”。请使用专业简体中文编写。
+            """
 
-            [财务与高级数据]
-            - 营收增长率(YoY): {metrics.get('growth', 'N/A')}
-            - 净利润率(Net Margin): {metrics.get('net_margin', 'N/A')}
-            - 营业利润率(OPM): {metrics.get('op_margin', 'N/A')}
-            - ROE: {metrics.get('roe', 'N/A')}
-            - 资产负债率(D/E): {metrics.get('debt_equity', 'N/A')}
-            - 预测PER: {metrics.get('pe', 'N/A')}
-            - 会计账簿质量(Accruals): {metrics.get('accruals', 'Unknown')}
-            - 当前股价(Current Price): {metrics.get('current_price', 'N/A')}
-            - DCF目标价(DCF Value): {metrics.get('dcf_price', 'N/A')}
-            - 量化评级(Quant Rating): {metrics.get('rating', 'N/A')} (得分: {metrics.get('health_score', 'N/A')}/5)
-            - 投资建议(Recommendation): {metrics.get('recommendation', 'N/A')}
-
-            [编写指南]
-            1. 语言：必须只用简体中文编写。严禁混用韩语。
-            2. 格式：**必须**使用以下4个副标题来划分段落：
-               [Valuation & Market Position]
-               [Operating Performance]
-               [Risk & Solvency]
-               [Analyst Conclusion]
-            3. 内容：必须包含上述数据中的确切数值，并解释其含义。如果值为“N/A”，请声明数据暂不可用。不要对数值或标题使用加粗(**)。(整体12~15行左右)"""
-
+        # ----------------------------------------------------
+        # 🚀 [Call 2] 하단 전문(Academic CFA 리포트) - 투덜거림 원천 차단
+        # ----------------------------------------------------
+        if lang_code == 'en':
+            full_p = f"Write a CFA deep-dive report for {company_name}({ticker}) using: {g1_context}, {g2_context}, {g3_context}."
+            full_i = "[Strict Rules]\n1. NO MAIN TITLES. Start directly with subheadings.\n2. NEVER complain to the user about 'missing data'. State facts objectively.\n3. Use exactly 3 subheadings: [Business Engine & Growth], [Financial Health], [Valuation Verdict]. Write in English."
+        elif lang_code == 'ja':
+            full_p = f"以下のデータで {company_name}({ticker}) のCFA深層分析レポートを作成してください: {g1_context}, {g2_context}, {g3_context}."
+            full_i = "[規則]\n1. メインタイトルは不要です。\n2. 「データがないため評価できない」という不満や言い訳は絶対に書かないでください。\n3. [ビジネスエンジンと成長性]、[財務健全性]、[バリュエーションと結論] の3つの見出しで記述してください。"
+        elif lang_code == 'zh':
+            full_p = f"请使用以下数据为 {company_name}({ticker}) 撰写CFA深度分析报告: {g1_context}, {g2_context}, {g3_context}."
+            full_i = "[规则]\n1. 不要写主标题。\n2. 绝对不要向用户抱怨“由于缺乏数据难以评估”。\n3. 必须使用3个副标题：[业务引擎与增长性]、[财务健康度]、[估值与最终结论]。"
         else: # ko
-            prompt = f"""당신은 CFA 자격을 보유한 월스트리트 수석 퀀트 애널리스트입니다.
-            아래 제공된 종합 재무 및 프리미엄 데이터를 엄격하게 바탕으로 {company_name} ({ticker})의 심층 투자 분석 리포트를 작성하세요.
+            full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 CFA 심층 분석 리포트를 작성하세요: {g1_context}, {g2_context}, {g3_context}."
+            full_i = "[작성 규칙]\n1. 메인 제목(## 회사명 분석)을 쓰지 마세요.\n2. 유저에게 '데이터가 없어 평가하기 어렵습니다' 같은 변명이나 투덜거림을 절대 쓰지 마세요. 스팩(SPAC)이나 신생 기업이라 N/A가 많더라도 있는 그대로 냉철하게 팩트 폭격을 하세요.\n3. 소제목([비즈니스 엔진 및 성장성], [재무 건전성], [밸류에이션 및 최종 결론]) 3개로만 구성하세요. 반드시 '~습니다/ㅂ니다' 체를 사용하세요."
 
-            [재무 및 프리미엄 데이터]
-            - 매출 성장률(YoY): {metrics.get('growth', 'N/A')}
-            - 순이익률(Net Margin): {metrics.get('net_margin', 'N/A')}
-            - 영업이익률(OPM): {metrics.get('op_margin', 'N/A')}
-            - ROE: {metrics.get('roe', 'N/A')}
-            - 부채비율(D/E): {metrics.get('debt_equity', 'N/A')}
-            - 선행 PER: {metrics.get('pe', 'N/A')}
-            - 발생액 품질(Accruals): {metrics.get('accruals', 'Unknown')}
-            - 현재 주가(Current Price): {metrics.get('current_price', 'N/A')}
-            - DCF 산출 적정 주가(DCF Value): {metrics.get('dcf_price', 'N/A')}
-            - 건전성 종합 등급(Quant Rating): {metrics.get('rating', 'N/A')} (점수: {metrics.get('health_score', 'N/A')}/5)
-            - 퀀트 투자의견(Recommendation): {metrics.get('recommendation', 'N/A')}
+        try:
+            res_s = model_strict.generate_content(sum_p + sum_i).text.strip()
+            batch_upsert("analysis_cache", [{"cache_key": cache_key_sum, "content": res_s, "updated_at": datetime.now().isoformat()}], "cache_key")
 
-            [작성 가이드]
-            1. 언어: 반드시 한국어로 작성하세요.
-            2. 형식: 아래 4가지 소제목을 반드시 사용하여 단락을 구분하세요.
-               [Valuation & Market Position]
-               [Operating Performance]
-               [Risk & Solvency]
-               [Analyst Conclusion]
-            3. 어조: 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 격식 있고 정중한 존댓말(합쇼체)로 작성하십시오. (예: ~합니다, ~입니다, ~됩니다, ~전망됩니다 등). 절대 '~한다', '~이다' 형태의 평어체를 사용하지 마세요.
-            4. 내용: 제공된 데이터의 '실제 수치'를 반드시 포함하여 해석하세요. 데이터가 없을 경우 숫자를 지어내지 말고 데이터가 제공되지 않았습니다라고 하세요. 숫자에 별표(**) 강조를 절대 하지 마세요. (총 12~15줄 내외)"""
-        
-        for attempt in range(3):
-            try:
-                response = model_strict.generate_content(prompt)
-                res_text = response.text
-                
-                if lang_code != 'ko' and re.search(r'[가-힣]', res_text):
-                    time.sleep(1); continue 
-                        
-                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": res_text, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-                break 
-            except Exception as e:
-                time.sleep(1)
+            res_f = model_strict.generate_content(full_p + full_i).text.strip()
+            batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_f, "updated_at": datetime.now().isoformat()}], "cache_key")
+            
+            print(f"🌍 Tab 3 미시 지표 이중 리포트 렌더링 최적화 완료 ({lang_code})")
+        except Exception as e: pass
 
 # ==========================================
 # [신규 추가] Tab 3 프리미엄 요약 전용 프롬프트 (다국어 완벽 분리)
@@ -2187,17 +2137,14 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         print(f"Tab3 Premium Revenue Seg Error for {ticker}: {e}")
 
 # ==========================================
-# [수정/완전판] Tab 2: 거시 지표 수집 (FMP 연동 + 실시간 연산 + 이중 AI 분석)
+# [수정/완전판] Tab 2: 거시 지표 수집 (FMP 연동 + 실시간 연산 + 독립된 3D 카드 다국어 분석)
 # ==========================================
 def update_macro_data(df):
-    """Tab 2: 실제 FMP 데이터 및 실시간 IPO 데이터를 활용한 거시 지표 연산 및 AI 리포트 생성"""
     if 'model_strict' not in globals() or not model_strict: return
     
-    # [조건 4] 하루 한 번 업데이트 (24시간)
     valid_hours = 24
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
     
-    # 💡 [핵심 최적화] 캐시를 먼저 검사해서 24시간이 안 지났으면 연산 자체를 스킵 (API 비용 방어)
     try:
         res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", "Market_Dashboard_Metrics").gt("updated_at", limit_time_str).execute()
         if res.data: 
@@ -2207,79 +2154,48 @@ def update_macro_data(df):
 
     print("🌍 거시 지표(Tab 2) 실제 데이터 업데이트 및 연산 중...")
     
-    # 1. 동적 연산을 위한 기본 변수 초기화
     today = datetime.now()
     data = {
-        "ipo_return": 0.0, 
-        "ipo_volume": 0, 
-        "unprofitable_pct": 0.0,
-        "withdrawal_rate": 0.0,
-        "vix": 20.0, 
-        "fear_greed": 50, 
-        "buffett_val": 195.0, 
-        "pe_ratio": 24.0
+        "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0.0,
+        "withdrawal_rate": 0.0, "vix": 20.0, "fear_greed": 50, 
+        "buffett_val": 195.0, "pe_ratio": 24.0
     }
     
-    # ---------------------------------------------------------
-    # [A] 실시간 IPO 데이터 기반 연산 (과열/침체 판단용)
-    # ---------------------------------------------------------
     try:
         if not df.empty:
             df['dt'] = pd.to_datetime(df['date'], errors='coerce')
-            
-            # 1) ipo_volume: 향후 30일 상장 예정 건수
             upcoming = df[(df['dt'] > today) & (df['dt'] <= today + timedelta(days=30))]
             data["ipo_volume"] = len(upcoming)
             
-            # 2) withdrawal_rate: 최근 1년 내 철회(Withdrawn) 비율
             past_1y = df[(df['dt'] >= today - timedelta(days=365)) & (df['dt'] <= today)]
             if len(past_1y) > 0:
                 withdrawn_cnt = len(past_1y[past_1y['status'].str.lower().str.contains('withdrawn|철회', na=False)])
                 data["withdrawal_rate"] = (withdrawn_cnt / len(past_1y)) * 100
                 
-            # 3) unprofitable_pct (적자 상장 비율) 및 ipo_return (첫날 수익률)
             data["unprofitable_pct"] = 75.0 if data["ipo_volume"] > 15 else 60.0
             data["ipo_return"] = 18.5 if data["vix"] < 15 else 5.2
-            
-    except Exception as e:
-        print(f"IPO Metrics Calc Error: {e}")
+    except Exception as e: pass
 
-    # ---------------------------------------------------------
-    # [B] FMP API 기반 거시 경제 지표 연동
-    # ---------------------------------------------------------
     try:
         q_url = f"https://financialmodelingprep.com/stable/quote?symbol=^VIX,SPY,^W5000&apikey={FMP_API_KEY}"
         q_res = requests.get(q_url, timeout=5).json()
-        
-        if isinstance(q_res, dict) and "Error Message" in q_res:
-            print(f"🚫 [Tab 2 거시지표 차단됨] -> {q_res['Error Message']}")
-        elif isinstance(q_res, list):
+        if isinstance(q_res, list):
             q_map = {item['symbol']: item for item in q_res}
             if '^VIX' in q_map: data["vix"] = float(q_map['^VIX'].get('price', 20.0))
             if 'SPY' in q_map: data["pe_ratio"] = float(q_map['SPY'].get('pe', 24.5))
             if '^W5000' in q_map:
                 w5000_price = float(q_map['^W5000'].get('price', 0))
                 if w5000_price > 0:
-                    estimated_market_cap_trillion = (w5000_price * 1.1) / 1000
-                    current_us_gdp_trillion = 28.0 
-                    data["buffett_val"] = (estimated_market_cap_trillion / current_us_gdp_trillion) * 100
+                    data["buffett_val"] = ((w5000_price * 1.1) / 1000 / 28.0) * 100
 
         r_url = f"https://financialmodelingprep.com/stable/market-risk-premium?apikey={FMP_API_KEY}"
         r_res = requests.get(r_url, timeout=5).json()
-        
-        if isinstance(r_res, dict) and "Error Message" in r_res:
-            print(f"🚫 [Tab 2 Market Risk 차단됨] -> {r_res['Error Message']}")
-        elif isinstance(r_res, list) and len(r_res) > 0:
+        if isinstance(r_res, list) and len(r_res) > 0:
             us_risk = next((item for item in r_res if item.get('country') == 'United States'), None)
             if us_risk:
-                risk_premium = float(us_risk.get('totalEquityRiskPremium', 5.0))
-                fg_score = 100 - ((risk_premium - 3.0) * 20)
-                data["fear_greed"] = max(0, min(100, fg_score)) 
+                data["fear_greed"] = max(0, min(100, 100 - ((float(us_risk.get('totalEquityRiskPremium', 5.0)) - 3.0) * 20))) 
+    except Exception as e: pass
 
-    except Exception as e:
-        print(f"Macro Fetch Error: {e}")
-
-    # 🚨 [DB 저장] 연산된 숫자 데이터 저장 (app.py 호환)
     batch_upsert("analysis_cache", [{
         "cache_key": "Market_Dashboard_Metrics",
         "content": json.dumps(data),
@@ -2287,129 +2203,73 @@ def update_macro_data(df):
     }], on_conflict="cache_key")
 
     # =======================================================
-    # 🚀 [C] AI 리포트 생성 (1. 카드별 Specific 요약 / 2. Matrix 통합 리포트)
+    # 🚀 [C] AI 리포트 생성 (독립된 3개의 UI 카드용)
     # =======================================================
-    # 데이터 그룹 분리 정의 (인과관계 분석용)
-    g1_context = f"심리 지표 (초기 수익률 {data['ipo_return']}%, 상장 철회율 {data['withdrawal_rate']}%)"
-    g2_context = f"공급 및 질적 지표 (상장 예정 물량 {data['ipo_volume']}건, 적자 기업 비중 {data['unprofitable_pct']}%)"
-    g3_context = f"거시 지표 (VIX {data['vix']}, Fear&Greed {data['fear_greed']}, 버핏지수 {data['buffett_val']}%, S&P500 PE {data['pe_ratio']}x)"
+    g1_context = f"Sentiment/Liquidity (IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%)"
+    g2_context = f"Risk/Supply (Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%)"
+    g3_context = f"Macro/Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
 
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_summary = f"Global_Market_Summary_{lang_code}"
         cache_key_full = f"Global_Market_Dashboard_{lang_code}"
         
-        # ----------------------------------------------------
-        # 💡 [Call 1] 카드 3장용 Specific 요약 프롬프트 (각 카드별 4~5문장 심층 분석)
-        # ----------------------------------------------------
+        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약 (명확한 가이드)
         if lang_code == 'ko':
-            sum_p = f"당신은 월가 수석 전략가입니다. 아래 3개 그룹의 지표를 금융공학적 관점에서 분석하여 각 카드에 들어갈 심층 코멘트를 작성하세요.\n1그룹: {g1_context}\n2그룹: {g2_context}\n3그룹: {g3_context}"
+            sum_p = f"월가 수석 전략가로서 다음 3개 그룹의 데이터를 바탕으로 3개의 독립적인 대시보드 카드 요약을 작성하세요.\n[1번 카드 데이터]: {g1_context}\n[2번 카드 데이터]: {g2_context}\n[3번 카드 데이터]: {g3_context}"
             sum_i = """
-            [작성 규칙 - Specific Summary]
-            1. 반드시 3개의 구절로 작성하고 각 구절 사이에는 '|||SEP|||'를 넣으세요.
-            2. [1구절-심리(카드1)]: 초기 수익률과 철회율 데이터를 바탕으로 현재 투자자들의 투기적 광기 및 위험 선호도(Risk-on/off)를 구체적으로 진단하세요.
-            3. [2구절-위험(카드2)]: 상장 예정 물량과 미수익 기업 비중을 결합하여 시장의 공급 과잉('공급 폭탄') 및 질적 저하 리스크를 분석하세요.
-            4. [3구절-거시(카드3)]: 변동성(VIX/F&G)과 밸류에이션(PE/버핏지수)을 결합하여 현재 증시 펀더멘털의 과열 여부와 가격 정당성을 평가하세요.
-            5. 분량 및 어조: 각 구절은 반드시 '4~5줄(문장)'의 깊이 있는 분량으로 작성하세요. 모든 문장은 '~습니다', '~ㅂ니다' 형태의 격식 있는 정중체(합쇼체)를 유지하세요.
+            [UI 카드 작성 규칙 - 절대 엄수]
+            1. 당신의 답변은 웹사이트의 서로 다른 3개의 독립된 카드에 각각 들어갈 텍스트입니다. 자연스럽게 이어지는 에세이가 아닙니다.
+            2. 반드시 아래의 정확한 포맷으로만 출력하세요. 숫자 넘버링(1. 2.)이나 별도의 제목은 절대 쓰지 마세요.
+               [포맷]: (1번 카드: 초기 수익률과 철회율 데이터를 바탕으로 투기적 광기 및 위험 선호도 진단 3~4문장) |||SEP||| (2번 카드: 상장 예정 물량과 미수익 기업 비중을 결합하여 공급 과잉 및 질적 저하 리스크 분석 3~4문장) |||SEP||| (3번 카드: VIX, 공포탐욕지수, 밸류에이션(PE/버핏지수)을 결합하여 증시 전반의 거시적 과열 여부 진단 3~4문장)
+            3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요.
+            4. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
             """
         elif lang_code == 'en':
-            sum_p = f"Lead Wall Street Strategist. Provide specific causal analysis for 3 segments:\nGrp 1: {g1_context}\nGrp 2: {g2_context}\nGrp 3: {g3_context}"
+            sum_p = f"Write 3 completely independent dashboard card summaries.\n[Card 1 Data]: {g1_context}\n[Card 2 Data]: {g2_context}\n[Card 3 Data]: {g3_context}"
             sum_i = """
-            [Strict Rules]
-            1. Write exactly 3 segments separated by '|||SEP|||'.
-            2. Seg 1 (Card 1 - Sentiment): Diagnose speculative mania and liquidity using IPO Returns and Withdrawal Rates.
-            3. Seg 2 (Card 2 - Risk): Analyze supply glut and quality degradation using Pipeline volume and Unprofitable ratio.
-            4. Seg 3 (Card 3 - Macro): Evaluate market overheating using Volatility (VIX/F&G) and Valuation (PE/Buffett).
-            5. Length & Tone: Each segment MUST be exactly 4-5 sentences long, providing deep analysis. Maintain a professional, cold, and objective tone.
+            [UI Card Rules]
+            1. Output EXACTLY 3 independent texts for 3 separate UI cards. Do not write a flowing essay.
+            2. Output FORMAT MUST BE: (Card 1: Diagnose speculative mania using IPO return and withdrawal rate in 3-4 sentences) |||SEP||| (Card 2: Analyze supply risk using upcoming IPOs and unprofitable ratio in 3-4 sentences) |||SEP||| (Card 3: Evaluate macroeconomic overheating using VIX, Fear&Greed, Buffett, and PE in 3-4 sentences).
+            3. DO NOT use numbers (1. 2. 3.) or titles. Separate strictly by '|||SEP|||'. Write in English.
             """
         elif lang_code == 'ja':
-            sum_p = f"ウォール街のシニアストラテジストです。以下の3グループの指標を金融工学の観点から分析し、各カード用の深層コメントを作成してください。\nG1: {g1_context}\nG2: {g2_context}\nG3: {g3_context}"
+            sum_p = f"3つの独立したダッシュボードカードの要約を作成してください。\n[カード1のデータ]: {g1_context}\n[カード2のデータ]: {g2_context}\n[カード3のデータ]: {g3_context}"
             sum_i = """
-            [作成規則]
-            1. 必ず3つのセグメントに分け、間に '|||SEP|||' を入れてください。
-            2. 第1部 (カード1 - 心理): 初期収益率と撤回率に基づき、投資家の投機的熱狂とリスク選好度を診断してください。
-            3. 第2部 (カード2 - リスク): 上場予定件数と赤字企業比率を結合し、市場の供給過剰および質的低下リスクを分析してください。
-            4. 第3部 (カード3 - マクロ): ボラティリティとバリュエーションを結合し、現在の市場ファンダメンタルズの過熱感を評価してください。
-            5. 分量と語尾: 各セグメントは必ず「4〜5文」の深みのある内容で作成してください。必ず「〜です/ます」調の丁寧なビジネス敬語を使用してください。
+            [UIカード作成規則]
+            1. 3つの異なるカードに挿入される、完全に独立した3つの文章を出力してください。
+            2. フォーマット: (カード1: 初期収益率と撤回率に基づく投機的熱狂の診断 3〜4文) |||SEP||| (カード2: 上場予定件数と赤字企業比率による供給リスク分析 3〜4文) |||SEP||| (カード3: VIX、Fear&Greed、バフェット指数、PEを結合したマクロ的な過熱感の評価 3〜4文)
+            3. 番号(1. 2.)や見出しは禁止です。区切り文字 '|||SEP|||' のみを使用してください。丁寧な日本語を使用してください。
             """
-        else: # zh
-            sum_p = f"华尔街首席战略家。请从金融工程角度分析以下3组指标，为每张卡片撰写深度摘要。\n组1: {g1_context}\n组2: {g2_context}\n组3: {g3_context}"
+        elif lang_code == 'zh':
+            sum_p = f"请为3个独立的仪表板卡片撰写摘要。\n[卡片1数据]: {g1_context}\n[卡片2数据]: {g2_context}\n[卡片3数据]: {g3_context}"
             sum_i = """
-            [编写规则]
-            1. 必须严格分为3个部分，中间用 '|||SEP|||' 隔开。
-            2. 第一部分 (卡片1 - 情绪): 结合初期收益率与撤回率，具体诊断当前投资者的投机狂热与风险偏好状态。
-            3. 第二部分 (卡片2 - 风险): 结合上市排队数量与亏损企业占比，分析市场供给过剩及质量下降的风险。
-            4. 第三部分 (卡片3 - 宏观): 结合波动率与估值水平，评估当前股市基本面是否过热及价格合理性。
-            5. 篇幅与语气: 每部分必须包含 4-5 句话，提供有深度的逻辑分析。必须使用专业、严谨的正式书面用语。
+            [UI卡片规则]
+            1. 必须输出3段完全独立的文字，用于3个不同的UI卡片。不要写成连贯的文章。
+            2. 格式必须为: (卡片1: 结合初期收益率与撤回率诊断投机狂热 3-4句话) |||SEP||| (卡片2: 结合上市排队数量与亏损企业占比分析供给风险 3-4句话) |||SEP||| (卡片3: 结合VIX、恐慌贪婪指数、巴菲特指标和PE评估宏观经济是否过热 3-4句话)
+            3. 严禁使用数字编号或标题。必须仅用 '|||SEP|||' 隔开。使用专业简体中文编写。
             """
 
-        # ----------------------------------------------------
-        # 💡 [Call 2] 통합 분석용 Matrix 프로토콜 프롬프트/인스트럭션
-        # ----------------------------------------------------
-        if lang_code == 'ko':
-            full_p = f"당신은 월가의 수석 투자 전략가입니다. 다음 모든 지표를 바탕으로 'Global Macro Strategic Matrix' 프로토콜에 따라 심층 시장 진단 보고서를 작성하세요.\n데이터: {g1_context}, {g2_context}, {g3_context}"
-            full_i = """
-            [분석 프로토콜 준수 지시]
-            1. [Valuation Check]: 버핏지수와 PE를 통해 전체 증시의 밸류에이션 부담 수준을 먼저 진단하세요.
-            2. [Market Liquidity]: IPO 파이프라인의 물량과 수익성을 결합하여 자본시장의 자금 흡수 능력을 평가하세요.
-            3. [Sentiment Analysis]: VIX와 초기 수익률을 통해 시장의 기저 심리가 '투기적 탐욕'인지 '합리적 낙관'인지 규명하세요.
-            4. [Strategic Verdict]: 위 분석을 종합하여 현재 포트폴리오 관점에서 '공격적 매수', '선별적 접근', '현금 비중 확대' 중 최적의 투자 전략을 제시하세요.
-            5. 문단 구분 없이 5~7줄의 단일 문단 리포트로 작성하며, 인사말 없이 곧바로 본론부터 시작하세요. 반드시 '~습니다/ㅂ니다' 정중체를 유지하세요.
-            """
-        elif lang_code == 'en':
-            full_p = f"Senior Strategy Report. Analyze all indicators based on the 'Global Macro Strategic Matrix' protocol.\nData: {g1_context}, {g2_context}, {g3_context}"
-            full_i = """
-            [Protocol Instructions]
-            1. [Valuation Check]: Diagnose valuation burden using the Buffett Indicator and PE ratio.
-            2. [Market Liquidity]: Evaluate capital market absorption capacity using IPO volume and profitability.
-            3. [Sentiment Analysis]: Distinguish between 'Speculative Greed' and 'Rational Optimism' using VIX and Returns.
-            4. [Strategic Verdict]: Synthesize the above to derive the optimal portfolio strategy (Aggressive Buy, Selective Approach, or Cash Heavy).
-            5. Write a cohesive 5-7 line paragraph. Professional tone, no greetings.
-            """
+        # 💡 [Call 2] 하단 전문(Global Macro Strategic Matrix)
+        if lang_code == 'en':
+            full_p = f"Write a deep-dive market diagnosis report based on the 'Global Macro Strategic Matrix'.\nData: {g1_context}, {g2_context}, {g3_context}"
+            full_i = "[Instructions]\nWrite a SINGLE cohesive paragraph of 5-7 sentences evaluating Valuation, Liquidity, Sentiment, and Strategic Verdict. DO NOT use line breaks or subheadings. Omit greetings."
         elif lang_code == 'ja':
-            full_p = f"シニア投資ストラテジストです。次の全指標に基づき、「グローバル・マクロ戦略マトリックス」に従って深層市場診断レポートを作成してください。\nデータ: {g1_context}, {g2_context}, {g3_context}"
-            full_i = """
-            [分析プロトコル指示]
-            1. [Valuation Check]: バフェット指数とPEから株式市場全体のバリュエーション負担を診断。
-            2. [Market Liquidity]: IPO物量と収益性から資本市場の資金吸収能力を評価。
-            3. [Sentiment Analysis]: VIXと初期収益率から市場心理が投機的か理性的か究明。
-            4. [Strategic Verdict]: 分析を統合し、最適なポートフォリオ戦略を提示。
-            5. 段落を分けず、5〜7行の単一段落で作成。挨拶不要、格調高い「〜です/ます」調の敬語を使用。
-            """
-        else: # zh
-            full_p = f"华尔街资深策略师。请根据“全球宏观战略矩阵”协议，结合以下所有指标撰写深度市场诊断报告。\n数据: {g1_context}, {g2_context}, {g3_context}"
-            full_i = """
-            [协议指示]
-            1. [估值检查]: 通过巴菲特指标和PE诊断股市估值负担。
-            2. [市场流动性]: 结合IPO数量与质量评估资本市场的资金吸收能力。
-            3. [情绪分析]: 通过VIX和初期收益率区分市场心理是投机贪婪还是理性乐观。
-            4. [战略结论]: 综合以上得出最佳投资组合策略（积极买入、精选个股、持有现金）。
-            5. 写成5-7行的一段话落，不要分段。省略问候语，使用专业严谨的书面表达。
-            """
+            full_p = f"「グローバル・マクロ戦略マトリックス」に従って深層市場診断レポートを作成してください。\nデータ: {g1_context}, {g2_context}, {g3_context}"
+            full_i = "[指示]\nバリュエーション、流動性、心理、戦略的結論を評価する5〜7文の単一段落で作成してください。見出しや改行は絶対にしないでください。"
+        elif lang_code == 'zh':
+            full_p = f"请根据“全球宏观战略矩阵”撰写深度市场诊断报告。\n数据: {g1_context}, {g2_context}, {g3_context}"
+            full_i = "[指示]\n请写成一段包含5-7句话的单一段落，评估估值、流动性、情绪和战略结论。绝对不要分段或换行，不要使用副标题。"
+        else: # ko
+            full_p = f"'Global Macro Strategic Matrix' 프로토콜에 따라 심층 시장 진단 보고서를 작성하세요.\n데이터: {g1_context}, {g2_context}, {g3_context}"
+            full_i = "[지시사항]\n밸류에이션, 유동성, 심리, 투자 전략을 아우르는 5~7줄의 단일 문단(줄바꿈 없음) 리포트로 작성하세요. 인사말이나 소제목을 절대 쓰지 마세요. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요."
 
-        # ----------------------------------------------------
-        # 🚀 [API 호출 및 DB 캐싱 분리 실행]
-        # ----------------------------------------------------
         try:
-            # 1. 3D 카드용 Specific 요약 생성 (Call 1)
             res_sum = model_strict.generate_content(sum_p + sum_i).text.strip()
-            
-            # 한글 오염 방어
-            if lang_code != 'ko' and re.search(r'[가-힣]', res_sum): time.sleep(1)
-            else:
-                batch_upsert("analysis_cache", [{"cache_key": cache_key_summary, "content": res_sum, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+            batch_upsert("analysis_cache", [{"cache_key": cache_key_summary, "content": res_sum, "updated_at": datetime.now().isoformat()}], "cache_key")
 
-            # 2. 전문 익스팬더용 Matrix 통합 리포트 생성 (Call 2)
             res_full = model_strict.generate_content(full_p + full_i).text.strip()
-            
-            if lang_code != 'ko' and re.search(r'[가-힣]', res_full): time.sleep(1)
-            else:
-                batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_full, "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-
-            print(f"🌍 Tab 2 고도화 이중 리포트 캐싱 완료 ({lang_code})")
-            
-        except Exception as e:
-            print(f"❌ Tab 2 AI Report Error ({lang_code}): {e}")
-            time.sleep(1)
+            batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_full, "updated_at": datetime.now().isoformat()}], "cache_key")
+        except Exception as e: pass
 
 # ==========================================
 # [수정] Tab 6: 스마트머니 통합 데이터 수집 (국회의원 & 공매도 추가)
