@@ -1159,17 +1159,22 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     # 🚀 [환각 차단 파트 1] FMP 공식 사업모델 설명 확보
     profile_url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={FMP_API_KEY}"
     profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
-    biz_desc = profile_data[0].get('description', '') if (profile_data and isinstance(profile_data, list)) else ''
+    
+    # 🚨 [NoneType 방어막] 데이터가 null(None)인 경우에도 무조건 빈 문자열("")로 처리
+    if profile_data and isinstance(profile_data, list) and len(profile_data) > 0:
+        biz_desc = profile_data[0].get('description') or ""
+    else:
+        biz_desc = ""
 
     # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 15개 확보
     news_url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={ticker}&limit=15&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_15", news_url, valid_hours=6)
     
     fmp_news_context = ""
-    if news_data and isinstance(news_data, list):
-        fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in news_data])
+    if isinstance(news_data, list): # news_data가 리스트임을 보장
+        fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in news_data if n])
 
-    # 💡 [하이브리드 판단] FMP 데이터가 너무 비어있으면 구글 검색 모델로 땜빵!
+    # 💡 [하이브리드 판단] biz_desc는 이제 절대 None이 아니므로 len()에서 에러가 나지 않습니다.
     is_fmp_poor = len(biz_desc) < 50
     current_model = model_search if (is_fmp_poor and model_search is not None) else model_strict
 
