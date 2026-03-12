@@ -2,7 +2,6 @@ import streamlit as st
 import streamlit.components.v1 as components # [추가] GA4 스크립트 실행용
 import traceback
 import sys
-import urllib.parse
 
 # [중요] 에러를 잡기 위해 전체 코드를 try로 감쌉니다.
 try:
@@ -4429,23 +4428,28 @@ if t_topic == "8-K" and not is_premium:
     """
     st.markdown(locked_8k_html, unsafe_allow_html=True)
 else:
-    # ✅ 결제 회원 혹은 일반 공시 출력
-    if d_text:
-        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; white-space: pre-wrap;">{d_text}</div>', unsafe_allow_html=True)
-    else:
-        st.info("해당 서류의 분석 리포트를 생성 중이거나 데이터가 없습니다.")
-            
-                # 4. 외부 링크 및 하단 버튼
-                cik_val = profile.get('cik', '') if profile else ''
-                sec_q_val = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
-                if cik_val: sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_val}&type={urllib.parse.quote(sec_q_val)}&owner=include&count=40"
-                else: sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(stock['name'])}"
-                
-                real_web = profile.get('weburl') or profile.get('website', '') if profile else ''
-                web_url = real_web if real_web else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + stock['name'] + ' Investor Relations')}"
-                
-                st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 12px;">{get_text("btn_sec_link")} ({t_topic})</button></a>', unsafe_allow_html=True)
-
+        # ✅ 결제 회원 혹은 일반 공시 출력
+        if d_text:
+            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; white-space: pre-wrap;">{d_text}</div>', unsafe_allow_html=True)
+        else:
+            st.info("해당 서류의 분석 리포트를 생성 중이거나 데이터가 없습니다.")
+        
+        # --- 여기서부터 들여쓰기 위치를 'if d_text' 라인과 똑같이 맞췄습니다 ---
+        
+        # 4. 외부 링크 및 하단 버튼
+        import urllib.parse
+        cik_val = profile.get('cik', '') if profile else ''
+        sec_q_val = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
+        
+        if cik_val: 
+            sec_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_val}&type={urllib.parse.quote(sec_q_val)}&owner=include&count=40"
+        else: 
+            sec_url = f"https://www.sec.gov/edgar/search/#/q={urllib.parse.quote(stock['name'])}"
+        
+        real_web = profile.get('weburl') or profile.get('website', '') if profile else ''
+        web_url = real_web if real_web else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + stock['name'] + ' Investor Relations')}"
+        
+        st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 12px;">{get_text("btn_sec_link")} ({t_topic})</button></a>', unsafe_allow_html=True)
                 # =========================================================
                 # 🚀 [NEW] 어닝 콜 (Earnings Call) 프리미엄 섹션
                 # =========================================================
