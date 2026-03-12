@@ -64,9 +64,8 @@ if GENAI_API_KEY:
                 self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
                 
             def generate_content(self, prompt):
-                # 구글 서버가 요구하는 최신 2.0 규격의 JSON을 직접 전송
                 payload = {
-                    "contents": [{"parts": [{"text": prompt}]}],
+                    "contents":[{"parts": [{"text": prompt}]}],
                     "tools": [{"googleSearch": {}}] 
                 }
                 res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
@@ -76,9 +75,16 @@ if GENAI_API_KEY:
                 
                 if res.status_code == 200:
                     try:
-                        text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
-                        return MockResponse(text)
-                    except:
+                        # 💡 [수정됨] 검색 결과 메타데이터가 포함되어도 안전하게 텍스트만 긁어오도록 로직 강화
+                        data = res.json()
+                        text_output = ""
+                        for cand in data.get("candidates",[]):
+                            for part in cand.get("content", {}).get("parts",[]):
+                                if "text" in part:
+                                    text_output += part["text"]
+                        return MockResponse(text_output)
+                    except Exception as e:
+                        print(f"⚠️ [Search API Parse Error] {e}")
                         return MockResponse("")
                 else:
                     print(f"⚠️ [Google Search API Error] {res.text}")
@@ -1234,7 +1240,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     valid_news = [n for n in (news_data or []) if n and str(n.get('symbol', '')).upper() == ticker.upper()]
     fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in valid_news])
 
-    is_fmp_poor = (len(biz_desc) < 50) or (len(valid_news) == 0)
+    is_fmp_poor = (len(biz_desc) < 50) or (len(valid_news) < 5)
     can_search = is_fmp_poor and (model_search is not None)
     current_model = model_search if can_search else model_strict
 
@@ -2219,6 +2225,7 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         cache_key_full = f"{ticker}_Tab3_v2_Premium_{lang_code}"
         
         try:
+            # 캐시가 이미 존재하면 건너뜀 (만약 기존에 공백으로 저장된 것이 있다면 Supabase에서 지워야 함)
             res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key_full).gt("updated_at", limit_time_str).execute()
             if res.data: continue 
         except: pass
@@ -2245,13 +2252,13 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         elif lang_code == 'en':
             search_directive = f"\n🚨 [FORCE SEARCH] Use Google Search for '{company_name} {ticker} financial results 2024 2025' and include exact numbers." if can_fin_search else ""
             sum_p = f"Write 3 card summaries for {company_name}({ticker}).\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
-            sum_i = """[STRICT] Output 3 text blocks separated ONLY by '|||SEP|||'. NO line breaks inside blocks."""
+            sum_i = """[STRICT] Output exactly 3 text blocks separated ONLY by '|||SEP|||'. NO line breaks inside blocks."""
             full_p = f"Write a financial analysis report for {company_name}({ticker}).\nData: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
             full_i = """[STRICT] 1. NO emojis, NO main title. Start immediately with the first subheading. 2. Use subheadings: **[Profitability & Growth Analysis]**, **[Financial Health & Cash Flow]**, **[Valuation & Final Verdict]**. 3. Quote hard numbers."""
         elif lang_code == 'ja':
             search_directive = f"\n🚨 [強制検索] Google検索で「{company_name} {ticker} 2024 2025 financial results」を検索し、具体的な数値を含めてください。" if can_fin_search else ""
             sum_p = f"{company_name}({ticker})の3つのカード要約を作成してください。\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
-            sum_i = """[厳格] 挨拶禁止。3つのテキストを '|||SEP|||' で区切って出力。"""
+            sum_i = """[厳格] 挨拶禁止。3つのテキストを必ず '|||SEP|||' で区切って出力。"""
             full_p = f"{company_name}({ticker})の財務分析レポートを作成してください。\nデータ: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
             full_i = """[厳格] 1. 挨拶や絵文字(🎓など)、メインタイトルは絶対禁止。小見出し: **[収益性と成長性の分析]**, **[財務健全性とキャッシュフロー]**, **[適正価値と総合投資意見]** のみ使用。 3. 具体的な数値を引用。"""
         else: # zh
@@ -2262,27 +2269,40 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             full_i = """[严格] 1. 绝对禁止表情符号(🎓)和主标题。直接使用副标题: **[盈利能力与增长性分析]**, **[财务健康与现金流]**, **[合理估值与综合投资意见]**。 3. 引用具体数据。"""
 
         try:
-            # 1. 3D 카드 요약 생성
+            # ----------------------------------------------------
+            # 1. 3D 카드 요약 생성 (|||SEP||| 분할 안전망 추가)
+            # ----------------------------------------------------
             res_sum = current_tab3_model.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
                 clean_sum = res_sum.text.strip()
                 clean_sum = re.sub(r'^(알겠습니다|네,|작성하겠습니다|Understood|Certainly|Here is).*?(\n|$)', '', clean_sum, flags=re.IGNORECASE).strip()
-                # 🚨 [중요] |||SEP||| 가 제대로 작동하도록 줄바꿈 강제 제거 (앱 파싱 에러 방지)
-                clean_sum = clean_sum.replace('\n', ' ').strip()
                 
-                batch_upsert("analysis_cache", [{"cache_key": cache_key_sum, "content": clean_sum, "updated_at": datetime.now().isoformat()}], "cache_key")
+                # 🚨 [안전망 추가] AI가 말을 안 듣고 줄바꿈으로만 답했을 경우, 프론트엔드 에러 방지를 위해 강제로 |||SEP||| 삽입
+                if "|||SEP|||" not in clean_sum:
+                    parts =[p.strip() for p in clean_sum.split('\n') if len(p.strip()) > 10]
+                    clean_sum = " |||SEP||| ".join(parts[:3]) # 최대 3개 카드 포맷 강제 생성
 
-            # 2. 하단 전문 리포트 생성
+                clean_sum = clean_sum.replace('\n', ' ').strip()
+                batch_upsert("analysis_cache",[{"cache_key": cache_key_sum, "content": clean_sum, "updated_at": datetime.now().isoformat()}], "cache_key")
+
+            # ----------------------------------------------------
+            # 2. 하단 전문 리포트 생성 (HTML <p> 태그 래핑 추가)
+            # ----------------------------------------------------
             res_full = current_tab3_model.generate_content(full_p + full_i)
             if res_full and res_full.text:
                 clean_full = res_full.text.strip()
-                # 🚨 🎓 이모지와 "CFA Quant 어쩌고" 메인 제목 완벽 삭제!
+                # 서론/인사말 및 불필요한 이모지 제거
                 clean_full = re.sub(r'^(알겠습니다|네,|작성하겠습니다|요청하신|보고서입니다|Understood).*?(\n|$)', '', clean_full, flags=re.IGNORECASE | re.MULTILINE).strip()
                 clean_full = re.sub(r'(?i)(🎓|📊|📈|💡|🚀|CFA Quant Deep-Dive Analysis|CFA Quant|기업 분석 보고서|재무 분석 보고서)', '', clean_full).strip()
-                # 혹시 메인 제목에 볼드가 씌워져 있었다면 그것도 삭제
                 clean_full = re.sub(r'^\*\*(🎓|CFA|Quant|기업 분석).*?\*\*\s*\n', '', clean_full, flags=re.IGNORECASE).strip()
                 
-                batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": clean_full, "updated_at": datetime.now().isoformat()}], "cache_key")
+                # 🚨 [핵심 추가] 프론트엔드가 렌더링할 수 있도록 HTML <p> 태그로 래핑
+                paragraphs =[p.strip() for p in clean_full.split('\n') if p.strip() and len(p.strip()) > 10]
+                indent_size = "14px" if lang_code == "ko" else "0px"
+                
+                html_full = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+                
+                batch_upsert("analysis_cache",[{"cache_key": cache_key_full, "content": html_full, "updated_at": datetime.now().isoformat()}], "cache_key")
                 
             print(f"✅ [{ticker}] Tab 3 미시 지표 분석 완료 ({lang_code}) - {'Search' if can_fin_search else 'Strict'}")
         except Exception as e:
@@ -2620,43 +2640,41 @@ def update_macro_data(df):
             3. 仅使用 '|||SEP|||' 作为分隔符。
             """
 
-        # 💡 [Call 2] 하단 전문 (소제목 굵게 처리 강제)
+        # 💡[Call 2] 하단 전문 (소제목 금지 및 들여쓰기 강제)
         if lang_code == 'ko':
             full_p = f"월가 수석 전략가로서 다음 데이터를 바탕으로 현재 글로벌 거시경제 및 IPO 시장 환경에 대한 심층 분석 리포트를 작성하세요.\n[1번]: {g1_context}\n[2번]: {g2_context}\n[3번]: {g3_context}"
             full_i = """
             [작성 규칙]
-            1. 메인 제목(## 분석 등)은 절대 쓰지 마세요.
-            2. 🚨 반드시 3개의 소제목을 마크다운 굵은 글씨와 대괄호를 사용하여 작성하세요: **[시장 유동성 및 투기 심리]**, **[공급 리스크 및 질적 평가]**, **[매크로 환경 및 밸류에이션]**.
-            3. 소제목을 쓴 후 바로 다음에 본문 내용을 이어서 작성하세요. 각 단락은 4~5문장 길이로 꽉 채워서 작성하세요.
-            4. 제공된 수치를 반드시 본문에 포함하여 근거로 제시하세요.
+            1. 메인 제목(## 분석 등) 및 소제목(**[시장 유동성]** 등)은 절대 쓰지 마세요.
+            2. 총 3개의 단락으로만 구성하며, 각 단락의 첫 문장은 들여쓰기(스페이스바 2칸 또는 탭)로 자연스럽게 시작하세요.
+            3. 제공된 수치를 반드시 본문에 자연스럽게 녹여서 근거로 제시하세요.
+            4. 각 단락은 4~5문장 길이로 꽉 채워서 작성하세요.
             5. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
             """
         elif lang_code == 'en':
             full_p = f"Write a deep-dive macroeconomic report using this data:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
             full_i = """
             [Rules]
-            1. NO MAIN TITLE.
-            2. 🚨 Use EXACTLY 3 subheadings heavily bolded with brackets: **[Market Liquidity & Speculation]**, **[Supply Risk & Quality]**, **[Macro Environment & Valuation]**.
-            3. Write the paragraph immediately after the subheading.
-            4. You MUST quote the exact numbers provided.
+            1. NO MAIN TITLE and NO SUBHEADINGS (Do not use bold text for section names).
+            2. Write EXACTLY 3 paragraphs. Start each paragraph with an indent (2 spaces).
+            3. You MUST quote the exact numbers provided naturally within the text.
+            4. Each paragraph should be 4-5 sentences long.
             """
         elif lang_code == 'ja':
             full_p = f"次のデータを用いてマクロ経済の深層分析レポートを作成してください:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
             full_i = """
             [規則]
-            1. メインタイトルは禁止。
-            2. 🚨 必ず3つの小見出しを太字と括弧を使用して作成してください: **[市場の流動性と投機心理]**, **[供給リスクと質的評価]**, **[マクロ環境とバリュエーション]**。
-            3. 小見出しの直後に本文を書き始めてください。
-            4. 提供された数値を必ず引用してください。
+            1. メインタイトルや小見出し(**[市場の流動性]**など)は絶対に使用しないでください。
+            2. 全体で3つの段落のみで構成し、各段落の先頭は字下げ(スペース)で始めてください。
+            3. 提供された数値を必ず本文に引用してください。
             """
         else: # zh
             full_p = f"请使用以下数据撰写宏观经济深度分析报告:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
             full_i = """
             [规则]
-            1. 严禁写主标题。
-            2. 🚨 必须使用3个带方括号并加粗的副标题: **[市场流动性与投机情绪]**, **[供给风险与质量评估]**, **[宏观环境与估值]**。
-            3. 副标题后直接开始写正文。
-            4. 必须在正文中引用提供的具体数据。
+            1. 严禁写主标题和副标题（绝对不要加粗章节名称）。
+            2. 必须严格分为3个段落，每个段落开头请缩进（空两格）。
+            3. 必须在正文中自然地引用提供的具体数据。
             """
 
         try:
