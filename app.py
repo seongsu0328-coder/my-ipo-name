@@ -4478,7 +4478,7 @@ with main_area.container():
             # 2. 프리미엄 데이터 요약 로드
             news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
 
-        # 🚨 여기서부터 모든 'with'와 'st.' 문장들은 'curr_lang' 줄과 세로 줄이 똑같아야 합니다!
+        # 🚨 여기서부터 모든 줄의 시작 위치가 'curr_lang'과 똑같아야 합니다.
         st.write("<br>", unsafe_allow_html=True)
         
         # =========================================================
