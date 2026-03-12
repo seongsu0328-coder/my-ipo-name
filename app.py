@@ -4471,33 +4471,33 @@ else:
                         </div>
                     """, unsafe_allow_html=True)
         
-        # --- Tab 0 (공시 분석)의 맨 마지막 두 줄 ---
+        # --- Tab 0 (공시 분석)의 맨 마지막 부분 ---
         draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
         display_disclaimer()
 
-    # 🚨 이 elif는 위로 쭉 올라가서 'if selected_sub_menu == get_text("tab_0"):' 줄과 
-    # 세로 줄이 완벽하게(1mm의 오차도 없이) 일치해야 합니다.
-    elif selected_sub_menu == get_text('tab_1'):
-        curr_lang = st.session_state.lang
-        
-        # user_info 안전 장치
-        user_info = st.session_state.get('user_info') or {}
-        user_level = user_info.get('membership_level', 'free')
-        is_premium = user_level in ['premium', 'premium_plus']
+    # 🚨 [여기 중요] 이 elif는 위쪽의 if selected_sub_menu == get_text('tab_0'): 줄과 
+    # 왼쪽 시작 세로선이 '완벽하게' 일치해야 합니다. (보통 스페이스 8칸 위치)
+        elif selected_sub_menu == get_text('tab_1'):
+            curr_lang = st.session_state.lang
+            
+            # user_info 안전 장치
+            user_info = st.session_state.get('user_info') or {}
+            user_level = user_info.get('membership_level', 'free')
+            is_premium = user_level in ['premium', 'premium_plus']
 
-        with st.spinner(get_text('msg_analyzing_tab1')):
-            # 1. 무료 데이터 분석
-            biz_info, final_display_news = get_unified_tab1_analysis(
-                stock['name'], 
-                stock['symbol'], 
-                curr_lang, 
-                stock.get('status', current_s), 
-                stock.get('date') 
-            )
-            # 2. 프리미엄 데이터 요약
-            news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
+            with st.spinner(get_text('msg_analyzing_tab1')):
+                # 1. 무료 데이터 분석 로드
+                biz_info, final_display_news = get_unified_tab1_analysis(
+                    stock['name'], 
+                    stock['symbol'], 
+                    curr_lang, 
+                    stock.get('status', current_s), 
+                    stock.get('date') 
+                )
+                # 2. 프리미엄 데이터 요약 로드
+                news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
 
-        st.write("<br>", unsafe_allow_html=True)
+            st.write("<br>", unsafe_allow_html=True)
                 
                 # =========================================================
                 # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
