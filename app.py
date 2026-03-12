@@ -4868,7 +4868,6 @@ with main_area.container():
                 with st.expander(get_text('expander_academic_analysis'), expanded=False): 
                     st.markdown(f"""
                         <div style='background-color:#f8f9fa; padding:22px; border-radius:12px; border-left: 5px solid #004e92; font-size:15px; line-height:1.8; color:#333; text-align:justify;'>
-                            <b>🎓 CFA Quant Deep-Dive Analysis</b><br><br>
                             {full_financial_report}
                         </div>
                     """, unsafe_allow_html=True)
