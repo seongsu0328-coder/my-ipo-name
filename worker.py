@@ -1308,7 +1308,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 task1_label = "[작업 1: 신규 IPO 비즈니스 심층 분석]"
                 task1_structure = """
                 - 🚨 [필수 포함 1] 막연한 설명 대신 가급적 구체적인 수치(매출 비중, 가입자 수 등)를 반드시 포함하세요.
-                - 🚨 [필수 포함 2] 주요 경쟁사(Peers)와의 명확한 비교를 통해 이 기업만의 경쟁 우위(또는 열위)를 반드시 서술하세요.
+                - 🚨 [필수 포함 2] 주요 경쟁사(Peers)와의 명확한 비교를 통해 이 기업만의 경쟁 우위(또는 열위)를 반드시 서술하세요. 
                 - 1문단: 구체적 수치를 동반한 비즈니스 모델 및 핵심 제품/서비스 설명
                 - 2문단: 시장 점유율, 수익 구조, 그리고 주요 경쟁사와의 명확한 경쟁 우위/열위 비교
                 - 3문단: 향후 신사업 확장 계획 및 산업 트렌드
@@ -1333,11 +1333,49 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         1. 언어: {lang_instruction}
         2. 포맷: 반드시 3개의 문단으로 나누어 작성하세요. (각 문단은 4~5문장 길이)
             {task1_structure}
-        3. 금지: 🚨 "알겠습니다", "작성하겠습니다" 같은 AI 특유의 대답이나 인사말은 절대 금지합니다! 글의 첫 글자부터 곧바로 기업 분석 본문을 시작하세요. "## Company Analysis" 같은 제목이나 숫자 넘버링도 금지합니다.
+        3. 금지: 🚨 첫문장에 "알겠습니다", "작성하겠습니다" "보고서 입니다" 같은 AI 특유의 대답이나 인사말은 절대 금지합니다! 글의 첫 글자부터 곧바로 기업 분석 본문을 시작하세요. "## Company Analysis" 같은 제목이나 숫자 넘버링도 금지합니다.
+        
+         {task2_label}
+        - [Part 2]의 뉴스 데이터를 바탕으로 반드시 **최신순 상위 5개(Top 5)**를 추출하세요.
+        - 만약 데이터가 부족하더라도 있는 만큼 최대한(최대 5개) 작성하세요. 데이터가 전혀 없으면 빈 리스트 [] 를 반환하세요.
+        - sentiment 값은 시스템을 위해 반드시 "긍정", "부정", "일반" 중 하나로 한국어로 출력하세요.
+
+        {task1_label}
+        {search_directive}
+        1. Language: {lang_instruction}
+        2. Format: Must be written in exactly 3 paragraphs. (Each paragraph should be 4-5 sentences long)
+            {task1_structure}
+        3. Prohibition: 🚨 ABSOLUTELY PROHIBITED: Do not start the first sentence with greetings or meta-talk like "Understood," "I will write," or "This is the analysis report." Start the analysis IMMEDIATELY with the core content. Do not use headers like "## Company Analysis" or numbering.
         
         {task2_label}
-        - 만약 [Part 2]에 아무 뉴스도 없다면, 무리해서 지어내지 말고 빈 리스트 [] 를 반환하세요.
-        - sentiment 값은 시스템을 위해 반드시 "긍정", "부정", "일반" 중 하나로 한국어로 출력하세요.
+        - Based on the news data in [Part 2], extract exactly the **Top 5** latest news items.
+        - If data is insufficient, provide as many as possible (up to 5). Return an empty list [] if no news exists.
+        - The 'sentiment' value MUST be output in english as one of: "Positive", "Negative", "Neutral" for system compatibility. 
+
+
+        {task1_label}
+        {search_directive}
+        1. 语言: {lang_instruction}
+        2. 格式: 必须严格分为 3 个自然段。（每个段落包含 4-5 句话）
+            {task1_structure}
+        3. 禁止: 🚨 【绝对禁止】严禁在第一句出现“好的”、“明白了”、“为您编写”或“这是分析报告”等AI客套话或开场白！请从第一个字开始直接进入公司分析正文。禁止使用“## Company Analysis”等标题或数字编号。
+        
+        {task2_label}
+        - 根据 [Part 2] 中的新闻数据，务必提取**最新前 5 条 (Top 5)**。
+        - 如果数据不足，请尽力提供（最多 5 条）。如果完全没有数据，请返回空列表 []。
+        - 为了系统兼容性，'sentiment' 的值必须以英文输出为以下单词之一："Positive"、"Negative" 或 "Neutral"。
+
+        {task1_label}
+        {search_directive}
+        1. 言語: {lang_instruction}
+        2. フォーマット: 必ず 3 つの段落に分けて作成してください。（各段落は 4〜5 文の長さ）
+            {task1_structure}
+        3. 禁止事項: 🚨 【厳禁】一行目に「承知いたしました」、「作成します」、「報告書です」などの挨拶や導入文は絶対に書かないでください。最初の文字からすぐに企業分析の本論を開始してください。「## Company Analysis」のような見出しや数字のナンバリングも禁止です。
+        
+        {task2_label}
+        - [Part 2] のニュースデータに基づき、必ず**最新順の上位 5 件 (Top 5)**を抽出してください。
+        - データが不足している場合でも、ある分だけ最大 5 件まで作成してください。データが全くない場合は空のリスト [] を返してください。
+        - システム互換性の目的で、'sentiment' の値は必ず英語の "Positive"、"Negative"、"Neutral" のいずれかを出力してください。
         
         <JSON_START>
         {json_format}
@@ -1349,46 +1387,72 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 response = current_model.generate_content(prompt)
                 full_text = response.text
 
-                # 한글 오염 방어막
-                if lang_code != 'ko':
-                    check_text = full_text.replace("긍정", "").replace("부정", "").replace("일반", "").replace("肯定", "").replace("否定", "")
-                    if re.search(r'[가-힣]', check_text):
-                        time.sleep(1); continue 
-
+                # 🎯 [버그 수정] 정규표현식을 Greedy(.*)하게 변경하여 뉴스 5개 전체 확보
                 news_list = []
                 json_str = ""
                 
-                json_match = re.search(r'\[\s*\{.*?\}\s*\]', full_text, re.DOTALL)
-                if json_match:
-                    json_str = json_match.group(0)
-                    try: news_list = json.loads(json_str)
-                    except: pass
+                # <JSON_START> 우선 탐색 후, 실패 시 대괄호 [ ] 사이를 '끝까지' 긁어옵니다.
+                tag_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
+                if tag_match:
+                    json_str = tag_match.group(1).strip()
+                else:
+                    # 🚨 .*? (최소 매칭) 대신 .* (최대 매칭)을 사용하여 리스트의 마지막 ] 까지 캡처
+                    json_match = re.search(r'(\[.*\])', full_text, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(1).strip()
 
-                if json_str: biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
-                else: biz_analysis = full_text.split("{")[0].replace("<JSON_START>", "").strip()
+                if json_str:
+                    try:
+                        parsed_data = json.loads(json_str)
+                        # AI가 리스트 형식이 아닌 {"news": [...]} 형식으로 줄 경우까지 자동 대응
+                        temp_list = parsed_data.get("news", []) if isinstance(parsed_data, dict) else parsed_data
+                        
+                        if isinstance(temp_list, list):
+                            # 🎯 [로직 추가] 날짜순 정렬 후 정확히 최신/중요 5개만 선별 (15개 소스 활용)
+                            temp_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
+                            news_list = temp_list[:5]
+                    except Exception as json_e:
+                        print(f"⚠️ JSON 파싱 재시도 중: {json_e}")
 
+                # [정제] 분석 본문에서 뉴스 데이터만 깨끗하게 제거
+                if json_str:
+                    biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
+                else:
+                    biz_analysis = full_text.split("[")[0].split("{")[0].replace("<JSON_START>", "").strip()
+
+                # 서론 찌꺼기 제거 (인사말/제목 등)
+                intro_pattern = r'^(알겠습니다|네,|작성하겠습니다|요청사항에|.*?보고서입니다|Understood|Certainly|Here is|I will|This is|承知いたしました|作成します|これは|好的|明白了|为您编写|这是).*?(\n|$)'
+                biz_analysis = re.sub(intro_pattern, '', biz_analysis, flags=re.IGNORECASE | re.MULTILINE).strip()
                 biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
-                paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
                 
+                # 문단 정리 및 HTML 생성
+                paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
 
+                # 💡 [Sentiment 배지 색상 매핑] - 영어 값(Positive 등) 기준
                 if news_list:
-                    news_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
                     for n in news_list:
-                        s_val = n.get('sentiment', '일반')
-                        if "긍정" in s_val or "肯定" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                        elif "부정" in s_val or "否定" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
-                        else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
+                        s_val = str(n.get('sentiment', 'Neutral')).strip().lower()
+                        if "positive" in s_val: 
+                            n['bg'], n['color'] = "#e6f4ea", "#1e8e3e" # 긍정 (녹색)
+                        elif "negative" in s_val: 
+                            n['bg'], n['color'] = "#fce8e6", "#d93025" # 부정 (빨간색)
+                        else: 
+                            n['bg'], n['color'] = "#f1f3f4", "#5f6368" # 일반 (회색)
 
+                # DB 저장
                 batch_upsert("analysis_cache", [{
                     "cache_key": cache_key,
                     "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
                     "updated_at": now.isoformat()
                 }], on_conflict="cache_key")
                 
-                print(f"✅ [{ticker}] Tab 1 비즈니스/뉴스 캐싱 완료 ({lang_code}) - {'Search Model' if is_fmp_poor else 'Strict Model'}")
-                break 
+                print(f"✅ [{ticker}] Tab 1 업데이트 완료 (선별된 뉴스 {len(news_list)}개 저장)")
+                
+                # 뉴스가 정상적으로 1개라도 선별되었으면 성공으로 간주하고 루프 종료
+                if len(news_list) > 0 or is_fmp_poor:
+                    break 
                 
             except Exception as e:
                 print(f"❌ [Tab 1 AI Error - {lang_code}]: {e}")
