@@ -2089,55 +2089,7 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         g2_context = f"Health/Quality (Debt/Equity: {metrics.get('debt_equity', 'N/A')}, Accruals Quality: {metrics.get('accruals', 'Unknown')})"
         g3_context = f"Valuation (Forward PE: {metrics.get('pe', 'N/A')}, DCF Price: {metrics.get('dcf_price', 'N/A')}, Current Price: {metrics.get('current_price', 'N/A')})"
 
-        # ----------------------------------------------------
-        # 🚀 [Call 1] 3D 카드 3장용 Specific 심층 요약 프롬프트 (완벽 분리 + N/A 방어)
-        # ----------------------------------------------------
-        if lang_code == 'ko':
-            sum_p = f"월가 애널리스트로서 {company_name}({ticker})의 재무 데이터를 바탕으로 3개의 독립된 대시보드 카드 요약을 작성하세요.\n[1번 카드]: {g1_context}\n[2번 카드]: {g2_context}\n[3번 카드]: {g3_context}"
-            sum_i = """
-            [UI 카드 작성 규칙 - 절대 엄수]
-            1. 당신의 답변은 웹사이트의 서로 다른 3개의 독립된 카드에 각각 들어갈 텍스트입니다. 자연스럽게 이어지는 에세이가 아닙니다.
-            2. 반드시 아래의 정확한 포맷으로만 출력하세요. 숫자 넘버링(1. 2.)이나 별도의 제목은 절대 쓰지 마세요.
-               [포맷]: (1번 카드: 매출과 마진을 바탕으로 본업 경쟁력 및 수익성 진단 3~4문장) |||SEP||| (2번 카드: 부채와 발생액 품질로 재무 생존력 및 건전성 진단 3~4문장) |||SEP||| (3번 카드: PER/DCF를 통해 현재 주가 과열 여부 및 밸류에이션 진단 3~4문장)
-            3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요.
-            4. 🚨 [가장 중요한 규칙] 수치가 'N/A'이거나 'Unknown'일 경우, "데이터가 없어 파악하기 어렵습니다" 같은 변명이나 투덜거림을 절대 쓰지 마세요! 대신 "상장 예정 기업(또는 신규 편입 종목)으로 공식 재무 지표가 공개되지 않은 상태입니다. 상장 이후 분기 실적 공시와 함께 지표가 업데이트될 예정입니다." 라고 전문적이고 객관적으로 서술하세요.
-            5. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
-            """
-        elif lang_code == 'en':
-            sum_p = f"Write 3 independent financial dashboard card summaries for {company_name}({ticker}).\n[Card 1]: {g1_context}\n[Card 2]: {g2_context}\n[Card 3]: {g3_context}"
-            sum_i = """
-            [UI Card Rules]
-            1. Output EXACTLY 3 independent texts for 3 separate UI cards. Do not write a flowing essay.
-            2. Output FORMAT MUST BE EXACTLY as below. DO NOT use numbers (1. 2. 3.) or titles.
-               [Format]: (Card 1: Diagnose business competitiveness and profitability using revenue and margins in 3-4 sentences) |||SEP||| (Card 2: Evaluate financial survival capacity using debt and accruals in 3-4 sentences) |||SEP||| (Card 3: Assess valuation and stock overheating using PE and DCF in 3-4 sentences)
-            3. Separate strictly by '|||SEP|||'. Do not use any other special characters or line breaks between paragraphs.
-            4. 🚨 [CRITICAL RULE] If data is 'N/A' or 'Unknown', NEVER complain saying "Hard to evaluate due to lack of data." Instead, write professionally: "As a pre-IPO or newly listed company, official financial metrics are not yet publicly disclosed. Metrics will be updated following post-listing earnings reports."
-            """
-        elif lang_code == 'ja':
-            sum_p = f"{company_name}({ticker})の財務について、3つの独立したダッシュボードカード要約を作成してください。\n[カード1]: {g1_context}\n[カード2]: {g2_context}\n[カード3]: {g3_context}"
-            sum_i = """
-            [UIカード作成規則]
-            1. 3つの異なるカードに挿入される、完全に独立した3つの文章を出力してください。自然に続くエッセイではありません。
-            2. 必ず以下の正確なフォーマットのみで出力してください。番号(1. 2.)や見出しは絶対に使用しないでください。
-               [フォーマット]: (カード1: 売上とマージンに基づく本業の競争力と収益性診断 3〜4文) |||SEP||| (カード2: 負債と発生額の質による財務的生存能力の評価 3〜4文) |||SEP||| (カード3: PERとDCFを通じた株価の過熱感とバリュエーション診断 3〜4文)
-            3. 区切り文字 '|||SEP|||' 以外の特殊記号や改行を段落の間に入れないでください。
-            4. 🚨 [最重要規則] データが「N/A」または「Unknown」の場合、「データ不足で判断が困難です」などの言い訳は絶対にしないでください。代わりに「上場予定または新規上場企業のため、公式な財務指標はまだ公開されていません。上場後の決算発表に伴いアップデートされる予定です。」と専門的に記述してください。
-            """
-        elif lang_code == 'zh':
-            sum_p = f"请为 {company_name}({ticker}) 的财务数据撰写3个独立的仪表板卡片摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}"
-            sum_i = """
-            [UI卡片规则]
-            1. 必须输出3段完全独立的文字，用于3个不同的UI卡片。不要写成连贯的文章。
-            2. 必须严格按照以下格式输出。绝对不要使用数字编号(1. 2.)或标题。
-               [格式]: (卡片1: 基于营收和利润率诊断主业竞争力和盈利能力 3-4句话) |||SEP||| (卡片2: 通过债务和应计利润质量评估财务生存能力 3-4句话) |||SEP||| (卡片3: 通过PE和DCF诊断当前股价是否过热 3-4句话)
-            3. 除了分隔符 '|||SEP|||' 之外，不要在段落之间加入任何特殊符号或换行符。
-            4. 🚨 [核心规则] 如果数据为'N/A'或'Unknown'，绝对不要抱怨“由于缺乏数据难以评估”。请专业地表述为：“作为拟上市或新上市企业，官方财务指标尚未公开。数据将在上市后随着财报发布而更新。”
-            """
-
-        # ----------------------------------------------------
-        # 🚀 [Call 2] 하단 전문(Academic CFA 리포트) - 하이브리드 전략 & 철권 포맷팅
-        # ----------------------------------------------------
-        # 💡 [하이브리드 판단] FMP에서 매출 성장률(growth)이나 PER(pe)이 N/A라면 재무 데이터가 비어있다고 판단!
+        # 💡 [하이브리드 판단 최상단 배치] FMP에서 성장률이나 PER이 N/A라면 재무 데이터가 비어있다고 판단!
         is_fmp_fin_poor = (str(metrics.get('growth', 'N/A')) == 'N/A' and str(metrics.get('pe', 'N/A')) == 'N/A')
         current_tab3_model = model_search if (is_fmp_fin_poor and model_search is not None) else model_strict
         
@@ -2145,6 +2097,50 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         if is_fmp_fin_poor:
             search_directive = f"\n🚨 [Force Search] FMP 데이터가 없습니다. 즉시 Google Search를 사용하여 '{company_name} {ticker} recent revenue net income financial margins ratios'를 검색하고, 검색된 **실제 재무 수치(매출, 순이익 등)**를 바탕으로 리포트를 작성하세요. '데이터가 없다'는 변명은 절대 금지합니다."
 
+        # ----------------------------------------------------
+        # 🚀 [Call 1] 3D 카드 3장용 Specific 심층 요약 프롬프트
+        # ----------------------------------------------------
+        if lang_code == 'ko':
+            sum_p = f"월가 애널리스트로서 {company_name}({ticker})의 재무 데이터를 바탕으로 3개의 독립된 대시보드 카드 요약을 작성하세요.\n[1번 카드]: {g1_context}\n[2번 카드]: {g2_context}\n[3번 카드]: {g3_context}\n{search_directive}"
+            sum_i = """
+            [UI 카드 작성 규칙 - 절대 엄수]
+            1. 3개의 완전히 독립된 텍스트 덩어리만 출력하세요. '1번 카드:', 'Card 1:' 같은 쓸데없는 제목표시는 모두 빼고 오직 본문 내용만 출력하세요.
+            2. 반드시 아래의 정확한 포맷으로만 출력하세요.
+               [포맷]: (매출과 마진을 바탕으로 본업 경쟁력 진단 3~4문장) |||SEP||| (부채와 발생액 품질로 재무 생존력 진단 3~4문장) |||SEP||| (주가 과열 여부 및 밸류에이션 진단 3~4문장)
+            3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요.
+            4. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
+            """
+        elif lang_code == 'en':
+            sum_p = f"Write 3 independent financial dashboard card summaries for {company_name}({ticker}).\n[Card 1]: {g1_context}\n[Card 2]: {g2_context}\n[Card 3]: {g3_context}\n{search_directive}"
+            sum_i = """
+            [UI Card Rules]
+            1. Output EXACTLY 3 independent text blocks. DO NOT use ANY titles like 'Card 1:', '1.', etc. Just the raw text.
+            2. Output FORMAT MUST BE EXACTLY as below:
+               [Format]: (Diagnose competitiveness using revenue/margins in 3-4 sentences) |||SEP||| (Evaluate financial survival using debt/accruals in 3-4 sentences) |||SEP||| (Assess valuation/overheating using PE/DCF in 3-4 sentences)
+            3. Separate strictly by '|||SEP|||'. Do not use any other line breaks.
+            """
+        elif lang_code == 'ja':
+            sum_p = f"{company_name}({ticker})の財務について、3つの独立したダッシュボードカード要約を作成してください。\n[カード1]: {g1_context}\n[カード2]: {g2_context}\n[カード3]: {g3_context}\n{search_directive}"
+            sum_i = """
+            [UIカード作成規則]
+            1. 3つの完全に独立したテキストのみを出力してください。「カード1:」のような不要な見出しはすべて省き、本文のみを出力してください。
+            2. 必ず以下の正確なフォーマットのみで出力してください。
+               [フォーマット]: (売上とマージンに基づく本業の競争力診断 3〜4文) |||SEP||| (負債と発生額の質による財務的生存能力の評価 3〜4文) |||SEP||| (株価の過熱感とバリュエーション診断 3〜4文)
+            3. 区切り文字 '|||SEP|||' 以外の改行や記号を間に入れないでください。丁寧な日本語を使用してください。
+            """
+        elif lang_code == 'zh':
+            sum_p = f"请为 {company_name}({ticker}) 的财务数据撰写3个独立的仪表板卡片摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}\n{search_directive}"
+            sum_i = """
+            [UI卡片规则]
+            1. 必须输出3段完全独立的纯文本。绝对不要使用任何像“卡片1:”这样的标题，只输出正文内容。
+            2. 必须严格按照以下格式输出：
+               [格式]: (基于营收和利润率诊断主业竞争力 3-4句话) |||SEP||| (通过债务和应计利润质量评估财务生存能力 3-4句话) |||SEP||| (评估当前股价是否过热及估值诊断 3-4句话)
+            3. 仅使用 '|||SEP|||' 作为分隔符，不要加入任何其他换行符。
+            """
+
+        # ----------------------------------------------------
+        # 🚀 [Call 2] 하단 전문(Academic CFA 리포트) - 하이브리드 전략 & 철권 포맷팅
+        # ----------------------------------------------------
         if lang_code == 'en':
             full_p = f"Write a Buy-Side Quant deep-dive report for {company_name}({ticker}) using: {g1_context}, {g2_context}, {g3_context}.{search_directive}"
             full_i = """
@@ -2192,7 +2188,8 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             """
 
         try:
-            res_s = model_strict.generate_content(sum_p + sum_i).text.strip()
+            # 🚨 [가장 중요한 변경 포인트] 카드 요약(res_s)과 하단 리포트(res_f) 모두 하이브리드 구글 검색 모델 사용!
+            res_s = current_tab3_model.generate_content(sum_p + sum_i).text.strip()
             batch_upsert("analysis_cache", [{"cache_key": cache_key_sum, "content": res_s, "updated_at": datetime.now().isoformat()}], "cache_key")
 
             res_f = current_tab3_model.generate_content(full_p + full_i).text.strip()
