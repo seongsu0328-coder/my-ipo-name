@@ -1021,13 +1021,14 @@ def get_tab2_esg_premium_prompt(lang, ticker, raw_data):
 {raw_data}"""
 
 def run_tab2_premium_collection(ticker, company_name):
-        """Tab 2의 프리미엄 데이터(ESG 평가)를 수집하고 요약하여 캐싱합니다."""
-        if 'model_strict' not in globals() or not model_strict: return
-        try:
-            limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # ESG는 자주 안 바뀌므로 7일 유지
-            
-            url = f"https://financialmodelingprep.com/stable/esg-ratings?symbol={ticker}&apikey={FMP_API_KEY}"
-            esg_raw = get_fmp_data_with_cache(ticker, "RAW_ESG", url, valid_hours=168)
+    """Tab 2의 프리미엄 데이터(ESG 평가)를 수집하고 요약하여 캐싱합니다."""
+    if 'model_strict' not in globals() or not model_strict: return
+    try:
+        limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # ESG는 자주 안 바뀌므로 7일 유지
+        
+        # 💡 [Stable 변경 완료] ESG Ratings
+        url = f"https://financialmodelingprep.com/stable/esg-ratings?symbol={ticker}&apikey={FMP_API_KEY}"
+        esg_raw = get_fmp_data_with_cache(ticker, "RAW_ESG", url, valid_hours=168)
         
         is_esg_valid = isinstance(esg_raw, list) and len(esg_raw) > 0
 
