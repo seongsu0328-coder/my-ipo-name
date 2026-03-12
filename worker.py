@@ -55,19 +55,37 @@ model_search = None
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
-        # [1] 환각 원천 차단용 일반 모델
+        # [1] 환각 원천 차단용 일반 모델 (도구 없음)
         model_strict = genai.GenerativeModel('gemini-2.0-flash')
         
-        # 🚨 [2] 하이브리드 엔진 - 구글 서버 400 에러를 원천 차단하는 최신 단일 규격
-        try:
-            model_search = genai.GenerativeModel(
-                model_name='gemini-2.0-flash',
-                tools=[{"google_search": {}}]
-            )
-            print("✅ AI 하이브리드 모델 로드 성공 (Google Search 엔진 공식 설정 완료)")
-        except Exception as e_tool:
-            print(f"⚠️ 구글 검색 도구 로드 최종 실패: {e_tool}")
-            model_search = None
+        # 🚨 [2] 하이브리드 엔진 - 구글 구버전 SDK의 치명적 버그를 완벽히 우회하는 REST API 클래스
+        class DirectGeminiSearch:
+            def __init__(self, api_key):
+                self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+                
+            def generate_content(self, prompt):
+                # 구글 서버가 요구하는 최신 2.0 규격의 JSON을 직접 전송
+                payload = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "tools": [{"googleSearch": {}}] 
+                }
+                res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
+                
+                class MockResponse:
+                    def __init__(self, text): self.text = text
+                
+                if res.status_code == 200:
+                    try:
+                        text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                        return MockResponse(text)
+                    except:
+                        return MockResponse("")
+                else:
+                    print(f"⚠️ [Google Search API Error] {res.text}")
+                    return MockResponse("")
+
+        model_search = DirectGeminiSearch(GENAI_API_KEY)
+        print("✅ AI 하이브리드 모델 로드 성공 (REST API 우회 엔진 가동!)")
 
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
