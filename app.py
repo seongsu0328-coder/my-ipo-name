@@ -4410,24 +4410,28 @@ with main_area.container():
             # 🔒 비결제자 블러 처리
             locked_8k_html = """
             <div style="position: relative; width: 100%; margin-top: 10px;">
-                <div style="filter: blur(5px); opacity: 0.4; padding: 15px;">
-                    <b>[핵심 이벤트]</b><br>최근 발생한 주요 공시 사유 요약 내용이 표시됩니다...
+                <div style="filter: blur(5px); opacity: 0.4; padding: 15px; line-height: 1.6; user-select: none;">
+                    <b>[핵심 이벤트]</b><br>최근 발생한 주요 공시 사유 요약 내용이 표시됩니다. 회사의 재무 상태 및 주가에 영향을 줄 수 있는 중대한 결정 사항입니다.<br><br>
+                    <b>[재무 파급력]</b><br>해당 이벤트가 기업의 매출, 영업이익, 현금흐름 등에 미치는 단기 및 장기적 파급 효과 분석이 이곳에 표시됩니다.<br><br>
+                    <b>[향후 전망]</b><br>투자자가 주의 깊게 살펴봐야 할 핵심 투자 포인트와 향후 예상 시나리오입니다.
                 </div>
                 <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%;">
-                    <span style="background-color: rgba(32, 33, 36, 0.85); color: #ffffff; padding: 12px 24px; border-radius: 30px;">🔒 Premium Only</span>
+                    <span style="background-color: rgba(32, 33, 36, 0.85); color: #ffffff; padding: 12px 24px; border-radius: 30px; font-weight: 600; font-size: 16px; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        🔒 Premium Only
+                    </span>
                 </div>
             </div>
             """
             st.markdown(locked_8k_html, unsafe_allow_html=True)
-            
+
         else:
             # ✅ 결제 회원 혹은 일반 공시 출력 (8-K가 아니거나 프리미엄인 경우)
             if d_text:
                 st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; white-space: pre-wrap;">{d_text}</div>', unsafe_allow_html=True)
             else:
-                st.info("데이터가 없습니다.")
-            
-            # 외부 링크 및 버튼 (else 블록 안쪽)
+                st.info("해당 서류의 분석 리포트를 생성 중이거나 데이터가 없습니다.")
+
+            # 4. 외부 링크 및 하단 버튼
             import urllib.parse
             cik_val = profile.get('cik', '') if profile else ''
             sec_q_val = "10-K" if t_topic in ["BS", "IS", "CF"] else t_topic
@@ -4439,7 +4443,7 @@ with main_area.container():
             
             st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 12px;">{get_text("btn_sec_link")} ({t_topic})</button></a>', unsafe_allow_html=True)
 
-            # 🚀 어닝 콜 섹션 (else 블록 안쪽)
+            # 🚀 어닝 콜 (Earnings Call) 섹션
             ec_summary = get_premium_tab0_ec(sid, st.session_state.lang)
             if ec_summary:
                 with st.expander(get_text('tab0_ec_title'), expanded=False):
@@ -4449,17 +4453,17 @@ with main_area.container():
                         blur_text = get_text('desc_ec_blur')
                         st.markdown(f'<div style="filter: blur(5.5px); opacity: 0.4; padding: 20px;">{blur_text}</div>', unsafe_allow_html=True)
             
-            # 하단 의사결정/면책조항 (else 블록 안쪽)
+            # 하단 의사결정 박스 및 면책조항
             draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
             display_disclaimer()
 
-    # 🚨 [중요] 이 elif는 위쪽의 'if selected_sub_menu == get_text("tab_0"):'와 세로선이 일치해야 합니다.
+    # 🚨 이 elif는 Tab 0를 시작한 'if selected_sub_menu == get_text("tab_0"):' 줄과 수직 정렬되어야 합니다.
     elif selected_sub_menu == get_text('tab_1'):
         curr_lang = st.session_state.lang
         user_info = st.session_state.get('user_info') or {}
         user_level = user_info.get('membership_level', 'free')
         is_premium = user_level in ['premium', 'premium_plus']
-        
+
         with st.spinner(get_text('msg_analyzing_tab1')):
             # Tab 1 로직 시작...
             biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'], curr_lang, stock.get('status', 'Unknown'), stock.get('date'))
