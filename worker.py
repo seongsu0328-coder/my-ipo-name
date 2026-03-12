@@ -2198,7 +2198,7 @@ def run_tab4_ma_premium_collection(ticker, company_name):
         print(f"Tab4 Premium M&A Error for {ticker}: {e}")
     
 # ==========================================
-# [완벽 수정] Tab 3: 미시 지표 (15대 기초 재무 수집 + 직접 연산 + 딥다이브 리포팅)
+#[완벽 수정] Tab 3: 미시 지표 (Accruals, P/E 연산 추가 + 다국어 지시문 완벽 분리)
 # ==========================================
 def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return False
@@ -2219,11 +2219,11 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     curr_yr = datetime.now().year
     past_3_years = f"{curr_yr-2} {curr_yr-1} {curr_yr}"
     
-    # =====================================================================
-    # 🚀 [업그레이드] 15대 기초 재무 데이터(Raw Data) 심층 수집 및 연산
-    # =====================================================================
     rich_raw_data_str = "N/A"
     
+    # =====================================================================
+    # 🚀 [업그레이드] 15대 기초 재무 데이터 수집 및 고급 지표(P/E, Accruals) 연산
+    # =====================================================================
     if can_fin_search:
         print(f"🔍 [{ticker}] 재무 데이터 누락 감지. 15대 기초 재무 데이터 딥서치 시도...")
         recovery_prompt = f"""
@@ -2256,7 +2256,6 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
                 json_str = text[text.find('{'):text.rfind('}')+1]
                 raw_data = json.loads(json_str)
                 
-                # 안전한 숫자 변환 헬퍼
                 def to_float(val):
                     try: return float(re.sub(r'[^0-9.-]', '', str(val)))
                     except: return None
@@ -2266,30 +2265,45 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
                 net = to_float(raw_data.get("net_income"))
                 debt = to_float(raw_data.get("total_debt"))
                 equity = to_float(raw_data.get("total_equity"))
+                ocf = to_float(raw_data.get("operating_cash_flow"))
+                eps = to_float(raw_data.get("eps"))
                 
                 updated = False
                 
-                # [직접 연산 1] 매출 성장률 (Sales Growth)
+                # [연산 1] 매출 성장률 (Sales Growth)
                 if rev is not None and p_rev is not None and p_rev > 0:
                     metrics["growth"] = f"{((rev - p_rev) / p_rev) * 100:.1f}%"
                     updated = True
                 
-                # [직접 연산 2] 순이익률 (Net Margin)
+                #[연산 2] 순이익률 (Net Margin)
                 if rev is not None and net is not None:
                     if rev > 0:
                         metrics["net_margin"] = f"{(net / rev) * 100:.1f}%"
                         updated = True
                     elif rev == 0:
-                        metrics["net_margin"] = "Pre-revenue" # 스팩/초기기업
+                        metrics["net_margin"] = "Pre-revenue"
                         updated = True
                         
-                #[직접 연산 3] 부채비율 (Debt to Equity)
+                # [연산 3] 부채비율 (Debt to Equity)
                 if debt is not None and equity is not None and equity > 0:
                     metrics["debt_equity"] = f"{(debt / equity) * 100:.1f}%"
                     updated = True
+
+                # 💡 [추가 연산 4] 발생액 품질 (Accruals Quality)
+                if net is not None and ocf is not None:
+                    metrics["accruals"] = "Low" if (net - ocf) <= 0 else "High"
+                    updated = True
+
+                # 💡[추가 연산 5] P/E (Price to Earnings)
+                try:
+                    curr_p = float(str(metrics.get('current_price', '0')).replace('$', '').replace(',', ''))
+                    if curr_p > 0 and eps is not None and eps > 0:
+                        metrics["pe"] = f"{curr_p / eps:.1f}x"
+                        updated = True
+                except: pass
                 
-                # 수집된 15개 딥-데이터를 문자열로 압축 (최종 리포트 AI에게 던져줄 용도)
-                rich_raw_data_str = ", ".join([f"{k}: {v}" for k, v in raw_data.items() if v not in [None, "N/A", ""]])
+                # 수집된 데이터를 문자열로 압축하여 최종 리포트 작성 시 제공
+                rich_raw_data_str = ", ".join([f"{k}: {v}" for k, v in raw_data.items() if v not in[None, "N/A", ""]])
                 metrics["raw_deep_data"] = rich_raw_data_str
                 
                 if updated:
@@ -2298,25 +2312,18 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
                         "content": json.dumps(metrics, ensure_ascii=False),
                         "updated_at": datetime.now().isoformat()
                     }], on_conflict="cache_key")
-                    print(f"✅ [{ticker}] 15대 기초 데이터 수집 및 비율 직접 연산 완료!")
+                    print(f"✅ [{ticker}] 15대 데이터 수집 및 확장 지표(Accruals, P/E) 연산 완료!")
         except Exception as e:
-            print(f"⚠️ [{ticker}] 기초 데이터 수집 실패: {e}")
+            print(f"⚠️ [{ticker}] 기초 데이터 수집/연산 실패: {e}")
 
-    # (DB에 이미 저장된 과거 검색 데이터가 있으면 불러오기)
     if rich_raw_data_str == "N/A" and "raw_deep_data" in metrics:
         rich_raw_data_str = metrics["raw_deep_data"]
 
-    # =====================================================================
-    # AI용 프롬프트 컨텍스트 조립 (15개 원시 데이터 추가!)
-    # =====================================================================
+    # 컨텍스트 조립
     g1_context = f"[Business Growth & Profitability] Sales Growth: {metrics.get('growth', 'N/A')}, Net Margin: {metrics.get('net_margin', 'N/A')}, Piotroski Score: {metrics.get('health_score', 'N/A')}/9"
     g2_context = f"[Financial Health & Quality] Debt to Equity: {metrics.get('debt_equity', 'N/A')}, Accruals Quality: {metrics.get('accruals', 'Unknown')}"
     g3_context = f"[Market Valuation] Forward P/E: {metrics.get('pe', 'N/A')}, DCF Target Price: {metrics.get('dcf_price', 'N/A')}, Current Price: {metrics.get('current_price', 'N/A')}"
-    
-    # 💡 하단 전문 리포트 작성 시 15개의 구체적 수치를 활용하도록 제공
     g4_context = f"[Deep Raw Financials] {rich_raw_data_str}"
-
-    na_handling_rule = "만약 지표가 N/A이거나 Pre-revenue라면, 이는 데이터 누락이 아니라 해당 기업이 초기 단계(SPAC, 바이오 임상 등)임을 의미합니다. '평가할 수 없다'고 하지 말고, 초기 기업의 특성에 맞춰 잠재력이나 리스크를 평가하세요."
 
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
@@ -2327,10 +2334,13 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             if res.data: continue 
         except: pass
 
+        # =====================================================================
+        # 💡 [요청 반영] N/A 스팩 처리 안내문을 4개 국어로 완벽히 번역 및 분리!
+        # =====================================================================
         if lang_code == 'ko':
+            na_handling_rule = "만약 지표가 N/A이거나 Pre-revenue라면, 이는 데이터 누락이 아니라 해당 기업이 초기 단계(SPAC, 바이오 임상 등)임을 의미합니다. '평가할 수 없다'고 하지 말고, 초기 기업의 특성에 맞춰 잠재력이나 리스크를 평가하세요."
             search_directive = f"\n🚨[강제 검색] FMP 데이터 부족. 구글 검색으로 '{company_name} {ticker} {past_3_years} 실적 발표'를 찾아 보완하세요." if can_fin_search else ""
             
-            # [Call 1] 3D 카드 요약 (JSON 강제)
             sum_p = f"""당신은 퀀트 애널리스트입니다. {company_name}({ticker})의 지표를 해석하여 대시보드 카드를 작성하세요.
 [데이터]: {g1_context} | {g2_context} | {g3_context}
 🚨 {na_handling_rule}
@@ -2343,24 +2353,25 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
   "card3": "(시장 가치 평가 4~5문장)"
 }}"""
             
-            # [Call 2] 하단 전문 (표준 재무 분석 - 원시 딥데이터 주입!)
             full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 '표준 정통 재무 분석 리포트'를 작성하세요.\n[비율 데이터]: {g1_context}, {g2_context}, {g3_context}\n[핵심 원시 데이터]: {g4_context}\n🚨 {na_handling_rule}\n{search_directive}"
             full_i = """
             [작성 규칙 - 절대 엄수]
             1. 메인 제목이나 이모지를 절대 쓰지 마세요. 첫 글자부터 바로 소제목으로 시작하세요.
             2. 🚨 구체적 수치 인용 필수: [핵심 원시 데이터]에 제공된 현금흐름, 부채, 순이익 등의 '정확한 수치'를 본문에 적극 인용하여 전문성을 높이세요.
             3. 🚨 데이터가 허락하는 선에서 매출액, 순이익, ROE, 부채비율 등을 총합 10개 내외로 녹여내세요.
-            4. 반드시 아래 3개의 소제목을 괄호만 사용하여 작성하세요: [수익성 및 성장성 분석],[재무 건전성 및 현금흐름], [적정 가치 및 종합 투자의견]. 마크다운 굵은 글씨(**)는 절대 금지.
+            4. 반드시 아래 3개의 소제목을 괄호만 사용하여 작성하세요:[수익성 및 성장성 분석],[재무 건전성 및 현금흐름],[적정 가치 및 종합 투자의견]. 마크다운 굵은 글씨(**)는 절대 금지.
             5. 🚨 소제목을 쓴 후 바로 다음 줄에 본문을 4~5문장 꽉 채워 작성하세요.
             6. '데이터가 없어 분석이 어렵다'는 변명은 절대 쓰지 마세요.
             7. 모든 문장은 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하십시오.
             """
 
         elif lang_code == 'en':
+            na_handling_rule = "If metrics are N/A or Pre-revenue, it means the company is in an early stage (e.g., SPAC, biotech). Do not say 'cannot be evaluated'. Instead, evaluate its potential and risks based on the characteristics of early-stage companies."
             search_directive = f"\n🚨 [FORCE SEARCH] Use Google Search for '{company_name} {ticker} financial results {past_3_years}'." if can_fin_search else ""
+            
             sum_p = f"""As a Quant Analyst, evaluate {company_name}({ticker}). 
 Data: {g1_context} | {g2_context} | {g3_context}
-🚨 Rule: If N/A, it means it's a SPAC/early-stage. Evaluate its potential, don't say 'cannot evaluate'.
+🚨 Rule: {na_handling_rule}
 {search_directive}
 [STRICT JSON RULE] Output ONLY in this JSON format:
 {{
@@ -2368,14 +2379,16 @@ Data: {g1_context} | {g2_context} | {g3_context}
   "card2": "Health & earnings quality (4-5 sentences)",
   "card3": "Market valuation (4-5 sentences)"
 }}"""
-            full_p = f"Write a standard financial report for {company_name}({ticker}).\n[Ratio Data]: {g1_context}, {g2_context}, {g3_context}\n[Raw Data]: {g4_context}\n{search_directive}"
+            full_p = f"Write a standard financial report for {company_name}({ticker}).\n[Ratio Data]: {g1_context}, {g2_context}, {g3_context}\n[Raw Data]: {g4_context}\n🚨 Rule: {na_handling_rule}\n{search_directive}"
             full_i = """[STRICT RULES] 1. NO MAIN TITLES or emojis. 2. QUOTE HARD NUMBERS from the [Raw Data]. 3. Incorporate up to 10 standard financial metrics. 4. Use EXACTLY 3 subheadings with brackets ONLY:[Profitability & Growth Analysis], [Financial Health & Cash Flow],[Valuation & Final Verdict]. DO NOT use markdown bold (**). 5. Write 4-5 sentences immediately after subheadings. 6. NEVER complain about missing data."""
 
         elif lang_code == 'ja':
+            na_handling_rule = "指標がN/AまたはPre-revenueの場合、データ欠落ではなく、企業が初期段階（SPACやバイオ臨床など）であることを意味します。「評価できない」とは言わず、初期企業の特性に合わせて潜在力やリスクを評価してください。"
             search_directive = f"\n🚨 [強制検索] Google検索で「{company_name} {ticker} {past_3_years} financial results」を検索してください。" if can_fin_search else ""
+            
             sum_p = f"""あなたはクオンツアナリストです。{company_name}({ticker})を評価してください。
 データ: {g1_context} | {g2_context} | {g3_context}
-🚨 規則: N/Aの場合、初期企業(SPAC等)を意味します。「評価できない」と言わず、可能性を評価してください。
+🚨 規則: {na_handling_rule}
 {search_directive}
 [厳格なJSON規則] 以下のJSON形式のみで出力:
 {{
@@ -2383,14 +2396,16 @@ Data: {g1_context} | {g2_context} | {g3_context}
   "card2": "財務健全性 (4〜5文)",
   "card3": "バリュエーション (4〜5文)"
 }}"""
-            full_p = f"{company_name}({ticker}) の本格的財務分析レポートを作成してください。\n[比率データ]: {g1_context}, {g2_context}, {g3_context}\n[原データ]: {g4_context}\n{search_directive}"
-            full_i = """[厳格な規則] 1. メインタイトルや絵文字は禁止。 2. [原データ]から具体的な数値を引用。 3. 主要な数値を10個程度参照。 4. 3つの小見出しを括弧のみで使用:[収益性と成長性の分析],[財務健全性とキャッシュフロー], [適正価値と総合投資意見]。太字(**)禁止。 5. 小見出しの直後に本文(4〜5文)を開始。 6. 「データがない」という言い訳禁止。 7. 丁寧な日本語を使用。"""
+            full_p = f"{company_name}({ticker}) の本格的財務分析レポートを作成してください。\n[比率データ]: {g1_context}, {g2_context}, {g3_context}\n[原データ]: {g4_context}\n🚨 規則: {na_handling_rule}\n{search_directive}"
+            full_i = """[厳格な規則] 1. メインタイトルや絵文字は禁止。 2.[原データ]から具体的な数値を引用。 3. 主要な数値を10個程度参照。 4. 3つの小見出しを括弧のみで使用:[収益性と成長性の分析],[財務健全性とキャッシュフロー],[適正価値と総合投資意見]。太字(**)禁止。 5. 小見出しの直後に本文(4〜5文)を開始。 6. 「データがない」という言い訳禁止。 7. 丁寧な日本語を使用。"""
 
         else: # zh
+            na_handling_rule = "如果指标为N/A或Pre-revenue，这意味着企业处于早期阶段（如SPAC、生物临床等）。不要说“无法评估”，而是根据早期企业的特点评估其潜力和风险。"
             search_directive = f"\n🚨 [强制搜索] 请使用Google搜索 '{company_name} {ticker} 财务数据 {past_3_years}'。" if can_fin_search else ""
+            
             sum_p = f"""作为量化分析师，请评估 {company_name}({ticker})。
 数据: {g1_context} | {g2_context} | {g3_context}
-🚨 规则：如果出现N/A，说明是SPAC或早期企业。请评估其潜力，不要说“无法评估”。
+🚨 规则：{na_handling_rule}
 {search_directive}
 [严格的JSON规则] 仅输出以下JSON格式:
 {{
@@ -2398,9 +2413,8 @@ Data: {g1_context} | {g2_context} | {g3_context}
   "card2": "财务健康 (4-5句话)",
   "card3": "市场估值 (4-5句话)"
 }}"""
-            full_p = f"请撰写 {company_name}({ticker}) 的深度财务分析报告。\n[比率数据]: {g1_context}, {g2_context}, {g3_context}\n[原始数据]: {g4_context}\n{search_directive}"
+            full_p = f"请撰写 {company_name}({ticker}) 的深度财务分析报告。\n[比率数据]: {g1_context}, {g2_context}, {g3_context}\n[原始数据]: {g4_context}\n🚨 规则：{na_handling_rule}\n{search_directive}"
             full_i = """[严格规则] 1. 绝对不要写主标题或表情符号。 2. 必须引用[原始数据]中的具体数据。 3. 融入约10个核心数值。 4. 使用3个带方括号的副标题，绝对不要加粗(**): [盈利能力与增长性分析], [财务健康与现金流],[合理估值与综合投资意见]。 5. 副标题后写4-5句话。 6. 绝对不要抱怨数据缺失。"""
-
 
         try:
             # ----------------------------------------------------
@@ -2430,14 +2444,10 @@ Data: {g1_context} | {g2_context} | {g3_context}
             if res_full and res_full.text:
                 clean_full = res_full.text.strip()
                 
-                # 불필요한 서론 및 🎓 메인 제목 완벽 삭제
                 clean_full = re.sub(r'^(알겠습니다|네,|작성하겠습니다|요청하신|보고서입니다|Understood).*?(\n|$)', '', clean_full, flags=re.IGNORECASE | re.MULTILINE).strip()
                 clean_full = re.sub(r'(?i)(🎓|📊|📈|💡|🚀|CFA Quant Deep-Dive Analysis|CFA Quant|기업 분석 보고서|재무 분석 보고서)', '', clean_full).strip()
+                clean_full = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_full) # 굵은글씨 파괴
                 
-                # 소제목 굵은 글씨(**) 파괴
-                clean_full = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_full)
-                
-                # 단락 분리 및 HTML <p> 태그 래핑
                 paragraphs =[p.strip() for p in clean_full.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 
@@ -2445,7 +2455,7 @@ Data: {g1_context} | {g2_context} | {g3_context}
                 
                 batch_upsert("analysis_cache",[{"cache_key": cache_key_full, "content": html_full, "updated_at": datetime.now().isoformat()}], "cache_key")
                 
-            print(f"✅ [{ticker}] Tab 3 미시 지표 분석 완료 ({lang_code}) - {'Search (Math/JSON)' if can_fin_search else 'Strict'}")
+            print(f"✅[{ticker}] Tab 3 미시 지표 분석 완료 ({lang_code})")
         except Exception as e:
             print(f"❌ [{ticker}] Tab 3 미시 지표 AI 에러 ({lang_code}): {e}")
             time.sleep(1)
