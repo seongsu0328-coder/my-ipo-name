@@ -2298,12 +2298,11 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     valid_hours = 24 * 30 if days_passed > 90 else 24 * 7 
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
     
-    # 💡 [검색 엔진 최적화] 데이터가 없으면 구체적인 쿼리로 구글 검색 강제 지시
+    # 💡 [검색 엔진 최적화] 데이터가 없으면 구글 검색 강제 지시 (카드가 N/A로 도배되는 것 방지)
     is_fmp_fin_poor = (str(metrics.get('growth', 'N/A')) in ['N/A', '', 'None'])
     can_fin_search = is_fmp_fin_poor and (model_search is not None)
     current_tab3_model = model_search if can_fin_search else model_strict
     
-    # 대표님이 지정해주신 카드별 타겟 지표 맵핑
     g1_context = f"[Business Growth & Profitability] Sales Growth: {metrics.get('growth', 'N/A')}, Net Margin: {metrics.get('net_margin', 'N/A')}, Piotroski Score: {metrics.get('health_score', 'N/A')}/9"
     g2_context = f"[Financial Health & Quality] Debt to Equity: {metrics.get('debt_equity', 'N/A')}, Accruals Quality: {metrics.get('accruals', 'Unknown')}"
     g3_context = f"[Market Valuation] Forward P/E: {metrics.get('pe', 'N/A')}, DCF Target Price: {metrics.get('dcf_price', 'N/A')}, Current Price: {metrics.get('current_price', 'N/A')}"
@@ -2321,64 +2320,64 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         # 🚀 다국어 프롬프트 완벽 분리 (역할/지침 명확화)
         # ----------------------------------------------------
         if lang_code == 'ko':
-            search_directive = f"\n🚨 [강제 검색] FMP 데이터가 비어있습니다. 즉시 구글 검색 도구를 실행하여 '{company_name} {ticker} 2024 2025 실적 발표(financial results)'를 검색하세요. '18억 달러 매출' 등 실제 수치를 반드시 찾아 리포트에 포함시키세요. 수치가 없으면 시장 점유율이나 최신 뉴스 동향이라도 실측치로 넣으십시오." if can_fin_search else ""
+            search_directive = f"\n🚨 [강제 검색] 제공된 FMP 수치가 비어있거나 N/A입니다. 즉시 구글 검색 도구를 실행하여 '{company_name} {ticker} 2024 2025 실적 발표(financial results)'를 검색하세요. 검색된 '실제 매출액, 영업이익' 등의 구체적 수치를 반드시 리포트와 카드 요약에 활용하세요. '데이터가 없다'는 변명은 절대 금지합니다." if can_fin_search else ""
             
             # [Call 1] 카드 요약 (지표의 학술적 해석)
-            sum_p = f"당신은 월가의 수석 퀀트 애널리스트입니다. {company_name}({ticker})의 다음 지표들을 학문적이고 정량적인 기준(Criteria)으로 해석하여 3개의 독립된 대시보드 카드 요약을 작성하세요.\n[1번 카드]: {g1_context}\n[2번 카드]: {g2_context}\n[3번 카드]: {g3_context}\n{search_directive}"
+            sum_p = f"당신은 월가의 수석 퀀트 애널리스트입니다. {company_name}({ticker})의 다음 지표들을 학문적/정량적 기준으로 해석하여 3개의 독립된 대시보드 카드 요약을 작성하세요.\n[1번 카드]: {g1_context}\n[2번 카드]: {g2_context}\n[3번 카드]: {g3_context}\n{search_directive}"
             sum_i = """
             [UI 카드 작성 규칙 - 절대 엄수]
-            1. 3개의 완전히 독립된 텍스트 덩어리만 출력하세요. '1번 카드:', 'Card 1:' 등 어떠한 형태의 제목이나 숫자 넘버링도 절대 쓰지 마세요.
+            1. 3개의 완전히 독립된 텍스트 덩어리만 출력하세요. '1번 카드:', 'Card 1:' 등 제목이나 숫자 넘버링은 절대 쓰지 마세요.
             2. 반드시 아래의 정확한 포맷으로만 출력하세요.
                [포맷]: (성장률, 마진, 피오트로스키 점수를 바탕으로 비즈니스 성장성 및 수익성을 진단하는 4~5문장) |||SEP||| (부채비율과 발생액 품질을 바탕으로 재무 건전성 및 이익의 질을 진단하는 4~5문장) |||SEP||| (PER과 DCF 적정주가를 바탕으로 현재 시장 가치 평가를 진단하는 4~5문장)
-            3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요.
-            4. 🚨 [어투 고정]: 모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말(경어체)로 마무리하십시오. 평어체는 절대 금지합니다.
+            3. 구분자 '|||SEP|||' 이외의 어떠한 줄바꿈도 단락 사이에 넣지 마세요.
+            4. 🚨 데이터가 N/A라면 구글 검색을 통해 찾은 실제 수치를 적극 활용하여 구체적으로 평가하세요.
+            5. 🚨 [어투 고정]: 모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말(경어체)로 마무리하십시오.
             """
             
             # [Call 2] 하단 전문 (표준 재무 분석)
             full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 펀더멘털을 다루는 '표준 정통 재무 분석 리포트'를 작성하세요.\n데이터: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
             full_i = """
             [작성 규칙 - 절대 엄수]
-            1. 메인 제목이나 이모지(예: 🎓 CFA 리포트)를 절대 쓰지 마세요. 첫 글자부터 바로 소제목으로 시작하세요.
-            2. 🚨 구체적 수치 인용 필수: 반드시 검색되거나 제공된 '정확한 수치'를 본문에 직접 인용하여 전문적인 재무 분석을 수행하세요.
-            3. 🚨 핵심 재무 수치 및 비율(Ratio) 활용: 분석의 전문성을 높이기 위해, 데이터가 허락하는 선에서 표준적인 재무 분석에 보편적으로 사용되는 절대적 규모 수치(예: 매출액, 영업이익액, 순이익, 잉여현금흐름 등)와 핵심 비율(예: ROE, 영업이익률, 부채비율, 유동비율 등)을 총합 10개 내외로 적극 참고하여 문맥에 자연스럽게 녹여내세요.
-            4. 반드시 아래 3개의 소제목을 괄호만 사용하여 작성하세요: [수익성 및 성장성 분석], [재무 건전성 및 현금흐름], [적정 가치 및 종합 투자의견]. 마크다운 굵은 글씨(**)는 절대 금지.
+            1. 🚨 이모지(🎓 등)나 메인 제목("CFA 리포트", "기업 분석" 등)을 절대 쓰지 마세요. 첫 글자부터 바로 소제목으로 시작하세요.
+            2. 🚨 구체적 수치 인용 필수: 검색되거나 제공된 '정확한 수치'를 본문에 직접 인용하여 전문적인 재무 분석을 수행하세요.
+            3. 🚨 핵심 재무 수치 및 비율 활용: 분석의 전문성을 높이기 위해, 표준적인 재무 분석에 보편적으로 사용되는 '절대적 규모 수치'(예: 매출액, 영업이익액, 순이익, 잉여현금흐름 등)와 '핵심 비율'(예: ROE, 영업이익률, 부채비율 등)을 총합 10개 내외로 적극 포함하세요.
+            4. 🚨 반드시 아래 3개의 소제목을 마크다운 굵은 글씨와 대괄호를 사용하여 작성하세요: **[수익성 및 성장성 분석]**, **[재무 건전성 및 현금흐름]**, **[적정 가치 및 종합 투자의견]**.
             5. 🚨 소제목을 쓴 후 바로 다음에 본문 내용을 작성하세요. 각 단락은 4~5문장 길이로 꽉 채워서 작성하세요.
             6. '데이터가 없어 분석이 어렵다'는 변명이나 투덜거림은 절대 쓰지 마세요.
             7. 🚨 [어투 고정]: 모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말(경어체)로 마무리하십시오.
             """
 
         elif lang_code == 'ja':
-            search_directive = f"\n🚨 [強制検索] データが不足しています。直ちにGoogle検索で「{company_name} {ticker} 2024 2025 financial results」を検索し、具体的な数値を見つけて必ず含めてください。" if can_fin_search else ""
+            search_directive = f"\n🚨 [強制検索] データが不足しています。直ちにGoogle検索で「{company_name} {ticker} 2024 2025 financial results」を検索し、具体的な数値(売上高など)を見つけて必ず含めてください。" if can_fin_search else ""
             
             sum_p = f"あなたはウォール街のシニアクオンツアナリストです。{company_name}({ticker})の次の指標を学術的・定量的な基準で解釈し、3つの独立したダッシュボードカード要約を作成してください。\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
             sum_i = """
             [UIカード作成規則]
             1. 3つの完全に独立したテキストのみを出力してください。「カード1:」のような見出しや番号は一切禁止です。
-            2. フォーマット: (成長率、マージン、ピオトロスキースコアに基づくビジネスの成長性と収益性の診断 4〜5文) |||SEP||| (負債比率と発生額の質に基づく財務健全性と利益の質の診断 4〜5文) |||SEP||| (PERとDCFに基づく市場バリュエーション診断 4〜5文)
+            2. フォーマット: (成長率、マージン等に基づくビジネスの成長性と収益性の診断 4〜5文) |||SEP||| (負債比率等に基づく財務健全性と利益の質の診断 4〜5文) |||SEP||| (PERとDCFに基づく市場バリュエーション診断 4〜5文)
             3. 区切り文字 '|||SEP|||' のみを使用してください。丁寧な日本語（〜です/ます）を使用してください。
             """
             
             full_p = f"次のデータを用いて {company_name}({ticker}) の標準的な本格的財務分析レポートを作成してください。\nデータ: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
             full_i = """
             [厳格な規則]
-            1. メインタイトルや絵文字は絶対に使用しないでください。
+            1. メインタイトルや絵文字は絶対に使用しないでください。最初の文字から小見出しを始めてください。
             2. 🚨 具体的な数値を必ず引用し、専門的な財務分析を行ってください。
-            3. 🚨 財務数値および指標の活用: 分析の専門性を高めるため、データが許す限り、標準的な財務分析で一般的に使用される主要な数値や比率（例：売上高、営業利益、純利益、フリーキャッシュフロー、ROE、営業利益率、負債比率など）を合計10個程度参照し、文脈に自然に組み込んでください。
-            4. 必ず3つの小見出しを括弧のみで使用してください: [収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見]。太字(**)禁止。
-            5. 🚨 小見出しの直後に本文を書き始めてください。各段落は必ず4〜5文で構成してください。
-            6. 「データがない」という言い訳は絶対にしないでください。
-            7. 丁寧な日本語（〜です/ます）を使用してください。
+            3. 🚨 売上高、営業利益、純利益などの「絶対数値」や、ROE等の主要指標を合計10個程度参照し、文脈に自然に組み込んでください。
+            4. 🚨 必ず3つの小見出しを太字と括弧を使用して作成してください: **[収益性と成長性の分析]**, **[財務健全性とキャッシュフロー]**, **[適正価値と総合投資意見]**。
+            5. 小見出しの直後に本文を書き始めてください。各段落は必ず4〜5文で構成してください。
+            6. 丁寧な日本語（〜です/ます）を使用してください。
             """
 
         elif lang_code == 'zh':
-            search_directive = f"\n🚨 [强制搜索] 数据不足。请立即使用Google搜索查找“{company_name} {ticker} 2024 2025 financial results”，并必须在报告中包含具体数据。" if can_fin_search else ""
+            search_directive = f"\n🚨 [强制搜索] 数据不足。请立即使用Google搜索查找“{company_name} {ticker} 2024 2025 financial results”，并必须在报告中包含具体数据(如营收等)。" if can_fin_search else ""
             
             sum_p = f"作为华尔街的资深量化分析师，请根据学术和定量标准解读 {company_name}({ticker}) 的以下指标，撰写3个独立的仪表板卡片摘要。\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
             sum_i = """
             [UI卡片规则]
             1. 必须输出3段完全独立的纯文本。绝对不要使用任何像“卡片1:”这样的标题或数字编号。
-            2. 格式必须为: (基于增长率、利润率和皮奥特罗斯基分数诊断业务增长与盈利能力 4-5句话) |||SEP||| (基于债务比率和应计利润质量诊断财务健康与利润质量 4-5句话) |||SEP||| (基于市盈率和DCF诊断市场估值水平 4-5句话)
-            3. 仅使用 '|||SEP|||' 作为分隔符，不要加入任何其他换行符。使用专业简体中文编写。
+            2. 格式必须为: (基于增长率和利润率诊断业务增长与盈利能力 4-5句话) |||SEP||| (基于债务比率等诊断财务健康与利润质量 4-5句话) |||SEP||| (基于市盈率和DCF诊断市场估值水平 4-5句话)
+            3. 仅使用 '|||SEP|||' 作为分隔符。使用专业简体中文编写。
             """
             
             full_p = f"请使用以下数据为 {company_name}({ticker}) 撰写一份标准的深度财务分析报告。\n数据: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
@@ -2386,47 +2385,47 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             [严格规则]
             1. 绝对不要写主标题或表情符号。
             2. 🚨 必须引用具体的财务数据进行专业的分析。
-            3. 🚨 财务数据与指标的应用: 为提升专业深度，在数据允许的范围内，请积极参考并融入标准财务分析中普遍使用的核心绝对数值和比率（如：营收、营业利润、净利润、自由现金流、ROE、营业利润率、资产负债率等），总计约10个左右，并使其自然融入语境。
-            4. 必须使用3个带方括号的副标题，绝对不要使用加粗(**): [盈利能力与增长性分析], [财务健康与现金流], [合理估值与综合投资意见]。
-            5. 🚨 副标题后直接开始写正文。每个段落必须包含4-5句话。
-            6. 绝对不要抱怨数据缺失。
+            3. 🚨 必须积极融入标准财务分析中普遍使用的核心绝对数值（如：营收、营业利润、净利润等）和比率（如ROE等），总计约10个左右。
+            4. 🚨 必须使用3个带方括号并加粗的副标题: **[盈利能力与增长性分析]**, **[财务健康与现金流]**, **[合理估值与综合投资意见]**。
+            5. 副标题后直接开始写正文。每个段落必须包含4-5句话。
             """
 
         else: # en
-            search_directive = f"\n🚨 [FORCE SEARCH] FMP data is missing. You MUST use Google Search for '\"{company_name}\" \"{ticker}\" financial results 2024 OR 2025'. Include exact numbers." if can_fin_search else ""
+            search_directive = f"\n🚨 [FORCE SEARCH] FMP data is missing. You MUST use Google Search for '\"{company_name}\" \"{ticker}\" financial results 2024 OR 2025'. Include exact numbers (e.g. Revenue)." if can_fin_search else ""
             
-            sum_p = f"As a Wall Street Quant Analyst, interpret these metrics for {company_name}({ticker}) based on academic/quantitative criteria to write 3 independent card summaries.\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
+            sum_p = f"As a Wall Street Quant Analyst, interpret these metrics for {company_name}({ticker}) based on academic criteria to write 3 independent card summaries.\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
             sum_i = """
             [STRICT UI FORMAT RULES]
             1. You MUST output EXACTLY 3 text blocks separated ONLY by '|||SEP|||'. DO NOT use numbers or titles like 'Card 1:'.
-            2. Output FORMAT MUST BE: (Diagnose business growth & profitability using growth/margin/Piotroski score in 4-5 sentences) |||SEP||| (Diagnose financial health & earnings quality using debt/accruals in 4-5 sentences) |||SEP||| (Diagnose market valuation using PE/DCF in 4-5 sentences).
+            2. Output FORMAT MUST BE: (Diagnose business growth & profitability using growth/margin in 4-5 sentences) |||SEP||| (Diagnose financial health & earnings quality using debt/accruals in 4-5 sentences) |||SEP||| (Diagnose market valuation using PE/DCF in 4-5 sentences).
             """
             
             full_p = f"Write a standard fundamental financial analysis report for {company_name}({ticker}).\nData: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
             full_i = """
             [STRICT RULES]
-            1. NO MAIN TITLES or emojis. Start immediately.
-            2. QUOTE HARD NUMBERS: You MUST base your professional analysis on the specific numerical data provided.
-            3. 🚨 FINANCIAL FIGURES & RATIOS: To enhance professional depth, actively incorporate up to 10 standard financial metrics, absolute figures, and ratios (e.g., Revenue, Operating Income, Net Income, Free Cash Flow, ROE, Operating Margin, Debt-to-Equity) naturally into the context where data permits.
-            4. Use EXACTLY 3 subheadings with brackets ONLY: [Profitability & Growth Analysis], [Financial Health & Cash Flow], [Valuation & Final Verdict]. DO NOT use markdown bold (**).
-            5. 🚨 Write the paragraph immediately after the subheading. Each paragraph MUST be exactly 4-5 sentences long.
-            6. NEVER complain about missing data.
+            1. NO MAIN TITLES or emojis. Start immediately with the subheading.
+            2. QUOTE HARD NUMBERS: You MUST base your professional analysis on the specific numerical data.
+            3. 🚨 FINANCIAL FIGURES & RATIOS: Actively incorporate up to 10 standard financial metrics, absolute figures (e.g., Revenue, Operating Income, Net Income) and ratios (e.g., ROE) naturally into the context.
+            4. 🚨 Use EXACTLY 3 heavily bolded subheadings with brackets: **[Profitability & Growth Analysis]**, **[Financial Health & Cash Flow]**, **[Valuation & Final Verdict]**.
+            5. Write the paragraph immediately after the subheading. Each paragraph MUST be exactly 4-5 sentences long.
             """
 
         try:
             # 1. 3D 카드 요약 생성
             res_sum = current_tab3_model.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
-                # 💡 [핵심 방어막] AI가 실수로 1. 2. 이나 제목을 붙인 경우 정규식으로 강력하게 잘라냄
+                # 💡 [핵심 버그 픽스] 숫자가 지워지던 마크다운 정규식을 안전하게 교체!
                 clean_sum = res_sum.text.strip()
-                clean_sum = re.sub(r'(?i)(\*\*.*?\*\*|Card \d+:|카드 \d+:|カード\d+:|卡片\d+:|\d+\.)', '', clean_sum)
+                clean_sum = re.sub(r'(?i)(Card \d+:|카드 \d+:|カード\d+:|卡片\d+:|\d+\.)', '', clean_sum)
+                clean_sum = clean_sum.replace("**", "") # 숫자는 놔두고 마크다운 ** 기호만 텍스트에서 삭제
                 
                 batch_upsert("analysis_cache", [{"cache_key": cache_key_sum, "content": clean_sum.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
 
             # 2. 하단 전문 리포트 (표준 재무분석) 생성
             res_full = current_tab3_model.generate_content(full_p + full_i)
             if res_full and res_full.text:
-                clean_full = res_full.text.replace("**", "").strip()
+                # 하단 리포트는 볼드를 유지해도 되지만, 시스템 통일성을 위해 필요시 제거
+                clean_full = res_full.text.strip()
                 batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": clean_full, "updated_at": datetime.now().isoformat()}], "cache_key")
                 
             print(f"✅ [{ticker}] Tab 3 미시 지표 분석 완료 ({lang_code}) - {'Search' if can_fin_search else 'Strict'}")
@@ -2721,9 +2720,6 @@ def update_macro_data(df):
         "updated_at": datetime.now().isoformat()
     }], on_conflict="cache_key")
 
-    # =======================================================
-    # 🚀 [C] AI 리포트 생성 (독립된 3개의 UI 카드용)
-    # =======================================================
     g1_context = f"Sentiment/Liquidity (IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%)"
     g2_context = f"Risk/Supply (Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%)"
     g3_context = f"Macro/Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
@@ -2732,51 +2728,51 @@ def update_macro_data(df):
         cache_key_summary = f"Global_Market_Summary_{lang_code}"
         cache_key_full = f"Global_Market_Dashboard_{lang_code}"
         
-        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약 (명확한 가이드)
+        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약
         if lang_code == 'ko':
             sum_p = f"월가 수석 전략가로서 다음 3개 그룹의 데이터를 바탕으로 3개의 독립적인 대시보드 카드 요약을 작성하세요.\n[1번 카드 데이터]: {g1_context}\n[2번 카드 데이터]: {g2_context}\n[3번 카드 데이터]: {g3_context}"
             sum_i = """
             [UI 카드 작성 규칙 - 절대 엄수]
-            1. 당신의 답변은 웹사이트의 서로 다른 3개의 독립된 카드에 각각 들어갈 텍스트입니다. 자연스럽게 이어지는 에세이가 아닙니다.
-            2. 반드시 아래의 정확한 포맷으로만 출력하세요. 숫자 넘버링(1. 2.)이나 별도의 제목은 절대 쓰지 마세요.
-               [포맷]: (1번 카드: 초기 수익률과 철회율 데이터를 바탕으로 투기적 광기 및 위험 선호도 진단 3~4문장) |||SEP||| (2번 카드: 상장 예정 물량과 미수익 기업 비중을 결합하여 공급 과잉 및 질적 저하 리스크 분석 3~4문장) |||SEP||| (3번 카드: VIX, 공포탐욕지수, 밸류에이션(PE/버핏지수)을 결합하여 증시 전반의 거시적 과열 여부 진단 3~4문장)
-            3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요.
+            1. 3개의 완전히 독립된 텍스트 덩어리만 출력하세요. 숫자 넘버링이나 별도의 제목은 절대 쓰지 마세요.
+            2. 반드시 아래의 정확한 포맷으로만 출력하세요.
+               [포맷]: (초기 수익률과 철회율 데이터를 바탕으로 투기적 광기 및 위험 선호도 진단 3~4문장) |||SEP||| (상장 예정 물량과 미수익 기업 비중을 결합하여 공급 과잉 및 질적 저하 리스크 분석 3~4문장) |||SEP||| (VIX, 공포탐욕지수, 밸류에이션을 결합하여 증시 전반의 거시적 과열 여부 진단 3~4문장)
+            3. 구분자 '|||SEP|||' 이외의 줄바꿈은 넣지 마세요.
             4. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
             """
         elif lang_code == 'en':
-            sum_p = f"Write 3 completely independent dashboard card summaries.\n[Card 1 Data]: {g1_context}\n[Card 2 Data]: {g2_context}\n[Card 3 Data]: {g3_context}"
+            sum_p = f"Write 3 completely independent dashboard card summaries.\n[Card 1]: {g1_context}\n[Card 2]: {g2_context}\n[Card 3]: {g3_context}"
             sum_i = """
             [UI Card Rules]
-            1. Output EXACTLY 3 independent texts for 3 separate UI cards. Do not write a flowing essay.
-            2. Output FORMAT MUST BE: (Card 1: Diagnose speculative mania using IPO return and withdrawal rate in 3-4 sentences) |||SEP||| (Card 2: Analyze supply risk using upcoming IPOs and unprofitable ratio in 3-4 sentences) |||SEP||| (Card 3: Evaluate macroeconomic overheating using VIX, Fear&Greed, Buffett, and PE in 3-4 sentences).
-            3. DO NOT use numbers (1. 2. 3.) or titles. Separate strictly by '|||SEP|||'. Write in English.
+            1. Output EXACTLY 3 independent texts. DO NOT use ANY titles like 'Card 1:'.
+            2. FORMAT MUST BE EXACTLY: (Diagnose speculative mania using IPO return and withdrawal rate in 3-4 sentences) |||SEP||| (Analyze supply risk using upcoming IPOs and unprofitable ratio in 3-4 sentences) |||SEP||| (Evaluate macroeconomic overheating using VIX, Fear&Greed, Buffett, and PE in 3-4 sentences).
+            3. Separate strictly by '|||SEP|||'.
             """
         elif lang_code == 'ja':
-            sum_p = f"3つの独立したダッシュボードカードの要約を作成してください。\n[カード1のデータ]: {g1_context}\n[カード2のデータ]: {g2_context}\n[カード3のデータ]: {g3_context}"
+            sum_p = f"3つの独立したダッシュボードカードの要約を作成してください。\n[カード1]: {g1_context}\n[カード2]: {g2_context}\n[カード3]: {g3_context}"
             sum_i = """
             [UIカード作成規則]
-            1. 3つの異なるカードに挿入される、完全に独立した3つの文章を出力してください。
-            2. フォーマット: (カード1: 初期収益率と撤回率に基づく投機的熱狂の診断 3〜4文) |||SEP||| (カード2: 上場予定件数と赤字企業比率による供給リスク分析 3〜4文) |||SEP||| (カード3: VIX、Fear&Greed、バフェット指数、PEを結合したマクロ的な過熱感の評価 3〜4文)
-            3. 番号(1. 2.)や見出しは禁止です。区切り文字 '|||SEP|||' のみを使用してください。丁寧な日本語を使用してください。
+            1. 3つの完全に独立したテキストのみを出力してください。「カード1:」のような不要な見出しはすべて省いてください。
+            2. フォーマット: (初期収益率と撤回率に基づく投機的熱狂の診断 3〜4文) |||SEP||| (上場予定件数と赤字企業比率による供給リスク分析 3〜4文) |||SEP||| (VIX、Fear&Greed、バフェット指数、PEを結合したマクロ的な過熱感の評価 3〜4文)
+            3. 区切り文字 '|||SEP|||' のみを使用してください。
             """
         elif lang_code == 'zh':
-            sum_p = f"请为3个独立的仪表板卡片撰写摘要。\n[卡片1数据]: {g1_context}\n[卡片2数据]: {g2_context}\n[卡片3数据]: {g3_context}"
+            sum_p = f"请为3个独立的仪表板卡片撰写摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}"
             sum_i = """
             [UI卡片规则]
-            1. 必须输出3段完全独立的文字，用于3个不同的UI卡片。不要写成连贯的文章。
-            2. 格式必须为: (卡片1: 结合初期收益率与撤回率诊断投机狂热 3-4句话) |||SEP||| (卡片2: 结合上市排队数量与亏损企业占比分析供给风险 3-4句话) |||SEP||| (卡片3: 结合VIX、恐慌贪婪指数、巴菲特指标和PE评估宏观经济是否过热 3-4句话)
-            3. 严禁使用数字编号或标题。必须仅用 '|||SEP|||' 隔开。使用专业简体中文编写。
+            1. 必须输出3段完全独立的纯文本。绝对不要使用任何像“卡片1:”这样的标题。
+            2. 格式: (结合初期收益率与撤回率诊断投机狂热 3-4句话) |||SEP||| (结合上市排队数量与亏损企业占比分析供给风险 3-4句话) |||SEP||| (结合VIX、恐慌贪婪指数、巴菲特指标和PE评估宏观经济是否过热 3-4句话)
+            3. 仅使用 '|||SEP|||' 作为分隔符。
             """
 
-        # 💡 [Call 2] 하단 전문(Global Macro Strategic Matrix)
+        # 💡 [Call 2] 하단 전문 (소제목 굵게 처리 강제)
         if lang_code == 'ko':
             full_p = f"월가 수석 전략가로서 다음 데이터를 바탕으로 현재 글로벌 거시경제 및 IPO 시장 환경에 대한 심층 분석 리포트를 작성하세요.\n[1번]: {g1_context}\n[2번]: {g2_context}\n[3번]: {g3_context}"
             full_i = """
             [작성 규칙]
             1. 메인 제목(## 분석 등)은 절대 쓰지 마세요.
-            2. 반드시 3개의 소제목을 괄호만 사용하여 작성하세요: [시장 유동성 및 투기 심리], [공급 리스크 및 질적 평가], [매크로 환경 및 밸류에이션]. 소제목에 마크다운 굵은 글씨(**)는 절대 사용하지 마세요.
-            3. 🚨 소제목을 쓴 후, 바로 다음 줄(빈 줄 없이)에 본문 내용을 작성하세요. (단, 하나의 단락이 끝나고 다음 소제목으로 넘어갈 때만 빈 줄을 한 번 띄우세요.)
-            4. 제공된 수치(VIX, PE 등)를 반드시 본문에 포함하여 근거로 제시하세요.
+            2. 🚨 반드시 3개의 소제목을 마크다운 굵은 글씨와 대괄호를 사용하여 작성하세요: **[시장 유동성 및 투기 심리]**, **[공급 리스크 및 질적 평가]**, **[매크로 환경 및 밸류에이션]**.
+            3. 소제목을 쓴 후 바로 다음에 본문 내용을 이어서 작성하세요. 각 단락은 4~5문장 길이로 꽉 채워서 작성하세요.
+            4. 제공된 수치를 반드시 본문에 포함하여 근거로 제시하세요.
             5. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
             """
         elif lang_code == 'en':
@@ -2784,8 +2780,8 @@ def update_macro_data(df):
             full_i = """
             [Rules]
             1. NO MAIN TITLE.
-            2. Use EXACTLY 3 subheadings with brackets only: [Market Liquidity & Speculation], [Supply Risk & Quality], [Macro Environment & Valuation]. DO NOT use markdown bold (**).
-            3. 🚨 Write the paragraph immediately on the next line after the subheading WITHOUT a blank line. Only separate different sections (end of paragraph and the next subheading) with a blank line.
+            2. 🚨 Use EXACTLY 3 subheadings heavily bolded with brackets: **[Market Liquidity & Speculation]**, **[Supply Risk & Quality]**, **[Macro Environment & Valuation]**.
+            3. Write the paragraph immediately after the subheading.
             4. You MUST quote the exact numbers provided.
             """
         elif lang_code == 'ja':
@@ -2793,8 +2789,8 @@ def update_macro_data(df):
             full_i = """
             [規則]
             1. メインタイトルは禁止。
-            2. 必ず3つの小見出しを括弧のみで使用してください: [市場の流動性と投機心理], [供給リスクと質的評価], [マクロ環境とバリュエーション]。マークダウンの太字(**)は絶対に使用しないでください。
-            3. 🚨 小見出しの直後の行に、空行を入れずに本文を書き始めてください。セクション間（本文の終わりと次の小見出しの間）のみ空行を入れてください。
+            2. 🚨 必ず3つの小見出しを太字と括弧を使用して作成してください: **[市場の流動性と投機心理]**, **[供給リスクと質的評価]**, **[マクロ環境とバリュエーション]**。
+            3. 小見出しの直後に本文を書き始めてください。
             4. 提供された数値を必ず引用してください。
             """
         else: # zh
@@ -2802,19 +2798,16 @@ def update_macro_data(df):
             full_i = """
             [规则]
             1. 严禁写主标题。
-            2. 必须使用3个带方括号的副标题，绝对不要使用Markdown加粗(**): [市场流动性与投机情绪], [供给风险与质量评估], [宏观环境与估值]。
-            3. 🚨 副标题后的下一行直接开始写正文，中间绝对不要留空行。仅在段落结束与下一个副标题之间留空行。
+            2. 🚨 必须使用3个带方括号并加粗的副标题: **[市场流动性与投机情绪]**, **[供给风险与质量评估]**, **[宏观环境与估值]**。
+            3. 副标题后直接开始写正文。
             4. 必须在正文中引用提供的具体数据。
             """
 
-        # 🚀 [복구 완료] 실제로 AI를 호출하고 DB에 저장하는 누락되었던 로직
         try:
-            # 1. 3D 카드 요약 3개 조각 생성 및 저장
             res_sum = model_strict.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
                 batch_upsert("analysis_cache", [{"cache_key": cache_key_summary, "content": res_sum.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
 
-            # 2. 하단 전문 리포트 생성 및 저장
             res_full = model_strict.generate_content(full_p + full_i)
             if res_full and res_full.text:
                 batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_full.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
