@@ -55,25 +55,22 @@ model_search = None
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
     try:
-        # [환각 원천 차단용] 엄격한 모델
+        # [환각 원천 차단용] 일반 모델
         model_strict = genai.GenerativeModel('gemini-2.0-flash')
         
-        # 🚨 [검색 도구 무적 로딩] 버전 상관없이 무조건 켜지게 3중 방어막 적용
+        # 🚨 [구글 권장 규격으로 완벽 교체] 
+        # google_search_retrieval 대신 google_search를 명시적으로 사용합니다.
         try:
-            model_search = genai.GenerativeModel('gemini-2.0-flash', tools='google_search_retrieval')
-        except:
-            try:
-                model_search = genai.GenerativeModel('gemini-2.0-flash', tools=[{"google_search_retrieval": {}}])
-            except:
-                try:
-                    search_tool = genai.protos.Tool(google_search=genai.protos.GoogleSearch())
-                    model_search = genai.GenerativeModel('gemini-2.0-flash', tools=[search_tool])
-                except Exception as e_tool:
-                    print(f"⚠️ 구글 검색 도구 최종 실패: {e_tool}")
-                    model_search = None
-                    
-        if model_search:
-            print("✅ AI 하이브리드 모델 로드 성공 (Google Search 100% 활성화 완료)")
+            # 2026년 최신 SDK 규격: tools에 딕셔너리 형태로 'google_search' 주입
+            model_search = genai.GenerativeModel(
+                model_name='gemini-2.0-flash',
+                tools=[{"google_search": {}}] 
+            )
+            # 로딩 확인용 테스트 호출 (생략 가능하나 안정성을 위해 로그 출력)
+            print("✅ AI 하이브리드 모델 로드 성공 (Google Search 엔진 갱신 완료)")
+        except Exception as e_tool:
+            print(f"⚠️ 구글 검색 도구 로드 실패: {e_tool}")
+            model_search = None
 
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
