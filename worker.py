@@ -1385,79 +1385,84 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         for attempt in range(3):
             try:
                 response = current_model.generate_content(prompt)
+                if not response or not response.text:
+                    print(f"⚠️ [{ticker}] AI 응답이 비어있습니다. 재시도 중...")
+                    continue
+                
                 full_text = response.text
 
-                # 🎯 [버그 수정] 정규표현식을 Greedy(.*)하게 변경하여 뉴스 5개 전체 확보
+                # 1. 변수 초기화 (None 방지)
                 news_list = []
                 json_str = ""
-                
-                # <JSON_START> 우선 탐색 후, 실패 시 대괄호 [ ] 사이를 '끝까지' 긁어옵니다.
+                biz_analysis = ""
+
+                # 2. JSON 추출 로직 (Greedy)
                 tag_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
                 if tag_match:
                     json_str = tag_match.group(1).strip()
                 else:
-                    # 🚨 .*? (최소 매칭) 대신 .* (최대 매칭)을 사용하여 리스트의 마지막 ] 까지 캡처
                     json_match = re.search(r'(\[.*\])', full_text, re.DOTALL)
                     if json_match:
                         json_str = json_match.group(1).strip()
 
+                # 3. 뉴스 리스트 파싱 및 안전 슬라이싱
                 if json_str:
                     try:
                         parsed_data = json.loads(json_str)
-                        # AI가 리스트 형식이 아닌 {"news": [...]} 형식으로 줄 경우까지 자동 대응
-                        temp_list = parsed_data.get("news", []) if isinstance(parsed_data, dict) else parsed_data
-                        
-                        if isinstance(temp_list, list):
-                            # 🎯 [로직 추가] 날짜순 정렬 후 정확히 최신/중요 5개만 선별 (15개 소스 활용)
-                            temp_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
-                            news_list = temp_list[:5]
-                    except Exception as json_e:
-                        print(f"⚠️ JSON 파싱 재시도 중: {json_e}")
+                        # parsed_data가 None인 경우 대비
+                        if parsed_data is not None:
+                            temp_list = parsed_data.get("news", []) if isinstance(parsed_data, dict) else parsed_data
+                            if isinstance(temp_list, list):
+                                # 날짜순 정렬
+                                temp_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
+                                news_list = temp_list[:5]
+                    except:
+                        news_list = [] # 에러 시 빈 리스트로 초기화하여 len() 에러 방지
 
-                # [정제] 분석 본문에서 뉴스 데이터만 깨끗하게 제거
+                # 4. 분석 본문 정제 (None 방지)
                 if json_str:
                     biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
                 else:
-                    biz_analysis = full_text.split("[")[0].split("{")[0].replace("<JSON_START>", "").strip()
+                    parts = full_text.split("[")
+                    biz_analysis = parts[0].split("{")[0].replace("<JSON_START>", "").strip()
 
-                # 서론 찌꺼기 제거 (인사말/제목 등)
+                # 5. 서론 찌꺼기 제거
                 intro_pattern = r'^(알겠습니다|네,|작성하겠습니다|요청사항에|.*?보고서입니다|Understood|Certainly|Here is|I will|This is|承知いたしました|作成します|これは|好的|明白了|为您编写|这是).*?(\n|$)'
                 biz_analysis = re.sub(intro_pattern, '', biz_analysis, flags=re.IGNORECASE | re.MULTILINE).strip()
                 biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
                 
-                # 문단 정리 및 HTML 생성
-                paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 20]
+                # 6. 문단 처리 (biz_analysis가 문자열임을 보장)
+                paragraphs = [p.strip() for p in (biz_analysis or "").split('\n') if p.strip() and len(p.strip()) > 20]
+                
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
 
-                # 💡 [Sentiment 배지 색상 매핑] - 영어 값(Positive 등) 기준
+                # 7. Sentiment 배지 색상 매핑
                 if news_list:
                     for n in news_list:
                         s_val = str(n.get('sentiment', 'Neutral')).strip().lower()
-                        if "positive" in s_val: 
-                            n['bg'], n['color'] = "#e6f4ea", "#1e8e3e" # 긍정 (녹색)
-                        elif "negative" in s_val: 
-                            n['bg'], n['color'] = "#fce8e6", "#d93025" # 부정 (빨간색)
-                        else: 
-                            n['bg'], n['color'] = "#f1f3f4", "#5f6368" # 일반 (회색)
+                        if "positive" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                        elif "negative" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
+                        else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
 
-                # DB 저장
+                # 8. 최종 저장 및 성공 체크 (news_list가 None이 아님을 보장)
                 batch_upsert("analysis_cache", [{
                     "cache_key": cache_key,
                     "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
                     "updated_at": now.isoformat()
                 }], on_conflict="cache_key")
                 
-                print(f"✅ [{ticker}] Tab 1 업데이트 완료 (선별된 뉴스 {len(news_list)}개 저장)")
+                # 🚨 len(news_list) 호출 전 확실히 리스트인지 체크
+                news_count = len(news_list) if isinstance(news_list, list) else 0
+                print(f"✅ [{ticker}] Tab 1 캐싱 성공 (뉴스 {news_count}개)")
                 
-                # 뉴스가 정상적으로 1개라도 선별되었으면 성공으로 간주하고 루프 종료
-                if len(news_list) > 0 or is_fmp_poor:
+                if news_count > 0 or is_fmp_poor:
                     break 
                 
             except Exception as e:
-                print(f"❌ [Tab 1 AI Error - {lang_code}]: {e}")
+                print(f"❌ [{ticker}] 분석 에러 발생: {e}")
                 time.sleep(1)
-
+                
     # =========================================================
     # 🚀 [B] 프리미엄 전용 데이터 수집 (기업 공식 보도자료)
     # =========================================================
