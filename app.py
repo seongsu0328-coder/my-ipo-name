@@ -2157,7 +2157,12 @@ UI_TEXT = {
     # 7. Tab 1: 주요뉴스
     # ==========================================
     'expander_biz_summary': {'ko': '공식 기업소개', 'en': 'Official Corporate Overview', 'ja': '公式企業紹介', 'zh': '官方企业介绍'},
-    'caption_google_search': {'ko': 'Google Search 기반으로 실시간 분석 및 뉴스를 제공합니다.', 'en': 'Real-time analysis based on Google Search.', 'ja': 'Google検索に基づいたリアルタイム分析を提供します。', 'zh': '基于Google Search提供实时分析和新闻。'},
+    'caption_biz_source': {
+        'ko': '기업소개는 FMP 공식 자료를 원칙으로 하되, 자료가 부족할 경우 Google 검색 정보를 활용하여 보완합니다.', 
+        'en': 'Corporate overview is primarily based on FMP data, utilizing Google Search when data is insufficient.', 
+        'ja': '企業紹介はFMPの公式データを原則とし、データが不足している場合はGoogle検索情報を活用して補完します。', 
+        'zh': '企业介绍原则上基于FMP官方数据，当数据不足时，将利用Google搜索信息进行补充。'
+    },
     'sentiment_positive': {'ko': '긍정적', 'en': 'Positive', 'ja': '肯定的', 'zh': '积极'},
     'sentiment_neutral': {'ko': '중립적', 'en': 'Neutral', 'ja': '中立的', 'zh': '中立'},
     'sentiment_negative': {'ko': '부정적', 'en': 'Negative', 'ja': '否定的', 'zh': '消极'},
@@ -4490,7 +4495,10 @@ with main_area.container():
                             {biz_info}
                         </div>
                         """, unsafe_allow_html=True)
-                        st.caption(get_text('caption_google_search'))
+                        
+                        # 🚨 호출 키값을 수정합니다
+                        st.caption(get_text('caption_biz_source'))
+                        
                     else:
                         st.error(get_text('err_no_biz_info'))
 
