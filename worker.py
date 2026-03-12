@@ -1195,8 +1195,11 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 [Raw Data]:
 {raw_data}"""
 
+# ==========================================
+# [수정] Tab 1: 뉴스 및 비즈니스 (언어 분리 및 생애주기 맞춤형)
+# ==========================================
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
-    if 'model_strict' not in globals(): return
+    if 'model_strict' not in globals() or not model_strict: return
     
     now = datetime.now()
     status_lower = str(ipo_status).lower()
@@ -1212,6 +1215,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             elif days_passed > 90: is_over_3m = True
     except: pass
 
+    # 기업 상태 및 상장 기간별 동적 캐싱 주기
     if is_withdrawn or is_delisted_or_otc or is_over_1y: valid_hours = 24 * 7  
     elif is_over_3m: valid_hours = 24 * 3  
     elif "상장예정" in ipo_status or "30일" in ipo_status: valid_hours = 6
@@ -1219,8 +1223,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
     limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
     current_date = now.strftime("%Y-%m-%d")
+    current_year = now.strftime("%Y")
 
-    # [1] 데이터 확보
+    # [1] 데이터 확보 (Stable API)
     profile_url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={FMP_API_KEY}"
     profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
     biz_desc = profile_data[0].get('description') or "" if profile_data else ""
@@ -1236,137 +1241,224 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     can_search = is_fmp_poor and (model_search is not None)
     current_model = model_search if can_search else model_strict
 
+    # =========================================================
+    # [2] 4개 국어 순회 생성 (프롬프트 완벽 분리)
+    # =========================================================
     for lang_code, target_lang in SUPPORTED_LANGS.items():
-        cache_key = f"{ticker}_Tab1_v5_{lang_code}" # app.py 연결 키 유지
+        cache_key = f"{ticker}_Tab1_v5_{lang_code}" 
         
         try:
             res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
             if res.data: continue 
         except: pass
 
-        # 🚨 프롬프트에 '검색 툴 사용'과 'JSON 강제'를 강력히 명시
-        search_instr = ""
-        if can_search:
-            search_instr = f"🚨 [TOOL USE] FMP data is missing. USE Google Search for '{company_name} {ticker} business model' and its latest news. DO NOT use placeholders like 'N/A' or 'Unknown'."
-
-        # [1] 언어별 상세 지침 설정 (Task 1: 수치 기반 목표 및 경쟁사 비교 중심)
+        # ---------------------------------------------------------
+        # 🇰🇷 한국어 프롬프트
+        # ---------------------------------------------------------
         if lang_code == 'ko':
-            lang_rule = "반드시 전문적인 한국어로 작성하세요."
-            sentiment_rule = "긍정, 부정, 일반 중 하나"
-            task_instr = """
-            [Task 1: Business Analysis]
-            작성 지침: 기업의 핵심 비즈니스 모델, 경쟁 우위, 향후 성장 전략을 설명하세요. 경쟁 우위는 구체적인 기업명을 명시해서 비교를 하도록 하세요. 향후 성장 전략에 대해선 과거 재무, 매출, 수익 등을 직접적 수치로 검토하고, 이를 바탕으로 미래의 구체적인 목표치(Target)가 어떻게 되는지 상세히 서술하세요.
-            [Task 2: Latest News]
-            작성 지침: 실시간 검색 결과나 제공된 뉴스 중 가장 중요한 5개를 선별하세요.
-            [출력 규칙 - 절대 엄수]
-            반드시 아래 JSON 포맷으로만 응답하세요. 서론, 인사말, 마크다운 기호(```) 등 JSON 외부의 텍스트는 절대 금지합니다.
-            """
+            sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다."
+            lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n🚨 [어투 고정]: 모든 문장의 끝은 반드시 '~습니다', '~합니다', '~입니다' 형태의 정중한 존댓말(경어체)로 마무리하십시오. '~한다', '~이다' 형태의 평어체는 절대 금지합니다."
+            search_directive = f"🚨 [강제 검색] FMP 데이터가 부족합니다. 즉시 구글 검색 도구를 사용하여 '{company_name} {ticker} business model' 및 '{company_name} 최신 뉴스'를 검색하십시오." if can_search else "🚨 [환각 금지] 오직 제공된 [Part 1], [Part 2] 데이터만 사용하세요."
+            
+            if is_withdrawn:
+                t1_label = "[작업 1: 상장 철회(Withdrawn) 심층 진단]"
+                t1_struct = "- 1문단: [철회 배경 진단] 시장 환경 악화 여부 및 내부 펀더멘털/규제 이슈 분석\n- 2문단: [재무적 타격] 자본 조달 실패가 기업의 단기 유동성에 미치는 영향\n- 3문단: [생존 전략] M&A 피인수, 우회 상장, 추가 사모 펀딩 등 대안 시나리오"
+            elif is_delisted_or_otc:
+                t1_label = "[작업 1: OTC/장외시장 거래 리스크 진단]"
+                t1_struct = "- 1문단: [장외 편입 배경] 비즈니스 모델 요약 및 정규 시장 미진입(또는 강등) 사유\n- 2문단: [투자 리스크] 거래량 부족에 따른 유동성 위험(Liquidity Risk) 및 정보 비대칭성 진단\n- 3문단: [장기 전망] 사업 지속 가능성(Going Concern) 및 정규 시장 재진입 가능성"
+            elif is_over_1y:
+                t1_label = "[작업 1: 상장 1년 차 펀더멘털 점검]"
+                t1_struct = "- 1문단: [목표 달성도] IPO 당시 제시했던 비전 대비 현재 핵심 펀더멘털 달성 여부\n- 2문단: [수익성 평가] 흑자 전환(Path to Profitability) 현황 및 잉여현금흐름(FCF)\n- 3문단: [자본 효율성] 투자(CAPEX/R&D) 성과 및 장기적 주주 가치 환원 전략"
+            else:
+                t1_label = "[작업 1: 신규 IPO 비즈니스 심층 분석]"
+                t1_struct = "- 1문단: 구체적 수치를 동반한 비즈니스 모델 및 핵심 제품/서비스 설명\n- 2문단: 시장 점유율, 수익 구조, 그리고 주요 경쟁사와의 명확한 경쟁 우위/열위 비교\n- 3문단: 향후 신사업 확장 계획 및 최근 산업 트렌드"
+                
+            t2_label = "[작업 2: 최신 뉴스 수집 및 전문 번역]"
+            json_format = f"""{{ "biz_summary": "여기에 3문단의 비즈니스 분석 내용을 넣으세요. (줄바꿈은 \\n 사용)", "news_list": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일로 번역된 제목(마크다운 제외)", "link": "URL", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
+
+        # ---------------------------------------------------------
+        # 🇺🇸 영어 프롬프트
+        # ---------------------------------------------------------
         elif lang_code == 'en':
-            lang_rule = "Must write in Professional English."
-            sentiment_rule = "Positive, Negative, Neutral"
-            task_instr = """
-            [Task 1: Business Analysis]
-            Instruction: Explain the company's core business model, competitive advantages, and future growth strategies. For competitive advantages, provide a comparison by explicitly naming specific competitors. For future growth strategies, review past financials, revenue, and earnings using direct numerical data, and describe in detail what the specific future targets/goals are based on that data.
-            [Task 2: Latest News]
-            Instruction: Select the 5 most important news items from real-time search results or provided data.
-            [Output Rules - STRICT COMPLIANCE]
-            Respond EXCLUSIVELY in the JSON format below. Any text outside the JSON, such as introductions, greetings, or markdown symbols (```), is strictly prohibited.
-            """
+            sys_prompt = "You are a senior analyst at a top-tier brokerage research center."
+            lang_instruction = "Your entire response MUST be strictly in Professional English."
+            search_directive = f"🚨 [TOOL USE] FMP data is missing. IMMEDIATELY use Google Search for '{company_name} {ticker} business model' and its latest news." if can_search else "🚨 [STRICT RULE] Write ONLY using the text data provided below."
+            
+            if is_withdrawn:
+                t1_label = "[Task 1: Withdrawn IPO Diagnosis]"
+                t1_struct = "- Para 1: [Withdrawal Background] Market conditions, internal fundamentals, or regulatory issues.\n- Para 2: [Financial Impact] Impact of funding failure on short-term liquidity.\n- Para 3: [Survival Strategy] Alternative scenarios like M&A, direct listing, or private funding."
+            elif is_delisted_or_otc:
+                t1_label = "[Task 1: OTC Market Risk Analysis]"
+                t1_struct = "- Para 1: [Delisting Background] Business model summary and reasons for delisting/downgrade.\n- Para 2: [Investment Risk] Liquidity risks due to low volume and information asymmetry.\n- Para 3: [Long-term Outlook] Going concern assessment and potential for re-listing."
+            elif is_over_1y:
+                t1_label = "[Task 1: Post-IPO Fundamental Check]"
+                t1_struct = "- Para 1: [Goal Achievement] Whether core fundamentals matched the IPO vision.\n- Para 2: [Profitability] Path to profitability and Free Cash Flow (FCF) status.\n- Para 3: [Capital Efficiency] CAPEX/R&D outcomes and shareholder return strategies."
+            else:
+                t1_label = "[Task 1: Deep Business Model Analysis]"
+                t1_struct = "- Para 1: Business model and core products/services with specific figures.\n- Para 2: Market share, revenue structure, and clear competitive advantage/disadvantage against peers.\n- Para 3: Future expansion plans and latest industry trends."
+                
+            t2_label = "[Task 2: Latest News Collection]"
+            json_format = f"""{{ "biz_summary": "3 paragraphs of analysis (use \\n)", "news_list": [ {{ "title_en": "Original English Title", "translated_title": "Professional WSJ style headline (No quotes)", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
+
+        # ---------------------------------------------------------
+        # 🇯🇵 일본어 프롬프트
+        # ---------------------------------------------------------
         elif lang_code == 'ja':
-            lang_rule = "必ず専門的な日本語で記述してください。"
-            sentiment_rule = "Positive, Negative, Neutral"
-            task_instr = """
-            [Task 1: Business Analysis]
-            作成指針：企業の核心的なビジネスモデル、競合優位性、および今後の成長戦略を説明してください。競合優位性については、具体的な企業名を明示して比較を行ってください。今後の成長戦略については、過去の財務、売上、利益などを直接的な数値で検討し、それに基づいた将来の具体的な目標値（Target）がどのようになっているか詳細に記述してください。
-            [Task 2: Latest News]
-            作成指針：リアルタイムの検索結果または提供されたニュースの中から、最も重要な5件を選別してください。
-            [출력 규칙 - 厳守]
-            必ず以下のJSON形式でのみ回答してください。導入文、挨拶、マークダウン記号（```）など、JSON外部のテキストは一切禁止します。
-            """
-        elif lang_code == 'zh':
-            lang_rule = "必须使用专业的简体中文编写。"
-            sentiment_rule = "Positive, Negative, Neutral"
-            task_instr = """
-            [Task 1: Business Analysis]
-            编写指南：说明公司的核心商业模式、竞争优势及未来增长战略。在竞争优势方面，需明确列出具体公司名称进行对比；在未来增长战略方面，需利用直接的财务、营收、利润等数据回顾过往业绩，并以此为基础详细阐述未来的具体目标数值 (Target)。
-            [Task 2: Latest News]
-            编写指南：从实时搜索结果或提供的新闻中筛选出最重要的5条。
-            [输出规则 - 严格遵守]
-            必须仅以下方的 JSON 格式进行响应。严禁在 JSON 之外出现任何文本，如前言、问候语或 Markdown 符号 (```)。
-            """
+            sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。"
+            lang_instruction = "必ず自然で専門的な日本語のみで作成してください。"
+            search_directive = f"🚨 [強制検索] データが不足しています。直ちにGoogle検索で「{company_name} {ticker} business model」および最新ニュースを検索してください。" if can_search else "🚨 [厳格な規則] 以下に提供されたテキストデータのみを使用してください。"
+            
+            if is_withdrawn:
+                t1_label = "[タスク 1: 上場撤回(Withdrawn) 深層診断]"
+                t1_struct = "- 第1段落: [撤回の背景] 市場環境の悪化、内部ファンダメンタルズ、または規制問題の分析\n- 第2段落: [財務的打撃] 資金調達失敗が企業の短期流動性に与える影響\n- 第3段落: [生存戦略] M&Aによる買収、直接上場、追加の私募資金調達などの代替シナリオ"
+            elif is_delisted_or_otc:
+                t1_label = "[タスク 1: OTC/店頭市場 取引リスク診断]"
+                t1_struct = "- 第1段落: [上場廃止の背景] ビジネスモデルの要約と、正規市場に参入できない(または降格した)理由\n- 第2段落: [投資リスク] 取引量不足に伴う流動性リスクおよび情報非対称性の診断\n- 第3段落: [長期展望] 事業の持続可能性(Going Concern)と正規市場への再上場の可能性"
+            elif is_over_1y:
+                t1_label = "[タスク 1: 上場1年目のファンダメンタルズ点検]"
+                t1_struct = "- 第1段落: [目標達成度] IPO当時に提示したビジョンに対する現在の核心ファンダメンタルズの達成状況\n- 第2段落: [収益性評価] 黒字転換(Path to Profitability)の現状とフリーキャッシュフロー(FCF)の状態\n- 第3段落: [資本効率] 投資(CAPEX/R&D)の成果と長期的な株主還元戦略"
+            else:
+                t1_label = "[タスク 1: 新規IPOビジネス深層分析]"
+                t1_struct = "- 第1段落: 具体的な数値を伴うビジネスモデルと主要製品/サービスの説明\n- 第2段落: 市場シェア、収益構造、および主要な競合他社との明確な競争優位性/劣位性の比較\n- 第3段落: 今後の新規事業拡張計画および最新の業界トレンド"
+                
+            t2_label = "[タスク 2: 最新ニュースの収集と専門的な翻訳]"
+            json_format = f"""{{ "biz_summary": "3つの段落の分析内容(\\n使用)", "news_list": [ {{ "title_en": "Original Title", "translated_title": "日経新聞のヘッドライン風(記号なし)", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
 
-        # [2] 최종 프롬프트 조합 (기존 구조 유지)
+        # ---------------------------------------------------------
+        # 🇨🇳 중국어 프롬프트
+        # ---------------------------------------------------------
+        else: # zh
+            sys_prompt = "您是顶尖券商研究中心的高级分析师。"
+            lang_instruction = "必须只用自然流畅的专业简体中文编写。"
+            search_directive = f"🚨 [强制搜索] FMP数据不足。请立即使用Google搜索查找“{company_name} {ticker} business model”以及最新新闻。" if can_search else "🚨 [严格规则] 只能使用下面提供的文本数据进行编写。"
+            
+            if is_withdrawn:
+                t1_label = "[任务 1: 撤回上市(Withdrawn) 深度诊断]"
+                t1_struct = "- 第一段: [撤回背景] 市场环境恶化、内部基本面或监管问题的分析。\n- 第二段: [财务打击] 融资失败对企业短期流动性的影响。\n- 第三段: [生存战略] M&A收购、直接上市或私募融资等替代方案。"
+            elif is_delisted_or_otc:
+                t1_label = "[任务 1: OTC/场外市场交易风险诊断]"
+                t1_struct = "- 第一段: [退市背景] 商业模式摘要及未能进入（或降级出）正规市场的原因。\n- 第二段: [投资风险] 由于交易量不足导致的流动性风险及信息不对称诊断。\n- 第三段: [长期展望] 持续经营能力(Going Concern)评估及重新上市的可能性。"
+            elif is_over_1y:
+                t1_label = "[任务 1: 上市一周年基本面检查]"
+                t1_struct = "- 第一段: [目标达成度] 评估当前核心基本面是否达到IPO时提出的愿景。\n- 第二段: [盈利能力] 扭亏为盈(Path to Profitability)现状及自由现金流(FCF)状况。\n- 第三段: [资本效率] 资本支出(CAPEX)/研发(R&D)成果及长期股东回报战略。"
+            else:
+                t1_label = "[任务 1: 新 IPO 业务深度分析]"
+                t1_struct = "- 第一段: 包含具体数据的商业模式及核心产品/服务说明。\n- 第二段: 市场份额、盈利结构，以及与主要竞争对手的明确竞争优劣势比较。\n- 第三段: 未来的新业务扩张计划及行业最新趋势。"
+                
+            t2_label = "[任务 2: 收集最新新闻并专业翻译]"
+            json_format = f"""{{ "biz_summary": "3个段落的分析内容(使用\\n)", "news_list": [ {{ "title_en": "Original Title", "translated_title": "财经新闻头条风格(不含特殊符号)", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
+
+        # ---------------------------------------------------------
+        # [최종 프롬프트 조립]
+        # ---------------------------------------------------------
         prompt = f"""
-        {lang_rule}
-        {search_instr}
-        분석 대상: {company_name} ({ticker})
-        오늘 날짜: {current_date}
+        {sys_prompt}
+        Target: {company_name} ({ticker})
+        Date: {current_date}
 
-        {task_instr}
+        [Part 1: Official Business Profile]
+        {biz_desc if biz_desc else "Data unavailable."}
 
-        {{
-          "biz_summary": "여기에 3문단의 비즈니스 분석 내용을 넣으세요. (줄바꿈은 \\n 사용)",
-          "news_list": [
-            {{ "title_en": "English Title", "translated_title": "번역된 제목", "link": "URL", "sentiment": "{sentiment_rule}", "date": "YYYY-MM-DD" }}
-          ]
-        }}
-        """
+        [Part 2: Official FMP News]
+        {fmp_news_context if fmp_news_context else "Data unavailable."}
 
-        # [2] 최종 프롬프트 조합
-        prompt = f"""
-        {lang_rule}
-        {search_instr}
-        분석 대상: {company_name} ({ticker})
-        오늘 날짜: {current_date}
+        {t1_label}
+        {search_directive}
+        1. Language Rule: {lang_instruction}
+        2. Format: Write EXACTLY 3 paragraphs based on the structure below. Each paragraph must be 4-5 sentences long.
+        {t1_struct}
+        3. Prohibition: 🚨 ABSOLUTELY DO NOT use introductions like "Here is the report", "Understood", "알겠습니다". Start the main analysis immediately. DO NOT use markdown bold (**) or bullet points.
 
-        {task_instr}
-
-        {{
-          "biz_summary": "여기에 3문단의 비즈니스 분석 내용을 넣으세요. (줄바꿈은 \\n 사용)",
-          "news_list": [
-            {{ "title_en": "English Title", "translated_title": "번역된 제목", "link": "URL", "sentiment": "{sentiment_rule}", "date": "YYYY-MM-DD" }}
-          ]
-        }}
+        {t2_label}
+        - Extract the Top 5 most important latest news from [Part 2] or Google Search.
+        - If 'ko' language, the 'sentiment' MUST be "긍정", "부정", "일반". Otherwise, MUST be "Positive", "Negative", "Neutral".
+        
+        <JSON_START>
+        {json_format}
+        <JSON_END>
         """
 
         for attempt in range(3):
             try:
                 response = current_model.generate_content(prompt)
-                if not response or not response.text: continue
                 
-                # JSON만 추출
-                clean_json = re.search(r'\{.*\}', response.text, re.DOTALL)
-                if not clean_json: continue
+                if not response or not hasattr(response, 'text') or not response.text:
+                    print(f"⚠️ [{ticker}] AI 응답이 비어있습니다. (시도 {attempt+1}/3)")
+                    time.sleep(1); continue
                 
-                parsed = json.loads(clean_json.group(0), strict=False)
-                biz_text = parsed.get("biz_summary", "")
-                news_list = parsed.get("news_list", [])
+                full_text = response.text
 
-                # HTML 렌더링
-                paragraphs = [p.strip() for p in biz_text.split('\n') if len(p.strip()) > 10]
-                indent = "14px" if lang_code == "ko" else "0px"
-                html_output = "".join([f'<p style="display:block; text-indent:{indent}; margin-bottom:15px; line-height:1.7; font-size:15px; color:#333;">{p}</p>' for p in paragraphs])
+                # 한글 오염 방어막
+                if lang_code != 'ko':
+                    check_text = full_text.replace("Positive", "").replace("Negative", "").replace("Neutral", "")
+                    if re.search(r'[가-힣]', check_text):
+                        time.sleep(1); continue 
 
-                # 뉴스 색상 매핑
-                for n in news_list:
-                    s = str(n.get('sentiment', '')).lower()
-                    if '긍정' in s or 'pos' in s: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                    elif '부정' in s or 'neg' in s: n['bg'], n['color'] = "#fce8e6", "#d93025"
-                    else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
+                news_list = []
+                json_str = ""
+                biz_analysis = ""
 
-                # 저장
+                tag_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
+                if tag_match:
+                    json_str = tag_match.group(1).strip()
+                else:
+                    bracket_match = re.search(r'(\[\s*\{.*?\}\s*\])', full_text, re.DOTALL)
+                    if bracket_match:
+                        json_str = bracket_match.group(1).strip()
+                    else:
+                        dict_match = re.search(r'(\{.*"news_list".*\})', full_text, re.DOTALL)
+                        if dict_match: json_str = dict_match.group(1).strip()
+
+                if json_str:
+                    try:
+                        parsed_data = json.loads(json_str)
+                        valid_data = parsed_data if parsed_data is not None else []
+                        temp_list = valid_data.get("news_list", []) if isinstance(valid_data, dict) else valid_data
+                        
+                        if isinstance(temp_list, list):
+                            temp_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
+                            news_list = temp_list[:5]
+                    except:
+                        news_list = []
+
+                if json_str:
+                    biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
+                else:
+                    biz_analysis = full_text.split("[")[0].split("{")[0].replace("<JSON_START>", "").strip()
+
+                # 서론 및 마크다운 찌꺼기 완벽 제거
+                intro_pattern = r'^(알겠습니다|네,|작성하겠습니다|요청사항에|.*?보고서입니다|Understood|Certainly|Here is|I will|This is|承知いたしました|作成します|これは|好的|明白了|为您编写|这是).*?(\n|$)'
+                biz_analysis = re.sub(intro_pattern, '', biz_analysis, flags=re.IGNORECASE | re.MULTILINE).strip()
+                biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
+                
+                safe_biz_text = biz_analysis if biz_analysis else ""
+                paragraphs = [p.strip() for p in safe_biz_text.split('\n') if p.strip() and len(p.strip()) > 20]
+                
+                indent_size = "14px" if lang_code == "ko" else "0px"
+                html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+
+                # 뉴스 배지 색상 적용
+                if isinstance(news_list, list):
+                    for n in news_list:
+                        if n is None: continue 
+                        s_val = str(n.get('sentiment', 'Neutral')).strip().lower()
+                        if "pos" in s_val or "긍정" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                        elif "neg" in s_val or "부정" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
+                        else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
+
+                # DB 저장
                 batch_upsert("analysis_cache", [{
                     "cache_key": cache_key,
                     "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
                     "updated_at": now.isoformat()
                 }], on_conflict="cache_key")
                 
-                print(f"✅ [{ticker}] Tab 1 하이브리드 분석 완료 ({lang_code})")
-                break
+                print(f"✅ [{ticker}] Tab 1 분석 성공 ({lang_code}) - {'Search' if is_fmp_poor else 'Strict'}")
+                break 
+                
             except Exception as e:
-                print(f"⚠️ [{ticker}] Tab 1 시도 {attempt+1} 실패: {e}")
+                print(f"❌ [{ticker}] Tab 1 분석 중 치명적 오류 ({lang_code}): {e}")
                 time.sleep(1)
-
     # =========================================================
     # [A] 4개 국어 순회 생성
     # =========================================================
@@ -2192,7 +2284,7 @@ def run_tab4_ma_premium_collection(ticker, company_name):
         print(f"Tab4 Premium M&A Error for {ticker}: {e}")
     
 # ==========================================
-# [수정/완전판] Tab 3: 미시 지표 (독립된 3D 카드 요약 + 논문 전문 동시 생성)
+# [완벽 수정] Tab 3: 미시 지표 (독립된 3D 카드 요약 + 표준 재무분석 리포트)
 # ==========================================
 def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return False
@@ -2206,6 +2298,16 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     valid_hours = 24 * 30 if days_passed > 90 else 24 * 7 
     limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
     
+    # 💡 [검색 엔진 최적화] 데이터가 없으면 구체적인 쿼리로 구글 검색 강제 지시
+    is_fmp_fin_poor = (str(metrics.get('growth', 'N/A')) in ['N/A', '', 'None'])
+    can_fin_search = is_fmp_fin_poor and (model_search is not None)
+    current_tab3_model = model_search if can_fin_search else model_strict
+    
+    # 대표님이 지정해주신 카드별 타겟 지표 맵핑
+    g1_context = f"[Business Growth & Profitability] Sales Growth: {metrics.get('growth', 'N/A')}, Net Margin: {metrics.get('net_margin', 'N/A')}, Piotroski Score: {metrics.get('health_score', 'N/A')}/9"
+    g2_context = f"[Financial Health & Quality] Debt to Equity: {metrics.get('debt_equity', 'N/A')}, Accruals Quality: {metrics.get('accruals', 'Unknown')}"
+    g3_context = f"[Market Valuation] Forward P/E: {metrics.get('pe', 'N/A')}, DCF Target Price: {metrics.get('dcf_price', 'N/A')}, Current Price: {metrics.get('current_price', 'N/A')}"
+
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
         cache_key_full = f"{ticker}_Tab3_v2_Premium_{lang_code}"
@@ -2215,121 +2317,123 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             if res.data: continue 
         except: pass
 
-        g1_context = f"Growth/Profitability (Revenue Growth: {metrics.get('growth', 'N/A')}, Net Margin: {metrics.get('net_margin', 'N/A')}, Piotroski Score: {metrics.get('health_score', 'N/A')}/9)"
-        g2_context = f"Health/Quality (Debt/Equity: {metrics.get('debt_equity', 'N/A')}, Accruals Quality: {metrics.get('accruals', 'Unknown')})"
-        g3_context = f"Valuation (Forward PE: {metrics.get('pe', 'N/A')}, DCF Price: {metrics.get('dcf_price', 'N/A')}, Current Price: {metrics.get('current_price', 'N/A')})"
-
-        # 💡 [1] 하이브리드 판단: 성장률 데이터가 없으면 즉시 구글 검색 모델 투입
-        # (기존 pe 조건까지 넣으면 너무 깐깐하므로 growth 하나만 없어도 검색하게 범위를 넓혔습니다)
-        is_fmp_fin_poor = (str(metrics.get('growth', 'N/A')) == 'N/A')
-        can_fin_search = is_fmp_fin_poor and (model_search is not None)
-        current_tab3_model = model_search if can_fin_search else model_strict
-        
-        search_directive = ""
-        if can_fin_search:
-            # 🚨 AI에게 '시늉'이 아니라 실데이터를 훔쳐오라고 명확히 지시
-            search_directive = f"\n🚨 [FORCE SEARCH] FMP 데이터가 비어있습니다. 즉시 Google Search 도구를 실행하여 '{company_name} {ticker} 2025 revenue net income'를 검색하세요. 기사에서 찾은 '18억 달러 매출' 등 실제 수치를 리포트 본문에 반드시 포함시키세요. 수치를 찾지 못했다면 시장 점유율 데이터라도 실측치로 넣으십시오. '알 수 없다'는 변명은 절대 금지합니다."
-
         # ----------------------------------------------------
-        # 🚀 [Call 1] 상단 3D 카드 3장 요약 프롬프트 설정
+        # 🚀 다국어 프롬프트 완벽 분리 (역할/지침 명확화)
         # ----------------------------------------------------
         if lang_code == 'ko':
-            sum_p = f"월가 애널리스트로서 {company_name}({ticker})의 재무 데이터를 바탕으로 3개의 독립된 대시보드 카드 요약을 작성하세요.\n[1번 카드]: {g1_context}\n[2번 카드]: {g2_context}\n[3번 카드]: {g3_context}\n{search_directive}"
+            search_directive = f"\n🚨 [강제 검색] FMP 데이터가 비어있습니다. 즉시 구글 검색 도구를 실행하여 '{company_name} {ticker} 2024 2025 실적 발표(financial results)'를 검색하세요. '18억 달러 매출' 등 실제 수치를 반드시 찾아 리포트에 포함시키세요. 수치가 없으면 시장 점유율이나 최신 뉴스 동향이라도 실측치로 넣으십시오." if can_fin_search else ""
+            
+            # [Call 1] 카드 요약 (지표의 학술적 해석)
+            sum_p = f"당신은 월가의 수석 퀀트 애널리스트입니다. {company_name}({ticker})의 다음 지표들을 학문적이고 정량적인 기준(Criteria)으로 해석하여 3개의 독립된 대시보드 카드 요약을 작성하세요.\n[1번 카드]: {g1_context}\n[2번 카드]: {g2_context}\n[3번 카드]: {g3_context}\n{search_directive}"
             sum_i = """
             [UI 카드 작성 규칙 - 절대 엄수]
-            1. 3개의 완전히 독립된 텍스트 덩어리만 출력하세요. '1번 카드:', 'Card 1:' 같은 쓸데없는 제목표시는 모두 빼고 오직 본문 내용만 출력하세요.
+            1. 3개의 완전히 독립된 텍스트 덩어리만 출력하세요. '1번 카드:', 'Card 1:' 등 어떠한 형태의 제목이나 숫자 넘버링도 절대 쓰지 마세요.
             2. 반드시 아래의 정확한 포맷으로만 출력하세요.
-               [포맷]: (매출과 마진을 바탕으로 본업 경쟁력 진단 3~4문장) |||SEP||| (부채와 발생액 품질로 재무 생존력 진단 3~4문장) |||SEP||| (주가 과열 여부 및 밸류에이션 진단 3~4문장)
+               [포맷]: (성장률, 마진, 피오트로스키 점수를 바탕으로 비즈니스 성장성 및 수익성을 진단하는 4~5문장) |||SEP||| (부채비율과 발생액 품질을 바탕으로 재무 건전성 및 이익의 질을 진단하는 4~5문장) |||SEP||| (PER과 DCF 적정주가를 바탕으로 현재 시장 가치 평가를 진단하는 4~5문장)
             3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요.
-            4. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
+            4. 🚨 [어투 고정]: 모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말(경어체)로 마무리하십시오. 평어체는 절대 금지합니다.
             """
-        elif lang_code == 'en':
-            sum_p = f"Write 3 independent financial dashboard card summaries for {company_name}({ticker}).\n[Card 1]: {g1_context}\n[Card 2]: {g2_context}\n[Card 3]: {g3_context}\n{search_directive}"
-            sum_i = """
-            [UI Card Rules]
-            1. Output EXACTLY 3 independent text blocks. DO NOT use ANY titles like 'Card 1:', '1.', etc. Just the raw text.
-            2. Output FORMAT MUST BE EXACTLY as below:
-               [Format]: (Diagnose competitiveness using revenue/margins in 3-4 sentences) |||SEP||| (Evaluate financial survival using debt/accruals in 3-4 sentences) |||SEP||| (Assess valuation/overheating using PE/DCF in 3-4 sentences)
-            3. Separate strictly by '|||SEP|||'. Do not use any other line breaks.
-            """
-        elif lang_code == 'ja':
-            sum_p = f"{company_name}({ticker})の財務について、3つの独立したダッシュボードカード要約を作成してください。\n[カード1]: {g1_context}\n[カード2]: {g2_context}\n[カード3]: {g3_context}\n{search_directive}"
-            sum_i = """
-            [UIカード作成規則]
-            1. 3つの完全に独立したテキストのみを出力してください。「カード1:」のような不要な見出しはすべて省き、本文のみを出力してください。
-            2. 必ず以下の正確なフォーマットのみで出力してください。
-               [フォーマット]: (売上とマージンに基づく本業の競争力診断 3〜4文) |||SEP||| (負債と発生額の質による財務的生存能力の評価 3〜4文) |||SEP||| (株価の過熱感とバリュエーション診断 3〜4文)
-            3. 区切り文字 '|||SEP|||' 以外の改行や記号を間に入れないでください。丁寧な日本語を使用してください。
-            """
-        elif lang_code == 'zh':
-            sum_p = f"请为 {company_name}({ticker}) 的财务数据撰写3个独立的仪表板卡片摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}\n{search_directive}"
-            sum_i = """
-            [UI卡片规则]
-            1. 必须输出3段完全独立的纯文本。绝对不要使用任何像“卡片1:”这样的标题，只输出正文内容。
-            2. 必须严格按照以下格式输出：
-               [格式]: (基于营收和利润率诊断主业竞争力 3-4句话) |||SEP||| (通过债务和应计利润质量评估财务生存能力 3-4句话) |||SEP||| (评估当前股价是否过热及估值诊断 3-4句话)
-            3. 仅使用 '|||SEP|||' 作为分隔符，不要加入任何其他换行符。
-            """
-
-        # ----------------------------------------------------
-        # 🚀 [Call 2] 하단 전문(Academic CFA 리포트) - 하이브리드 전략 & 철권 포맷팅
-        # ----------------------------------------------------
-        if lang_code == 'en':
-            full_p = f"Write a Buy-Side Quant deep-dive report for {company_name}({ticker}) using: {g1_context}, {g2_context}, {g3_context}.{search_directive}"
-            full_i = """
-            [Strict Rules]
-            1. NO MAIN TITLES or emojis (e.g., Do not write "🎓 CFA Quant Deep-Dive Analysis").
-            2. 🚨 QUOTE HARD NUMBERS: You MUST base your analysis on specific numerical data. Do not make abstract claims.
-            3. 🚨 FINANCIAL RATIOS: To enhance professional depth, actively refer to and incorporate up to 10 standard financial metrics and ratios (e.g., ROE, Debt-to-Equity, Operating Margin, Current Ratio) commonly used in standard financial analysis, where data permits.
-            4. Use EXACTLY 3 subheadings with brackets ONLY: [Business Engine & Growth], [Financial Health & Profitability], [Valuation Verdict]. DO NOT use markdown bold (**).
-            5. 🚨 Write the paragraph immediately on the next line after the subheading WITHOUT a blank line. Each paragraph MUST be 4-5 sentences long.
-            6. NEVER complain about missing data.
-            """
-        elif lang_code == 'ja':
-            full_p = f"以下のデータを用いて {company_name}({ticker}) のクオンツ深層分析レポートを作成してください: {g1_context}, {g2_context}, {g3_context}.{search_directive}"
-            full_i = """
-            [厳格な規則]
-            1. メインタイトルや絵文字（例: 🎓 CFA Quant Deep-Dive Analysis）は絶対に使用しないでください。
-            2. 🚨 具体的な数値を必ず引用: 抽象的な表現は避けてください。
-            3. 🚨 財務指標の活用: 分析の専門性を高めるため、データが許す限り、標準的な財務分析で一般的に使用される主要な財務指標や比率（ROE、負債比率、営業利益率など）を最大10個程度参照し、積極的に組み込んでください。
-            4. 必ず3つの小見出しを括弧のみで使用してください: [ビジネスエンジンと成長性], [財務健全性と収益性], [バリュエーションと最終結論]。マークダウンの太字(**)は禁止です。
-            5. 🚨 小見出しの直後の行に、空行を入れずに本文を書き始めてください。各段落は必ず4〜5文で構成してください。
-            6. 「データがない」という言い訳は絶対にしないでください。
-            """
-        elif lang_code == 'zh':
-            full_p = f"请使用以下数据为 {company_name}({ticker}) 撰写量化深度分析报告: {g1_context}, {g2_context}, {g3_context}.{search_directive}"
-            full_i = """
-            [严格规则]
-            1. 绝对不要写主标题或表情符号（例如：🎓 CFA Quant Deep-Dive Analysis）。
-            2. 🚨 必须引用具体数据: 拒绝没有任何数据支撑的抽象表达。
-            3. 🚨 财务指标的应用: 为提升专业深度，在数据允许的范围内，请积极参考并融入标准财务分析中普遍使用的核心财务指标和比率（如 ROE、资产负债率、营业利润率等），最多10个左右。
-            4. 必须使用3个带方括号的副标题，绝对不要使用Markdown加粗(**): [业务引擎与增长性], [财务健康与盈利能力], [估值与最终结论]。
-            5. 🚨 副标题后的下一行直接开始写正文，中间绝对不要留空行。每个段落必须包含4-5句话。
-            6. 绝对不要抱怨数据缺失。
-            """
-        else: # ko
-            full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 바이사이드 퀀트 심층 분석 리포트를 작성하세요: {g1_context}, {g2_context}, {g3_context}.{search_directive}"
+            
+            # [Call 2] 하단 전문 (표준 재무 분석)
+            full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 펀더멘털을 다루는 '표준 정통 재무 분석 리포트'를 작성하세요.\n데이터: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
             full_i = """
             [작성 규칙 - 절대 엄수]
-            1. 메인 제목이나 이모지(예: 🎓 CFA Quant Deep-Dive Analysis)를 절대 쓰지 마세요. 첫 글자부터 바로 소제목으로 시작하세요.
-            2. 🚨 구체적 수치 인용 필수: 반드시 검색되거나 제공된 '정확한 수치'를 본문에 직접 인용하여 분석하세요. 수치가 없는 추상적인 문장은 배제하세요.
-            3. 🚨 핵심 재무 비율(Ratio) 활용: 분석의 전문성을 높이기 위해, 데이터가 허락하는 선에서 표준적인 재무 분석에 보편적으로 사용되는 핵심 지표 및 비율(예: ROE, 영업이익률, 부채비율, 유동비율 등)을 10개 내외로 적극 참고하여 문맥에 자연스럽게 녹여내세요.
-            4. 반드시 아래 3개의 소제목을 괄호만 사용하여 3단락으로 작성하세요: [비즈니스 엔진 및 성장성], [재무 건전성 및 수익성], [밸류에이션 및 최종 결론]. 소제목에 마크다운 굵은 글씨(**)는 절대 사용하지 마세요.
-            5. 🚨 소제목을 쓴 후, 바로 다음 줄(빈 줄 없이)에 본문 내용을 이어서 작성하세요. 각 단락은 반드시 4~5문장 길이로 작성하세요. 단락이 끝날 때만 빈 줄을 띄우세요.
+            1. 메인 제목이나 이모지(예: 🎓 CFA 리포트)를 절대 쓰지 마세요. 첫 글자부터 바로 소제목으로 시작하세요.
+            2. 🚨 구체적 수치 인용 필수: 반드시 검색되거나 제공된 '정확한 수치'를 본문에 직접 인용하여 전문적인 재무 분석을 수행하세요.
+            3. 🚨 핵심 재무 수치 및 비율(Ratio) 활용: 분석의 전문성을 높이기 위해, 데이터가 허락하는 선에서 표준적인 재무 분석에 보편적으로 사용되는 절대적 규모 수치(예: 매출액, 영업이익액, 순이익, 잉여현금흐름 등)와 핵심 비율(예: ROE, 영업이익률, 부채비율, 유동비율 등)을 총합 10개 내외로 적극 참고하여 문맥에 자연스럽게 녹여내세요.
+            4. 반드시 아래 3개의 소제목을 괄호만 사용하여 작성하세요: [수익성 및 성장성 분석], [재무 건전성 및 현금흐름], [적정 가치 및 종합 투자의견]. 마크다운 굵은 글씨(**)는 절대 금지.
+            5. 🚨 소제목을 쓴 후 바로 다음에 본문 내용을 작성하세요. 각 단락은 4~5문장 길이로 꽉 채워서 작성하세요.
             6. '데이터가 없어 분석이 어렵다'는 변명이나 투덜거림은 절대 쓰지 마세요.
-            7. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중하고 전문적인 어조를 유지하세요.
+            7. 🚨 [어투 고정]: 모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말(경어체)로 마무리하십시오.
+            """
+
+        elif lang_code == 'ja':
+            search_directive = f"\n🚨 [強制検索] データが不足しています。直ちにGoogle検索で「{company_name} {ticker} 2024 2025 financial results」を検索し、具体的な数値を見つけて必ず含めてください。" if can_fin_search else ""
+            
+            sum_p = f"あなたはウォール街のシニアクオンツアナリストです。{company_name}({ticker})の次の指標を学術的・定量的な基準で解釈し、3つの独立したダッシュボードカード要約を作成してください。\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
+            sum_i = """
+            [UIカード作成規則]
+            1. 3つの完全に独立したテキストのみを出力してください。「カード1:」のような見出しや番号は一切禁止です。
+            2. フォーマット: (成長率、マージン、ピオトロスキースコアに基づくビジネスの成長性と収益性の診断 4〜5文) |||SEP||| (負債比率と発生額の質に基づく財務健全性と利益の質の診断 4〜5文) |||SEP||| (PERとDCFに基づく市場バリュエーション診断 4〜5文)
+            3. 区切り文字 '|||SEP|||' のみを使用してください。丁寧な日本語（〜です/ます）を使用してください。
+            """
+            
+            full_p = f"次のデータを用いて {company_name}({ticker}) の標準的な本格的財務分析レポートを作成してください。\nデータ: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
+            full_i = """
+            [厳格な規則]
+            1. メインタイトルや絵文字は絶対に使用しないでください。
+            2. 🚨 具体的な数値を必ず引用し、専門的な財務分析を行ってください。
+            3. 🚨 財務数値および指標の活用: 分析の専門性を高めるため、データが許す限り、標準的な財務分析で一般的に使用される主要な数値や比率（例：売上高、営業利益、純利益、フリーキャッシュフロー、ROE、営業利益率、負債比率など）を合計10個程度参照し、文脈に自然に組み込んでください。
+            4. 必ず3つの小見出しを括弧のみで使用してください: [収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見]。太字(**)禁止。
+            5. 🚨 小見出しの直後に本文を書き始めてください。各段落は必ず4〜5文で構成してください。
+            6. 「データがない」という言い訳は絶対にしないでください。
+            7. 丁寧な日本語（〜です/ます）を使用してください。
+            """
+
+        elif lang_code == 'zh':
+            search_directive = f"\n🚨 [强制搜索] 数据不足。请立即使用Google搜索查找“{company_name} {ticker} 2024 2025 financial results”，并必须在报告中包含具体数据。" if can_fin_search else ""
+            
+            sum_p = f"作为华尔街的资深量化分析师，请根据学术和定量标准解读 {company_name}({ticker}) 的以下指标，撰写3个独立的仪表板卡片摘要。\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
+            sum_i = """
+            [UI卡片规则]
+            1. 必须输出3段完全独立的纯文本。绝对不要使用任何像“卡片1:”这样的标题或数字编号。
+            2. 格式必须为: (基于增长率、利润率和皮奥特罗斯基分数诊断业务增长与盈利能力 4-5句话) |||SEP||| (基于债务比率和应计利润质量诊断财务健康与利润质量 4-5句话) |||SEP||| (基于市盈率和DCF诊断市场估值水平 4-5句话)
+            3. 仅使用 '|||SEP|||' 作为分隔符，不要加入任何其他换行符。使用专业简体中文编写。
+            """
+            
+            full_p = f"请使用以下数据为 {company_name}({ticker}) 撰写一份标准的深度财务分析报告。\n数据: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
+            full_i = """
+            [严格规则]
+            1. 绝对不要写主标题或表情符号。
+            2. 🚨 必须引用具体的财务数据进行专业的分析。
+            3. 🚨 财务数据与指标的应用: 为提升专业深度，在数据允许的范围内，请积极参考并融入标准财务分析中普遍使用的核心绝对数值和比率（如：营收、营业利润、净利润、自由现金流、ROE、营业利润率、资产负债率等），总计约10个左右，并使其自然融入语境。
+            4. 必须使用3个带方括号的副标题，绝对不要使用加粗(**): [盈利能力与增长性分析], [财务健康与现金流], [合理估值与综合投资意见]。
+            5. 🚨 副标题后直接开始写正文。每个段落必须包含4-5句话。
+            6. 绝对不要抱怨数据缺失。
+            """
+
+        else: # en
+            search_directive = f"\n🚨 [FORCE SEARCH] FMP data is missing. You MUST use Google Search for '\"{company_name}\" \"{ticker}\" financial results 2024 OR 2025'. Include exact numbers." if can_fin_search else ""
+            
+            sum_p = f"As a Wall Street Quant Analyst, interpret these metrics for {company_name}({ticker}) based on academic/quantitative criteria to write 3 independent card summaries.\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}\n{search_directive}"
+            sum_i = """
+            [STRICT UI FORMAT RULES]
+            1. You MUST output EXACTLY 3 text blocks separated ONLY by '|||SEP|||'. DO NOT use numbers or titles like 'Card 1:'.
+            2. Output FORMAT MUST BE: (Diagnose business growth & profitability using growth/margin/Piotroski score in 4-5 sentences) |||SEP||| (Diagnose financial health & earnings quality using debt/accruals in 4-5 sentences) |||SEP||| (Diagnose market valuation using PE/DCF in 4-5 sentences).
+            """
+            
+            full_p = f"Write a standard fundamental financial analysis report for {company_name}({ticker}).\nData: {g1_context}, {g2_context}, {g3_context}\n{search_directive}"
+            full_i = """
+            [STRICT RULES]
+            1. NO MAIN TITLES or emojis. Start immediately.
+            2. QUOTE HARD NUMBERS: You MUST base your professional analysis on the specific numerical data provided.
+            3. 🚨 FINANCIAL FIGURES & RATIOS: To enhance professional depth, actively incorporate up to 10 standard financial metrics, absolute figures, and ratios (e.g., Revenue, Operating Income, Net Income, Free Cash Flow, ROE, Operating Margin, Debt-to-Equity) naturally into the context where data permits.
+            4. Use EXACTLY 3 subheadings with brackets ONLY: [Profitability & Growth Analysis], [Financial Health & Cash Flow], [Valuation & Final Verdict]. DO NOT use markdown bold (**).
+            5. 🚨 Write the paragraph immediately after the subheading. Each paragraph MUST be exactly 4-5 sentences long.
+            6. NEVER complain about missing data.
             """
 
         try:
-            # 🚨 [가장 중요한 변경 포인트] 카드 요약(res_s)과 하단 리포트(res_f) 모두 하이브리드 구글 검색 모델 사용!
-            res_s = current_tab3_model.generate_content(sum_p + sum_i).text.strip()
-            batch_upsert("analysis_cache", [{"cache_key": cache_key_sum, "content": res_s, "updated_at": datetime.now().isoformat()}], "cache_key")
+            # 1. 3D 카드 요약 생성
+            res_sum = current_tab3_model.generate_content(sum_p + sum_i)
+            if res_sum and res_sum.text:
+                # 💡 [핵심 방어막] AI가 실수로 1. 2. 이나 제목을 붙인 경우 정규식으로 강력하게 잘라냄
+                clean_sum = res_sum.text.strip()
+                clean_sum = re.sub(r'(?i)(\*\*.*?\*\*|Card \d+:|카드 \d+:|カード\d+:|卡片\d+:|\d+\.)', '', clean_sum)
+                
+                batch_upsert("analysis_cache", [{"cache_key": cache_key_sum, "content": clean_sum.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
 
-            res_f = current_tab3_model.generate_content(full_p + full_i).text.strip()
-            batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_f, "updated_at": datetime.now().isoformat()}], "cache_key")
+            # 2. 하단 전문 리포트 (표준 재무분석) 생성
+            res_full = current_tab3_model.generate_content(full_p + full_i)
+            if res_full and res_full.text:
+                clean_full = res_full.text.replace("**", "").strip()
+                batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": clean_full, "updated_at": datetime.now().isoformat()}], "cache_key")
+                
+            print(f"✅ [{ticker}] Tab 3 미시 지표 분석 완료 ({lang_code}) - {'Search' if can_fin_search else 'Strict'}")
+        except Exception as e:
+            print(f"❌ [{ticker}] Tab 3 미시 지표 AI 에러 ({lang_code}): {e}")
+            time.sleep(1)
             
-            print(f"🌍 Tab 3 미시 지표 이중 리포트 렌더링 최적화 완료 ({lang_code})")
-        except Exception as e: pass
 # ==========================================
 # [신규 추가] Tab 3 프리미엄 요약 전용 프롬프트 (다국어 완벽 분리)
 # ==========================================
