@@ -1385,82 +1385,89 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         for attempt in range(3):
             try:
                 response = current_model.generate_content(prompt)
-                if not response or not response.text:
-                    print(f"⚠️ [{ticker}] AI 응답이 비어있습니다. 재시도 중...")
-                    continue
+                
+                # 🚨 [방어 1] AI 응답 자체가 없거나 차단된 경우 처리
+                if not response or not hasattr(response, 'text') or not response.text:
+                    print(f"⚠️ [{ticker}] AI 응답이 비어있거나 차단되었습니다. (시도 {attempt+1}/3)")
+                    time.sleep(1); continue
                 
                 full_text = response.text
 
-                # 1. 변수 초기화 (None 방지)
+                # 1. 변수 초기화 (에러 원천 차단)
                 news_list = []
                 json_str = ""
                 biz_analysis = ""
 
-                # 2. JSON 추출 로직 (Greedy)
+                # 2. JSON 추출 (Greedy 매칭으로 5개 전체 확보)
                 tag_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL)
                 if tag_match:
                     json_str = tag_match.group(1).strip()
                 else:
-                    json_match = re.search(r'(\[.*\])', full_text, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group(1).strip()
+                    # <JSON_START> 태그가 없으면 가장 큰 [ ] 덩어리를 찾음
+                    bracket_match = re.search(r'(\[.*\])', full_text, re.DOTALL)
+                    if bracket_match:
+                        json_str = bracket_match.group(1).strip()
 
-                # 3. 뉴스 리스트 파싱 및 안전 슬라이싱
+                # 3. 뉴스 리스트 파싱 및 5개 선별
                 if json_str:
                     try:
                         parsed_data = json.loads(json_str)
-                        # parsed_data가 None인 경우 대비
-                        if parsed_data is not None:
-                            temp_list = parsed_data.get("news", []) if isinstance(parsed_data, dict) else parsed_data
-                            if isinstance(temp_list, list):
-                                # 날짜순 정렬
-                                temp_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
-                                news_list = temp_list[:5]
+                        # parsed_data가 None일 경우를 대비해 []로 대체
+                        valid_data = parsed_data if parsed_data is not None else []
+                        
+                        # 리스트 형태면 바로 사용, dict 형태면 'news' 키 확인
+                        temp_list = valid_data.get("news", []) if isinstance(valid_data, dict) else valid_data
+                        
+                        if isinstance(temp_list, list):
+                            # 최신순 정렬 후 5개만 컷 (15개 소스 중 정예 멤버)
+                            temp_list.sort(key=lambda x: x.get('date', '1970-01-01'), reverse=True)
+                            news_list = temp_list[:5]
                     except:
-                        news_list = [] # 에러 시 빈 리스트로 초기화하여 len() 에러 방지
+                        news_list = [] # JSON 깨지면 빈 리스트로 초기화
 
-                # 4. 분석 본문 정제 (None 방지)
+                # 4. 분석 본문 정제 (JSON 찌꺼기 제거)
                 if json_str:
                     biz_analysis = full_text.replace(json_str, "").replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
                 else:
-                    parts = full_text.split("[")
-                    biz_analysis = parts[0].split("{")[0].replace("<JSON_START>", "").strip()
+                    # JSON을 못 찾았을 경우 대비한 안전 분할
+                    biz_analysis = full_text.split("[")[0].split("{")[0].replace("<JSON_START>", "").strip()
 
-                # 5. 서론 찌꺼기 제거
+                # 5. 서론 찌꺼기 및 마크다운 제거
                 intro_pattern = r'^(알겠습니다|네,|작성하겠습니다|요청사항에|.*?보고서입니다|Understood|Certainly|Here is|I will|This is|承知いたしました|作成します|これは|好的|明白了|为您编写|这是).*?(\n|$)'
                 biz_analysis = re.sub(intro_pattern, '', biz_analysis, flags=re.IGNORECASE | re.MULTILINE).strip()
                 biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
                 
-                # 6. 문단 처리 (biz_analysis가 문자열임을 보장)
-                paragraphs = [p.strip() for p in (biz_analysis or "").split('\n') if p.strip() and len(p.strip()) > 20]
-                
+                # 6. HTML 렌더링 (news_list와 별도로 본문 보장)
+                paragraphs = [p.strip() for p in (biz_analysis or "").split('\n') if len(p.strip()) > 20]
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
 
-                # 7. Sentiment 배지 색상 매핑
-                if news_list:
-                    for n in news_list:
-                        s_val = str(n.get('sentiment', 'Neutral')).strip().lower()
-                        if "positive" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                        elif "negative" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
-                        else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
+                # 7. Sentiment 배지 색상 매핑 (영어 표준화)
+                # 🚨 news_list가 None이 아님을 보장했으므로 에러 발생 안 함
+                for n in news_list:
+                    s_val = str(n.get('sentiment', 'Neutral')).strip().lower()
+                    if "positive" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                    elif "negative" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
+                    else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
 
-                # 8. 최종 저장 및 성공 체크 (news_list가 None이 아님을 보장)
+                # 8. 최종 저장 (뉴스 5개를 카드 하나에 담는 구조 유지)
                 batch_upsert("analysis_cache", [{
                     "cache_key": cache_key,
                     "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
                     "updated_at": now.isoformat()
                 }], on_conflict="cache_key")
                 
-                # 🚨 len(news_list) 호출 전 확실히 리스트인지 체크
-                news_count = len(news_list) if isinstance(news_list, list) else 0
-                print(f"✅ [{ticker}] Tab 1 캐싱 성공 (뉴스 {news_count}개)")
+                # 🚨 [에러 지점 수정] news_list가 확실히 리스트인지 체크 후 로그 출력
+                final_news_count = len(news_list) if isinstance(news_list, list) else 0
+                print(f"✅ [{ticker}] Tab 1 분석 성공 (뉴스 {final_news_count}개 선별)")
                 
-                if news_count > 0 or is_fmp_poor:
+                # 뉴스가 선별되었거나 데이터가 없는 종목이면 루프 종료
+                if final_news_count > 0 or is_fmp_poor:
                     break 
                 
             except Exception as e:
-                print(f"❌ [{ticker}] 분석 에러 발생: {e}")
+                # 🚨 여기서 NoneType 에러가 나더라도 '건너뜀' 로그를 찍고 다음 종목으로 넘어감
+                print(f"❌ [{ticker}] 분석 중 치명적 오류: {e}")
                 time.sleep(1)
                 
     # =========================================================
