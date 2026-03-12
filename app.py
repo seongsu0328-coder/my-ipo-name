@@ -4460,52 +4460,60 @@ with main_area.container():
     # 🚨 이 elif는 Tab 0를 시작한 'if selected_sub_menu == get_text("tab_0"):' 줄과 수직 정렬되어야 합니다.
     elif selected_sub_menu == get_text('tab_1'):
         curr_lang = st.session_state.lang
+        
+        # user_info 안전 장치
         user_info = st.session_state.get('user_info') or {}
         user_level = user_info.get('membership_level', 'free')
         is_premium = user_level in ['premium', 'premium_plus']
 
         with st.spinner(get_text('msg_analyzing_tab1')):
-            # Tab 1 로직 시작...
-            biz_info, final_display_news = get_unified_tab1_analysis(stock['name'], stock['symbol'], curr_lang, stock.get('status', 'Unknown'), stock.get('date'))
+            # 1. 무료 데이터 분석 로드
+            biz_info, final_display_news = get_unified_tab1_analysis(
+                stock['name'], 
+                stock['symbol'], 
+                curr_lang, 
+                stock.get('status', 'Unknown'), 
+                stock.get('date') 
+            )
+            # 2. 프리미엄 데이터 요약 로드
             news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
 
+        # 🚨 여기서부터 모든 'with'와 'st.' 문장들은 'curr_lang' 줄과 세로 줄이 똑같아야 합니다!
         st.write("<br>", unsafe_allow_html=True)
-                
-            # =========================================================
-            # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
-            # =========================================================
-            with st.expander(get_text('expander_biz_summary'), expanded=False):
-                if biz_info:
-                    st.markdown(f"""
-                    <div style="background-color: #f8f9fa; padding: 22px; border-radius: 12px; border-left: 5px solid #6e8efb; color: #333; font-family: 'Pretendard', sans-serif; font-size: 15px; line-height: 1.6;">
-                        {biz_info}
-                    </div>
-                    """, unsafe_allow_html=True)
-                    st.caption(get_text('caption_google_search'))
-                else:
-                    st.error(get_text('err_no_biz_info'))
-    
-               
+        
+        # =========================================================
+        # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
+        # =========================================================
+        with st.expander(get_text('expander_biz_summary'), expanded=False):
+            if biz_info:
+                st.markdown(f"""
+                <div style="background-color: #f8f9fa; padding: 22px; border-radius: 12px; border-left: 5px solid #6e8efb; color: #333; font-family: 'Pretendard', sans-serif; font-size: 15px; line-height: 1.6;">
+                    {biz_info}
+                </div>
+                """, unsafe_allow_html=True)
+                st.caption(get_text('caption_google_search'))
+            else:
+                st.error(get_text('err_no_biz_info'))
 
-                # =========================================================
-                # 🚀 [2] 기관용 금융 뉴스 요약 (Premium 전용 - Blur 적용)
-                # =========================================================
-                if news_summary:  # 💡 [핵심] 데이터가 있을 때만 아예 Expander를 만듭니다!
-                    with st.expander(get_text('tab1_premium_news_title'), expanded=False):
-                        if is_premium:
-                            st.markdown(news_summary, unsafe_allow_html=True)
-                        else:
-                            # 비결제자 Blur 화면
-                            blur_text = "최근 월가 기관들은 이 기업의 잉여 현금 흐름과 신규 프로젝트의 수익성에 대해 매우 긍정적인 평가를 내리고 있습니다. 특히 이번 분기에 발표된 파트너십은 향후 2년간 주당 순이익을 대폭 개선할 것으로... (이하 블러 처리)"
-                            st.markdown(f"""
-                                <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                                    <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                        <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                        <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
-                                    </div>
-                                </div>
-                            """, unsafe_allow_html=True)
+        # =========================================================
+        # 🚀 [2] 기관용 금융 뉴스 요약 (Premium 전용 - Blur 적용)
+        # =========================================================
+        if news_summary: 
+            with st.expander(get_text('tab1_premium_news_title'), expanded=False):
+                if is_premium:
+                    st.markdown(news_summary, unsafe_allow_html=True)
+                else:
+                    # 비결제자 Blur 화면
+                    blur_text = "최근 월가 기관들은 이 기업의 잉여 현금 흐름과 신규 프로젝트의 수익성에 대해 매우 긍정적인 평가를 내리고 있습니다... (이하 생략)"
+                    st.markdown(f"""
+                        <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                            <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
 
                 # =========================================================
                 # 🚀 [3] 기업 공식 보도자료 요약 (Premium 전용 - Blur 적용)
