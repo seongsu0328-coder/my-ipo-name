@@ -4540,11 +4540,12 @@ with main_area.container():
                 st.markdown(f"#### {get_text('tab1_recent_news_title')}")
                 
                 if final_display_news:
-                    news_html = '''
-                    <div style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); margin-bottom: 20px;">
-                    '''
+                    # 💡 [핵심 수정] 리스트에 몇 개가 있든 무조건 최상위 5개만 자릅니다!
+                    top5_news = final_display_news[:5]
                     
-                    for i, n in enumerate(final_display_news):
+                    news_html = '<div style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); margin-bottom: 20px;">'
+                    
+                    for i, n in enumerate(top5_news):
                         en_title = n.get('title_en', 'No Title')
                         trans_title = n.get('translated_title') or n.get('title_ko') or n.get('title_ja') or n.get('title_jp') or n.get('title', '')
                         
@@ -4577,28 +4578,29 @@ with main_area.container():
                         s_badge = f'<span style="background:{s_bg}; color:{s_color}; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:bold; margin-left:8px;">{sentiment_label}</span>'
                         label_gen = get_text('label_general')
                         
-                        border_style = "border-bottom: 1px solid #f0f0f0; margin-bottom: 15px; padding-bottom: 15px;" if i < len(final_display_news) - 1 else "margin-bottom: 5px;"
+                        # 하단 선 긋기 (마지막 항목은 선 제외)
+                        border_style = "border-bottom: 1px solid #f0f0f0; margin-bottom: 15px; padding-bottom: 15px;" if i < len(top5_news) - 1 else "margin-bottom: 5px;"
                         
-                        news_html += f'''
-                            <div style="{border_style}">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-                                    <div style="display:flex; align-items:center;">
-                                        <span style="color:#004e92; font-weight:800; font-size:13px; letter-spacing:0.5px;">TOP {i+1}</span> 
-                                        <span style="color:#ccc; font-size:12px; margin: 0 6px;">|</span>
-                                        <span style="color:#888; font-size:12px;">{label_gen}</span>
-                                        {s_badge}
-                                    </div>
-                                    <div style="color:#aaa; font-size:11px;">{news_date}</div>
-                                </div>
-                                <a href="{news_link}" target="_blank" style="text-decoration:none; display:block; transition: opacity 0.2s;">
-                                    <div style="color:#222; font-weight:700; font-size:15px; line-height:1.4;">
-                                        {safe_en}
-                                    </div>
-                                    {sub_title_html}
-                                </a>
-                            </div>
-                        '''
-                    
+                        # 🚨 주의: 아래 HTML 텍스트는 절대 들여쓰기 하지 마세요!
+                        news_html += f"""
+<div style="{border_style}">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+        <div style="display:flex; align-items:center;">
+            <span style="color:#004e92; font-weight:800; font-size:13px; letter-spacing:0.5px;">TOP {i+1}</span> 
+            <span style="color:#ccc; font-size:12px; margin: 0 6px;">|</span>
+            <span style="color:#888; font-size:12px;">{label_gen}</span>
+            {s_badge}
+        </div>
+        <div style="color:#aaa; font-size:11px;">{news_date}</div>
+    </div>
+    <a href="{news_link}" target="_blank" style="text-decoration:none; display:block; transition: opacity 0.2s;">
+        <div style="color:#222; font-weight:700; font-size:15px; line-height:1.4;">
+            {safe_en}
+        </div>
+        {sub_title_html}
+    </a>
+</div>
+"""
                     news_html += "</div>"
                     st.markdown(news_html, unsafe_allow_html=True)
                 else:
@@ -4616,28 +4618,38 @@ with main_area.container():
                     md = get_cached_market_status(all_df_tab2, MY_API_KEY)
                     lang = st.session_state.lang
                     
-                    # 🚀 [핵심 1] 3D 카드용 '심층 요약 조각' 로드 (Global_Market_Summary)
+                    # 🚀 [핵심 1] 3D 카드용 '심층 요약 조각' 로드
                     res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"Global_Market_Summary_{lang}").execute()
                     sum_text = res_sum.data[0]['content'] if res_sum.data else ""
                     
-                    # 💡 [요청 반영] 대체 텍스트(Fallback) 완전 삭제! 없으면 빈칸 처리.
+                    # 💡 [정규식 클리너 추가] AI가 남긴 "(1번 카드:", "Card 1:", 괄호 찌꺼기를 완벽히 제거하는 함수
+                    import re
+                    def clean_ai_card_text(text):
+                        if not text: return ""
+                        # "(1번 카드: ", "(Card 1: ", "(カード1: " 등 시작 부분 제거
+                        text = re.sub(r'^\(\s*\d+[^:]+:\s*', '', text.strip())
+                        # 마지막 닫는 괄호 ")" 제거
+                        if text.endswith(')'):
+                            text = text[:-1]
+                        return text.strip()
+
                     try:
                         ai_parts = [p.strip() for p in sum_text.split('|||SEP|||')]
-                        c1_sum = ai_parts[0] if len(ai_parts) > 0 else ""
-                        c2_sum = ai_parts[1] if len(ai_parts) > 1 else ""
-                        c3_sum = ai_parts[2] if len(ai_parts) > 2 else ""
+                        c1_sum = clean_ai_card_text(ai_parts[0]) if len(ai_parts) > 0 else ""
+                        c2_sum = clean_ai_card_text(ai_parts[1]) if len(ai_parts) > 1 else ""
+                        c3_sum = clean_ai_card_text(ai_parts[2]) if len(ai_parts) > 2 else ""
                     except:
                         c1_sum = c2_sum = c3_sum = ""
 
-                    # 🚀 [핵심 2] 하단 익스팬더용 '전문 리포트' 로드 (Global_Market_Dashboard)
+                    # 🚀 [핵심 2] 하단 익스팬더용 '전문 리포트' 로드
                     full_market_report = get_market_dashboard_analysis(md, lang)
 
-                # 💡 [CSS] 4~5문장 분량을 소화하기 위해 group-desc의 높이와 스크롤 최적화
+                # 💡 [CSS] 4~5문장 분량을 소화하기 위해 group-desc 최적화
                 st.markdown("""
                 <style>
                     .group-card { background:#ffffff; padding:20px; border-radius:18px; border:1px solid #e0e0e0; margin-bottom:20px; box-shadow:0 4px 12px rgba(0,0,0,0.05); min-height: 380px; display: flex; flex-direction: column; }
                     .group-title { font-size:16px; font-weight:800; color:#111; margin-bottom:10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }
-                    .group-desc { font-size:13px; color:#004e92; font-weight:500; margin-bottom:18px; line-height:1.6; background:#f0f7ff; padding:15px; border-radius:10px; border-left: 4px solid #004e92; flex-grow: 1; overflow-y: auto; min-height: 130px; }
+                    .group-desc { font-size:14px; color:#333; font-weight:500; margin-bottom:18px; line-height:1.6; background:#f8f9fa; padding:15px; border-radius:10px; border-left: 4px solid #004e92; flex-grow: 1; overflow-y: auto; min-height: 130px; text-align: justify; }
                     .sub-grid { display: grid; grid-template-columns: 1fr; gap: 8px; flex-grow: 0; margin-top: auto; }
                     .sub-item { background:#f9f9fb; padding:10px 14px; border-radius:10px; border: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
                     .sub-label { font-size:12px; color:#666; font-weight:500; }
@@ -4660,9 +4672,10 @@ with main_area.container():
 
                 with col1: # [Card 1] IPO 시장 심리
                     ret = md.get('ipo_return', 0); w_rate = md.get('withdrawal_rate', 0)
+                    # 💡 불필요한 "💡 AI Sentiment analysis:" 문구를 제거했습니다.
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">{get_text('tab2_card1_title')}</div>
-                        <div class="group-desc"><b>💡 AI Sentiment analysis:</b><br><br>{c1_sum}</div>
+                        <div class="group-desc">{c1_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">{get_text('label_ret_name')}</span><span class="sub-value">{ret:+.1f}%{get_badge("over" if ret>=20 else "good")}</span></div>
                             <div class="sub-item"><span class="sub-label">{get_text('label_with_name')}</span><span class="sub-value">{w_rate:.1f}%{get_badge("over" if w_rate<5 else "good")}</span></div>
@@ -4673,7 +4686,7 @@ with main_area.container():
                     vol = md.get('ipo_volume', 0); unp = md.get('unprofitable_pct', 0)
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">{get_text('tab2_card2_title')}</div>
-                        <div class="group-desc"><b>💡 AI Risk analysis:</b><br><br>{c2_sum}</div>
+                        <div class="group-desc">{c2_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">{get_text('label_vol_name')}</span><span class="sub-value">{vol}건{get_badge("over" if vol>=15 else "normal")}</span></div>
                             <div class="sub-item"><span class="sub-label">{get_text('label_unprof_name')}</span><span class="sub-value">{unp:.0f}%{get_badge("risk" if unp>=80 else "good")}</span></div>
@@ -4684,7 +4697,7 @@ with main_area.container():
                     vix = md.get('vix', 20); buff = md.get('buffett_val', 100); pe = md.get('pe_ratio', 20); fg = md.get('fear_greed', 50)
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">{get_text('tab2_card3_title')}</div>
-                        <div class="group-desc"><b>💡 AI Macro analysis:</b><br><br>{c3_sum}</div>
+                        <div class="group-desc">{c3_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">{get_text('label_vix_fg_name')}</span><span class="sub-value" style="font-size:14px;">{vix:.1f} / {fg:.0f}{get_badge("greed" if vix<=15 else "normal")}</span></div>
                             <div class="sub-item"><span class="sub-label">{get_text('label_buff_pe_name')}</span><span class="sub-value" style="font-size:14px;">{buff:.0f}% / {pe:.1f}x{get_badge("high" if pe>25 else "good")}</span></div>
