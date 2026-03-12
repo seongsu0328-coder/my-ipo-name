@@ -4475,29 +4475,30 @@ else:
         draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
         display_disclaimer()
 
-# 🚨 [여기 중요] elif는 스페이스 8칸 위치로 빼고, 그 아래 내용들은 12칸 위치로 맞췄습니다.
-        elif selected_sub_menu == get_text('tab_1'):
-            curr_lang = st.session_state.lang
-            
-            # user_info 안전 장치
-            user_info = st.session_state.get('user_info') or {}
-            user_level = user_info.get('membership_level', 'free')
-            is_premium = user_level in ['premium', 'premium_plus']
+    # 🚨 [중요] 이 elif는 위쪽 어딘가에 있는 if selected_sub_menu == get_text('tab_0'): 문장과
+    # 왼쪽 시작점이 '완벽하게' 수직으로 일치해야 합니다. (보통 1탭 또는 4/8칸 공백)
+    elif selected_sub_menu == get_text('tab_1'):
+        curr_lang = st.session_state.lang
+        
+        # user_info 안전 장치
+        user_info = st.session_state.get('user_info') or {}
+        user_level = user_info.get('membership_level', 'free')
+        is_premium = user_level in ['premium', 'premium_plus']
 
-            with st.spinner(get_text('msg_analyzing_tab1')):
-                # 1. 무료 데이터 분석 로드
-                biz_info, final_display_news = get_unified_tab1_analysis(
-                    stock['name'], 
-                    stock['symbol'], 
-                    curr_lang, 
-                    stock.get('status', current_s), 
-                    stock.get('date') 
-                )
-                # 2. 프리미엄 데이터 요약 로드
-                news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
+        with st.spinner(get_text('msg_analyzing_tab1')):
+            # 1. 무료 데이터 분석 로드
+            biz_info, final_display_news = get_unified_tab1_analysis(
+                stock['name'], 
+                stock['symbol'], 
+                curr_lang, 
+                stock.get('status', current_s), 
+                stock.get('date') 
+            )
+            # 2. 프리미엄 데이터 요약 로드
+            news_summary, pr_summary = get_premium_tab1_summaries(sid, curr_lang)
 
-            # spinner 블록이 끝난 후 실행되도록 들여쓰기 조정 (스페이스 12칸)
-            st.write("<br>", unsafe_allow_html=True)
+        # spinner 블록이 끝난 후 실행 (들여쓰기 8칸 또는 2탭 위치)
+        st.write("<br>", unsafe_allow_html=True)
                 
             # =========================================================
             # [1] 비즈니스 모델 요약 (모든 유저 열람 가능)
