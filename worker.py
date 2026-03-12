@@ -1437,18 +1437,29 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 biz_analysis = re.sub(intro_pattern, '', biz_analysis, flags=re.IGNORECASE | re.MULTILINE).strip()
                 biz_analysis = re.sub(r'#.*', '', biz_analysis).strip()
                 
+                # 🔍 [DEBUG] 렌더링 직전 변수 상태 현장 검증
+                print(f"🔍 [DEBUG - {ticker}] biz_analysis 타입: {type(biz_analysis)}")
+                print(f"🔍 [DEBUG - {ticker}] news_list 타입: {type(news_list)}")
+                if news_list is not None:
+                    print(f"🔍 [DEBUG - {ticker}] news_list 실제 내용: {news_list}")
+
                 # 6. HTML 렌더링 (news_list와 별도로 본문 보장)
-                paragraphs = [p.strip() for p in (biz_analysis or "").split('\n') if len(p.strip()) > 20]
+                safe_biz_text = biz_analysis if biz_analysis else ""
+                # 만약 여기서 biz_analysis가 None이면 .split에서 터질 수 있습니다.
+                paragraphs = [p.strip() for p in safe_biz_text.split('\n') if p.strip() and len(p.strip()) > 20]
+                
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
 
-                # 7. Sentiment 배지 색상 매핑 (영어 표준화)
-                # 🚨 news_list가 None이 아님을 보장했으므로 에러 발생 안 함
-                for n in news_list:
-                    s_val = str(n.get('sentiment', 'Neutral')).strip().lower()
-                    if "positive" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                    elif "negative" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
-                    else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
+                # 7. Sentiment 배지 색상 매핑
+                if isinstance(news_list, list):
+                    # 🚨 여기서 news_list가 None이면 for문 진입 시 에러가 날 수 있습니다.
+                    for n in news_list:
+                        if n is None: continue # 리스트 안에 None 요소가 섞인 경우 방어
+                        s_val = str(n.get('sentiment', 'Neutral')).strip().lower()
+                        if "positive" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                        elif "negative" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
+                        else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
 
                 # 8. 최종 저장 (뉴스 5개를 카드 하나에 담는 구조 유지)
                 batch_upsert("analysis_cache", [{
@@ -2846,7 +2857,13 @@ def main():
             time.sleep(1.2)
             
         except Exception as e:
-            print(f"⚠️ {original_symbol} 분석 건너뜀: {e}")
+            # 🚨 바로 여기입니다! 기존의 "분석 건너뜀" 코드를 지우고 아래 내용을 넣으세요.
+            import traceback 
+            print(f"\n🚨 [{original_symbol}] 분석 중 치명적 오류 발생!")
+            print(f"사유: {e}")
+            print("-" * 30)
+            traceback.print_exc() # 에러가 발생한 정확한 파일 위치와 줄 번호를 출력합니다.
+            print("-" * 30)
             continue
 
     run_premium_alert_engine(df)
