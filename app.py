@@ -4450,30 +4450,30 @@ else:
         web_url = real_web if real_web else f"https://duckduckgo.com/?q={urllib.parse.quote('! ' + stock['name'] + ' Investor Relations')}"
         
         st.markdown(f'<a href="{sec_url}" target="_blank" style="text-decoration:none;"><button style="width:100%; padding:15px; background:white; border:1px solid #004e92; color:#004e92; border-radius:10px; font-weight:bold; cursor:pointer; margin-bottom: 12px;">{get_text("btn_sec_link")} ({t_topic})</button></a>', unsafe_allow_html=True)
-                # =========================================================
-                # 🚀 [NEW] 어닝 콜 (Earnings Call) 프리미엄 섹션
-                # =========================================================
-                ec_summary = get_premium_tab0_ec(sid, st.session_state.lang)
-                
-                if ec_summary:
-                    with st.expander(get_text('tab0_ec_title'), expanded=False):
-                        if is_premium:
-                            st.markdown(ec_summary, unsafe_allow_html=True)
-                        else:
-                            blur_text = get_text('desc_ec_blur')
-                            st.markdown(f"""
-                                <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
-                                    <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
-                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-                                        <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
-                                        <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
-                                    </div>
-                                </div>
-                            """, unsafe_allow_html=True)
-                
-                # 하단 의사결정 박스 및 면책조항 (들여쓰기 위치 주의)
-                draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
-                display_disclaimer()
+        # =========================================================
+        # 🚀 [NEW] 어닝 콜 (Earnings Call) 프리미엄 섹션
+        # =========================================================
+        ec_summary = get_premium_tab0_ec(sid, st.session_state.lang)
+        
+        if ec_summary:
+            with st.expander(get_text('tab0_ec_title'), expanded=False):
+                if is_premium:
+                    st.markdown(ec_summary, unsafe_allow_html=True)
+                else:
+                    blur_text = get_text('desc_ec_blur')
+                    st.markdown(f"""
+                        <div style="position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; padding: 20px;">
+                            <div style="filter: blur(5.5px); user-select: none; color: #333; line-height: 1.8;">{blur_text}</div>
+                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                                <h4 style="color: #004e92; margin-bottom: 10px;">🔒 Premium Only</h4>
+                                <p style="color: #333; font-weight: bold; margin-bottom: 15px;">{get_text('msg_premium_lock')}</p>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+        
+        # 하단 의사결정 박스 및 면책조항 (들여쓰기 위치 주의)
+        draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
+        display_disclaimer()
                     
             # --- Tab 1: 뉴스 & 심층 분석 ---
             elif selected_sub_menu == get_text('tab_1'):
