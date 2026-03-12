@@ -58,19 +58,21 @@ if GENAI_API_KEY:
         # [환각 원천 차단용] 일반 모델
         model_strict = genai.GenerativeModel('gemini-2.0-flash')
         
-        # 🚨 [구글 권장 규격으로 완벽 교체] 
-        # google_search_retrieval 대신 google_search를 명시적으로 사용합니다.
+        # 🚨 [GitHub/서버 환경용 최강 방어막] 
+        # 라이브러리가 새 명칭을 몰라도, Protos 객체를 직접 생성해 던지면 해결됩니다.
         try:
-            # 2026년 최신 SDK 규격: tools에 딕셔너리 형태로 'google_search' 주입
+            import google.generativeai.protos as protos
+            
+            # 딕셔너리 방식이 아닌, SDK 내부의 객체 구조를 직접 사용합니다.
             model_search = genai.GenerativeModel(
                 model_name='gemini-2.0-flash',
-                tools=[{"google_search": {}}] 
+                tools=[protos.Tool(google_search=protos.GoogleSearch())]
             )
-            # 로딩 확인용 테스트 호출 (생략 가능하나 안정성을 위해 로그 출력)
-            print("✅ AI 하이브리드 모델 로드 성공 (Google Search 엔진 갱신 완료)")
+            print("✅ AI 하이브리드 모델 로드 성공 (Google Search 엔진 강제 활성화 완료)")
         except Exception as e_tool:
-            print(f"⚠️ 구글 검색 도구 로드 실패: {e_tool}")
-            model_search = None
+            print(f"⚠️ 구글 검색 도구 최종 실패: {e_tool}")
+            # 검색 엔진이 죽으면 시늉만 하는 환각을 막기 위해 None 유지
+            model_search = None 
 
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
