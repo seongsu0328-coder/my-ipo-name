@@ -632,7 +632,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 "S-1": {"p": "Risk Factors, Use of Proceeds, MD&A", "s": "1문단: [핵심 비즈니스 및 스케일] 비즈니스 모델과 MAU, 매출 등 구체적 수치 명시\n2문단: [수익화 및 성장 전략] 시장 규모(TAM) 및 공모 자금의 실질적 사용처\n3문단: [치명적 리스크] 단순 나열이 아닌, 재무/운영에 타격을 줄 가장 치명적인 리스크 1가지"},
                 "S-1/A": {"p": "Pricing Terms, Dilution, Changes", "s": "1문단: [변경 사항] 이전 S-1 대비 변경된 핵심 펀더멘털이나 수치\n2문단: [밸류에이션] 제시된 공모가 범위와 그에 따른 시가총액/밸류에이션 분석\n3문단: [주주 영향] 기존 주주 가치 희석 정도와 신규 투자자 관점의 매력도"},
                 "F-1": {"p": "Business Scale, Foreign Risk, ADS Structure", "s": "1문단: [비즈니스 스케일 및 우위] MAU, 거래액(GMV), 매출 등 구체적 지표를 동반한 시장 지배력\n2문단: [지배구조 및 주주 권리] ADS 발행 구조 및 지배주주(Controlled Company) 지분율이 일반 주주에게 미치는 영향\n3문단: [로컬 리스크] 환율, 해당 국가 특유의 규제 등 외국 국적 기업으로서의 재무적/정치적 리스크"},
-                "FWP": {"p": "Roadshow Highlights, Growth Strategy", "s": "1문단: [핵심 투자 하이라이트] 경영진이 투자자에게 세일즈하는 핵심 비전과 성장 지표\n2문단: [시장 확장 전략] 구체적인 타겟 시장(TAM) 및 신규 수익 모델\n3문단: [공략 의지 및 톤앤매너] 숫자로 뒷받침된 회사의 목표 달성 가능성 (※ 주의: 인수단 연락처 등 법적 문구 무시)"},
+                "FWP": {"p": "Offering Structure, Use of Proceeds, Pricing Details", "s": "1문단: [공모 개요 및 상장 구조] 제출 서류, 상장 시장, ADS 발행 등 기본 정보 요약\n2문단: [글로벌 공모 및 자금 용도] 국내외 공모 비중, 주관사단 구성, 조달 자금의 실질적 사용처\n3문단: [공모가 산정 및 상장 일정] 가격 결정 방식, 공모가 변동 리스크, 최종 상장 예정일"},
                 "424B4": {"p": "Final Price, Underwriting, IPO Outcome", "s": "1문단: [최종 가격 및 수요] 확정 공모가의 위치(상단/하단)와 시장 수요 해석\n2문단: [자금 조달 규모] 확정된 조달 자금 총액과 최우선 투입처\n3문단: [유통 물량] 주관사단 및 배정 물량 바탕 상장 초기 유통물량/오버행 예측"},
                 "RW": {"p": "Withdrawal Reason, Market Condition", "s": "1문단: [철회 사유] 상장 철회(Withdrawal)를 결정하게 된 핵심 배경\n2문단: [재무적 타격] 자본 조달 실패가 기업 유동성에 미치는 영향\n3문단: [향후 행보] 재상장 시도 또는 M&A 피인수 등 대안 시나리오"},
                 "Form 25": {"p": "Delisting Reason, Shareholder Impact", "s": "1문단: [상장 폐지 사유] 자발적 상폐, 피인수, 규정 위반 등 정확한 사유\n2문단: [주주 권리] 상장 폐지 후 기존 주식의 처리 방안 및 주주 권리\n3문단: [향후 상태] 장외시장(OTC) 거래 가능성 및 향후 기업 존속 여부"},
@@ -646,7 +646,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 "S-1": {"p": "Risk Factors, Use of Proceeds, MD&A", "s": "Para 1: [Core Business & Scale] Specify business model and concrete figures like MAU and Revenue.\nPara 2: [Monetization & Growth Strategy] Market size (TAM) and actual use of proceeds.\nPara 3: [Critical Risk] One most critical risk that will impact financials/operations, not just a simple list."},
                 "S-1/A": {"p": "Pricing Terms, Dilution, Changes", "s": "Para 1: [Changes] Core fundamentals or numbers changed compared to the previous S-1.\nPara 2: [Valuation] Proposed price band and resulting market cap/valuation analysis.\nPara 3: [Shareholder Impact] Dilution for existing shareholders and attractiveness for new investors."},
                 "F-1": {"p": "Business Scale, Foreign Risk, ADS Structure", "s": "Para 1: [Business Scale & Edge] Market dominance backed by specific metrics like MAU, GMV, and Revenue.\nPara 2: [Governance & Shareholder Rights] ADS issuance structure and impact of the Controlled Company status on retail shareholders.\nPara 3: [Local Risks] Financial/political risks as a foreign entity, such as FX and local regulations."},
-                "FWP": {"p": "Roadshow Highlights, Growth Strategy", "s": "Para 1: [Key Investment Highlights] Core vision and growth metrics pitched by management to investors.\nPara 2: [Market Expansion Strategy] Specific target market (TAM) and new revenue models.\nPara 3: [Commitment & Tone] Feasibility of company goals backed by numbers (※ NOTE: Ignore legal boilerplate like underwriter contacts)."},
+                "FWP": {"p": "Offering Structure, Use of Proceeds, Pricing Details", "s": "Para 1: [Offering Overview & Listing Structure] Summary of filings, exchange, and ADS issuance details\nPara 2: [Global Offering & Use of Proceeds] Offering tranches, underwriters, and planned fund deployment\nPara 3: [Pricing Strategy & Listing Schedule] Pricing methodology, price volatility risks, and final IPO timeline"},
                 "424B4": {"p": "Final Price, Underwriting, IPO Outcome", "s": "Para 1: [Final Price & Demand] Position of the final IPO price (top/bottom) and market demand interpretation.\nPara 2: [Fundraising Scale] Total amount raised and top priority for fund deployment.\nPara 3: [Float Volume] Expected initial float/overhang based on underwriter allocations."},
                 "RW": {"p": "Withdrawal Reason, Market Condition", "s": "Para 1: [Withdrawal Reason] Core background behind the decision to withdraw the IPO.\nPara 2: [Financial Impact] Impact of the fundraising failure on corporate liquidity.\nPara 3: [Future Plans] Alternative scenarios like re-IPO attempts or M&A acquisition."},
                 "Form 25": {"p": "Delisting Reason, Shareholder Impact", "s": "Para 1: [Delisting Reason] Exact reason such as voluntary, M&A, or regulatory violation.\nPara 2: [Shareholder Rights] Treatment of existing shares and shareholder rights post-delisting.\nPara 3: [Future Status] Possibility of OTC trading and future corporate existence."},
@@ -660,7 +660,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 "S-1": {"p": "リスク要因, 資金使途, MD&A", "s": "第1段落：[中核事業と規模] ビジネスモデルとMAU、売上などの具体的数値を明記\n第2段落：[収益化と成長戦略] 市場規模(TAM)と公募資金の実質的な使途\n第3段落：[致命的リスク] 単なる羅列ではなく、財務/運営に打撃を与える最も致命的なリスク1つ"},
                 "S-1/A": {"p": "条件決定, 希薄化, 変更点", "s": "第1段落：[変更事項] 以前のS-1と比較して変更された中核ファンダメンタルズや数値\n第2段落：[バリュエーション] 提示された公募価格帯とそれに伴う時価総額/バリュエーション分析\n第3段落：[株主への影響] 既存株主の価値希薄化の程度と新規投資家視点での魅力度"},
                 "F-1": {"p": "事業規模, 海外リスク, ADS構造", "s": "第1段落：[事業規模と優位性] MAU、取引額(GMV)、売上などの具体的指標を伴う市場支配力\n第2段落：[ガバナンスと株主の権利] ADS発行構造および支配株主(Controlled Company)の持分比率が一般株主に与える影響\n第3段落：[ローカルリスク] 為替、当該国特有の規制など外国籍企業としての財務的/政治的リスク"},
-                "FWP": {"p": "ロードショーのハイライト, 成長戦略", "s": "第1段落：[中核投資ハイライト] 経営陣が投資家にアピールする中核ビジョンと成長指標\n第2段落：[市場拡張戦略] 具体的なターゲット市場(TAM)と新規収益モデル\n第3段落：[攻略の意志とトーン] 数値で裏付けられた目標達成の可能性（※注意：引受人の連絡先などの免責事項は無視）"},
+                "FWP": {"p": "Offering Structure, Use of Proceeds, Pricing Details", "s": "第1段落：[公募概要および上場構造] 提出書類、上場市場、ADS発行などの基本情報の要約\n第2段落：[グローバル公募および資金使途] 国内外の公募比率、引受団の構成、調達資金の実質的な使途\n第3段落：[公募価格の算定および上場日程] 価格決定方式、価格変動リスク、最終的な上場予定日"},
                 "424B4": {"p": "最終価格, 引受シンジケート, 上場結果", "s": "第1段落：[最終価格と需要] 確定公募価格の位置(上限/下限)と市場需要の解釈\n第2段落：[資金調達規模] 確定した調達資金総額と最優先の投入先\n第3段落：[流通株式数] 引受シンジケートおよび配分物量に基づく上場初期の流通株式/オーバーハング予測"},
                 "RW": {"p": "撤回理由, 市場環境", "s": "第1段落：[撤回事由] 上場撤回(Withdrawal)を決定した中核的な背景\n第2段落：[財務的打撃] 資金調達の失敗が企業の流動性に与える影響\n第3段落：[今後の動向] 再上場の試みまたはM&Aによる買収などの代替シナリオ"},
                 "Form 25": {"p": "上場廃止理由, 株主への影響", "s": "第1段落：[上場廃止事由] 自主的廃止、買収、規定違反などの正確な理由\n第2段落：[株主の権利] 上場廃止後の既存株式の処理方法および株主の権利\n第3段落：[今後の状態] 店頭市場(OTC)での取引の可能性および今後の企業の存続可否"},
@@ -674,7 +674,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 "S-1": {"p": "风险因素, 资金用途, MD&A", "s": "第一段：[核心业务与规模] 明确业务模型及MAU、营收等具体数据\n第二段：[变现与增长战略] 市场规模(TAM)及募集资金的实际用途\n第三段：[致命风险] 指出1个将对财务/运营造成打击的最致命风险，而非简单罗列"},
                 "S-1/A": {"p": "定价条款, 股权稀释, 变更点", "s": "第一段：[变更事项] 与此前S-1相比，核心基本面或数据的变化\n第二段：[估值] 给出的发行价区间及相应的市值/估值分析\n第三段：[股东影响] 现有股东价值的稀释程度及对新投资者的吸引力"},
                 "F-1": {"p": "业务规模, 海外风险, ADS结构", "s": "第一段：[业务规模与优势] 带有MAU、交易额(GMV)、营收等具体指标的市场统治力\n第二段：[治理与股东权利] ADS发行结构及控股股东(Controlled Company)持股比例对散户的影响\n第三段：[本地风险] 汇率、该国特有监管等作为外国企业的财务/政治风险"},
-                "FWP": {"p": "路演亮点, 增长战略", "s": "第一段：[核心投资亮点] 管理层向投资者推介的核心愿景与增长指标\n第二段：[市场扩张战略] 具体的目标市场(TAM)及新的盈利模式\n第三段：[攻坚意愿与基调] 用数据支撑的公司目标达成可能性（※注意：忽略承销商联系方式等免责声明）"},
+                "FWP": {"p": "Offering Structure, Use of Proceeds, Pricing Details", "s": "第一段：[公开发行概览与上市架构] 提交文件、上市地点及 ADS 发行等基本信息摘要\n第二段：[全球发售与资金用途] 境内外发行比率、承销团构成及募集资金的实际用途\n第三段：[定价机制与上市日程] 定价方式、价格波动风险及最终上市预计日期"},
                 "424B4": {"p": "最终价格, 承销, IPO结果", "s": "第一段：[最终价格与需求] 最终定价的位置(上限/下限)及市场需求解读\n第二段：[融资规模] 确定的融资总额及最优先的资金投入方向\n第三段：[流通盘] 基于承销团及配售情况的上市初期流通股/抛压预测"},
                 "RW": {"p": "撤回原因, 市场环境", "s": "第一段：[撤回原因] 决定撤回上市(Withdrawal)的核心背景\n第二段：[财务打击] 融资失败对企业流动性的影响\n第三段：[未来动向] 尝试重新上市或被M&A收购等替代方案"},
                 "Form 25": {"p": "退市原因, 股东影响", "s": "第一段：[退市原因] 自愿退市、被收购、违规等准确原因\n第二段：[股东权利] 退市后现有股票的处理方案及股东权利\n第三段：[未来状态] 场外市场(OTC)交易的可能性及企业未来的存续状态"},
@@ -1440,63 +1440,71 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 존댓말로 작성해 주십시오."
             json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일로 번역된 제목(마크다운 제외)", "link": "...", "sentiment": "긍정/부정/일반", "date": "YYYY-MM-DD" }} ] }}"""
 
-        # 🚨 [핵심 변경] FMP 데이터 유무 및 다국어(ko, en, ja, zh)에 따른 프롬프트 완벽 분리
+       # 🚨 [핵심 변경] FMP 데이터 유무 및 다국어(ko, en, ja, zh)에 따른 프롬프트 완벽 분리
         if is_fmp_poor:
             if lang_code == 'en':
                 task1_label = "[Task 1: S-1 Based Deep Business Overview]"
                 task1_structure = """
-                - 🚨 [Differentiation] DO NOT mention financials, IPO terms, or risks (covered in other tabs).
-                - 🚨 [Must Include 1] Include specific numbers (MAU, revenue breakdown, market share, etc.) instead of vague descriptions.
-                - 🚨 [Must Include 2] Clearly describe competitive advantages (or disadvantages) by comparing with key peers.
-                - Para 1: Business model and core products/services with specific figures.
-                - Para 2: Market share, revenue structure, and clear competitive advantage/disadvantage against peers.
-                - Para 3: Future expansion plans and latest market trends.
+                [Rule 1]: DO NOT mention financials, IPO terms, or risks (covered in other tabs).
+                [Rule 2]: Include specific numbers (MAU, revenue breakdown, market share, etc.) instead of vague descriptions.
+                [Rule 3]: Clearly describe competitive advantages by explicitly naming specific competitors.
+                [Anti-Hallucination]: 🚨 If exact numerical data cannot be found via search, NEVER invent or guess numbers. State that the figures are undisclosed and describe the qualitative trends based ONLY on verified facts.
+                [Para 1]: Business model and core products/services with specific figures.
+                [Para 2]: Market share, revenue structure, and clear competitive advantage/disadvantage against explicitly named peers.
+                [Para 3]: Future growth strategies by reviewing past financials (revenue, earnings) using direct numerical data, and describing specific future targets/goals.
                 """
                 search_directive = f"""
-                - 🚨 [Force Search] FMP data is insufficient. IMMEDIATELY use Google Search for "{company_name} {ticker} business model" and "{company_name} market share competitors".
-                - Summarize in great detail based on actual facts and figures from the search.
+                🚨 [Force Search]: FMP data is insufficient. IMMEDIATELY use Google Search for "{company_name} {ticker} business model" and "{company_name} market share competitors".
+                🚨 [Action]: Summarize in great detail based on actual facts and figures from the search.
                 """
             elif lang_code == 'ja':
                 task1_label = "[タスク 1: S-1ベースのビジネス深層要約]"
                 task1_structure = """
-                - 🚨 [差別化ルール] 財務状況、上場条件、リスクは他のタブで扱うため、絶対に言及しないでください。
-                - 🚨 [必須項目 1] 曖昧な説明を避け、具体的な数値（MAU、売上比率、シェアなど）を必ず含めてください。
-                - 🚨 [必須項目 2] 主要な競合他社（Peers）との明確な比較を通じて、この企業ならではの競争優位性（または劣位性）を必ず記述してください。
-                - 第1段落: 具体的な数値を伴うビジネスモデルと主要製品/サービスの説明。
-                - 第2段落: 市場シェア、収益構造、および主要な競合他社との明確な競争優位性/劣位性の比較。
-                - 第3段落: 今後の新規事業拡張計画および最新の市場トレンド。
+                [規則 1]: 財務状況、上場条件、リスクは他のタブで扱うため、絶対に言及しないでください。
+                [規則 2]: 曖昧な説明を避け、具体的な数値（MAU、売上比率、シェアなど）を必ず含めてください。
+                [規則 3]: 具体的な企業名を明示して比較を行い、競争優位性を記述してください。
+                [ハルシネーション防止]: 🚨 検索で正確な数値データが見つからない場合、絶対に数値を捏造しないでください。確認できない数値は「非公開」または「未確認」とし、事実に基づく定性的なトレンドのみを記述してください。
+                [第1段落]: 具体的な数値を伴うビジネスモデルと主要製品/サービスの説明。
+                [第2段落]: 市場シェア、収益構造、および具体的な競合他社名を挙げた明確な競争優位性/劣位性の比較。
+                [第3段落]: 過去の財務、売上、利益などを直接的な数値で検討し、それに基づいた将来の具体的な目標値（Target）を含む成長戦略。
                 """
                 search_directive = f"""
-                - 🚨 [強制検索] FMPデータが不足しています。直ちにGoogle検索で「{company_name} {ticker} business model」、「{company_name} market share competitors」を検索してください。
-                - 検索された「実際の事実と数値」に基づいて、非常に詳細に要約してください。
+                🚨 [強制検索]: FMPデータが不足しています。直ちにGoogle検索で「{company_name} {ticker} business model」、「{company_name} market share competitors」を検索してください。
+                🚨 [行動]: 検索された「実際の事実と数値」に基づいて、非常に詳細に要約してください。
                 """
             elif lang_code == 'zh':
                 task1_label = "[任务 1: 基于 S-1 的业务深度摘要]"
                 task1_structure = """
-                - 🚨 [差异化规则] 绝对不要提及财务状况、上市条件或风险（这些在其他标签页中处理）。
-                - 🚨 [必须包含 1] 必须包含具体数据（如MAU、营收占比、市场份额等），拒绝模糊表达。
-                - 🚨 [必须包含 2] 必须通过与主要竞争对手（Peers）的明确比较，阐述该企业独有的竞争优势（或劣势）。
-                - 第一段: 包含具体数据的商业模式及核心产品/服务说明。
-                - 第二段: 市场份额、盈利结构，以及与主要竞争对手的明确竞争优劣势比较。
-                - 第三段: 未来的新业务扩张计划及最新市场趋势。
+                [规则 1]: 绝对不要提及财务状况、上市条件或风险（这些在其他标签页中处理）。
+                [规则 2]: 必须包含具体数据（如MAU、营收占比、市场份额等），拒绝模糊表达。
+                [规则 3]: 必须明确列出具体公司名称进行对比，阐述竞争优势。
+                [防止幻觉]: 🚨 如果通过搜索无法找到准确的数值数据，绝对不要凭空捏造数字。对于无法确认的数据，请说明为“未公开”，并仅基于事实描述定性趋势。
+                [第一段]: 包含具体数据的商业模式及核心产品/服务说明。
+                [第二段]: 市场份额、盈利结构，以及与明确点名的主要竞争对手的优劣势比较。
+                [第三段]: 利用直接的财务、营收、利润等数据回顾过往业绩，并以此为基础详细阐述未来的具体目标数值 (Target) 的增长战略。
                 """
                 search_directive = f"""
-                - 🚨 [强制搜索] FMP数据不足。请立即使用Google搜索查找“{company_name} {ticker} business model”和“{company_name} market share competitors”。
-                - 基于搜索到的“实际事实和数据”进行非常详细的总结。
+                🚨 [强制搜索]: FMP数据不足。请立即使用Google搜索查找“{company_name} {ticker} business model”和“{company_name} market share competitors”。
+                🚨 [行动]: 基于搜索到的“实际事实和数据”进行非常详细的总结。
                 """
             else: # ko
                 task1_label = "[작업 1: S-1 기반 비즈니스 심층 요약]"
                 task1_structure = """
-                - 🚨 [차별화 규칙] 재무 상태나 상장 조건, 리스크는 다른 탭에서 다루므로 절대 언급하지 마세요.
-                - 🚨 [필수 포함 1] 막연한 설명 대신 가급적 구체적인 수치(MAU, 매출 비중, 점유율 등)를 반드시 1개 이상 포함하세요.
-                - 🚨 [필수 포함 2] 주요 경쟁사(Peers)와의 명확한 비교를 통해 이 기업만의 경쟁 우위(또는 열위)를 반드시 서술하세요.
-                - 1문단: 구체적 수치를 동반한 비즈니스 모델 및 핵심 제품/서비스 설명
-                - 2문단: 시장 점유율, 수익 구조, 그리고 주요 경쟁사와의 명확한 경쟁 우위/열위 비교
-                - 3문단: 향후 신사업 확장 계획 및 최신 시장 트렌드
+                [차별화 규칙]: 재무 상태나 상장 조건, 리스크는 다른 탭에서 다루므로 절대 언급하지 마세요.
+                [필수 포함 1]: 막연한 설명 대신 가급적 구체적인 수치(MAU, 매출 비중, 점유율 등)를 반드시 1개 이상 포함하세요.
+                [필수 포함 2]: 주요 경쟁사(Peers)와의 명확한 비교를 위해 구체적인 기업명을 명시해서 서술하세요.
+                [환각 방어]: 🚨 만약 검색 결과에 정확한 수치 데이터가 없다면, 절대 숫자를 임의로 지어내지 마세요. 확인 불가능한 수치는 '비공개' 혹은 '확인 불가'로 처리하고 팩트 기반의 정성적 트렌드만 서술하세요.
+                [1문단]: 구체적 수치를 동반한 비즈니스 모델 및 핵심 제품/서비스 설명
+                [2문단]: 시장 점유율, 수익 구조, 그리고 구체적인 기업명을 명시한 주요 경쟁사와의 명확한 경쟁 우위/열위 비교
+                [3문단]: 과거 재무, 매출, 수익 등을 직접적 수치로 검토하고, 이를 바탕으로 설정된 미래의 구체적인 목표치(Target) 및 신사업 확장 계획
                 """
                 search_directive = f"""
-                - 🚨 [강제 검색] FMP 데이터가 부족합니다. 즉시 구글 검색을 통해 "{company_name} {ticker} business model", "{company_name} market share competitors"를 찾아주세요.
-                - 검색된 '실제 팩트와 수치'를 바탕으로 매우 상세히 요약하세요.
+                🚨 [강제 검색]: FMP 데이터가 부족합니다. 즉시 구글 검색을 통해 "{company_name} {ticker} business model", "{company_name} market share competitors"를 찾아주세요.
+                🚨 [행동]: 검색된 '실제 팩트와 수치'를 바탕으로 매우 상세히 요약하세요.
+                """
+                search_directive = f"""
+                🚨 [강제 검색]: FMP 데이터가 부족합니다. 즉시 구글 검색을 통해 "{company_name} {ticker} business model", "{company_name} market share competitors"를 찾아주세요.
+                🚨 [행동]: 검색된 '실제 팩트와 수치'를 바탕으로 매우 상세히 요약하세요.
                 """
         else:
             if lang_code == 'en':
