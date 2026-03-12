@@ -1200,7 +1200,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             elif days_passed > 90: is_over_3m = True
     except: pass
 
-    # 기업 상태 및 상장 기간별 동적 캐싱 주기
     if is_withdrawn or is_delisted_or_otc or is_over_1y: valid_hours = 24 * 7  
     elif is_over_3m: valid_hours = 24 * 3  
     elif "상장예정" in ipo_status or "30일" in ipo_status: valid_hours = 6
@@ -1208,40 +1207,105 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
     limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
     current_date = now.strftime("%Y-%m-%d")
-    current_year = now.strftime("%Y")
 
-    # 🚀 [환각 차단 파트 1] FMP 공식 사업모델 설명 확보
+    # [1] 데이터 확보
     profile_url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={FMP_API_KEY}"
     profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
-    
-    # 🚨 [NoneType 방어막] 데이터가 null(None)인 경우에도 무조건 빈 문자열("")로 처리
-    if profile_data and isinstance(profile_data, list) and len(profile_data) > 0:
-        biz_desc = profile_data[0].get('description') or ""
-    else:
-        biz_desc = ""
+    biz_desc = profile_data[0].get('description') or "" if profile_data else ""
 
-    # 🚀 [환각 차단 파트 2] FMP 최신 뉴스 확보 및 정밀 필터링
     news_url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={ticker}&limit=15&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_15", news_url, valid_hours=6)
     
-    valid_news = []
-    if isinstance(news_data, list):
-        for n in news_data:
-            if not n: continue
-            # 🚨 [가짜 뉴스 차단] 뉴스의 심볼이 해당 티커와 정확히 일치하는지 검증
-            if str(n.get('symbol', '')).upper() == ticker.upper():
-                valid_news.append(n)
+    valid_news = [n for n in (news_data or []) if n and str(n.get('symbol', '')).upper() == ticker.upper()]
+    fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in valid_news])
 
-    fmp_news_context = ""
-    if valid_news:
-        fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in valid_news])
-
-    # 💡 [하이브리드 판단 강화] 
+    # 💡 하이브리드 판단
     is_fmp_poor = (len(biz_desc) < 50) or (len(valid_news) == 0)
-    
-    # 🚨 [수정] 진짜 검색 모델이 배정되었을 때만 can_search를 True로 만듭니다.
     can_search = is_fmp_poor and (model_search is not None)
     current_model = model_search if can_search else model_strict
+
+    for lang_code, target_lang in SUPPORTED_LANGS.items():
+        cache_key = f"{ticker}_Tab1_v5_{lang_code}" # app.py 연결 키 유지
+        
+        try:
+            res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+            if res.data: continue 
+        except: pass
+
+        # 🚨 프롬프트에 '검색 툴 사용'과 'JSON 강제'를 강력히 명시
+        search_instr = ""
+        if can_search:
+            search_instr = f"🚨 [TOOL USE] FMP data is missing. USE Google Search for '{company_name} {ticker} business model' and its latest news. DO NOT use placeholders like 'N/A' or 'Unknown'."
+
+        # 언어별 설정
+        if lang_code == 'ko':
+            lang_rule = "반드시 전문적인 한국어로 작성하세요."
+            sentiment_rule = "긍정, 부정, 일반 중 하나"
+        elif lang_code == 'ja':
+            lang_rule = "必ず日本語で記述してください。"
+            sentiment_rule = "Positive, Negative, Neutral"
+        else:
+            lang_rule = f"Must write in {target_lang}."
+            sentiment_rule = "Positive, Negative, Neutral"
+
+        prompt = f"""
+        {lang_rule}
+        {search_instr}
+        분석 대상: {company_name} ({ticker})
+        오늘 날짜: {current_date}
+
+        [Task 1: Business Analysis]
+        작성 지침: 기업의 핵심 비즈니스 모델, 경쟁 우위, 향후 성장 전략을 3개 문단으로 상세히 분석하세요. 
+        [Task 2: Latest News]
+        작성 지침: 실시간 검색 결과나 제공된 뉴스 중 가장 중요한 5개를 선별하세요.
+
+        [출력 규칙 - 절대 엄수]
+        반드시 아래 JSON 포맷으로만 응답하세요. 서론, 인사말, 마크다운 기호(```) 등 JSON 외부의 텍스트는 절대 금지합니다.
+        {{
+          "biz_summary": "여기에 3문단의 비즈니스 분석 내용을 넣으세요. (줄바꿈은 \\n 사용)",
+          "news_list": [
+            {{ "title_en": "English Title", "translated_title": "번역된 제목", "link": "URL", "sentiment": "{sentiment_rule}", "date": "YYYY-MM-DD" }}
+          ]
+        }}
+        """
+
+        for attempt in range(3):
+            try:
+                response = current_model.generate_content(prompt)
+                if not response or not response.text: continue
+                
+                # JSON만 추출
+                clean_json = re.search(r'\{.*\}', response.text, re.DOTALL)
+                if not clean_json: continue
+                
+                parsed = json.loads(clean_json.group(0), strict=False)
+                biz_text = parsed.get("biz_summary", "")
+                news_list = parsed.get("news_list", [])
+
+                # HTML 렌더링
+                paragraphs = [p.strip() for p in biz_text.split('\n') if len(p.strip()) > 10]
+                indent = "14px" if lang_code == "ko" else "0px"
+                html_output = "".join([f'<p style="display:block; text-indent:{indent}; margin-bottom:15px; line-height:1.7; font-size:15px; color:#333;">{p}</p>' for p in paragraphs])
+
+                # 뉴스 색상 매핑
+                for n in news_list:
+                    s = str(n.get('sentiment', '')).lower()
+                    if '긍정' in s or 'pos' in s: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                    elif '부정' in s or 'neg' in s: n['bg'], n['color'] = "#fce8e6", "#d93025"
+                    else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
+
+                # 저장
+                batch_upsert("analysis_cache", [{
+                    "cache_key": cache_key,
+                    "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
+                    "updated_at": now.isoformat()
+                }], on_conflict="cache_key")
+                
+                print(f"✅ [{ticker}] Tab 1 하이브리드 분석 완료 ({lang_code})")
+                break
+            except Exception as e:
+                print(f"⚠️ [{ticker}] Tab 1 시도 {attempt+1} 실패: {e}")
+                time.sleep(1)
 
     # =========================================================
     # [A] 4개 국어 순회 생성
@@ -2095,20 +2159,19 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         g2_context = f"Health/Quality (Debt/Equity: {metrics.get('debt_equity', 'N/A')}, Accruals Quality: {metrics.get('accruals', 'Unknown')})"
         g3_context = f"Valuation (Forward PE: {metrics.get('pe', 'N/A')}, DCF Price: {metrics.get('dcf_price', 'N/A')}, Current Price: {metrics.get('current_price', 'N/A')})"
 
-        # 💡 [하이브리드 판단 최상단 배치] FMP에서 성장률이나 PER이 N/A라면 재무 데이터가 비어있다고 판단!
-        is_fmp_fin_poor = (str(metrics.get('growth', 'N/A')) == 'N/A' and str(metrics.get('pe', 'N/A')) == 'N/A')
-        
-        # 🚨 [수정] 진짜 검색 능력이 있는 모델일 때만 검색을 허락합니다.
+        # 💡 [1] 하이브리드 판단: 성장률 데이터가 없으면 즉시 구글 검색 모델 투입
+        # (기존 pe 조건까지 넣으면 너무 깐깐하므로 growth 하나만 없어도 검색하게 범위를 넓혔습니다)
+        is_fmp_fin_poor = (str(metrics.get('growth', 'N/A')) == 'N/A')
         can_fin_search = is_fmp_fin_poor and (model_search is not None)
         current_tab3_model = model_search if can_fin_search else model_strict
         
         search_directive = ""
-        # 🚨 [핵심 변경] 일반 모델에게 검색하라고 화내지 않도록 조건 변경!
         if can_fin_search:
-            search_directive = f"\n🚨 [Force Search] FMP 데이터가 없습니다. 당신에게 부여된 'Google Search Tool'을 반드시 지금 즉시 실행하여 '{company_name} {ticker} recent revenue net income financial margins ratios'를 검색하고, 검색된 **실제 재무 수치(매출, 순이익 등)**를 바탕으로 리포트를 작성하세요. '데이터가 없다'는 변명은 절대 금지합니다."
+            # 🚨 AI에게 '시늉'이 아니라 실데이터를 훔쳐오라고 명확히 지시
+            search_directive = f"\n🚨 [FORCE SEARCH] FMP 데이터가 비어있습니다. 즉시 Google Search 도구를 실행하여 '{company_name} {ticker} 2025 revenue net income'를 검색하세요. 기사에서 찾은 '18억 달러 매출' 등 실제 수치를 리포트 본문에 반드시 포함시키세요. 수치를 찾지 못했다면 시장 점유율 데이터라도 실측치로 넣으십시오. '알 수 없다'는 변명은 절대 금지합니다."
 
         # ----------------------------------------------------
-        # 🚀 [Call 1] 3D 카드 3장용 Specific 심층 요약 프롬프트
+        # 🚀 [Call 1] 상단 3D 카드 3장 요약 프롬프트 설정
         # ----------------------------------------------------
         if lang_code == 'ko':
             sum_p = f"월가 애널리스트로서 {company_name}({ticker})의 재무 데이터를 바탕으로 3개의 독립된 대시보드 카드 요약을 작성하세요.\n[1번 카드]: {g1_context}\n[2번 카드]: {g2_context}\n[3번 카드]: {g3_context}\n{search_directive}"
