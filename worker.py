@@ -1855,7 +1855,7 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         g3_context = f"Valuation (Forward PE: {metrics.get('pe', 'N/A')}, DCF Price: {metrics.get('dcf_price', 'N/A')}, Current Price: {metrics.get('current_price', 'N/A')})"
 
         # ----------------------------------------------------
-        # 🚀 [Call 1] 3D 카드 3장용 Specific 심층 요약 프롬프트 (완벽 분리)
+        # 🚀 [Call 1] 3D 카드 3장용 Specific 심층 요약 프롬프트 (완벽 분리 + N/A 방어)
         # ----------------------------------------------------
         if lang_code == 'ko':
             sum_p = f"월가 애널리스트로서 {company_name}({ticker})의 재무 데이터를 바탕으로 3개의 독립된 대시보드 카드 요약을 작성하세요.\n[1번 카드]: {g1_context}\n[2번 카드]: {g2_context}\n[3번 카드]: {g3_context}"
@@ -1865,7 +1865,7 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             2. 반드시 아래의 정확한 포맷으로만 출력하세요. 숫자 넘버링(1. 2.)이나 별도의 제목은 절대 쓰지 마세요.
                [포맷]: (1번 카드: 매출과 마진을 바탕으로 본업 경쟁력 및 수익성 진단 3~4문장) |||SEP||| (2번 카드: 부채와 발생액 품질로 재무 생존력 및 건전성 진단 3~4문장) |||SEP||| (3번 카드: PER/DCF를 통해 현재 주가 과열 여부 및 밸류에이션 진단 3~4문장)
             3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요.
-            4. 마이너스 수치나 데이터가 없어도 있는 그대로 팩트만 객관적으로 서술하세요. 절대 "데이터가 부족하여 판단할 수 없습니다"라고 변명하지 마세요.
+            4. 🚨 [가장 중요한 규칙] 수치가 'N/A'이거나 'Unknown'일 경우, "데이터가 없어 파악하기 어렵습니다" 같은 변명이나 투덜거림을 절대 쓰지 마세요! 대신 "상장 예정 기업(또는 신규 편입 종목)으로 공식 재무 지표가 공개되지 않은 상태입니다. 상장 이후 분기 실적 공시와 함께 지표가 업데이트될 예정입니다." 라고 전문적이고 객관적으로 서술하세요.
             5. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
             """
         elif lang_code == 'en':
@@ -1873,44 +1873,72 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             sum_i = """
             [UI Card Rules]
             1. Output EXACTLY 3 independent texts for 3 separate UI cards. Do not write a flowing essay.
-            2. Output FORMAT MUST BE: (Card 1: Diagnose business competitiveness and profitability using revenue and margins in 3-4 sentences) |||SEP||| (Card 2: Evaluate financial survival capacity using debt and accruals in 3-4 sentences) |||SEP||| (Card 3: Assess valuation and stock overheating using PE and DCF in 3-4 sentences).
-            3. DO NOT use numbers (1. 2. 3.) or titles. Separate strictly by '|||SEP|||'.
-            4. NEVER complain about missing data. State objective facts based on given numbers. Write in English.
+            2. Output FORMAT MUST BE EXACTLY as below. DO NOT use numbers (1. 2. 3.) or titles.
+               [Format]: (Card 1: Diagnose business competitiveness and profitability using revenue and margins in 3-4 sentences) |||SEP||| (Card 2: Evaluate financial survival capacity using debt and accruals in 3-4 sentences) |||SEP||| (Card 3: Assess valuation and stock overheating using PE and DCF in 3-4 sentences)
+            3. Separate strictly by '|||SEP|||'. Do not use any other special characters or line breaks between paragraphs.
+            4. 🚨 [CRITICAL RULE] If data is 'N/A' or 'Unknown', NEVER complain saying "Hard to evaluate due to lack of data." Instead, write professionally: "As a pre-IPO or newly listed company, official financial metrics are not yet publicly disclosed. Metrics will be updated following post-listing earnings reports."
             """
         elif lang_code == 'ja':
             sum_p = f"{company_name}({ticker})の財務について、3つの独立したダッシュボードカード要約を作成してください。\n[カード1]: {g1_context}\n[カード2]: {g2_context}\n[カード3]: {g3_context}"
             sum_i = """
             [UIカード作成規則]
-            1. 3つの異なるカードに挿入される、完全に独立した3つの文章を出力してください。
-            2. フォーマット: (カード1: 売上とマージンに基づく本業の競争力と収益性診断 3〜4文) |||SEP||| (カード2: 負債と発生額の質による財務的生存能力の評価 3〜4文) |||SEP||| (カード3: PERとDCFを通じた株価の過熱感とバリュエーション診断 3〜4文)
-            3. 番号(1. 2.)や見出しは禁止です。区切り文字 '|||SEP|||' のみを使用してください。
-            4. 「データ不足で評価できません」という不満は絶対に書かないでください。丁寧な日本語を使用してください。
+            1. 3つの異なるカードに挿入される、完全に独立した3つの文章を出力してください。自然に続くエッセイではありません。
+            2. 必ず以下の正確なフォーマットのみで出力してください。番号(1. 2.)や見出しは絶対に使用しないでください。
+               [フォーマット]: (カード1: 売上とマージンに基づく本業の競争力と収益性診断 3〜4文) |||SEP||| (カード2: 負債と発生額の質による財務的生存能力の評価 3〜4文) |||SEP||| (カード3: PERとDCFを通じた株価の過熱感とバリュエーション診断 3〜4文)
+            3. 区切り文字 '|||SEP|||' 以外の特殊記号や改行を段落の間に入れないでください。
+            4. 🚨 [最重要規則] データが「N/A」または「Unknown」の場合、「データ不足で判断が困難です」などの言い訳は絶対にしないでください。代わりに「上場予定または新規上場企業のため、公式な財務指標はまだ公開されていません。上場後の決算発表に伴いアップデートされる予定です。」と専門的に記述してください。
             """
         elif lang_code == 'zh':
             sum_p = f"请为 {company_name}({ticker}) 的财务数据撰写3个独立的仪表板卡片摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}"
             sum_i = """
             [UI卡片规则]
             1. 必须输出3段完全独立的文字，用于3个不同的UI卡片。不要写成连贯的文章。
-            2. 格式必须为: (卡片1: 基于营收和利润率诊断主业竞争力和盈利能力 3-4句话) |||SEP||| (卡片2: 通过债务和应计利润质量评估财务生存能力 3-4句话) |||SEP||| (卡片3: 通过PE和DCF诊断当前股价是否过热 3-4句话)
-            3. 严禁使用数字编号或标题。必须仅用 '|||SEP|||' 隔开。
-            4. 绝对不要抱怨“数据不足无法评估”。请使用专业简体中文编写。
+            2. 必须严格按照以下格式输出。绝对不要使用数字编号(1. 2.)或标题。
+               [格式]: (卡片1: 基于营收和利润率诊断主业竞争力和盈利能力 3-4句话) |||SEP||| (卡片2: 通过债务和应计利润质量评估财务生存能力 3-4句话) |||SEP||| (卡片3: 通过PE和DCF诊断当前股价是否过热 3-4句话)
+            3. 除了分隔符 '|||SEP|||' 之外，不要在段落之间加入任何特殊符号或换行符。
+            4. 🚨 [核心规则] 如果数据为'N/A'或'Unknown'，绝对不要抱怨“由于缺乏数据难以评估”。请专业地表述为：“作为拟上市或新上市企业，官方财务指标尚未公开。数据将在上市后随着财报发布而更新。”
             """
 
         # ----------------------------------------------------
-        # 🚀 [Call 2] 하단 전문(Academic CFA 리포트) - 투덜거림 원천 차단
+        # 🚀 [Call 2] 하단 전문(Academic CFA 리포트) - 수치 인용 강제 및 투덜거림 차단
         # ----------------------------------------------------
         if lang_code == 'en':
             full_p = f"Write a CFA deep-dive report for {company_name}({ticker}) using: {g1_context}, {g2_context}, {g3_context}."
-            full_i = "[Strict Rules]\n1. NO MAIN TITLES. Start directly with subheadings.\n2. NEVER complain to the user about 'missing data'. State facts objectively.\n3. Use exactly 3 subheadings: [Business Engine & Growth], [Financial Health], [Valuation Verdict]. Write in English."
+            full_i = """
+            [Strict Rules]
+            1. NO MAIN TITLES.
+            2. 🚨 QUOTE HARD NUMBERS: You MUST base your analysis on the specific numerical data provided (e.g., Growth %, Margins, Debt/Equity, P/E, DCF). Do not make abstract claims without backing them up with these exact figures.
+            3. Use EXACTLY 3 bold subheadings: **[Business Engine & Growth]**, **[Financial Health]**, **[Valuation Verdict]**. Separate paragraphs with a blank line (Enter twice).
+            4. 🚨 NEVER complain about missing/N/A data. State objectively: "As a pre-IPO company, quantitative evaluation will be available post-listing."
+            """
         elif lang_code == 'ja':
             full_p = f"以下のデータで {company_name}({ticker}) のCFA深層分析レポートを作成してください: {g1_context}, {g2_context}, {g3_context}."
-            full_i = "[規則]\n1. メインタイトルは不要です。\n2. 「データがないため評価できない」という不満や言い訳は絶対に書かないでください。\n3. [ビジネスエンジンと成長性]、[財務健全性]、[バリュエーションと結論] の3つの見出しで記述してください。"
+            full_i = """
+            [規則]
+            1. メインタイトルは不要です。
+            2. 🚨 数値の引用必須: 提供された具体的な数値（売上成長率、利益率、負債比率、PER、DCF価格など）を必ず根拠として記述し、数値のない抽象的な表現は避けてください。
+            3. 必ず3つの太字の小見出しを使用してください：**[ビジネスエンジンと成長性]**, **[財務健全性]**, **[バリュエーションと結論]**。段落間は空行で区切ってください。
+            4. 🚨 「データがないため評価できない」という言い訳は禁止。「上場前企業のため、定量的な評価は上場後に行われます」と客観的に記述してください。
+            """
         elif lang_code == 'zh':
             full_p = f"请使用以下数据为 {company_name}({ticker}) 撰写CFA深度分析报告: {g1_context}, {g2_context}, {g3_context}."
-            full_i = "[规则]\n1. 不要写主标题。\n2. 绝对不要向用户抱怨“由于缺乏数据难以评估”。\n3. 必须使用3个副标题：[业务引擎与增长性]、[财务健康度]、[估值与最终结论]。"
+            full_i = """
+            [规则]
+            1. 不要写主标题。
+            2. 🚨 必须引用具体数据: 必须基于提供的具体数值（如营收增长率、利润率、负债率、PE、DCF等）进行分析，拒绝没有任何数据支撑的抽象表达。
+            3. 必须使用3个加粗的副标题：**[业务引擎与增长性]**、**[财务健康度]**、**[估值与最终结论]**。段落之间留空行。
+            4. 🚨 绝对不要抱怨数据缺失(N/A)。请客观陈述：“该企业处于拟上市阶段，定量评估将在上市后更新。”
+            """
         else: # ko
             full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 CFA 심층 분석 리포트를 작성하세요: {g1_context}, {g2_context}, {g3_context}."
-            full_i = "[작성 규칙]\n1. 메인 제목(## 회사명 분석)을 쓰지 마세요.\n2. 유저에게 '데이터가 없어 평가하기 어렵습니다' 같은 변명이나 투덜거림을 절대 쓰지 마세요. 스팩(SPAC)이나 신생 기업이라 N/A가 많더라도 있는 그대로 냉철하게 팩트 폭격을 하세요.\n3. 소제목([비즈니스 엔진 및 성장성], [재무 건전성], [밸류에이션 및 최종 결론]) 3개로만 구성하세요. 반드시 '~습니다/ㅂ니다' 체를 사용하세요."
+            full_i = """
+            [작성 규칙 - 절대 엄수]
+            1. 메인 제목(## 회사명 분석)을 쓰지 마세요.
+            2. 🚨 구체적 수치 인용 필수: 반드시 제공된 FMP 재무제표 및 미시지표의 '정확한 수치(성장률, 마진율, 부채비율, PER, DCF 등)'를 본문에 직접 인용하여 분석의 근거로 삼으세요. 수치가 없는 뜬구름 잡는 소리는 배제하세요.
+            3. 반드시 아래 3개의 굵은 소제목을 사용하여 3단락으로 작성하고, 단락 사이는 줄바꿈(Enter 2번)으로 구분하세요.
+               **[비즈니스 엔진 및 성장성]**, **[재무 건전성]**, **[밸류에이션 및 최종 결론]**
+            4. 🚨 유저에게 'N/A라서 평가하기 어렵습니다' 같은 변명을 절대 쓰지 마세요. "상장 예정 기업으로 정량적 평가는 상장 이후 업데이트됩니다" 등 객관적인 팩트로 깔끔하게 처리하세요.
+            """
 
         try:
             res_s = model_strict.generate_content(sum_p + sum_i).text.strip()
@@ -1921,7 +1949,6 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             
             print(f"🌍 Tab 3 미시 지표 이중 리포트 렌더링 최적화 완료 ({lang_code})")
         except Exception as e: pass
-
 # ==========================================
 # [신규 추가] Tab 3 프리미엄 요약 전용 프롬프트 (다국어 완벽 분리)
 # ==========================================
