@@ -4835,7 +4835,6 @@ with main_area.container():
                 with col1: # [Card 1] 비즈니스 성장 및 수익성
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">{get_text('tab3_card1_title')}</div>
-                        <div class="group-desc"><b>💡 AI Earnings Insights:</b><br><br>{c1_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">Sales Growth</span><span class="sub-value">{growth_disp}{get_badge("good" if growth > 5 else "over" if growth < 0 else "neutral")}</span></div>
                             <div class="sub-item"><span class="sub-label">Net Margin</span><span class="sub-value">{net_m_disp}{get_badge("good" if net_m_val > 0 else "over")}</span></div>
@@ -4847,7 +4846,6 @@ with main_area.container():
                     acc_badge = "good" if accruals_status == "Low" else "over" if accruals_status == "High" else "neutral"
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">{get_text('tab3_card2_title')}</div>
-                        <div class="group-desc"><b>💡 AI Solvency Insights:</b><br><br>{c2_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">Debt / Equity</span><span class="sub-value">{de_disp}{get_badge("good" if 0 < de_ratio < 100 else "over" if de_ratio >= 100 else "neutral")}</span></div>
                             <div class="sub-item"><span class="sub-label">Accruals Quality</span><span class="sub-value">{accruals_status}{get_badge(acc_badge)}</span></div>
@@ -4857,7 +4855,6 @@ with main_area.container():
                 with col3: # [Card 3] 밸류에이션
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">{get_text('tab3_card3_title')}</div>
-                        <div class="group-desc"><b>💡 AI Valuation Insights:</b><br><br>{c3_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">Forward P/E</span><span class="sub-value">{pe_disp}{get_badge("good" if 0 < pe_val < 25 else "over" if pe_val >= 25 else "neutral")}</span></div>
                             <div class="sub-item"><span class="sub-label">DCF Gap</span><span class="sub-value">{gap_pct:+.1f}%{get_badge("good" if gap_pct > 0 else "over" if gap_pct < 0 else "neutral")}</span></div>
