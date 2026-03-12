@@ -4470,7 +4470,8 @@ else:
                                     </div>
                                 </div>
                             """, unsafe_allow_html=True)
-                            
+                
+                # 하단 의사결정 박스 및 면책조항 (들여쓰기 위치 주의)
                 draw_decision_box("filing", get_text('decision_question_filing'), ['sentiment_positive', 'sentiment_neutral', 'sentiment_negative'], current_p)
                 display_disclaimer()
                     
