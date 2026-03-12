@@ -4405,27 +4405,34 @@ with main_area.container():
                         d_text = formatted_html.strip()
                         if len(d_text) < 15: d_text = raw_text.replace('\n', '<br>')
             
-                        # [Step 4] 출력 및 8-K 프리미엄 블러
-                        if t_topic == "8-K" and not is_premium:
-                            # 🚨 [수정] 대표님이 요청하신 뉴욕타임스 스타일의 세련된 "🔒 Premium Only" 뱃지 블러 화면 적용!
-                            locked_8k_html = """
-                            <div style="position: relative; width: 100%; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; margin-top: 10px;">
-                                <div style="filter: blur(5px); opacity: 0.5; padding: 25px; background-color: #f8f9fa; color: #555; font-size: 15px; line-height: 1.6;">
-                                    <b>[핵심 이벤트]</b><br>최근 발생한 주요 공시 사유 요약 내용이 이곳에 표시됩니다. 회사의 재무 상태 및 주가에 영향을 줄 수 있는 중대한 결정 사항입니다.<br><br>
-                                    <b>[재무 파급력]</b><br>해당 이벤트가 기업의 매출, 영업이익, 현금흐름 등에 미치는 단기 및 장기적 파급 효과 분석이 이곳에 표시됩니다.<br><br>
-                                    <b>[향후 전망]</b><br>투자자가 주의 깊게 살펴봐야 할 핵심 투자 포인트와 향후 예상 시나리오입니다.
-                                </div>
-                                
-                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%;">
-                                    <span style="background-color: rgba(32, 33, 36, 0.85); color: #ffffff; padding: 12px 24px; border-radius: 30px; font-weight: 600; font-size: 16px; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                                        🔒 Premium Only
-                                    </span>
-                                </div>
-                            </div>
-                            """
-                            st.markdown(locked_8k_html, unsafe_allow_html=True)
-                        else:
-                            st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333;">{d_text}</div>', unsafe_allow_html=True)
+                        # [Step 4] 출력 및 8-K 프리미엄 블러 처리
+if t_topic == "8-K" and not is_premium:
+    # ✅ 다른 프리미엄 카드와 통일된 디자인 (불필요한 스타일 제거)
+    locked_8k_html = """
+    <div style="position: relative; width: 100%; margin-top: 10px;">
+        <div style="filter: blur(5px); opacity: 0.4; padding: 15px; line-height: 1.6; user-select: none;">
+            <b>[핵심 이벤트]</b><br>
+            최근 발생한 주요 공시 사유 요약 내용이 이곳에 표시됩니다. 회사의 재무 상태 및 주가에 영향을 줄 수 있는 중대한 결정 사항입니다.<br><br>
+            <b>[재무 파급력]</b><br>
+            해당 이벤트가 기업의 매출, 영업이익, 현금흐름 등에 미치는 단기 및 장기적 파급 효과 분석이 이곳에 표시됩니다.<br><br>
+            <b>[향후 전망]</b><br>
+            투자자가 주의 깊게 살펴봐야 할 핵심 투자 포인트와 향후 예상 시나리오입니다.
+        </div>
+        
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%;">
+            <span style="background-color: rgba(32, 33, 36, 0.85); color: #ffffff; padding: 12px 24px; border-radius: 30px; font-weight: 600; font-size: 16px; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                🔒 Premium Only
+            </span>
+        </div>
+    </div>
+    """
+    st.markdown(locked_8k_html, unsafe_allow_html=True)
+else:
+    # ✅ 결제 회원 혹은 일반 공시 출력
+    if d_text:
+        st.markdown(f'<div style="line-height:1.8; text-align:justify; font-size:15px; color:#333; white-space: pre-wrap;">{d_text}</div>', unsafe_allow_html=True)
+    else:
+        st.info("해당 서류의 분석 리포트를 생성 중이거나 데이터가 없습니다.")
             
                 # 4. 외부 링크 및 하단 버튼
                 import urllib.parse
