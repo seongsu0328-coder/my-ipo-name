@@ -4194,7 +4194,7 @@ with main_area.container():
                                 d_str = text_tbd
                             
                             html_body += "<div style='display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #ddd; padding: 10px 5px;'>"
-                            html_body += f"<div style='font-size:13px; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;'>📅 {ev.get('event', '')}</div>"
+                            html_body += f"<div style='font-size:13px; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;'> {ev.get('event', '')}</div>"
                             html_body += "<div style='white-space: nowrap; flex-shrink: 0;'>"
                             html_body += f"<span style='color:#666; margin-right:8px; font-size:12px;'>{display_date}</span>"
                             html_body += f"<span style='background:#004e92; color:#fff; padding:2px 6px; border-radius:6px; font-size:11px; font-weight:bold;'>{d_str}</span>"
