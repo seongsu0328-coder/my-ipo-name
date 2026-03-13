@@ -5,7 +5,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import pytz
 import time
-import re
+import re  # 💡 [필수] SEC 이름 변환을 위한 정규표현식 모듈 (복구 완료!)
 
 # [1] 환경 설정
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip('/')
@@ -33,7 +33,7 @@ def batch_upsert_raw(table_name, data_list, on_conflict="ticker"):
         print(f"❌ DB 전송 에러: {e}", flush=True)
         return False
 
-# 💡 대표님이 만드신 SEC 이중 검증 시스템 완벽 유지
+# 💡 대표님이 만드신 SEC 이중 검증 시스템 완벽 유지 (re 모듈 사용)
 def get_sec_ticker_mapping():
     try:
         headers = {'User-Agent': 'UnicornFinder App admin@unicornfinder.com'}
