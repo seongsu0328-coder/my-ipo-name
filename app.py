@@ -2040,6 +2040,30 @@ UI_TEXT = {
         'ja': '非上場企業または店頭取引（OTC）株式であり、VC、エンジェルファンドなどのネットワークを通じた取引のみ可能です。',
         'zh': '未上市企业或场外交易(OTC)股票，仅能通过VC、天使基金或经纪商网络进行交易。'
     },
+    'macro_board_title': {
+        'ko': '글로벌 매크로 & 주요 일정', 
+        'en': 'Global Macro & Key Events', 
+        'ja': 'グローバルマクロと主要日程', 
+        'zh': '全球宏观与重要日程'
+    },
+    'macro_upcoming_events': {
+        'ko': '🇺🇸 미국 주요 경제지표 발표 일정 (향후 30일)', 
+        'en': '🇺🇸 Upcoming US Economic Events (Next 30 Days)', 
+        'ja': '🇺🇸 米国の主要経済指標発表日程（今後30日）', 
+        'zh': '🇺🇸 美国主要经济指标发布日程（未来30天）'
+    },
+    'macro_no_events': {
+        'ko': '향후 30일 이내 예정된 핵심 이벤트가 없습니다.', 
+        'en': 'No key events scheduled in the next 30 days.', 
+        'ja': '今後30日以内に予定されている重要なイベントはありません。', 
+        'zh': '未来30天内没有安排核心事件。'
+    },
+    'macro_today_title': {
+        'ko': '🟢 현재 (Today)', 'en': '🟢 Today', 'ja': '🟢 現在 (Today)', 'zh': '🟢 当前 (Today)'
+    },
+    'macro_past_title': {
+        'ko': '🕒 {0}년 전 ({1}년)', 'en': '🕒 {0} Years Ago ({1})', 'ja': '🕒 {0}年前 ({1}年)', 'zh': '🕒 {0}年前 ({1}年)'
+    },
     
 
     # ==========================================
@@ -4066,7 +4090,112 @@ with main_area.container():
             elif selected_menu == watch_text: st.session_state.view_mode = 'watchlist'; st.session_state.page = 'calendar' 
             elif selected_menu == board_text: st.session_state.page = 'board'
             st.rerun()
-    
+
+        # =========================================================
+        # 🚀 [NEW UI] 3x4 글로벌 매크로 & 주요 일정 스와이프 대시보드
+        # =========================================================
+        if 'macro_year' not in st.session_state:
+            st.session_state.macro_year = 0  # 0: 현재, -1~-3: 과거, +1: 미래 일정
+            
+        # 💡 [디커플링 완료] 워커가 수집한 DB 캐시만 로드 (API 과금 0원)
+        macro_data = get_cached_fred_data()
+        events_data = get_cached_macro_events()
+        
+        st.write("<br>", unsafe_allow_html=True)
+        st.markdown(f"##### {get_text('macro_board_title')}")
+        
+        col_l, col_main, col_r = st.columns([1, 10, 1])
+        
+        with col_l:
+            st.write("<br><br><br>", unsafe_allow_html=True)
+            if st.button("◀", key="macro_prev", help="과거 데이터 보기"):
+                if st.session_state.macro_year > -3:
+                    st.session_state.macro_year -= 1
+                    st.rerun()
+        
+        with col_r:
+            st.write("<br><br><br>", unsafe_allow_html=True)
+            if st.button("▶", key="macro_next", help="향후 주요 일정 보기"):
+                if st.session_state.macro_year < 1:
+                    st.session_state.macro_year += 1
+                    st.rerun()
+
+        with col_main:
+            y_state = st.session_state.macro_year
+            
+            st.markdown("""
+            <style>
+                .macro-box { background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #e0e0e0; min-height: 180px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+                .macro-title { font-size: 13px; color: #888; font-weight: bold; margin-bottom: 5px; }
+                .macro-val { font-size: 22px; font-weight: 900; color: #111; }
+                .macro-diff-up { font-size: 12px; font-weight: bold; color: #d32f2f; background-color: #ffebee; padding: 2px 6px; border-radius: 5px; margin-left: 5px; }
+                .macro-diff-dn { font-size: 12px; font-weight: bold; color: #1565c0; background-color: #e3f2fd; padding: 2px 6px; border-radius: 5px; margin-left: 5px; }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            st.markdown('<div class="macro-box">', unsafe_allow_html=True)
+            
+            # --- [State +1] 미래: 향후 주요 일정 ---
+            if y_state == 1:
+                st.markdown(f"<div style='text-align: center; font-weight: bold; color: #004e92; margin-bottom: 15px;'>{get_text('macro_upcoming_events')}</div>", unsafe_allow_html=True)
+                if events_data:
+                    for ev in events_data:
+                        ev_date = pd.to_datetime(ev['date'].split(' ')[0]).date()
+                        d_day = (ev_date - datetime.now().date()).days
+                        d_str = "오늘!" if d_day == 0 else f"D-{d_day}"
+                        
+                        st.markdown(f"""
+                        <div style='display:flex; justify-content:space-between; border-bottom:1px dashed #ddd; padding: 8px 0;'>
+                            <div style='font-weight: bold; color: #333;'>📅 {ev['event']}</div>
+                            <div><span style='color:#666; margin-right:10px;'>{ev['date']}</span> <span style='background:#004e92; color:#fff; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;'>{d_str}</span></div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info(get_text('macro_no_events'))
+            
+            # --- [State 0, -1, -2, -3] 과거/현재: 3x4 그리드 ---
+            else:
+                curr_year = datetime.now().year + y_state
+                title_str = get_text('macro_today_title') if y_state == 0 else get_text('macro_past_title').format(abs(y_state), curr_year)
+                st.markdown(f"<div style='text-align: center; font-weight: bold; color: #333; margin-bottom: 15px;'>{title_str}</div>", unsafe_allow_html=True)
+                
+                data_slice = macro_data.get(str(y_state), {})
+                
+                def render_kpi(sid, title, is_percent=True):
+                    if sid not in data_slice or data_slice[sid]['val'] is None:
+                        return f"<div class='macro-title'>{title}</div><div class='macro-val'>N/A</div>"
+                        
+                    val = data_slice[sid]['val']
+                    diff = data_slice[sid]['diff']
+                    val_str = f"{val:.2f}%" if is_percent else f"{val:,.0f}"
+                    
+                    diff_html = ""
+                    if diff:
+                        cls = "macro-diff-up" if '+' in diff else "macro-diff-dn"
+                        diff_html = f"<span class='{cls}'>{diff}</span>"
+                        
+                    return f"<div class='macro-title'>{title}</div><div class='macro-val'>{val_str}{diff_html}</div>"
+
+                ma, mb, mc, md = st.columns(4)
+                with ma: # 금리/채권
+                    st.markdown(render_kpi("FEDFUNDS", "🏦 기준금리"), unsafe_allow_html=True)
+                    st.write("<br>", unsafe_allow_html=True)
+                    st.markdown(render_kpi("DGS10", "📉 10년물 국채"), unsafe_allow_html=True)
+                    st.write("<br>", unsafe_allow_html=True)
+                    st.markdown(render_kpi("T10Y2Y", "↔️ 장단기금리차"), unsafe_allow_html=True)
+                with mb: # 인플레이션
+                    st.markdown(render_kpi("CPIAUCSL", "🛒 CPI (소비자물가)"), unsafe_allow_html=True)
+                    st.write("<br>", unsafe_allow_html=True)
+                    st.markdown(render_kpi("PCEPI", "🛒 PCE (개인소비)"), unsafe_allow_html=True)
+                with mc: # 고용
+                    st.markdown(render_kpi("UNRATE", "💼 실업률"), unsafe_allow_html=True)
+                with md: # 유동성
+                    st.markdown(render_kpi("WM2NS", "💸 M2 통화량 (YoY)"), unsafe_allow_html=True)
+
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.write("<br>", unsafe_allow_html=True)
+        # =========================================================
+
         all_df_raw = get_extended_ipo_data(MY_API_KEY)
         view_mode = st.session_state.get('view_mode', 'all')
         
