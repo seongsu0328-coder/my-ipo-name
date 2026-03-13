@@ -2094,6 +2094,13 @@ UI_TEXT = {
     'macro_pce': {'ko': 'PCE', 'en': 'PCE', 'ja': 'PCE', 'zh': 'PCE'},
     'macro_unrate': {'ko': '실업률', 'en': 'Unemployment rate', 'ja': '失業率', 'zh': '失业率'},
     'macro_m2': {'ko': 'M2통화', 'en': 'M2 Supply', 'ja': 'M2通貨', 'zh': 'M2货币'},
+    # --- 주요 경제 일정 이름 번역 (학술/금융 용어) ---
+    'event_fed_rate': {'ko': '연준(FOMC) 기준금리 결정', 'en': 'Fed Interest Rate Decision', 'ja': '米FRB政策金利発表', 'zh': '美联储利率决议'},
+    'event_nfp': {'ko': '비농업 고용지수', 'en': 'Non Farm Payrolls', 'ja': '非農業部門雇用者数', 'zh': '非农就业人数'},
+    'event_u6_unemp': {'ko': 'U-6 체감실업률', 'en': 'U-6 Unemployment Rate', 'ja': 'U-6 広義失業率', 'zh': 'U-6 广义失业率'},
+    'event_unemp': {'ko': '실업률', 'en': 'Unemployment Rate', 'ja': '失業率', 'zh': '失业率'},
+    'event_cpi_sa': {'ko': 'CPI (계절조정)', 'en': 'CPI s.a', 'ja': 'CPI (季節調整済)', 'zh': 'CPI (季调后)'},
+    'event_cpi': {'ko': '소비자물가지수(CPI)', 'en': 'CPI', 'ja': '消費者物価指数(CPI)', 'zh': '消费者物价指数(CPI)'},
 
     # ==========================================
     # 5. 상세 페이지 공통 (Detail Shared)
@@ -4178,6 +4185,8 @@ with main_area.container():
                 # --- [State +1] 미래: 향후 주요 일정 ---
                 if y_state == 1:
                     html_body += f"<div style='text-align: center; font-size:14px; font-weight: 800; color: #004e92; margin-bottom: 15px;'>{get_text('macro_upcoming_events')}</div>"
+                    if y_state == 1:
+                    html_body += f"<div style='text-align: center; font-size:14px; font-weight: 800; color: #004e92; margin-bottom: 15px;'>{get_text('macro_upcoming_events')}</div>"
                     if events_data:
                         for ev in events_data:
                             try:
@@ -4185,7 +4194,6 @@ with main_area.container():
                                 ev_dt = pd.to_datetime(raw_date)
                                 display_date = ev_dt.strftime('%m/%d') 
                                 d_day = (ev_dt.date() - datetime.now().date()).days
-                                # 💡 다국어 적용 (오늘 / Today)
                                 text_today = "오늘!" if st.session_state.lang == 'ko' else "Today!" if st.session_state.lang == 'en' else "今日!" if st.session_state.lang == 'ja' else "今天!"
                                 d_str = text_today if d_day == 0 else f"D-{d_day}"
                             except:
@@ -4193,8 +4201,27 @@ with main_area.container():
                                 text_tbd = "예정" if st.session_state.lang == 'ko' else "TBD" if st.session_state.lang == 'en' else "予定" if st.session_state.lang == 'ja' else "预计"
                                 d_str = text_tbd
                             
+                            # 🚀 [핵심 추가] 이벤트 이름 다국어 치환 로직 (동적인 달력 월(Mar)은 보존)
+                            raw_event = ev.get('event', '')
+                            translated_event = raw_event
+                            
+                            # 💡 긴 단어부터 먼저 치환해야 텍스트 꼬임 버그가 없습니다 (U-6 실업률 -> 실업률 순서)
+                            if "Fed Interest Rate Decision" in raw_event:
+                                translated_event = raw_event.replace("Fed Interest Rate Decision", get_text('event_fed_rate'))
+                            elif "Non Farm Payrolls" in raw_event:
+                                translated_event = raw_event.replace("Non Farm Payrolls", get_text('event_nfp'))
+                            elif "U-6 Unemployment Rate" in raw_event:
+                                translated_event = raw_event.replace("U-6 Unemployment Rate", get_text('event_u6_unemp'))
+                            elif "Unemployment Rate" in raw_event:
+                                translated_event = raw_event.replace("Unemployment Rate", get_text('event_unemp'))
+                            elif "CPI s.a" in raw_event:
+                                translated_event = raw_event.replace("CPI s.a", get_text('event_cpi_sa'))
+                            elif "CPI" in raw_event:
+                                translated_event = raw_event.replace("CPI", get_text('event_cpi'))
+                            
+                            # 치환된 translated_event 변수를 HTML에 삽입
                             html_body += "<div style='display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #ddd; padding: 10px 5px;'>"
-                            html_body += f"<div style='font-size:13px; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;'> {ev.get('event', '')}</div>"
+                            html_body += f"<div style='font-size:13px; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;'>📅 {translated_event}</div>"
                             html_body += "<div style='white-space: nowrap; flex-shrink: 0;'>"
                             html_body += f"<span style='color:#666; margin-right:8px; font-size:12px;'>{display_date}</span>"
                             html_body += f"<span style='background:#004e92; color:#fff; padding:2px 6px; border-radius:6px; font-size:11px; font-weight:bold;'>{d_str}</span>"
