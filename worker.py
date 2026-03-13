@@ -1202,7 +1202,7 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 {raw_data}"""
 
 # ==========================================
-#[완벽 복구] Tab 1: 뉴스 및 비즈니스 (소제목 키워드 적용 + 기호 완벽 소각)
+#[완벽 복구] Tab 1: 뉴스 및 비즈니스 (소제목 강제 + 콜론/기호 소각)
 # ==========================================
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return
@@ -1257,85 +1257,64 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             
             if can_search:
                 search_directive = f"🚨 [강제 검색] FMP 데이터가 부족합니다. 즉시 구글 검색 도구를 사용하여 '{company_name} {ticker} business model' 및 '{company_name} latest news'를 검색하십시오."
-                news_rule = "[Part 2]의 데이터가 5개 미만입니다. 구글 검색을 활용해 관련 최신 뉴스를 최대 5개(Top 5)까지 보완하세요. **단, 실제 뉴스가 부족하다면 절대 가짜 뉴스를 지어내지 말고(환각 금지) 찾은 개수만큼만(예: 2~3개) 출력하세요.**"
+                news_rule = "[Part 2]의 데이터가 5개 미만입니다. 구글 검색을 활용해 관련 최신 뉴스를 최대 5개(Top 5)까지 보완하세요. **단, 가짜 뉴스를 지어내지 마세요.**"
             else:
                 search_directive = "🚨 [환각 금지] 오직 제공된 [Part 1], [Part 2] 데이터만 사용하세요."
                 news_rule = "[Part 2]의 뉴스 데이터를 바탕으로 최신순 상위 5개를 추출하세요."
             
-            # 💡 [핵심 반영] 문단 번호나 하이픈 대신 [전문적인 키워드] 적용
             if is_withdrawn:
-                t1_label = "[작업 1: 상장 철회(Withdrawn) 심층 진단]"
-                t1_struct = "각 단락은 반드시 다음 괄호 키워드로 시작하세요:\n[철회 배경 진단]: 철회 배경 설명\n[재무적 타격]: 유동성 등 재무 영향\n[생존 전략]: 향후 대안 및 전략"
+                t1_label = "[작업 1: 상장 철회 심층 진단]"
+                t1_struct = "**[철회 배경 진단]**\n(철회 배경 설명)\n\n**[재무적 타격]**\n(유동성 등 재무 영향)\n\n**[생존 전략]**\n(향후 대안 및 전략)"
             elif is_delisted_or_otc:
                 t1_label = "[작업 1: OTC/장외시장 거래 리스크 진단]"
-                t1_struct = "각 단락은 반드시 다음 괄호 키워드로 시작하세요:\n[장외 편입 배경]: 편입 배경 설명\n[투자 리스크]: 리스크 진단\n[장기 전망]: 장기 전망 서술"
+                t1_struct = "**[장외 편입 배경]**\n(편입 배경 설명)\n\n**[투자 리스크]**\n(리스크 진단)\n\n**[장기 전망]**\n(장기 전망 서술)"
             elif is_over_1y:
                 t1_label = "[작업 1: 상장 1년 차 펀더멘털 점검]"
-                t1_struct = "각 단락은 반드시 다음 괄호 키워드로 시작하세요:\n[목표 달성도]: 사업 목표 달성 수준\n[수익성 평가]: 이익 창출력 분석\n[자본 효율성]: 자본 배치 효율성"
+                t1_struct = "**[목표 달성도]**\n(사업 목표 달성 수준)\n\n**[수익성 평가]**\n(이익 창출력 분석)\n\n**[자본 효율성]**\n(자본 배치 효율성)"
             else:
                 t1_label = "[작업 1: 신규 IPO 비즈니스 심층 분석]"
-                t1_struct = "각 단락은 반드시 다음 괄호 키워드로 시작하세요:\n[비즈니스 모델 및 스케일]: 구체적 수치를 동반한 비즈니스 모델 설명\n[시장 점유율 및 경쟁 우위]: 명확한 경쟁사명(Peers)을 명시한 비교 분석\n[성장 전략 및 미래 전망]: 핵심 신사업 확장 계획 및 트렌드"
+                t1_struct = "**[비즈니스 모델 및 스케일]**\n(구체적 수치를 동반한 비즈니스 모델 설명)\n\n**[시장 점유율 및 경쟁 우위]**\n(명확한 경쟁사명 명시한 비교 분석)\n\n**[성장 전략 및 미래 전망]**\n(핵심 신사업 확장 계획 및 트렌드)"
                 
             t2_label = "[작업 2: 최신 뉴스 수집 및 전문 번역]"
             json_format = f"""{{
-  "biz_summary": "여기에 {t1_struct} 에 맞춘 3문단 분석 내용을 넣으세요. (문단 구분은 반드시 \\n\\n 사용)",
+  "biz_summary": "여기에 아래 구조에 맞춰 작성하세요:\n{t1_struct}",
   "news_list":[ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일 번역", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
 }}"""
 
         elif lang_code == 'en':
             sys_prompt = "You are a senior analyst at a top-tier brokerage research center."
             lang_instruction = "Your entire response MUST be strictly in Professional English."
-            
-            if can_search:
-                search_directive = f"🚨 [TOOL USE] FMP data is missing. IMMEDIATELY use Google Search for '{company_name} {ticker} business model' and '{company_name} latest news'."
-                news_rule = "[Part 2] has less than 5 items. Use Google Search to find up to 5 recent news items. **However, DO NOT invent fake news.**"
-            else:
-                search_directive = "🚨 [STRICT RULE] Write ONLY using the text data provided below."
-                news_rule = "Extract the top 5 latest news items from [Part 2]."
-            
+            search_directive = "Use Google Search." if can_search else "Use provided text ONLY."
+            news_rule = "Extract up to 5 recent news."
             t1_label = "[Task 1: Deep Business Model Analysis]"
-            t1_struct = "Start each paragraph with these exact bracketed keywords:\n[Core Business Model]: Details with specific figures.\n[Market Share & Edge]: Clear comparison against key peers.\n[Future Growth Strategy]: Expansion plans and targets."
+            t1_struct = "**[Core Business Model]**\n(Details with specific figures)\n\n**[Market Share & Edge]**\n(Clear comparison against key peers)\n\n**[Future Growth Strategy]**\n(Expansion plans and targets)"
             t2_label = "[Task 2: Latest News Collection]"
             json_format = f"""{{
-  "biz_summary": "3 paragraphs based on: {t1_struct} (use \\n\\n for line breaks)",
+  "biz_summary": "Write based on:\n{t1_struct}",
   "news_list":[ {{ "title_en": "Original Title", "translated_title": "Professional WSJ style headline", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
 }}"""
-
         elif lang_code == 'ja':
             sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。"
             lang_instruction = "必ず自然で専門的な日本語のみで作成してください。"
-            
-            if can_search:
-                search_directive = f"🚨 [強制検索] データが不足しています。直ちにGoogle検索で「{company_name} {ticker} business model」および最新ニュースを検索してください。"
-                news_rule = "[Part 2]のデータが5件未満です。Google検索を活用して最大5件まで補完してください。**ハルシネーションは絶対禁止です。**"
-            else:
-                search_directive = "🚨[厳格な規則] 以下に提供されたテキストデータのみを使用してください。"
-                news_rule = "[Part 2]のデータから最新順に上位5件を抽出してください。"
-            
+            search_directive = "Google検索を使用。" if can_search else "提供されたテキストのみを使用。"
+            news_rule = "最新ニュースを最大5件抽出してください。"
             t1_label = "[タスク 1: ビジネス深層分析]"
-            t1_struct = "各段落は必ず以下の括弧付きキーワードで始めてください:\n[中核ビジネスモデル]: 数値を伴うビジネスの説明\n[市場シェアと競合優位性]: 競合他社名を明記した比較\n[成長戦略と将来の展望]: 今後の拡張計画"
+            t1_struct = "**[中核ビジネスモデル]**\n(数値を伴うビジネスの説明)\n\n**[市場シェアと競合優位性]**\n(競合他社名を明記した比較)\n\n**[成長戦略と将来の展望]**\n(今後の拡張計画)"
             t2_label = "[タスク 2: 最新ニュースの収集と翻訳]"
             json_format = f"""{{
-  "biz_summary": "{t1_struct} に基づく3段落の分析 (改行は \\n\\n を使用)",
+  "biz_summary": "以下の構造で記述してください:\n{t1_struct}",
   "news_list":[ {{ "title_en": "Original Title", "translated_title": "日経新聞風のタイトル", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
 }}"""
-
         else: # zh
             sys_prompt = "您是顶尖券商研究中心的高级分析师。"
             lang_instruction = "必须只用自然流畅的专业简体中文编写。"
-            
-            if can_search:
-                search_directive = f"🚨[强制搜索] 数据不足。请立即使用Google搜索查找“{company_name} {ticker} business model”以及最新新闻。"
-                news_rule = "[Part 2] 的数据少于5条。请利用Google搜索寻找相关最新新闻。**绝对不要编造假新闻（禁止幻觉）。**"
-            else:
-                search_directive = "🚨 [严格规则] 只能使用下面提供的文本数据进行编写。"
-                news_rule = "仅从 [Part 2] 中提取最新的 5 条新闻。"
-                
+            search_directive = "请使用Google搜索。" if can_search else "只能使用提供的文本数据。"
+            news_rule = "提取最多5条最新新闻。"
             t1_label = "[任务 1: 业务深度分析]"
-            t1_struct = "每个段落必须以下列括号关键词开头:\n[核心商业模式]: 包含具体数据的业务说明\n[市场份额与竞争优势]: 明确点名竞争对手的比较\n[增长战略与未来展望]: 未来的扩张计划"
+            t1_struct = "**[核心商业模式]**\n(包含具体数据的业务说明)\n\n**[市场份额与竞争优势]**\n(明确点名竞争对手的比较)\n\n**[增长战略与未来展望]**\n(未来的扩张计划)"
             t2_label = "[任务 2: 收集最新新闻并专业翻译]"
             json_format = f"""{{
-  "biz_summary": "基于 {t1_struct} 的3段分析 (使用 \\n\\n 换行)",
+  "biz_summary": "请按以下结构编写:\n{t1_struct}",
   "news_list":[ {{ "title_en": "Original Title", "translated_title": "财经新闻头条风格", "link": "URL", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ]
 }}"""
 
@@ -1355,9 +1334,8 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         [Strict Rules]
         1. Language: {lang_instruction}
         2. {news_rule}
-        3. YOU MUST OUTPUT ONLY A VALID JSON OBJECT. NO greetings, NO markdown outside the JSON.
-        4. The 'sentiment' value MUST be output in english as one of: "Positive", "Negative", "Neutral".
-        5. 🚨 NO BULLET POINTS / NO HYPHENS: DO NOT use any hyphens (-), asterisks (*), or numbers at the beginning of paragraphs. Start IMMEDIATELY with the [Bracketed Keyword] as instructed.
+        3. YOU MUST OUTPUT ONLY A VALID JSON OBJECT.
+        4. 🚨 FORMATTING RULE: You MUST start each section with the **[Bracketed Title]**, DO NOT put a colon (:) after it, and MUST press Enter (newline) before writing the paragraph text. NO bullet points (- or *).
         
         <JSON_START>
         {json_format}
@@ -1381,20 +1359,33 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     news_list = parsed.get("news_list",[])
                     
                     if isinstance(news_list, list):
-                        news_list = news_list[:5] # 무조건 5개까지만 커트
+                        news_list = news_list[:5]
                         for n in news_list:
                             s_val = str(n.get('sentiment', 'Neutral')).lower()
                             if "pos" in s_val or "긍정" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
                             elif "neg" in s_val or "부정" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
                             else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
 
-                    # 🚨 [물리적 방어막] 정규식을 통해 단락 앞의 탭(\t), 띄어쓰기, 하이픈(-), 별표(*)를 무자비하게 뜯어냅니다. 
-                    # 단, 대괄호 '[' 는 건드리지 않기 때문에 [비즈니스 모델] 이라는 글자는 아주 예쁘게 살아남습니다.
-                    raw_paragraphs = biz_text.replace('\\n', '\n').split('\n')
-                    clean_paragraphs = [re.sub(r'^[\s\-*•\t]+', '', p).strip() for p in raw_paragraphs if len(re.sub(r'^[\s\-*•\t]+', '', p).strip()) > 10]
+                    # 🚨 [물리적 방어막 & HTML 디자인 완벽 적용]
+                    # AI가 소제목 뒤에 실수로 붙인 콜론(:)과 공백을 강제로 줄바꿈(\n)으로 쪼개버립니다.
+                    biz_text = re.sub(r'(\*\*\[.*?\]\*\*)\s*:\s*', r'\1\n', biz_text)
+                    biz_text = re.sub(r'(\*\*\[.*?\]\*\*)\s+(?=[^\n])', r'\1\n', biz_text)
                     
-                    indent = "14px" if lang_code == "ko" else "0px"
-                    html_output = "".join([f'<p style="display:block; text-indent:{indent}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in clean_paragraphs])
+                    raw_paragraphs = biz_text.replace('\\n', '\n').split('\n')
+                    clean_paragraphs = [re.sub(r'^[\s\-•\t]+', '', p).strip() for p in raw_paragraphs if len(re.sub(r'^[\s\-•\t]+', '', p).strip()) > 2]
+                    
+                    html_parts = []
+                    for p in clean_paragraphs:
+                        # 소제목인 경우 (굵은 글씨 및 여백 적용, 들여쓰기 없음)
+                        if p.startswith('**[') or p.startswith('['):
+                            title_clean = p.replace('**', '').replace(':', '').strip()
+                            html_parts.append(f'<p style="display:block; font-weight:bold; margin-top:20px; margin-bottom:5px; font-size:16px; color:#111;">{title_clean}</p>')
+                        # 일반 본문인 경우 (들여쓰기 적용)
+                        else:
+                            indent = "14px" if lang_code == "ko" else "0px"
+                            html_parts.append(f'<p style="display:block; text-indent:{indent}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>')
+
+                    html_output = "".join(html_parts)
 
                     batch_upsert("analysis_cache",[{
                         "cache_key": cache_key,
