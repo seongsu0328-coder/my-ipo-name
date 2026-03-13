@@ -4130,8 +4130,8 @@ with main_area.container():
         macro_data = get_cached_fred_data()
         events_data = get_cached_macro_events()
         
-        st.write("<br>", unsafe_allow_html=True)
-        st.markdown(f"##### {get_text('macro_board_title')}")
+        # st.write("<br>", unsafe_allow_html=True) # 공백이 너무 넓으면 이 줄도 지우세요
+        # st.markdown(f"##### {get_text('macro_board_title')}") # 👈 텍스트 숨김 처리 완료!
         
         col_l, col_main, col_r = st.columns([1, 10, 1])
         
