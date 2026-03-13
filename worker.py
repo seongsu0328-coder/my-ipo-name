@@ -1202,7 +1202,7 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 {raw_data}"""
 
 # ==========================================
-#[완벽 복구] Tab 1: 뉴스 및 비즈니스 (가짜 뉴스 환각 방지 + 유연한 검색)
+#[완벽 복구] Tab 1: 뉴스 및 비즈니스 (소제목 키워드 적용 + 기호 완벽 소각)
 # ==========================================
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return
@@ -1255,26 +1255,26 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다."
             lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n🚨 모든 문장의 끝은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하십시오."
             
-            # 💡 [환각 방지 로직 적용] 최대 5개까지 찾되, 없으면 없는 대로 출력하라고 명시
             if can_search:
                 search_directive = f"🚨 [강제 검색] FMP 데이터가 부족합니다. 즉시 구글 검색 도구를 사용하여 '{company_name} {ticker} business model' 및 '{company_name} latest news'를 검색하십시오."
-                news_rule = "- 🚨 [Part 2]의 데이터가 5개 미만입니다. 구글 검색을 활용해 관련 최신 뉴스를 최대 5개(Top 5)까지 보완하세요. **단, 실제 뉴스가 부족하다면 절대 가짜 뉴스를 지어내지 말고(환각 금지) 찾은 개수만큼만(예: 2~3개) 출력하세요.**"
+                news_rule = "[Part 2]의 데이터가 5개 미만입니다. 구글 검색을 활용해 관련 최신 뉴스를 최대 5개(Top 5)까지 보완하세요. **단, 실제 뉴스가 부족하다면 절대 가짜 뉴스를 지어내지 말고(환각 금지) 찾은 개수만큼만(예: 2~3개) 출력하세요.**"
             else:
                 search_directive = "🚨 [환각 금지] 오직 제공된 [Part 1], [Part 2] 데이터만 사용하세요."
-                news_rule = "- [Part 2]의 뉴스 데이터를 바탕으로 최신순 상위 5개를 추출하세요."
+                news_rule = "[Part 2]의 뉴스 데이터를 바탕으로 최신순 상위 5개를 추출하세요."
             
+            # 💡 [핵심 반영] 문단 번호나 하이픈 대신 [전문적인 키워드] 적용
             if is_withdrawn:
                 t1_label = "[작업 1: 상장 철회(Withdrawn) 심층 진단]"
-                t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 철회 배경 진단\n- 재무적 타격\n- 생존 전략"
+                t1_struct = "각 단락은 반드시 다음 괄호 키워드로 시작하세요:\n[철회 배경 진단]: 철회 배경 설명\n[재무적 타격]: 유동성 등 재무 영향\n[생존 전략]: 향후 대안 및 전략"
             elif is_delisted_or_otc:
                 t1_label = "[작업 1: OTC/장외시장 거래 리스크 진단]"
-                t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 장외 편입 배경\n- 투자 리스크\n- 장기 전망"
+                t1_struct = "각 단락은 반드시 다음 괄호 키워드로 시작하세요:\n[장외 편입 배경]: 편입 배경 설명\n[투자 리스크]: 리스크 진단\n[장기 전망]: 장기 전망 서술"
             elif is_over_1y:
                 t1_label = "[작업 1: 상장 1년 차 펀더멘털 점검]"
-                t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 목표 달성도\n- 수익성 평가\n- 자본 효율성"
+                t1_struct = "각 단락은 반드시 다음 괄호 키워드로 시작하세요:\n[목표 달성도]: 사업 목표 달성 수준\n[수익성 평가]: 이익 창출력 분석\n[자본 효율성]: 자본 배치 효율성"
             else:
                 t1_label = "[작업 1: 신규 IPO 비즈니스 심층 분석]"
-                t1_struct = "각 문단별로 포함해야 할 핵심 주제 (순서대로):\n- 비즈니스 모델 및 핵심 제품 설명\n- 시장 점유율 및 주요 경쟁사와의 명확한 경쟁 우위 비교\n- 향후 신사업 확장 계획 및 최근 산업 트렌드"
+                t1_struct = "각 단락은 반드시 다음 괄호 키워드로 시작하세요:\n[비즈니스 모델 및 스케일]: 구체적 수치를 동반한 비즈니스 모델 설명\n[시장 점유율 및 경쟁 우위]: 명확한 경쟁사명(Peers)을 명시한 비교 분석\n[성장 전략 및 미래 전망]: 핵심 신사업 확장 계획 및 트렌드"
                 
             t2_label = "[작업 2: 최신 뉴스 수집 및 전문 번역]"
             json_format = f"""{{
@@ -1288,13 +1288,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             
             if can_search:
                 search_directive = f"🚨 [TOOL USE] FMP data is missing. IMMEDIATELY use Google Search for '{company_name} {ticker} business model' and '{company_name} latest news'."
-                news_rule = "- 🚨 [Part 2] has less than 5 items. Use Google Search to find up to 5 recent news items. **However, if there are not enough real news articles, DO NOT invent fake news (No Hallucination). Just output the ones you actually found.**"
+                news_rule = "[Part 2] has less than 5 items. Use Google Search to find up to 5 recent news items. **However, DO NOT invent fake news.**"
             else:
                 search_directive = "🚨 [STRICT RULE] Write ONLY using the text data provided below."
-                news_rule = "- Extract the top 5 latest news items from [Part 2]."
+                news_rule = "Extract the top 5 latest news items from [Part 2]."
             
             t1_label = "[Task 1: Deep Business Model Analysis]"
-            t1_struct = "- Para 1: Business model\n- Para 2: Market share & Edge\n- Para 3: Future plans"
+            t1_struct = "Start each paragraph with these exact bracketed keywords:\n[Core Business Model]: Details with specific figures.\n[Market Share & Edge]: Clear comparison against key peers.\n[Future Growth Strategy]: Expansion plans and targets."
             t2_label = "[Task 2: Latest News Collection]"
             json_format = f"""{{
   "biz_summary": "3 paragraphs based on: {t1_struct} (use \\n\\n for line breaks)",
@@ -1307,13 +1307,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             
             if can_search:
                 search_directive = f"🚨 [強制検索] データが不足しています。直ちにGoogle検索で「{company_name} {ticker} business model」および最新ニュースを検索してください。"
-                news_rule = "- 🚨 [Part 2]のデータが5件未満です。Google検索を活用して関連する最新ニュースを最大5件まで補完してください。**ただし、実際のニュースが不足している場合は絶対に捏造せず（ハルシネーション禁止）、見つかった分だけを出力してください。**"
+                news_rule = "[Part 2]のデータが5件未満です。Google検索を活用して最大5件まで補完してください。**ハルシネーションは絶対禁止です。**"
             else:
                 search_directive = "🚨[厳格な規則] 以下に提供されたテキストデータのみを使用してください。"
-                news_rule = "-[Part 2]のデータから最新順に上位5件を抽出してください。"
+                news_rule = "[Part 2]のデータから最新順に上位5件を抽出してください。"
             
             t1_label = "[タスク 1: ビジネス深層分析]"
-            t1_struct = "- 第1段落: ビジネスモデル\n- 第2段落: 市場シェアと競争優位性\n- 第3段落: 今後の拡張計画"
+            t1_struct = "各段落は必ず以下の括弧付きキーワードで始めてください:\n[中核ビジネスモデル]: 数値を伴うビジネスの説明\n[市場シェアと競合優位性]: 競合他社名を明記した比較\n[成長戦略と将来の展望]: 今後の拡張計画"
             t2_label = "[タスク 2: 最新ニュースの収集と翻訳]"
             json_format = f"""{{
   "biz_summary": "{t1_struct} に基づく3段落の分析 (改行は \\n\\n を使用)",
@@ -1326,13 +1326,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             
             if can_search:
                 search_directive = f"🚨[强制搜索] 数据不足。请立即使用Google搜索查找“{company_name} {ticker} business model”以及最新新闻。"
-                news_rule = "- 🚨 [Part 2] 的数据少于5条。请利用Google搜索寻找相关最新新闻，最多补齐至5条。**注意：如果实际新闻不足，绝对不要编造假新闻（禁止幻觉），只需输出实际找到的数量即可。**"
+                news_rule = "[Part 2] 的数据少于5条。请利用Google搜索寻找相关最新新闻。**绝对不要编造假新闻（禁止幻觉）。**"
             else:
                 search_directive = "🚨 [严格规则] 只能使用下面提供的文本数据进行编写。"
-                news_rule = "- 仅从 [Part 2] 中提取最新的 5 条新闻。"
+                news_rule = "仅从 [Part 2] 中提取最新的 5 条新闻。"
                 
             t1_label = "[任务 1: 业务深度分析]"
-            t1_struct = "- 第一段: 商业模式\n- 第二段: 市场份额与竞争优势\n- 第三段: 未来扩张计划"
+            t1_struct = "每个段落必须以下列括号关键词开头:\n[核心商业模式]: 包含具体数据的业务说明\n[市场份额与竞争优势]: 明确点名竞争对手的比较\n[增长战略与未来展望]: 未来的扩张计划"
             t2_label = "[任务 2: 收集最新新闻并专业翻译]"
             json_format = f"""{{
   "biz_summary": "基于 {t1_struct} 的3段分析 (使用 \\n\\n 换行)",
@@ -1357,6 +1357,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         2. {news_rule}
         3. YOU MUST OUTPUT ONLY A VALID JSON OBJECT. NO greetings, NO markdown outside the JSON.
         4. The 'sentiment' value MUST be output in english as one of: "Positive", "Negative", "Neutral".
+        5. 🚨 NO BULLET POINTS / NO HYPHENS: DO NOT use any hyphens (-), asterisks (*), or numbers at the beginning of paragraphs. Start IMMEDIATELY with the [Bracketed Keyword] as instructed.
         
         <JSON_START>
         {json_format}
@@ -1387,10 +1388,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             elif "neg" in s_val or "부정" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
                             else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
 
-                    # HTML 렌더링
-                    paragraphs =[p.strip() for p in biz_text.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
+                    # 🚨 [물리적 방어막] 정규식을 통해 단락 앞의 탭(\t), 띄어쓰기, 하이픈(-), 별표(*)를 무자비하게 뜯어냅니다. 
+                    # 단, 대괄호 '[' 는 건드리지 않기 때문에 [비즈니스 모델] 이라는 글자는 아주 예쁘게 살아남습니다.
+                    raw_paragraphs = biz_text.replace('\\n', '\n').split('\n')
+                    clean_paragraphs = [re.sub(r'^[\s\-*•\t]+', '', p).strip() for p in raw_paragraphs if len(re.sub(r'^[\s\-*•\t]+', '', p).strip()) > 10]
+                    
                     indent = "14px" if lang_code == "ko" else "0px"
-                    html_output = "".join([f'<p style="display:block; text-indent:{indent}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in paragraphs])
+                    html_output = "".join([f'<p style="display:block; text-indent:{indent}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in clean_paragraphs])
 
                     batch_upsert("analysis_cache",[{
                         "cache_key": cache_key,
@@ -2368,10 +2372,10 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
         except: pass
 
         # =====================================================================
-        # 💡 [요청 반영] N/A 스팩 처리 안내문 + |||SEP||| 텍스트 분할 방식 적용
+        # 💡 [요청 반영] N/A 스팩 처리 안내문 + 월가 밸류에이션 방어 논리 + |||SEP||| 텍스트 분할 방식 적용
         # =====================================================================
         if lang_code == 'ko':
-            na_handling_rule = "만약 지표가 N/A이거나 Pre-revenue라면, 이는 데이터 누락이 아니라 해당 기업이 초기 단계(SPAC, 바이오 임상 등)임을 의미합니다. '평가할 수 없다'고 하지 말고, 초기 기업의 특성에 맞춰 잠재력이나 리스크를 평가하세요."
+            na_handling_rule = "🚨 [N/A 방어 규칙]: 만약 P/E나 DCF 등 밸류에이션 지표가 N/A이거나 수익이 0(Pre-revenue)이라면 '평가할 수 없다'거나 '정보가 부족하다'는 변명을 절대 쓰지 마세요. 대신 \"현재 초기 단계(또는 신규 상장)로 전통적인 현금흐름 기반의 밸류에이션 적용은 제한적이며, 시장은 해당 기업의 미래 파이프라인, 비전, 그리고 잠재 시장 규모(TAM)에 프리미엄을 부여하며 가치를 평가하고 있습니다\"라는 논리로 매우 전문성 있게 서술하세요."
             search_directive = f"\n🚨[강제 검색] FMP 데이터 부족. 구글 검색으로 '{company_name} {ticker} {past_3_years} 실적 발표'를 찾아 보완하세요." if can_fin_search else ""
             
             sum_p = f"""당신은 퀀트 애널리스트입니다. {company_name}({ticker})의 지표를 해석하여 대시보드 카드를 작성하세요.
@@ -2398,7 +2402,7 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             """
 
         elif lang_code == 'en':
-            na_handling_rule = "If metrics are N/A or Pre-revenue, it means the company is in an early stage (e.g., SPAC, biotech). Do not say 'cannot be evaluated'. Instead, evaluate its potential and risks based on the characteristics of early-stage companies."
+            na_handling_rule = "🚨 [N/A Defense Rule]: If valuation metrics like P/E or DCF are N/A or Pre-revenue, NEVER say 'cannot be evaluated' or 'lack of data'. Instead, professionally defend it by stating: 'As an early-stage/newly listed company, the application of traditional cash-flow-based valuation models is limited. The market is currently pricing the stock based on its future pipeline, strategic vision, and Total Addressable Market (TAM) potential.'"
             search_directive = f"\n🚨 [FORCE SEARCH] Use Google Search for '{company_name} {ticker} financial results {past_3_years}'." if can_fin_search else ""
             
             sum_p = f"""As a Quant Analyst, evaluate {company_name}({ticker}). 
@@ -2415,7 +2419,7 @@ Data: {g1_context} | {g2_context} | {g3_context}
             full_i = """[STRICT RULES] 1. NO MAIN TITLES or emojis. 2. QUOTE HARD NUMBERS from the [Raw Data]. 3. Incorporate up to 10 standard financial metrics. 4. Use EXACTLY 3 subheadings with brackets ONLY:[Profitability & Growth Analysis], [Financial Health & Cash Flow],[Valuation & Final Verdict]. DO NOT use markdown bold (**). 5. Write 4-5 sentences immediately after subheadings. 6. NEVER complain about missing data."""
 
         elif lang_code == 'ja':
-            na_handling_rule = "指標がN/AまたはPre-revenueの場合、データ欠落ではなく、企業が初期段階（SPACやバイオ臨床など）であることを意味します。「評価できない」とは言わず、初期企業の特性に合わせて潜在力やリスクを評価してください。"
+            na_handling_rule = "🚨 [N/A防御規則]: P/EやDCFなどのバリュエーション指標がN/A、またはPre-revenueの場合、「評価できない」「情報が不足している」という言い訳は絶対に使わないでください。代わりに、「現在は初期段階（または新規上場）であり、伝統的なキャッシュフローに基づくバリュエーションの適用は限定的です。市場は同社の今後のパイプライン、ビジョン、および潜在的市場規模（TAM）にプレミアムを付与して価値を評価しています」という論理で非常に専門的に記述してください。"
             search_directive = f"\n🚨 [強制検索] Google検索で「{company_name} {ticker} {past_3_years} financial results」を検索してください。" if can_fin_search else ""
             
             sum_p = f"""あなたはクオンツアナリストです。{company_name}({ticker})を評価してください。
@@ -2432,7 +2436,7 @@ Data: {g1_context} | {g2_context} | {g3_context}
             full_i = """[厳格な規則] 1. メインタイトルや絵文字は禁止。 2.[原データ]から具体的な数値を引用。 3. 主要な数値を10個程度参照。 4. 3つの小見出しを括弧のみで使用:[収益性と成長性の分析],[財務健全性とキャッシュフロー],[適正価値と総合投資意見]。太字(**)禁止。 5. 小見出しの直後に本文(4〜5文)を開始。 6. 「データがない」という言い訳禁止。 7. 丁寧な日本語を使用。"""
 
         else: # zh
-            na_handling_rule = "如果指标为N/A或Pre-revenue，这意味着企业处于早期阶段（如SPAC、生物临床等）。不要说“无法评估”，而是根据早期企业的特点评估其潜力和风险。"
+            na_handling_rule = "🚨 [N/A防御规则]: 如果 P/E 或 DCF 等估值指标为 N/A 或处于 Pre-revenue 阶段，绝对不要写“无法评估”或“缺乏数据”等借口。相反，请以极其专业的口吻解释：“作为一家处于早期（或新上市）的公司，传统基于现金流的估值模型的适用性有限。市场目前主要基于其未来的产品管线、战略愿景以及潜在市场规模 (TAM) 来赋予其估值溢价。”"
             search_directive = f"\n🚨 [强制搜索] 请使用Google搜索 '{company_name} {ticker} 财务数据 {past_3_years}'。" if can_fin_search else ""
             
             sum_p = f"""作为量化分析师，请评估 {company_name}({ticker})。
@@ -2449,25 +2453,21 @@ Data: {g1_context} | {g2_context} | {g3_context}
             full_i = """[严格规则] 1. 绝对不要写主标题或表情符号。 2. 必须引用[原始数据]中的具体数据。 3. 融入约10个核心数值。 4. 使用3个带方括号的副标题，绝对不要加粗(**): [盈利能力与增长性分析], [财务健康与现金流],[合理估值与综合投资意见]。 5. 副标题后写4-5句话。 6. 绝对不要抱怨数据缺失。"""
 
         # ----------------------------------------------------
-        # [Call 1] 3D 카드 생성 (JSON 파싱으로 완벽한 |||SEP||| 조립)
+        # [Call 1] 3D 카드 요약 생성 (JSON 파싱 완전 폐기 및 직통 저장)
         # ----------------------------------------------------
         try:
             res_sum = current_tab3_model.generate_content(sum_p)
             if res_sum and res_sum.text:
-                full_text = res_sum.text
-                start_idx = full_text.find('{')
-                end_idx = full_text.rfind('}')
+                # AI가 이미 'A |||SEP||| B |||SEP||| C' 포맷으로 주므로, 
+                # 불필요한 줄바꿈만 지우고 DB에 곧바로 꽂아 넣습니다.
+                clean_sum = res_sum.text.strip().replace('\n', ' ')
                 
-                if start_idx != -1 and end_idx != -1:
-                    json_str = full_text[start_idx:end_idx+1]
-                    parsed = json.loads(json_str, strict=False)
-                    
-                    c1 = str(parsed.get('card1', '')).replace('\n', ' ').strip()
-                    c2 = str(parsed.get('card2', '')).replace('\n', ' ').strip()
-                    c3 = str(parsed.get('card3', '')).replace('\n', ' ').strip()
-                    
-                    clean_sum = f"{c1} |||SEP||| {c2} |||SEP||| {c3}"
-                    batch_upsert("analysis_cache",[{"cache_key": cache_key_sum, "content": clean_sum, "updated_at": datetime.now().isoformat()}], "cache_key")
+                batch_upsert("analysis_cache", [{
+                    "cache_key": cache_key_sum, 
+                    "content": clean_sum, 
+                    "updated_at": datetime.now().isoformat()
+                }], "cache_key")
+                print(f"✅ [{ticker}] Tab 3 카드 요약 캐싱 완료 ({lang_code})")
         except Exception as e:
             print(f"❌ [{ticker}] Tab 3 카드 요약 에러 ({lang_code}): {e}")
 
