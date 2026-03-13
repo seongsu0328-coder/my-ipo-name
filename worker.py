@@ -27,7 +27,8 @@ else:
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 GENAI_API_KEY = os.environ.get("GENAI_API_KEY", "")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
-FMP_API_KEY = os.environ.get("FMP_API_KEY", "")  # 💡 [신규 추가] FMP 키 로드
+FMP_API_KEY = os.environ.get("FMP_API_KEY", "")  # 기존 코드
+FRED_API_KEY = os.environ.get("FRED_API_KEY", "781b0d2391740729adb2d931e200e322") # 💡 [신규 추가]
 
 # 💡 [디버깅] 배달 상태 확인
 print(f"DEBUG: SUPABASE_URL 존재 = {bool(SUPABASE_URL)}")
@@ -3053,7 +3054,81 @@ def run_premium_alert_engine(df_calendar):
         batch_upsert("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
         print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 DB에 적재되었습니다.")
 
+# ==========================================
+# [신규 추가] 글로벌 매크로 & 주요 일정 캐싱 워커
+# ==========================================
+def update_global_macro_and_events():
+    print("🌍 글로벌 매크로(FRED) 및 경제 일정(FMP) 데이터 수집 시작...")
+    today = datetime.now()
+    
+    # 1. FRED 매크로 지표 수집
+    series_ids = {
+        "FEDFUNDS": "기준금리", "DGS10": "10년물 국채", "T10Y2Y": "장단기 금리차", 
+        "UNRATE": "실업률", "CPIAUCSL": "소비자물가지수(CPI)", "PCEPI": "개인소비지출(PCE)", "WM2NS": "M2 통화량"
+    }
+    pc1_series = ["CPIAUCSL", "PCEPI", "WM2NS"] # YoY % 계산용
+    results = {"0": {}, "-1": {}, "-2": {}, "-3": {}} # JSON은 key가 무조건 문자열이어야 함
+    start_date = (today - timedelta(days=365*4)).strftime('%Y-%m-%d')
+    
+    try:
+        if FRED_API_KEY:
+            for sid, name in series_ids.items():
+                units = "pc1" if sid in pc1_series else "lin"
+                url = f"https://api.stlouisfed.org/fred/series/observations?series_id={sid}&api_key={FRED_API_KEY}&file_type=json&observation_start={start_date}&units={units}"
+                res = requests.get(url, timeout=10).json()
+                obs = res.get('observations', [])
+                if not obs: continue
+                
+                valid_obs = [o for o in obs if o['value'] != '.']
+                valid_obs.sort(key=lambda x: x['date'], reverse=True)
+                
+                def get_val_near_date(target_date):
+                    for o in valid_obs:
+                        if pd.to_datetime(o['date']) <= target_date: return float(o['value'])
+                    return None
+                    
+                v0 = get_val_near_date(today)
+                v1 = get_val_near_date(today - timedelta(days=365))
+                v2 = get_val_near_date(today - timedelta(days=365*2))
+                v3 = get_val_near_date(today - timedelta(days=365*3))
+                v4 = get_val_near_date(today - timedelta(days=365*4))
+                
+                def calc_diff(curr, prev):
+                    if curr is None or prev is None: return None
+                    if sid in pc1_series: return None # 퍼센트는 증감p 생략
+                    return f"{curr - prev:+.2f}%p"
+                    
+                results["0"][sid] = {"val": v0, "diff": calc_diff(v0, v1)}
+                results["-1"][sid] = {"val": v1, "diff": calc_diff(v1, v2)}
+                results["-2"][sid] = {"val": v2, "diff": calc_diff(v2, v3)}
+                results["-3"][sid] = {"val": v3, "diff": calc_diff(v3, v4)}
+                
+            batch_upsert("analysis_cache", [{
+                "cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()
+            }], on_conflict="cache_key")
+            print("✅ FRED 매크로 4년치 데이터 DB 저장 완료")
+    except Exception as e: print(f"⚠️ FRED API Error: {e}")
 
+    # 2. FMP 경제 일정 수집
+    try:
+        start = today.strftime('%Y-%m-%d')
+        end = (today + timedelta(days=30)).strftime('%Y-%m-%d')
+        url = f"https://financialmodelingprep.com/stable/economic-calendar?from={start}&to={end}&apikey={FMP_API_KEY}"
+        res = requests.get(url, timeout=10).json()
+        
+        if isinstance(res, list):
+            important_events = [
+                e for e in res 
+                if e.get('country') == 'US' and any(keyword in e.get('event', '').lower() for keyword in ['fed interest', 'cpi', 'unemployment', 'non farm'])
+            ]
+            important_events.sort(key=lambda x: x['date'])
+            
+            batch_upsert("analysis_cache", [{
+                "cache_key": "FMP_MACRO_EVENTS", "content": json.dumps(important_events[:5]), "updated_at": today.isoformat()
+            }], on_conflict="cache_key")
+            print("✅ FMP 향후 30일 미국 경제일정 DB 저장 완료")
+    except Exception as e: print(f"⚠️ FMP Economic Calendar Error: {e}")
+    
 # ==========================================
 # [4] 메인 실행 루프
 # ==========================================
