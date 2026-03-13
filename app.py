@@ -2086,7 +2086,14 @@ UI_TEXT = {
     'macro_past_title': {
         'ko': '🕒 {0}년 전 ({1}년)', 'en': '🕒 {0} Years Ago ({1})', 'ja': '🕒 {0}年前 ({1}年)', 'zh': '🕒 {0}年前 ({1}年)'
     },
-    
+    # --- 매크로 지표 이름 다국어 설정 ---
+    'macro_fedfunds': {'ko': '기준금리', 'en': 'Fed Rate', 'ja': '政策金利', 'zh': '基准利率'},
+    'macro_dgs10': {'ko': '10년물', 'en': '10Y Bond', 'ja': '10年債', 'zh': '10年国债'},
+    'macro_t10y2y': {'ko': '장단기차', 'en': 'Yield Gap', 'ja': '逆イールド', 'zh': '期限利差'},
+    'macro_cpi': {'ko': 'CPI', 'en': 'CPI', 'ja': 'CPI', 'zh': 'CPI'},
+    'macro_pce': {'ko': 'PCE', 'en': 'PCE', 'ja': 'PCE', 'zh': 'PCE'},
+    'macro_unrate': {'ko': '실업률', 'en': 'Unemployment rate', 'ja': '失業率', 'zh': '失业率'},
+    'macro_m2': {'ko': 'M2통화', 'en': 'M2 Supply', 'ja': 'M2通貨', 'zh': 'M2货币'},
 
     # ==========================================
     # 5. 상세 페이지 공통 (Detail Shared)
@@ -4148,22 +4155,21 @@ with main_area.container():
                 # 📱 1행(One-line) 가로 배치 & 모바일 최적화 CSS
                 st.markdown("""
                 <style>
-                    .macro-box { background-color: #f8f9fa; padding: 15px 5px; border-radius: 12px; border: 1px solid #e0e0e0; min-height: 120px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
-                    .macro-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 10px; }
-                    .macro-col { display: flex; flex-direction: column; gap: 10px; padding: 0 2px; border-right: 1px dashed #ddd; justify-content: center; }
-                    .macro-col:last-child { border-right: none; }
-                    .macro-item { display: flex; flex-direction: row; align-items: baseline; justify-content: center; white-space: nowrap; }
-                    .macro-title { font-size: 11.5px; color: #555; font-weight: bold; margin-right: 4px; letter-spacing: -0.5px; }
-                    .macro-val { font-size: 12.5px; font-weight: 900; color: #111; }
-                    .macro-diff-up { font-size: 11.5px; font-weight: bold; color: #d32f2f; margin-left: 2px; }
-                    .macro-diff-dn { font-size: 11.5px; font-weight: bold; color: #1565c0; margin-left: 2px; }
-                    
-                    @media (max-width: 640px) {
-                        .macro-title { font-size: 9px; margin-right: 2px; letter-spacing: -0.8px; }
-                        .macro-val { font-size: 10px; letter-spacing: -0.5px; }
-                        .macro-diff-up, .macro-diff-dn { font-size: 9px; margin-left: 1px; letter-spacing: -0.8px; }
-                        .macro-col { gap: 12px; padding: 0 1px; }
-                    }
+                .macro-box { background-color: #f8f9fa; padding: 15px 5px; border-radius: 12px; border: 1px solid #e0e0e0; min-height: 120px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+                .macro-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 10px; }
+                .macro-col { display: flex; flex-direction: column; gap: 10px; padding: 0 2px; border-right: 1px dashed #ddd; justify-content: center; }
+                .macro-col:last-child { border-right: none; }
+                .macro-item { display: flex; flex-direction: row; align-items: baseline; justify-content: center; white-space: nowrap; }
+                .macro-title { font-size: 11.5px; color: #555; font-weight: bold; margin-right: 4px; letter-spacing: -0.5px; }
+                .macro-val { font-size: 12.5px; font-weight: 900; color: #111; }
+                .macro-diff-up { font-size: 11.5px; font-weight: bold; color: #d32f2f; margin-left: 2px; }
+                .macro-diff-dn { font-size: 11.5px; font-weight: bold; color: #1565c0; margin-left: 2px; }
+                @media (max-width: 640px) {
+                    .macro-title { font-size: 9px; margin-right: 2px; letter-spacing: -0.8px; }
+                    .macro-val { font-size: 10px; letter-spacing: -0.5px; }
+                    .macro-diff-up, .macro-diff-dn { font-size: 9px; margin-left: 1px; letter-spacing: -0.8px; }
+                    .macro-col { gap: 12px; padding: 0 1px; }
+                }
                 </style>
                 """, unsafe_allow_html=True)
                 
@@ -4175,26 +4181,24 @@ with main_area.container():
                     if events_data:
                         for ev in events_data:
                             try:
-                                # 💡 날짜 포맷팅: '2026-04-03 12:30:00' -> '04/03' 로 압축
                                 raw_date = ev.get('date', '')
                                 ev_dt = pd.to_datetime(raw_date)
                                 display_date = ev_dt.strftime('%m/%d') 
-                                
                                 d_day = (ev_dt.date() - datetime.now().date()).days
-                                d_str = "오늘!" if d_day == 0 else f"D-{d_day}"
+                                # 💡 다국어 적용 (오늘 / Today)
+                                text_today = "오늘!" if st.session_state.lang == 'ko' else "Today!" if st.session_state.lang == 'en' else "今日!" if st.session_state.lang == 'ja' else "今天!"
+                                d_str = text_today if d_day == 0 else f"D-{d_day}"
                             except:
                                 display_date = str(ev.get('date', ''))[5:10].replace('-', '/')
-                                d_str = "예정"
+                                text_tbd = "예정" if st.session_state.lang == 'ko' else "TBD" if st.session_state.lang == 'en' else "予定" if st.session_state.lang == 'ja' else "预计"
+                                d_str = text_tbd
                             
-                            html_body += f"""
-                            <div style='display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #ddd; padding: 10px 5px;'>
-                                <div style='font-size:13px; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;'>📅 {ev.get('event', '')}</div>
-                                <div style='white-space: nowrap; flex-shrink: 0;'>
-                                    <span style='color:#666; margin-right:8px; font-size:12px;'>{display_date}</span> 
-                                    <span style='background:#004e92; color:#fff; padding:2px 6px; border-radius:6px; font-size:11px; font-weight:bold;'>{d_str}</span>
-                                </div>
-                            </div>
-                            """
+                            html_body += "<div style='display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #ddd; padding: 10px 5px;'>"
+                            html_body += f"<div style='font-size:13px; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;'>📅 {ev.get('event', '')}</div>"
+                            html_body += "<div style='white-space: nowrap; flex-shrink: 0;'>"
+                            html_body += f"<span style='color:#666; margin-right:8px; font-size:12px;'>{display_date}</span>"
+                            html_body += f"<span style='background:#004e92; color:#fff; padding:2px 6px; border-radius:6px; font-size:11px; font-weight:bold;'>{d_str}</span>"
+                            html_body += "</div></div>"
                     else:
                         html_body += f"<div style='text-align:center; color:#666; padding:20px; font-size:13px;'>{get_text('macro_no_events')}</div>"
                 
@@ -4219,31 +4223,18 @@ with main_area.container():
                             cls = "macro-diff-up" if '+' in diff else "macro-diff-dn"
                             diff_html = f"<span class='{cls}'>({diff})</span>"
                             
-                        return f"<div class='macro-item'><span class='macro-title'>{title}</span><span class='macroval'>{val_str}{diff_html}</span></div>"
+                        return f"<div class='macro-item'><span class='macro-title'>{title}</span><span class='macro-val'>{val_str}{diff_html}</span></div>"
 
-                    html_body += f"""
-                    <div class='macro-grid'>
-                        <div class='macro-col'>
-                            {render_kpi("FEDFUNDS", "🏦기준금리")}
-                            {render_kpi("DGS10", "📉10년물")}
-                            {render_kpi("T10Y2Y", "↔️장단기차")}
-                        </div>
-                        <div class='macro-col'>
-                            {render_kpi("CPIAUCSL", "🛒CPI")}
-                            {render_kpi("PCEPI", "🛒PCE")}
-                        </div>
-                        <div class='macro-col'>
-                            {render_kpi("UNRATE", "💼실업률")}
-                        </div>
-                        <div class='macro-col'>
-                            {render_kpi("WM2NS", "💸M2통화")}
-                        </div>
-                    </div>
-                    """
+                    # 🚨 [핵심 수정] 하드코딩 제거 및 get_text() 다국어 연동
+                    html_body += "<div class='macro-grid'>"
+                    html_body += f"<div class='macro-col'>{render_kpi('FEDFUNDS', get_text('macro_fedfunds'))}{render_kpi('DGS10', get_text('macro_dgs10'))}{render_kpi('T10Y2Y', get_text('macro_t10y2y'))}</div>"
+                    html_body += f"<div class='macro-col'>{render_kpi('CPIAUCSL', get_text('macro_cpi'))}{render_kpi('PCEPI', get_text('macro_pce'))}</div>"
+                    html_body += f"<div class='macro-col'>{render_kpi('UNRATE', get_text('macro_unrate'))}</div>"
+                    html_body += f"<div class='macro-col'>{render_kpi('WM2NS', get_text('macro_m2'))}</div>"
+                    html_body += "</div>"
 
                 html_body += "</div>" # macro-box 닫기
                 
-                # 🚨 [가장 중요한 부분] 이 줄이 반드시 이렇게 생겨야 HTML 코드가 아닌 진짜 디자인으로 렌더링됩니다!
                 st.markdown(html_body, unsafe_allow_html=True)
                 st.write("<br>", unsafe_allow_html=True)
             # =========================================================
