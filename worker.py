@@ -174,38 +174,6 @@ def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
         print(f"❌ [{ticker}] {doc_type} 본문 추출 최종 실패: {e}")
         return None, None
 
-        # 💡 [Stable 주소로 교체 완료]
-        text_url = f"https://financialmodelingprep.com/stable/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
-        txt_res = requests.get(text_url, timeout=7)
-        full_text = ""
-        if txt_res.status_code == 200:
-            txt_data = txt_res.json()
-            if isinstance(txt_data, dict) and "Error Message" in txt_data:
-                print(f"🚫 [Tab 0 SEC 텍스트 차단됨: {doc_type}] -> {txt_data['Error Message']}")
-            elif isinstance(txt_data, list) and len(txt_data) > 0:
-                full_text = txt_data[0].get('content', '')
-
-        if (not full_text or len(full_text) < 100) and cik:
-            print(f"⚠️ FMP 텍스트 지연 발생. SEC 서버에서 원문 직접 추출 시도: {ticker} ({doc_type})")
-            acc_no_clean = str(accession_num).replace('-', '')
-            cik_int = str(int(cik))
-            raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_no_clean}/{accession_num}.txt"
-            
-            raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=10)
-            if raw_res.status_code == 200:
-                clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
-                clean_text = re.sub(r'\s+', ' ', clean_text)
-                full_text = clean_text
-                print(f"✅ [SEC Scraping] SEC 본진 원문 확보 완료! ({len(full_text)} 자)")
-
-        if full_text and len(full_text) > 100:
-            return filed_date, full_text[:40000]
-        
-        return filed_date, None
-
-    except Exception as e:
-        print(f"❌ [{ticker}] {doc_type} 본문 추출 최종 실패: {e}")
-        return None, None
 
 # ==========================================
 # [2] 헬퍼 함수: FMP 통신 방어막 v3 (Stable API 맞춤형)
@@ -434,11 +402,7 @@ def run_premium_alert_engine(df_calendar):
 # [3] AI 분석 함수들 (프롬프트 100% 보존 + 방어막 추가)
 # ==========================================
 
-# ==========================================
-# [SEC EDGAR API 헬퍼 함수] - 무료, 주 1회 호출용
-# ==========================================
-# SEC API는 User-Agent 헤더(이름+이메일)가 없으면 접속을 차단하므로 필수로 넣어야 합니다.
-SEC_HEADERS = {'User-Agent': 'UnicornFinder App admin@unicornfinder.com'}
+
 
 # ==========================================
 # [SEC EDGAR API 헬퍼 함수] 
@@ -589,22 +553,6 @@ def fetch_fmp_earnings_call(symbol, api_key):
         return "No earnings call transcript available."
     except: return "No earnings call transcript available."
 
-
-# ==========================================
-# [신규 추가] FMP 프리미엄 헬퍼 함수 (Tab 0 용)
-# ==========================================
-def fetch_fmp_8k_events(symbol, api_key):
-    """[Tab 0] 기업의 최근 8-K(중대 이벤트: M&A, 소송, 임원교체 등)를 가져옵니다."""
-    try:
-        url = f"https://financialmodelingprep.com/stable/sec-filings?symbol={symbol}&type=8-K&limit=3&apikey={api_key}"
-        res = requests.get(url, timeout=5).json()
-        if res and isinstance(res, list) and len(res) > 0:
-            events = [f"- Date: {r.get('fillingDate')} | Link: {r.get('finalLink')}" for r in res]
-            return "\n".join(events)
-        return "No recent 8-K events."
-    except Exception as e:
-        print(f"8-K Fetch Error for {symbol}: {e}")
-        return "No recent 8-K events."
 
 
 # ==========================================
@@ -1463,10 +1411,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 [第2段落]: 市場シェア、収益構造、および具体的な競合他社名を挙げた明確な競争優位性/劣位性の比較。
                 [第3段落]: 過去の財務、売上、利益などを直接的な数値で検討し、それに基づいた将来の具体的な目標値（Target）を含む成長戦略。
                 """
-                search_directive = f"""
-                🚨 [強制検索]: FMPデータが不足しています。直ちにGoogle検索で「{company_name} {ticker} business model」、「{company_name} market share competitors」を検索してください。
-                🚨 [行動]: 検索された「実際の事実と数値」に基づいて、非常に詳細に要約してください。
-                """
+               
             elif lang_code == 'zh':
                 task1_label = "[任务 1: 基于 S-1 的业务深度摘要]"
                 task1_structure = """
