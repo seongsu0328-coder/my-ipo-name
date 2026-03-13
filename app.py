@@ -765,7 +765,27 @@ def get_market_dashboard_analysis(metrics_data, lang_code):
     }
     return wait_msgs.get(lang_code, wait_msgs['ko'])
 
+# =====================================================================
+# 🚀 [NEW] FRED API & FMP API 매크로 데이터 로드 함수
+# =====================================================================
+@st.cache_data(show_spinner=False, ttl=600)
+def get_cached_fred_data():
+    """워커가 저장해둔 FRED 4년치 매크로 데이터를 꺼내옵니다."""
+    try:
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", "FRED_MACRO_DATA").execute()
+        if res.data: return json.loads(res.data[0]['content'])
+    except: pass
+    return {"0": {}, "-1": {}, "-2": {}, "-3": {}}
 
+@st.cache_data(show_spinner=False, ttl=600)
+def get_cached_macro_events():
+    """워커가 저장해둔 FMP 향후 30일 주요 일정을 꺼내옵니다."""
+    try:
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", "FMP_MACRO_EVENTS").execute()
+        if res.data: return json.loads(res.data[0]['content'])
+    except: pass
+    return []
+# =====================================================================
         
 # ==========================================
 # [기능] 1. 구글 연결 핵심 함수 (최우선 순위)
