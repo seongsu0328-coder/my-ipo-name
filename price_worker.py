@@ -1,11 +1,10 @@
 import os
 import requests
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 import time
-import re  # 💡 [필수] SEC 이름 변환을 위한 정규표현식 모듈 (복구 완료!)
+import re
 
 # [1] 환경 설정
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip('/')
@@ -33,7 +32,7 @@ def batch_upsert_raw(table_name, data_list, on_conflict="ticker"):
         print(f"❌ DB 전송 에러: {e}", flush=True)
         return False
 
-# 💡 대표님이 만드신 SEC 이중 검증 시스템 완벽 유지 (re 모듈 사용)
+# 💡 대표님이 만드신 SEC 이중 검증 시스템
 def get_sec_ticker_mapping():
     try:
         headers = {'User-Agent': 'UnicornFinder App admin@unicornfinder.com'}
@@ -67,7 +66,6 @@ def fetch_and_update_prices():
 
     if not stock_data: return
 
-    # 💡 SEC 교차 검증을 통해 최신 공식 티커 도출
     sec_map = get_sec_ticker_mapping()
     query_map = {sec_map.get(normalize_name(item.get('name', '')), item['symbol']): item['symbol'] for item in stock_data}
     official_tickers = list(query_map.keys())
@@ -81,15 +79,19 @@ def fetch_and_update_prices():
     for i in range(0, len(official_tickers), chunk_size):
         chunk = official_tickers[i : i + chunk_size]
         
-        # 🚨 [가장 중요한 수정] URL 문법 오류 해결! 
-        # ?symbol= 이 아니라 경로 자체에 콤마로 연결된 티커를 바로 박아넣습니다.
+        # 🚨 URL 문법 교정 완료
         url = f"https://financialmodelingprep.com/stable/quote/{','.join(chunk)}?apikey={FMP_API_KEY}"
 
         try:
             res = requests.get(url, timeout=15)
             data = res.json()
             
-            # API 응답이 정상적으로 리스트 형태로 왔을 때
+            # 💡 [진짜 스캐너 코드] 여기가 작동해서 로그를 뱉어낼 겁니다!
+            if i == 0:
+                print(f"🔍 [API 연결 테스트] 주소 확인: {url.replace(FMP_API_KEY, 'SECRET_KEY')}", flush=True)
+                print(f"🔍 [API 연결 테스트] 응답 코드: {res.status_code}", flush=True)
+                print(f"🔍 [API 응답 내용 샘플]: {str(data)[:300]}", flush=True)
+            
             if isinstance(data, list) and len(data) > 0:
                 fmp_prices = {item.get("symbol"): float(item.get("price", 0.0)) for item in data if item.get("symbol")}
                 
@@ -98,16 +100,13 @@ def fetch_and_update_prices():
                     if current_p <= 0: current_p = fetch_otc_price_premium(official_sym)
                     
                     if current_p > 0:
-                        # 💡 앱이 원래 알던 티커(query_map 매칭)로 DB에 돌려줘야 앱이 인식합니다.
                         db_original_sym = query_map.get(official_sym, official_sym)
-                        
                         upsert_list.append({"ticker": str(db_original_sym), "price": current_p, "updated_at": now_iso, "status": "Active"})
                         history_list.append({"ticker": str(db_original_sym), "target_date": us_today_str, "close_price": current_p})
             
             elif isinstance(data, dict) and "Error Message" in data:
                 print(f"⚠️ FMP API 에러: {data['Error Message']}", flush=True)
             else:
-                # 데이터가 없는 경우 조용히 패스
                 pass
                 
         except Exception as e:
@@ -122,7 +121,6 @@ def fetch_and_update_prices():
     else:
         print("⚠️ 이번 루프에서 업데이트할 수 있는 가격 데이터가 없습니다.", flush=True)
 
-    # 앱 생존 신고 완벽 연동
     batch_upsert_raw("analysis_cache", [{"cache_key": "PRICE_WORKER_LAST_RUN", "content": "alive", "updated_at": now_iso}], on_conflict="cache_key")
     print(f"🏁 워커 실행 종료", flush=True)
 
