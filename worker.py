@@ -3103,7 +3103,7 @@ def update_global_macro_and_events():
                 results["-2"][sid] = {"val": v2, "diff": calc_diff(v2, v3)}
                 results["-3"][sid] = {"val": v3, "diff": calc_diff(v3, v4)}
                 
-            batch_upsert("analysis_cache", [{
+            batch_upsert("macro_cache", [{
                 "cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()
             }], on_conflict="cache_key")
             print("✅ FRED 매크로 4년치 데이터 DB 저장 완료")
@@ -3123,7 +3123,7 @@ def update_global_macro_and_events():
             ]
             important_events.sort(key=lambda x: x['date'])
             
-            batch_upsert("analysis_cache", [{
+            batch_upsert("macro_cache", [{
                 "cache_key": "FMP_MACRO_EVENTS", "content": json.dumps(important_events[:5]), "updated_at": today.isoformat()
             }], on_conflict="cache_key")
             print("✅ FMP 향후 30일 미국 경제일정 DB 저장 완료")
