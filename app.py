@@ -4141,80 +4141,95 @@ with main_area.container():
                     st.rerun()
 
         with col_main:
-            y_state = st.session_state.macro_year
-            
-            st.markdown("""
-            <style>
-                .macro-box { background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 1px solid #e0e0e0; min-height: 180px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
-                .macro-title { font-size: 13px; color: #888; font-weight: bold; margin-bottom: 5px; }
-                .macro-val { font-size: 22px; font-weight: 900; color: #111; }
-                .macro-diff-up { font-size: 12px; font-weight: bold; color: #d32f2f; background-color: #ffebee; padding: 2px 6px; border-radius: 5px; margin-left: 5px; }
-                .macro-diff-dn { font-size: 12px; font-weight: bold; color: #1565c0; background-color: #e3f2fd; padding: 2px 6px; border-radius: 5px; margin-left: 5px; }
-            </style>
-            """, unsafe_allow_html=True)
-            
-            st.markdown('<div class="macro-box">', unsafe_allow_html=True)
-            
-            # --- [State +1] 미래: 향후 주요 일정 ---
-            if y_state == 1:
-                st.markdown(f"<div style='text-align: center; font-weight: bold; color: #004e92; margin-bottom: 15px;'>{get_text('macro_upcoming_events')}</div>", unsafe_allow_html=True)
-                if events_data:
-                    for ev in events_data:
-                        ev_date = pd.to_datetime(ev['date'].split(' ')[0]).date()
-                        d_day = (ev_date - datetime.now().date()).days
-                        d_str = "오늘!" if d_day == 0 else f"D-{d_day}"
-                        
-                        st.markdown(f"""
-                        <div style='display:flex; justify-content:space-between; border-bottom:1px dashed #ddd; padding: 8px 0;'>
-                            <div style='font-weight: bold; color: #333;'>📅 {ev['event']}</div>
-                            <div><span style='color:#666; margin-right:10px;'>{ev['date']}</span> <span style='background:#004e92; color:#fff; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;'>{d_str}</span></div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                y_state = st.session_state.macro_year
+                
+                # 배경 박스 스타일링 (글씨 크기와 간격 최적화)
+                st.markdown("""
+                <style>
+                    .macro-box { background-color: #f8f9fa; padding: 25px; border-radius: 15px; border: 1px solid #e0e0e0; min-height: 180px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+                    .macro-title { font-size: 13.5px; color: #777; font-weight: bold; margin-bottom: 4px; }
+                    .macro-val { font-size: 20px; font-weight: 900; color: #111; display: flex; align-items: baseline; }
+                    .macro-diff-up { font-size: 11px; font-weight: bold; color: #d32f2f; background-color: #ffebee; padding: 2px 6px; border-radius: 5px; margin-left: 8px; }
+                    .macro-diff-dn { font-size: 11px; font-weight: bold; color: #1565c0; background-color: #e3f2fd; padding: 2px 6px; border-radius: 5px; margin-left: 8px; }
+                    .macro-col { flex: 1; min-width: 140px; padding: 0 10px; }
+                    .macro-item { margin-bottom: 18px; }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                # 여기서부터 HTML 상자를 텍스트로 차곡차곡 조립합니다.
+                html_body = '<div class="macro-box">'
+                
+                # --- [State +1] 미래: 향후 주요 일정 ---
+                if y_state == 1:
+                    html_body += f"<div style='text-align: center; font-size:16px; font-weight: 800; color: #004e92; margin-bottom: 20px;'>{get_text('macro_upcoming_events')}</div>"
+                    if events_data:
+                        for ev in events_data:
+                            try:
+                                ev_date = pd.to_datetime(ev['date'].split(' ')[0]).date()
+                                d_day = (ev_date - datetime.now().date()).days
+                                d_str = "오늘!" if d_day == 0 else f"D-{d_day}"
+                            except:
+                                d_str = "예정"
+                            
+                            html_body += f"""
+                            <div style='display:flex; justify-content:space-between; border-bottom:1px dashed #ddd; padding: 12px 0;'>
+                                <div style='font-size:15px; font-weight: bold; color: #333;'>📅 {ev.get('event', '')}</div>
+                                <div><span style='color:#666; margin-right:10px; font-size:14px;'>{ev.get('date', '')}</span> <span style='background:#004e92; color:#fff; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:bold;'>{d_str}</span></div>
+                            </div>
+                            """
+                    else:
+                        html_body += f"<div style='text-align:center; color:#666; padding:20px;'>{get_text('macro_no_events')}</div>"
+                
+                # --- [State 0, -1, -2, -3] 과거/현재: 3x4 그리드 ---
                 else:
-                    st.info(get_text('macro_no_events'))
-            
-            # --- [State 0, -1, -2, -3] 과거/현재: 3x4 그리드 ---
-            else:
-                curr_year = datetime.now().year + y_state
-                title_str = get_text('macro_today_title') if y_state == 0 else get_text('macro_past_title').format(abs(y_state), curr_year)
-                st.markdown(f"<div style='text-align: center; font-weight: bold; color: #333; margin-bottom: 15px;'>{title_str}</div>", unsafe_allow_html=True)
-                
-                data_slice = macro_data.get(str(y_state), {})
-                
-                def render_kpi(sid, title, is_percent=True):
-                    if sid not in data_slice or data_slice[sid]['val'] is None:
-                        return f"<div class='macro-title'>{title}</div><div class='macro-val'>N/A</div>"
-                        
-                    val = data_slice[sid]['val']
-                    diff = data_slice[sid]['diff']
-                    val_str = f"{val:.2f}%" if is_percent else f"{val:,.0f}"
+                    curr_year = datetime.now().year + y_state
+                    title_str = get_text('macro_today_title') if y_state == 0 else get_text('macro_past_title').format(abs(y_state), curr_year)
+                    html_body += f"<div style='text-align: center; font-size:16px; font-weight: 800; color: #333; margin-bottom: 20px;'>{title_str}</div>"
                     
-                    diff_html = ""
-                    if diff:
-                        cls = "macro-diff-up" if '+' in diff else "macro-diff-dn"
-                        diff_html = f"<span class='{cls}'>{diff}</span>"
+                    data_slice = macro_data.get(str(y_state), {})
+                    
+                    def render_kpi(sid, title, is_percent=True):
+                        if sid not in data_slice or data_slice[sid]['val'] is None:
+                            return f"<div class='macro-item'><div class='macro-title'>{title}</div><div class='macro-val' style='color:#aaa;'>N/A</div></div>"
+                            
+                        val = data_slice[sid]['val']
+                        diff = data_slice[sid]['diff']
+                        val_str = f"{val:.2f}%" if is_percent else f"{val:,.2f}%"
                         
-                    return f"<div class='macro-title'>{title}</div><div class='macro-val'>{val_str}{diff_html}</div>"
+                        diff_html = ""
+                        if diff:
+                            cls = "macro-diff-up" if '+' in diff else "macro-diff-dn"
+                            diff_html = f"<span class='{cls}'>{diff}</span>"
+                            
+                        return f"<div class='macro-item'><div class='macro-title'>{title}</div><div class='macro-val'>{val_str}{diff_html}</div></div>"
 
-                ma, mb, mc, md = st.columns(4)
-                with ma: # 금리/채권
-                    st.markdown(render_kpi("FEDFUNDS", "🏦 기준금리"), unsafe_allow_html=True)
-                    st.write("<br>", unsafe_allow_html=True)
-                    st.markdown(render_kpi("DGS10", "📉 10년물 국채"), unsafe_allow_html=True)
-                    st.write("<br>", unsafe_allow_html=True)
-                    st.markdown(render_kpi("T10Y2Y", "↔️ 장단기금리차"), unsafe_allow_html=True)
-                with mb: # 인플레이션
-                    st.markdown(render_kpi("CPIAUCSL", "🛒 CPI (소비자물가)"), unsafe_allow_html=True)
-                    st.write("<br>", unsafe_allow_html=True)
-                    st.markdown(render_kpi("PCEPI", "🛒 PCE (개인소비)"), unsafe_allow_html=True)
-                with mc: # 고용
-                    st.markdown(render_kpi("UNRATE", "💼 실업률"), unsafe_allow_html=True)
-                with md: # 유동성
-                    st.markdown(render_kpi("WM2NS", "💸 M2 통화량 (YoY)"), unsafe_allow_html=True)
+                    # HTML Flexbox를 사용하여 가로 4등분 방(a,b,c,d)을 만듭니다.
+                    html_body += f"""
+                    <div style='display: flex; flex-wrap: wrap; justify-content: space-between; margin-top: 10px;'>
+                        <div class='macro-col'>
+                            {render_kpi("FEDFUNDS", "🏦 기준금리")}
+                            {render_kpi("DGS10", "📉 10년물 국채")}
+                            {render_kpi("T10Y2Y", "↔️ 장단기금리차")}
+                        </div>
+                        <div class='macro-col'>
+                            {render_kpi("CPIAUCSL", "🛒 CPI (소비자물가)")}
+                            {render_kpi("PCEPI", "🛒 PCE (개인소비)")}
+                        </div>
+                        <div class='macro-col'>
+                            {render_kpi("UNRATE", "💼 실업률")}
+                        </div>
+                        <div class='macro-col'>
+                            {render_kpi("WM2NS", "💸 M2 통화량 (YoY)")}
+                        </div>
+                    </div>
+                    """
 
-            st.markdown('</div>', unsafe_allow_html=True)
-            st.write("<br>", unsafe_allow_html=True)
-        # =========================================================
+                html_body += "</div>" # macro-box 닫기
+                
+                # 완성된 HTML 덩어리를 단 한 번의 명령어로 화면에 뿌립니다!
+                st.markdown(html_body, unsafe_allow_html=True)
+                st.write("<br>", unsafe_allow_html=True)
+            # =========================================================
 
         all_df_raw = get_extended_ipo_data(MY_API_KEY)
         view_mode = st.session_state.get('view_mode', 'all')
