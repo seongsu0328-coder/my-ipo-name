@@ -3938,6 +3938,63 @@ elif st.session_state.page == 'setup':
                 st.error(f"상태 점검 중 데이터베이스 오류: {e}")
             st.divider()
             
+            # ===========================================================
+            # 💎 [NEW] 관리자 전용: 일일 프리미엄 캐시 생산 트래커
+            # ===========================================================
+            st.markdown("### 💎 일일 프리미엄 리포트 생산 현황")
+            st.caption("오늘 워커(Worker)가 새롭게 생성한 프리미엄 분석 데이터입니다.")
+
+            import pytz
+            tz_seoul = pytz.timezone('Asia/Seoul')
+            today_iso = datetime.now(tz_seoul).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+            try:
+                # 오늘 자정 이후 업데이트된 모든 캐시 가져오기
+                res_premium = supabase.table("analysis_cache").select("cache_key, updated_at").gte("updated_at", today_iso).execute()
+                
+                if res_premium.data:
+                    # 워커 코드에서 확인한 '프리미엄 전용' 키워드들
+                    premium_keywords = [
+                        "PremiumEarningsCall", "PressReleaseSummary", "PremiumESG", 
+                        "PremiumUpgrades", "PremiumPeers", "PremiumMA", 
+                        "PremiumSurprise", "PremiumEstimate", "PremiumRevenueSeg"
+                    ]
+                    
+                    # 프리미엄 키워드가 포함된 데이터만 필터링
+                    premium_data = [item for item in res_premium.data if any(kw in item['cache_key'] for kw in premium_keywords)]
+                    
+                    if premium_data:
+                        df_prem = pd.DataFrame(premium_data)
+                        df_prem['updated_at'] = pd.to_datetime(df_prem['updated_at']).dt.tz_convert('Asia/Seoul').dt.strftime('%H:%M:%S')
+                        
+                        # 티커와 언어, 분석 종류 예쁘게 분리하기 (에러 방지용 안전 함수)
+                        def extract_info(key, idx):
+                            parts = key.split('_')
+                            return parts[idx] if len(parts) > idx else "Unknown"
+
+                        df_prem['종목 티커'] = df_prem['cache_key'].apply(lambda x: extract_info(x, 0))
+                        df_prem['분석 타입'] = df_prem['cache_key'].apply(lambda x: extract_info(x, 1).replace('Premium', ''))
+                        df_prem['언어'] = df_prem['cache_key'].apply(lambda x: str(x.split('_')[-1]).upper())
+                        
+                        df_prem = df_prem[['종목 티커', '분석 타입', '언어', 'updated_at']].rename(columns={'updated_at': '업데이트 시간'})
+                        df_prem = df_prem.sort_values(by='업데이트 시간', ascending=False)
+
+                        # 메트릭 표시
+                        st.metric(label="✨ 오늘 생산된 프리미엄 분석 리포트", value=f"{len(df_prem)} 건", delta="워커 정상 가동 중")
+
+                        with st.expander("📝 상세 업데이트 목록 확인", expanded=True):
+                            st.dataframe(df_prem, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("💤 오늘 생성된 프리미엄 리포트가 아직 없습니다.")
+                else:
+                    st.info("💤 오늘 업데이트된 캐시가 없습니다.")
+                    
+            except Exception as e:
+                st.error(f"프리미엄 데이터를 불러오는 중 에러가 발생했습니다: {e}")
+            
+            st.write("<br><br>", unsafe_allow_html=True)
+            # ===========================================================
+            
 
 # =========================================================
 # [추가] 메인 화면 전용 컨테이너 생성 (구조 복원)
