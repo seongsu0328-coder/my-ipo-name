@@ -3135,6 +3135,9 @@ def update_global_macro_and_events():
 def main():
     print(f"🚀 Worker Start: {datetime.now()}")
     
+    # 👇👇👇 [이 한 줄을 반드시 추가해야 FRED와 FMP 데이터를 수집합니다!] 👇👇👇
+    update_global_macro_and_events()
+    
     df = get_target_stocks()
     if df.empty: 
         print("⚠️ 수집된 IPO 종목이 없습니다.")
