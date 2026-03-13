@@ -80,7 +80,7 @@ def fetch_and_update_prices():
         chunk = official_tickers[i : i + chunk_size]
         
         # 🚨 URL 문법 교정 완료
-        url = f"https://financialmodelingprep.com/stable/quote/{','.join(chunk)}?apikey={FMP_API_KEY}"
+        url = f"https://financialmodelingprep.com/stable/batch-quote?symbols={','.join(chunk)}&apikey={FMP_API_KEY}"
 
         try:
             res = requests.get(url, timeout=15)
