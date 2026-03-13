@@ -766,13 +766,14 @@ def get_market_dashboard_analysis(metrics_data, lang_code):
     return wait_msgs.get(lang_code, wait_msgs['ko'])
 
 # =====================================================================
-# 🚀 [NEW] FRED API & FMP API 매크로 데이터 로드 함수
+# 🚀 [NEW] FRED API & FMP API 매크로 데이터 로드 함수 (독립 테이블 사용)
 # =====================================================================
 @st.cache_data(show_spinner=False, ttl=600)
 def get_cached_fred_data():
     """워커가 저장해둔 FRED 4년치 매크로 데이터를 꺼내옵니다."""
     try:
-        res = supabase.table("analysis_cache").select("content").eq("cache_key", "FRED_MACRO_DATA").execute()
+        # 💡 [핵심] "macro_cache" 테이블에서 조회
+        res = supabase.table("macro_cache").select("content").eq("cache_key", "FRED_MACRO_DATA").execute()
         if res.data: return json.loads(res.data[0]['content'])
     except: pass
     return {"0": {}, "-1": {}, "-2": {}, "-3": {}}
@@ -781,7 +782,8 @@ def get_cached_fred_data():
 def get_cached_macro_events():
     """워커가 저장해둔 FMP 향후 30일 주요 일정을 꺼내옵니다."""
     try:
-        res = supabase.table("analysis_cache").select("content").eq("cache_key", "FMP_MACRO_EVENTS").execute()
+        # 💡 [핵심] "macro_cache" 테이블에서 조회
+        res = supabase.table("macro_cache").select("content").eq("cache_key", "FMP_MACRO_EVENTS").execute()
         if res.data: return json.loads(res.data[0]['content'])
     except: pass
     return []
@@ -4143,25 +4145,34 @@ with main_area.container():
         with col_main:
                 y_state = st.session_state.macro_year
                 
-                # 배경 박스 스타일링 (글씨 크기와 간격 최적화)
+                # =======================================================
+                # 🚨 [디버깅 코드] 화면 상단에 원본 데이터를 강제로 출력합니다.
+                # 에러 원인을 파악한 후에는 이 세 줄을 지워주시면 됩니다!
+                # =======================================================
+                if not macro_data or not macro_data.get("0"):
+                    st.error("🚨 [디버깅] DB에서 데이터를 불러오지 못했거나 값이 비어있습니다.")
+                # st.write("🔍 DB Raw Data:", macro_data) # 필요시 주석(#)을 풀면 원본 JSON이 보입니다.
+                
+                # 📱 모바일 최적화 배경 박스 스타일링 (CSS Grid 적용 및 여백/폰트 압축)
                 st.markdown("""
                 <style>
-                    .macro-box { background-color: #f8f9fa; padding: 25px; border-radius: 15px; border: 1px solid #e0e0e0; min-height: 180px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
-                    .macro-title { font-size: 13.5px; color: #777; font-weight: bold; margin-bottom: 4px; }
-                    .macro-val { font-size: 20px; font-weight: 900; color: #111; display: flex; align-items: baseline; }
-                    .macro-diff-up { font-size: 11px; font-weight: bold; color: #d32f2f; background-color: #ffebee; padding: 2px 6px; border-radius: 5px; margin-left: 8px; }
-                    .macro-diff-dn { font-size: 11px; font-weight: bold; color: #1565c0; background-color: #e3f2fd; padding: 2px 6px; border-radius: 5px; margin-left: 8px; }
-                    .macro-col { flex: 1; min-width: 140px; padding: 0 10px; }
-                    .macro-item { margin-bottom: 18px; }
+                    .macro-box { background-color: #f8f9fa; padding: 15px 5px; border-radius: 12px; border: 1px solid #e0e0e0; min-height: 180px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+                    .macro-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 10px; }
+                    .macro-col { display: flex; flex-direction: column; gap: 12px; padding: 0 2px; border-right: 1px dashed #eee; }
+                    .macro-col:last-child { border-right: none; }
+                    .macro-item { line-height: 1.1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+                    .macro-title { font-size: 11px; color: #777; font-weight: bold; margin-bottom: 4px; letter-spacing: -0.5px; white-space: nowrap; }
+                    .macro-val { font-size: 15px; font-weight: 900; color: #111; display: flex; flex-direction: column; align-items: center; }
+                    .macro-diff-up { font-size: 10px; font-weight: bold; color: #d32f2f; background-color: #ffebee; padding: 2px 4px; border-radius: 4px; margin-top: 3px; white-space: nowrap; }
+                    .macro-diff-dn { font-size: 10px; font-weight: bold; color: #1565c0; background-color: #e3f2fd; padding: 2px 4px; border-radius: 4px; margin-top: 3px; white-space: nowrap; }
                 </style>
                 """, unsafe_allow_html=True)
                 
-                # 여기서부터 HTML 상자를 텍스트로 차곡차곡 조립합니다.
                 html_body = '<div class="macro-box">'
                 
                 # --- [State +1] 미래: 향후 주요 일정 ---
                 if y_state == 1:
-                    html_body += f"<div style='text-align: center; font-size:16px; font-weight: 800; color: #004e92; margin-bottom: 20px;'>{get_text('macro_upcoming_events')}</div>"
+                    html_body += f"<div style='text-align: center; font-size:14px; font-weight: 800; color: #004e92; margin-bottom: 15px;'>{get_text('macro_upcoming_events')}</div>"
                     if events_data:
                         for ev in events_data:
                             try:
@@ -4172,61 +4183,61 @@ with main_area.container():
                                 d_str = "예정"
                             
                             html_body += f"""
-                            <div style='display:flex; justify-content:space-between; border-bottom:1px dashed #ddd; padding: 12px 0;'>
-                                <div style='font-size:15px; font-weight: bold; color: #333;'>📅 {ev.get('event', '')}</div>
-                                <div><span style='color:#666; margin-right:10px; font-size:14px;'>{ev.get('date', '')}</span> <span style='background:#004e92; color:#fff; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:bold;'>{d_str}</span></div>
+                            <div style='display:flex; justify-content:space-between; border-bottom:1px dashed #ddd; padding: 10px 5px;'>
+                                <div style='font-size:13px; font-weight: bold; color: #333;'>📅 {ev.get('event', '')}</div>
+                                <div><span style='color:#666; margin-right:8px; font-size:12px;'>{ev.get('date', '')}</span> <span style='background:#004e92; color:#fff; padding:2px 6px; border-radius:8px; font-size:11px; font-weight:bold;'>{d_str}</span></div>
                             </div>
                             """
                     else:
-                        html_body += f"<div style='text-align:center; color:#666; padding:20px;'>{get_text('macro_no_events')}</div>"
+                        html_body += f"<div style='text-align:center; color:#666; padding:20px; font-size:13px;'>{get_text('macro_no_events')}</div>"
                 
                 # --- [State 0, -1, -2, -3] 과거/현재: 3x4 그리드 ---
                 else:
                     curr_year = datetime.now().year + y_state
                     title_str = get_text('macro_today_title') if y_state == 0 else get_text('macro_past_title').format(abs(y_state), curr_year)
-                    html_body += f"<div style='text-align: center; font-size:16px; font-weight: 800; color: #333; margin-bottom: 20px;'>{title_str}</div>"
+                    html_body += f"<div style='text-align: center; font-size:14px; font-weight: 800; color: #333; margin-bottom: 10px;'>{title_str}</div>"
                     
                     data_slice = macro_data.get(str(y_state), {})
                     
                     def render_kpi(sid, title, is_percent=True):
-                        if sid not in data_slice or data_slice[sid]['val'] is None:
+                        # 데이터가 없는 경우의 처리
+                        if not data_slice or sid not in data_slice or data_slice[sid].get('val') is None:
                             return f"<div class='macro-item'><div class='macro-title'>{title}</div><div class='macro-val' style='color:#aaa;'>N/A</div></div>"
                             
                         val = data_slice[sid]['val']
                         diff = data_slice[sid]['diff']
-                        val_str = f"{val:.2f}%" if is_percent else f"{val:,.2f}%"
+                        val_str = f"{val:.2f}%" if is_percent else f"{val:,.2f}"
                         
                         diff_html = ""
                         if diff:
                             cls = "macro-diff-up" if '+' in diff else "macro-diff-dn"
-                            diff_html = f"<span class='{cls}'>{diff}</span>"
+                            diff_html = f"<div class='{cls}'>{diff}</div>" # 💡 모바일을 위해 span 대신 div로 강제 줄바꿈
                             
                         return f"<div class='macro-item'><div class='macro-title'>{title}</div><div class='macro-val'>{val_str}{diff_html}</div></div>"
 
-                    # HTML Flexbox를 사용하여 가로 4등분 방(a,b,c,d)을 만듭니다.
+                    # 💡 모바일 친화적 CSS Grid (가로 4칸 고정)
                     html_body += f"""
-                    <div style='display: flex; flex-wrap: wrap; justify-content: space-between; margin-top: 10px;'>
+                    <div class='macro-grid'>
                         <div class='macro-col'>
-                            {render_kpi("FEDFUNDS", "🏦 기준금리")}
-                            {render_kpi("DGS10", "📉 10년물 국채")}
-                            {render_kpi("T10Y2Y", "↔️ 장단기금리차")}
+                            {render_kpi("FEDFUNDS", "기준금리")}
+                            {render_kpi("DGS10", "국채 10년")}
+                            {render_kpi("T10Y2Y", "장단기차")}
                         </div>
                         <div class='macro-col'>
-                            {render_kpi("CPIAUCSL", "🛒 CPI (소비자물가)")}
-                            {render_kpi("PCEPI", "🛒 PCE (개인소비)")}
+                            {render_kpi("CPIAUCSL", "CPI")}
+                            {render_kpi("PCEPI", "PCE")}
                         </div>
                         <div class='macro-col'>
-                            {render_kpi("UNRATE", "💼 실업률")}
+                            {render_kpi("UNRATE", "실업률")}
                         </div>
                         <div class='macro-col'>
-                            {render_kpi("WM2NS", "💸 M2 통화량 (YoY)")}
+                            {render_kpi("WM2NS", "M2(YoY)")}
                         </div>
                     </div>
                     """
 
                 html_body += "</div>" # macro-box 닫기
                 
-                # 완성된 HTML 덩어리를 단 한 번의 명령어로 화면에 뿌립니다!
                 st.markdown(html_body, unsafe_allow_html=True)
                 st.write("<br>", unsafe_allow_html=True)
             # =========================================================
