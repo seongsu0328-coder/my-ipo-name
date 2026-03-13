@@ -93,7 +93,7 @@ def fetch_and_update_prices():
                 print(f"🔍 [API 응답 내용 샘플]: {str(data)[:300]}", flush=True)
             
             if isinstance(data, list) and len(data) > 0:
-                fmp_prices = {item.get("symbol"): float(item.get("price", 0.0)) for item in data if item.get("symbol")}
+                fmp_prices = {item.get("symbol"): float(item.get("price") or 0.0) for item in data if item.get("symbol")}
                 
                 for official_sym in chunk:
                     current_p = fmp_prices.get(official_sym, 0.0)
