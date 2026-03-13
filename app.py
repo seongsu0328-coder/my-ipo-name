@@ -4502,30 +4502,39 @@ with main_area.container():
             is_delisted = bool(re.search(r'\b(delisted|폐지)\b', combined_status))
             is_expected = bool(re.search(r'\b(expected|filed|active|priced)\b', combined_status))
 
+            # 💡 [핵심 수정] 캘린더 화면과 똑같은 5단계 조건문 적용 (current_p 최우선)
             if is_withdrawn:
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('label_rw')})</span>"
             elif is_delayed:
                 p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
             elif is_delisted:
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
-            elif current_p > 0 and off_val > 0:
-                pct = ((current_p - off_val) / off_val) * 100
-                color = "#00ff41" if pct >= 0 else "#ff4b4b"
-                icon = "▲" if pct >= 0 else "▼"
-                p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
+            
+            # 💡 가격이 잡히는 정상 거래 종목 (Freecast 같은 직상장 공모가 $0.0 대응)
+            elif current_p > 0:
+                if off_val > 0:
+                    pct = ((current_p - off_val) / off_val) * 100
+                    color = "#00ff41" if pct >= 0 else "#ff4b4b"
+                    icon = "▲" if pct >= 0 else "▼"
+                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
+                else:
+                    # 공모가가 0.0인 경우 수익률 없이 현재 가격만 깔끔하게 노출
+                    p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} $0.00 / {get_text('label_general')} ${current_p:,.2f})</span>"
+            
+            # 💡 다국어 지원 시간 기반 방어막 적용 (가격이 없을 때)
             else: 
                 if ipo_dt > today:
                     p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / ⏳ {get_text('status_waiting')})</span>"
                 elif 0 <= (today - ipo_dt).days <= 14:
                     if is_expected:
                         tooltip = get_text('tooltip_price_checking')
-                        p_info = f"<span style='font-size: 0.9rem; color: #333333; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / {get_text('status_price_checking')})</span>"
+                        p_info = f"<span style='font-size: 0.9rem; color: #333333; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / ⏳ {get_text('status_price_checking')})</span>"
                     else:
                         tooltip = get_text('tooltip_otc_unsupported')
-                        p_info = f"<span style='font-size: 0.9rem; color: #f57c00; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / {get_text('status_delayed_unlisted')})</span>"
+                        p_info = f"<span style='font-size: 0.9rem; color: #f57c00; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / ⚠️ {get_text('status_delayed_unlisted')})</span>"
                 else:
                     tooltip = get_text('tooltip_otc_unsupported')
-                    p_info = f"<span style='font-size: 0.9rem; color: #888888; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / {get_text('status_otc_unsupported')})</span>"
+                    p_info = f"<span style='font-size: 0.9rem; color: #888888; cursor: help;' title='{tooltip}'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_otc_unsupported')})</span>"
 
             st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
             st.write("")
