@@ -4145,26 +4145,25 @@ with main_area.container():
         with col_main:
                 y_state = st.session_state.macro_year
                 
-                # =======================================================
-                # 🚨 [디버깅 코드] 화면 상단에 원본 데이터를 강제로 출력합니다.
-                # 에러 원인을 파악한 후에는 이 세 줄을 지워주시면 됩니다!
-                # =======================================================
-                if not macro_data or not macro_data.get("0"):
-                    st.error("🚨 [디버깅] DB에서 데이터를 불러오지 못했거나 값이 비어있습니다.")
-                # st.write("🔍 DB Raw Data:", macro_data) # 필요시 주석(#)을 풀면 원본 JSON이 보입니다.
-                
-                # 📱 모바일 최적화 배경 박스 스타일링 (CSS Grid 적용 및 여백/폰트 압축)
+                # 📱 1행(One-line) 가로 배치 & 모바일 최적화 CSS
                 st.markdown("""
                 <style>
-                    .macro-box { background-color: #f8f9fa; padding: 15px 5px; border-radius: 12px; border: 1px solid #e0e0e0; min-height: 180px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+                    .macro-box { background-color: #f8f9fa; padding: 15px 5px; border-radius: 12px; border: 1px solid #e0e0e0; min-height: 120px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
                     .macro-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 10px; }
-                    .macro-col { display: flex; flex-direction: column; gap: 12px; padding: 0 2px; border-right: 1px dashed #eee; }
+                    .macro-col { display: flex; flex-direction: column; gap: 10px; padding: 0 2px; border-right: 1px dashed #ddd; justify-content: center; }
                     .macro-col:last-child { border-right: none; }
-                    .macro-item { line-height: 1.1; display: flex; flex-direction: column; align-items: center; text-align: center; }
-                    .macro-title { font-size: 11px; color: #777; font-weight: bold; margin-bottom: 4px; letter-spacing: -0.5px; white-space: nowrap; }
-                    .macro-val { font-size: 15px; font-weight: 900; color: #111; display: flex; flex-direction: column; align-items: center; }
-                    .macro-diff-up { font-size: 10px; font-weight: bold; color: #d32f2f; background-color: #ffebee; padding: 2px 4px; border-radius: 4px; margin-top: 3px; white-space: nowrap; }
-                    .macro-diff-dn { font-size: 10px; font-weight: bold; color: #1565c0; background-color: #e3f2fd; padding: 2px 4px; border-radius: 4px; margin-top: 3px; white-space: nowrap; }
+                    .macro-item { display: flex; flex-direction: row; align-items: baseline; justify-content: center; white-space: nowrap; }
+                    .macro-title { font-size: 11.5px; color: #555; font-weight: bold; margin-right: 4px; letter-spacing: -0.5px; }
+                    .macro-val { font-size: 12.5px; font-weight: 900; color: #111; }
+                    .macro-diff-up { font-size: 11.5px; font-weight: bold; color: #d32f2f; margin-left: 2px; }
+                    .macro-diff-dn { font-size: 11.5px; font-weight: bold; color: #1565c0; margin-left: 2px; }
+                    
+                    @media (max-width: 640px) {
+                        .macro-title { font-size: 9px; margin-right: 2px; letter-spacing: -0.8px; }
+                        .macro-val { font-size: 10px; letter-spacing: -0.5px; }
+                        .macro-diff-up, .macro-diff-dn { font-size: 9px; margin-left: 1px; letter-spacing: -0.8px; }
+                        .macro-col { gap: 12px; padding: 0 1px; }
+                    }
                 </style>
                 """, unsafe_allow_html=True)
                 
@@ -4176,16 +4175,24 @@ with main_area.container():
                     if events_data:
                         for ev in events_data:
                             try:
-                                ev_date = pd.to_datetime(ev['date'].split(' ')[0]).date()
-                                d_day = (ev_date - datetime.now().date()).days
+                                # 💡 날짜 포맷팅: '2026-04-03 12:30:00' -> '04/03' 로 압축
+                                raw_date = ev.get('date', '')
+                                ev_dt = pd.to_datetime(raw_date)
+                                display_date = ev_dt.strftime('%m/%d') 
+                                
+                                d_day = (ev_dt.date() - datetime.now().date()).days
                                 d_str = "오늘!" if d_day == 0 else f"D-{d_day}"
                             except:
+                                display_date = str(ev.get('date', ''))[5:10].replace('-', '/')
                                 d_str = "예정"
                             
                             html_body += f"""
-                            <div style='display:flex; justify-content:space-between; border-bottom:1px dashed #ddd; padding: 10px 5px;'>
-                                <div style='font-size:13px; font-weight: bold; color: #333;'>📅 {ev.get('event', '')}</div>
-                                <div><span style='color:#666; margin-right:8px; font-size:12px;'>{ev.get('date', '')}</span> <span style='background:#004e92; color:#fff; padding:2px 6px; border-radius:8px; font-size:11px; font-weight:bold;'>{d_str}</span></div>
+                            <div style='display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #ddd; padding: 10px 5px;'>
+                                <div style='font-size:13px; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;'>📅 {ev.get('event', '')}</div>
+                                <div style='white-space: nowrap; flex-shrink: 0;'>
+                                    <span style='color:#666; margin-right:8px; font-size:12px;'>{display_date}</span> 
+                                    <span style='background:#004e92; color:#fff; padding:2px 6px; border-radius:6px; font-size:11px; font-weight:bold;'>{d_str}</span>
+                                </div>
                             </div>
                             """
                     else:
@@ -4200,9 +4207,8 @@ with main_area.container():
                     data_slice = macro_data.get(str(y_state), {})
                     
                     def render_kpi(sid, title, is_percent=True):
-                        # 데이터가 없는 경우의 처리
                         if not data_slice or sid not in data_slice or data_slice[sid].get('val') is None:
-                            return f"<div class='macro-item'><div class='macro-title'>{title}</div><div class='macro-val' style='color:#aaa;'>N/A</div></div>"
+                            return f"<div class='macro-item'><span class='macro-title'>{title}</span><span class='macro-val' style='color:#aaa;'>N/A</span></div>"
                             
                         val = data_slice[sid]['val']
                         diff = data_slice[sid]['diff']
@@ -4211,33 +4217,33 @@ with main_area.container():
                         diff_html = ""
                         if diff:
                             cls = "macro-diff-up" if '+' in diff else "macro-diff-dn"
-                            diff_html = f"<div class='{cls}'>{diff}</div>" # 💡 모바일을 위해 span 대신 div로 강제 줄바꿈
+                            diff_html = f"<span class='{cls}'>({diff})</span>"
                             
-                        return f"<div class='macro-item'><div class='macro-title'>{title}</div><div class='macro-val'>{val_str}{diff_html}</div></div>"
+                        return f"<div class='macro-item'><span class='macro-title'>{title}</span><span class='macroval'>{val_str}{diff_html}</span></div>"
 
-                    # 💡 모바일 친화적 CSS Grid (가로 4칸 고정)
                     html_body += f"""
                     <div class='macro-grid'>
                         <div class='macro-col'>
-                            {render_kpi("FEDFUNDS", "기준금리")}
-                            {render_kpi("DGS10", "국채 10년")}
-                            {render_kpi("T10Y2Y", "장단기차")}
+                            {render_kpi("FEDFUNDS", "🏦기준금리")}
+                            {render_kpi("DGS10", "📉10년물")}
+                            {render_kpi("T10Y2Y", "↔️장단기차")}
                         </div>
                         <div class='macro-col'>
-                            {render_kpi("CPIAUCSL", "CPI")}
-                            {render_kpi("PCEPI", "PCE")}
+                            {render_kpi("CPIAUCSL", "🛒CPI")}
+                            {render_kpi("PCEPI", "🛒PCE")}
                         </div>
                         <div class='macro-col'>
-                            {render_kpi("UNRATE", "실업률")}
+                            {render_kpi("UNRATE", "💼실업률")}
                         </div>
                         <div class='macro-col'>
-                            {render_kpi("WM2NS", "M2(YoY)")}
+                            {render_kpi("WM2NS", "💸M2통화")}
                         </div>
                     </div>
                     """
 
                 html_body += "</div>" # macro-box 닫기
                 
+                # 🚨 [가장 중요한 부분] 이 줄이 반드시 이렇게 생겨야 HTML 코드가 아닌 진짜 디자인으로 렌더링됩니다!
                 st.markdown(html_body, unsafe_allow_html=True)
                 st.write("<br>", unsafe_allow_html=True)
             # =========================================================
