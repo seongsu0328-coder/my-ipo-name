@@ -4185,8 +4185,6 @@ with main_area.container():
                 # --- [State +1] 미래: 향후 주요 일정 ---
                 if y_state == 1:
                     html_body += f"<div style='text-align: center; font-size:14px; font-weight: 800; color: #004e92; margin-bottom: 15px;'>{get_text('macro_upcoming_events')}</div>"
-                    if y_state == 1:
-                    html_body += f"<div style='text-align: center; font-size:14px; font-weight: 800; color: #004e92; margin-bottom: 15px;'>{get_text('macro_upcoming_events')}</div>"
                     if events_data:
                         for ev in events_data:
                             try:
@@ -4205,7 +4203,7 @@ with main_area.container():
                             raw_event = ev.get('event', '')
                             translated_event = raw_event
                             
-                            # 💡 긴 단어부터 먼저 치환해야 텍스트 꼬임 버그가 없습니다 (U-6 실업률 -> 실업률 순서)
+                            # 💡 긴 단어부터 먼저 치환해야 텍스트 꼬임 버그가 없습니다
                             if "Fed Interest Rate Decision" in raw_event:
                                 translated_event = raw_event.replace("Fed Interest Rate Decision", get_text('event_fed_rate'))
                             elif "Non Farm Payrolls" in raw_event:
