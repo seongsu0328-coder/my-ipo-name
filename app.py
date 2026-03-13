@@ -4775,12 +4775,19 @@ with main_area.container():
                     res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"{sid}_Tab3_Summary_{curr_lang}").execute()
                     sum_text = res_sum.data[0]['content'] if res_sum.data else ""
                     
-                    # 💡 [대체 텍스트 완전 삭제] 캐시가 없으면 빈칸 처리
+                    # 💡 [정규식 클리너 추가] AI가 남긴 잡다한 텍스트 제거
+                    def clean_tab3_card_text(text):
+                        if not text: return ""
+                        import re
+                        text = re.sub(r'^\(\s*[^)]+\)\s*', '', text.strip())
+                        if text.endswith(')'): text = text[:-1]
+                        return text.strip()
+
                     try:
                         ai_parts = [p.strip() for p in sum_text.split('|||SEP|||')]
-                        c1_sum = ai_parts[0] if len(ai_parts) > 0 else ""
-                        c2_sum = ai_parts[1] if len(ai_parts) > 1 else ""
-                        c3_sum = ai_parts[2] if len(ai_parts) > 2 else ""
+                        c1_sum = clean_tab3_card_text(ai_parts[0]) if len(ai_parts) > 0 else ""
+                        c2_sum = clean_tab3_card_text(ai_parts[1]) if len(ai_parts) > 1 else ""
+                        c3_sum = clean_tab3_card_text(ai_parts[2]) if len(ai_parts) > 2 else ""
                     except:
                         c1_sum = c2_sum = c3_sum = ""
 
@@ -4792,7 +4799,7 @@ with main_area.container():
                 <style>
                     .group-card { background:#ffffff; padding:20px; border-radius:18px; border:1px solid #e0e0e0; margin-bottom:20px; box-shadow:0 4px 12px rgba(0,0,0,0.05); min-height: 400px; display: flex; flex-direction: column; }
                     .group-title { font-size:16px; font-weight:800; color:#111; margin-bottom:10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }
-                    .group-desc { font-size:13px; color:#004e92; font-weight:500; margin-bottom:18px; line-height:1.6; background:#f0f7ff; padding:15px; border-radius:10px; border-left: 4px solid #004e92; flex-grow: 1; overflow-y: auto; min-height: 150px; }
+                    .group-desc { font-size:13px; color:#004e92; font-weight:500; margin-bottom:18px; line-height:1.6; background:#f0f7ff; padding:15px; border-radius:10px; border-left: 4px solid #004e92; flex-grow: 1; overflow-y: auto; min-height: 150px; text-align: justify; }
                     .sub-grid { display: grid; grid-template-columns: 1fr; gap: 8px; flex-grow: 0; margin-top: auto; }
                     .sub-item { background:#f9f9fb; padding:10px 14px; border-radius:10px; border: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
                     .sub-label { font-size:12px; color:#666; font-weight:500; }
@@ -4829,12 +4836,13 @@ with main_area.container():
                 up_rate = ((current_p - off_val) / off_val * 100) if current_p > 0 and off_val > 0 else 0
                 perf_disp = f"{up_rate:+.1f}%" if current_p > 0 and off_val > 0 else "N/A"
 
-                # --- 3개 통합 카드 렌더링 ---
+                # 🚨 [해결] 여기서 누락되었던 {c1_sum}, {c2_sum}, {c3_sum} 변수를 HTML에 확실하게 주입합니다!
                 col1, col2, col3 = st.columns(3)
 
                 with col1: # [Card 1] 비즈니스 성장 및 수익성
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">{get_text('tab3_card1_title')}</div>
+                        <div class="group-desc">{c1_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">Sales Growth</span><span class="sub-value">{growth_disp}{get_badge("good" if growth > 5 else "over" if growth < 0 else "neutral")}</span></div>
                             <div class="sub-item"><span class="sub-label">Net Margin</span><span class="sub-value">{net_m_disp}{get_badge("good" if net_m_val > 0 else "over")}</span></div>
@@ -4846,6 +4854,7 @@ with main_area.container():
                     acc_badge = "good" if accruals_status == "Low" else "over" if accruals_status == "High" else "neutral"
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">{get_text('tab3_card2_title')}</div>
+                        <div class="group-desc">{c2_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">Debt / Equity</span><span class="sub-value">{de_disp}{get_badge("good" if 0 < de_ratio < 100 else "over" if de_ratio >= 100 else "neutral")}</span></div>
                             <div class="sub-item"><span class="sub-label">Accruals Quality</span><span class="sub-value">{accruals_status}{get_badge(acc_badge)}</span></div>
@@ -4855,6 +4864,7 @@ with main_area.container():
                 with col3: # [Card 3] 밸류에이션
                     st.markdown(f"""<div class="group-card">
                         <div class="group-title">{get_text('tab3_card3_title')}</div>
+                        <div class="group-desc">{c3_sum}</div>
                         <div class="sub-grid">
                             <div class="sub-item"><span class="sub-label">Forward P/E</span><span class="sub-value">{pe_disp}{get_badge("good" if 0 < pe_val < 25 else "over" if pe_val >= 25 else "neutral")}</span></div>
                             <div class="sub-item"><span class="sub-label">DCF Gap</span><span class="sub-value">{gap_pct:+.1f}%{get_badge("good" if gap_pct > 0 else "over" if gap_pct < 0 else "neutral")}</span></div>
