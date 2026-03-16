@@ -3073,10 +3073,11 @@ def update_global_macro_and_events():
     }
     pc1_series = ["CPIAUCSL", "PCEPI", "WM2NS"] 
     
-    # ⭐ 기존 프론트엔드가 데이터를 찾을 수 있도록 "0", "-1" 구조 복구
+    # ⭐ 기존 프론트엔드가 데이터를 찾을 수 있도록 "0" ~ "-3" 구조 복구
     results = {"0": {}, "-1": {}, "-2": {}, "-3": {}} 
     
-    start_date = (today - timedelta(days=365*4)).strftime('%Y-%m-%d')
+    # 🚀 과거 3년 전(-3)의 3년 평균까지 구하려면 총 6년치 데이터가 필요합니다.
+    start_date = (today - timedelta(days=365*6)).strftime('%Y-%m-%d')
     
     try:
         if FRED_API_KEY:
@@ -3095,34 +3096,48 @@ def update_global_macro_and_events():
                         if pd.to_datetime(o['date']) <= target_date: return float(o['value'])
                     return None
                     
+                # 현재부터 5년 전까지의 데이터를 모두 추출
                 v0 = get_val_near_date(today)
                 v1 = get_val_near_date(today - timedelta(days=365))
                 v2 = get_val_near_date(today - timedelta(days=365*2))
                 v3 = get_val_near_date(today - timedelta(days=365*3))
+                v4 = get_val_near_date(today - timedelta(days=365*4))
+                v5 = get_val_near_date(today - timedelta(days=365*5))
                 
-                # 증감(%p) 및 3년 평균 계산
-                diff = (v0 - v1) if (v0 is not None and v1 is not None) else None
-                avg_3y = ((v0 + v1 + v2) / 3) if (v0 is not None and v1 is not None and v2 is not None) else None
-                
-                # ⭐ "0" (현재) 데이터 안에 프론트가 필요한 모든 값을 넣어줍니다.
-                results["0"][sid] = {
-                    "name": info["name"],
-                    "column": info["col"],
-                    "val": round(v0, 2) if v0 is not None else None,
-                    "diff": f"{diff:+.2f}%p" if diff is not None else None,
-                    "avg_3y": round(avg_3y, 2) if avg_3y is not None else None
-                }
-                
-                # 기존 코드의 에러 방지를 위해 과거 데이터 구조도 채워둡니다.
-                results["-1"][sid] = {"val": round(v1, 2) if v1 is not None else None}
-                results["-2"][sid] = {"val": round(v2, 2) if v2 is not None else None}
-                results["-3"][sid] = {"val": round(v3, 2) if v3 is not None else None}
+                # 증감(diff) 계산 함수 (프론트엔드 에러 방지를 위해 +기호 포함 문자열로 반환)
+                def calc_diff_str(curr, prev):
+                    if curr is not None and prev is not None:
+                        return f"{curr - prev:+.2f}%p"
+                    return None
+                    
+                # 3년 평균 계산 함수
+                def calc_avg(curr, p1, p2):
+                    if curr is not None and p1 is not None and p2 is not None:
+                        return round((curr + p1 + p2) / 3, 2)
+                    return None
+
+                # 🚀 0, -1, -2, -3 각 년도에 대해 동일하게 val, diff, avg_3y를 꽉꽉 채워줍니다!
+                for year_key, curr, p1, p2, p3 in [
+                    ("0", v0, v1, v2, v3),
+                    ("-1", v1, v2, v3, v4),
+                    ("-2", v2, v3, v4, v5),
+                    ("-3", v3, v4, v5, None)
+                ]:
+                    results[year_key][sid] = {
+                        "name": info["name"],
+                        "column": info["col"],
+                        "val": round(curr, 2) if curr is not None else None,
+                        "diff": calc_diff_str(curr, p1),
+                        "avg_3y": calc_avg(curr, p1, p2)
+                    }
                 
             batch_upsert("macro_cache", [{
                 "cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()
             }], on_conflict="cache_key")
-            print("✅ FRED 매크로 3x4 Grid용 요약 데이터 DB 저장 완료 (기존 구조 호환)")
+            print("✅ FRED 매크로 3x4 Grid용 요약 데이터 DB 저장 완료 (과거 년도 완벽 지원)")
     except Exception as e: print(f"⚠️ FRED API Error: {e}")
+
+    # (이 아래는 기존 FMP 경제 일정 수집 코드 그대로 유지하시면 됩니다.)
 
     # 2. FMP 경제 일정 수집 (그대로 유지)
     try:
