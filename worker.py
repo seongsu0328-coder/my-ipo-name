@@ -1709,7 +1709,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 time.sleep(1)
                 
     # =========================================================
-    # 🚀 [B] 프리미엄 전용 데이터 수집 (기업 공식 보도자료)
+    # 🚀 [B] 프리미엄 전용 데이터 수집 (기업 공식 보도자료 - Raw Tracker 적용!)
     # =========================================================
     try:
         pr_url = f"https://financialmodelingprep.com/stable/press-releases?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
@@ -1718,26 +1718,40 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         # 🚨 [환각 완벽 차단] FMP가 보낸 데이터가 에러 딕셔너리({})가 아닌 정상 리스트([])일 때만 통과!
         is_pr_valid = isinstance(pr_raw, list) and len(pr_raw) > 0
 
-        for lang_code in SUPPORTED_LANGS.keys():
-            if is_pr_valid: # 💡 방어막 통과 시에만 AI 호출
-                pr_summary_key = f"{ticker}_PressReleaseSummary_v1_{lang_code}"
-                try:
-                    res_p = supabase.table("analysis_cache").select("updated_at").eq("cache_key", pr_summary_key).gt("updated_at", limit_time_str).execute()
-                    if not res_p.data:
-                        prompt_p = get_tab1_premium_prompt(lang_code, "Official Press Release", pr_raw)
-                        for attempt in range(3):
-                            try:
-                                resp_p = model_strict.generate_content(prompt_p)
-                                if resp_p and resp_p.text:
-                                    p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
-                                    indent_size = "14px" if lang_code == "ko" else "0px"
-                                    html_p = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in p_paragraphs])
-                                    
-                                    batch_upsert("analysis_cache", [{"cache_key": pr_summary_key, "content": html_p, "updated_at": now.isoformat()}], "cache_key")
-                                    print(f"✅ [{ticker}] 기업 공식 보도자료 캐싱 완료 ({lang_code})")
-                                    break
-                            except: time.sleep(1)
-                except: pass
+        if is_pr_valid: 
+            import json
+            current_pr_str = json.dumps(pr_raw, sort_keys=True)
+            tracker_key_pr = f"{ticker}_PressRelease_RawTracker"
+            is_changed_pr = True
+            
+            try:
+                # 💡 [과금 방어막] 기존 원본 데이터와 토씨 하나 안 틀리고 똑같으면 AI 스킵!
+                res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_pr).execute()
+                if res_tracker.data and current_pr_str == res_tracker.data[0]['content']:
+                    is_changed_pr = False
+            except: pass
+
+            if is_changed_pr:
+                print(f"🔔 [{ticker}] 기업 보도자료 업데이트 감지! AI 요약 시작...")
+                for lang_code in SUPPORTED_LANGS.keys():
+                    pr_summary_key = f"{ticker}_PressReleaseSummary_v1_{lang_code}"
+                    prompt_p = get_tab1_premium_prompt(lang_code, "Official Press Release", current_pr_str)
+                    
+                    for attempt in range(3):
+                        try:
+                            resp_p = model_strict.generate_content(prompt_p)
+                            if resp_p and resp_p.text:
+                                p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
+                                indent_size = "14px" if lang_code == "ko" else "0px"
+                                html_p = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in p_paragraphs])
+                                
+                                batch_upsert("analysis_cache", [{"cache_key": pr_summary_key, "content": html_p, "updated_at": now.isoformat()}], "cache_key")
+                                print(f"✅ [{ticker}] 기업 공식 보도자료 캐싱 완료 ({lang_code})")
+                                break
+                        except: time.sleep(1)
+                        
+                # 요약 완료 후 트래커 갱신
+                batch_upsert("analysis_cache", [{"cache_key": tracker_key_pr, "content": current_pr_str, "updated_at": now.isoformat()}], "cache_key")
 
     except Exception as e:
         print(f"Premium FMP Collection Error for {ticker}: {e}")
@@ -2365,19 +2379,29 @@ def run_tab4_premium_collection(ticker, company_name):
         print(f"Tab4 Premium Collection Error for {ticker}: {e}")
     
 # ==========================================
-#[완벽 수정] Tab 3: 미시 지표 (Accruals, P/E 연산 추가 + 다국어 지시문 완벽 분리)
+# [수정/완전판] Tab 3: 미시 지표 (Raw Tracker 이식 완료)
 # ==========================================
 def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return False
     
-    days_passed = 0
+    # 💡 [과금 방어막 1] 워커가 수집해 온 15대 재무 지표 원본 문자열화
+    import json
+    current_metrics_str = json.dumps(metrics, sort_keys=True)
+    tracker_key = f"{ticker}_Tab3_Financial_RawTracker"
+    is_changed = True
+    
     try:
-        if ipo_date_str:
-            days_passed = (datetime.now().date() - pd.to_datetime(ipo_date_str).date()).days
+        # 💡 [과금 방어막 2] 기존 DB의 재무 지표 원본과 비교
+        res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
+        if res_tracker.data and current_metrics_str == res_tracker.data[0]['content']:
+            is_changed = False # 토씨 하나 안 틀리고 똑같으면 스킵!
     except: pass
 
-    valid_hours = 24 * 30 if days_passed > 90 else 24 * 7 
-    limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
+    if not is_changed:
+        # print(f"⏩ [{ticker}] Tab 3 재무 데이터 변경 없음. AI 요약 스킵!")
+        return True # 데이터가 안 변했으면 함수 즉시 종료 (AI 호출 0번)
+        
+    print(f"🔔 [{ticker}] Tab 3 재무 데이터 변경 감지! AI 요약 시작...")
     
     is_fmp_fin_poor = (str(metrics.get('growth', 'N/A')) in['N/A', '', 'None'])
     can_fin_search = is_fmp_fin_poor and (model_search is not None)
@@ -2639,10 +2663,13 @@ Data: {g1_context} | {g2_context} | {g3_context}
                 html_full = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
                 
                 batch_upsert("analysis_cache",[{"cache_key": cache_key_full, "content": html_full, "updated_at": datetime.now().isoformat()}], "cache_key")
-                
             print(f"✅[{ticker}] Tab 3 미시 지표 분석 완료 ({lang_code})")
         except Exception as e:
             print(f"❌ [{ticker}] Tab 3 전문 리포트 에러 ({lang_code}): {e}")
+
+    # 💡 [과금 방어막 3] 요약 완료 후 트래커 갱신 (for 루프 바깥쪽, 함수 맨 마지막)
+    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+    return True
             
 # ==========================================
 # [신규 추가] Tab 3 프리미엄 요약 전용 프롬프트 (다국어 완벽 분리)
@@ -2895,21 +2922,11 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         print(f"Tab3 Premium Revenue Seg Error for {ticker}: {e}")
 
 # ==========================================
-# [수정/완전판] Tab 2: 거시 지표 수집 (FMP 연동 + 실시간 연산 + 독립된 3D 카드 다국어 분석)
+# [수정] Tab 2: 거시 지표 수집 (Raw Tracker 완벽 이식)
 # ==========================================
 def update_macro_data(df):
     if 'model_strict' not in globals() or not model_strict: return
     
-    valid_hours = 24
-    limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
-    
-    try:
-        res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", "Market_Dashboard_Metrics").gt("updated_at", limit_time_str).execute()
-        if res.data: 
-            print("✅ 거시 지표(Tab 2)는 24시간이 경과하지 않아 기존 캐시를 유지합니다.")
-            return
-    except: pass
-
     print("🌍 거시 지표(Tab 2) 실제 데이터 업데이트 및 연산 중...")
     
     today = datetime.now()
@@ -2932,7 +2949,7 @@ def update_macro_data(df):
                 
             data["unprofitable_pct"] = 75.0 if data["ipo_volume"] > 15 else 60.0
             data["ipo_return"] = 18.5 if data["vix"] < 15 else 5.2
-    except Exception as e: pass
+    except: pass
 
     try:
         q_url = f"https://financialmodelingprep.com/stable/quote?symbol=^VIX,SPY,^W5000&apikey={FMP_API_KEY}"
@@ -2943,23 +2960,35 @@ def update_macro_data(df):
             if 'SPY' in q_map: data["pe_ratio"] = float(q_map['SPY'].get('pe', 24.5))
             if '^W5000' in q_map:
                 w5000_price = float(q_map['^W5000'].get('price', 0))
-                if w5000_price > 0:
-                    data["buffett_val"] = ((w5000_price * 1.1) / 1000 / 28.0) * 100
+                if w5000_price > 0: data["buffett_val"] = ((w5000_price * 1.1) / 1000 / 28.0) * 100
 
         r_url = f"https://financialmodelingprep.com/stable/market-risk-premium?apikey={FMP_API_KEY}"
         r_res = requests.get(r_url, timeout=5).json()
         if isinstance(r_res, list) and len(r_res) > 0:
             us_risk = next((item for item in r_res if item.get('country') == 'United States'), None)
-            if us_risk:
-                data["fear_greed"] = max(0, min(100, 100 - ((float(us_risk.get('totalEquityRiskPremium', 5.0)) - 3.0) * 20))) 
-    except Exception as e: pass
+            if us_risk: data["fear_greed"] = max(0, min(100, 100 - ((float(us_risk.get('totalEquityRiskPremium', 5.0)) - 3.0) * 20))) 
+    except: pass
 
-    batch_upsert("analysis_cache", [{
-        "cache_key": "Market_Dashboard_Metrics",
-        "content": json.dumps(data),
-        "updated_at": datetime.now().isoformat()
-    }], on_conflict="cache_key")
+    batch_upsert("analysis_cache", [{"cache_key": "Market_Dashboard_Metrics", "content": json.dumps(data), "updated_at": datetime.now().isoformat()}], "cache_key")
 
+    # 💡 [과금 방어막 1] 거시 지표 원본 문자열화
+    current_macro_str = json.dumps(data, sort_keys=True)
+    tracker_key = "Global_Macro_RawTracker"
+    is_changed = True
+
+    try:
+        # 💡 [과금 방어막 2] 기존 DB의 거시 지표와 비교
+        res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
+        if res_tracker.data and current_macro_str == res_tracker.data[0]['content']:
+            is_changed = False
+    except: pass
+
+    if not is_changed:
+        print("⏩ [거시경제] 지표 수치 변경 없음. AI 요약 스킵!")
+        return # 데이터가 안 변했으면 과감하게 종료!
+
+    print("🔔 거시 지표 수치 변동 감지! AI 요약 시작...")
+    
     g1_context = f"Sentiment/Liquidity (IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%)"
     g2_context = f"Risk/Supply (Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%)"
     g3_context = f"Macro/Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
@@ -3053,6 +3082,9 @@ def update_macro_data(df):
             print(f"✅ 거시 지표 AI 분석 완료 ({lang_code})")
         except Exception as e:
             print(f"❌ 거시 지표 AI 에러 ({lang_code}): {e}")
+
+    # 💡 [과금 방어막 3] 요약 완료 후 트래커 갱신
+    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_macro_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
 # ==========================================
 # [수정] Tab 6: 스마트머니 통합 데이터 수집 (국회의원 & 공매도 추가)
