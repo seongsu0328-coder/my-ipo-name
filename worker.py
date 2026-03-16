@@ -814,9 +814,9 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     except: pass
         except: pass
 
-    # ---------------------------------------------------------
+    # =========================================================
     # 🚀 [5] 통합 서류 루프 (우선순위 탐색 + 스마트 Bypass 적용)
-    # ---------------------------------------------------------
+    # =========================================================
     for topic in target_topics:
         f_date, f_text = None, None
         
@@ -842,12 +842,20 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 print(f"✅ [{ticker}] {topic} 분석 소스 확보 완료: {target}")
                 break
 
-        # 다국어 캐싱 및 AI 호출
+        # 💡 [핵심 수정: 과금 폭탄 원천 차단] 다국어 캐싱 및 AI 호출
         for lang_code in SUPPORTED_LANGS.keys():
-            cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
+            # 1. 문서 제출일(f_date) 확보 (없으면 NoDate 처리)
+            f_date_str = f_date if f_date else "NoDate"
+            
+            # 2. 🚨 캐시 키에 제출일을 아예 박아버립니다! (예: AAPL_S-1_2025-05-10_Tab0_v16_ko)
+            cache_key = f"{company_name}_{topic}_{f_date_str}_Tab0_v16_{lang_code}"
+            
             try:
-                res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
-                if res.data: continue 
+                # 3. 🚨 시간 경과(limit_time_str)를 검사하는 .gt()를 삭제했습니다.
+                # 이 키가 DB에 존재하기만 하면 무조건 건너뜁니다! (같은 날짜의 서류는 무한 캐싱)
+                res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).execute()
+                if res.data: 
+                    continue # 이미 분석한 문서이므로 AI API 100% 호출 차단!
             except: pass
 
             # 스마트 Bypass (부재 시 안내 멘트)
@@ -936,8 +944,6 @@ def run_tab0_premium_collection(ticker, company_name):
     """Tab 0의 프리미엄 데이터(어닝 콜)를 수집하고 요약하여 캐싱합니다."""
     if 'model_strict' not in globals() or not model_strict: return
     try:
-        limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # 어닝콜은 자주 안바뀌므로 7일 유지
-        
         # 💡 [안전망 추가] 연도와 분기를 먼저 찾고 최신 트랜스크립트를 호출 (400 에러 완벽 방지)
         try:
             list_url = f"https://financialmodelingprep.com/stable/earnings-transcript-list?symbol={ticker}&apikey={FMP_API_KEY}"
@@ -953,9 +959,14 @@ def run_tab0_premium_collection(ticker, company_name):
 
         for lang_code in SUPPORTED_LANGS.keys():
             if is_ec_valid:
-                ec_summary_key = f"{ticker}_PremiumEarningsCall_v1_{lang_code}"
+                # 💡 [핵심 수정: 과금 폭탄 방어막] 어닝콜 캐시 키에 '연도'와 '분기'를 박아버립니다!
+                year_val = latest.get('year', 'Unknown')
+                q_val = latest.get('quarter', 'Unknown')
+                ec_summary_key = f"{ticker}_PremiumEC_{year_val}_Q{q_val}_v1_{lang_code}"
+                
                 try:
-                    res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", ec_summary_key).gt("updated_at", limit_time_str).execute()
+                    # 🚨 시간 제한 없이 해당 분기의 어닝콜 요약본이 DB에 이미 있으면 AI 호출을 영구 차단합니다.
+                    res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", ec_summary_key).execute()
                     if not res.data:
                         # 텍스트가 너무 길면 AI 토큰 초과 우려가 있으므로 앞부분 15,000자만 발췌
                         content = ec_raw[0].get('content', '')[:15000] 
