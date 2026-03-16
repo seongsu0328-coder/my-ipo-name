@@ -3061,8 +3061,7 @@ def update_global_macro_and_events():
     print("🌍 글로벌 매크로(FRED) 및 경제 일정(FMP) 데이터 수집 시작...")
     today = datetime.now()
     
-    # 1. FRED 매크로 지표 수집 (3행 4열 프론트엔드 UI 대응을 위해 col 인덱스 추가)
-    # 1열: 금리 / 2열: 물가,통화 / 4열: 고용,기타 (3열은 환율/지수 등 타 API 영역으로 비워둠)
+    # 3행 4열 프론트엔드 UI 대응을 위한 col 인덱스
     series_info = {
         "FEDFUNDS": {"name": "기준금리", "col": 1}, 
         "DGS10": {"name": "10년물 국채", "col": 1}, 
@@ -3073,7 +3072,9 @@ def update_global_macro_and_events():
         "UNRATE": {"name": "실업률", "col": 4}
     }
     pc1_series = ["CPIAUCSL", "PCEPI", "WM2NS"] 
-    results = {} 
+    
+    # ⭐ 기존 프론트엔드가 데이터를 찾을 수 있도록 "0", "-1" 구조 복구
+    results = {"0": {}, "-1": {}, "-2": {}, "-3": {}} 
     
     start_date = (today - timedelta(days=365*4)).strftime('%Y-%m-%d')
     
@@ -3097,25 +3098,33 @@ def update_global_macro_and_events():
                 v0 = get_val_near_date(today)
                 v1 = get_val_near_date(today - timedelta(days=365))
                 v2 = get_val_near_date(today - timedelta(days=365*2))
+                v3 = get_val_near_date(today - timedelta(days=365*3))
                 
+                # 증감(%p) 및 3년 평균 계산
                 diff = (v0 - v1) if (v0 is not None and v1 is not None) else None
                 avg_3y = ((v0 + v1 + v2) / 3) if (v0 is not None and v1 is not None and v2 is not None) else None
                 
-                results[sid] = {
+                # ⭐ "0" (현재) 데이터 안에 프론트가 필요한 모든 값을 넣어줍니다.
+                results["0"][sid] = {
                     "name": info["name"],
-                    "column": info["col"],  # 프론트엔드 3x4 Grid 배치용 위치값
+                    "column": info["col"],
                     "val": round(v0, 2) if v0 is not None else None,
                     "diff": round(diff, 2) if diff is not None else None,
                     "avg_3y": round(avg_3y, 2) if avg_3y is not None else None
                 }
                 
+                # 기존 코드의 에러 방지를 위해 과거 데이터 구조도 채워둡니다.
+                results["-1"][sid] = {"val": round(v1, 2) if v1 is not None else None}
+                results["-2"][sid] = {"val": round(v2, 2) if v2 is not None else None}
+                results["-3"][sid] = {"val": round(v3, 2) if v3 is not None else None}
+                
             batch_upsert("macro_cache", [{
                 "cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()
             }], on_conflict="cache_key")
-            print("✅ FRED 매크로 3x4 Grid용 요약 데이터 DB 저장 완료")
+            print("✅ FRED 매크로 3x4 Grid용 요약 데이터 DB 저장 완료 (기존 구조 호환)")
     except Exception as e: print(f"⚠️ FRED API Error: {e}")
 
-    # 2. FMP 경제 일정 수집 (유지)
+    # 2. FMP 경제 일정 수집 (그대로 유지)
     try:
         start = today.strftime('%Y-%m-%d')
         end = (today + timedelta(days=30)).strftime('%Y-%m-%d')
