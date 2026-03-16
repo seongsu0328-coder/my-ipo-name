@@ -4265,11 +4265,14 @@ with main_area.container():
                             avg_str = f"{avg_3y:.2f}%" if is_percent else f"{avg_3y:,.2f}"
                             avg_html = f"<div style='font-size: 10px; color: #888; font-weight: normal; margin-top: 2px; letter-spacing: -0.5px;'>Avg {avg_str}</div>"
                             
-                        # 5. 가로 한 줄 -> 세로 3줄(Stack) 배치
+                        # 5. 가로 한 줄 -> 세로 3줄(Stack) 강제 고정 배치
                         return (
                             f"<div class='macro-item' style='flex-direction: column; align-items: center; justify-content: center; gap: 0px;'>"
                             f"  <div class='macro-title' style='margin-bottom: 2px;'>{title}</div>"
-                            f"  <div style='display: flex; align-items: baseline;'><span class='macro-val'>{val_str}</span>{diff_html}</div>"
+                            # 👇 바로 이 부분에 white-space: nowrap; 과 flex-direction: row; 를 강제로 걸었습니다!
+                            f"  <div style='display: flex; flex-direction: row; align-items: baseline; justify-content: center; white-space: nowrap; gap: 2px;'>"
+                            f"      <span class='macro-val'>{val_str}</span>{diff_html}"
+                            f"  </div>"
                             f"  {avg_html}"
                             f"</div>"
                         )
