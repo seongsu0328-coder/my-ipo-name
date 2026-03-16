@@ -3061,20 +3061,25 @@ def update_global_macro_and_events():
     print("🌍 글로벌 매크로(FRED) 및 경제 일정(FMP) 데이터 수집 시작...")
     today = datetime.now()
     
-    # 1. FRED 매크로 지표 수집
-    series_ids = {
-        "FEDFUNDS": "기준금리", "DGS10": "10년물 국채", "T10Y2Y": "장단기 금리차", 
-        "UNRATE": "실업률", "CPIAUCSL": "소비자물가지수(CPI)", "PCEPI": "개인소비지출(PCE)", "WM2NS": "M2 통화량"
+    # 1. FRED 매크로 지표 수집 (3행 4열 프론트엔드 UI 대응을 위해 col 인덱스 추가)
+    # 1열: 금리 / 2열: 물가,통화 / 4열: 고용,기타 (3열은 환율/지수 등 타 API 영역으로 비워둠)
+    series_info = {
+        "FEDFUNDS": {"name": "기준금리", "col": 1}, 
+        "DGS10": {"name": "10년물 국채", "col": 1}, 
+        "T10Y2Y": {"name": "장단기 금리차", "col": 1}, 
+        "CPIAUCSL": {"name": "소비자물가지수(CPI)", "col": 2}, 
+        "PCEPI": {"name": "개인소비지출(PCE)", "col": 2}, 
+        "WM2NS": {"name": "M2 통화량", "col": 2},
+        "UNRATE": {"name": "실업률", "col": 4}
     }
-    # CPI, PCE, M2는 units='pc1'을 통해 이미 '전년 대비 증감률(YoY %)' 값 자체를 가져옵니다.
     pc1_series = ["CPIAUCSL", "PCEPI", "WM2NS"] 
-    results = {} # 프론트엔드 렌더링에 최적화된 1차원 구조로 변경
+    results = {} 
     
     start_date = (today - timedelta(days=365*4)).strftime('%Y-%m-%d')
     
     try:
         if FRED_API_KEY:
-            for sid, name in series_ids.items():
+            for sid, info in series_info.items():
                 units = "pc1" if sid in pc1_series else "lin"
                 url = f"https://api.stlouisfed.org/fred/series/observations?series_id={sid}&api_key={FRED_API_KEY}&file_type=json&observation_start={start_date}&units={units}"
                 res = requests.get(url, timeout=10).json()
@@ -3089,29 +3094,28 @@ def update_global_macro_and_events():
                         if pd.to_datetime(o['date']) <= target_date: return float(o['value'])
                     return None
                     
-                v0 = get_val_near_date(today)                   # 현재값
-                v1 = get_val_near_date(today - timedelta(days=365))   # 1년 전
-                v2 = get_val_near_date(today - timedelta(days=365*2)) # 2년 전
+                v0 = get_val_near_date(today)
+                v1 = get_val_near_date(today - timedelta(days=365))
+                v2 = get_val_near_date(today - timedelta(days=365*2))
                 
-                # 증감(%p) 및 3년 평균 계산
                 diff = (v0 - v1) if (v0 is not None and v1 is not None) else None
                 avg_3y = ((v0 + v1 + v2) / 3) if (v0 is not None and v1 is not None and v2 is not None) else None
                 
                 results[sid] = {
-                    "name": name,
+                    "name": info["name"],
+                    "column": info["col"],  # 프론트엔드 3x4 Grid 배치용 위치값
                     "val": round(v0, 2) if v0 is not None else None,
                     "diff": round(diff, 2) if diff is not None else None,
                     "avg_3y": round(avg_3y, 2) if avg_3y is not None else None
                 }
                 
-            # Supabase DB 저장 (기존 함수명 유지)
             batch_upsert("macro_cache", [{
                 "cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()
             }], on_conflict="cache_key")
-            print("✅ FRED 매크로 요약 데이터 (현재/증감/3년평균) DB 저장 완료")
+            print("✅ FRED 매크로 3x4 Grid용 요약 데이터 DB 저장 완료")
     except Exception as e: print(f"⚠️ FRED API Error: {e}")
 
-    # 2. FMP 경제 일정 수집 (기존 코드와 동일)
+    # 2. FMP 경제 일정 수집 (유지)
     try:
         start = today.strftime('%Y-%m-%d')
         end = (today + timedelta(days=30)).strftime('%Y-%m-%d')
