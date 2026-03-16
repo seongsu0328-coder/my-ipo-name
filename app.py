@@ -2039,10 +2039,10 @@ UI_TEXT = {
         'zh': '价格确认中 ⏳'
     },
     'status_otc_unsupported': {
-        'ko': 'OTC / 야후미지원', 
-        'en': 'OTC / Unsupported', 
-        'ja': 'OTC / 未対応', 
-        'zh': 'OTC / 不支持'
+        'ko': '데이터 지연 / OTC', 
+        'en': 'Data Delayed / OTC', 
+        'ja': 'データ遅延 / OTC', 
+        'zh': '数据延迟 / OTC'
     },
     'status_delayed_unlisted': {
         'ko': '상장지연 혹은 비상장', 
