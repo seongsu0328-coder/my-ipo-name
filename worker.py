@@ -1676,17 +1676,25 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 if isinstance(news_list, list):
                     for n in news_list:
                         if n is None: continue 
-                        
-                        # 🚨 [추가 방어막] </a> 등 모든 HTML 태그를 정규식으로 완벽히 제거
-                        if 'translated_title' in n:
-                            n['translated_title'] = re.sub(r'<[^>]+>', '', str(n['translated_title'])).strip()
-                        if 'title_en' in n:
-                            n['title_en'] = re.sub(r'<[^>]+>', '', str(n['title_en'])).strip()
 
+                        # 🚨 [강력 방어막] 뉴스 제목에서 </a>를 포함한 모든 HTML 태그 영구 제거
+                        # 영어 제목(title_en)과 번역 제목(translated_title) 모두 적용
+                        for title_key in ['title_en', 'translated_title', 'title_ko', 'title_ja', 'title_zh']:
+                            if title_key in n and n[title_key]:
+                                # 1. 실제 HTML 태그 제거 (<...>)
+                                clean_t = re.sub(r'<[^>]*>', '', str(n[title_key]))
+                                # 2. 혹시나 남아있을지 모를 문자열 형태의 </a>까지 수동 제거
+                                clean_t = clean_t.replace('</a>', '').replace('<a>', '').strip()
+                                n[title_key] = clean_t
+
+                        # 기존 감성 분석 배지 로직
                         s_val = str(n.get('sentiment', 'Neutral')).strip().lower()
-                        if "positive" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                        elif "negative" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
-                        else: n['bg'], n['color'] = "#f1f3f4", "#5f6368"
+                        if "positive" in s_val or "긍정" in s_val or "肯定" in s_val: 
+                            n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
+                        elif "negative" in s_val or "부정" in s_val or "否定" in s_val: 
+                            n['bg'], n['color'] = "#fce8e6", "#d93025"
+                        else: 
+                            n['bg'], n['color'] = "#f1f3f4", "#5f6368"
 
                 # 8. 최종 저장 (뉴스 5개를 카드 하나에 담는 구조 유지)
                 batch_upsert("analysis_cache", [{
@@ -3039,10 +3047,11 @@ def update_macro_data(df):
             full_i = """
             [작성 규칙]
             1. 메인 제목(## 분석 등) 및 소제목(**[시장 유동성]** 등)은 절대 쓰지 마세요.
-            2. 총 3개의 단락으로만 구성하며, 각 단락의 첫 문장은 들여쓰기(스페이스바 2칸 또는 탭)로 자연스럽게 시작하세요.
-            3. 제공된 수치를 반드시 본문에 자연스럽게 녹여서 근거로 제시하세요.
-            4. 각 단락은 4~5문장 길이로 꽉 채워서 작성하세요.
-            5. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
+            2. 리포트의 첫 번째 단어는 반드시 '글로벌' 또는 '현재'로 시작하세요.
+            3. 총 3개의 단락으로만 구성하며, 각 단락의 첫 문장은 들여쓰기(스페이스바 2칸 또는 탭)로 자연스럽게 시작하세요.
+            4. 제공된 수치를 반드시 본문에 자연스럽게 녹여서 근거로 제시하세요.
+            5. 각 단락은 4~5문장 길이로 꽉 채워서 작성하세요.
+            6. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
             """
         elif lang_code == 'en':
             full_p = f"Write a deep-dive macroeconomic report using this data:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
