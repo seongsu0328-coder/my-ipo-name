@@ -1631,11 +1631,17 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 html_output = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
 
-                # 7. Sentiment 배지 색상 매핑
+                # 7. Sentiment 배지 색상 매핑 및 HTML 찌꺼기 완벽 제거
                 if isinstance(news_list, list):
-                    # 🚨 여기서 news_list가 None이면 for문 진입 시 에러가 날 수 있습니다.
                     for n in news_list:
-                        if n is None: continue # 리스트 안에 None 요소가 섞인 경우 방어
+                        if n is None: continue 
+                        
+                        # 🚨 [추가 방어막] </a> 등 모든 HTML 태그를 정규식으로 완벽히 제거
+                        if 'translated_title' in n:
+                            n['translated_title'] = re.sub(r'<[^>]+>', '', str(n['translated_title'])).strip()
+                        if 'title_en' in n:
+                            n['title_en'] = re.sub(r'<[^>]+>', '', str(n['title_en'])).strip()
+
                         s_val = str(n.get('sentiment', 'Neutral')).strip().lower()
                         if "positive" in s_val: n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
                         elif "negative" in s_val: n['bg'], n['color'] = "#fce8e6", "#d93025"
@@ -2353,7 +2359,13 @@ Data: {g1_context} | {g2_context} | {g3_context}
 3. Separate strictly by '|||SEP|||'. Do not use any other line breaks.
 """
             full_p = f"Write a standard financial report for {company_name}({ticker}).\n[Ratio Data]: {g1_context}, {g2_context}, {g3_context}\n[Raw Data]: {g4_context}\n🚨 Rule: {na_handling_rule}\n{search_directive}"
-            full_i = """[STRICT RULES] 1. NO MAIN TITLES or emojis. 2. QUOTE HARD NUMBERS from the [Raw Data]. 3. Incorporate up to 10 standard financial metrics. 4. Use EXACTLY 3 subheadings with brackets ONLY:[Profitability & Growth Analysis], [Financial Health & Cash Flow],[Valuation & Final Verdict]. DO NOT use markdown bold (**). 5. Write 4-5 sentences immediately after subheadings. 6. NEVER complain about missing data."""
+            full_i = """[STRICT RULES]
+1. 🚨 ABSOLUTELY NO INTRODUCTORY TEXT, NO GREETINGS, and NO MAIN TITLES. Start the very first word with the first subheading (e.g., [Profitability & Growth Analysis]). Do not write "Here is the report" or "Company Report".
+2. QUOTE HARD NUMBERS from the [Raw Data].
+3. Incorporate up to 10 standard financial metrics.
+4. Use EXACTLY 3 subheadings with brackets ONLY: [Profitability & Growth Analysis], [Financial Health & Cash Flow], [Valuation & Final Verdict]. DO NOT use markdown bold (**).
+5. Write 4-5 sentences immediately after subheadings.
+6. NEVER complain about missing data."""
 
         elif lang_code == 'ja':
             na_handling_rule = "🚨 [N/A防御規則]: P/EやDCFなどのバリュエーション指標がN/A、またはPre-revenueの場合、「評価できない」「情報が不足している」という言い訳は絶対に使わないでください。代わりに、「現在は初期段階（または新規上場）であり、伝統的なキャッシュフローに基づくバリュエーションの適用は限定的です。市場は同社の今後のパイプライン、ビジョン、および潜在的市場規模（TAM）にプレミアムを付与して価値を評価しています」という論理で非常に専門的に記述してください。"
@@ -2370,7 +2382,13 @@ Data: {g1_context} | {g2_context} | {g3_context}
 3. 区切り文字 '|||SEP|||' のみを使用し、その他の改行などは入れないでください。丁寧な日本語を使用してください。
 """
             full_p = f"{company_name}({ticker}) の本格的財務分析レポートを作成してください。\n[比率データ]: {g1_context}, {g2_context}, {g3_context}\n[原データ]: {g4_context}\n🚨 規則: {na_handling_rule}\n{search_directive}"
-            full_i = """[厳格な規則] 1. メインタイトルや絵文字は禁止。 2.[原データ]から具体的な数値を引用。 3. 主要な数値を10個程度参照。 4. 3つの小見出しを括弧のみで使用:[収益性と成長性の分析],[財務健全性とキャッシュフロー],[適正価値と総合投資意見]。太字(**)禁止。 5. 小見出しの直後に本文(4〜5文)を開始。 6. 「データがない」という言い訳禁止。 7. 丁寧な日本語を使用。"""
+            full_i = """[厳格な規則]
+1. 🚨 挨拶、導入文、メインタイトルは絶対に禁止です。「以下は～のレポートです」などの文章は一切書かず、最初の文字からすぐに小見出し（例：[収益性と成長性の分析]）で始めてください。
+2. [原データ]から具体的な数値を引用してください。
+3. 主要な数値を10個程度参照してください。
+4. 3つの小見出しを括弧のみで使用してください: [収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見]。太字(**)は禁止です。
+5. 小見出しの直後に本文(4〜5文)を開始してください。
+6. 「データがない」という言い訳は禁止です。"""
 
         else: # zh
             na_handling_rule = "🚨 [N/A防御规则]: 如果 P/E 或 DCF 等估值指标为 N/A 或处于 Pre-revenue 阶段，绝对不要写“无法评估”或“缺乏数据”等借口。相反，请以极其专业的口吻解释：“作为一家处于早期（或新上市）的公司，传统基于现金流的估值模型的适用性有限。市场目前主要基于其未来的产品管线、战略愿景以及潜在市场规模 (TAM) 来赋予其估值溢价。”"
@@ -2387,7 +2405,13 @@ Data: {g1_context} | {g2_context} | {g3_context}
 3. 仅使用 '|||SEP|||' 作为分隔符，不要加入任何其他换行符。
 """
             full_p = f"请撰写 {company_name}({ticker}) 的深度财务分析报告。\n[比率数据]: {g1_context}, {g2_context}, {g3_context}\n[原始数据]: {g4_context}\n🚨 规则：{na_handling_rule}\n{search_directive}"
-            full_i = """[严格规则] 1. 绝对不要写主标题或表情符号。 2. 必须引用[原始数据]中的具体数据。 3. 融入约10个核心数值。 4. 使用3个带方括号的副标题，绝对不要加粗(**): [盈利能力与增长性分析], [财务健康与现金流],[合理估值与综合投资意见]。 5. 副标题后写4-5句话。 6. 绝对不要抱怨数据缺失。"""
+            full_i = """[严格规则]
+1. 🚨 绝对禁止任何问候语、开场白或主标题。不要写“以下是财务报告”之类的句子，必须从第一个字开始直接输出副标题（例如：[盈利能力与增长性分析]）。
+2. 必须引用[原始数据]中的具体数据。
+3. 融入约10个核心数值。
+4. 仅使用3个带方括号的副标题，绝对不要加粗(**): [盈利能力与增长性分析], [财务健康与现金流], [合理估值与综合投资意见]。
+5. 副标题后直接写4-5句话。
+6. 绝对不要抱怨数据缺失。"""
 
         # ----------------------------------------------------
         # [Call 1] 3D 카드 요약 생성 (JSON 파싱 완전 폐기 및 직통 저장)
