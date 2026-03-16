@@ -4235,44 +4235,40 @@ with main_area.container():
                     
                     data_slice = macro_data.get(str(y_state), {})
                     
-                    # 🚀 [UI 업데이트] 1셀 3줄 스택(Stack) 구조 및 Avg 추가
                     def render_kpi(sid, title, is_percent=True):
-                        # 1. 데이터가 없을 경우 N/A 처리
+                        # 1. 데이터 N/A 처리
                         if not data_slice or sid not in data_slice or data_slice[sid].get('val') is None:
                             return (
-                                f"<div class='macro-item' style='flex-direction: column; align-items: center; gap: 2px;'>"
-                                f"  <span class='macro-title'>{title}</span>"
-                                f"  <span class='macro-val' style='color:#aaa;'>N/A</span>"
+                                f"<div style='display: flex; flex-direction: column; align-items: center; justify-content: center;'>"
+                                f"  <div style='font-size: 11.5px; color: #555; font-weight: bold;'>{title}</div>"
+                                f"  <div style='font-size: 12.5px; font-weight: 900; color: #aaa;'>N/A</div>"
                                 f"</div>"
                             )
                             
-                        # 2. 백엔드에서 데이터 꺼내기 (Avg 포함)
+                        # 2. 데이터 꺼내기
                         val = data_slice[sid].get('val')
                         diff = data_slice[sid].get('diff')
                         avg_3y = data_slice[sid].get('avg_3y')
                         
                         val_str = f"{val:.2f}%" if is_percent else f"{val:,.2f}"
                         
-                        # 3. 증감(diff) 텍스트 및 컬러 처리 (에러 방지를 위해 str 변환)
+                        # 3. 증감(diff) HTML - 클래스 충돌을 막기 위해 직접 색상 부여
                         diff_html = ""
                         if diff is not None:
-                            cls = "macro-diff-up" if '+' in str(diff) else "macro-diff-dn"
-                            diff_html = f"<span class='{cls}'>({diff})</span>"
+                            color = "#d32f2f" if '+' in str(diff) else "#1565c0" # 빨강 or 파랑
+                            diff_html = f"<span style='font-size: 11.5px; font-weight: bold; color: {color}; margin-left: 4px;'>({diff})</span>"
                             
-                        # 4. 3년 평균(Avg) HTML 처리
+                        # 4. 3년 평균(Avg) HTML
                         avg_html = ""
                         if avg_3y is not None:
                             avg_str = f"{avg_3y:.2f}%" if is_percent else f"{avg_3y:,.2f}"
-                            avg_html = f"<div style='font-size: 10px; color: #888; font-weight: normal; margin-top: 2px; letter-spacing: -0.5px;'>Avg {avg_str}</div>"
+                            avg_html = f"<div style='font-size: 10px; color: #888; margin-top: 2px;'>Avg {avg_str}</div>"
                             
-                        # 5. 가로 한 줄 -> 세로 3줄(Stack) 강제 고정 배치
+                        # 5. 🚀 CSS 강제 고정 (무조건 3줄로만 렌더링)
                         return (
-                            f"<div class='macro-item' style='flex-direction: column; align-items: center; justify-content: center; gap: 0px;'>"
-                            f"  <div class='macro-title' style='margin-bottom: 2px;'>{title}</div>"
-                            # 👇 바로 이 부분에 white-space: nowrap; 과 flex-direction: row; 를 강제로 걸었습니다!
-                            f"  <div style='display: flex; flex-direction: row; align-items: baseline; justify-content: center; white-space: nowrap; gap: 2px;'>"
-                            f"      <span class='macro-val'>{val_str}</span>{diff_html}"
-                            f"  </div>"
+                            f"<div style='display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 0;'>"
+                            f"  <div style='font-size: 11.5px; color: #555; font-weight: bold; margin-bottom: 2px;'>{title}</div>"
+                            f"  <div style='white-space: nowrap;'><span style='font-size: 12.5px; font-weight: 900; color: #111;'>{val_str}</span>{diff_html}</div>"
                             f"  {avg_html}"
                             f"</div>"
                         )
