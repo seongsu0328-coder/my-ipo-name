@@ -820,17 +820,16 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     for topic in target_topics:
         f_date, f_text = None, None
         
-        # 🚨 [확장 완료] 각 서류별로 수정본이나 대체 서류까지 싹 다 뒤져서 찾아옵니다!
+        # 각 서류별로 수정본이나 대체 서류 탐색
         if topic in ["BS", "IS", "CF", "10-K"]:
             priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
         elif topic == "10-Q":
-            priority_targets = ["10-Q", "10-Q/A"] # 💡 분기 보고서 수정본 방어 추가!
+            priority_targets = ["10-Q", "10-Q/A"] 
         elif topic == "F-1":
             priority_targets = ["F-1", "F-1/A", "20-F"] 
         elif topic == "S-1":
             priority_targets = ["S-1", "S-1/A"]
         elif topic == "424B4":
-            # 424B4가 없더라도 424B3, 424B5로 공모가가 확정되는 경우 추적
             priority_targets = ["424B4", "424B3", "424B5"]
         else:
             priority_targets = [topic]
@@ -842,21 +841,25 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 print(f"✅ [{ticker}] {topic} 분석 소스 확보 완료: {target}")
                 break
 
-        # 💡 [핵심 수정: 과금 폭탄 원천 차단] 다국어 캐싱 및 AI 호출
+        # 💡 [과금 폭탄 완벽 차단 로직] 제출일(f_date) 트래커 검사
+        f_date_str = f_date if f_date else "NoDate"
+        date_tracker_key = f"{company_name}_{topic}_LastFilingDate" # 날짜만 몰래 기록해둘 키
+        
+        is_already_analyzed = False
+        try:
+            # DB에 마지막으로 분석했던 문서의 날짜가 기록되어 있는지 확인
+            res_date = supabase.table("analysis_cache").select("content").eq("cache_key", date_tracker_key).execute()
+            if res_date.data and res_date.data[0]['content'] == f_date_str:
+                is_already_analyzed = True # 날짜가 똑같으면 이미 분석한 서류임!
+        except: pass
+
         for lang_code in SUPPORTED_LANGS.keys():
-            # 1. 문서 제출일(f_date) 확보 (없으면 NoDate 처리)
-            f_date_str = f_date if f_date else "NoDate"
+            # 🚨 앱(app.py)이 쉽게 찾을 수 있도록 캐시 키는 날짜 없이 고정!
+            cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
             
-            # 2. 🚨 캐시 키에 제출일을 아예 박아버립니다! (예: AAPL_S-1_2025-05-10_Tab0_v16_ko)
-            cache_key = f"{company_name}_{topic}_{f_date_str}_Tab0_v16_{lang_code}"
-            
-            try:
-                # 3. 🚨 시간 경과(limit_time_str)를 검사하는 .gt()를 삭제했습니다.
-                # 이 키가 DB에 존재하기만 하면 무조건 건너뜁니다! (같은 날짜의 서류는 무한 캐싱)
-                res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).execute()
-                if res.data: 
-                    continue # 이미 분석한 문서이므로 AI API 100% 호출 차단!
-            except: pass
+            # 💡 만약 날짜가 똑같은 서류라면 AI 분석 무조건 건너뜀 (과금 방어)
+            if is_already_analyzed:
+                continue 
 
             # 스마트 Bypass (부재 시 안내 멘트)
             if not f_text or len(f_text) < 100:
@@ -873,11 +876,16 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             try:
                 response = model_strict.generate_content(prompt)
                 if response and response.text:
+                    # 1. 4개 국어 번역본 저장
                     batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
                     print(f"✅ [{ticker}] {topic} 진짜 본문 분석 완료 ({lang_code})")
             except Exception as e:
                 print(f"❌ [{ticker}] {topic} AI 에러: {e}")
                 time.sleep(1)
+        
+        # 💡 [핵심] 언어별 분석이 모두 에러 없이 끝났다면, 마지막에 날짜 트래커를 최신으로 갱신!
+        if not is_already_analyzed and f_text and len(f_text) > 100:
+             batch_upsert("analysis_cache", [{"cache_key": date_tracker_key, "content": f_date_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
 def get_tab0_ec_premium_prompt(lang, ticker, raw_data):
     if lang == 'en':
