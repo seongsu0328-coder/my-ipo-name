@@ -3066,8 +3066,10 @@ def update_global_macro_and_events():
         "FEDFUNDS": "기준금리", "DGS10": "10년물 국채", "T10Y2Y": "장단기 금리차", 
         "UNRATE": "실업률", "CPIAUCSL": "소비자물가지수(CPI)", "PCEPI": "개인소비지출(PCE)", "WM2NS": "M2 통화량"
     }
-    pc1_series = ["CPIAUCSL", "PCEPI", "WM2NS"] # YoY % 계산용
-    results = {"0": {}, "-1": {}, "-2": {}, "-3": {}} # JSON은 key가 무조건 문자열이어야 함
+    # CPI, PCE, M2는 units='pc1'을 통해 이미 '전년 대비 증감률(YoY %)' 값 자체를 가져옵니다.
+    pc1_series = ["CPIAUCSL", "PCEPI", "WM2NS"] 
+    results = {} # 프론트엔드 렌더링에 최적화된 1차원 구조로 변경
+    
     start_date = (today - timedelta(days=365*4)).strftime('%Y-%m-%d')
     
     try:
@@ -3087,29 +3089,29 @@ def update_global_macro_and_events():
                         if pd.to_datetime(o['date']) <= target_date: return float(o['value'])
                     return None
                     
-                v0 = get_val_near_date(today)
-                v1 = get_val_near_date(today - timedelta(days=365))
-                v2 = get_val_near_date(today - timedelta(days=365*2))
-                v3 = get_val_near_date(today - timedelta(days=365*3))
-                v4 = get_val_near_date(today - timedelta(days=365*4))
+                v0 = get_val_near_date(today)                   # 현재값
+                v1 = get_val_near_date(today - timedelta(days=365))   # 1년 전
+                v2 = get_val_near_date(today - timedelta(days=365*2)) # 2년 전
                 
-                def calc_diff(curr, prev):
-                    if curr is None or prev is None: return None
-                    if sid in pc1_series: return None # 퍼센트는 증감p 생략
-                    return f"{curr - prev:+.2f}%p"
-                    
-                results["0"][sid] = {"val": v0, "diff": calc_diff(v0, v1)}
-                results["-1"][sid] = {"val": v1, "diff": calc_diff(v1, v2)}
-                results["-2"][sid] = {"val": v2, "diff": calc_diff(v2, v3)}
-                results["-3"][sid] = {"val": v3, "diff": calc_diff(v3, v4)}
+                # 증감(%p) 및 3년 평균 계산
+                diff = (v0 - v1) if (v0 is not None and v1 is not None) else None
+                avg_3y = ((v0 + v1 + v2) / 3) if (v0 is not None and v1 is not None and v2 is not None) else None
                 
+                results[sid] = {
+                    "name": name,
+                    "val": round(v0, 2) if v0 is not None else None,
+                    "diff": round(diff, 2) if diff is not None else None,
+                    "avg_3y": round(avg_3y, 2) if avg_3y is not None else None
+                }
+                
+            # Supabase DB 저장 (기존 함수명 유지)
             batch_upsert("macro_cache", [{
                 "cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()
             }], on_conflict="cache_key")
-            print("✅ FRED 매크로 4년치 데이터 DB 저장 완료")
+            print("✅ FRED 매크로 요약 데이터 (현재/증감/3년평균) DB 저장 완료")
     except Exception as e: print(f"⚠️ FRED API Error: {e}")
 
-    # 2. FMP 경제 일정 수집
+    # 2. FMP 경제 일정 수집 (기존 코드와 동일)
     try:
         start = today.strftime('%Y-%m-%d')
         end = (today + timedelta(days=30)).strftime('%Y-%m-%d')
