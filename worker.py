@@ -3109,7 +3109,7 @@ def update_global_macro_and_events():
                     "name": info["name"],
                     "column": info["col"],
                     "val": round(v0, 2) if v0 is not None else None,
-                    "diff": round(diff, 2) if diff is not None else None,
+                    "diff": f"{diff:+.2f}%p" if diff is not None else None,
                     "avg_3y": round(avg_3y, 2) if avg_3y is not None else None
                 }
                 
