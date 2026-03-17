@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta
 
 from supabase import create_client
-import google.generativeai as genai
+from google import genai
 
 # ==========================================
 # [1] 환경 설정 & 디버깅 로그
@@ -54,12 +54,24 @@ except Exception as e:
 model_strict = None
 model_search = None
 if GENAI_API_KEY:
-    genai.configure(api_key=GENAI_API_KEY)
     try:
-        # [1] 환각 원천 차단용 일반 모델 (도구 없음)
-        model_strict = genai.GenerativeModel('gemini-2.0-flash')
+        # 🚨 [수정] 신규 SDK에 맞춰 Client 객체 생성
+        client = genai.Client(api_key=GENAI_API_KEY)
         
-        # 🚨 [2] 하이브리드 엔진 - 구글 구버전 SDK의 치명적 버그를 완벽히 우회하는 REST API 클래스
+        # [1] 환각 원천 차단용 일반 모델 (도구 없음)
+        # 💡 model_strict 자체를 객체 대신 래퍼 클래스로 만들어 기존 코드 호환성 유지
+        class StrictModelWrapper:
+            def __init__(self, client):
+                self.client = client
+            def generate_content(self, prompt):
+                return self.client.models.generate_content(
+                    model='gemini-2.0-flash',
+                    contents=prompt
+                )
+        
+        model_strict = StrictModelWrapper(client)
+        
+        # 🚨 [2] 하이브리드 엔진 - 구글 구버전 SDK의 치명적 버그를 완벽히 우회하는 REST API 클래스 (기존 유지)
         class DirectGeminiSearch:
             def __init__(self, api_key):
                 self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
@@ -286,6 +298,30 @@ def get_current_prices():
         res = supabase.table("price_cache").select("ticker, price").execute()
         return {item['ticker']: float(item['price']) for item in res.data if item['price']}
     except: return {}
+
+# ==========================================
+# [3] 추가 헬퍼 함수: SEC 데이터 기반 역추적
+# ==========================================
+def get_ticker_from_cik(cik_str):
+    """SEC 공식 데이터를 통해 CIK로 Ticker를 역추적합니다."""
+    # SEC는 봇 차단을 막기 위해 User-Agent 명시가 필수입니다. 앱 이름을 넣어줍니다.
+    headers = {'User-Agent': 'UnicornFinder contact@yourdomain.com'}
+    url = "https://www.sec.gov/files/company_tickers.json"
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        data = response.json()
+        target_cik = int(cik_str)
+        
+        # SEC 데이터에서 CIK가 일치하는 티커를 찾아 반환
+        for key, value in data.items():
+            if value.get('cik_str') == target_cik:
+                return value.get('ticker')
+    except Exception as e:
+        print(f"⚠️ CIK 역추적 실패 ({cik_str}): {e}")
+    
+    return "" # 끝내 못 찾으면 빈 문자열 반환
+
 
 # ==========================================
 # [추가] 프리미엄 유저 대상 통계적 급등 알림 엔진 (FMP 최적화 버전)
@@ -3570,6 +3606,27 @@ def main():
         try:
             c_status = row.get('status', 'Active')
             c_date = row.get('date', None)
+            
+            # =========================================================
+            # 🚨 [여기부터 삽입] 빈 티커 역추적 및 FMP 에러 원천 차단 방어막
+            # =========================================================
+            if not official_symbol or str(official_symbol).strip() == "":
+                # 티커가 없으면 우선 기업 이름으로 CIK 강제 획득 시도
+                cik = get_fallback_cik(official_symbol, name, FMP_API_KEY)
+                if cik:
+                    print(f"🔍 [역추적 시도] CIK {cik} 번호로 Ticker 검색 중...")
+                    found_ticker = get_ticker_from_cik(cik)
+                    if found_ticker:
+                        print(f"✅ [역추적 성공] 숨겨진 Ticker 발견: {found_ticker}")
+                        official_symbol = found_ticker
+                        cik_mapping[official_symbol] = cik # 매핑 업데이트
+
+            # 역추적을 거치고도 티커가 아예 없다면, 크래시 방지를 위해 이번 종목은 스킵
+            if not official_symbol or str(official_symbol).strip() == "":
+                print(f"⚠️ [FMP API 스킵] Ticker가 아직 존재하지 않아 수치 데이터를 건너뜁니다.")
+                continue
+            # =========================================================
+            # 🚨 [여기까지 삽입]
             
             # Tab 0 & Tab 1 (기본 + 프리미엄)
             run_tab1_analysis(official_symbol, name, c_status, c_date)
