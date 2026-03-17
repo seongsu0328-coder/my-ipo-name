@@ -4887,12 +4887,7 @@ with main_area.container():
         </div>
         <div style="color:#aaa; font-size:11px;">{news_date}</div>
     </div>
-    <a href="{news_link}" target="_blank" style="text-decoration:none; display:block; transition: opacity 0.2s;">
-        <div style="color:#222; font-weight:700; font-size:15px; line-height:1.4;">
-            {safe_en}
-        </div>
-        {sub_title_html}
-    </a>
+    <a href="{news_link}" target="_blank" style="text-decoration:none; display:block; transition: opacity 0.2s;"><div style="color:#222; font-weight:700; font-size:15px; line-height:1.4;">{safe_en}</div>{sub_title_html}</a>
 </div>
 """
                     news_html += "</div>"
