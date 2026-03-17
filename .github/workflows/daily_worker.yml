@@ -29,8 +29,8 @@ jobs:
 
       - name: 필수 라이브러리 설치
         run: |
-          # 💡 [수정] yfinance를 제거했습니다!
-          pip install streamlit requests pandas numpy supabase google-generativeai
+          # 💡 [수정] yfinance 제거 및 신규 Gemini SDK(google-genai) 적용!
+          pip install streamlit requests pandas numpy supabase google-genai
 
       - name: 데이터 수집기(Worker) 실행
         env:
