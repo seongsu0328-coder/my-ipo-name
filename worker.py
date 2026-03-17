@@ -3693,19 +3693,9 @@ def main():
                     print("-" * 30)
                     break # 재시도 루프 탈출
         
-        # 💡 [필수 쿨타임] 성공이든 실패든 하나의 기업이 끝나면 2초간 쉬어주어 디도스(Rate Limit)를 원천 예방합니다.
+        # 💡 [필수 쿨타임] 성공이든 실패든 하나의 기업이 끝나면 2초간 쉬어주어 디도스를 원천 예방합니다.
         time.sleep(2)
         # =========================================================
-            
-        except Exception as e:
-            # 🚨 바로 여기입니다! 기존의 "분석 건너뜀" 코드를 지우고 아래 내용을 넣으세요.
-            import traceback 
-            print(f"\n🚨 [{original_symbol}] 분석 중 치명적 오류 발생!")
-            print(f"사유: {e}")
-            print("-" * 30)
-            traceback.print_exc() # 에러가 발생한 정확한 파일 위치와 줄 번호를 출력합니다.
-            print("-" * 30)
-            continue
 
     run_premium_alert_engine(df)
     
