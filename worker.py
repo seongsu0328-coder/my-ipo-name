@@ -2137,8 +2137,10 @@ def fetch_premium_financials(symbol, api_key):
         dcf_url = f"https://financialmodelingprep.com/stable/discounted-cash-flow?symbol={symbol}&apikey={api_key}"
         dcf_res = safe_fmp_get(dcf_url, "DCF")
         if isinstance(dcf_res, list) and len(dcf_res) > 0:
-            fin_data['dcf_price'] = f"${dcf_res[0].get('dcf', 0.0):.2f}"
-            fin_data['current_price'] = f"${dcf_res[0].get('Stock Price', 0.0):.2f}"
+            dcf_val = dcf_res[0].get('dcf')
+            stock_price = dcf_res[0].get('Stock Price')
+            fin_data['dcf_price'] = f"${dcf_val:.2f}" if dcf_val is not None else "N/A"
+            fin_data['current_price'] = f"${stock_price:.2f}" if stock_price is not None else "N/A"
 
         # 5. 퀀트 Rating
         r_url = f"https://financialmodelingprep.com/stable/rating?symbol={symbol}&apikey={api_key}"
