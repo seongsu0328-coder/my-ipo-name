@@ -80,7 +80,7 @@ try:
     supabase = init_supabase()
 
     # --- [AI 라이브러리] ---
-    import google.generativeai as genai
+    from google import genai
     from google.generativeai import protos  
     # 💡 [핵심] from openai import OpenAI <- 이 부분이 영구 삭제되었습니다!
 
