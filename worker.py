@@ -1379,6 +1379,12 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 
                 if start_idx != -1 and end_idx != -1:
                     json_str = full_text[start_idx:end_idx+1]
+                    
+                    # 💡 [JSON 파싱 에러 완벽 방어] 
+                    # JSON 표준이 아닌 이스케이프 문자(예: \$, \% 등)의 백슬래시를 강제로 지워버립니다.
+                    import re
+                    json_str = re.sub(r'\\([^"\\/bfnrtu])', r'\1', json_str)
+                    
                     parsed = json.loads(json_str, strict=False)
                     
                     biz_text = parsed.get("biz_summary", "")
