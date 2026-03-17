@@ -384,7 +384,7 @@ def run_premium_alert_engine(df_calendar):
             tab4_key = f"{ticker}_Tab4_ko"
             res_tab4 = supabase.table("analysis_cache").select("content").eq("cache_key", tab4_key).execute()
             if res_tab4.data:
-                import json
+                
                 tab4_data = json.loads(res_tab4.data[0]['content'])
                 rating_val = str(tab4_data.get('rating', '')).upper()
                 score_val = str(tab4_data.get('score', '0')).strip()
@@ -952,7 +952,7 @@ def run_tab0_premium_collection(ticker, company_name):
     """Tab 0의 프리미엄 데이터(어닝 콜)를 수집하고 요약하여 캐싱합니다. (Raw Tracker 적용)"""
     if 'model_strict' not in globals() or not model_strict: return
     try:
-        import json
+        
         try:
             list_url = f"https://financialmodelingprep.com/stable/earnings-transcript-list?symbol={ticker}&apikey={FMP_API_KEY}"
             list_res = requests.get(list_url, timeout=5).json()
@@ -1082,7 +1082,7 @@ def run_tab2_premium_collection(ticker, company_name):
         if not isinstance(esg_raw, list) or len(esg_raw) == 0:
             return
 
-        import json
+        
         current_raw_str = json.dumps(esg_raw[0], sort_keys=True)
         tracker_key = f"{ticker}_PremiumESG_RawTracker"
         is_changed = True
@@ -1727,7 +1727,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         is_pr_valid = isinstance(pr_raw, list) and len(pr_raw) > 0
 
         if is_pr_valid: 
-            import json
+            
             current_pr_str = json.dumps(pr_raw, sort_keys=True)
             tracker_key_pr = f"{ticker}_PressRelease_RawTracker"
             is_changed_pr = True
@@ -2214,7 +2214,7 @@ def run_tab4_ma_premium_collection(ticker, company_name):
         if not isinstance(ma_raw, list) or len(ma_raw) == 0:
             return
 
-        import json
+        
         current_raw_str = json.dumps(ma_raw[:10], sort_keys=True)
         tracker_key = f"{ticker}_PremiumMA_RawTracker"
         is_changed = True
@@ -2310,7 +2310,7 @@ def get_tab4_premium_prompt(lang, type_name, ticker, raw_data):
 def run_tab4_premium_collection(ticker, company_name):
     """Tab 4: 투자의견 히스토리 및 경쟁사 분석 (매일 감시하되 변경점 없으면 AI 스킵)"""
     if 'model_strict' not in globals() or not model_strict: return
-    import json
+    
     
     try:
         # --- [1] 투자의견 변화(Upgrades & Downgrades) 처리 ---
@@ -2393,7 +2393,7 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return False
     
     # 💡 [과금 방어막 1] 워커가 수집해 온 15대 재무 지표 원본 문자열화
-    import json
+    
     current_metrics_str = json.dumps(metrics, sort_keys=True)
     tracker_key = f"{ticker}_Tab3_Financial_RawTracker"
     is_changed = True
@@ -2745,7 +2745,7 @@ def run_tab3_premium_collection(ticker, company_name):
     """Tab 3: 어닝서프라이즈 및 실적전망치 (매일 감시하되 변경점 없으면 AI 스킵)"""
     if 'model_strict' not in globals() or not model_strict: return
     try:
-        import json
+        
         
         # --- [1] 어닝서프라이즈 처리 ---
         surp_url = f"https://financialmodelingprep.com/stable/earnings-surprises?symbol={ticker}&apikey={FMP_API_KEY}"
@@ -2894,7 +2894,7 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         is_rev_valid = (isinstance(rev_raw, list) and len(rev_raw) > 0) or (isinstance(rev_raw, dict) and len(rev_raw) > 0 and "Error Message" not in rev_raw)
         if not is_rev_valid: return
 
-        import json
+        
         current_raw_str = json.dumps(rev_raw[0] if isinstance(rev_raw, list) else rev_raw, sort_keys=True)
         tracker_key = f"{ticker}_PremiumRevenueSeg_RawTracker"
         is_changed = True
@@ -3121,7 +3121,7 @@ def fetch_smart_money_data(symbol, api_key):
 def run_tab6_analysis(ticker, company_name, smart_money_data):
     """Tab 6: 스마트머니 4대 지표 통합 감시 AI 리포트 생성 (Raw Tracker 적용)"""
     if 'model_strict' not in globals() or not model_strict: return False
-    import json
+    
     
     # 💡 [과금 방어막 1] 현재 수집된 4종 데이터를 문자열로 변환
     current_raw_str = json.dumps(smart_money_data, sort_keys=True)
