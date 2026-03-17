@@ -3607,76 +3607,95 @@ def main():
             if official_symbol in cik_mapping:
                 cik_mapping[original_symbol] = cik_mapping[official_symbol]
         
-        print(f"[{idx+1}/{total}] {original_symbol} 분석 중...", flush=True)
+        # =========================================================
+        # 🚨 [신규 적용] 3회 재시도(Retry) 및 10초 대기 방어 로직
+        # =========================================================
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                print(f"\n[{idx+1}/{total}] {original_symbol} 분석 중... (시도 {attempt+1}/{max_retries})", flush=True)
+                
+                c_status = row.get('status', 'Active')
+                c_date = row.get('date', None)
+                
+                if not official_symbol or str(official_symbol).strip() == "":
+                    # 티커가 없으면 우선 기업 이름으로 CIK 강제 획득 시도
+                    cik = get_fallback_cik(official_symbol, name, FMP_API_KEY)
+                    if cik:
+                        print(f"🔍 [역추적 시도] CIK {cik} 번호로 Ticker 검색 중...")
+                        found_ticker = get_ticker_from_cik(cik)
+                        if found_ticker:
+                            print(f"✅ [역추적 성공] 숨겨진 Ticker 발견: {found_ticker}")
+                            official_symbol = found_ticker
+                            cik_mapping[official_symbol] = cik # 매핑 업데이트
+
+                # 역추적을 거치고도 티커가 아예 없다면, 크래시 방지를 위해 이번 종목은 스킵
+                if not official_symbol or str(official_symbol).strip() == "":
+                    print(f"⚠️ [FMP API 스킵] Ticker가 아직 존재하지 않아 수치 데이터를 건너뜁니다.")
+                    break # 재시도 할 필요 없이 이 종목은 완전 스킵
+                
+                # Tab 0 & Tab 1 (기본 + 프리미엄)
+                run_tab1_analysis(official_symbol, name, c_status, c_date)
+                run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping)
+                run_tab0_premium_collection(official_symbol, name)
+                run_tab2_premium_collection(official_symbol, name) 
+                
+                # Tab 4: 목표가 수집 및 투자의견/M&A
+                try:
+                    analyst_metrics = fetch_analyst_estimates(official_symbol, FMP_API_KEY)
+                    run_tab4_analysis(official_symbol, name, c_status, c_date, analyst_metrics)
+                    run_tab4_ma_premium_collection(official_symbol, name) 
+                    run_tab4_premium_collection(official_symbol, name) 
+                except Exception as e:
+                    print(f"Tab4 Analyst Data Error for {official_symbol}: {e}")
+                
+                # Tab 3: 11지표 통합 수집 및 재무 분석
+                try:
+                    unified_metrics = fetch_premium_financials(official_symbol, FMP_API_KEY)
+                    batch_upsert("analysis_cache", [{
+                        "cache_key": f"{official_symbol}_Raw_Financials",
+                        "content": json.dumps(unified_metrics, ensure_ascii=False),
+                        "updated_at": datetime.now().isoformat()
+                    }], on_conflict="cache_key")
+                    
+                    run_tab3_analysis(official_symbol, name, unified_metrics)
+                    run_tab3_premium_collection(official_symbol, name)
+                    run_tab3_revenue_premium_collection(official_symbol, name) 
+                except Exception as e:
+                    print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
+
+                # Tab 6: 스마트머니 수집 및 분석
+                try:
+                    smart_money_data = fetch_smart_money_data(official_symbol, FMP_API_KEY)
+                    run_tab6_analysis(official_symbol, name, smart_money_data)
+                except Exception as e:
+                    print(f"Tab6 Smart Money Error for {official_symbol}: {e}")
+                
+                # 💡 모든 탭 분석이 정상적으로 끝났다면 재시도 루프(attempt)를 안전하게 탈출합니다.
+                break 
+                
+            except Exception as e:
+                error_msg = str(e)
+                # 💡 503 과부하, Canceled, 429 한도 초과 등 API 통신 에러 감지 시
+                if any(err in error_msg for err in ["503", "UNAVAILABLE", "Canceled", "429", "quota"]):
+                    if attempt < max_retries - 1:
+                        print(f"⚠️ [{original_symbol}] 통신 지연 감지: {error_msg}. 10초 대기 후 재시도합니다...")
+                        time.sleep(10)
+                    else:
+                        print(f"🚨 [{original_symbol}] 3회 재시도 실패. 트래픽 과부하가 심하여 다음 기업으로 넘어갑니다.")
+                else:
+                    # 통신 에러가 아닌 코드/파싱 에러라면 재시도 없이 원인 출력 후 스킵
+                    import traceback 
+                    print(f"\n🚨 [{original_symbol}] 분석 중 내부 오류 발생! (재시도 안함)")
+                    print(f"사유: {e}")
+                    print("-" * 30)
+                    traceback.print_exc()
+                    print("-" * 30)
+                    break # 재시도 루프 탈출
         
-        try:
-            c_status = row.get('status', 'Active')
-            c_date = row.get('date', None)
-            
-            # =========================================================
-            # 🚨 [여기부터 삽입] 빈 티커 역추적 및 FMP 에러 원천 차단 방어막
-            # =========================================================
-            if not official_symbol or str(official_symbol).strip() == "":
-                # 티커가 없으면 우선 기업 이름으로 CIK 강제 획득 시도
-                cik = get_fallback_cik(official_symbol, name, FMP_API_KEY)
-                if cik:
-                    print(f"🔍 [역추적 시도] CIK {cik} 번호로 Ticker 검색 중...")
-                    found_ticker = get_ticker_from_cik(cik)
-                    if found_ticker:
-                        print(f"✅ [역추적 성공] 숨겨진 Ticker 발견: {found_ticker}")
-                        official_symbol = found_ticker
-                        cik_mapping[official_symbol] = cik # 매핑 업데이트
-
-            # 역추적을 거치고도 티커가 아예 없다면, 크래시 방지를 위해 이번 종목은 스킵
-            if not official_symbol or str(official_symbol).strip() == "":
-                print(f"⚠️ [FMP API 스킵] Ticker가 아직 존재하지 않아 수치 데이터를 건너뜁니다.")
-                continue
-            # =========================================================
-            # 🚨 [여기까지 삽입]
-            
-            # Tab 0 & Tab 1 (기본 + 프리미엄)
-            run_tab1_analysis(official_symbol, name, c_status, c_date)
-            run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping)
-            run_tab0_premium_collection(official_symbol, name)
-            run_tab2_premium_collection(official_symbol, name) 
-            
-            # Tab 4: 목표가 수집 및 투자의견/M&A
-            try:
-                analyst_metrics = fetch_analyst_estimates(official_symbol, FMP_API_KEY)
-                run_tab4_analysis(official_symbol, name, c_status, c_date, analyst_metrics)
-                run_tab4_ma_premium_collection(official_symbol, name) 
-                run_tab4_premium_collection(official_symbol, name) # 👈 💡 딱 이 한 줄만 추가!
-            except Exception as e:
-                print(f"Tab4 Analyst Data Error for {official_symbol}: {e}")
-                pass
-            
-            # Tab 3: 11지표 통합 수집 및 재무 분석
-            try:
-                unified_metrics = fetch_premium_financials(official_symbol, FMP_API_KEY)
-                
-                batch_upsert("analysis_cache", [{
-                    "cache_key": f"{official_symbol}_Raw_Financials",
-                    "content": json.dumps(unified_metrics, ensure_ascii=False),
-                    "updated_at": datetime.now().isoformat()
-                }], on_conflict="cache_key")
-                
-                run_tab3_analysis(official_symbol, name, unified_metrics)
-                run_tab3_premium_collection(official_symbol, name)
-                run_tab3_revenue_premium_collection(official_symbol, name) 
-                
-            except Exception as e:
-                print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
-                pass
-
-            # Tab 6: 스마트머니 수집 및 분석
-            try:
-                smart_money_data = fetch_smart_money_data(official_symbol, FMP_API_KEY)
-                run_tab6_analysis(official_symbol, name, smart_money_data)
-            except Exception as e:
-                print(f"Tab6 Smart Money Error for {official_symbol}: {e}")
-                pass
-            
-            time.sleep(1.2)
+        # 💡 [필수 쿨타임] 성공이든 실패든 하나의 기업이 끝나면 2초간 쉬어주어 디도스(Rate Limit)를 원천 예방합니다.
+        time.sleep(2)
+        # =========================================================
             
         except Exception as e:
             # 🚨 바로 여기입니다! 기존의 "분석 건너뜀" 코드를 지우고 아래 내용을 넣으세요.
