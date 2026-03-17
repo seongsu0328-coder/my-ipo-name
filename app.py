@@ -200,10 +200,6 @@ def load_price_data():
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
-# --- [AI 라이브러리] ---
-import google.generativeai as genai
-from google.generativeai import protos  
-
 # ==========================================
 # [설정] 전역 변수
 # ==========================================
@@ -613,24 +609,29 @@ def db_log_user_action(user_id, ticker, action_type, price=0.0, details=""):
         return False
 
 # ---------------------------------------------------------
-# [0] AI 설정: Gemini 모델 초기화 (도구 자동 장착)
+# [0] AI 설정: Gemini 모델 초기화 (신규 SDK 적용 완벽판)
 # ---------------------------------------------------------
 @st.cache_resource
 def configure_genai():
     genai_key = os.environ.get("GENAI_API_KEY") or st.secrets.get("GENAI_API_KEY")
     if genai_key:
-        genai.configure(api_key=genai_key)
-        
         try:
-            # [수정] worker.py와 동일한 구글 검색 도구 설정 적용
-            return genai.GenerativeModel(
-                model_name='gemini-2.0-flash', 
-                tools=[{'google_search_retrieval': {}}] 
-            )
+            from google import genai
+            client = genai.Client(api_key=genai_key)
+            
+            # app.py 번역 전용 래퍼 클래스 생성
+            class AppModelWrapper:
+                def __init__(self, client):
+                    self.client = client
+                def generate_content(self, prompt):
+                    return self.client.models.generate_content(
+                        model='gemini-2.0-flash',
+                        contents=prompt
+                    )
+            return AppModelWrapper(client)
         except Exception as e:
-            # 설정 오류 시 검색 없이 기본 모델 반환
-            print(f"Tool Config Error: {e}")
-            return genai.GenerativeModel(model_name='gemini-2.0-flash')
+            print(f"GenAI Init Error: {e}")
+            return None
             
     return None
 
