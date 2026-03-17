@@ -81,7 +81,6 @@ try:
 
     # --- [AI 라이브러리] ---
     from google import genai
-    from google.generativeai import protos  
     # 💡 [핵심] from openai import OpenAI <- 이 부분이 영구 삭제되었습니다!
 
 # [중요] 코드 맨 마지막에 아래 내용을 붙입니다.
