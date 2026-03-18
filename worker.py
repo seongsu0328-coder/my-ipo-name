@@ -51,27 +51,43 @@ except Exception as e:
     exit()
 
 # 3. AI 모델 설정 (하이브리드 전략: 엄격 모델 & 검색 허용 모델 분리)
+import random # 💡 랜덤 대기 시간을 위한 모듈
+
 model_strict = None
 model_search = None
 if GENAI_API_KEY:
     try:
-        # 🚨 [수정] 신규 SDK에 맞춰 Client 객체 생성
+        # 🚨 신규 SDK에 맞춰 Client 객체 생성
         client = genai.Client(api_key=GENAI_API_KEY)
         
-        # [1] 환각 원천 차단용 일반 모델 (도구 없음)
-        # 💡 model_strict 자체를 객체 대신 래퍼 클래스로 만들어 기존 코드 호환성 유지
+        # [1] 환각 원천 차단용 일반 모델 (도구 없음) - 💡 과부하 방어막(Backoff) 탑재!
         class StrictModelWrapper:
             def __init__(self, client):
                 self.client = client
             def generate_content(self, prompt):
-                return self.client.models.generate_content(
-                    model='gemini-2.0-flash',
-                    contents=prompt
-                )
+                max_retries = 4  # 최대 4번까지 재시도
+                for attempt in range(max_retries):
+                    try:
+                        return self.client.models.generate_content(
+                            model='gemini-2.0-flash',
+                            contents=prompt
+                        )
+                    except Exception as e:
+                        err_msg = str(e).lower()
+                        # 429(속도제한), 503(서버다운), quota(할당량) 에러 감지 시
+                        if "429" in err_msg or "quota" in err_msg or "503" in err_msg:
+                            if attempt < max_retries - 1:
+                                # 💡 5초 -> 10초 -> 20초로 쉬는 시간을 점점 늘립니다.
+                                sleep_time = (2 ** attempt) * 5 + random.uniform(1, 3)
+                                print(f"⚠️ [구글 API 과부하] {sleep_time:.1f}초 대기 후 재시도... (시도 {attempt+1})")
+                                time.sleep(sleep_time)
+                                continue
+                        # 다른 에러거나 재시도 실패 시 에러 뱉기
+                        raise e
         
         model_strict = StrictModelWrapper(client)
         
-        # 🚨 [2] 하이브리드 엔진 - 구글 구버전 SDK의 치명적 버그를 완벽히 우회하는 REST API 클래스 (기존 유지)
+        # [2] 하이브리드 엔진 (REST API) - 💡 과부하 방어막(Backoff) 탑재!
         class DirectGeminiSearch:
             def __init__(self, api_key):
                 self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
@@ -81,34 +97,49 @@ if GENAI_API_KEY:
                     "contents":[{"parts": [{"text": prompt}]}],
                     "tools": [{"googleSearch": {}}] 
                 }
-                res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
                 
                 class MockResponse:
                     def __init__(self, text): self.text = text
-                
-                if res.status_code == 200:
+
+                max_retries = 4
+                for attempt in range(max_retries):
                     try:
-                        # 💡 [수정됨] 검색 결과 메타데이터가 포함되어도 안전하게 텍스트만 긁어오도록 로직 강화
-                        data = res.json()
-                        text_output = ""
-                        for cand in data.get("candidates",[]):
-                            for part in cand.get("content", {}).get("parts",[]):
-                                if "text" in part:
-                                    text_output += part["text"]
-                        return MockResponse(text_output)
+                        res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
+                        
+                        if res.status_code == 200:
+                            data = res.json()
+                            text_output = ""
+                            for cand in data.get("candidates",[]):
+                                for part in cand.get("content", {}).get("parts",[]):
+                                    if "text" in part:
+                                        text_output += part["text"]
+                            return MockResponse(text_output)
+                            
+                        # 💡 구글 서버가 429 에러(속도 제한)를 뱉었을 때
+                        elif res.status_code == 429 or "quota" in res.text.lower():
+                            if attempt < max_retries - 1:
+                                sleep_time = (2 ** attempt) * 5 + random.uniform(1, 3)
+                                print(f"⚠️ [구글 Search API 과부하] {sleep_time:.1f}초 대기 후 재시도... (시도 {attempt+1})")
+                                time.sleep(sleep_time)
+                                continue
+                            else:
+                                return MockResponse("")
+                        else:
+                            print(f"⚠️ [Google Search API Error] {res.text}")
+                            return MockResponse("")
+                            
                     except Exception as e:
-                        print(f"⚠️ [Search API Parse Error] {e}")
+                        if attempt < max_retries - 1:
+                            time.sleep(5)
+                            continue
                         return MockResponse("")
-                else:
-                    print(f"⚠️ [Google Search API Error] {res.text}")
-                    return MockResponse("")
 
         model_search = DirectGeminiSearch(GENAI_API_KEY)
-        print("✅ AI 하이브리드 모델 로드 성공 (REST API 우회 엔진 가동!)")
+        print("✅ AI 하이브리드 모델 로드 성공 (REST API 우회 엔진 & 과부하 방어막 가동!)")
 
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
-
+        
 # 💡 [중요] 다국어 지원 언어 리스트 정의
 SUPPORTED_LANGS = {
     'ko': '전문적인 한국어(Korean)',
