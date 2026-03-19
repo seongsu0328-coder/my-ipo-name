@@ -281,15 +281,15 @@ def db_load_user(user_id):
         print(f"DB Load Error: {e}")
         return None
 
-# 2. 회원가입 정보 저장 (구글 시트 대체)
+# 2. 회원가입 정보 저장 (구글 시트 대체) - 디버깅 버전
 def db_signup_user(user_data):
     try:
-        # DB 컬럼명과 user_data 키값이 일치해야 함
-        # 💡 [핵심 수정]: insert를 upsert로 변경하여 기존 회원의 '추가 인증' 업데이트도 자연스럽게 덮어쓰도록 처리
         supabase.table("users").upsert(user_data).execute()
         return True
     except Exception as e:
-        print(f"Signup DB Error: {e}")
+        import streamlit as st
+        # 🚨 화면에 Supabase가 뱉은 진짜 에러 원인을 그대로 노출합니다!
+        st.error(f"🚨 [DB 저장 에러 상세 원인]: {e}")
         return False
 
 # 3. 유저 정보 업데이트 (승인/반려/설정변경 등)
@@ -3469,6 +3469,9 @@ if st.session_state.page == 'login':
                                 "role": role, "status": status,
                                 "display_name": f"{role} | {td['id'][:3]}***"
                             }
+                            
+                            # 🚨 [디버깅 추가] 화면에 전송 직전의 데이터를 띄워줍니다! (에러 원인 파악 후 삭제)
+                            st.info(f"🔎 전송되는 데이터: {final_data}")
                             
                             if db_signup_user(final_data):
                                 st.success("인증 정보가 성공적으로 제출되었습니다!" if st.session_state.lang == 'ko' else "Successfully submitted!")
