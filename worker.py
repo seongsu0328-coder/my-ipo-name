@@ -75,9 +75,7 @@ if GENAI_API_KEY:
                     except Exception as e:
                         err_str = str(e).lower()
                         # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료 (스팸 방지)
-                        if "billing details" in err_str:
-                            print(f"🚨 [치명적 오류] 구글 API 일일 할당량 또는 결제 한도가 소진되었습니다. 무의미한 호출을 막기 위해 워커를 즉시 종료합니다.")
-                            sys.exit(1)
+                       
                             
                         # 단순 속도 제한일 경우 30초 대기 후 딱 1번만 재시도
                         if "429" in err_str or "quota" in err_str:
@@ -113,9 +111,7 @@ if GENAI_API_KEY:
                         elif res.status_code == 429:
                             err_str = res.text.lower()
                             # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료
-                            if "billing details" in err_str:
-                                print(f"🚨 [치명적 오류] 구글 API 일일 할당량 또는 결제 한도가 소진되었습니다. 무의미한 호출을 막기 위해 워커를 즉시 종료합니다.")
-                                sys.exit(1)
+                            
                                 
                             if attempt == 0:
                                 time.sleep(30)
