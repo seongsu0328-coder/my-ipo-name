@@ -3120,33 +3120,49 @@ if st.session_state.page == 'login':
             st.write("<br>", unsafe_allow_html=True)
             
             # [2] 버튼 섹션
-            # 버튼 1: 로그인 (다국어 적용)
+            # 버튼 1: 로그인 (다국어 적용 + Supabase Auth 연동)
             if st.button(get_text('btn_login'), use_container_width=True, type="primary"):
                 if not l_id or not l_pw:
                     st.error("아이디와 비밀번호를 입력해주세요." if st.session_state.lang == 'ko' else "Please enter your ID and password.")
                 else:
                     with st.spinner("로그인 중..." if st.session_state.lang == 'ko' else "Logging in..."):
-                        user = db_load_user(l_id)
-                        
-                        if user and str(user.get('pw')) == str(l_pw):
-                            st.session_state.auth_status = 'user'
-                            st.session_state.user_info = user
+                        try:
+                            # 1. 기존 유저 호환성: ID를 통해 DB에서 Email을 먼저 찾습니다.
+                            user_check = supabase.table("users").select("*").eq("id", l_id).execute()
                             
-                            saved_watchlist, saved_preds = db_sync_watchlist(l_id)
-                            st.session_state.watchlist = saved_watchlist
-                            st.session_state.watchlist_predictions = saved_preds
-                            
-                            raw_status = user.get('status', 'pending')
-                            user_status = str(raw_status).strip().lower()
-                            
-                            if user_status == 'approved':
-                                st.session_state.page = 'calendar'
-                            else:
-                                st.session_state.page = 'setup'
+                            if user_check.data:
+                                user_data = user_check.data[0]
+                                login_email = user_data.get('email', l_id) # 이메일 추출
                                 
-                            st.rerun()
-                        else:
-                            st.error("아이디 또는 비밀번호가 틀립니다." if st.session_state.lang == 'ko' else "Invalid ID or password.")
+                                # 2. 💡[핵심] Supabase Auth의 안전한 로그인 호출
+                                auth_res = supabase.auth.sign_in_with_password({
+                                    "email": login_email,
+                                    "password": l_pw
+                                })
+                                
+                                # 3. 로그인이 성공하면 세션 발급
+                                if auth_res.session:
+                                    st.session_state.auth_status = 'user'
+                                    st.session_state.user_info = user_data
+                                    
+                                    saved_watchlist, saved_preds = db_sync_watchlist(l_id)
+                                    st.session_state.watchlist = saved_watchlist
+                                    st.session_state.watchlist_predictions = saved_preds
+                                    
+                                    user_status = str(user_data.get('status', 'pending')).strip().lower()
+                                    
+                                    if user_status == 'approved':
+                                        st.session_state.page = 'calendar'
+                                    else:
+                                        st.session_state.page = 'setup'
+                                        
+                                    st.rerun()
+                            else:
+                                st.error("존재하지 않는 아이디입니다." if st.session_state.lang == 'ko' else "ID does not exist.")
+                        
+                        except Exception as e:
+                            # 💡 Supabase Auth가 비밀번호 틀림 등을 감지하면 이곳으로 빠집니다.
+                            st.error("비밀번호가 일치하지 않거나 오류가 발생했습니다." if st.session_state.lang == 'ko' else "Invalid password or login error.")
             
             # 버튼 2: 회원가입 (다국어 적용)
             if st.button(get_text('btn_signup'), use_container_width=True):
@@ -3410,7 +3426,7 @@ if st.session_state.page == 'login':
                 
                 st.write("---")
                 
-                # --- 4. 제출 로직 ---
+                # --- 4. 제출 로직 (Supabase Auth 적용) ---
                 if st.button("제출 및 저장하기" if st.session_state.lang == 'ko' else "Submit & Save", type="primary", use_container_width=True):
                     td = st.session_state.get('temp_user_data')
                     if not td:
@@ -3419,6 +3435,15 @@ if st.session_state.page == 'login':
 
                     with st.spinner("정보를 안전하게 저장 중입니다..." if st.session_state.lang == 'ko' else "Saving securely..."):
                         try:
+                            # 💡 1. [핵심] Supabase Auth에 안전하게 계정 생성 (비밀번호 암호화 저장)
+                            auth_res = supabase.auth.sign_up({
+                                "email": td['email'],
+                                "password": td['pw']
+                            })
+                            
+                            # 💡 2. 인증 고유 ID(UUID) 확보
+                            secure_auth_id = auth_res.user.id if auth_res and auth_res.user else None
+
                             old_l_u = existing_user.get('link_univ', '미제출')
                             old_l_j = existing_user.get('link_job', '미제출')
                             old_l_a = existing_user.get('link_asset', '미제출')
@@ -3431,16 +3456,15 @@ if st.session_state.page == 'login':
                             role = "user" if has_cert else "restricted"
                             status = "pending" if has_cert else "pending"
                             
+                            # 💡 3. 기존 users 테이블에 프로필 저장 (보안 ID 추가 매핑)
                             final_data = {
                                 **td, 
+                                "auth_id": secure_auth_id, # Supabase Auth 고유 ID 저장
                                 "univ": u_val, "job": j_val, "asset": a_val,
                                 "link_univ": l_u, "link_job": l_j, "link_asset": l_a,
-                                "inv_exp": val_exp,
-                                "inv_style": val_style,
-                                "inv_risk": val_risk,
-                                "inv_sector": ",".join(val_sector),
-                                "noti_method": val_noti,  # 🔥 여기에 딱 한 줄 추가!
-                                "country_code": st.session_state.lang.upper(),  # 🔥 [신규 추가] 가입 당시 언어(국적) 저장 (KO, EN, JA, ZH)
+                                "inv_exp": val_exp, "inv_style": val_style, "inv_risk": val_risk,
+                                "inv_sector": ",".join(val_sector), "noti_method": val_noti,
+                                "country_code": st.session_state.lang.upper(),
                                 "role": role, "status": status,
                                 "display_name": f"{role} | {td['id'][:3]}***"
                             }
@@ -3458,7 +3482,13 @@ if st.session_state.page == 'login':
                                 st.error("❌ 저장에 실패했습니다." if st.session_state.lang == 'ko' else "❌ Failed to save.")
                         
                         except Exception as e:
-                            st.error(f"🚨 오류 발생: {e}")
+                            err_msg = str(e).lower()
+                            if "already registered" in err_msg or "user already exists" in err_msg:
+                                st.error("🚨 이미 가입된 이메일입니다." if st.session_state.lang == 'ko' else "🚨 Email already registered.")
+                            elif "password" in err_msg:
+                                st.error("🚨 비밀번호는 6자리 이상이어야 합니다." if st.session_state.lang == 'ko' else "🚨 Password must be at least 6 characters.")
+                            else:
+                                st.error(f"🚨 오류 발생: {e}")
 
 # ---------------------------------------------------------
 # [NEW] 가입 직후 설정 페이지 (Setup) - 멤버 리스트 & 관리자 기능 통합
@@ -3618,9 +3648,11 @@ elif st.session_state.page == 'setup':
                     else:
                         st.error("Error saving settings.")
 
-        # [C] 로그아웃 버튼
+        # 💡 네비게이션, 설정 페이지 등에서 로그아웃을 처리하는 부분에 추가!
         with col_logout:
             if st.button(get_text('menu_logout'), use_container_width=True):
+                try: supabase.auth.sign_out() # 💡 Supabase 서버에서도 세션 끊기!
+                except: pass
                 st.session_state.clear()
                 st.rerun()
 
