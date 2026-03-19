@@ -3,6 +3,7 @@ import time
 import json
 import re
 import requests
+import copy
 import pandas as pd
 import numpy as np
 import logging
@@ -1251,7 +1252,7 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 {raw_data}"""
 
 # ==========================================
-# [완벽 복구] Tab 1: 뉴스 및 비즈니스 (상태별 프롬프트 복구 & Raw Tracker 탑재)
+# [완벽 복구] Tab 1: 뉴스 및 비즈니스 (상태별 프롬프트 복구 & 영구 동면 방지 탑재)
 # ==========================================
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return
@@ -1293,7 +1294,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     can_search = is_fmp_poor and (model_search is not None)
     current_model = model_search if can_search else model_strict
 
-    # 💡 [과금 방어막] 비즈니스 정보와 뉴스 데이터를 합쳐서 추적
+    # 💡 [과금 방어막 1] 비즈니스 정보와 뉴스 데이터를 합쳐서 추적
     current_raw_data = {"biz": biz_desc, "news": fmp_news_context}
     current_raw_str = json.dumps(current_raw_data, sort_keys=True)
     tracker_key = f"{ticker}_Tab1_Main_RawTracker"
@@ -1305,8 +1306,21 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             is_changed = False 
     except: pass
 
-    if is_changed:
-        print(f"🔔 [{ticker}] Tab 1 비즈니스/뉴스 업데이트 감지! AI 요약 시작...")
+    # 💡 [영구 동면 방어 로직] FMP 데이터가 부실해서 구글 검색을 해야 하는 종목은
+    # Tracker가 일치하더라도 캐시(valid_hours)가 만료되었다면 강제로 검색을 돌려야 합니다!
+    force_search_run = False
+    if not is_changed and is_fmp_poor:
+        try:
+            # 한국어 캐시 만료 여부만 하나 테스트하여 강제 실행 여부 결정
+            test_key = f"{ticker}_Tab1_v5_ko"
+            res_exp = supabase.table("analysis_cache").select("updated_at").eq("cache_key", test_key).gt("updated_at", limit_time_str).execute()
+            if not res_exp.data:
+                force_search_run = True # 캐시 만료됨! 구글 검색 강제 실행!
+        except: pass
+
+    if is_changed or force_search_run:
+        reason = "데이터 변경" if is_changed else "정기 구글 검색"
+        print(f"🔔 [{ticker}] Tab 1 업데이트 감지 ({reason})! AI 요약 시작...")
         
         for lang_code, target_lang in SUPPORTED_LANGS.items():
             cache_key = f"{ticker}_Tab1_v5_{lang_code}"
@@ -1554,7 +1568,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     print(f"❌ [{ticker}] 분석 중 오류: {e}")
                     time.sleep(1)
         
-        # 💡 요약 완료 후 Main Tracker 갱신
+        # 💡 요약 완료 후 Main Tracker 갱신 (강제 실행이었더라도 최신 상태 기록)
         batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
     else:
         print(f"⏩ [{ticker}] Tab 1 뉴스/비즈니스 변경점 없음. AI 요약 스킵!")
@@ -2253,41 +2267,54 @@ def run_tab4_premium_collection(ticker, company_name):
         print(f"Tab4 Premium Collection Error for {ticker}: {e}")
     
 # ==========================================
-# [수정/완전판] Tab 3: 미시 지표 (Raw Tracker 이식 완료)
+# [수정/완전판] Tab 3: 미시 지표 (오염 방지 격리 & 무한 루프 차단)
 # ==========================================
-def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
+def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return False
     
-    # 💡 [과금 방어막 1] 워커가 수집해 온 15대 재무 지표 원본 문자열화
-    
-    current_metrics_str = json.dumps(metrics, sort_keys=True)
+    # 💡 [핵심 방어막 1] FMP가 준 '순수한 빈 껍데기 원본'을 절대 오염되지 않게 문자열로 박제!
+    pristine_metrics_str = json.dumps(raw_metrics, sort_keys=True)
     tracker_key = f"{ticker}_Tab3_Financial_RawTracker"
     is_changed = True
     
     try:
-        # 💡 [과금 방어막 2] 기존 DB의 재무 지표 원본과 비교
+        # Tracker는 오직 '순수 원본'끼리만 비교합니다. (AI가 채운 값과 비교하지 않음)
         res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
-        if res_tracker.data and current_metrics_str == res_tracker.data[0]['content']:
-            is_changed = False # 토씨 하나 안 틀리고 똑같으면 스킵!
+        if res_tracker.data and pristine_metrics_str == res_tracker.data[0]['content']:
+            is_changed = False # 순수 원본이 똑같으면 스킵!
     except: pass
 
-    if not is_changed:
-        # print(f"⏩ [{ticker}] Tab 3 재무 데이터 변경 없음. AI 요약 스킵!")
-        return True # 데이터가 안 변했으면 함수 즉시 종료 (AI 호출 0번)
-        
-    print(f"🔔 [{ticker}] Tab 3 재무 데이터 변경 감지! AI 요약 시작...")
-    
-    is_fmp_fin_poor = (str(metrics.get('growth', 'N/A')) in['N/A', '', 'None'])
+    # 💡 [핵심 방어막 2] AI가 맘껏 주무르고 수정할 수 있도록 복사본(Enriched) 생성!
+    # 앞으로의 모든 연산은 원본(raw_metrics)이 아닌 복사본(enriched_metrics)으로만 진행합니다.
+    enriched_metrics = copy.deepcopy(raw_metrics)
+
+    is_fmp_fin_poor = (str(enriched_metrics.get('growth', 'N/A')) in ['N/A', '', 'None'])
     can_fin_search = is_fmp_fin_poor and (model_search is not None)
     current_tab3_model = model_search if can_fin_search else model_strict
     
+    # 💡 [영구 동면 방어 로직] 
+    force_search_run = False
+    if not is_changed and can_fin_search:
+        try:
+            limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # 7일
+            test_key = f"{ticker}_Tab3_Summary_ko"
+            res_exp = supabase.table("analysis_cache").select("updated_at").eq("cache_key", test_key).gt("updated_at", limit_time_str).execute()
+            if not res_exp.data:
+                force_search_run = True # 1주일 지났으니 새로운 실적 떴는지 강제 검색!
+        except: pass
+
+    if not is_changed and not force_search_run:
+        return True # 변경점도 없고, 1주일도 안 지났으면 조용히 스킵 (무한 루프 원천 차단)
+        
+    reason = "데이터 변경" if is_changed else "정기 재무 검색(7일)"
+    print(f"🔔 [{ticker}] Tab 3 업데이트 감지 ({reason})! AI 요약 시작...")
+    
     curr_yr = datetime.now().year
     past_3_years = f"{curr_yr-2} {curr_yr-1} {curr_yr}"
-    
     rich_raw_data_str = "N/A"
     
     # =====================================================================
-    # 🚀 [업그레이드] 15대 기초 재무 데이터 수집 및 고급 지표(P/E, Accruals) 연산
+    # 🚀 15대 기초 재무 데이터 수집 및 고급 연산 (대표님 로직 100% 보존)
     # =====================================================================
     if can_fin_search:
         print(f"🔍 [{ticker}] 재무 데이터 누락 감지. 15대 기초 재무 데이터 딥서치 시도...")
@@ -2335,60 +2362,59 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
                 
                 updated = False
                 
-                # [연산 1] 매출 성장률 (Sales Growth)
+                # 🚨 복사본(enriched_metrics)에만 데이터를 채워 넣습니다! 원본은 절대 건드리지 않음!
                 if rev is not None and p_rev is not None and p_rev > 0:
-                    metrics["growth"] = f"{((rev - p_rev) / p_rev) * 100:.1f}%"
+                    enriched_metrics["growth"] = f"{((rev - p_rev) / p_rev) * 100:.1f}%"
                     updated = True
                 
-                #[연산 2] 순이익률 (Net Margin)
                 if rev is not None and net is not None:
                     if rev > 0:
-                        metrics["net_margin"] = f"{(net / rev) * 100:.1f}%"
+                        enriched_metrics["net_margin"] = f"{(net / rev) * 100:.1f}%"
                         updated = True
                     elif rev == 0:
-                        metrics["net_margin"] = "Pre-revenue"
+                        enriched_metrics["net_margin"] = "Pre-revenue"
                         updated = True
                         
-                # [연산 3] 부채비율 (Debt to Equity)
                 if debt is not None and equity is not None and equity > 0:
-                    metrics["debt_equity"] = f"{(debt / equity) * 100:.1f}%"
+                    enriched_metrics["debt_equity"] = f"{(debt / equity) * 100:.1f}%"
                     updated = True
 
-                # 💡 [추가 연산 4] 발생액 품질 (Accruals Quality)
                 if net is not None and ocf is not None:
-                    metrics["accruals"] = "Low" if (net - ocf) <= 0 else "High"
+                    enriched_metrics["accruals"] = "Low" if (net - ocf) <= 0 else "High"
                     updated = True
 
-                # 💡[추가 연산 5] P/E (Price to Earnings)
                 try:
-                    curr_p = float(str(metrics.get('current_price', '0')).replace('$', '').replace(',', ''))
+                    curr_p = float(str(enriched_metrics.get('current_price', '0')).replace('$', '').replace(',', ''))
                     if curr_p > 0 and eps is not None and eps > 0:
-                        metrics["pe"] = f"{curr_p / eps:.1f}x"
+                        enriched_metrics["pe"] = f"{curr_p / eps:.1f}x"
                         updated = True
                 except: pass
                 
-                # 수집된 데이터를 문자열로 압축하여 최종 리포트 작성 시 제공
-                rich_raw_data_str = ", ".join([f"{k}: {v}" for k, v in raw_data.items() if v not in[None, "N/A", ""]])
-                metrics["raw_deep_data"] = rich_raw_data_str
+                rich_raw_data_str = ", ".join([f"{k}: {v}" for k, v in raw_data.items() if v not in [None, "N/A", ""]])
+                enriched_metrics["raw_deep_data"] = rich_raw_data_str
                 
                 if updated:
+                    # 화면에 보여주기 위해 꽉 채워진 데이터를 Raw_Financials 키에 저장합니다. 
+                    # 하지만 이 데이터는 Tracker와 격리되어 있으므로 무한 루프를 일으키지 않습니다.
                     batch_upsert("analysis_cache",[{
                         "cache_key": f"{ticker}_Raw_Financials",
-                        "content": json.dumps(metrics, ensure_ascii=False),
+                        "content": json.dumps(enriched_metrics, ensure_ascii=False),
                         "updated_at": datetime.now().isoformat()
                     }], on_conflict="cache_key")
                     print(f"✅ [{ticker}] 15대 데이터 수집 및 확장 지표(Accruals, P/E) 연산 완료!")
         except Exception as e:
             print(f"⚠️ [{ticker}] 기초 데이터 수집/연산 실패: {e}")
 
-    if rich_raw_data_str == "N/A" and "raw_deep_data" in metrics:
-        rich_raw_data_str = metrics["raw_deep_data"]
+    if rich_raw_data_str == "N/A" and "raw_deep_data" in enriched_metrics:
+        rich_raw_data_str = enriched_metrics["raw_deep_data"]
 
-    # 컨텍스트 조립
-    g1_context = f"[Business Growth & Profitability] Sales Growth: {metrics.get('growth', 'N/A')}, Net Margin: {metrics.get('net_margin', 'N/A')}, Piotroski Score: {metrics.get('health_score', 'N/A')}/9"
-    g2_context = f"[Financial Health & Quality] Debt to Equity: {metrics.get('debt_equity', 'N/A')}, Accruals Quality: {metrics.get('accruals', 'Unknown')}"
-    g3_context = f"[Market Valuation] Forward P/E: {metrics.get('pe', 'N/A')}, DCF Target Price: {metrics.get('dcf_price', 'N/A')}, Current Price: {metrics.get('current_price', 'N/A')}"
+    # 컨텍스트 조립도 오염된 복사본(enriched_metrics)을 사용합니다.
+    g1_context = f"[Business Growth & Profitability] Sales Growth: {enriched_metrics.get('growth', 'N/A')}, Net Margin: {enriched_metrics.get('net_margin', 'N/A')}, Piotroski Score: {enriched_metrics.get('health_score', 'N/A')}/9"
+    g2_context = f"[Financial Health & Quality] Debt to Equity: {enriched_metrics.get('debt_equity', 'N/A')}, Accruals Quality: {enriched_metrics.get('accruals', 'Unknown')}"
+    g3_context = f"[Market Valuation] Forward P/E: {enriched_metrics.get('pe', 'N/A')}, DCF Target Price: {enriched_metrics.get('dcf_price', 'N/A')}, Current Price: {enriched_metrics.get('current_price', 'N/A')}"
     g4_context = f"[Deep Raw Financials] {rich_raw_data_str}"
+
+    limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
 
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
@@ -2399,9 +2425,6 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
             if res.data: continue 
         except: pass
 
-        # =====================================================================
-        # 💡 [요청 반영] N/A 스팩 처리 안내문 + 월가 밸류에이션 방어 논리 + |||SEP||| 텍스트 분할 방식 적용
-        # =====================================================================
         if lang_code == 'ko':
             na_handling_rule = "🚨 [N/A 방어 규칙]: 만약 P/E나 DCF 등 밸류에이션 지표가 N/A이거나 수익이 0(Pre-revenue)이라면 '평가할 수 없다'거나 '정보가 부족하다'는 변명을 절대 쓰지 마세요. 대신 \"현재 초기 단계(또는 신규 상장)로 전통적인 현금흐름 기반의 밸류에이션 적용은 제한적이며, 시장은 해당 기업의 미래 파이프라인, 비전, 그리고 잠재 시장 규모(TAM)에 프리미엄을 부여하며 가치를 평가하고 있습니다\"라는 논리로 매우 전문성 있게 서술하세요."
             search_directive = f"\n🚨[강제 검색] FMP 데이터 부족. 구글 검색으로 '{company_name} {ticker} {past_3_years} 실적 발표'를 찾아 보완하세요." if can_fin_search else ""
@@ -2416,7 +2439,6 @@ def run_tab3_analysis(ticker, company_name, metrics, ipo_date_str=None):
    [포맷]: (성장성 및 수익성 진단 4~5문장) |||SEP||| (재무 건전성 및 이익 질 진단 4~5문장) |||SEP||| (시장 가치 평가 4~5문장)
 3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요. 모든 문장은 '~습니다/합니다' 체를 사용하세요.
 """
-            
             full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 '표준 정통 재무 분석 리포트'를 작성하세요.\n[비율 데이터]: {g1_context}, {g2_context}, {g3_context}\n[핵심 원시 데이터]: {g4_context}\n🚨 {na_handling_rule}\n{search_directive}"
             full_i = """
             [작성 규칙 - 절대 엄수]
@@ -2498,16 +2520,10 @@ Data: {g1_context} | {g2_context} | {g3_context}
 5. 副标题后直接写4-5句话。
 6. 绝对不要抱怨数据缺失。"""
 
-        # ----------------------------------------------------
-        # [Call 1] 3D 카드 요약 생성 (JSON 파싱 완전 폐기 및 직통 저장)
-        # ----------------------------------------------------
         try:
             res_sum = current_tab3_model.generate_content(sum_p)
             if res_sum and res_sum.text:
-                # AI가 이미 'A |||SEP||| B |||SEP||| C' 포맷으로 주므로, 
-                # 불필요한 줄바꿈만 지우고 DB에 곧바로 꽂아 넣습니다.
                 clean_sum = res_sum.text.strip().replace('\n', ' ')
-                
                 batch_upsert("analysis_cache", [{
                     "cache_key": cache_key_sum, 
                     "content": clean_sum, 
@@ -2517,20 +2533,14 @@ Data: {g1_context} | {g2_context} | {g3_context}
         except Exception as e:
             print(f"❌ [{ticker}] Tab 3 카드 요약 에러 ({lang_code}): {e}")
 
-        # ----------------------------------------------------
-        # [Call 2] 하단 전문 리포트 생성 (정규식 필터링 및 HTML 렌더링)
-        # ----------------------------------------------------
         try:
             res_full = current_tab3_model.generate_content(full_p + full_i)
             if res_full and res_full.text:
                 clean_full = res_full.text.strip()
-                
-                # 서론, 인사말, 이모지, 마크다운 굵은글씨 등 완벽 필터링
                 clean_full = re.sub(r'^(알겠습니다|네,|작성하겠습니다|요청하신|보고서입니다|Understood).*?(\n|$)', '', clean_full, flags=re.IGNORECASE | re.MULTILINE).strip()
                 clean_full = re.sub(r'(?i)(🎓|📊|📈|💡|🚀|CFA Quant Deep-Dive Analysis|CFA Quant|기업 분석 보고서|재무 분석 보고서)', '', clean_full).strip()
-                clean_full = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_full) # 굵은글씨 파괴
+                clean_full = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_full) 
                 
-                # 🚨 [추가 방어막] p.lstrip('-*• ') 를 통해 단락 맨 앞의 하이픈이나 기호를 강제로 뜯어냅니다.
                 paragraphs = [p.lstrip('-*• ').strip() for p in clean_full.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 
@@ -2541,8 +2551,9 @@ Data: {g1_context} | {g2_context} | {g3_context}
         except Exception as e:
             print(f"❌ [{ticker}] Tab 3 전문 리포트 에러 ({lang_code}): {e}")
 
-    # 💡 [과금 방어막 3] 요약 완료 후 트래커 갱신 (for 루프 바깥쪽, 함수 맨 마지막)
-    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+    # 💡 [핵심 방어막 3] Tracker에는 AI가 주무른 복사본(enriched)이 아닌, 
+    # 함수 시작 시 박제해 둔 '순수 FMP 원본 문자열'만 저장합니다!! (무한 루프 종결)
+    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": pristine_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
     return True
             
 # ==========================================
