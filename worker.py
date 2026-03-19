@@ -51,64 +51,83 @@ except Exception as e:
     exit()
 
 # 3. AI 모델 설정 (하이브리드 전략: 엄격 모델 & 검색 허용 모델 분리)
+import sys
+import random
+
 model_strict = None
 model_search = None
 if GENAI_API_KEY:
     try:
-        # 🚨 [수정] 신규 SDK에 맞춰 Client 객체 생성
         client = genai.Client(api_key=GENAI_API_KEY)
         
-        # [1] 환각 원천 차단용 일반 모델 (도구 없음)
+        # [1] 환각 원천 차단용 일반 모델
         class StrictModelWrapper:
             def __init__(self, client):
                 self.client = client
             def generate_content(self, prompt):
-                # 💡 내부는 얇게! (재시도 없이 1번만 실행하고, 에러나면 바깥으로 던짐)
-                return self.client.models.generate_content(
-                    model='gemini-2.0-flash',
-                    contents=prompt
-                )
-        
+                for attempt in range(2): # 최대 2번만 시도
+                    try:
+                        return self.client.models.generate_content(
+                            model='gemini-2.0-flash',
+                            contents=prompt
+                        )
+                    except Exception as e:
+                        err_str = str(e).lower()
+                        # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료 (스팸 방지)
+                        if "billing details" in err_str:
+                            print(f"🚨 [치명적 오류] 구글 API 일일 할당량 또는 결제 한도가 소진되었습니다. 무의미한 호출을 막기 위해 워커를 즉시 종료합니다.")
+                            sys.exit(1)
+                            
+                        # 단순 속도 제한일 경우 30초 대기 후 딱 1번만 재시도
+                        if "429" in err_str or "quota" in err_str:
+                            if attempt == 0:
+                                time.sleep(30)
+                                continue
+                        raise e
+
         model_strict = StrictModelWrapper(client)
         
-        # 🚨 [2] 하이브리드 엔진 (REST API) - 구글 검색 도구 전용
+        # [2] 하이브리드 엔진 (REST API)
         class DirectGeminiSearch:
             def __init__(self, api_key):
                 self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
                 
             def generate_content(self, prompt):
-                payload = {
-                    "contents":[{"parts": [{"text": prompt}]}],
-                    "tools": [{"googleSearch": {}}] 
-                }
-                
+                payload = { "contents":[{"parts": [{"text": prompt}]}], "tools": [{"googleSearch": {}}] }
                 class MockResponse:
                     def __init__(self, text): self.text = text
                 
-                # 💡 내부는 얇게! (재시도 루프 제거, 1번만 실행)
-                res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
-                
-                if res.status_code == 200:
+                for attempt in range(2):
                     try:
-                        data = res.json()
-                        text_output = ""
-                        for cand in data.get("candidates",[]):
-                            for part in cand.get("content", {}).get("parts",[]):
-                                if "text" in part:
-                                    text_output += part["text"]
-                        return MockResponse(text_output)
+                        res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
+                        
+                        if res.status_code == 200:
+                            data = res.json()
+                            text_output = ""
+                            for cand in data.get("candidates",[]):
+                                for part in cand.get("content", {}).get("parts",[]):
+                                    if "text" in part: text_output += part["text"]
+                            return MockResponse(text_output)
+                            
+                        elif res.status_code == 429:
+                            err_str = res.text.lower()
+                            # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료
+                            if "billing details" in err_str:
+                                print(f"🚨 [치명적 오류] 구글 API 일일 할당량 또는 결제 한도가 소진되었습니다. 무의미한 호출을 막기 위해 워커를 즉시 종료합니다.")
+                                sys.exit(1)
+                                
+                            if attempt == 0:
+                                time.sleep(30)
+                                continue
+                            raise Exception(f"429 Limit: {res.text}")
+                        else:
+                            return MockResponse("")
                     except Exception as e:
-                        print(f"⚠️ [Search API Parse Error] {e}")
-                        return MockResponse("")
-                else:
-                    # 💡 429(속도제한) 에러가 나면 숨기지 않고 바깥으로 에러를 발생시킴(raise)
-                    if res.status_code == 429 or "quota" in res.text.lower():
-                        raise Exception(f"429 Quota Exceeded: {res.text}")
-                    print(f"⚠️ [Google Search API Error] {res.text}")
-                    return MockResponse("")
+                        if "exit" in str(type(e)).lower(): sys.exit(1)
+                        raise e
 
         model_search = DirectGeminiSearch(GENAI_API_KEY)
-        print("✅ AI 하이브리드 모델 로드 성공 (내부 루프 제거, 초고속 세팅 완료!)")
+        print("✅ AI 하이브리드 모델 로드 성공 (결제 한도 초과 시 셧다운 방어막 가동!)")
 
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
