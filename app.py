@@ -3338,7 +3338,8 @@ if st.session_state.page == 'login':
                 st.markdown(f"<p style='{title_style}'>{get_text('signup_title_step3')}</p>", unsafe_allow_html=True)
                 st.info(get_text('msg_submit_guide'))
                 
-                existing_user = st.session_state.get('user_info', {})
+                # 💡 [해결] None 값이 들어있더라도 안전하게 빈 딕셔너리({})로 변환하도록 'or {}'를 사용합니다!
+                existing_user = st.session_state.get('user_info') or {}
                 
                 # --- 1. 선택형 카테고리 옵션 정의 (DB에 저장되는 고정 키값) ---
                 univ_options = ["선택 안 함", "고졸 이하", "대학(학사) - 상경/경제계열", "대학(학사) - 이공/기술계열", "대학(학사) - 인문/사회/기타", "석박사 이상 - 상경/경제계열", "석박사 이상 - 이공/기술계열", "석박사 이상 - 인문/사회/기타"]
