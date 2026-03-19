@@ -2263,7 +2263,7 @@ def run_tab4_premium_collection(ticker, company_name):
         print(f"Tab4 Premium Collection Error for {ticker}: {e}")
     
 # ==========================================
-# [수정/완전판] Tab 3: 미시 지표 (오염 방지 격리 & 무한 루프 차단)
+# [수정/완전판] Tab 3: 미시 지표 (오염 방지 격리 & 무한 루프 + 비용 누수 완벽 차단)
 # ==========================================
 def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return False
@@ -2280,13 +2280,11 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
             is_changed = False # 순수 원본이 똑같으면 스킵!
     except: pass
 
-    # 💡 [핵심 방어막 2] AI가 맘껏 주무르고 수정할 수 있도록 복사본(Enriched) 생성!
-    # 앞으로의 모든 연산은 원본(raw_metrics)이 아닌 복사본(enriched_metrics)으로만 진행합니다.
+    # 💡[핵심 방어막 2] AI가 맘껏 주무르고 수정할 수 있도록 복사본(Enriched) 생성!
     enriched_metrics = copy.deepcopy(raw_metrics)
 
     is_fmp_fin_poor = (str(enriched_metrics.get('growth', 'N/A')) in ['N/A', '', 'None'])
     can_fin_search = is_fmp_fin_poor and (model_search is not None)
-    current_tab3_model = model_search if can_fin_search else model_strict
     
     # 💡 [영구 동면 방어 로직] 
     force_search_run = False
@@ -2310,7 +2308,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     rich_raw_data_str = "N/A"
     
     # =====================================================================
-    # 🚀 15대 기초 재무 데이터 수집 및 고급 연산 (대표님 로직 100% 보존)
+    # 🚀 15대 기초 재무 데이터 수집 (이때만 비싼 model_search를 1번 씁니다!)
     # =====================================================================
     if can_fin_search:
         print(f"🔍 [{ticker}] 재무 데이터 누락 감지. 15대 기초 재무 데이터 딥서치 시도...")
@@ -2338,7 +2336,8 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
         }}
         """
         try:
-            rec_res = current_tab3_model.generate_content(recovery_prompt)
+            # 💡 여기서는 model_search를 써서 구글을 뒤집니다.
+            rec_res = model_search.generate_content(recovery_prompt)
             if rec_res and rec_res.text:
                 text = rec_res.text
                 json_str = text[text.find('{'):text.rfind('}')+1]
@@ -2391,20 +2390,19 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 
                 if updated:
                     # 화면에 보여주기 위해 꽉 채워진 데이터를 Raw_Financials 키에 저장합니다. 
-                    # 하지만 이 데이터는 Tracker와 격리되어 있으므로 무한 루프를 일으키지 않습니다.
                     batch_upsert("analysis_cache",[{
                         "cache_key": f"{ticker}_Raw_Financials",
                         "content": json.dumps(enriched_metrics, ensure_ascii=False),
                         "updated_at": datetime.now().isoformat()
                     }], on_conflict="cache_key")
-                    print(f"✅ [{ticker}] 15대 데이터 수집 및 확장 지표(Accruals, P/E) 연산 완료!")
+                    print(f"✅[{ticker}] 15대 데이터 수집 및 확장 지표(Accruals, P/E) 연산 완료!")
         except Exception as e:
             print(f"⚠️ [{ticker}] 기초 데이터 수집/연산 실패: {e}")
 
     if rich_raw_data_str == "N/A" and "raw_deep_data" in enriched_metrics:
         rich_raw_data_str = enriched_metrics["raw_deep_data"]
 
-    # 컨텍스트 조립도 오염된 복사본(enriched_metrics)을 사용합니다.
+    # 컨텍스트 조립도 오염된 복사본(enriched_metrics)을 사용합니다. (이 숫자들을 공통으로 씁니다)
     g1_context = f"[Business Growth & Profitability] Sales Growth: {enriched_metrics.get('growth', 'N/A')}, Net Margin: {enriched_metrics.get('net_margin', 'N/A')}, Piotroski Score: {enriched_metrics.get('health_score', 'N/A')}/9"
     g2_context = f"[Financial Health & Quality] Debt to Equity: {enriched_metrics.get('debt_equity', 'N/A')}, Accruals Quality: {enriched_metrics.get('accruals', 'Unknown')}"
     g3_context = f"[Market Valuation] Forward P/E: {enriched_metrics.get('pe', 'N/A')}, DCF Target Price: {enriched_metrics.get('dcf_price', 'N/A')}, Current Price: {enriched_metrics.get('current_price', 'N/A')}"
@@ -2412,6 +2410,9 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
 
     limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
 
+    # =====================================================================
+    # 🚀 4개 국어 리포트 작성 (이때는 무조건 무료인 model_strict만 씁니다!)
+    # =====================================================================
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
         cache_key_full = f"{ticker}_Tab3_v2_Premium_{lang_code}"
@@ -2423,23 +2424,22 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
 
         if lang_code == 'ko':
             na_handling_rule = "🚨 [N/A 방어 규칙]: 만약 P/E나 DCF 등 밸류에이션 지표가 N/A이거나 수익이 0(Pre-revenue)이라면 '평가할 수 없다'거나 '정보가 부족하다'는 변명을 절대 쓰지 마세요. 대신 \"현재 초기 단계(또는 신규 상장)로 전통적인 현금흐름 기반의 밸류에이션 적용은 제한적이며, 시장은 해당 기업의 미래 파이프라인, 비전, 그리고 잠재 시장 규모(TAM)에 프리미엄을 부여하며 가치를 평가하고 있습니다\"라는 논리로 매우 전문성 있게 서술하세요."
-            search_directive = f"\n🚨[강제 검색] FMP 데이터 부족. 구글 검색으로 '{company_name} {ticker} {past_3_years} 실적 발표'를 찾아 보완하세요." if can_fin_search else ""
+            # 💡 아래의 검색 지시어(search_directive)도 일반 모델을 쓸 것이므로 비워버립니다.
+            search_directive = ""
             
             sum_p = f"""당신은 퀀트 애널리스트입니다. {company_name}({ticker})의 지표를 해석하여 대시보드 카드를 작성하세요.
 [데이터]: {g1_context} | {g2_context} | {g3_context}
 🚨 {na_handling_rule}
-{search_directive}
-[카드 작성 규칙 - 절대 엄수]
+{search_directive}[카드 작성 규칙 - 절대 엄수]
 1. 당신의 답변은 웹사이트의 서로 다른 3개의 독립된 카드에 각각 들어갈 텍스트입니다. 절대 JSON이나 마크다운을 쓰지 마세요.
 2. 반드시 아래의 정확한 포맷으로만 출력하세요.
    [포맷]: (성장성 및 수익성 진단 4~5문장) |||SEP||| (재무 건전성 및 이익 질 진단 4~5문장) |||SEP||| (시장 가치 평가 4~5문장)
 3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요. 모든 문장은 '~습니다/합니다' 체를 사용하세요.
 """
             full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 '표준 정통 재무 분석 리포트'를 작성하세요.\n[비율 데이터]: {g1_context}, {g2_context}, {g3_context}\n[핵심 원시 데이터]: {g4_context}\n🚨 {na_handling_rule}\n{search_directive}"
-            full_i = """
-            [작성 규칙 - 절대 엄수]
+            full_i = """[작성 규칙 - 절대 엄수]
             1. 메인 제목이나 이모지를 절대 쓰지 마세요. 첫 글자부터 바로 소제목으로 시작하세요.
-            2. 🚨 구체적 수치 인용 필수: [핵심 원시 데이터]에 제공된 현금흐름, 부채, 순이익 등의 '정확한 수치'를 본문에 적극 인용하여 전문성을 높이세요.
+            2. 🚨 구체적 수치 인용 필수:[핵심 원시 데이터]에 제공된 현금흐름, 부채, 순이익 등의 '정확한 수치'를 본문에 적극 인용하여 전문성을 높이세요.
             3. 🚨 데이터가 허락하는 선에서 매출액, 순이익, ROE, 부채비율 등을 총합 10개 내외로 녹여내세요.
             4. 반드시 아래 3개의 소제목을 괄호만 사용하여 작성하세요:[수익성 및 성장성 분석],[재무 건전성 및 현금흐름],[적정 가치 및 종합 투자의견]. 마크다운 굵은 글씨(**)는 절대 금지.
             5. 🚨 소제목을 쓴 후 바로 다음 줄에 본문을 4~5문장 꽉 채워 작성하세요.
@@ -2449,7 +2449,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
 
         elif lang_code == 'en':
             na_handling_rule = "🚨 [N/A Defense Rule]: If valuation metrics like P/E or DCF are N/A or Pre-revenue, NEVER say 'cannot be evaluated' or 'lack of data'. Instead, professionally defend it by stating: 'As an early-stage/newly listed company, the application of traditional cash-flow-based valuation models is limited. The market is currently pricing the stock based on its future pipeline, strategic vision, and Total Addressable Market (TAM) potential.'"
-            search_directive = f"\n🚨 [FORCE SEARCH] Use Google Search for '{company_name} {ticker} financial results {past_3_years}'." if can_fin_search else ""
+            search_directive = ""
             
             sum_p = f"""As a Quant Analyst, evaluate {company_name}({ticker}). 
 Data: {g1_context} | {g2_context} | {g3_context}
@@ -2472,7 +2472,7 @@ Data: {g1_context} | {g2_context} | {g3_context}
 
         elif lang_code == 'ja':
             na_handling_rule = "🚨 [N/A防御規則]: P/EやDCFなどのバリュエーション指標がN/A、またはPre-revenueの場合、「評価できない」「情報が不足している」という言い訳は絶対に使わないでください。代わりに、「現在は初期段階（または新規上場）であり、伝統的なキャッシュフローに基づくバリュエーションの適用は限定的です。市場は同社の今後のパイプライン、ビジョン、および潜在的市場規模（TAM）にプレミアムを付与して価値を評価しています」という論理で非常に専門的に記述してください。"
-            search_directive = f"\n🚨 [強制検索] Google検索で「{company_name} {ticker} {past_3_years} financial results」を検索してください。" if can_fin_search else ""
+            search_directive = ""
             
             sum_p = f"""あなたはクオンツアナリストです。{company_name}({ticker})を評価してください。
 データ: {g1_context} | {g2_context} | {g3_context}
@@ -2489,19 +2489,18 @@ Data: {g1_context} | {g2_context} | {g3_context}
 1. 🚨 挨拶、導入文、メインタイトルは絶対に禁止です。「以下は～のレポートです」などの文章は一切書かず、最初の文字からすぐに小見出し（例：[収益性と成長性の分析]）で始めてください。
 2. [原データ]から具体的な数値を引用してください。
 3. 主要な数値を10個程度参照してください。
-4. 3つの小見出しを括弧のみで使用してください: [収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見]。太字(**)は禁止です。
+4. 3つの小見出しを括弧のみで使用してください:[収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見]。太字(**)は禁止です。
 5. 小見出しの直後に本文(4〜5文)を開始してください。
 6. 「データがない」という言い訳は禁止です。"""
 
         else: # zh
             na_handling_rule = "🚨 [N/A防御规则]: 如果 P/E 或 DCF 等估值指标为 N/A 或处于 Pre-revenue 阶段，绝对不要写“无法评估”或“缺乏数据”等借口。相反，请以极其专业的口吻解释：“作为一家处于早期（或新上市）的公司，传统基于现金流的估值模型的适用性有限。市场目前主要基于其未来的产品管线、战略愿景以及潜在市场规模 (TAM) 来赋予其估值溢价。”"
-            search_directive = f"\n🚨 [强制搜索] 请使用Google搜索 '{company_name} {ticker} 财务数据 {past_3_years}'。" if can_fin_search else ""
+            search_directive = ""
             
             sum_p = f"""作为量化分析师，请评估 {company_name}({ticker})。
 数据: {g1_context} | {g2_context} | {g3_context}
 🚨 规则：{na_handling_rule}
-{search_directive}
-[严格格式规则]
+{search_directive}[严格格式规则]
 1. 必须输出3段完全独立的纯文本。绝对不要使用JSON或Markdown。
 2. 必须严格按照以下格式输出:
    [格式]: (增长与盈利能力 4-5句话) |||SEP||| (财务健康 4-5句话) |||SEP||| (市场估值 4-5句话)
@@ -2516,11 +2515,16 @@ Data: {g1_context} | {g2_context} | {g3_context}
 5. 副标题后直接写4-5句话。
 6. 绝对不要抱怨数据缺失。"""
 
+        # ----------------------------------------------------
+        # [Call 1] 3D 카드 요약 생성 (JSON 파싱 완전 폐기 및 직통 저장)
+        # ----------------------------------------------------
         try:
-            res_sum = current_tab3_model.generate_content(sum_p)
+            # 💡 [비용 방어막] 여기서부터는 철저하게 비용 0원짜리 model_strict만 씁니다!
+            res_sum = model_strict.generate_content(sum_p)
             if res_sum and res_sum.text:
                 clean_sum = res_sum.text.strip().replace('\n', ' ')
-                batch_upsert("analysis_cache", [{
+                
+                batch_upsert("analysis_cache",[{
                     "cache_key": cache_key_sum, 
                     "content": clean_sum, 
                     "updated_at": datetime.now().isoformat()
@@ -2529,15 +2533,21 @@ Data: {g1_context} | {g2_context} | {g3_context}
         except Exception as e:
             print(f"❌ [{ticker}] Tab 3 카드 요약 에러 ({lang_code}): {e}")
 
+        # ----------------------------------------------------
+        # [Call 2] 하단 전문 리포트 생성 (정규식 필터링 및 HTML 렌더링)
+        # ----------------------------------------------------
         try:
-            res_full = current_tab3_model.generate_content(full_p + full_i)
+            # 💡 [비용 방어막] 여기서도 철저하게 비용 0원짜리 model_strict만 씁니다!
+            res_full = model_strict.generate_content(full_p + full_i)
             if res_full and res_full.text:
                 clean_full = res_full.text.strip()
+                
+                # 서론, 인사말, 이모지, 마크다운 굵은글씨 등 완벽 필터링
                 clean_full = re.sub(r'^(알겠습니다|네,|작성하겠습니다|요청하신|보고서입니다|Understood).*?(\n|$)', '', clean_full, flags=re.IGNORECASE | re.MULTILINE).strip()
                 clean_full = re.sub(r'(?i)(🎓|📊|📈|💡|🚀|CFA Quant Deep-Dive Analysis|CFA Quant|기업 분석 보고서|재무 분석 보고서)', '', clean_full).strip()
-                clean_full = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_full) 
+                clean_full = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_full) # 굵은글씨 파괴
                 
-                paragraphs = [p.lstrip('-*• ').strip() for p in clean_full.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
+                paragraphs =[p.lstrip('-*• ').strip() for p in clean_full.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 
                 html_full = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
@@ -2549,7 +2559,7 @@ Data: {g1_context} | {g2_context} | {g3_context}
 
     # 💡 [핵심 방어막 3] Tracker에는 AI가 주무른 복사본(enriched)이 아닌, 
     # 함수 시작 시 박제해 둔 '순수 FMP 원본 문자열'만 저장합니다!! (무한 루프 종결)
-    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": pristine_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+    batch_upsert("analysis_cache",[{"cache_key": tracker_key, "content": pristine_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
     return True
             
 # ==========================================
