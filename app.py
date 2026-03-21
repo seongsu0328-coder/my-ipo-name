@@ -991,52 +991,93 @@ def get_batch_prices(ticker_list):
     return cached_prices, db_status_map
 
 # =====================================================================
-# 💡 [외주 개발자 지시용] 향후 유료 API(Polygon.io 등) 연동을 위한 예비 공간
+# 💡[수정 완료] Polygon.io 실시간 API 연동 함수
 # =====================================================================
-def fetch_otc_price_for_app(ticker):
+def fetch_realtime_price_polygon(ticker):
     """
-    TODO: 상세 페이지 진입 시 야후 무료 API가 실패할 경우 호출되는 백업 함수입니다.
-    추후 Polygon 연동 전까지는 0.0을 반환합니다. 구조를 절대 삭제하지 마세요.
+    Polygon.io API를 이용해 실시간 체결가(Last Trade)를 가져옵니다.
+    실시간 체결가를 못 가져오면 전일 종가(Previous Close)로 백업을 시도합니다.
     """
-    # --------------------------------------------------
-    # [미래에 대표님이 삽입할 코드 예시]
-    # import requests
-    # POLYGON_KEY = st.secrets.get("POLYGON_API_KEY", "")
-    # url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?adjusted=true&apiKey={POLYGON_KEY}"
-    # try:
-    #     res = requests.get(url, timeout=3).json()
-    #     return float(res['results'][0]['c'])
-    # except:
-    #     return 0.0
-    # --------------------------------------------------
-    return 0.0
+    import requests
+    import os
+    import streamlit as st
 
+    # 1. API 키 로드 (환경변수 또는 secrets)
+    POLYGON_KEY = os.environ.get("POLYGON_API_KEY") or st.secrets.get("POLYGON_API_KEY", "")
+    if not POLYGON_KEY:
+        print("⚠️ Polygon API Key가 없습니다.")
+        return 0.0
+
+    # 2순위: 실시간 체결가 (Last Trade) - 정규장 및 프리/애프터마켓 실시간 반영
+    url_realtime = f"https://api.polygon.io/v2/last/trade/{ticker}?apiKey={POLYGON_KEY}"
+    try:
+        res = requests.get(url_realtime, timeout=3).json()
+        if res.get('status') == 'OK' and 'results' in res:
+            return float(res['results']['p']) # p: 실시간 체결 가격
+    except Exception as e:
+        print(f"Polygon Last Trade 에러 ({ticker}): {e}")
+
+    # 3순위: 실시간 데이터가 없을 경우 (거래 정지, 장 마감 직후 등) 전일 종가 호출
+    url_prev = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?adjusted=true&apiKey={POLYGON_KEY}"
+    try:
+        res = requests.get(url_prev, timeout=3).json()
+        if res.get('status') == 'OK' and 'results' in res and len(res['results']) > 0:
+            return float(res['results'][0]['c']) # c: 종가 (Close Price)
+    except:
+        pass
+
+    return 0.0
 
 def get_current_stock_price(ticker, api_key=None):
     """
-    [디커플링 완료] 외부 API를 절대 직접 호출하지 않고, 
-    오직 Supabase DB(price_cache)에 있는 가격만 읽어옵니다.
+    [상세 페이지용] DB에서 가격을 확인하되, 
+    유저가 클릭하여 상세 페이지에 들어온 순간 Polygon.io로 실시간 가격을 가져와 
+    화면에 띄우고 DB를 최신화합니다.
     """
     try:
+        # 1. 기존 DB 상태 확인
         res = supabase.table("price_cache").select("price, status").eq("ticker", ticker).execute()
         
+        db_price = 0.0
+        db_status = "업데이트 대기중"
+
         if res.data:
             db_data = res.data[0]
             db_status = db_data.get('status', 'Active')
             db_price = float(db_data.get('price', 0.0))
             
+            # 상장 연기나 폐지 상태면 API를 호출하지 않고 종료
             if db_status in ["상장연기", "상장폐지"]: 
                 return db_price, db_status
-            if db_price > 0: 
-                return db_price, "Active"
 
-        # 🚨 [핵심] DB에 없으면 API를 부르지 않고 워커의 작업을 기다립니다.
+        # 2. 💡 [Polygon 연동] 무조건 가장 최신 실시간 가격 가져오기 시도
+        polygon_price = fetch_realtime_price_polygon(ticker)
+        
+        if polygon_price > 0.0:
+            # 실시간 가격 가져오기 성공 시: 즉시 DB(price_cache) 업데이트 (다른 유저들을 위해)
+            try:
+                from datetime import datetime
+                supabase.table("price_cache").upsert({
+                    "ticker": ticker, 
+                    "price": polygon_price, 
+                    "status": "Active",
+                    "updated_at": datetime.now().isoformat()
+                }).execute()
+            except Exception as e: 
+                print(f"DB 가격 갱신 에러: {e}")
+                
+            return polygon_price, "Active"
+
+        # 3. Polygon 통신에 실패했으나 DB에 예전 가격이 남아있는 경우 (백업)
+        if db_price > 0: 
+            return db_price, "Active"
+
+        # 4. 상장 예정이거나 가격 데이터가 아예 없는 경우
         return 0.0, "업데이트 대기중"
             
     except Exception as e:
         print(f"Price DB Read Error: {e}")
         return 0.0, "에러"
-
 
 def get_asset_grade(asset_text):
     if "10억 미만" in str(asset_text): return "Mass Affluent"
