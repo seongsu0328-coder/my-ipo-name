@@ -161,22 +161,28 @@ def fetch_sec_metadata(ticker, doc_type, api_key, cik=None):
         return accession_num, filed_date
     except: return None, None
 
-# (B) 진짜 필요할 때만 본문을 긁어오는 무거운 함수
+# (B) 진짜 필요할 때만 본문을 긁어오는 무거운 함수 (수정본)
 def fetch_sec_full_content(accession_num, ticker, doc_type, api_key, cik=None):
     if not accession_num: return None
     try:
+        # 1. FMP 텍스트 시도
         text_url = f"https://financialmodelingprep.com/stable/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
         txt_res = requests.get(text_url, timeout=7)
         if txt_res.status_code == 200 and txt_res.json():
-            return txt_res.json()[0].get('content', '')
-        if cik: # FMP 실패 시 SEC 직접 스크래핑
+            full_text = txt_res.json()[0].get('content', '')
+            return full_text[:100000] # 💡 [여기 추가] 상위 10만 자만 리턴
+
+        # 2. FMP 실패 시 SEC 직접 스크래핑
+        if cik:
             acc_no_clean = str(accession_num).replace('-', '')
             raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc_no_clean}/{accession_num}.txt"
             raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=10)
             if raw_res.status_code == 200:
                 clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
-                return re.sub(r'\s+', ' ', clean_text)
-    except: pass
+                clean_text = re.sub(r'\s+', ' ', clean_text)
+                return clean_text[:100000] # 💡 [여기 추가] 상위 10만 자만 리턴
+    except:
+        pass
     return None
 
 
@@ -912,12 +918,22 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         print(f"📥 [{ticker}] {topic} 새로운 문서 감지 ({acc_num}). 다운로드 중...")
         f_text = fetch_sec_full_content(acc_num, ticker, topic, FMP_API_KEY, cik)
 
-        if f_text and len(f_text) > 500:
+        if f_text and len(f_text) > 100:
+            # 💡 [핵심 방어막] 토큰 한도 초과 에러 방지를 위해 상위 100,000자만 잘라서 분석에 사용합니다.
+            # 10만 자는 약 2~3만 토큰으로, Gemini 2.0 Flash 한도 내에서 가장 안정적인 분량입니다.
+            truncated_text = f_text[:100000]
+
             for lang_code in SUPPORTED_LANGS.keys():
                 cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
                 current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
                 meta = get_localized_meta(lang_code, topic)
-                prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, get_format_instruction(lang_code), f_text)
+                
+                # 💡 f_text 대신 자른 텍스트(truncated_text)를 전달합니다.
+                prompt = get_localized_instruction(
+                    lang_code, ticker, topic, company_name, meta, 
+                    current_fact_prompt, get_format_instruction(lang_code), 
+                    truncated_text
+                )
                 
                 try:
                     response = model_strict.generate_content(prompt)
@@ -925,9 +941,10 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
                         print(f"✅ [{ticker}] {topic} AI 분석 완료 ({lang_code})")
                 except Exception as e:
-                    print(f"❌ AI 에러: {e}")
+                    # 토큰 에러나 기타 AI 응답 에러 시 로그 출력
+                    print(f"❌ [{ticker}] {topic} AI 에러 ({lang_code}): {e}")
 
-            # 분석 완료 후 트래커 저장
+            # 4개 국어 분석 시도가 모두 끝난 후 트래커 저장 (성공/실패 여부와 상관없이 번호 기록하여 무한 재시도 방지)
             batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": acc_num, "updated_at": datetime.now().isoformat()}], "cache_key")
 
 def get_tab0_ec_premium_prompt(lang, ticker, raw_data):
