@@ -807,21 +807,41 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     else: target_topics = ["S-1", "S-1/A", "F-1", "FWP", "424B4"]
 
     # ---------------------------------------------------------
-    # 🚀 [4] 8-K 분석 섹션 (다국어 프롬프트 100% 보존)
+    # 🚀 [4] 8-K 분석 섹션 (Accession Number 기반 최적화 적용)
     # ---------------------------------------------------------
-    f_date_8k, f_text_8k = fetch_sec_filing_text(ticker, "8-K", FMP_API_KEY, cik)
-    if f_text_8k and len(f_text_8k) > 100:
-        raw_cache_key = f"{ticker}_8K_RawData_v3"
+    # 1. 8-K 메타데이터(번호)만 먼저 가져옴 (트래픽 거의 없음)
+    acc_num_8k, f_date_8k = fetch_sec_metadata(ticker, "8-K", FMP_API_KEY, cik)
+    
+    if acc_num_8k:
+        # 💡 8-K 전용 트래커 키 (고유 번호 기반)
+        tracker_key_8k = f"{ticker}_8K_LastAccNum"
+        is_8k_already_done = False
+        
         try:
-            res_raw = supabase.table("analysis_cache").select("content").eq("cache_key", raw_cache_key).execute()
-            if not res_raw.data or f_text_8k[:500] != res_raw.data[0]['content'][:500]:
-                batch_upsert("analysis_cache", [{"cache_key": raw_cache_key, "content": f_text_8k[:2000], "updated_at": datetime.now().isoformat()}], "cache_key")
-                batch_upsert("premium_alerts", [{"ticker": ticker, "alert_type": "8K_UPDATE", "title": f"{ticker} 8-K 업데이트", "message": "새로운 8-K(중대 이벤트) 공시 본문 분석이 완료되었습니다."}], on_conflict="ticker,alert_type")
+            res_8k = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_8k).execute()
+            if res_8k.data and res_8k.data[0]['content'] == acc_num_8k:
+                is_8k_already_done = True
+        except: pass
+
+        # 새로운 8-K 문서가 확인되었을 때만 무거운 다운로드 및 AI 분석 실행
+        if not is_8k_already_done:
+            print(f"🚨 [{ticker}] 새로운 8-K 감지 ({acc_num_8k}). 다운로드 및 분석 시작...")
+            f_text_8k = fetch_sec_full_content(acc_num_8k, ticker, "8-K", FMP_API_KEY, cik)
+            
+            if f_text_8k and len(f_text_8k) > 100:
+                # 프리미엄 알림 생성
+                batch_upsert("premium_alerts", [{
+                    "ticker": ticker, 
+                    "alert_type": "8K_UPDATE", 
+                    "title": f"{ticker} 8-K 업데이트", 
+                    "message": "새로운 8-K(중대 이벤트) 공시 본문 분석이 완료되었습니다."
+                }], on_conflict="ticker,alert_type")
                 
+                # 4개 국어 분석 및 저장
                 for lang_code in SUPPORTED_LANGS.keys():
                     cache_key_8k = f"{company_name}_8-K_Tab0_v16_{lang_code}"
                     
-                    # 💡 [핵심 수정] 8-K도 다른 서류들과 동일하게 "소제목 형태"를 강제하도록 문구 변경!
+                    # 언어별 메타 설정
                     if lang_code == 'ko':
                         meta_8k = {"p": "Material Events", "s": "1문단: **[핵심 이벤트]** 발생 사유 요약\n2문단: **[재무 파급력]** 영향 분석\n3문단: **[향후 전망]** 투자 포인트"}
                     elif lang_code == 'ja':
@@ -834,13 +854,14 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     prompt_8k = get_localized_instruction(lang_code, ticker, "8-K", company_name, meta_8k, f"[SEC FACT CHECK] Filed on {f_date_8k}", get_format_instruction(lang_code), f_text_8k[:40000])
                     
                     try:
-                        # 💡 [핵심 수정] model -> model_strict 로 이름 변경!
                         resp_8k = model_strict.generate_content(prompt_8k)
                         if resp_8k and resp_8k.text:
                             batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": resp_8k.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
-                            print(f"🚨 [{ticker}] 8-K 본문 분석 캐싱 완료 ({lang_code})")
+                            print(f"✅ [{ticker}] 8-K AI 분석 완료 ({lang_code})")
                     except: pass
-        except: pass
+                
+                # 분석 완료 후 트래커 갱신 (다음 실행 때 스킵)
+                batch_upsert("analysis_cache", [{"cache_key": tracker_key_8k, "content": acc_num_8k, "updated_at": datetime.now().isoformat()}], "cache_key")
 
     # =========================================================
     # 🚀 [5] 통합 서류 루프 (AccessionNumber 기반 최적화 버전)
@@ -848,7 +869,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     for topic in target_topics:
         acc_num, f_date = None, None
         
-        # [Step 1] 메타데이터(문서번호)만 먼저 가져옴 (트래픽 거의 없음)
+        # 1. 메타데이터(문서번호)만 먼저 가져옴
         if topic in ["BS", "IS", "CF", "10-K"]:
             priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
         elif topic == "10-Q":
@@ -862,22 +883,20 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         else:
             priority_targets = [topic]
 
-        # 우선순위 리스트를 순회하며 문서 번호(Accession Number) 탐색
         for target in priority_targets:
             acc_num, f_date = fetch_sec_metadata(ticker, target, FMP_API_KEY, cik)
             if acc_num: break
 
-        # [Step 2] 문서가 아예 없는 경우: 안내 메시지 생성 (Summarization Error 방지)
+        # 서류가 아예 없는 경우 안내 메시지 생성 (Summarization Error 방지)
         if not acc_num:
             for lang_code in SUPPORTED_LANGS.keys():
                 cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
-                # 문서가 없을 때 보여줄 기본 안내 문구를 생성하여 캐시에 저장
                 missing_msg = get_missing_document_message(lang_code, topic)
                 formatted_msg = f"<div style='background-color:#f8f9fa; padding:15px; border-radius:8px; color:#555; font-size:15px; line-height:1.6;'>{missing_msg}</div>"
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
             continue
 
-        # [Step 3] 💡 [핵심] 중복 체크 (DB에 저장된 마지막 문서번호와 대조)
+        # 중복 체크 (Accession Number 기반)
         tracker_key = f"{company_name}_{topic}_LastAccNum"
         is_already_analyzed = False
         try:
@@ -886,20 +905,16 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 is_already_analyzed = True
         except: pass
 
-        # 이미 분석이 완료된 번호라면 본문 다운로드(30MB) 및 AI 호출 전체 스킵
         if is_already_analyzed:
-            # print(f"⏩ [{ticker}] {topic} 변경사항 없음 (문서번호 일치)")
             continue
 
-        # [Step 4] 번호가 다를 때만 비로소 무거운 본문 다운로드 실행
-        print(f"📥 [{ticker}] {topic} 새로운 문서 감지 ({acc_num}). 다운로드 시작...")
+        # 새 문서일 때만 다운로드
+        print(f"📥 [{ticker}] {topic} 새로운 문서 감지 ({acc_num}). 다운로드 중...")
         f_text = fetch_sec_full_content(acc_num, ticker, topic, FMP_API_KEY, cik)
 
-        # [Step 5] 분석 및 4개 국어 저장
-        if f_text and len(f_text) > 100:
+        if f_text and len(f_text) > 500:
             for lang_code in SUPPORTED_LANGS.keys():
                 cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
-                
                 current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
                 meta = get_localized_meta(lang_code, topic)
                 prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, get_format_instruction(lang_code), f_text)
@@ -910,10 +925,9 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
                         print(f"✅ [{ticker}] {topic} AI 분석 완료 ({lang_code})")
                 except Exception as e:
-                    print(f"❌ [{ticker}] {topic} AI 에러: {e}")
-                    time.sleep(1)
+                    print(f"❌ AI 에러: {e}")
 
-            # [Step 6] 4개 국어 분석이 모두 끝난 후, 현재 문서번호를 트래커에 기록
+            # 분석 완료 후 트래커 저장
             batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": acc_num, "updated_at": datetime.now().isoformat()}], "cache_key")
 
 def get_tab0_ec_premium_prompt(lang, ticker, raw_data):
