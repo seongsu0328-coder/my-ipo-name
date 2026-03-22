@@ -995,34 +995,53 @@ def get_batch_prices(ticker_list):
 # =====================================================================
 def fetch_realtime_price_polygon(ticker):
     """
-    Polygon.io API를 이용해 실시간 체결가(Last Trade)를 가져옵니다.
-    실시간 체결가를 못 가져오면 전일 종가(Previous Close)로 백업을 시도합니다.
+    [Starter 플랜 최적화] 
+    15분 지연된 실시간 체결가(Last Trade)를 무제한 호출 방식으로 가져옵니다.
+    15분 이상 지연된 데이터(EOD 등)와는 타협하지 않는 최신 데이터 추출 방식입니다.
     """
     import requests
     import os
     import streamlit as st
 
-    # 1. API 키 로드 (환경변수 또는 secrets)
+    # 1. API 키 로드
     POLYGON_KEY = os.environ.get("POLYGON_API_KEY") or st.secrets.get("POLYGON_API_KEY", "")
     if not POLYGON_KEY:
-        print("⚠️ Polygon API Key가 없습니다.")
         return 0.0
 
-    # 2순위: 실시간 체결가 (Last Trade) - 정규장 및 프리/애프터마켓 실시간 반영
-    url_realtime = f"https://api.polygon.io/v2/last/trade/{ticker}?apiKey={POLYGON_KEY}"
+    # Starter 플랜은 호출 시 자동으로 '정확히 15분 전'의 데이터를 반환합니다.
+    
+    # [1순위] Last Trade API: 가장 최근에 '체결'된 단 하나의 거래 가격 (가장 정확함)
+    url_trade = f"https://api.polygon.io/v2/last/trade/{ticker}?apiKey={POLYGON_KEY}"
+    
     try:
-        res = requests.get(url_realtime, timeout=3).json()
+        res = requests.get(url_trade, timeout=3).json()
         if res.get('status') == 'OK' and 'results' in res:
-            return float(res['results']['p']) # p: 실시간 체결 가격
+            # p: 실제 체결 가격
+            return float(res['results']['p'])
     except Exception as e:
-        print(f"Polygon Last Trade 에러 ({ticker}): {e}")
+        # 거래가 일시적으로 없거나 API 호출 실패 시 다음 단계로 진행
+        pass
 
-    # 3순위: 실시간 데이터가 없을 경우 (거래 정지, 장 마감 직후 등) 전일 종가 호출
+    # [2순위] Snapshot API: 종목의 현재 상태 스냅샷 (15분 지연 시세 포함)
+    # 신규 상장주나 거래가 매우 드문 종목의 경우 Last Trade보다 Snapshot이 더 안정적입니다.
+    url_snapshot = f"https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/{ticker}?apiKey={POLYGON_KEY}"
+    
+    try:
+        res_snap = requests.get(url_snapshot, timeout=3).json()
+        if res_snap.get('status') == 'OK' and 'ticker' in res_snap:
+            # ticker -> lastTrade -> p (가격) 추출
+            price = res_snap['ticker'].get('lastTrade', {}).get('p')
+            if price:
+                return float(price)
+    except:
+        pass
+            
+    # [3순위] 모든 실시간(15분 지연) 데이터가 없을 경우에만 전일 종가 반환 (장 오픈 전 등)
     url_prev = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?adjusted=true&apiKey={POLYGON_KEY}"
     try:
-        res = requests.get(url_prev, timeout=3).json()
-        if res.get('status') == 'OK' and 'results' in res and len(res['results']) > 0:
-            return float(res['results'][0]['c']) # c: 종가 (Close Price)
+        res_prev = requests.get(url_prev, timeout=3).json()
+        if res_prev.get('status') == 'OK' and 'results' in res_prev and len(res_prev['results']) > 0:
+            return float(res_prev['results'][0]['c'])
     except:
         pass
 
