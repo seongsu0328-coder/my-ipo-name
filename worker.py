@@ -1252,7 +1252,7 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 {raw_data}"""
 
 # ==========================================
-# [완벽 복구] Tab 1: 뉴스 및 비즈니스 (상태별 프롬프트 + 정제 로직 통합본)
+# [완벽 복구] Tab 1: 뉴스 및 비즈니스 (프롬프트 보존 + 보편적 정제 원칙 적용)
 # ==========================================
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return
@@ -1271,12 +1271,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             elif days_passed > 90: is_over_3m = True
     except: pass
 
-    # 캐시 유효 시간 결정
-    if is_withdrawn or is_delisted_or_otc or is_over_1y: valid_hours = 24 * 7  
-    elif is_over_3m: valid_hours = 24 * 3  
-    elif "상장예정" in ipo_status or "30일" in ipo_status: valid_hours = 6
-    else: valid_hours = 24
-
+    valid_hours = 24 
     limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
     current_date = now.strftime("%Y-%m-%d")
 
@@ -1288,47 +1283,34 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     news_url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={ticker}&limit=15&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_15", news_url, valid_hours=6)
     
-    valid_news = [n for n in (news_data or []) if n and str(n.get('symbol', '')).upper() == ticker.upper()]
+    # 💡 [뉴스 누락 해결]: 티커가 여러 개 묶여 오는 경우(A,B,C)에도 매칭되도록 개선
+    valid_news = [
+        n for n in (news_data or []) 
+        if n and ticker.upper() in [s.strip().upper() for s in str(n.get('symbol', '')).split(',')]
+    ]
     fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in valid_news])
 
-    is_fmp_poor = (len(biz_desc) < 50) or (len(valid_news) < 5)
-    can_search = is_fmp_poor and (model_search is not None)
-    current_model = model_search if can_search else model_strict
+    is_fmp_poor = (len(biz_desc) < 50) or (len(valid_news) < 3)
+    current_model = model_search if (is_fmp_poor and model_search) else model_strict
 
-    # 과금 방어막 트래커
+    # 과금 방어 트래커
     current_raw_data = {"biz": biz_desc, "news": fmp_news_context}
     current_raw_str = json.dumps(current_raw_data, sort_keys=True)
     tracker_key = f"{ticker}_Tab1_Main_RawTracker"
+    
     is_changed = True
-
     try:
         res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
         if res_tracker.data and current_raw_str == res_tracker.data[0]['content']:
             is_changed = False 
     except: pass
 
-    # 영구 동면 방어 로직
-    force_search_run = False
-    if not is_changed and is_fmp_poor:
-        try:
-            test_key = f"{ticker}_Tab1_v5_ko"
-            res_exp = supabase.table("analysis_cache").select("updated_at").eq("cache_key", test_key).gt("updated_at", limit_time_str).execute()
-            if not res_exp.data: force_search_run = True
-        except: pass
-
-    if is_changed or force_search_run:
-        reason = "데이터 변경" if is_changed else "정기 구글 검색"
-        print(f"🔔 [{ticker}] Tab 1 분석 중 ({reason})...")
-        
-        for lang_code, target_lang in SUPPORTED_LANGS.items():
+    if is_changed:
+        print(f"🔔 [{ticker}] Tab 1 데이터 변경 감지! 분석 시작...")
+        for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{ticker}_Tab1_v5_{lang_code}"
             
-            try:
-                res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
-                if res.data: continue 
-            except: pass
-
-            # 💡 [프롬프트 복구] 언어별 & 상장 상태별 정밀 프롬프트 분기
+            # 💡 [프롬프트 복구] 요청하신 상세 지침 그대로 적용
             if lang_code == 'ko':
                 sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
                 lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하십시오."
@@ -1394,10 +1376,10 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 
                 if is_withdrawn:
                     task1_label = "[타스크 1: 상장 철회 심층 진단]"
-                    task1_structure = "- 第1段落: [撤回の背景] 上場撤回の理由説明。\n- 第2段落: [財務的打撃] 流動性など財務への影響。\n- 第3段落: [生存戦略] 今後の代替案と戦略。"
+                    task1_structure = "- 第1段落: [撤回の背景] 上場撤回の理由説明。\n- 第2段落: [財務적打擊] 流動性など財務への影響。\n- 第3段落: [生存戦略] 今後の代替案と戦略。"
                 elif is_delisted_or_otc:
                     task1_label = "[타스크 1: OTC/上場廃止リスク診断]"
-                    task1_structure = "- 第1段落: [上場廃止の背景] 上場廃止の理由説明。\n- 第2段落: [投資リスク] リ스크 진단。\n- 第3段落: [長期展望] 장기 전망 서술。"
+                    task1_structure = "- 第1段落: [上場廃止の背景] 上場廃止の理由説明。\n- 第2段落: [投資리스크] 리스크 진단。\n- 第3段落: [長期展望] 장기 전망 서술。"
                 elif is_over_1y:
                     task1_label = "[타스크 1: 상장 1년 차 펀더멘털 점검]"
                     task1_structure = "- 第1段落: [目標達成度] 사업 목표 달성 수준。\n- 第2段落: [収益性評価] 이익 창출력 분석。\n- 第3段落: [資本効率] 자본 배치 효율성。"
@@ -1406,7 +1388,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     task1_structure = "- 第1段落: [中核ビジネスモデル] 구체적 수치를 동반한 비즈니스 모델 설명。\n- 第2段落: [市場シェアと競合優위성] 명확한 경쟁사명 명시한 비교 분석。\n- 第3段落: [成長戦略と将来の展望] 핵심 신사업 확장 계획 및 트렌드。"
 
                 if is_fmp_poor:
-                    task1_structure += "\n[ハルシネーション防止]: 🚨 절대 숫자를 임의로 지어내지 마세요. 확인 불가능한 수치는 '비공개' 혹은 '확인 불가'로 처리하세요."
+                    task1_structure += "\n[ハル시네이션防止]: 🚨 절대 숫자를 임의로 지어내지 마세요. 확인 불가능한 수치는 '비공개' 혹은 '확인 불가'로 처리하세요."
                     search_directive = f"🚨 [強制検索]: FMP 데이터가 부족합니다. 즉시 구글 검색을 통해 '{company_name} {ticker} business model' 및 '{company_name} latest news'를 찾아주세요."
                 else:
                     search_directive = "🚨 [厳格な規則] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오."
@@ -1418,7 +1400,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
             else: # zh
                 sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。"
-                lang_instruction = "必须只用自然流畅的简体中文编写。"
+                lang_instruction = "必须只用自然流畅의 简体中文编写。"
                 format_instruction = "必须严格分为 3 个自然段。（每个段落包含 4-5 句话）"
                 
                 if is_withdrawn:
@@ -1440,11 +1422,12 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 else:
                     search_directive = "🚨 [严格规则] 只能使用下面提供的 [Part 1] 文本数据进行编写。"
 
-                prohibition_rule = '🚨 【绝对禁止】 严禁出现“好的”、“明白了”或“这是分析报告”等客套话！从第一个字开始直接进入正文。禁止使用标题或编号。'
+                prohibition_rule = '🚨 【绝对禁止】 严격禁止出现“好的”、“明白了”或“这是分析报告”等客套话！从第一个字开始直接进入正文。禁止使用标题或编号。'
                 task2_label = "[任务2: 收集最新新闻并专业翻译]"
-                news_instruction = '- 根据 [Part 2] 提取**最新前 5 条 (Top 5)**。\n- sentiment 必须输出英文："Positive"、"Negative" 或 "Neutral"。'
+                news_instruction = '- 根据 [Part 2] 提取**最新前 5 条 (Top 5)**。\n- sentiment 必须输出英文："Positive"、"Negative" 或 "Neutral" 파싱.'
                 json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "财经新闻头条风格翻译", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
 
+            # 💡 최종 프롬프트 조립
             prompt = f"""
             {sys_prompt}
             분석 대상: {company_name} ({ticker})
@@ -1471,100 +1454,93 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             <JSON_END>
             """
 
-            # --- [강력 정제 시작] ---
+            # --- [AI 응답 후처리: 보편적 정제 원칙 적용] ---
             for attempt in range(3):
                 try:
                     response = current_model.generate_content(prompt)
-                    if not response or not hasattr(response, 'text') or not response.text:
-                        time.sleep(1); continue
+                    if not response or not response.text: continue
                     
                     full_text = response.text
                     news_list = []
                     biz_analysis = full_text
 
-                    # 🚨 [정제 1] JSON 블록 식별 및 본문에서 '통째로' 도려내기
-                    json_patterns = [
-                        r'<JSON_START>(.*?)<JSON_END>',
-                        r'```json\s*(\{.*?\})\s*```',
-                        r'```\s*(\{.*?\})\s*```',
-                        r'(\{.*"news".*?\})'
-                    ]
-                    
-                    json_str = ""
+                    # [1] 강력한 JSON 도려내기 (백틱 및 태그 제거)
+                    json_patterns = [r'<JSON_START>.*<JSON_END>', r'```json\s*\{.*?\}\s*```', r'```\s*\{.*?\}\s*```', r'\{.*"news".*\}']
                     for pattern in json_patterns:
                         match = re.search(pattern, biz_analysis, re.DOTALL | re.IGNORECASE)
                         if match:
-                            json_str = match.group(1 if len(match.groups()) >= 1 else 0).strip()
-                            # 매칭된 '전체 구문(백틱 포함)'을 본문에서 영구 삭제
-                            biz_analysis = biz_analysis.replace(match.group(0), "").strip()
+                            json_str = match.group(0)
+                            # 데이터 파싱
+                            c_match = re.search(r'(\{.*\})', json_str, re.DOTALL)
+                            if c_match:
+                                try:
+                                    parsed = json.loads(c_match.group(1), strict=False)
+                                    news_list = parsed.get("news", [])
+                                except: pass
+                            # 본문에서 JSON 블록 영구 삭제
+                            biz_analysis = biz_analysis.replace(json_str, "").strip()
                             break
 
-                    # 🚨 [정제 2] 뉴스 리스트 파싱 및 깨진 JSON 방어
-                    if json_str:
-                        try:
-                            if re.search(r'["\']news["\']\s*:\s*[\s\}]', json_str):
-                                news_list = []
-                            else:
-                                json_str_clean = re.sub(r'\\([^"\\/bfnrtu])', r'\1', json_str)
-                                parsed_data = json.loads(json_str_clean, strict=False)
-                                news_list = parsed_data.get("news", []) if isinstance(parsed_data, dict) else []
-                        except:
-                            news_list = []
-
-                    # 🚨 [정제 3] 남은 본문 마크다운/인사말 청소
-                    biz_analysis = biz_analysis.replace("```json", "").replace("```", "").strip()
-                    biz_analysis = re.sub(r'^#+.*$', '', biz_analysis, flags=re.MULTILINE).strip() # # 헤더 삭제
+                    # [2] 🚨 보편적 원칙 기반 제목/인사말 삭제
+                    # 1. 모든 마크다운 헤더(#, ##) 줄 삭제
+                    biz_analysis = re.sub(r'^#+.*$', '', biz_analysis, flags=re.MULTILINE).strip()
                     
-                    intro_pattern = r'^(알겠습니다|네,|작성하겠습니다|요청하신|보고서입니다|Understood|Certainly|Here is|I will|This is|承知いたしました|作成します|これは|好的|明白了|为您编写|这是).*?(\n|$)'
-                    biz_analysis = re.sub(intro_pattern, '', biz_analysis, flags=re.IGNORECASE | re.MULTILINE).strip()
+                    # 2. 문단 단위로 쪼개서 너무 짧은 제목형 줄 필터링
+                    lines = biz_analysis.split('\n')
+                    final_lines = []
+                    body_started = False
+                    for line in lines:
+                        l = line.strip()
+                        if not l: continue
+                        if not body_started:
+                            # 60자 미만의 짧은 줄이 **로 감싸져 있거나 콜론으로 끝나면 제목으로 간주하고 버림
+                            # 단, 소제목 형식인 **[...]** 은 본문의 시작이므로 허용
+                            is_subheading = l.startswith('**[') or l.startswith('[')
+                            is_short_title = (l.startswith('**') and l.endswith('**') and len(l) < 60)
+                            is_intro_line = (len(l) < 55 and (l.endswith(':') or l.endswith('입니다') or l.endswith('보고서')))
+                            
+                            if (is_short_title or is_intro_line) and not is_subheading:
+                                continue # 제목이니까 스킵
+                            else:
+                                body_started = True
+                        final_lines.append(line)
+                    
+                    biz_analysis = "\n".join(final_lines).strip()
 
-                    # 🚨 [정제 4] 소제목 분리 및 HTML 변환
+                    # [3] HTML 변환 (소제목 강조 및 들여쓰기)
                     biz_analysis = re.sub(r'(\*\*\[.*?\]\*\*)\s*:\s*', r'\1\n', biz_analysis)
-                    biz_analysis = re.sub(r'(\*\*\[.*?\]\*\*)\s+(?=[^\n])', r'\1\n', biz_analysis)
-
-                    raw_paragraphs = biz_analysis.replace('\\n', '\n').split('\n')
-                    clean_paragraphs = [re.sub(r'^[\s\-•\t]+', '', p).strip() for p in raw_paragraphs if len(re.sub(r'^[\s\-•\t]+', '', p).strip()) > 2]
+                    raw_paragraphs = biz_analysis.split('\n')
+                    clean_paragraphs = [p.strip() for p in raw_paragraphs if len(p.strip()) > 10]
                     
                     html_parts = []
                     for p in clean_paragraphs:
                         if p.startswith('**[') or p.startswith('['):
-                            title_clean = p.replace('**', '').replace(':', '').strip()
-                            html_parts.append(f'<p style="display:block; font-weight:bold; margin-top:20px; margin-bottom:5px; font-size:16px; color:#111;">{title_clean}</p>')
+                            # 소제목은 굵게
+                            html_parts.append(f'<p style="font-weight:bold; margin-top:20px; margin-bottom:5px; color:#111;">{p.replace("**","")}</p>')
                         else:
+                            # 본문은 들여쓰기 (한국어 기준)
                             indent = "14px" if lang_code == "ko" else "0px"
-                            html_parts.append(f'<p style="display:block; text-indent:{indent}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>')
+                            html_parts.append(f'<p style="text-indent:{indent}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>')
 
                     html_output = "".join(html_parts)
 
-                    # 감성 배지 정제
-                    if isinstance(news_list, list):
-                        for n in news_list:
-                            if not n: continue
-                            s_val = str(n.get('sentiment', 'Neutral')).strip().lower()
-                            if "pos" in s_val or "긍정" in s_val or "肯定" in s_val: 
-                                n['bg'], n['color'] = "#e6f4ea", "#1e8e3e"
-                            elif "neg" in s_val or "부정" in s_val or "否定" in s_val: 
-                                n['bg'], n['color'] = "#fce8e6", "#d93025"
-                            else: 
-                                n['bg'], n['color'] = "#f1f3f4", "#5f6368"
-
-                    # DB 저장
+                    # [4] 저장
                     batch_upsert("analysis_cache", [{
                         "cache_key": cache_key,
-                        "content": json.dumps({"html": html_output, "news": news_list}, ensure_ascii=False),
+                        "content": json.dumps({"html": html_output, "news": news_list[:5]}, ensure_ascii=False),
                         "updated_at": now.isoformat()
                     }], on_conflict="cache_key")
-                    
-                    print(f"✅ [{ticker}] Tab 1 분석 성공 ({lang_code})")
                     break 
-                    
+
                 except Exception as e:
                     print(f"❌ [{ticker}] {lang_code} 분석 시도 중 오류: {e}")
                     time.sleep(1)
         
-        # 트래커 업데이트
+        # 5. 모든 언어 분석 완료 후 트래커 갱신 및 완료 로그
         batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": now.isoformat()}], "cache_key")
+        print(f"✅ [{ticker}] Tab 1 분석 및 캐싱 완료")
     else:
+        # 💡 변경점이 없을 때 출력할 로그 메시지
         print(f"⏩ [{ticker}] Tab 1 변경점 없음. AI 요약 스킵!")
                 
     # =========================================================
