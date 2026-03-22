@@ -137,75 +137,47 @@ SUPPORTED_LANGS = {
     'zh': '简体中文(Simplified Chinese)'
 }
 
-def fetch_sec_filing_text(ticker, doc_type, api_key, cik=None):
+# (A) 메타데이터(Accession Number)만 가져오는 가벼운 함수
+def fetch_sec_metadata(ticker, doc_type, api_key, cik=None):
     try:
-        accession_num = None
-        filed_date = None
-
-        # [1단계: FMP 1차 탐색] FMP API는 숫자(CIK)를 받으면 고장 나므로, 무조건 '티커(문자)'로 먼저 검색합니다.
+        accession_num, filed_date = None, None
         search_url = f"https://financialmodelingprep.com/stable/sec-filings?symbol={ticker}&type={doc_type}&limit=1&apikey={api_key}"
         r = requests.get(search_url, timeout=5)
-        
         if r.status_code == 200:
             res_data = r.json()
             if isinstance(res_data, list) and len(res_data) > 0:
                 accession_num = res_data[0].get('accessionNumber')
                 filed_date = res_data[0].get('fillingDate')
-
-        # [2단계: SEC EDGAR CIK 우회] 🚨 대표님 의도 복원!
-        # 티커가 변경되었거나 신규 상장이라 FMP가 못 찾은 경우, CIK를 이용해 SEC 공식 서버를 강제로 뒤집니다.
         if not accession_num and cik:
-            time.sleep(0.5) 
             sec_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
             sec_res = requests.get(sec_url, headers=SEC_HEADERS, timeout=5)
             if sec_res.status_code == 200:
                 filings = sec_res.json().get('filings', {}).get('recent', {})
-                forms = filings.get('form', [])
-                acc_nums = filings.get('accessionNumber', [])
-                dates = filings.get('filingDate', [])
-                
-                for i, form in enumerate(forms):
-                    # F-1/A 등 파생 서류명까지 유연하게 잡아냄
+                for i, form in enumerate(filings.get('form', [])):
                     if doc_type.upper() in str(form).upper():
-                        accession_num = acc_nums[i]
-                        filed_date = dates[i]
-                        print(f"🕵️‍♂️ [SEC Bypass] 티커 변경/누락 극복! {ticker}의 {doc_type} 번호 CIK로 탈취 성공: {accession_num}")
+                        accession_num = filings.get('accessionNumber', [])[i]
+                        filed_date = filings.get('filingDate', [])[i]
                         break
+        return accession_num, filed_date
+    except: return None, None
 
-        # 번호를 끝내 못 찾았으면 종료
-        if not accession_num: return None, None
-
-        # [3단계: 본문 텍스트 추출] 찾은 문서 번호로 텍스트를 가져옵니다.
+# (B) 진짜 필요할 때만 본문을 긁어오는 무거운 함수
+def fetch_sec_full_content(accession_num, ticker, doc_type, api_key, cik=None):
+    if not accession_num: return None
+    try:
         text_url = f"https://financialmodelingprep.com/stable/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
         txt_res = requests.get(text_url, timeout=7)
-        full_text = ""
-        if txt_res.status_code == 200:
-            txt_data = txt_res.json()
-            if isinstance(txt_data, list) and len(txt_data) > 0:
-                full_text = txt_data[0].get('content', '')
-
-        # [4단계: 최후의 보루] FMP 텍스트 변환이 늦어지면 SEC에서 생원문을 직접 긁어옵니다.
-        if (not full_text or len(full_text) < 100) and cik:
-            print(f"⚠️ FMP 텍스트 지연 발생. SEC 서버에서 원문 직접 추출 시도: {ticker} ({doc_type})")
+        if txt_res.status_code == 200 and txt_res.json():
+            return txt_res.json()[0].get('content', '')
+        if cik: # FMP 실패 시 SEC 직접 스크래핑
             acc_no_clean = str(accession_num).replace('-', '')
-            cik_int = str(int(cik))
-            raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{acc_no_clean}/{accession_num}.txt"
-            
+            raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc_no_clean}/{accession_num}.txt"
             raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=10)
             if raw_res.status_code == 200:
                 clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
-                clean_text = re.sub(r'\s+', ' ', clean_text)
-                full_text = clean_text
-                print(f"✅ [SEC Scraping] SEC 본진 원문 확보 완료! ({len(full_text)} 자)")
-
-        if full_text and len(full_text) > 100:
-            return filed_date, full_text[:40000]
-        
-        return filed_date, None
-
-    except Exception as e:
-        print(f"❌ [{ticker}] {doc_type} 본문 추출 최종 실패: {e}")
-        return None, None
+                return re.sub(r'\s+', ' ', clean_text)
+    except: pass
+    return None
 
 
 # ==========================================
@@ -871,12 +843,12 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         except: pass
 
     # =========================================================
-    # 🚀 [5] 통합 서류 루프 (우선순위 탐색 + 스마트 Bypass 적용)
+    # 🚀 [5] 통합 서류 루프 (AccessionNumber 기반 최적화 버전)
     # =========================================================
     for topic in target_topics:
-        f_date, f_text = None, None
+        acc_num, f_date = None, None
         
-        # 각 서류별로 수정본이나 대체 서류 탐색
+        # [Step 1] 메타데이터(문서번호)만 먼저 가져옴 (트래픽 거의 없음)
         if topic in ["BS", "IS", "CF", "10-K"]:
             priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
         elif topic == "10-Q":
@@ -890,58 +862,59 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         else:
             priority_targets = [topic]
 
-        # 우선순위 리스트를 순회하며 하나라도 500자 이상 확보되면 멈춤
+        # 우선순위 리스트를 순회하며 문서 번호(Accession Number) 탐색
         for target in priority_targets:
-            f_date, f_text = fetch_sec_filing_text(ticker, target, FMP_API_KEY, cik)
-            if f_text and len(f_text) > 500:
-                print(f"✅ [{ticker}] {topic} 분석 소스 확보 완료: {target}")
-                break
+            acc_num, f_date = fetch_sec_metadata(ticker, target, FMP_API_KEY, cik)
+            if acc_num: break
 
-        # 💡 [과금 폭탄 완벽 차단 로직] 제출일(f_date) 트래커 검사
-        f_date_str = f_date if f_date else "NoDate"
-        date_tracker_key = f"{company_name}_{topic}_LastFilingDate" # 날짜만 몰래 기록해둘 키
-        
-        is_already_analyzed = False
-        try:
-            # DB에 마지막으로 분석했던 문서의 날짜가 기록되어 있는지 확인
-            res_date = supabase.table("analysis_cache").select("content").eq("cache_key", date_tracker_key).execute()
-            if res_date.data and res_date.data[0]['content'] == f_date_str:
-                is_already_analyzed = True # 날짜가 똑같으면 이미 분석한 서류임!
-        except: pass
-
-        for lang_code in SUPPORTED_LANGS.keys():
-            # 🚨 앱(app.py)이 쉽게 찾을 수 있도록 캐시 키는 날짜 없이 고정!
-            cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
-            
-            # 💡 만약 날짜가 똑같은 서류라면 AI 분석 무조건 건너뜀 (과금 방어)
-            if is_already_analyzed:
-                continue 
-
-            # 스마트 Bypass (부재 시 안내 멘트)
-            if not f_text or len(f_text) < 100:
+        # [Step 2] 문서가 아예 없는 경우: 안내 메시지 생성 (Summarization Error 방지)
+        if not acc_num:
+            for lang_code in SUPPORTED_LANGS.keys():
+                cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
+                # 문서가 없을 때 보여줄 기본 안내 문구를 생성하여 캐시에 저장
                 missing_msg = get_missing_document_message(lang_code, topic)
                 formatted_msg = f"<div style='background-color:#f8f9fa; padding:15px; border-radius:8px; color:#555; font-size:15px; line-height:1.6;'>{missing_msg}</div>"
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
-                continue
+            continue
 
-            # 진짜 본문 분석 실행
-            current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
-            meta = get_localized_meta(lang_code, topic)
-            prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, get_format_instruction(lang_code), f_text)
-            
-            try:
-                response = model_strict.generate_content(prompt)
-                if response and response.text:
-                    # 1. 4개 국어 번역본 저장
-                    batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
-                    print(f"✅ [{ticker}] {topic} 진짜 본문 분석 완료 ({lang_code})")
-            except Exception as e:
-                print(f"❌ [{ticker}] {topic} AI 에러: {e}")
-                time.sleep(1)
-        
-        # 💡 [핵심] 언어별 분석이 모두 에러 없이 끝났다면, 마지막에 날짜 트래커를 최신으로 갱신!
-        if not is_already_analyzed and f_text and len(f_text) > 100:
-             batch_upsert("analysis_cache", [{"cache_key": date_tracker_key, "content": f_date_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+        # [Step 3] 💡 [핵심] 중복 체크 (DB에 저장된 마지막 문서번호와 대조)
+        tracker_key = f"{company_name}_{topic}_LastAccNum"
+        is_already_analyzed = False
+        try:
+            res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
+            if res_tracker.data and res_tracker.data[0]['content'] == acc_num:
+                is_already_analyzed = True
+        except: pass
+
+        # 이미 분석이 완료된 번호라면 본문 다운로드(30MB) 및 AI 호출 전체 스킵
+        if is_already_analyzed:
+            # print(f"⏩ [{ticker}] {topic} 변경사항 없음 (문서번호 일치)")
+            continue
+
+        # [Step 4] 번호가 다를 때만 비로소 무거운 본문 다운로드 실행
+        print(f"📥 [{ticker}] {topic} 새로운 문서 감지 ({acc_num}). 다운로드 시작...")
+        f_text = fetch_sec_full_content(acc_num, ticker, topic, FMP_API_KEY, cik)
+
+        # [Step 5] 분석 및 4개 국어 저장
+        if f_text and len(f_text) > 100:
+            for lang_code in SUPPORTED_LANGS.keys():
+                cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
+                
+                current_fact_prompt = f"\n[SEC FACT CHECK] Filed on {f_date}."
+                meta = get_localized_meta(lang_code, topic)
+                prompt = get_localized_instruction(lang_code, ticker, topic, company_name, meta, current_fact_prompt, get_format_instruction(lang_code), f_text)
+                
+                try:
+                    response = model_strict.generate_content(prompt)
+                    if response and response.text:
+                        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                        print(f"✅ [{ticker}] {topic} AI 분석 완료 ({lang_code})")
+                except Exception as e:
+                    print(f"❌ [{ticker}] {topic} AI 에러: {e}")
+                    time.sleep(1)
+
+            # [Step 6] 4개 국어 분석이 모두 끝난 후, 현재 문서번호를 트래커에 기록
+            batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": acc_num, "updated_at": datetime.now().isoformat()}], "cache_key")
 
 def get_tab0_ec_premium_prompt(lang, ticker, raw_data):
     if lang == 'en':
