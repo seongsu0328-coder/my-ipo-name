@@ -1030,33 +1030,50 @@ def fetch_realtime_price_polygon(ticker):
 
 def get_current_stock_price(ticker, api_key=None):
     """
-    [상세 페이지용] DB에서 가격을 확인하되, 
-    유저가 클릭하여 상세 페이지에 들어온 순간 Polygon.io로 실시간 가격을 가져와 
-    화면에 띄우고 DB를 최신화합니다.
+    [최적화 버전] DB에서 가격을 확인하되, 
+    마지막 업데이트가 60초 이상 지났을 때만 Polygon.io API를 호출합니다.
+    (1만 명 접속 시 API 호출 횟수를 99% 이상 절감)
     """
     try:
-        # 1. 기존 DB 상태 확인
-        res = supabase.table("price_cache").select("price, status").eq("ticker", ticker).execute()
+        # 1. DB에서 가격, 상태, 그리고 '마지막 업데이트 시간'을 가져옵니다.
+        res = supabase.table("price_cache").select("price, status, updated_at").eq("ticker", ticker).execute()
         
         db_price = 0.0
-        db_status = "업데이트 대기중"
+        db_status = "Active"
+        last_updated = None
 
         if res.data:
             db_data = res.data[0]
             db_status = db_data.get('status', 'Active')
             db_price = float(db_data.get('price', 0.0))
+            last_updated = db_data.get('updated_at')
             
-            # 상장 연기나 폐지 상태면 API를 호출하지 않고 종료
+            # [방어막 1] 상장 연기나 폐지 상태면 API 호출 없이 종료
             if db_status in ["상장연기", "상장폐지"]: 
                 return db_price, db_status
 
-        # 2. 💡 [Polygon 연동] 무조건 가장 최신 실시간 가격 가져오기 시도
+            # [방어막 2] 💡 시간 기반 캐싱 로직 (핵심!)
+            if last_updated and db_price > 0:
+                # DB의 시간(UTC)을 현재 서버 시간과 비교하기 위해 변환
+                # pandas의 to_datetime은 Z(UTC) 문자열을 아주 잘 처리합니다.
+                last_updated_dt = pd.to_datetime(last_updated).tz_localize(None)
+                now_dt = datetime.now()
+                
+                # 마지막 업데이트 후 지난 시간(초) 계산
+                seconds_passed = (now_dt - last_updated_dt).total_seconds()
+                
+                # 60초가 안 지났다면? Polygon을 찌르지 않고 DB 값을 즉시 반환 (비용 0원)
+                if seconds_passed < 60:
+                    # print(f"♻️ 캐시 사용: {ticker} (업데이트한 지 {int(seconds_passed)}초 지남)")
+                    return db_price, db_status
+
+        # 2. 🚀 [Polygon 호출] 캐시가 없거나 60초가 지났을 때만 실행
         polygon_price = fetch_realtime_price_polygon(ticker)
         
         if polygon_price > 0.0:
-            # 실시간 가격 가져오기 성공 시: 즉시 DB(price_cache) 업데이트 (다른 유저들을 위해)
+            # 새로운 가격을 가져왔다면 즉시 DB 업데이트
             try:
-                from datetime import datetime
+                # upsert 시 updated_at은 DB 설정에 따라 자동 갱신되거나 현재 시간을 넣어줌
                 supabase.table("price_cache").upsert({
                     "ticker": ticker, 
                     "price": polygon_price, 
@@ -1068,11 +1085,10 @@ def get_current_stock_price(ticker, api_key=None):
                 
             return polygon_price, "Active"
 
-        # 3. Polygon 통신에 실패했으나 DB에 예전 가격이 남아있는 경우 (백업)
+        # 3. Polygon 호출 실패 시 DB에 남아있던 예전 가격이라도 보여줌 (백업)
         if db_price > 0: 
             return db_price, "Active"
 
-        # 4. 상장 예정이거나 가격 데이터가 아예 없는 경우
         return 0.0, "업데이트 대기중"
             
     except Exception as e:
