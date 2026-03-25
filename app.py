@@ -353,6 +353,28 @@ def db_toggle_watchlist(user_id, ticker, prediction=None, action='add'):
     except Exception as e:
         print(f"Watchlist DB Error: {e}")
 
+# [신규 추가] 6-2. FCM 토큰 저장 및 업데이트 함수
+def db_save_fcm_token(user_id, fcm_token, device_type="unknown"):
+    """
+    프론트엔드 앱에서 받은 FCM 토큰을 DB에 저장합니다.
+    이미 존재하는 토큰이면 마지막 접속 시간만 업데이트합니다.
+    """
+    if not user_id or not fcm_token:
+        return False
+    try:
+        data = {
+            "user_id": str(user_id),
+            "fcm_token": str(fcm_token),
+            "device_type": device_type,
+            "last_seen_at": datetime.now().isoformat()
+        }
+        # fcm_token이 고유값이므로 중복 시 덮어쓰기(upsert)
+        supabase.table("user_fcm_tokens").upsert(data, on_conflict="fcm_token").execute()
+        return True
+    except Exception as e:
+        print(f"FCM Token Save Error: {e}")
+        return False
+
 # 7. 게시판 글쓰기
 def db_save_post(category, title, content, author_name, author_id):
     try:
