@@ -7,7 +7,9 @@ import copy
 import pandas as pd
 import numpy as np
 import logging
-# 💡 [핵심 제거] import yfinance as yf 가 완전히 삭제되었습니다!
+# 💡 [FCM 추가] Firebase 라이브러리
+import firebase_admin
+from firebase_admin import credentials, messaging
 from datetime import datetime, timedelta
 
 from supabase import create_client
@@ -28,18 +30,17 @@ else:
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 GENAI_API_KEY = os.environ.get("GENAI_API_KEY", "")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
-FMP_API_KEY = os.environ.get("FMP_API_KEY", "")  # 기존 코드
-FRED_API_KEY = os.environ.get("FRED_API_KEY", "781b0d2391740729adb2d931e200e322") # 💡 [신규 추가]
+FMP_API_KEY = os.environ.get("FMP_API_KEY", "")
+FRED_API_KEY = os.environ.get("FRED_API_KEY", "781b0d2391740729adb2d931e200e322")
+# 💡 [FCM 추가] Firebase 서비스 계정 키 (Railway 환경 변수에서 로드)
+FIREBASE_SA_JSON = os.environ.get("FIREBASE_SERVICE_ACCOUNT", "")
 
-# 💡 [디버깅] 배달 상태 확인
+# 💡 [디버깅] 상태 확인
 print(f"DEBUG: SUPABASE_URL 존재 = {bool(SUPABASE_URL)}")
 print(f"DEBUG: SUPABASE_KEY 존재 = {bool(SUPABASE_KEY)}")
-print(f"DEBUG: GENAI_API_KEY 존재 = {bool(GENAI_API_KEY)}")
-print(f"DEBUG: FMP_API_KEY 존재 = {bool(FMP_API_KEY)}")  # 💡 [신규 추가] FMP 키 확인 로그
+print(f"DEBUG: FIREBASE_SA 존재 = {bool(FIREBASE_SA_JSON)}")
 
-# 💡 [핵심 제거] logging.getLogger('yfinance').setLevel(logging.CRITICAL) 가 삭제되었습니다!
-
-# 2. 필수 연결 체크
+# 2. 필수 연결 체크 (Supabase)
 if not (SUPABASE_URL and SUPABASE_KEY):
     print("❌ 환경변수 누락으로 종료")
     exit()
@@ -50,6 +51,18 @@ try:
 except Exception as e:
     print(f"❌ Supabase 초기화 실패: {e}")
     exit()
+
+# 💡 [FCM 추가] Firebase Admin SDK 초기화
+if FIREBASE_SA_JSON:
+    try:
+        cred_dict = json.loads(FIREBASE_SA_JSON)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        print("✅ Firebase Admin SDK 초기화 성공")
+    except Exception as e:
+        print(f"❌ Firebase 초기화 실패: {e}")
+else:
+    print("⚠️ FIREBASE_SERVICE_ACCOUNT 환경변수가 없어 푸시 알림이 비활성화됩니다.")
 
 # 3. AI 모델 설정 (하이브리드 전략: 엄격 모델 & 검색 허용 모델 분리)
 import sys
@@ -269,6 +282,43 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
     except Exception as e:
         print(f"❌ [{table_name}] 통신 에러: {e}")
 
+# [신규 추가] FCM 알림 발송 핵심 함수
+def send_fcm_push(title, body, ticker=None):
+    """
+    DB(user_fcm_tokens)에 저장된 모든 기기에 푸시 알림을 발송합니다.
+    """
+    if not firebase_admin._apps:
+        return
+
+    try:
+        # 1. DB에서 모든 유효한 FCM 토큰 조회
+        res = supabase.table("user_fcm_tokens").select("fcm_token").execute()
+        tokens = [item['fcm_token'] for item in res.data if item.get('fcm_token')]
+
+        if not tokens:
+            print("ℹ️ 발송할 FCM 토큰이 없습니다.")
+            return
+
+        # 2. 메시지 구성
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            data={
+                'ticker': ticker if ticker else "",
+                'type': 'alert'
+            },
+            tokens=tokens,
+        )
+
+        # 3. 실제 발송
+        response = messaging.send_each_for_multicast(message)
+        print(f"🚀 FCM 발송 결과: {response.success_count}개 성공, {response.failure_count}개 실패")
+
+    except Exception as e:
+        print(f"❌ FCM 발송 에러: {e}")
+
 def get_target_stocks():
     if not FINNHUB_API_KEY: return pd.DataFrame()
     now = datetime.now()
@@ -433,6 +483,17 @@ def run_premium_alert_engine(df_calendar):
         batch_upsert("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
         print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 DB에 적재되었습니다.")
 
+        # 🚀 [FCM 추가] 가장 최신 급등 알림 1개를 모든 유저에게 푸시로 발송
+        try:
+            # 여러 개 중 첫 번째 알림을 대표로 발송
+            top_alert = new_alerts[0]
+            send_fcm_push(
+                title=top_alert['title'],
+                body=top_alert['message'],
+                ticker=top_alert['ticker']
+            )
+        except Exception as e:
+            print(f"⚠️ 푸시 발송 실패: {e}")
 # ==========================================
 # [3] AI 분석 함수들 (프롬프트 100% 보존 + 방어막 추가)
 # ==========================================
