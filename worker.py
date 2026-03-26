@@ -3288,7 +3288,12 @@ def update_global_macro_and_events():
 def main():
     print(f"🚀 Worker Start: {datetime.now()}")
     
-    # 👇👇👇 [이 한 줄을 반드시 추가해야 FRED와 FMP 데이터를 수집합니다!] 👇👇👇
+    # 👇👇👇 [여기에 추가하세요] 👇👇👇
+    print("🧪 [테스트] 알림 로직 강제 점검 중...")
+    send_fcm_push("테스트 알림", "백엔드 로직 점검용입니다.", ticker="TEST", target_level='premium_plus')
+    # 👆👆👆 [여기까지] 👆👆👆
+
+    # 👇👇👇 [기존 코드 유지] 👇👇👇
     update_global_macro_and_events()
     
     df = get_target_stocks()
