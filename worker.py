@@ -958,8 +958,8 @@ def get_tab0_ec_premium_prompt(lang, ticker, raw_data):
 def run_tab0_premium_collection(ticker, company_name):
     """Tab 0의 프리미엄 데이터(어닝 콜)를 수집하고 요약하여 캐싱합니다. (Raw Tracker 적용)"""
     if 'model_strict' not in globals() or not model_strict: return
-    try:
-        
+    
+    try: # [try 시작]
         try:
             list_url = f"https://financialmodelingprep.com/stable/earnings-transcript-list?symbol={ticker}&apikey={FMP_API_KEY}"
             list_res = requests.get(list_url, timeout=5).json()
@@ -979,7 +979,7 @@ def run_tab0_premium_collection(ticker, company_name):
         is_changed = True
         
         try:
-            # 💡 [과금 방어막 2] 기존 DB의 어닝콜 원본과 비교 (토씨 하나 안 틀리고 똑같으면 스킵)
+            # 💡 [과금 방어막 2] 기존 DB의 어닝콜 원본과 비교
             res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
             if res_tracker.data and current_raw_str == res_tracker.data[0]['content']:
                 is_changed = False
@@ -990,9 +990,7 @@ def run_tab0_premium_collection(ticker, company_name):
         print(f"🔔 [{ticker}] 어닝 콜 신규 업데이트 감지! AI 요약 시작...")
 
         for lang_code in SUPPORTED_LANGS.keys():
-            # 🚨 [앱 버그 해결] app.py가 찾을 수 있도록 캐시 키에 연도/분기를 빼고 기본값으로 고정!
             ec_summary_key = f"{ticker}_PremiumEarningsCall_v1_{lang_code}"
-            
             content = ec_raw[0].get('content', '')[:15000] 
             prompt = get_tab0_ec_premium_prompt(lang_code, ticker, content)
             
@@ -1009,14 +1007,18 @@ def run_tab0_premium_collection(ticker, company_name):
                         break
                 except Exception as e: time.sleep(1)
                 
-        # AI 분석 완료 후 발송
-    send_fcm_push(
-        title=f"🎙️ {ticker} 어닝 콜 분석 완료",
-        body=f"경영진의 향후 가이던스와 Q&A 핵심 요약이 도착했습니다.",
-        ticker=ticker
-    )
-    # 💡 [과금 방어막 3] 트래커 최신화
-    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+        # 🚀 모든 분석이 성공적으로 끝났을 때만 알림 발송
+        send_fcm_push(
+            title=f"🎙️ {ticker} 어닝 콜 분석 완료",
+            body=f"경영진의 향후 가이던스와 Q&A 핵심 요약이 도착했습니다.",
+            ticker=ticker
+        )
+        
+        # 💡 [과금 방어막 3] 트래커 최신화
+        batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+
+    except Exception as e: # [꼭 필요한 에러 처리 블록 추가]
+        print(f"❌ [{ticker}] run_tab0_premium_collection 실행 중 에러: {e}")
 # ==========================================
 # [신규 추가] Tab 2 프리미엄 요약 전용 프롬프트 및 수집 함수 (ESG 등급)
 # ==========================================
