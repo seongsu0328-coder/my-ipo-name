@@ -1086,14 +1086,14 @@ def get_tab2_esg_premium_prompt(lang, ticker, raw_data):
 def run_tab2_premium_collection(ticker, company_name):
     """Tab 2: ESG (매일 감시하되 변경점 없으면 AI 스킵)"""
     if 'model_strict' not in globals() or not model_strict: return
-    try:
+    
+    try: # [1] 메인 try 시작
         url = f"https://financialmodelingprep.com/stable/esg-ratings?symbol={ticker}&apikey={FMP_API_KEY}"
         esg_raw = get_fmp_data_with_cache(ticker, "RAW_ESG", url, valid_hours=24) # 매일 확인
         
         if not isinstance(esg_raw, list) or len(esg_raw) == 0:
             return
 
-        
         current_raw_str = json.dumps(esg_raw[0], sort_keys=True)
         tracker_key = f"{ticker}_PremiumESG_RawTracker"
         is_changed = True
@@ -1107,6 +1107,8 @@ def run_tab2_premium_collection(ticker, company_name):
         if not is_changed: return 
 
         print(f"🔔 [{ticker}] ESG 업데이트 감지! AI 요약 시작...")
+        
+        analysis_performed = False # 알림 발송용 플래그
         for lang_code in SUPPORTED_LANGS.keys():
             esg_summary_key = f"{ticker}_PremiumESG_v1_{lang_code}"
             prompt = get_tab2_esg_premium_prompt(lang_code, ticker, current_raw_str)
@@ -1121,16 +1123,22 @@ def run_tab2_premium_collection(ticker, company_name):
                         
                         batch_upsert("analysis_cache", [{"cache_key": esg_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
                         print(f"✅ [{ticker}] ESG 분석 캐싱 완료 ({lang_code})")
+                        analysis_performed = True
                         break
                 except Exception as e: time.sleep(1)
                 
-        # AI 분석 완료 후 발송
-    send_fcm_push(
-        title=f"🌱 {ticker} ESG 평가 업데이트",
-        body=f"글로벌 기관 기준의 환경/사회/지배구조 리스크 분석이 업데이트되었습니다.",
-        ticker=ticker
-    )
-    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+        # [2] AI 분석 완료 후 발송 (try 블록 내부 유지)
+        if analysis_performed:
+            send_fcm_push(
+                title=f"🌱 {ticker} ESG 평가 업데이트",
+                body=f"글로벌 기관 기준의 환경/사회/지배구조 리스크 분석이 업데이트되었습니다.",
+                ticker=ticker
+            )
+            # 트래커 최신화
+            batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+
+    except Exception as e: # [3] 메인 try를 닫아주는 except 블록 (필수!)
+        print(f"❌ [{ticker}] run_tab2_premium_collection 에러: {e}")
 # ==========================================
 # [수정] Tab 1 프리미엄 요약 전용 프롬프트 생성 함수 (다국어 분리 완벽 적용)
 # ==========================================
