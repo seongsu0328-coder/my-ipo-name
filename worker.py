@@ -282,39 +282,36 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
     except Exception as e:
         print(f"❌ [{table_name}] 통신 에러: {e}")
 
-# [신규 추가] FCM 알림 발송 핵심 함수
+# [수정본] FCM 알림 발송 함수 (유료 결제자 전원 대상)
 def send_fcm_push(title, body, ticker=None):
     """
-    DB(user_fcm_tokens)에 저장된 모든 기기에 푸시 알림을 발송합니다.
+    관심종목 여부와 상관없이 'is_premium'이 True인 모든 유저에게 발송
     """
     if not firebase_admin._apps:
         return
 
     try:
-        # 1. DB에서 모든 유효한 FCM 토큰 조회
-        res = supabase.table("user_fcm_tokens").select("fcm_token").execute()
-        tokens = [item['fcm_token'] for item in res.data if item.get('fcm_token')]
+        # [수정] users 테이블과 조인하여 프리미엄 유저의 토큰만 추출
+        # (Premium, Premium Plus 모두 is_premium은 True입니다)
+        res = supabase.table("user_fcm_tokens").select(
+            "fcm_token, users!inner(is_premium)"
+        ).eq("users.is_premium", True).execute()
+        
+        tokens = list(set([item['fcm_token'] for item in res.data if item.get('fcm_token')]))
 
         if not tokens:
-            print("ℹ️ 발송할 FCM 토큰이 없습니다.")
+            print(f"ℹ️ 알림 대상(Premium 유저)이 없습니다.")
             return
 
-        # 2. 메시지 구성
+        # 메시지 전송
         message = messaging.MulticastMessage(
-            notification=messaging.Notification(
-                title=title,
-                body=body,
-            ),
-            data={
-                'ticker': ticker if ticker else "",
-                'type': 'alert'
-            },
+            notification=messaging.Notification(title=title, body=body),
+            data={'ticker': ticker if ticker else "", 'type': 'alert'},
             tokens=tokens,
         )
 
-        # 3. 실제 발송
         response = messaging.send_each_for_multicast(message)
-        print(f"🚀 FCM 발송 결과: {response.success_count}개 성공, {response.failure_count}개 실패")
+        print(f"🚀 [프리미엄 푸시] {ticker} 알림 {response.success_count}개 발송 완료")
 
     except Exception as e:
         print(f"❌ FCM 발송 에러: {e}")
@@ -481,19 +478,14 @@ def run_premium_alert_engine(df_calendar):
             
     if new_alerts:
         batch_upsert("premium_alerts", new_alerts, on_conflict="ticker,alert_type")
-        print(f"✅ {len(new_alerts)}개의 프리미엄 신호가 DB에 적재되었습니다.")
-
-        # 🚀 [FCM 추가] 가장 최신 급등 알림 1개를 모든 유저에게 푸시로 발송
-        try:
-            # 여러 개 중 첫 번째 알림을 대표로 발송
-            top_alert = new_alerts[0]
-            send_fcm_push(
-                title=top_alert['title'],
-                body=top_alert['message'],
-                ticker=top_alert['ticker']
-            )
-        except Exception as e:
-            print(f"⚠️ 푸시 발송 실패: {e}")
+        
+        # 🚀 유료 결제자들에게 푸시 전송 (가장 중요한 알림 하나를 대표로 발송)
+        top_alert = new_alerts[0]
+        send_fcm_push(
+            title=top_alert['title'],
+            body=top_alert['message'],
+            ticker=top_alert['ticker']
+        )
 # ==========================================
 # [3] AI 분석 함수들 (프롬프트 100% 보존 + 방어막 추가)
 # ==========================================
@@ -927,7 +919,18 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             print(f"✅ [{ticker}] 8-K AI 분석 완료 ({lang_code})")
                     except: pass
                 
-                # 분석 완료 후 트래커 갱신 (다음 실행 때 스킵)
+                # 🚀 [FCM 추가] 3. 유료 결제자들에게 실시간 푸시 알림 전송
+                # 분석이 끝난 직후 쏘는 것이 가장 정확합니다.
+                try:
+                    send_fcm_push(
+                        title=f"🚨 {ticker} 중대 공시(8-K) 발생",
+                        body=f"{ticker}의 새로운 중대 이벤트 분석이 완료되었습니다. 지금 확인하세요.",
+                        ticker=ticker
+                    )
+                except Exception as e:
+                    print(f"⚠️ 8-K 푸시 발송 실패: {e}")
+                
+                # 4. 분석 완료 후 트래커 갱신 (다음 실행 때 스킵)
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_8k, "content": acc_num_8k, "updated_at": datetime.now().isoformat()}], "cache_key")
 
     # =========================================================
@@ -1123,12 +1126,14 @@ def run_tab0_premium_collection(ticker, company_name):
                         break
                 except Exception as e: time.sleep(1)
                 
-        # 💡 [과금 방어막 3] 트래커 최신화
-        batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
-
-    except Exception as e:
-        print(f"Tab0 Premium EC Error for {ticker}: {e}")
-
+        # AI 분석 완료 후 발송
+    send_fcm_push(
+        title=f"🎙️ {ticker} 어닝 콜 분석 완료",
+        body=f"경영진의 향후 가이던스와 Q&A 핵심 요약이 도착했습니다.",
+        ticker=ticker
+    )
+    # 💡 [과금 방어막 3] 트래커 최신화
+    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 # ==========================================
 # [신규 추가] Tab 2 프리미엄 요약 전용 프롬프트 및 수집 함수 (ESG 등급)
 # ==========================================
@@ -1234,12 +1239,13 @@ def run_tab2_premium_collection(ticker, company_name):
                         break
                 except Exception as e: time.sleep(1)
                 
-        # 💡 요약 완료 후 트래커 갱신
-        batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
-
-    except Exception as e:
-        print(f"Tab2 Premium ESG Error for {ticker}: {e}")
-
+        # AI 분석 완료 후 발송
+    send_fcm_push(
+        title=f"🌱 {ticker} ESG 평가 업데이트",
+        body=f"글로벌 기관 기준의 환경/사회/지배구조 리스크 분석이 업데이트되었습니다.",
+        ticker=ticker
+    )
+    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 # ==========================================
 # [수정] Tab 1 프리미엄 요약 전용 프롬프트 생성 함수 (다국어 분리 완벽 적용)
 # ==========================================
@@ -2120,12 +2126,10 @@ def run_tab4_ma_premium_collection(ticker, company_name):
     if 'model_strict' not in globals() or not model_strict: return
     try:
         url = f"https://financialmodelingprep.com/stable/search-mergers-acquisitions?name={ticker}&apikey={FMP_API_KEY}"
-        ma_raw = get_fmp_data_with_cache(ticker, "RAW_MA_HISTORY", url, valid_hours=24) # 매일 확인
+        ma_raw = get_fmp_data_with_cache(ticker, "RAW_MA_HISTORY", url, valid_hours=24)
         
-        if not isinstance(ma_raw, list) or len(ma_raw) == 0:
-            return
+        if not isinstance(ma_raw, list) or len(ma_raw) == 0: return
 
-        
         current_raw_str = json.dumps(ma_raw[:10], sort_keys=True)
         tracker_key = f"{ticker}_PremiumMA_RawTracker"
         is_changed = True
@@ -2133,12 +2137,14 @@ def run_tab4_ma_premium_collection(ticker, company_name):
         try:
             res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
             if res_tracker.data and current_raw_str == res_tracker.data[0]['content']:
-                is_changed = False # 💡 원본이 똑같으면 스킵!
+                is_changed = False
         except: pass
 
         if not is_changed: return 
 
         print(f"🔔 [{ticker}] M&A 내역 업데이트 감지! AI 요약 시작...")
+        
+        analysis_success = False
         for lang_code in SUPPORTED_LANGS.keys():
             ma_summary_key = f"{ticker}_PremiumMA_v1_{lang_code}"
             prompt = get_tab4_ma_premium_prompt(lang_code, ticker, current_raw_str)
@@ -2150,13 +2156,20 @@ def run_tab4_ma_premium_collection(ticker, company_name):
                         paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
                         indent_size = "14px" if lang_code == "ko" else "0px"
                         html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
-                        
                         batch_upsert("analysis_cache", [{"cache_key": ma_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
                         print(f"✅ [{ticker}] M&A 분석 캐싱 완료 ({lang_code})")
+                        analysis_success = True
                         break
                 except Exception as e: time.sleep(1)
+        
+        # 🚀 [FCM 추가] 분석 완료 후 알림 발송
+        if analysis_success:
+            send_fcm_push(
+                title=f"🤝 {ticker} 인수합병(M&A) 소식",
+                body=f"{ticker}의 최근 M&A 거래 내역과 전략적 시너지 분석 리포트가 업데이트되었습니다.",
+                ticker=ticker
+            )
                 
-        # 💡 요약 완료 후 트래커 갱신
         batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
     except Exception as e:
@@ -2222,25 +2235,25 @@ def run_tab4_premium_collection(ticker, company_name):
     """Tab 4: 투자의견 히스토리 및 경쟁사 분석 (매일 감시하되 변경점 없으면 AI 스킵)"""
     if 'model_strict' not in globals() or not model_strict: return
     
-    
     try:
         # --- [1] 투자의견 변화(Upgrades & Downgrades) 처리 ---
         ud_url = f"https://financialmodelingprep.com/stable/upgrades-downgrades?symbol={ticker}&apikey={FMP_API_KEY}"
         ud_raw = get_fmp_data_with_cache(ticker, "RAW_UPGRADES", ud_url, valid_hours=24)
         
         if isinstance(ud_raw, list) and len(ud_raw) > 0:
-            current_ud_str = json.dumps(ud_raw[:10], sort_keys=True) # 최근 10개만
+            current_ud_str = json.dumps(ud_raw[:10], sort_keys=True)
             tracker_key_ud = f"{ticker}_PremiumUpgrades_RawTracker"
             is_changed_ud = True
             
             try:
                 res_ud = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_ud).execute()
                 if res_ud.data and current_ud_str == res_ud.data[0]['content']:
-                    is_changed_ud = False # 💡 원본이 똑같으면 스킵!
+                    is_changed_ud = False
             except: pass
             
             if is_changed_ud:
                 print(f"🔔 [{ticker}] 투자의견(Upgrades) 업데이트 감지! AI 요약 시작...")
+                ud_success = False
                 for lang_code in SUPPORTED_LANGS.keys():
                     ud_summary_key = f"{ticker}_PremiumUpgrades_v1_{lang_code}"
                     prompt_ud = get_tab4_premium_prompt(lang_code, "Upgrades and Downgrades History", ticker, current_ud_str)
@@ -2254,8 +2267,17 @@ def run_tab4_premium_collection(ticker, company_name):
                                 html_ud = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in ud_paragraphs])
                                 batch_upsert("analysis_cache", [{"cache_key": ud_summary_key, "content": html_ud, "updated_at": datetime.now().isoformat()}], "cache_key")
                                 print(f"✅ [{ticker}] 투자의견 히스토리 캐싱 완료 ({lang_code})")
+                                ud_success = True
                                 break
                         except Exception as e: time.sleep(1)
+                
+                # 🚀 [FCM 추가] 알림 발송
+                if ud_success:
+                    send_fcm_push(
+                        title=f"🎯 {ticker} 월가 투자의견 변경",
+                        body=f"주요 투자은행들의 {ticker}에 대한 투자의견 및 목표주가 변화를 확인하세요.",
+                        ticker=ticker
+                    )
                         
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_ud, "content": current_ud_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
@@ -2271,7 +2293,7 @@ def run_tab4_premium_collection(ticker, company_name):
             try:
                 res_p = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_p).execute()
                 if res_p.data and current_p_str == res_p.data[0]['content']:
-                    is_changed_p = False # 💡 원본이 똑같으면 스킵!
+                    is_changed_p = False
             except: pass
             
             if is_changed_p:
@@ -2663,8 +2685,6 @@ def run_tab3_premium_collection(ticker, company_name):
     """Tab 3: 어닝서프라이즈 및 실적전망치 (매일 감시하되 변경점 없으면 AI 스킵)"""
     if 'model_strict' not in globals() or not model_strict: return
     try:
-        
-        
         # --- [1] 어닝서프라이즈 처리 ---
         surp_url = f"https://financialmodelingprep.com/stable/earnings-surprises?symbol={ticker}&apikey={FMP_API_KEY}"
         surp_raw = get_fmp_data_with_cache(ticker, "RAW_SURPRISE", surp_url, valid_hours=24)
@@ -2697,7 +2717,18 @@ def run_tab3_premium_collection(ticker, company_name):
                                 print(f"✅ [{ticker}] 어닝서프라이즈 캐싱 완료 ({lang_code})")
                                 break
                         except Exception as e: time.sleep(1)
-                        
+                
+                # 🚀 [FCM 추가] 분석 완료 후 프리미엄 유저에게 푸시 알림 발송
+                try:
+                    send_fcm_push(
+                        title=f"📊 {ticker} 어닝 서프라이즈 포착",
+                        body=f"예상치를 상회/하회한 {ticker}의 최신 실적 분석 리포트가 업데이트되었습니다.",
+                        ticker=ticker
+                    )
+                except Exception as e:
+                    print(f"⚠️ 어닝서프라이즈 푸시 발송 실패: {e}")
+                
+                # 트래커 갱신
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_s, "content": current_surp_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
         # --- [2] 실적전망치 처리 ---
@@ -2732,7 +2763,18 @@ def run_tab3_premium_collection(ticker, company_name):
                                 print(f"✅ [{ticker}] 실적전망치 캐싱 완료 ({lang_code})")
                                 break
                         except Exception as e: time.sleep(1)
-                        
+                
+                # 🚀 [FCM 추가] 분석 완료 후 프리미엄 유저에게 푸시 알림 발송
+                try:
+                    send_fcm_push(
+                        title=f"📈 {ticker} 실적 전망치 변경",
+                        body=f"{ticker}에 대한 월가 애널리스트들의 향후 매출 및 수익 예측치가 업데이트되었습니다.",
+                        ticker=ticker
+                    )
+                except Exception as e:
+                    print(f"⚠️ 실적전망치 푸시 발송 실패: {e}")
+
+                # 트래커 갱신
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_e, "content": current_est_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
     except Exception as e:
@@ -2812,7 +2854,6 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         is_rev_valid = (isinstance(rev_raw, list) and len(rev_raw) > 0) or (isinstance(rev_raw, dict) and len(rev_raw) > 0 and "Error Message" not in rev_raw)
         if not is_rev_valid: return
 
-        
         current_raw_str = json.dumps(rev_raw[0] if isinstance(rev_raw, list) else rev_raw, sort_keys=True)
         tracker_key = f"{ticker}_PremiumRevenueSeg_RawTracker"
         is_changed = True
@@ -2820,12 +2861,14 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         try:
             res_t = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
             if res_t.data and current_raw_str == res_t.data[0]['content']:
-                is_changed = False # 💡 원본이 똑같으면 스킵!
+                is_changed = False
         except: pass
 
         if not is_changed: return
 
         print(f"🔔 [{ticker}] 매출 비중 업데이트 감지! AI 요약 시작...")
+        
+        analysis_success = False
         for lang_code in SUPPORTED_LANGS.keys():
             rev_summary_key = f"{ticker}_PremiumRevenueSeg_v1_{lang_code}"
             prompt = get_tab3_revenue_premium_prompt(lang_code, ticker, current_raw_str)
@@ -2839,8 +2882,17 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
                         html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
                         batch_upsert("analysis_cache", [{"cache_key": rev_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
                         print(f"✅ [{ticker}] 매출 비중 분석 캐싱 완료 ({lang_code})")
+                        analysis_success = True
                         break
                 except Exception as e: time.sleep(1)
+        
+        # 🚀 [FCM 추가] 분석 완료 후 알림 발송
+        if analysis_success:
+            send_fcm_push(
+                title=f"🔍 {ticker} 비즈니스 모델 변화",
+                body=f"{ticker}의 부문별 매출 비중 분석이 완료되었습니다. 새로운 수익원을 확인하세요.",
+                ticker=ticker
+            )
                 
         batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
@@ -2935,28 +2987,31 @@ def update_macro_data(df):
             4. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
             """
         elif lang_code == 'en':
-            sum_p = f"Write 3 completely independent dashboard card summaries.\n[Card 1]: {g1_context}\n[Card 2]: {g2_context}\n[Card 3]: {g3_context}"
+            sum_p = f"As a senior Wall Street strategist, write 3 independent dashboard card summaries based on the following data groups.\n[Card 1]: {g1_context}\n[Card 2]: {g2_context}\n[Card 3]: {g3_context}"
             sum_i = """
-            [UI Card Rules]
-            1. Output EXACTLY 3 independent texts. DO NOT use ANY titles like 'Card 1:'.
-            2. FORMAT MUST BE EXACTLY: (Diagnose speculative mania using IPO return and withdrawal rate in 3-4 sentences) |||SEP||| (Analyze supply risk using upcoming IPOs and unprofitable ratio in 3-4 sentences) |||SEP||| (Evaluate macroeconomic overheating using VIX, Fear&Greed, Buffett, and PE in 3-4 sentences).
-            3. Separate strictly by '|||SEP|||'.
+            [UI Card Rules - STRICT]
+            1. Output EXACTLY 3 independent text blocks. NEVER use numbering or titles like 'Card 1:'.
+            2. FORMAT: (Diagnose speculative mania using IPO return and withdrawal rates in 3-4 sentences) |||SEP||| (Analyze supply risk using upcoming IPOs and unprofitable ratio in 3-4 sentences) |||SEP||| (Evaluate macro overheating using VIX, Fear&Greed, Buffett Index, and PE in 3-4 sentences).
+            3. Use '|||SEP|||' as the ONLY separator. No line breaks between blocks.
+            4. Use a professional and formal tone.
             """
         elif lang_code == 'ja':
-            sum_p = f"3つの独立したダッシュボードカードの要約を作成してください。\n[カード1]: {g1_context}\n[カード2]: {g2_context}\n[カード3]: {g3_context}"
+            sum_p = f"ウォール街のチーフストラテジストとして、次の3つのデータに基づいて3つの独立したダッシュボードカードの要約を作成してください。\n[カード1]: {g1_context}\n[カード2]: {g2_context}\n[カード3]: {g3_context}"
             sum_i = """
-            [UIカード作成規則]
-            1. 3つの完全に独立したテキストのみを出力してください。「カード1:」のような不要な見出しはすべて省いてください。
+            [UIカード作成規則 - 厳守]
+            1. 3つの完全に独立したテキストのみを出力してください。数字のナンバリングや見出しは絶対に使わないでください。
             2. フォーマット: (初期収益率と撤回率に基づく投機的熱狂の診断 3〜4文) |||SEP||| (上場予定件数と赤字企業比率による供給リスク分析 3〜4文) |||SEP||| (VIX、Fear&Greed、バフェット指数、PEを結合したマクロ的な過熱感の評価 3〜4文)
-            3. 区切り文字 '|||SEP|||' のみを使用してください。
+            3. 区切り文字 '|||SEP|||' 以外に改行を入れないでください。
+            4. すべての文章は「〜です・ます」調の丁寧語を使用してください。
             """
         elif lang_code == 'zh':
-            sum_p = f"请为3个独立的仪表板卡片撰写摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}"
+            sum_p = f"作为华尔街首席策略师，请根据以下三组数据撰写3份独立的仪表板卡片摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}"
             sum_i = """
-            [UI卡片规则]
-            1. 必须输出3段完全独立的纯文本。绝对不要使用任何像“卡片1:”这样的标题。
-            2. 格式: (结合初期收益率与撤回率诊断投机狂热 3-4句话) |||SEP||| (结合上市排队数量与亏损企业占比分析供给风险 3-4句话) |||SEP||| (结合VIX、恐慌贪婪指数、巴菲特指标和PE评估宏观经济是否过热 3-4句话)
-            3. 仅使用 '|||SEP|||' 作为分隔符。
+            [UI卡片规则 - 严格遵守]
+            1. 仅输出3段完全独立的文本。严禁使用数字编号或标题（如“卡片1”）。
+            2. 格式: (结合初期收益率与撤回率诊断投机狂热 3-4句话) |||SEP||| (结合上市排队数量与亏损企业占比分析供给风险 3-4句话) |||SEP||| (结合VIX、恐慌贪婪指数、巴菲特指标和PE评估宏观过热 3-4句话)
+            3. 仅使用 '|||SEP|||' 作为分隔符，段落之间不要换行。
+            4. 请使用专业且正式的陈述句。
             """
 
         # 💡[Call 2] 하단 전문 (소제목 금지 및 들여쓰기 강제)
@@ -2972,29 +3027,35 @@ def update_macro_data(df):
             6. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
             """
         elif lang_code == 'en':
-            full_p = f"Write a deep-dive macroeconomic report using this data:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
+            full_p = f"As a senior Wall Street strategist, write a deep-dive macroeconomic report using this data:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
             full_i = """
             [Rules]
-            1. NO MAIN TITLE and NO SUBHEADINGS (Do not use bold text for section names).
-            2. Write EXACTLY 3 paragraphs. Start each paragraph with an indent (2 spaces).
-            3. You MUST quote the exact numbers provided naturally within the text.
-            4. Each paragraph should be 4-5 sentences long.
+            1. NO MAIN TITLE and NO SUBHEADINGS (No bold text for headers).
+            2. Start the very first word of the report with 'Global' or 'Currently'.
+            3. Write EXACTLY 3 paragraphs. Start each paragraph with an indent (2 spaces).
+            4. You MUST naturally quote the exact numbers provided in the context as evidence.
+            5. Each paragraph must be 4-5 sentences long.
+            6. Use a formal and authoritative professional tone.
             """
         elif lang_code == 'ja':
-            full_p = f"次のデータを用いてマクロ経済の深層分析レポートを作成してください:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
+            full_p = f"ウォール街のチーフストラテジストとして、次のデータを用いてマクロ経済の深層分析レポートを作成してください:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
             full_i = """
             [規則]
-            1. メインタイトルや小見出し(**[市場の流動性]**など)は絶対に使用しないでください。
-            2. 全体で3つの段落のみで構成し、各段落の先頭は字下げ(スペース)で始めてください。
-            3. 提供された数値を必ず本文に引用してください。
+            1. メインタイトルや小見出し（**[市場の流動性]**など）は絶対に使用しないでください。
+            2. レポートの最初の単語は必ず「グローバル」または「現在」で始めてください。
+            3. 全体で3つの段落のみで構成し、各段落の先頭は必ず2文字分のスペースで字下げしてください。
+            4. 提供された具体的な数値を必ず本文の中に自然に引用してください。
+            5. 各段落は4〜5文の長さで記述し、「〜です・ます」調を使用してください。
             """
-        else: # zh
-            full_p = f"请使用以下数据撰写宏观经济深度分析报告:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
+        elif lang_code == 'zh':
+            full_p = f"作为华尔街首席策略师，请根据以下数据撰写宏观经济深度分析报告:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
             full_i = """
             [规则]
-            1. 严禁写主标题和副标题（绝对不要加粗章节名称）。
-            2. 必须严格分为3个段落，每个段落开头请缩进（空两格）。
-            3. 必须在正文中自然地引用提供的具体数据。
+            1. 严禁使用任何主标题或副标题（不要对章节名称加粗）。
+            2. 报告的第一个词必须以“全球”或“当前”开头。
+            3. 严格分为3个段落，每个段落开头必须缩进（空两格）。
+            4. 必须在正文中自然地引用提供的具体数值作为依据。
+            5. 每个段落保持4-5句话的长度，使用专业的书面语体。
             """
 
         try:
@@ -3040,96 +3101,32 @@ def run_tab6_analysis(ticker, company_name, smart_money_data):
     """Tab 6: 스마트머니 4대 지표 통합 감시 AI 리포트 생성 (Raw Tracker 적용)"""
     if 'model_strict' not in globals() or not model_strict: return False
     
-    
-    # 💡 [과금 방어막 1] 현재 수집된 4종 데이터를 문자열로 변환
     current_raw_str = json.dumps(smart_money_data, sort_keys=True)
     tracker_key = f"{ticker}_Tab6_SmartMoney_RawTracker"
     is_changed = True
     
     try:
-        # 💡 [과금 방어막 2] DB에 몰래 저장해둔 예전 데이터와 비교
         res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
         if res_tracker.data and current_raw_str == res_tracker.data[0]['content']:
-            is_changed = False # 토씨 하나 안 틀리고 똑같으면 AI 스킵!
+            is_changed = False
     except: pass
 
-    if not is_changed: return True # 변경점 없으면 조용히 종료
+    if not is_changed: return True
 
     print(f"🔔 [{ticker}] 스마트머니 데이터 업데이트 감지! AI 요약 시작...")
     
+    analysis_success = False
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key = f"{ticker}_Tab6_SmartMoney_v1_{lang_code}"
         
-        # 💡 구분자 |||SEP||| 를 사용하여 앱에서 4개 항목을 쪼개서 이쁘게 렌더링
         if lang_code == 'en':
-            prompt = f"""You are a Wall Street Insider & Institutional Flow Analyst.
-Analyze the Smart Money data for {company_name} ({ticker}): {current_raw_str}
-
-[Format Rules]
-- Write STRICTLY in English.
-- Use EXACTLY these 4 separators between sections: |||SEP|||
-- NO intro/outro greetings.
-
-[Section 1: Insider] Analyze if executives are secretly buying/selling.
-|||SEP|||
-[Section 2: Institutional] Analyze if mega-whales are sweeping up this stock.
-|||SEP|||
-[Section 3: US Senate] Analyze if any US Senators traded this stock recently. (Warning if buying before good news). If empty, say "No recent Senate trading detected."
-|||SEP|||
-[Section 4: Short Squeeze (FTD)] Analyze Fail-To-Deliver data. If numbers are surging, warn about a potential short squeeze. If empty, say "No significant short-selling pressure detected."
-"""
+            prompt = f"You are a Wall Street Insider & Institutional Flow Analyst. Analyze the Smart Money data for {company_name} ({ticker}): {current_raw_str}\n\n[Format Rules]\n- Write STRICTLY in English.\n- Use EXACTLY these 4 separators between sections: |||SEP|||\n- NO intro/outro greetings."
         elif lang_code == 'ja':
-            prompt = f"""あなたはウォール街の内部者取引および機関投資家フローの専門アナリストです。
-{company_name} ({ticker})のスマートマネーデータを分析してください: {current_raw_str}
-
-[フォーマット規則]
-- 全て日本語で記述してください。
-- 各セクションの間には必ず |||SEP||| という区切り文字を入れてください（合計3回）。
-- 挨拶や前置きは絶対に書かないでください。
-
-[セクション1: 内部者] 役員が密かに株を売買しているか分析。
-|||SEP|||
-[セクション2: 機関投資家] 巨大機関が買い集めているか分析。
-|||SEP|||
-[セクション3: 米国上院議員] 最近、米国の上院議員がこの株を取引したか分析。データがない場合は「最近の上院議員の取引は検出されていません」と記載。
-|||SEP|||
-[セクション4: 空売り(FTD)] Fail-To-Deliverデータを分析し、数値が急増していればショートスクイーズの警告を出す。データがない場合は「有意な空売り圧力は検出されていません」と記載。
-"""
+            prompt = f"あなたはウォール街の内部者取引および機関投資家フローの専門アナリストです。{company_name} ({ticker})의 스마트머니 데이터를 분석하세요: {current_raw_str}\n\n[포맷 규칙]\n- 전부 일본어로 작성하세요.\n- 섹션 사이에 |||SEP||| 구분자를 넣으세요.\n- 인사말 생략."
         elif lang_code == 'zh':
-            prompt = f"""您是华尔街内幕交易与机构资金流向的专业分析师。
-请分析 {company_name} ({ticker}) 的聪明钱数据: {current_raw_str}
-
-[格式规则]
-- 必须只用简体中文编写。
-- 各部分之间必须使用 |||SEP||| 作为分隔符（共3次）。
-- 绝对不要写问候语或开场白。
-
-[第1部分: 内幕交易] 分析高管是否在暗中买卖。
-|||SEP|||
-[第2部分: 机构动向] 分析华尔街巨头是否在扫货。
-|||SEP|||
-[第3部分: 美国参议员] 分析近期是否有美国参议员(Senate)交易该股票。如果没有数据，请写“近期未检测到参议员交易”。
-|||SEP|||
-[第4部分: 卖空(FTD)] 分析未能交收(FTD)数据。如果数值激增，请警告可能出现轧空(Short Squeeze)。如果没有数据，请写“未检测到明显的卖空压力”。
-"""
+            prompt = f"您是华尔街内幕交易与机构资金流向的专业分析师。请分析 {company_name} ({ticker}) 的聪明钱数据: {current_raw_str}\n\n[格式规则]\n- 全部用简体中文编写.\n- 使用 |||SEP||| 作为分隔符.\n- 省略问候语."
         else: # ko
-            prompt = f"""당신은 월스트리트 내부자 거래 및 자금 흐름(Smart Money) 전문 애널리스트입니다.
-{company_name} ({ticker})의 스마트머니 데이터를 심층 분석하세요: {current_raw_str}
-
-[포맷 규칙 - 엄격 준수]
-- 반드시 순수한 한국어로만 작성하세요.
-- 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 정중한 존댓말(합쇼체)로 마무리하십시오.
-- 각 항목 사이에 반드시 |||SEP||| 구분자를 넣으세요. (총 3개의 구분자가 들어가야 함)
-- 인사말, 요약, 결론 등 불필요한 서론/본론은 절대 쓰지 마세요.
-
-[항목 1: 내부자 거래] CEO/임원들의 최근 매수/매도 동향.
-|||SEP|||
-[항목 2: 대형 기관] 블랙록, 뱅가드 등 고래들의 매집 현황.
-|||SEP|||
-[항목 3: 미국 상원의원] 미국 상원의원(Senate)들의 최근 주식 거래 내역. 입법/정책 호재를 앞두고 선취매 했는지 감시. 데이터가 없으면 "최근 보고된 상원의원 거래 내역이 없습니다."
-|||SEP|||
-[항목 4: 공매도 미결제(FTD)] 기관들의 공매도 상환 실패(Fail To Deliver) 물량 분석. 수치가 급증했다면 숏 스퀴즈(Short Squeeze) 폭등 가능성 경고. 데이터가 없으면 "현재 유의미한 공매도 압력이 없습니다."
-"""
+            prompt = f"당신은 월스트리트 내부자 거래 및 자금 흐름(Smart Money) 전문 애널리스트입니다. {company_name} ({ticker})의 스마트머니 데이터를 심층 분석하세요: {current_raw_str}\n\n[포맷 규칙 - 엄격 준수]\n- 반드시 순수한 한국어로만 작성하세요.\n- 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 정중한 존댓말로 마무리하십시오.\n- 각 항목 사이에 반드시 |||SEP||| 구분자를 넣으세요."
         
         for attempt in range(3):
             try:
@@ -3141,11 +3138,19 @@ Analyze the Smart Money data for {company_name} ({ticker}): {current_raw_str}
                         
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": res_text, "updated_at": datetime.now().isoformat()}], "cache_key")
                 print(f"✅ [{ticker}] 스마트머니 분석 캐싱 완료 ({lang_code})")
+                analysis_success = True
                 break 
             except Exception as e:
                 time.sleep(1)
                 
-    # 💡 [과금 방어막 3] 4개 국어 번역이 성공적으로 끝났다면 트래커 갱신!
+    # 🚀 [FCM 추가] 분석 완료 후 알림 발송
+    if analysis_success:
+        send_fcm_push(
+            title=f"💰 {ticker} 스마트머니 포착",
+            body=f"내부자 거래 및 월가 고래들의 {ticker} 매집 동향 분석 리포트가 도착했습니다.",
+            ticker=ticker
+        )
+
     batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
     return True
 
