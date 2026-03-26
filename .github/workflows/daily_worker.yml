@@ -5,10 +5,9 @@ on:
   push:
     branches: [ "main" ] 
 
-  # 매일 한국 시간 오전 6시 실행 (UTC 21:00)
+  # 6시간마다(하루 4번) 실행
+  # (한국시간 기준 오전 3시, 9시, 오후 3시, 오후 9시 실행)
   schedule:
-    # 💡 [핵심 수정] 하루 1번에서 -> 6시간마다(하루 4번) 실행으로 변경
-    # (한국시간 기준 오전 3시, 9시, 오후 3시, 오후 9시 실행)
     - cron: '0 18,0,6,12 * * *'
   
   # 수동 실행 버튼 활성화
@@ -29,8 +28,9 @@ jobs:
 
       - name: 필수 라이브러리 설치
         run: |
-          # 💡 [수정] yfinance 제거 및 신규 Gemini SDK(google-genai) 적용!
-          pip install streamlit requests pandas numpy supabase google-genai
+          python -m pip install --upgrade pip
+          # 💡 [핵심 수정] 개별 설치 대신 requirements.txt를 사용하여 firebase-admin 등 모든 라이브러리 설치
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: 데이터 수집기(Worker) 실행
         env:
@@ -38,6 +38,9 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GENAI_API_KEY: ${{ secrets.GENAI_API_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-          # 💡 [핵심 추가] FMP API 키를 Worker에 주입합니다!
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          # 💡 [핵심 추가] 매크로 데이터 수집을 위한 FRED API 키
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          # 💡 [핵심 추가] 푸시 알림 발송을 위한 Firebase 서비스 계정 키 (JSON 전체 내용)
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: python worker.py
