@@ -2244,13 +2244,21 @@ UI_TEXT = {
     
 
     # ==========================================
-    # 6. Tab 0: 주요공시
+    # 6. Tab 0: 주요공시 라벨 (중복 코드 제거 버전)
     # ==========================================
-    'label_s1': {'ko': 'S-1 (최초신고서)', 'en': 'S-1 (Initial)', 'ja': 'S-1 (初回)', 'zh': 'S-1 (首次申报)'},
-    'label_s1a': {'ko': 'S-1/A (수정신고)', 'en': 'S-1/A (Amended)', 'ja': 'S-1/A (修正)', 'zh': 'S-1/A (修正申报)'},
-    'label_f1': {'ko': 'F-1 (해외기업)', 'en': 'F-1 (Foreign)', 'ja': 'F-1 (海外)', 'zh': 'F-1 (海外企业)'},
-    'label_fwp': {'ko': 'FWP (IR 자료)', 'en': 'FWP (IR Docs)', 'ja': 'FWP (IR資料)', 'zh': 'FWP (路演资料)'},
-    'label_424b4': {'ko': '424B4 (최종확정)', 'en': '424B4 (Final)', 'ja': '424B4 (確定)', 'zh': '424B4 (最终确定)'},
+    'label_s1': {'ko': '최초신고서', 'en': 'Initial Filing', 'ja': '初回届出', 'zh': '首次申报'},
+    'label_s1a': {'ko': '수정신고', 'en': 'Amended', 'ja': '修正届出', 'zh': '修正申报'},
+    'label_f1': {'ko': '해외기업 신고서', 'en': 'Foreign Issuer', 'ja': '海外企業', 'zh': '海外企业'},
+    'label_fwp': {'ko': 'IR 자료', 'en': 'IR Docs', 'ja': 'IR資料', 'zh': '路演资料'},
+    'label_424b4': {'ko': '최종확정 공모서', 'en': 'Final Prospectus', 'ja': '最終確定', 'zh': '最终确定'},
+    'label_rw': {'ko': '상장철회 요청', 'en': 'Withdrawal Request', 'ja': '上場撤回', 'zh': '撤回上市'},
+    'label_form25': {'ko': '상장폐지 통지', 'en': 'Delisting Notice', 'ja': '上場廃止', 'zh': '退市'},
+    'label_10k': {'ko': '연간 사업보고서', 'en': 'Annual Report', 'ja': '年間報告書', 'zh': '年度报告'},
+    'label_10q': {'ko': '분기 실적보고서', 'en': 'Quarterly Report', 'ja': '四半期報告書', 'zh': '季度报告'},
+    'label_bs': {'ko': '재무상태표', 'en': 'Balance Sheet', 'ja': '貸借対照表', 'zh': '资产负债表'},
+    'label_is': {'ko': '손익계산서', 'en': 'Income Statement', 'ja': '損益計算書', 'zh': '利润表'},
+    'label_cf': {'ko': '현금흐름표', 'en': 'Cash Flow', 'ja': 'キャッシュフロー', 'zh': '现金流量表'},
+    'label_8k': {'ko': '중대 이벤트 공시', 'en': 'Material Events', 'ja': '重要イベント', 'zh': '重大事件'},
     'desc_s1': {'ko': "S-1은 상장을 위해 최초로 제출하는 서류입니다. **Risk Factors**(위험 요소), **Use of Proceeds**(자금 용도), **MD&A**(경영진의 운영 설명)를 확인할 수 있습니다.", 'en': "S-1 is the initial registration statement. You can check Risk Factors, Use of Proceeds, and MD&A.", 'ja': "S-1は上場の初回届出書です。リスク要因、資金使途、経営陣の解説を確認できます。", 'zh': "S-1是为上市首次提交的文件。可以查看**Risk Factors**(风险因素)、**Use of Proceeds**(资金用途)、**MD&A**(管理层讨论与分析)。"},
     'desc_s1a': {'ko': "S-1/A는 공모가 밴드와 주식 수가 확정되는 수정 문서입니다. **Pricing Terms**(공모가 확정 범위)와 **Dilution**(기존 주주 대비 희석률)을 확인할 수 있습니다.", 'en': "S-1/A is an amendment where price range and shares are fixed. You can check Pricing Terms and Dilution.", 'ja': "S-1/Aは公募価格帯と株式数が確定する修正書類です。価格決定条件と希薄化を確認できます。", 'zh': "S-1/A是确定发行价区间和股份数的修正文件。可以查看**Pricing Terms**(定价条款)和**Dilution**(股权稀释)。"},
     'desc_f1': {'ko': "F-1은 해외 기업이 미국 상장 시 제출하는 서류입니다. 해당 국가의 **Foreign Risk**(정치/경제 리스크)와 **Accounting**(회계 기준 차이)을 확인할 수 있습니다.", 'en': "F-1 is for foreign issuers. You can check Foreign Risk and Accounting differences.", 'ja': "F-1は海外企業が米国上場時に提出する書類です。外国リスクや会計基準の差を確認できます。", 'zh': "F-1是海外企业在美国上市时提交的文件。可以查看**Foreign Risk**(外国风险)和**Accounting**(会计准则差异)。"},
@@ -2260,14 +2268,7 @@ UI_TEXT = {
     'btn_sec_link': {'ko': '공시 확인하기', 'en': 'Check SEC Filings', 'ja': '開示を確認する', 'zh': '查看SEC公告'},
     'btn_official_web': {'ko': '회사 공식 홈페이지', 'en': 'Official Website', 'ja': '公式サイト', 'zh': '公司官网'},
     'decision_question_filing': {'ko': '공시 정보에 대한 입장은?', 'en': 'Opinion on filings?', 'ja': '開示情報への見解は？', 'zh': '您对公告信息的看法是？'},
-    'label_fwp': {'ko': 'FWP (IR 자료)', 'en': 'FWP (IR Docs)', 'ja': 'FWP (IR資料)', 'zh': 'FWP (路演资料)'},
-    'label_424b4': {'ko': '424B4 (최종확정)', 'en': '424B4 (Final)', 'ja': '424B4 (確定)', 'zh': '424B4 (最终确定)'},
-    'label_10k': {'ko': '10-K (연간)', 'en': '10-K (Annual)', 'ja': '10-K (年間)', 'zh': '10-K (年度)'},
-    'label_10q': {'ko': '10-Q (분기)', 'en': '10-Q (Quarter)', 'ja': '10-Q (四半期)', 'zh': '10-Q (季度)'},
-    'label_bs': {'ko': 'BS (재무상태표)', 'en': 'BS (Balance Sheet)', 'ja': 'BS (貸借対照表)', 'zh': 'BS (资产负债表)'},
-    'label_is': {'ko': 'IS (손익계산서)', 'en': 'IS (Income Stmt)', 'ja': 'IS (損益計算書)', 'zh': 'IS (利润表)'},
-    'label_cf': {'ko': 'CF (현금흐름표)', 'en': 'CF (Cash Flow)', 'ja': 'CF (キャッシュフロー)', 'zh': 'CF (现金流量表)'},
-
+    
     'desc_10k': {'ko': '10-K는 미국의 상장기업이 매년 SEC에 제출하는 연간 사업보고서입니다. 한 해의 전반적인 사업 성과와 위험 요소를 포괄적으로 다룹니다.', 'en': '10-K is a comprehensive annual report submitted to the SEC.', 'ja': '10-Kは米国の上場企業が毎年SECに提出する年次事業報告書です。', 'zh': '10-K是企业每年向SEC提交的年度业务报告。'},
     'desc_10q': {'ko': '10-Q는 분기별로 제출되는 실적 보고서입니다. 최근 3개월간의 재무 상태 변화와 단기적인 사업 현황을 파악할 수 있습니다.', 'en': '10-Q is a quarterly report detailing recent financial changes.', 'ja': '10-Qは四半期ごとに提出される業績報告書です。', 'zh': '10-Q是每季度提交的业绩报告。'},
     'desc_bs': {'ko': '재무상태표(Balance Sheet)는 기업의 자산, 부채, 자본의 현재 상태를 보여줍니다. 기업의 재무 건전성과 지급 능력을 분석합니다.', 'en': 'The Balance Sheet shows the current state of assets, liabilities, and equity.', 'ja': '貸借対照表は企業の資産、負債、資本の現在の状態を示します。', 'zh': '资产负债表显示企业资产、负债和所有者权益的现状。'},
@@ -2275,8 +2276,6 @@ UI_TEXT = {
     'desc_cf': {'ko': '현금흐름표(Cash Flow)는 기업에 실제 현금이 어떻게 들어오고 나갔는지를 보여줍니다. 흑자 도산 위험 등을 판별하는 핵심 지표입니다.', 'en': 'The Cash Flow statement shows how actual cash entered and left the company.', 'ja': 'キャッシュフロー計算書は実際の現金の出入りを示します。', 'zh': '现金流量表显示企业实际现金的流入和流出情况。'},
     
     # 💡 [신규 추가] 철회 및 폐지 서류 라벨 및 설명
-    'label_rw': {'ko': 'RW (상장철회)', 'en': 'RW (Withdrawal)', 'ja': 'RW (上場撤回)', 'zh': 'RW (撤回上市)'},
-    'label_form25': {'ko': 'Form 25 (상장폐지)', 'en': 'Form 25 (Delisted)', 'ja': 'Form 25 (上場廃止)', 'zh': 'Form 25 (退市)'},
     'desc_rw': {'ko': "RW(Registration Withdrawal)는 기업이 상장 절차를 공식적으로 중단하고 증권신고서를 철회할 때 제출하는 문서입니다. 주로 시장 환경 악화나 내부 사정으로 인한 철회 사유가 담깁니다.", 'en': "Form RW is submitted when a company officially halts its IPO. It contains reasons for withdrawal.", 'ja': "RWは企業が上場手続きを公式に中断・撤回する際に提出する文書です。", 'zh': "RW是企业正式中止上市程序并撤回注册声明时提交的文件。"},
     'desc_form25': {'ko': "Form 25는 거래소에서 상장 폐지되거나 등록이 취소될 때 제출하는 공식 통지서입니다. 인수합병(M&A)이나 상장 유지 규정 위반 등의 사유를 확인할 수 있습니다.", 'en': "Form 25 is an official notification of removal from listing. It shows reasons like M&A or rule violations.", 'ja': "Form 25は取引所から上場廃止になる際に提出される公式通知書です。", 'zh': "Form 25是自交易所退市或取消注册时提交的官方通知书。"},
     'label_market_eval_80b': {
