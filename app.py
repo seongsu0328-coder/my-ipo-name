@@ -2577,7 +2577,57 @@ UI_TEXT = {
         'ja': '市場バリュエーション', 
         'zh': '市场估值水平'
     },
-    
+    # ==========================================
+    # [Tab 3 - MicroTab] 재무 지표 라벨 (label_***)
+    # ==========================================
+    'label_growth': {
+        'ko': '매출 성장률', 
+        'en': 'Revenue Growth', 
+        'ja': '売上成長率', 
+        'zh': '营收增长率'
+    },
+    'label_net_margin': {
+        'ko': '순이익률', 
+        'en': 'Net Margin', 
+        'ja': '純利益率', 
+        'zh': '净利润率'
+    },
+    'label_piotroski': {
+        'ko': '피오트로스키 점수', 
+        'en': 'Piotroski F-Score', 
+        'ja': 'ピオトロスキースコア', 
+        'zh': '皮奥特罗斯基分数'
+    },
+    'label_debt_equity': {
+        'ko': '부채비율', 
+        'en': 'Debt to Equity', 
+        'ja': '負債比率', 
+        'zh': '资产负债率'
+    },
+    'label_accruals': {
+        'ko': '발생액 (Accruals)', 
+        'en': 'Accruals Ratio', 
+        'ja': 'アクルーアル (発生額)', 
+        'zh': '应计利润率(Accruals)'
+    },
+    'label_pe': {
+        'ko': 'PER (주가수익비율)', 
+        'en': 'P/E Ratio', 
+        'ja': 'PER (株価収益率)', 
+        'zh': '市盈率 (P/E)'
+    },
+    'label_dcf_price': {
+        'ko': 'DCF 적정가치', 
+        'en': 'DCF Target Price', 
+        'ja': 'DCF 適正株価', 
+        'zh': 'DCF 目标价'
+    },
+    'label_ipo_return': {
+        'ko': '상장일 수익률', 
+        'en': 'IPO 1st Day Return', 
+        'ja': '上場初日リターン', 
+        'zh': 'IPO首日收益率'
+    },
     # ==========================================
     # 9. Tab 4: 기관평가
     # ==========================================
