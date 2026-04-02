@@ -258,6 +258,26 @@ def sanitize_value(v):
     if isinstance(v, (np.bool_, bool)): return bool(v)
     return str(v).strip().replace('\x00', '')
 
+def clean_ai_preamble(text):
+    """AI의 불필요한 인사말, 서론, 지침 찌꺼기를 전역적으로 제거하는 함수"""
+    if not text: return ""
+    
+    # 1. 정규표현식으로 다국어 서론 패턴 삭제
+    patterns = [
+        r"^(안녕하세요|알겠습니다|작성하겠습니다|요청하신|보고서입니다|분석 결과입니다).*?(\n|$)",
+        r"^(Sure|Understood|Certainly|Here is the|Okay|I will).*?(\n|$)",
+        r"^(承知いたしました|作成します|こんにちは|以下の).*?(\n|$)",
+        r"^(好的|明白了|这是|以下은|以下是).*?(\n|$)"
+    ]
+    for p in patterns:
+        text = re.sub(p, "", text, flags=re.MULTILINE | re.IGNORECASE)
+    
+    # 2. 문장 시작 부분의 [ ] 또는 ( ) 괄호 찌꺼기 강제 제거 
+    # (예: "(성장성 진단 4~5문장): 매출이..." -> "매출이...")
+    text = re.sub(r'^[\[\(].*?[\]\)]\s*:?', '', text).strip()
+    
+    return text
+
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not data_list: return
     endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
@@ -2515,7 +2535,8 @@ Data: {g1_context} | {g2_context} | {g3_context}
             # 💡 [비용 방어막] 여기서부터는 철저하게 비용 0원짜리 model_strict만 씁니다!
             res_sum = model_strict.generate_content(sum_p)
             if res_sum and res_sum.text:
-                clean_sum = res_sum.text.strip().replace('\n', ' ')
+                # 🚀 수정: clean_ai_preamble을 먼저 호출하여 인사말과 [성장성 진단] 등을 제거
+                clean_sum = clean_ai_preamble(res_sum.text.strip()).replace('\n', ' ')
                 
                 batch_upsert("analysis_cache",[{
                     "cache_key": cache_key_sum, 
@@ -2527,32 +2548,42 @@ Data: {g1_context} | {g2_context} | {g3_context}
             print(f"❌ [{ticker}] Tab 3 카드 요약 에러 ({lang_code}): {e}")
 
         # ----------------------------------------------------
-        # [Call 2] 하단 전문 리포트 생성 (정규식 필터링 및 HTML 렌더링)
+        # [Call 2] 하단 전문 리포트 생성 (전역 정제 함수 통합 및 최적화 버전)
         # ----------------------------------------------------
         try:
             # 💡 [비용 방어막] 여기서도 철저하게 비용 0원짜리 model_strict만 씁니다!
             res_full = model_strict.generate_content(full_p + full_i)
             if res_full and res_full.text:
-                clean_full = res_full.text.strip()
+                # 🚀 [수정 핵심 1]: 전역 정제 함수 호출로 인사말 및 공통 서론 1차 제거
+                clean_full = clean_ai_preamble(res_full.text.strip())
                 
-                # 서론, 인사말, 이모지, 마크다운 굵은글씨 등 완벽 필터링
-                clean_full = re.sub(r'^(알겠습니다|네,|작성하겠습니다|요청하신|보고서입니다|Understood).*?(\n|$)', '', clean_full, flags=re.IGNORECASE | re.MULTILINE).strip()
+                # 🚀 [수정 핵심 2]: Tab 3 리포트 전용 필터 (이모지, 특정 타이틀 등 제거)
+                # (?i)는 대소문자 구분 없이 매칭한다는 정규식 옵션입니다.
                 clean_full = re.sub(r'(?i)(🎓|📊|📈|💡|🚀|CFA Quant Deep-Dive Analysis|CFA Quant|기업 분석 보고서|재무 분석 보고서)', '', clean_full).strip()
-                clean_full = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_full) # 굵은글씨 파괴
                 
-                paragraphs =[p.lstrip('-*• ').strip() for p in clean_full.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
+                # 마크다운 굵은글씨(**) 파괴 (HTML 렌더링 시 일관된 스타일 유지용)
+                clean_full = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_full) 
+                
+                # 문단 분리 및 불필요한 기호 제거
+                paragraphs = [p.lstrip('-*• ').strip() for p in clean_full.replace('\\n', '\n').split('\n') if len(p.strip()) > 10]
                 indent_size = "14px" if lang_code == "ko" else "0px"
                 
+                # 최종 HTML 조립
                 html_full = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
                 
-                batch_upsert("analysis_cache",[{"cache_key": cache_key_full, "content": html_full, "updated_at": datetime.now().isoformat()}], "cache_key")
-            print(f"✅[{ticker}] Tab 3 미시 지표 분석 완료 ({lang_code})")
+                # 정제된 리포트 저장
+                batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": html_full, "updated_at": datetime.now().isoformat()}], "cache_key")
+                
+            print(f"✅ [{ticker}] Tab 3 미시 지표 전문 리포트 완료 ({lang_code})")
         except Exception as e:
             print(f"❌ [{ticker}] Tab 3 전문 리포트 에러 ({lang_code}): {e}")
 
-    # 💡 [핵심 방어막 3] Tracker에는 AI가 주무른 복사본(enriched)이 아닌, 
-    # 함수 시작 시 박제해 둔 '순수 FMP 원본 문자열'만 저장합니다!! (무한 루프 종결)
-    batch_upsert("analysis_cache",[{"cache_key": tracker_key, "content": pristine_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+    # =========================================================
+    # 💡 [핵심 방어막 3] 무한 루프 종결 (Raw Tracker 갱신)
+    # 4개 국어 분석이 모두 끝난 지점(for lang_code 루프 밖)에 위치해야 합니다.
+    # AI가 수정한 값이 아닌 '순수 FMP 원본 문자열'을 박제하여 다음 실행 시 중복 분석을 막습니다.
+    # =========================================================
+    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": pristine_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
     return True
             
 # ==========================================
