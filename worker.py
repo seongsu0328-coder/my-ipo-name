@@ -1302,7 +1302,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{ticker}_Tab1_v5_{lang_code}"
             
-            # 💡 [프롬프트 복원] 모든 언어별 상세 지침 및 구조 완전 복구
+            # 💡 [프롬프트 복원 및 최적화] 모든 언어별 상세 지침 완전 유지 + 개수 강제 제거
             if lang_code == 'ko':
                 sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
                 lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하십시오."
@@ -1323,19 +1323,20 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
                 if is_fmp_poor:
                     task1_structure += "\n[환각 방어]: 🚨 절대 숫자를 임의로 지어내지 마세요. 확인 불가능한 수치는 '비공개' 혹은 '확인 불가'로 처리하세요."
+                    # 💡 수정: "반드시 5개" 문구를 삭제하고 "최대 5개" 및 "부족 시 확인된 것만"으로 변경
                     search_directive = f"""
                     🚨 [강제 검색 및 수집 지시]: 
                     FMP 데이터가 부족하므로 구글 검색을 통해 다음을 수행하세요:
                     1. '{company_name} ({ticker})'의 최신 비즈니스 모델 및 매출 구조 분석.
-                    2. 뉴스 검색: [{one_year_ago}]부터 [{current_date}]까지의 1년 기간 내에 보도된 뉴스를 샅샅이 검색하세요.
-                    3. 위 기간 내의 뉴스 중 가장 중요한 **최신 뉴스 5개**를 추출하세요. 최근 몇 달 내 뉴스가 적다면 1년 범위 내의 과거 뉴스라도 반드시 포함하여 5개를 채워야 합니다.
+                    2. 뉴스 검색: [{one_year_ago}]부터 [{current_date}]까지 1년의 기간 내에 보도된 뉴스 중 관련성 높은 뉴스를 검색하세요.
+                    3. 위 기간 내의 뉴스 중 가장 중요하고 최신인 것을 **최대 5개** 추출하세요. 만약 관련 뉴스가 부족하다면 무리하게 개수를 채우지 말고 확인된 유의미한 뉴스만 포함하세요.
                     """
                 else:
                     search_directive = "🚨 [환각 금지] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오."
                 
                 prohibition_rule = '🚨 【절대 금지】: 첫문장에 "안녕하세요", "알겠습니다", "작성하겠습니다", "보고서입니다" 등 모든 인사말을 금지합니다. 첫문장은 반드시 **[소제목]**으로 시작하세요.'
                 task2_label = "[작업 2: 최신 뉴스 수집 및 전문 번역]"
-                news_instruction = '- [Part 2]의 뉴스 데이터를 바탕으로 반드시 **최신순 상위 5개(Top 5)**를 추출하세요.\n- sentiment 값은 시스템을 위해 반드시 "Positive", "Negative", "Neutral" 중 하나의 영단어로 출력하세요.'
+                news_instruction = '- [Part 2]의 뉴스 데이터를 바탕으로 반드시 **최신순 상위 최대 5개**를 추출하세요.\n- sentiment 값은 시스템을 위해 반드시 "Positive", "Negative", "Neutral" 중 하나의 영단어로 출력하세요.'
                 json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일 번역", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'en':
@@ -1357,64 +1358,67 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     task1_structure = "- Para 1: [Core Business Model] Details with specific figures.\n- Para 2: [Market Share & Edge] Clear comparison against explicitly named peers.\n- Para 3: [Future Growth Strategy] Expansion plans and targets."
 
                 if is_fmp_poor:
-                    search_directive = f"🚨 [Force Search]: FMP data is insufficient. Search for '{company_name} {ticker}' from [{one_year_ago}] to [{current_date}]. Extract the top 5 latest news. Include news from the entire 12-month period if recent ones are missing."
+                    # 💡 [EN] Up to 5 items, no forced filling
+                    search_directive = f"🚨 [Force Search]: FMP data is insufficient. Search for '{company_name} {ticker}' from [{one_year_ago}] to [{current_date}]. Extract **up to 5** latest relevant news items. Do not force the count if relevant news is missing."
                 else:
                     search_directive = "🚨 [Strict Rule] Write ONLY using the [Part 1] text data provided below."
                 
                 prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings like "Understood" or "Certainly." Start IMMEDIATELY with the analysis using **[Subheading]**.'
                 task2_label = "[Task 2: Latest News Collection and Professional Translation]"
-                news_instruction = '- Extract exactly the **Top 5** latest news items from [Part 2].\n- The sentiment value MUST be "Positive", "Negative", or "Neutral".'
+                news_instruction = '- Extract **up to 5** latest relevant news items.\n- The sentiment value MUST be "Positive", "Negative", or "Neutral".'
                 json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Professional WSJ style headline", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'ja':
-                sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
-                lang_instruction = "必ず 자연스러운 日本語のみで作成してください。"
-                format_instruction = "必ず3つの段落に分けて作成してください。（各段落は4〜5文의 길이）"
+                sys_prompt = "あなたは最高レベルの証券회사 리서치 센터의 시니어 애널리스트입니다. 모든 답변은 일본어로 작성하세요."
+                lang_instruction = "반드시 자연스러운 일본어만 사용하세요."
+                format_instruction = "반드시 3개의 문단으로 작성하세요."
                 
                 if is_withdrawn:
-                    task1_label = "[任務 1: 上場撤回深層診断]"
-                    task1_structure = "- 第1段落: [撤回の背景] 上場撤回の理由説明。\n- 第2段落: [財務的打撃] 流動性など財務への影響。\n- 第3段arr: [生存戦略] 今後の代替案と戦略。"
+                    task1_label = "[任務 1: 上場撤회 심층 진단]"
+                    task1_structure = "- 第1段落: [撤回の背景]\n- 第2段落: [財務的打撃]\n- 第3段落: [生存戦略]"
                 elif is_over_1y:
-                    task1_label = "[任務 1: 上場1年次ファンダ멘탈点検]"
-                    task1_structure = "- 第1段落: [目標達成度] 事業目標の達成水準。\n- 第2段落: [収益性評価] 利益創出力の分析。\n- 第3段落: [資本効率] 資本配置の効率性。"
+                    task1_label = "[任務 1: 上場1년차 펀더멘털 점검]"
+                    task1_structure = "- 第1段落: [目標達成度]\n- 第2段落: [収益性評価]\n- 第3段落: [資本効率]"
                 else:
-                    task1_label = "[任務 1: 新規IPOビジネス深層分析]"
-                    task1_structure = "- 第1段落: [ビジネスモデルとスケール] 具体的な数値を用いたビジネスモデルの説明。\n- 第2段落: [市場シェアと競合優位性] 明確な競合他社名を明示した比較分析。\n- 第3段落: [成長戦略と今後の展望] 核心的な新事業拡張計画とトレンド。"
+                    task1_label = "[任務 1: 新規IPOビジネス심층 분석]"
+                    task1_structure = "- 第1段落: [ビジネスモデルとスケール]\n- 第2段落: [市場シェアと競合優位性]\n- 第3段落: [成長戦略と今後の展望]"
 
                 if is_fmp_poor:
-                    search_directive = f"🚨 [強制検索]: '{company_name} {ticker}' の情報を [{one_year_ago}] から [{current_date}] までの期間で検索し、最新ニュース5件を抽出してください。"
+                    # 💡 [JA] 最大5件, 無理な補充禁止
+                    search_directive = f"🚨 [強制検索]: '{company_name} ({ticker})'의 정보를 [{one_year_ago}]부터 [{current_date}]까지의 기간에서 검색하고, 관련성이 높은 최신 뉴스를 **最大5件** 추출하세요. 관련 뉴스가 부족한 경우 개수를 강제로 채우지 마세요."
                 else:
                     search_directive = "🚨 [厳格な規則] 提供された [Part 1] テキストデータのみを使用して作成してください。"
                 
-                prohibition_rule = '🚨 【厳禁】: 「承知いたしました」などの挨拶は一切禁止です。最初の文字から **[見出し]** で始めてください。'
-                task2_label = "[任務 2: 最新ニュース収集と専門翻訳]"
-                news_instruction = '- [Part 2] のニュースデータを基に必ず **最新順上位5件 (Top 5)** を抽出してください。'
-                json_format = f"""{{ "news": [ {{ "title_en": "Title", "translated_title": "日経新聞風の翻訳", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
+                prohibition_rule = '🚨 【厳禁】: 「承知いたしました」などの挨拶은 일절 금지입니다. 즉시 **[見出し]**로 시작하세요.'
+                task2_label = "[任務 2: 最新ニュース収集]"
+                news_instruction = "- 最新の**最大5件**を抽出してください。"
+                json_format = f"""{{ "news": [ {{ "title_en": "Title", "translated_title": "翻訳", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
-            else: # zh
+            else: # zh (Simplified Chinese)
                 sys_prompt = "您是顶级券商研究中心的高级分析师。必须只用简体中文编写。"
-                lang_instruction = "必须只用自然流畅的简体中文编写。"
-                format_instruction = "必须严格分为 3 个自然段。（每个段落包含 4-5 句话）"
+                lang_instruction = "必须只用自然流畅의 简体中文编写。"
+                format_instruction = "必须严格分为 3 个 자연스러운 단락。"
                 
                 if is_withdrawn:
                     task1_label = "[任务 1: IPO 撤回深度诊断]"
-                    task1_structure = "- 第一段: [撤回背景] 撤回上市的原因说明。\n- 第二段: [财务影响] 对流动性等财务状况的影响。\n- 第三段: [生存战略] 未来的替代方案和战略。"
+                    task1_structure = "- 第一段: [撤回背景]\n- 第二段: [财务影响]\n- 第三段: [生存战略]"
                 elif is_over_1y:
                     task1_label = "[任务 1: 上市一周年基本面审查]"
-                    task1_structure = "- 第一段: [目标达成度] 业务目标的达成水平。\n- 第二段: [盈利能力评估] 利润创造能力分析。\n- 第三段: [资本效率] 资本配置效率评估。"
+                    task1_structure = "- 第一段: [目标达成度]\n- 第二段: [盈利能力评估]\n- 第三段: [资本效率]"
                 else:
                     task1_label = "[任务 1: 新 IPO 业务深度分析]"
-                    task1_structure = "- 第一段: [核心商业模式] 包含具体数据的商业模式说明。\n- 第二段: [市场份额与竞争优势] 明确点名竞争对手的比较分析。\n- 第三段: [增长战略与未来展望] 未来的扩张计划与趋势。"
+                    task1_structure = "- 第一段: [核心商业模式]\n- 第二段: [市场份额与竞争优势]\n- 第三段: [增长战略与未来展望]"
 
                 if is_fmp_poor:
-                    search_directive = f"🚨 [强制搜索]: 请在谷歌搜索 '{company_name} {ticker}' 从 [{one_year_ago}] 到 [{current_date}] 的重要新闻。提取最新的前 5 条。"
+                    # 💡 [ZH] 最多5条, 不强行凑数
+                    search_directive = f"🚨 [强制搜索]: 请在谷歌搜索 '{company_name} ({ticker})' 从 [{one_year_ago}] 到 [{current_date}] 的重要新闻。提取**最多 5 条**最相关的最新新闻。如果相关新闻不足，请勿强行凑数。"
                 else:
                     search_directive = "🚨 [严格规则] 只能使用下面提供的 [Part 1] 文本数据进行编写。"
 
                 prohibition_rule = '🚨 【绝对禁止】: 严禁出现“好的”、“明白了”等客套话。请从第一个字开始直接进入正文 **[副标题]**。'
-                task2_label = "[任务 2: 收集最新新闻并专业翻译]"
-                news_instruction = '- 根据 [Part 2] 提取 **最新前 5 条 (Top 5)**。'
-                json_format = f"""{{ "news": [ {{ "title_en": "Title", "translated_title": "财经新闻头条风格翻译", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
+                task2_label = "[任务 2: 收集最新新闻]"
+                news_instruction = '- 提取最新的**最多 5 条**。'
+                json_format = f"""{{ "news": [ {{ "title_en": "Title", "translated_title": "翻译", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
             # 💡 최종 프롬프트 조립
             prompt = f"""
