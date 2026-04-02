@@ -2952,62 +2952,51 @@ def update_macro_data(df):
             4. 请使用专业且正式的陈述句。
             """
 
-        # 💡[Call 2] 하단 전문 (월가 표준 리포트 포맷 + 모바일 최적화 2~3문장)
+        # 💡[Call 2] 하단 전문 (월가 표준 1문단 요약 - 모바일 최적화)
         if lang_code == 'ko':
-            full_p = f"월가 수석 전략가로서 다음 데이터를 바탕으로 '글로벌 매크로 및 IPO 전략 리포트'를 작성하세요.\n[심리/수익성]: {g1_context}\n[공급/질적리스크]: {g2_context}\n[밸류에이션]: {g3_context}"
+            full_p = f"월가 수석 분석가로서 다음 지표를 종합하여 현재 시장 환경에 대한 전술적 리포트를 작성하세요.\n[데이터]: {g1_context}, {g2_context}, {g3_context}"
             full_i = """
-            [작성 규칙 - 애널리스트 표준 포맷]
-            1. **형식**: 소제목과 메인 제목을 절대 쓰지 마세요. 오직 3개의 문단으로만 구성합니다.
-            2. **분량**: 모바일 가독성을 위해 각 문단은 반드시 '2~3문장'으로 짧고 강결하게 작성하세요.
-            3. **들여쓰기**: 각 단락의 첫 시작은 반드시 공백(스페이스) 2칸을 넣어 시작하세요.
-            4. **첫 단어**: 리포트의 첫 단어는 반드시 '글로벌' 또는 '현재'로 시작하세요.
-            5. **내용 흐름**: 
-               - 1문단: 현재 금융 시장의 변동성(VIX)과 투자 심리, IPO 초기 성과를 결합하여 유동성 환경을 진단하세요.
-               - 2문단: 상장 예정 물량과 적자 기업 비중, 철회율을 통해 공급 측면의 리스크와 발행사들의 질적 수준을 분석하세요.
-               - 3문단: 버핏 지수와 시장 PE를 근거로 전체 시장의 가격 수준을 평가하고, 투자자가 취해야 할 전략적 포지션을 제언하세요.
-            6. 모든 문장은 '~습니다/ㅂ니다' 형태의 격식 있는 정중체를 사용하세요.
+            [작성 규칙 - Professional Single Paragraph]
+            1. **형식**: 제목, 소제목, 불필요한 공백 없이 **딱 하나의 단락**으로만 작성하세요.
+            2. **분량**: 스마트폰 화면을 고려하여 전체 **5~6줄(문장 3~4개)** 내외로 매우 압축하여 작성하세요.
+            3. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
+            4. **서술 방식**: 
+               - 현재 거시 밸류에이션(PE/버핏지수)과 변동성(VIX) 환경이 IPO 시장의 수급과 유동성에 미치는 인과관계를 중심으로 서술하세요.
+               - 특히 미수익 기업 비중이나 철회율에서 나타나는 발행사 질적 리스크를 날카롭게 지적하며 마무리하세요.
+            5. **어조**: '~~함에 따라 ~~가 관측됩니다', '~~한 포지션이 유효할 것으로 판단됩니다'와 같은 냉철하고 전문적인 문체를 사용하세요.
+            6. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
             """
         elif lang_code == 'en':
-            full_p = f"As a Senior Wall Street Strategist, write a 'Global Macro & IPO Strategy Report' using: \n[Sentiment]: {g1_context}\n[Supply/Quality]: {g2_context}\n[Valuation]: {g3_context}"
+            full_p = f"As a Senior Macro Strategist, provide a tactical market brief in a single paragraph.\n[Data]: {g1_context}, {g2_context}, {g3_context}"
             full_i = """
-            [Instructions - Analyst Standard]
-            1. **Format**: NO titles and NO subheadings. Exactly 3 paragraphs.
-            2. **Length**: For mobile readability, each paragraph MUST be exactly 2-3 sentences long.
-            3. **Indentation**: Start each paragraph with an indent (2 spaces).
-            4. **First Word**: Start the very first word of the report with 'Global' or 'Currently'.
-            5. **Structure**:
-               - Para 1: Diagnose the liquidity environment by linking VIX, Fear & Greed, and IPO initial returns.
-               - Para 2: Analyze supply-side risk and issuer quality based on upcoming volume, unprofitable ratio, and withdrawal rates.
-               - Para 3: Evaluate overall market valuation using the Buffett Indicator and PE, and provide a tactical investment recommendation.
-            6. Use a formal, authoritative, and professional tone.
+            [Instructions - Executive Summary Style]
+            1. **Format**: Strictly **one single paragraph**. No subheadings or bullet points.
+            2. **Length**: Optimized for mobile screens, limited to **5-6 lines (approx 3-4 concise sentences)**.
+            3. **Opening**: Start the very first word with 'Global' or 'Currently'.
+            4. **Content Logic**: 
+               - Connect broad market valuations (PE/Buffett) and volatility (VIX) to the current IPO liquidity regime.
+               - Conclude with a tactical outlook by addressing the risk of supply glut or the sub-optimal quality of recent issuers.
+            5. **Tone**: Use high-level financial terminology (e.g., 'liquidity regime', 'tactical posture', 'equity risk premium').
             """
         elif lang_code == 'ja':
-            full_p = f"ウォール街のチーフストラテジストとして、次のデータを用いて『グローバル・マクロ＆IPO戦略レポート』を作成してください:\n[心理/収益性]: {g1_context}\n[供給/質的リスク]: {g2_context}\n[バ류エーション]: {g3_context}"
+            full_p = f"チーフストラテジストとして、次の指標を統合した戦術的な市場ブ리핑을 1つの段落で作成してください。\n[データ]: {g1_context}, {g2_context}, {g3_context}"
             full_i = """
-            [規則 - アナリスト標準フォーマット]
-            1. **形式**: メ인タイトルや小見出しは一切禁止です。3つの段落のみで構成してください。
-            2. **長さ**: モバイルでの視인성을 고려하여、各段落は必ず「2〜3文」で簡潔に記述してください。
-            3. **字下げ**: 各段落の先頭は必ず2文字分のスペースを入れて始めてください。
-            4. **最初の単語**: レポートの最初の単어는 반드시「グローバル」または「現在」で始めてください。
-            5. **構成**:
-               - 第1段落: VIX、Fear & Greed、IPO初期リターンを組み合わせ、現在の流動性環境と投資家心理を診断してください。
-               - 第2段落: 上場予定数、赤字企業比率、取下げ率から、供給過剰のリスクと発行体の質的側面を分析してください。
-               - 第3段落: バフェット指数と市場PEに基づき、市場全体の価格水準を評価し、投資家が取るべき戦略的ポジションを提言してください。
-            6. 丁寧な「です・ます」調を使用してください。
+            [規則 - 専門的な単一段落]
+            1. **形式**: 見出しなし、**たった1つの段落**で作成してください。
+            2. **長さ**: モバイル画面に最適化し、**5〜6行**程度に凝縮してください。
+            3. **最初の単語**: 「グローバル」または「現在」で始めてください。
+            4. **論리**: マクロ環境（PE/VIX）がIPO市場の需給と流動性に与える因果関係を分析し、発行体の質的リスクに言及して締めくくってください。
+            5. です・ます調を使用してください。
             """
-        elif lang_code == 'zh':
-            full_p = f"作为华尔街首席策略师，请根据以下数据撰写《全球宏观与IPO投资策略报告》:\n[情绪/收益]: {g1_context}\n[供给/质量风险]: {g2_context}\n[估值]: {g3_context}"
+        else: # zh
+            full_p = f"作为首席策略师，请根据以下指标撰写一份简明扼要的单段落投资策略报告。\n[数据]: {g1_context}, {g2_context}, {g3_context}"
             full_i = """
-            [规则 - 机构分析师标准]
-            1. **格式**: 严禁使用主标题或副标题。严格分为3个段落。
-            2. **长度**: 考虑到移动端阅读体验，每个段落必须控制在“2-3句”内。
-            3. **缩进**: 每个段落开头必须缩进（两个空格）。
-            4. **开头**: 报告的第一个词必须以“全球”或“当前”开头。
-            5. **逻辑**:
-               - 第一段: 结合 VIX、恐慌贪婪指数和 IPO 首日回报，诊断当前的流动性环境和市场情绪。
-               - 第二段: 通过发行数量、亏损企业占比及撤回率，分析供应端风险及发行人的质量水平。
-               - 第三段: 依据巴菲特指标和市场 PE 评估整体估值水平，并给出具体的投资策略建议。
-            6. 使用专业、严謹的陈述句。
+            [规则 - 机构级单段落摘要]
+            1. **格式**: 严禁分段，仅限**一个自然段**。
+            2. **篇幅**: 针对手机端优化，控制在**5-6行**以内。
+            3. **首词**: 以“全球”或“当前”开头。
+            4. **逻辑**: 阐述宏观估值(PE/巴菲特指标)与波动率(VIX)如何影响IPO市场的流动性，并针对发行人质量及供应风险给出战术建议。
+            5. 使用专业术语，保持冷静、客观的分析基调。
             """
 
         try:
