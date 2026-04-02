@@ -2952,51 +2952,46 @@ def update_macro_data(df):
             4. 请使用专业且正式的陈述句。
             """
 
-        # 💡[Call 2] 하단 전문 (월가 표준 1문단 요약 - 모바일 최적화)
+        # 💡[Call 2] 하단 전문 (지표 통합 및 인과관계 중심의 단일 단락)
+        # 모든 지표를 하나의 텍스트 덩어리로 합칩니다 (경계 해체)
+        all_macro_metrics = f"VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, S&P500 PE: {data['pe_ratio']}x, Buffett Indicator: {data['buffett_val']}%, IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%, Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%"
+
         if lang_code == 'ko':
-            full_p = f"월가 수석 분석가로서 다음 지표를 종합하여 현재 시장 환경에 대한 전술적 리포트를 작성하세요.\n[데이터]: {g1_context}, {g2_context}, {g3_context}"
+            full_p = f"월가 헤지펀드 전략가로서 아래 8개 시장 지표의 상관관계를 분석한 날카로운 투자 코멘트를 작성하세요.\n[시장 데이터]: {all_macro_metrics}"
             full_i = """
-            [작성 규칙 - Professional Single Paragraph]
-            1. **형식**: 제목, 소제목, 불필요한 공백 없이 **딱 하나의 단락**으로만 작성하세요.
-            2. **분량**: 스마트폰 화면을 고려하여 전체 **5~6줄(문장 3~4개)** 내외로 매우 압축하여 작성하세요.
-            3. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
-            4. **서술 방식**: 
-               - 현재 거시 밸류에이션(PE/버핏지수)과 변동성(VIX) 환경이 IPO 시장의 수급과 유동성에 미치는 인과관계를 중심으로 서술하세요.
-               - 특히 미수익 기업 비중이나 철회율에서 나타나는 발행사 질적 리스크를 날카롭게 지적하며 마무리하세요.
-            5. **어조**: '~~함에 따라 ~~가 관측됩니다', '~~한 포지션이 유효할 것으로 판단됩니다'와 같은 냉철하고 전문적인 문체를 사용하세요.
+            [작성 규칙 - Strategic Brief]
+            1. **형식**: 소제목, 제목, 불필요한 공백을 절대 쓰지 마세요. **딱 하나의 단락**으로만 구성합니다.
+            2. **지표 결합**: '시장의 가치평가(PE/버핏지수) 대비 변동성(VIX)이 어떠하며, 이것이 신규 IPO 공급량과 질적 수준(적자 비중)에 어떤 인과관계를 미치고 있는지' 유기적으로 엮어서 설명하세요. 
+            3. **중복 금지**: 단순히 지표를 나열하거나 상단 카드 내용을 반복하면 안 됩니다. '현상이 원인이 되어 결과로 나타나는 흐름'을 서술하세요.
+            4. **분량**: 모바일 최적화를 위해 전체 **5~6줄(문장 3개 내외)**로 매우 압축하여 작성하세요.
+            5. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
             6. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
             """
         elif lang_code == 'en':
-            full_p = f"As a Senior Macro Strategist, provide a tactical market brief in a single paragraph.\n[Data]: {g1_context}, {g2_context}, {g3_context}"
+            full_p = f"As a Wall Street Hedge Fund Strategist, provide a sharp investment brief by correlating these 8 metrics.\n[Market Data]: {all_macro_metrics}"
             full_i = """
-            [Instructions - Executive Summary Style]
-            1. **Format**: Strictly **one single paragraph**. No subheadings or bullet points.
-            2. **Length**: Optimized for mobile screens, limited to **5-6 lines (approx 3-4 concise sentences)**.
-            3. **Opening**: Start the very first word with 'Global' or 'Currently'.
-            4. **Content Logic**: 
-               - Connect broad market valuations (PE/Buffett) and volatility (VIX) to the current IPO liquidity regime.
-               - Conclude with a tactical outlook by addressing the risk of supply glut or the sub-optimal quality of recent issuers.
-            5. **Tone**: Use high-level financial terminology (e.g., 'liquidity regime', 'tactical posture', 'equity risk premium').
+            [Rules]
+            1. **Format**: Single paragraph only. No subheadings.
+            2. **Logic**: Synthesize the relationship between market valuation (PE/Buffett), volatility (VIX), and IPO supply quality (Volume/Unprofitable ratio).
+            3. **Content**: Do NOT repeat the cards. Focus on the causal links between the data points.
+            4. **Length**: 5-6 lines (approx 3 sentences). Optimized for mobile.
+            5. **Opening**: Start with 'Global' or 'Currently'.
             """
         elif lang_code == 'ja':
-            full_p = f"チーフストラテジストとして、次の指標を統合した戦術的な市場ブ리핑을 1つの段落で作成してください。\n[データ]: {g1_context}, {g2_context}, {g3_context}"
+            full_p = f"ヘッジファンド・ストラテジストとして、8つの指標を相関 분석した鋭い投資コメントを1つの段落で作成してください。\n[データ]: {all_macro_metrics}"
             full_i = """
-            [規則 - 専門的な単一段落]
-            1. **形式**: 見出しなし、**たった1つの段落**で作成してください。
-            2. **長さ**: モバイル画面に最適化し、**5〜6行**程度に凝縮してください。
-            3. **最初の単語**: 「グローバル」または「現在」で始めてください。
-            4. **論리**: マクロ環境（PE/VIX）がIPO市場の需給と流動性に与える因果関係を分析し、発行体の質的リスクに言及して締めくくってください。
-            5. です・ます調を使用してください。
+            1. 形式: 1つの段落。見出し禁止。
+            2. 内容: バリュエーション(PE)と変動性(VIX)がIPOの需給と質(赤字比率)に与える因果関係を論理的に記述してください。
+            3. 長さ: 5〜6行程度。モバイル最適化。
+            4. 開始: 「グローバル」または「現在」で始める。です・ます調。
             """
         else: # zh
-            full_p = f"作为首席策略师，请根据以下指标撰写一份简明扼要的单段落投资策略报告。\n[数据]: {g1_context}, {g2_context}, {g3_context}"
+            full_p = f"作为对冲基金策略师，请结合以下8项指标的因果关系，撰写一份尖锐的投资简报。\n[市场数据]: {all_macro_metrics}"
             full_i = """
-            [规则 - 机构级单段落摘要]
-            1. **格式**: 严禁分段，仅限**一个自然段**。
-            2. **篇幅**: 针对手机端优化，控制在**5-6行**以内。
-            3. **首词**: 以“全球”或“当前”开头。
-            4. **逻辑**: 阐述宏观估值(PE/巴菲特指标)与波动率(VIX)如何影响IPO市场的流动性，并针对发行人质量及供应风险给出战术建议。
-            5. 使用专业术语，保持冷静、客观的分析基调。
+            1. 格式: 仅限一个自然段。严禁小标题。
+            2. 逻辑: 将宏观估值(PE/巴菲特指标)与波动率(VIX)结合，分析其对IPO发行质量(破发率/赤字率)的连锁 영향.
+            3. 篇幅: 5-6行。移动端优化。
+            4. 首词: 以“全球”或“当前”开头。
             """
 
         try:
