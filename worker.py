@@ -1221,12 +1221,17 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 {raw_data}"""
 
 # ==========================================
-# [완벽 복구] Tab 1: 뉴스 및 비즈니스 (프롬프트 보존 + 보편적 정제 원칙 적용)
+# [완벽 복구 및 기능 강화] Tab 1: 뉴스 및 비즈니스 (동적 검색 및 서론 제거 통합)
 # ==========================================
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return
     
     now = datetime.now()
+    current_date = now.strftime("%Y-%m-%d")
+    # 💡 [검토 결과]: 기존 원본에는 없던 로직입니다. 
+    # 작업일 기준 12개월 전 날짜를 계산하여 검색 결과 누락(Encore Medical 등)을 원천 방어합니다.
+    one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+    
     status_lower = str(ipo_status).lower()
     is_withdrawn = bool(re.search(r'\b(withdrawn|rw|철회|취소)\b', status_lower))
     is_delisted_or_otc = bool(re.search(r'\b(delisted|폐지|otc)\b', status_lower))
@@ -1242,7 +1247,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
     valid_hours = 24 
     limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
-    current_date = now.strftime("%Y-%m-%d")
 
     # 1. 원본 데이터 수집
     profile_url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={FMP_API_KEY}"
@@ -1252,7 +1256,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     news_url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={ticker}&limit=15&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_15", news_url, valid_hours=6)
     
-    # 💡 [뉴스 누락 해결]: 티커가 여러 개 묶여 오는 경우(A,B,C)에도 매칭되도록 개선
     valid_news = [
         n for n in (news_data or []) 
         if n and ticker.upper() in [s.strip().upper() for s in str(n.get('symbol', '')).split(',')]
@@ -1279,7 +1282,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{ticker}_Tab1_v5_{lang_code}"
             
-            # 💡 [프롬프트 복구] 요청하신 상세 지침 그대로 적용
+            # 💡 [프롬프트 복원] 모든 언어별 상세 지침 및 구조 완전 복구
             if lang_code == 'ko':
                 sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
                 lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하십시오."
@@ -1300,11 +1303,17 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
                 if is_fmp_poor:
                     task1_structure += "\n[환각 방어]: 🚨 절대 숫자를 임의로 지어내지 마세요. 확인 불가능한 수치는 '비공개' 혹은 '확인 불가'로 처리하세요."
-                    search_directive = f"🚨 [강제 검색]: FMP 데이터가 부족합니다. 즉시 구글 검색을 통해 '{company_name} {ticker} business model' 및 '{company_name} latest news'를 찾아주세요."
+                    search_directive = f"""
+                    🚨 [강제 검색 및 수집 지시]: 
+                    FMP 데이터가 부족하므로 구글 검색을 통해 다음을 수행하세요:
+                    1. '{company_name} ({ticker})'의 최신 비즈니스 모델 및 매출 구조 분석.
+                    2. 뉴스 검색: [{one_year_ago}]부터 [{current_date}]까지의 1년 기간 내에 보도된 뉴스를 샅샅이 검색하세요.
+                    3. 위 기간 내의 뉴스 중 가장 중요한 **최신 뉴스 5개**를 추출하세요. 최근 몇 달 내 뉴스가 적다면 1년 범위 내의 과거 뉴스라도 반드시 포함하여 5개를 채워야 합니다.
+                    """
                 else:
                     search_directive = "🚨 [환각 금지] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오."
                 
-                prohibition_rule = '🚨 【절대 금지】 첫문장에 "알겠습니다", "작성하겠습니다", "보고서입니다" 같은 AI 특유의 인사말은 절대 금지합니다! "## Company Analysis" 같은 제목이나 넘버링도 금지합니다.'
+                prohibition_rule = '🚨 【절대 금지】: 첫문장에 "안녕하세요", "알겠습니다", "작성하겠습니다", "보고서입니다" 등 모든 인사말을 금지합니다. 첫문장은 반드시 **[소제목]**으로 시작하세요.'
                 task2_label = "[작업 2: 최신 뉴스 수집 및 전문 번역]"
                 news_instruction = '- [Part 2]의 뉴스 데이터를 바탕으로 반드시 **최신순 상위 5개(Top 5)**를 추출하세요.\n- sentiment 값은 시스템을 위해 반드시 "Positive", "Negative", "Neutral" 중 하나의 영단어로 출력하세요.'
                 json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일 번역", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
@@ -1328,56 +1337,48 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     task1_structure = "- Para 1: [Core Business Model] Details with specific figures.\n- Para 2: [Market Share & Edge] Clear comparison against explicitly named peers.\n- Para 3: [Future Growth Strategy] Expansion plans and targets."
 
                 if is_fmp_poor:
-                    task1_structure += "\n[Anti-Hallucination]: 🚨 NEVER invent numbers. State if undisclosed."
-                    search_directive = f"🚨 [Force Search]: FMP data is insufficient. IMMEDIATELY use Google Search for '{company_name} {ticker} business model'."
+                    search_directive = f"🚨 [Force Search]: FMP data is insufficient. Search for '{company_name} {ticker}' from [{one_year_ago}] to [{current_date}]. Extract the top 5 latest news. Include news from the entire 12-month period if recent ones are missing."
                 else:
                     search_directive = "🚨 [Strict Rule] Write ONLY using the [Part 1] text data provided below."
                 
-                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings like "Understood" or "Here is the report." Start IMMEDIATELY. Do not use headers or numbering.'
+                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings like "Understood" or "Certainly." Start IMMEDIATELY with the analysis using **[Subheading]**.'
                 task2_label = "[Task 2: Latest News Collection and Professional Translation]"
                 news_instruction = '- Extract exactly the **Top 5** latest news items from [Part 2].\n- The sentiment value MUST be "Positive", "Negative", or "Neutral".'
                 json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Professional WSJ style headline", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'ja':
                 sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は必ず日本語で作成してください。"
-                lang_instruction = "必ず自然な日本語のみで作成してください。"
-                format_instruction = "必ず3つの段落に分けて作成してください。（各段落は4〜5文の長さ）"
+                lang_instruction = "必ず 자연스러운 日本語のみで作成してください。"
+                format_instruction = "必ず3つの段落に分けて作成してください。（各段落は4〜5文의 길이）"
                 
                 if is_withdrawn:
-                    task1_label = "[타스크 1: 상장 철회 심층 진단]"
-                    task1_structure = "- 第1段落: [撤回の背景] 上場撤回の理由説明。\n- 第2段落: [財務적打擊] 流動性など財務への影響。\n- 第3段落: [生存戦略] 今後の代替案と戦略。"
-                elif is_delisted_or_otc:
-                    task1_label = "[타스크 1: OTC/上場廃止リスク診断]"
-                    task1_structure = "- 第1段落: [上場廃止の背景] 上場廃止の理由説明。\n- 第2段落: [投資리스크] 리스크 진단。\n- 第3段落: [長期展望] 장기 전망 서술。"
+                    task1_label = "[任務 1: 上場撤回深層診断]"
+                    task1_structure = "- 第1段落: [撤回の背景] 上場撤回の理由説明。\n- 第2段落: [財務的打撃] 流動性など財務への影響。\n- 第3段arr: [生存戦略] 今後の代替案と戦略。"
                 elif is_over_1y:
-                    task1_label = "[타스크 1: 상장 1년 차 펀더멘털 점검]"
-                    task1_structure = "- 第1段落: [目標達成度] 사업 목표 달성 수준。\n- 第2段落: [収益性評価] 이익 창출력 분석。\n- 第3段落: [資本効率] 자본 배치 효율성。"
+                    task1_label = "[任務 1: 上場1年次ファンダ멘탈点検]"
+                    task1_structure = "- 第1段落: [目標達成度] 事業目標の達成水準。\n- 第2段落: [収益性評価] 利益創出力の分析。\n- 第3段落: [資本効率] 資本配置の効率性。"
                 else:
-                    task1_label = "[타스크 1: 신규 IPO 비즈니스 심층 분석]"
-                    task1_structure = "- 第1段落: [中核ビジネスモデル] 구체적 수치를 동반한 비즈니스 모델 설명。\n- 第2段落: [市場シェアと競合優위성] 명확한 경쟁사명 명시한 비교 분석。\n- 第3段落: [成長戦略と将来の展望] 핵심 신사업 확장 계획 및 트렌드。"
+                    task1_label = "[任務 1: 新規IPOビジネス深層分析]"
+                    task1_structure = "- 第1段落: [ビジネスモデルとスケール] 具体的な数値を用いたビジネスモデルの説明。\n- 第2段落: [市場シェアと競合優位性] 明確な競合他社名を明示した比較分析。\n- 第3段落: [成長戦略と今後の展望] 核心的な新事業拡張計画とトレンド。"
 
                 if is_fmp_poor:
-                    task1_structure += "\n[ハル시네이션防止]: 🚨 절대 숫자를 임의로 지어내지 마세요. 확인 불가능한 수치는 '비공개' 혹은 '확인 불가'로 처리하세요."
-                    search_directive = f"🚨 [強制検索]: FMP 데이터가 부족합니다. 즉시 구글 검색을 통해 '{company_name} {ticker} business model' 및 '{company_name} latest news'를 찾아주세요."
+                    search_directive = f"🚨 [強制検索]: '{company_name} {ticker}' の情報を [{one_year_ago}] から [{current_date}] までの期間で検索し、最新ニュース5件を抽出してください。"
                 else:
-                    search_directive = "🚨 [厳格な規則] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오."
+                    search_directive = "🚨 [厳格な規則] 提供された [Part 1] テキストデータのみを使用して作成してください。"
                 
-                prohibition_rule = '🚨 【厳禁】 첫문장에 "알겠습니다", "작성하겠습니다", "보고서입니다" 같은 AI 특유의 인사말은 절대 금지합니다! "## Company Analysis" 같은 제목이나 넘버링도 금지합니다.'
-                task2_label = "[타스크 2: 최신 뉴스 수집 및 전문 번역]"
-                news_instruction = '- [Part 2]의 뉴스 데이터를 바탕으로 반드시 **최신순 상위 5개(Top 5)**를 추출하세요.\n- sentiment 값은 시스템을 위해 반드시 "Positive", "Negative", "Neutral" 중 하나의 영단어로 출력하세요.'
-                json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "日経新聞のヘッドライン風翻訳", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
+                prohibition_rule = '🚨 【厳禁】: 「承知いたしました」などの挨拶は一切禁止です。最初の文字から **[見出し]** で始めてください。'
+                task2_label = "[任務 2: 最新ニュース収集と専門翻訳]"
+                news_instruction = '- [Part 2] のニュースデータを基に必ず **最新順上位5件 (Top 5)** を抽出してください。'
+                json_format = f"""{{ "news": [ {{ "title_en": "Title", "translated_title": "日経新聞風の翻訳", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
             else: # zh
-                sys_prompt = "您是顶尖券商研究中心的高级分析师。必须只用简体中文编写。"
-                lang_instruction = "必须只用自然流畅의 简体中文编写。"
+                sys_prompt = "您是顶级券商研究中心的高级分析师。必须只用简体中文编写。"
+                lang_instruction = "必须只用自然流畅的简体中文编写。"
                 format_instruction = "必须严格分为 3 个自然段。（每个段落包含 4-5 句话）"
                 
                 if is_withdrawn:
                     task1_label = "[任务 1: IPO 撤回深度诊断]"
                     task1_structure = "- 第一段: [撤回背景] 撤回上市的原因说明。\n- 第二段: [财务影响] 对流动性等财务状况的影响。\n- 第三段: [生存战略] 未来的替代方案和战略。"
-                elif is_delisted_or_otc:
-                    task1_label = "[任务 1: OTC/退市风险诊断]"
-                    task1_structure = "- 第一段: [退市背景] 退市原因说明。\n- 第二段: [投资风险] 核心风险诊断。\n- 第三段: [长期展望] 长期前景描述。"
                 elif is_over_1y:
                     task1_label = "[任务 1: 上市一周年基本面审查]"
                     task1_structure = "- 第一段: [目标达成度] 业务目标的达成水平。\n- 第二段: [盈利能力评估] 利润创造能力分析。\n- 第三段: [资本效率] 资本配置效率评估。"
@@ -1386,15 +1387,14 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     task1_structure = "- 第一段: [核心商业模式] 包含具体数据的商业模式说明。\n- 第二段: [市场份额与竞争优势] 明确点名竞争对手的比较分析。\n- 第三段: [增长战略与未来展望] 未来的扩张计划与趋势。"
 
                 if is_fmp_poor:
-                    task1_structure += "\n[防止幻觉]: 🚨 绝对不要凭空捏造数字。无法确认的数据请标记为“未公开”。"
-                    search_directive = f"🚨 [强制搜索]: FMP数据不足。请立即使用Google搜索查找“{company_name} {ticker} business model”。"
+                    search_directive = f"🚨 [强制搜索]: 请在谷歌搜索 '{company_name} {ticker}' 从 [{one_year_ago}] 到 [{current_date}] 的重要新闻。提取最新的前 5 条。"
                 else:
                     search_directive = "🚨 [严格规则] 只能使用下面提供的 [Part 1] 文本数据进行编写。"
 
-                prohibition_rule = '🚨 【绝对禁止】 严격禁止出现“好的”、“明白了”或“这是分析报告”等客套话！从第一个字开始直接进入正文。禁止使用标题或编号。'
-                task2_label = "[任务2: 收集最新新闻并专业翻译]"
-                news_instruction = '- 根据 [Part 2] 提取**最新前 5 条 (Top 5)**。\n- sentiment 必须输出英文："Positive"、"Negative" 或 "Neutral" 파싱.'
-                json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "财经新闻头条风格翻译", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
+                prohibition_rule = '🚨 【绝对禁止】: 严禁出现“好的”、“明白了”等客套话。请从第一个字开始直接进入正文 **[副标题]**。'
+                task2_label = "[任务 2: 收集最新新闻并专业翻译]"
+                news_instruction = '- 根据 [Part 2] 提取 **最新前 5 条 (Top 5)**。'
+                json_format = f"""{{ "news": [ {{ "title_en": "Title", "translated_title": "财经新闻头条风格翻译", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
             # 💡 최종 프롬프트 조립
             prompt = f"""
@@ -1423,38 +1423,52 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             <JSON_END>
             """
 
-            # --- [AI 응답 후처리: 보편적 정제 원칙 적용] ---
+            # --- [AI 응답 후처리: 인사말 제거 및 정제] ---
             for attempt in range(3):
                 try:
                     response = current_model.generate_content(prompt)
                     if not response or not response.text: continue
                     
-                    full_text = response.text
+                    # 💡 [방어막] 코드 레벨에서 인사말 강제 삭제기 (Preamble Cleaner)
+                    def clean_ai_preamble(text):
+                        # 1. 정규표현식으로 흔한 서론 패턴 도려내기
+                        patterns = [
+                            r"^(안녕하세요|알겠습니다|작성하겠습니다|요청하신|보고서입니다|Sure|Understood|Certainly|Okay).*?(\n|$)",
+                            r"^(承知いたしました|作成します|こんにちは|明白了|好的|这是).*?(\n|$)"
+                        ]
+                        for p in patterns:
+                            text = re.sub(p, "", text, flags=re.MULTILINE | re.IGNORECASE)
+                        
+                        # 2. 첫 문단이 소제목(**[...]**)이 아닌 단순 문장으로 시작하면서 너무 짧으면 삭제
+                        lines = text.strip().split('\n')
+                        if lines:
+                            first_line = lines[0].strip()
+                            if not (first_line.startswith('**[') or first_line.startswith('[')):
+                                if len(first_line) < 65 and first_line.endswith(('다', '요', '요.', 'ね', 'る', '了', ':', '。')):
+                                    text = '\n'.join(lines[1:])
+                        return text.strip()
+
+                    full_text = clean_ai_preamble(response.text)
                     news_list = []
                     biz_analysis = full_text
 
-                    # [1] 강력한 JSON 도려내기 (백틱 및 태그 제거)
+                    # [1] 강력한 JSON 도려내기
                     json_patterns = [r'<JSON_START>.*<JSON_END>', r'```json\s*\{.*?\}\s*```', r'```\s*\{.*?\}\s*```', r'\{.*"news".*\}']
                     for pattern in json_patterns:
                         match = re.search(pattern, biz_analysis, re.DOTALL | re.IGNORECASE)
                         if match:
                             json_str = match.group(0)
-                            # 데이터 파싱
                             c_match = re.search(r'(\{.*\})', json_str, re.DOTALL)
                             if c_match:
                                 try:
                                     parsed = json.loads(c_match.group(1), strict=False)
                                     news_list = parsed.get("news", [])
                                 except: pass
-                            # 본문에서 JSON 블록 영구 삭제
                             biz_analysis = biz_analysis.replace(json_str, "").strip()
                             break
 
-                    # [2] 🚨 보편적 원칙 기반 제목/인사말 삭제
-                    # 1. 모든 마크다운 헤더(#, ##) 줄 삭제
+                    # [2] 제목/인사말 추가 삭제 및 정제
                     biz_analysis = re.sub(r'^#+.*$', '', biz_analysis, flags=re.MULTILINE).strip()
-                    
-                    # 2. 문단 단위로 쪼개서 너무 짧은 제목형 줄 필터링
                     lines = biz_analysis.split('\n')
                     final_lines = []
                     body_started = False
@@ -1462,16 +1476,11 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         l = line.strip()
                         if not l: continue
                         if not body_started:
-                            # 60자 미만의 짧은 줄이 **로 감싸져 있거나 콜론으로 끝나면 제목으로 간주하고 버림
-                            # 단, 소제목 형식인 **[...]** 은 본문의 시작이므로 허용
                             is_subheading = l.startswith('**[') or l.startswith('[')
                             is_short_title = (l.startswith('**') and l.endswith('**') and len(l) < 60)
                             is_intro_line = (len(l) < 55 and (l.endswith(':') or l.endswith('입니다') or l.endswith('보고서')))
-                            
-                            if (is_short_title or is_intro_line) and not is_subheading:
-                                continue # 제목이니까 스킵
-                            else:
-                                body_started = True
+                            if (is_short_title or is_intro_line) and not is_subheading: continue 
+                            else: body_started = True
                         final_lines.append(line)
                     
                     biz_analysis = "\n".join(final_lines).strip()
@@ -1484,10 +1493,8 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     html_parts = []
                     for p in clean_paragraphs:
                         if p.startswith('**[') or p.startswith('['):
-                            # 소제목은 굵게
                             html_parts.append(f'<p style="font-weight:bold; margin-top:20px; margin-bottom:5px; color:#111;">{p.replace("**","")}</p>')
                         else:
-                            # 본문은 들여쓰기 (한국어 기준)
                             indent = "14px" if lang_code == "ko" else "0px"
                             html_parts.append(f'<p style="text-indent:{indent}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>')
 
@@ -1505,11 +1512,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     print(f"❌ [{ticker}] {lang_code} 분석 시도 중 오류: {e}")
                     time.sleep(1)
         
-        # 5. 모든 언어 분석 완료 후 트래커 갱신 및 완료 로그
         batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": now.isoformat()}], "cache_key")
-        print(f"✅ [{ticker}] Tab 1 분석 및 캐싱 완료")
+        print(f"✅ [{ticker}] Tab 1 분석 및 캐싱 완료 (동적 1년 검색 & 인사말 제거)")
     else:
-        # 💡 변경점이 없을 때 출력할 로그 메시지
         print(f"⏩ [{ticker}] Tab 1 변경점 없음. AI 요약 스킵!")
                 
     # =========================================================
@@ -2947,48 +2952,62 @@ def update_macro_data(df):
             4. 请使用专业且正式的陈述句。
             """
 
-        # 💡[Call 2] 하단 전문 (소제목 금지 및 들여쓰기 강제)
+        # 💡[Call 2] 하단 전문 (월가 표준 리포트 포맷 + 모바일 최적화 2~3문장)
         if lang_code == 'ko':
-            full_p = f"월가 수석 전략가로서 다음 데이터를 바탕으로 현재 글로벌 거시경제 및 IPO 시장 환경에 대한 심층 분석 리포트를 작성하세요.\n[1번]: {g1_context}\n[2번]: {g2_context}\n[3번]: {g3_context}"
+            full_p = f"월가 수석 전략가로서 다음 데이터를 바탕으로 '글로벌 매크로 및 IPO 전략 리포트'를 작성하세요.\n[심리/수익성]: {g1_context}\n[공급/질적리스크]: {g2_context}\n[밸류에이션]: {g3_context}"
             full_i = """
-            [작성 규칙]
-            1. 메인 제목(## 분석 등) 및 소제목(**[시장 유동성]** 등)은 절대 쓰지 마세요.
-            2. 리포트의 첫 번째 단어는 반드시 '글로벌' 또는 '현재'로 시작하세요.
-            3. 총 3개의 단락으로만 구성하며, 각 단락의 첫 문장은 들여쓰기(스페이스바 2칸 또는 탭)로 자연스럽게 시작하세요.
-            4. 제공된 수치를 반드시 본문에 자연스럽게 녹여서 근거로 제시하세요.
-            5. 각 단락은 4~5문장 길이로 꽉 채워서 작성하세요.
-            6. 모든 문장은 '~습니다/ㅂ니다' 형태의 정중체를 사용하세요.
+            [작성 규칙 - 애널리스트 표준 포맷]
+            1. **형식**: 소제목과 메인 제목을 절대 쓰지 마세요. 오직 3개의 문단으로만 구성합니다.
+            2. **분량**: 모바일 가독성을 위해 각 문단은 반드시 '2~3문장'으로 짧고 강결하게 작성하세요.
+            3. **들여쓰기**: 각 단락의 첫 시작은 반드시 공백(스페이스) 2칸을 넣어 시작하세요.
+            4. **첫 단어**: 리포트의 첫 단어는 반드시 '글로벌' 또는 '현재'로 시작하세요.
+            5. **내용 흐름**: 
+               - 1문단: 현재 금융 시장의 변동성(VIX)과 투자 심리, IPO 초기 성과를 결합하여 유동성 환경을 진단하세요.
+               - 2문단: 상장 예정 물량과 적자 기업 비중, 철회율을 통해 공급 측면의 리스크와 발행사들의 질적 수준을 분석하세요.
+               - 3문단: 버핏 지수와 시장 PE를 근거로 전체 시장의 가격 수준을 평가하고, 투자자가 취해야 할 전략적 포지션을 제언하세요.
+            6. 모든 문장은 '~습니다/ㅂ니다' 형태의 격식 있는 정중체를 사용하세요.
             """
         elif lang_code == 'en':
-            full_p = f"As a senior Wall Street strategist, write a deep-dive macroeconomic report using this data:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
+            full_p = f"As a Senior Wall Street Strategist, write a 'Global Macro & IPO Strategy Report' using: \n[Sentiment]: {g1_context}\n[Supply/Quality]: {g2_context}\n[Valuation]: {g3_context}"
             full_i = """
-            [Rules]
-            1. NO MAIN TITLE and NO SUBHEADINGS (No bold text for headers).
-            2. Start the very first word of the report with 'Global' or 'Currently'.
-            3. Write EXACTLY 3 paragraphs. Start each paragraph with an indent (2 spaces).
-            4. You MUST naturally quote the exact numbers provided in the context as evidence.
-            5. Each paragraph must be 4-5 sentences long.
-            6. Use a formal and authoritative professional tone.
+            [Instructions - Analyst Standard]
+            1. **Format**: NO titles and NO subheadings. Exactly 3 paragraphs.
+            2. **Length**: For mobile readability, each paragraph MUST be exactly 2-3 sentences long.
+            3. **Indentation**: Start each paragraph with an indent (2 spaces).
+            4. **First Word**: Start the very first word of the report with 'Global' or 'Currently'.
+            5. **Structure**:
+               - Para 1: Diagnose the liquidity environment by linking VIX, Fear & Greed, and IPO initial returns.
+               - Para 2: Analyze supply-side risk and issuer quality based on upcoming volume, unprofitable ratio, and withdrawal rates.
+               - Para 3: Evaluate overall market valuation using the Buffett Indicator and PE, and provide a tactical investment recommendation.
+            6. Use a formal, authoritative, and professional tone.
             """
         elif lang_code == 'ja':
-            full_p = f"ウォール街のチーフストラテジストとして、次のデータを用いてマクロ経済の深層分析レポートを作成してください:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
+            full_p = f"ウォール街のチーフストラテジストとして、次のデータを用いて『グローバル・マクロ＆IPO戦略レポート』を作成してください:\n[心理/収益性]: {g1_context}\n[供給/質的リスク]: {g2_context}\n[バ류エーション]: {g3_context}"
             full_i = """
-            [規則]
-            1. メインタイトルや小見出し（**[市場の流動性]**など）は絶対に使用しないでください。
-            2. レポートの最初の単語は必ず「グローバル」または「現在」で始めてください。
-            3. 全体で3つの段落のみで構成し、各段落の先頭は必ず2文字分のスペースで字下げしてください。
-            4. 提供された具体的な数値を必ず本文の中に自然に引用してください。
-            5. 各段落は4〜5文の長さで記述し、「〜です・ます」調を使用してください。
+            [規則 - アナリスト標準フォーマット]
+            1. **形式**: メ인タイトルや小見出しは一切禁止です。3つの段落のみで構成してください。
+            2. **長さ**: モバイルでの視인성을 고려하여、各段落は必ず「2〜3文」で簡潔に記述してください。
+            3. **字下げ**: 各段落の先頭は必ず2文字分のスペースを入れて始めてください。
+            4. **最初の単語**: レポートの最初の単어는 반드시「グローバル」または「現在」で始めてください。
+            5. **構成**:
+               - 第1段落: VIX、Fear & Greed、IPO初期リターンを組み合わせ、現在の流動性環境と投資家心理を診断してください。
+               - 第2段落: 上場予定数、赤字企業比率、取下げ率から、供給過剰のリスクと発行体の質的側面を分析してください。
+               - 第3段落: バフェット指数と市場PEに基づき、市場全体の価格水準を評価し、投資家が取るべき戦略的ポジションを提言してください。
+            6. 丁寧な「です・ます」調を使用してください。
             """
         elif lang_code == 'zh':
-            full_p = f"作为华尔街首席策略师，请根据以下数据撰写宏观经济深度分析报告:\n[1]: {g1_context}\n[2]: {g2_context}\n[3]: {g3_context}"
+            full_p = f"作为华尔街首席策略师，请根据以下数据撰写《全球宏观与IPO投资策略报告》:\n[情绪/收益]: {g1_context}\n[供给/质量风险]: {g2_context}\n[估值]: {g3_context}"
             full_i = """
-            [规则]
-            1. 严禁使用任何主标题或副标题（不要对章节名称加粗）。
-            2. 报告的第一个词必须以“全球”或“当前”开头。
-            3. 严格分为3个段落，每个段落开头必须缩进（空两格）。
-            4. 必须在正文中自然地引用提供的具体数值作为依据。
-            5. 每个段落保持4-5句话的长度，使用专业的书面语体。
+            [规则 - 机构分析师标准]
+            1. **格式**: 严禁使用主标题或副标题。严格分为3个段落。
+            2. **长度**: 考虑到移动端阅读体验，每个段落必须控制在“2-3句”内。
+            3. **缩进**: 每个段落开头必须缩进（两个空格）。
+            4. **开头**: 报告的第一个词必须以“全球”或“当前”开头。
+            5. **逻辑**:
+               - 第一段: 结合 VIX、恐慌贪婪指数和 IPO 首日回报，诊断当前的流动性环境和市场情绪。
+               - 第二段: 通过发行数量、亏损企业占比及撤回率，分析供应端风险及发行人的质量水平。
+               - 第三段: 依据巴菲特指标和市场 PE 评估整体估值水平，并给出具体的投资策略建议。
+            6. 使用专业、严謹的陈述句。
             """
 
         try:
