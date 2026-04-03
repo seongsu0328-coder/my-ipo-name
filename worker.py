@@ -259,10 +259,10 @@ def sanitize_value(v):
     return str(v).strip().replace('\x00', '')
 
 def clean_ai_preamble(text):
-    """AI의 불필요한 인사말, 서론, 지침 찌꺼기를 전역적으로 제거하는 함수"""
+    """AI의 불필요한 인사말, 서론만 제거하고 [소제목]은 보존하는 함수"""
     if not text: return ""
     
-    # 1. 정규표현식으로 다국어 서론 패턴 삭제
+    # 1. 명백한 인사말 패턴 삭제 (기존 유지)
     patterns = [
         r"^(안녕하세요|알겠습니다|작성하겠습니다|요청하신|보고서입니다|분석 결과입니다).*?(\n|$)",
         r"^(Sure|Understood|Certainly|Here is the|Okay|I will).*?(\n|$)",
@@ -272,11 +272,22 @@ def clean_ai_preamble(text):
     for p in patterns:
         text = re.sub(p, "", text, flags=re.MULTILINE | re.IGNORECASE)
     
-    # 2. 문장 시작 부분의 [ ] 또는 ( ) 괄호 찌꺼기 강제 제거 
-    # (예: "(성장성 진단 4~5문장): 매출이..." -> "매출이...")
-    text = re.sub(r'^[\[\(].*?[\]\)]\s*:?', '', text).strip()
+    # 2. [문제의 구간] 모든 대괄호를 지우지 말고, "안내성/지시성" 대괄호만 골라서 제거
+    # 아래 키워드가 들어간 대괄호/소괄호만 시작 부분에서 제거합니다.
+    ai_meta_keywords = ['분석', '요청', '작성', '보고서', '진단', 'summary', 'analysis', 'here is']
     
-    return text
+    lines = text.strip().split('\n')
+    if lines:
+        first_line = lines[0].strip()
+        # 첫 줄이 [ ]나 ( )로 시작할 때만 검사
+        if re.match(r'^[\[\(].*?[\]\)]', first_line):
+            # 대괄호 안의 내용이 AI 메타 키워드를 포함하면 지우기
+            if any(kw in first_line.lower() for kw in ai_meta_keywords):
+                # 단, 우리가 살려야 할 실질적 소제목(비즈니스, 성과 등)이 들어있으면 지우지 않음
+                if not any(real in first_line for real in ['비즈니스', '성과', '전략', '리스크', '재무', '가치', '현황']):
+                    text = '\n'.join(lines[1:]).strip()
+
+    return text.strip()
 
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not data_list: return
@@ -2533,14 +2544,20 @@ Data: {g1_context} | {g2_context} | {g3_context}
 6. 绝对不要抱怨数据缺失。"""
 
         # ----------------------------------------------------
-        # [Call 1] 3D 카드 요약 생성 (JSON 파싱 완전 폐기 및 직통 저장)
+        # [Call 1] 3D 카드 요약 생성 (괄호 찌꺼기 완전 박멸)
         # ----------------------------------------------------
         try:
-            # 💡 [비용 방어막] 여기서부터는 철저하게 비용 0원짜리 model_strict만 씁니다!
             res_sum = model_strict.generate_content(sum_p)
             if res_sum and res_sum.text:
-                # 🚀 수정: clean_ai_preamble을 먼저 호출하여 인사말과 [성장성 진단] 등을 제거
-                clean_sum = clean_ai_preamble(res_sum.text.strip()).replace('\n', ' ')
+                # 1. 인사말 제거
+                clean_sum = clean_ai_preamble(res_sum.text.strip())
+                
+                # 2. 6번 문제 해결: 카드용 텍스트에서 [ ]와 ( )로 감싸진 지시문/제목 강제 삭제
+                # 카드 요약은 소제목 없이 내용만 나오는게 깔끔하므로 정규식으로 괄호와 그 안의 내용을 다 지웁니다.
+                clean_sum = re.sub(r'[\[\(].*?[\]\)]\s*:?', '', clean_sum)
+                
+                # 3. 줄바꿈 제거하여 한 줄로 합치기
+                clean_sum = clean_sum.replace('\n', ' ').strip()
                 
                 batch_upsert("analysis_cache",[{
                     "cache_key": cache_key_sum, 
@@ -2548,8 +2565,6 @@ Data: {g1_context} | {g2_context} | {g3_context}
                     "updated_at": datetime.now().isoformat()
                 }], "cache_key")
                 print(f"✅ [{ticker}] Tab 3 카드 요약 캐싱 완료 ({lang_code})")
-        except Exception as e:
-            print(f"❌ [{ticker}] Tab 3 카드 요약 에러 ({lang_code}): {e}")
 
         # ----------------------------------------------------
         # [Call 2] 하단 전문 리포트 생성 (전역 정제 함수 통합 및 최적화 버전)
@@ -3069,58 +3084,80 @@ def fetch_smart_money_data(symbol, api_key):
     return data
 
 def run_tab6_analysis(ticker, company_name, smart_money_data):
-    """Tab 6: 스마트머니 4대 지표 통합 감시 AI 리포트 생성 (Raw Tracker 적용)"""
+    """Tab 6: 스마트머니 분석 (실제 데이터 존재 시에만 푸시 알림 발송)"""
     if 'model_strict' not in globals() or not model_strict: return False
     
+    # 🚨 [환각 방어] 데이터 유무 사전 검사
+    has_any_data = any(len(v) > 0 for v in smart_money_data.values() if isinstance(v, list))
+    
+    # [상황 1] 데이터가 아예 없는 경우
+    if not has_any_data:
+        print(f"ℹ️ [{ticker}] 스마트머니 데이터가 없어 '내역 없음' 메시지만 저장하고 알림 없이 종료합니다.")
+        for lang_code in SUPPORTED_LANGS.keys():
+            cache_key = f"{ticker}_Tab6_SmartMoney_v1_{lang_code}"
+            # 언어별 메시지 설정
+            if lang_code == 'ko': msg = "확인된 최신 공시 내역이 없습니다."
+            elif lang_code == 'ja': msg = "確認された最新の公示内容はありません。"
+            elif lang_code == 'zh': msg = "未确认到最新的公告信息。"
+            else: msg = "No verified data available from recent filings."
+            
+            empty_content = f"{msg} |||SEP||| {msg} |||SEP||| {msg} |||SEP||| {msg}"
+            batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": empty_content, "updated_at": datetime.now().isoformat()}], "cache_key")
+        
+        # 💡 [핵심] 여기서 트래커만 갱신하고 함수를 종료(return)해버립니다.
+        # 이렇게 하면 하단의 send_fcm_push 로직까지 도달하지 않습니다.
+        current_raw_str = json.dumps(smart_money_data, sort_keys=True)
+        batch_upsert("analysis_cache", [{"cache_key": f"{ticker}_Tab6_SmartMoney_RawTracker", "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+        return True
+
+    # [상황 2] 데이터가 하나라도 있는 경우 (정상 분석 진행)
     current_raw_str = json.dumps(smart_money_data, sort_keys=True)
     tracker_key = f"{ticker}_Tab6_SmartMoney_RawTracker"
-    is_changed = True
     
+    # 중복 체크 로직
     try:
         res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
         if res_tracker.data and current_raw_str == res_tracker.data[0]['content']:
-            is_changed = False
+            return True # 변경사항 없으면 종료
     except: pass
 
-    if not is_changed: return True
-
-    print(f"🔔 [{ticker}] 스마트머니 데이터 업데이트 감지! AI 요약 시작...")
+    print(f"🔔 [{ticker}] 실제 스마트머니 데이터 감지! AI 분석 및 알림 발송 준비...")
     
-    analysis_success = False
+    analysis_performed = False
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key = f"{ticker}_Tab6_SmartMoney_v1_{lang_code}"
         
-        if lang_code == 'en':
-            prompt = f"You are a Wall Street Insider & Institutional Flow Analyst. Analyze the Smart Money data for {company_name} ({ticker}): {current_raw_str}\n\n[Format Rules]\n- Write STRICTLY in English.\n- Use EXACTLY these 4 separators between sections: |||SEP|||\n- NO intro/outro greetings."
+        # (프롬프트 설정 부분은 이전과 동일하되 '지어내지 말 것' 강조 유지)
+        if lang_code == 'ko':
+            h_defense = "[엄격 규칙: 데이터가 없는 항목은 반드시 '확인된 최신 공시 내역이 없습니다.'라고만 적고 절대 지어내지 마세요.]"
+            prompt = f"{h_defense}\n당신은 분석가입니다. {company_name}({ticker})의 스마트머니 데이터 분석: {current_raw_str}\n\n항목 사이 |||SEP||| 필수."
         elif lang_code == 'ja':
-            prompt = f"あなたはウォール街の内部者取引および機関投資家フローの専門アナリストです。{company_name} ({ticker})의 스마트머니 데이터를 분석하세요: {current_raw_str}\n\n[포맷 규칙]\n- 전부 일본어로 작성하세요.\n- 섹션 사이에 |||SEP||| 구분자를 넣으세요.\n- 인사말 생략."
+            h_defense = "[厳格な規則: データがない項目は必ず「確認された最新の公示内容はありません。」と記述し、捏造しないでください。]"
+            prompt = f"{h_defense}\nあなたはアナリストです。{current_raw_str}を分析してください。\n\n区切り文字 |||SEP||| 必須。"
         elif lang_code == 'zh':
-            prompt = f"您是华尔街内幕交易与机构资金流向的专业分析师。请分析 {company_name} ({ticker}) 的聪明钱数据: {current_raw_str}\n\n[格式规则]\n- 全部用简体中文编写.\n- 使用 |||SEP||| 作为分隔符.\n- 省略问候语."
-        else: # ko
-            prompt = f"당신은 월스트리트 내부자 거래 및 자금 흐름(Smart Money) 전문 애널리스트입니다. {company_name} ({ticker})의 스마트머니 데이터를 심층 분석하세요: {current_raw_str}\n\n[포맷 규칙 - 엄격 준수]\n- 반드시 순수한 한국어로만 작성하세요.\n- 모든 문장은 반드시 '~습니다', '~ㅂ니다' 형태의 정중한 존댓말로 마무리하십시오.\n- 각 항목 사이에 반드시 |||SEP||| 구분자를 넣으세요."
-        
-        for attempt in range(3):
-            try:
-                response = model_strict.generate_content(prompt)
-                res_text = response.text
-                
-                if lang_code != 'ko' and re.search(r'[가-힣]', res_text):
-                    time.sleep(1); continue 
-                        
-                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": res_text, "updated_at": datetime.now().isoformat()}], "cache_key")
-                print(f"✅ [{ticker}] 스마트머니 분석 캐싱 완료 ({lang_code})")
-                analysis_success = True
-                break 
-            except Exception as e:
-                time.sleep(1)
-                
-    # 🚀 [FCM 추가] 분석 완료 후 알림 발송
-    if analysis_success:
+            h_defense = "[严格规则：如果数据为空，必须仅回答“未确认到最新的官方公告信息”，严직捏造。]"
+            prompt = f"{h_defense}\n您是分析师。请分析 {current_raw_str}。\n\n使用 |||SEP||| 分隔。"
+        else: # en
+            h_defense = "[STRICT RULE: If data is empty, strictly output 'No verified data available' and NEVER hallucinate.]"
+            prompt = f"{h_defense}\nYou are an analyst. Analyze {current_raw_str} for {company_name}({ticker}).\n\nUse |||SEP||| as separator."
+
+        try:
+            response = model_strict.generate_content(prompt)
+            if response and response.text:
+                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                analysis_performed = True
+        except: pass
+
+    # 🚀 [알림 조건 강화] 
+    # 1. AI 분석이 성공했고(analysis_performed)
+    # 2. 실제로 공시 데이터가 존재할 때만(has_any_data) 푸시를 보냅니다.
+    if analysis_performed and has_any_data:
         send_fcm_push(
             title=f"💰 {ticker} 스마트머니 포착",
             body=f"내부자 거래 및 월가 고래들의 {ticker} 매집 동향 분석 리포트가 도착했습니다.",
             ticker=ticker
         )
+        print(f"🚀 [{ticker}] 실제 데이터에 대한 푸시 알림 발송 완료")
 
     batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
     return True
