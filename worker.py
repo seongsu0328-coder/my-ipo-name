@@ -2553,7 +2553,6 @@ Data: {g1_context} | {g2_context} | {g3_context}
                 clean_sum = clean_ai_preamble(res_sum.text.strip())
                 
                 # 2. 6번 문제 해결: 카드용 텍스트에서 [ ]와 ( )로 감싸진 지시문/제목 강제 삭제
-                # 카드 요약은 소제목 없이 내용만 나오는게 깔끔하므로 정규식으로 괄호와 그 안의 내용을 다 지웁니다.
                 clean_sum = re.sub(r'[\[\(].*?[\]\)]\s*:?', '', clean_sum)
                 
                 # 3. 줄바꿈 제거하여 한 줄로 합치기
@@ -2565,6 +2564,9 @@ Data: {g1_context} | {g2_context} | {g3_context}
                     "updated_at": datetime.now().isoformat()
                 }], "cache_key")
                 print(f"✅ [{ticker}] Tab 3 카드 요약 캐싱 완료 ({lang_code})")
+        except Exception as e:
+            # 🚨 [중요] 이 except 블록이 없어서 에러가 났던 것입니다.
+            print(f"❌ [{ticker}] Tab 3 카드 요약 에러 ({lang_code}): {e}")
 
         # ----------------------------------------------------
         # [Call 2] 하단 전문 리포트 생성 (전역 정제 함수 통합 및 최적화 버전)
@@ -2577,10 +2579,9 @@ Data: {g1_context} | {g2_context} | {g3_context}
                 clean_full = clean_ai_preamble(res_full.text.strip())
                 
                 # 🚀 [수정 핵심 2]: Tab 3 리포트 전용 필터 (이모지, 특정 타이틀 등 제거)
-                # (?i)는 대소문자 구분 없이 매칭한다는 정규식 옵션입니다.
                 clean_full = re.sub(r'(?i)(🎓|📊|📈|💡|🚀|CFA Quant Deep-Dive Analysis|CFA Quant|기업 분석 보고서|재무 분석 보고서)', '', clean_full).strip()
                 
-                # 마크다운 굵은글씨(**) 파괴 (HTML 렌더링 시 일관된 스타일 유지용)
+                # 마크다운 굵은글씨(**) 파괴
                 clean_full = re.sub(r'\*\*(.*?)\*\*', r'\1', clean_full) 
                 
                 # 문단 분리 및 불필요한 기호 제거
@@ -2595,6 +2596,7 @@ Data: {g1_context} | {g2_context} | {g3_context}
                 
             print(f"✅ [{ticker}] Tab 3 미시 지표 전문 리포트 완료 ({lang_code})")
         except Exception as e:
+            # 🚨 [중요] 이 except 블록도 짝을 맞춰주어야 합니다.
             print(f"❌ [{ticker}] Tab 3 전문 리포트 에러 ({lang_code}): {e}")
 
     # =========================================================
