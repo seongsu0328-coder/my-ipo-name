@@ -599,24 +599,32 @@ def db_load_community_scores(ticker):
         print(f"Community Load Error: {e}")
         return []
 
-# [수정된 db_log_user_action 함수]
 def db_log_user_action(user_id, ticker, action_type, price=0.0, details=""):
     if user_id == 'guest_id' or not user_id: 
         return False
     try:
+        # 1. 시간 및 기본 정보 설정
         entry_time = st.session_state.get('tab_entry_time', time.time())
         stay_duration = round(time.time() - entry_time, 2)
         st.session_state.tab_entry_time = time.time()
-
         current_lang = st.session_state.get('lang', 'ko').upper() 
         
-        # 💡 [수정] 경로가 없거나 비어있으면 최소한 '시작점(0)'이라도 기록되게 강제함
-        nav_path = st.session_state.get('navigation_path', [])
-        if not nav_path:
-            nav_path = [0] # 상세페이지에 진입했다는 것 자체가 Tab 0을 본 것이므로
+        # 2. 내비게이션 경로 추출 디버깅
+        raw_nav_path = st.session_state.get('navigation_path', [])
+        
+        # 💡 [DEBUG] 현재 세션 상태 출력
+        print(f"🔍 [DEBUG STEP 1] Session Path Data: {raw_nav_path}")
+
+        # 경로가 비어있을 경우 처리
+        if not raw_nav_path:
+            nav_path = [0]
+            print(f"⚠️ [DEBUG STEP 2] Path was empty. Forced to [0] for Ticker: {ticker}")
+        else:
+            nav_path = raw_nav_path
             
         nav_path_str = ",".join(map(str, nav_path))
 
+        # 3. 최종 전송 데이터 구성 및 출력
         log_data = {
             "user_id": str(user_id),
             "ticker": str(ticker),
@@ -625,12 +633,26 @@ def db_log_user_action(user_id, ticker, action_type, price=0.0, details=""):
             "details": str(details),
             "user_lang": current_lang,
             "stay_duration_sec": stay_duration,
-            "navigation_path": nav_path_str  # 💡 이제 무조건 최소 "0"은 찍힙니다.
+            "navigation_path": nav_path_str 
         }
-        supabase.table("action_logs").insert(log_data).execute()
+
+        # 💡 [DEBUG] Supabase로 쏘기 직전의 전체 페이로드 확인
+        print(f"🚀 [DEBUG STEP 3] Sending to Supabase: {log_data}")
+
+        # 4. DB 인서트 실행 및 응답 확인
+        response = supabase.table("action_logs").insert(log_data).execute()
+        
+        # 💡 [DEBUG] DB 응답 결과 확인
+        print(f"📡 [DEBUG STEP 4] Supabase Response: {response}")
+
         return True
+
     except Exception as e:
-        print(f"Action Log Error: {e}")
+        # 💡 [DEBUG] 에러 발생 시 상세 내용 출력
+        print(f"❌ [DEBUG ERROR] Action Log Failed!")
+        print(f"사유: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 # ---------------------------------------------------------
