@@ -610,9 +610,12 @@ def db_log_user_action(user_id, ticker, action_type, price=0.0, details=""):
 
         current_lang = st.session_state.get('lang', 'ko').upper() 
         
-        # 💡 [추가] 현재 세션에 기록된 내비게이션 경로 가져오기
+        # 💡 [수정] 경로가 없거나 비어있으면 최소한 '시작점(0)'이라도 기록되게 강제함
         nav_path = st.session_state.get('navigation_path', [])
-        nav_path_str = ",".join(map(str, nav_path)) # AI 학습을 위해 문자열로 변환
+        if not nav_path:
+            nav_path = [0] # 상세페이지에 진입했다는 것 자체가 Tab 0을 본 것이므로
+            
+        nav_path_str = ",".join(map(str, nav_path))
 
         log_data = {
             "user_id": str(user_id),
@@ -622,7 +625,7 @@ def db_log_user_action(user_id, ticker, action_type, price=0.0, details=""):
             "details": str(details),
             "user_lang": current_lang,
             "stay_duration_sec": stay_duration,
-            "navigation_path": nav_path_str  # 💡 [신규 컬럼 대응]
+            "navigation_path": nav_path_str  # 💡 이제 무조건 최소 "0"은 찍힙니다.
         }
         supabase.table("action_logs").insert(log_data).execute()
         return True
