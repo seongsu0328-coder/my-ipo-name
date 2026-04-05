@@ -599,29 +599,30 @@ def db_load_community_scores(ticker):
         print(f"Community Load Error: {e}")
         return []
 
-# [신규] 유저의 모든 행동과 '당시 가격'을 히스토리(Log)로 쌓는 함수
-# [수정된 함수]
+# [수정된 db_log_user_action 함수]
 def db_log_user_action(user_id, ticker, action_type, price=0.0, details=""):
     if user_id == 'guest_id' or not user_id: 
         return False
     try:
-        # 1. 체류 시간 계산 (현재 시각 - 탭 진입 시각)
         entry_time = st.session_state.get('tab_entry_time', time.time())
         stay_duration = round(time.time() - entry_time, 2)
-        
-        # 2. 다음 측정을 위해 진입 시각 리셋 (선택 사항)
         st.session_state.tab_entry_time = time.time()
 
         current_lang = st.session_state.get('lang', 'ko').upper() 
         
+        # 💡 [추가] 현재 세션에 기록된 내비게이션 경로 가져오기
+        nav_path = st.session_state.get('navigation_path', [])
+        nav_path_str = ",".join(map(str, nav_path)) # AI 학습을 위해 문자열로 변환
+
         log_data = {
             "user_id": str(user_id),
             "ticker": str(ticker),
-            "action_type": action_type, # 예: 'Tab 0_POS'
+            "action_type": action_type,
             "price": float(price),     
             "details": str(details),
             "user_lang": current_lang,
-            "stay_duration_sec": stay_duration  # 🔥 [신규 추가] 체류 시간 기록
+            "stay_duration_sec": stay_duration,
+            "navigation_path": nav_path_str  # 💡 [신규 컬럼 대응]
         }
         supabase.table("action_logs").insert(log_data).execute()
         return True
@@ -4643,6 +4644,17 @@ with main_area.container():
         user_info = st.session_state.get('user_info') or {}
         user_id = user_info.get('id', 'guest_id')
     
+        # 💡 [추가] RNN 학습을 위한 내비게이션 경로 수집 초기화
+        if 'navigation_path' not in st.session_state:
+            st.session_state.navigation_path = []
+            
+        # 💡 [추가] 종목이 바뀌면 기존 경로 리셋
+        if 'current_tracking_ticker' not in st.session_state or st.session_state.current_tracking_ticker != sid:
+            st.session_state.navigation_path = []
+            st.session_state.current_tracking_ticker = sid
+            # 상세 페이지 첫 진입 시 'Tab 0'을 본 것으로 간주하고 시작 경로(0) 추가
+            st.session_state.navigation_path.append(0)
+
         if sid not in st.session_state.user_decisions:
             saved_data = db_load_user_specific_decisions(user_id, sid)
             if saved_data:
@@ -4705,15 +4717,12 @@ with main_area.container():
             is_delisted = bool(re.search(r'\b(delisted|폐지)\b', combined_status))
             is_expected = bool(re.search(r'\b(expected|filed|active|priced)\b', combined_status))
 
-            # 💡 [핵심 수정] 캘린더 화면과 똑같은 5단계 조건문 적용 (current_p 최우선)
             if is_withdrawn:
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('label_rw')})</span>"
             elif is_delayed:
                 p_info = f"<span style='font-size: 0.9rem; color: #1919e6;'>({date_str} / {label_ipo} ${off_val} / 📅 {get_text('status_delayed')})</span>"
             elif is_delisted:
                 p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / 🚫 {get_text('status_delisted')})</span>"
-            
-            # 💡 가격이 잡히는 정상 거래 종목 (Freecast 같은 직상장 공모가 $0.0 대응)
             elif current_p > 0:
                 if off_val > 0:
                     pct = ((current_p - off_val) / off_val) * 100
@@ -4721,10 +4730,7 @@ with main_area.container():
                     icon = "▲" if pct >= 0 else "▼"
                     p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / {get_text('label_general')} ${current_p:,.2f} <span style='color:{color}; font-weight:bold;'>{icon} {abs(pct):.1f}%</span>)</span>"
                 else:
-                    # 공모가가 0.0인 경우 수익률 없이 현재 가격만 깔끔하게 노출
                     p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} $0.00 / {get_text('label_general')} ${current_p:,.2f})</span>"
-            
-            # 💡 다국어 지원 시간 기반 방어막 적용 (가격이 없을 때)
             else: 
                 if ipo_dt > today:
                     p_info = f"<span style='font-size: 0.9rem; color: #888;'>({date_str} / {label_ipo} ${off_val} / ⏳ {get_text('status_waiting')})</span>"
@@ -4742,7 +4748,7 @@ with main_area.container():
             st.markdown(f"<div><span style='font-size: 1.2rem; font-weight: 700;'>{status_emoji} {stock['name']}</span> {p_info}</div>", unsafe_allow_html=True)
             st.write("")
 
-            # 3. 💡 [체류 시간 측정 및 탭 제어] 
+            # 3. 💡 [체류 시간 측정 및 탭 제어 + RNN 경로 수집] 
             import time
             if 'tab_entry_time' not in st.session_state:
                 st.session_state.tab_entry_time = time.time()
@@ -4754,8 +4760,15 @@ with main_area.container():
             selected_sub_menu = st.pills(label="sub_nav", options=tab_labels, selection_mode="single", 
                                          default=st.session_state.detail_sub_menu, key="detail_tabs_pills", label_visibility="collapsed")
             
-            # 🚀 탭 변경 시 시간 리셋
+            # 🚀 탭 변경 시 시간 리셋 및 경로 기록
             if selected_sub_menu and selected_sub_menu != st.session_state.detail_sub_menu:
+                # 💡 [RNN 경로 기록] 현재 탭의 인덱스를 찾아 경로 리스트에 추가
+                new_tab_idx = tab_labels.index(selected_sub_menu)
+                st.session_state.navigation_path.append(new_tab_idx)
+                
+                # 💡 [실시간 로그 전송] 탭 이동 사실과 현재까지의 경로를 DB에 저장
+                db_log_user_action(user_id, sid, f"TAB_MOVE_TO_{new_tab_idx}", price=current_p)
+                
                 st.session_state.tab_entry_time = time.time() 
                 st.session_state.detail_sub_menu = selected_sub_menu
                 st.rerun()
