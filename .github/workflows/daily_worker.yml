@@ -1,16 +1,10 @@
 name: UnicornFinder Daily Worker
 
 on:
-  # 코드가 저장(Push)될 때마다 즉시 실행
   push:
     branches: [ "main" ] 
-
-  # 6시간마다(하루 4번) 실행
-  # (한국시간 기준 오전 3시, 9시, 오후 3시, 오후 9시 실행)
   schedule:
     - cron: '0 18,0,6,12 * * *'
-  
-  # 수동 실행 버튼 활성화
   workflow_dispatch:
 
 jobs:
@@ -18,18 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      # 💡 [수정] v4의 최신 노드 지원 버전을 사용하거나 v4를 유지 (현재 v4가 최신이나 경고 시 내부 업데이트됨)
       - name: 저장소 코드 체크아웃
         uses: actions/checkout@v4
 
+      # 💡 [핵심 수정] v4에서 v5로 변경 (Node.js 20 경고 해결)
       - name: 파이썬 3.11 설정
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: 필수 라이브러리 설치
         run: |
           python -m pip install --upgrade pip
-          # 💡 [핵심 수정] 개별 설치 대신 requirements.txt를 사용하여 firebase-admin 등 모든 라이브러리 설치
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: 데이터 수집기(Worker) 실행
@@ -39,8 +34,6 @@ jobs:
           GENAI_API_KEY: ${{ secrets.GENAI_API_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          # 💡 [핵심 추가] 매크로 데이터 수집을 위한 FRED API 키
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-          # 💡 [핵심 추가] 푸시 알림 발송을 위한 Firebase 서비스 계정 키 (JSON 전체 내용)
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: python worker.py
