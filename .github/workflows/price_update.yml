@@ -11,28 +11,26 @@ jobs:
   update-price:
     runs-on: ubuntu-latest
     
-    # 🚨 1. 환경변수를 위로 올리고, 파이썬 캐시 파일(.pyc) 생성 방지 옵션 추가
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      # 💡 [핵심 추가] FMP API 키를 드디어 주가 워커에 주입합니다!
       FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       PYTHONDONTWRITEBYTECODE: 1
 
     steps:
+      # 💡 [수정] v3에서 v4로 변경
       - name: 코드 체크아웃
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
+      # 💡 [수정] v4에서 v5로 변경
       - name: 파이썬 설정
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: 라이브러리 설치
-        # 🚨 2. 캐시 무시 + 최신 버전 강제 설치 (💡 yfinance 삭제 완료!)
         run: |
           pip install --no-cache-dir --upgrade pandas requests pytz
 
       - name: 주가 업데이트 실행
-        # env는 위로 올렸으므로 여기서는 실행 명령어만 깔끔하게 남깁니다.
         run: python price_worker.py
