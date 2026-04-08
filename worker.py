@@ -1252,7 +1252,7 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 {raw_data}"""
 
 # ==========================================
-# [신규 추가] 헬퍼 함수: 기업 이름 정제 및 비선형 맥락 검증
+# [신규 추가/수정] 헬퍼 함수: 기업 이름 정제 및 비선형 맥락 검증
 # ==========================================
 def get_core_corp_name(name):
     """법인 접미사를 제거하여 순수 기업명 추출 (검색 노이즈 방지)"""
@@ -1261,23 +1261,50 @@ def get_core_corp_name(name):
     return clean.strip()
 
 def is_business_relevant_v2(title, core_name, ticker):
-    """비선형 맥락 검증: 산업군에 관계없이 '비즈니스 닻(Anchor)'이 발견되면 기업 뉴스로 승인."""
+    """비선형 맥락 검증: 가십 차단 및 동명이인(피겨스케이팅 등) 노이즈 완벽 분리"""
     title_l = title.lower()
-    core_l = core_name.lower()
-    has_identity = (core_l in title_l) or (f"({ticker.lower()})" in title_l)
-    if not has_identity: return False
+    ticker_l = ticker.lower()
 
+    # 1. 🚨 1차 방어막: 가십/노이즈 무조건 배제 (스포츠, 연예 등 추가)
+    noise_indicators = [
+        'dating', 'rumor', 'scandal', 'wedding', 'divorce', 'hobby', 'vacation', 
+        'instagram', 'celebrity', 'sports', 'championship', 'skating', 'tournament'
+    ]
+    if any(noise in title_l for noise in noise_indicators):
+        return False
+
+    # 2. 🔍 정체성 확인
+    core_l = core_name.lower()
+    first_word = core_l.split()[0] if core_l else ""
+    
+    # 문장 내 단어 단위로 티커가 독립적으로 쓰였는지 확인 (예: AAPL)
+    has_ticker = bool(re.search(rf'\b{ticker_l}\b', title_l)) if len(ticker_l) > 1 else (f"({ticker_l})" in title_l)
+    # 기업명 확인 (예: Apple, Riku)
+    has_core = (core_l in title_l) or (len(first_word) >= 3 and first_word in title_l)
+
+    # 3. 💼 비즈니스 앵커 (금융/비즈니스 단어)
     biz_anchors = [
         'ipo', 'stock', 'market', 'revenue', 'earnings', 'deal', 'contract', 'partnership',
         'acquisition', 'merger', 'strategy', 'growth', 'funding', 'investment', 'ceo',
-        'quarterly', 'guidance', 'launch', 'valuation', 'industry', 'report', 'fiscal', 'yoy'
+        'quarterly', 'guidance', 'launch', 'valuation', 'industry', 'report', 'fiscal', 'yoy',
+        'shares', 'dividend', 'profit', 'sales', 'plunge', 'soar', 'jump'
     ]
-    noise_indicators = ['dating', 'rumor', 'scandal', 'wedding', 'divorce', 'hobby', 'vacation', 'instagram']
-    
     has_biz_context = any(anchor in title_l for anchor in biz_anchors)
-    is_not_gossip = not any(noise in title_l for noise in noise_indicators)
-    return has_biz_context or is_not_gossip
 
+    # ==========================================
+    # 💡 [핵심 스마트 판별 로직]
+    # ==========================================
+    # 케이스 A: 기사 제목에 아예 티커(예: AAPL)가 대놓고 명시되어 있다면 확실한 금융 뉴스이므로 통과!
+    if has_ticker:
+        return True
+    
+    # 케이스 B: 티커는 없고 이름(예: Riku)만 있다면, '동명이인'일 확률이 있으므로 반드시 [비즈니스 단어]가 포함되어야만 통과!
+    if has_core and has_biz_context:
+        return True
+
+    # 그 외 (이름도 없고 티커도 없거나, 이름만 있고 피겨스케이팅 뉴스인 경우) -> 가차 없이 버림
+    return False
+    
 # ==========================================
 # [완벽 복구 및 기능 강화] Tab 1: 뉴스 및 비즈니스 분석 본체
 # ==========================================
@@ -1305,12 +1332,21 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     news_url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={ticker}&limit=15&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_15", news_url, valid_hours=6)
     
-    # 💡 지능형 필터링 (RIKU 등 해결)
+    # 💡 지능형 필터링 (RIKU 등 가십 차단 + 정상 뉴스 완벽 복구)
     valid_news = []
     for n in (news_data or []):
         if not n: continue
         title = n.get('title', '')
-        if (ticker.upper() in str(n.get('symbol', '')).split(',')) or is_business_relevant_v2(title, core_name, ticker):
+        
+        # [수정포인트 1] FMP API가 주는 심볼 문자열에서 콤마 주변 공백(Space) 완벽 제거
+        api_symbols = [s.strip().upper() for s in str(n.get('symbol', '')).split(',')]
+        is_symbol_matched = ticker.upper() in api_symbols
+
+        # [수정포인트 2] FMP가 보증한 뉴스라도, 가십이나 노이즈가 아닌지 is_business_relevant_v2 로 한번 더 확인
+        if is_symbol_matched and is_business_relevant_v2(title, core_name, ticker):
+            valid_news.append(n)
+        # 만약 FMP 심볼 매칭에는 실패했더라도, 제목에 확실한 기업 정체성과 비즈니스 맥락이 있다면 백업용으로 추가
+        elif not is_symbol_matched and is_business_relevant_v2(title, core_name, ticker) and bool(re.search(rf'\b{ticker.lower()}\b', title.lower())):
             valid_news.append(n)
 
     fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in valid_news])
