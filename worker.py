@@ -1499,74 +1499,98 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             <JSON_END>
             """
 
-            # AI 응답 및 후처리 (기존 로직 보존)
+            # --- [AI 응답 후처리: 지능형 정제 및 HTML 변환] ---
             for attempt in range(3):
                 try:
                     response = current_model.generate_content(prompt)
                     if not response or not response.text: continue
                     
-                    full_text = clean_ai_preamble(response.text)
+                    raw_text = response.text
                     news_list = []
-                    biz_analysis = full_text
+                    biz_analysis = ""
 
-                    # 1. JSON 데이터 추출
-                    json_patterns = [r'<JSON_START>.*<JSON_END>', r'```json\s*\{.*?\}\s*```', r'\{.*"news".*\}']
-                    for pattern in json_patterns:
-                        match = re.search(pattern, biz_analysis, re.DOTALL | re.IGNORECASE)
-                        if match:
-                            json_str = match.group(0)
-                            c_match = re.search(r'(\{.*\})', json_str, re.DOTALL)
-                            if c_match:
-                                try:
-                                    parsed = json.loads(c_match.group(1), strict=False)
-                                    news_list = parsed.get("news", [])
-                                except: pass
-                            biz_analysis = biz_analysis.replace(json_str, "").strip()
-                            break
+                    # [1] JSON 뉴스 데이터 강제 추출 및 본문에서 분리
+                    # <JSON_START>나 ```json 등 다양한 포맷에 대응
+                    json_match = re.search(r'(<JSON_START>|```json)(.*?)(<JSON_END>|```)', raw_text, re.DOTALL | re.IGNORECASE)
+                    if json_match:
+                        json_str = json_match.group(2).strip()
+                        try:
+                            parsed = json.loads(json_str, strict=False)
+                            news_list = parsed.get("news", [])
+                        except: pass
+                        # 본문에서는 JSON 블록을 완전히 제거
+                        biz_analysis = raw_text.replace(json_match.group(0), "").strip()
+                    else:
+                        # 태그가 없을 경우 텍스트 내에서 { } 구조를 직접 찾음 (은탄환 로직)
+                        json_backup = re.search(r'\{.*"news".*\}', raw_text, re.DOTALL)
+                        if json_backup:
+                            try:
+                                parsed = json.loads(json_backup.group(0), strict=False)
+                                news_list = parsed.get("news", [])
+                                biz_analysis = raw_text.replace(json_backup.group(0), "").strip()
+                            except: biz_analysis = raw_text
+                        else:
+                            biz_analysis = raw_text
 
-                    # 2. 텍스트 정제 및 HTML 변환
-                    biz_analysis = re.sub(r'^#+.*$', '', biz_analysis, flags=re.MULTILINE).strip()
+                    # [2] 불필요한 AI 인사말 및 제목(#) 제거 (지능형 필터)
+                    biz_analysis = re.sub(r'^#+.*$', '', biz_analysis, flags=re.MULTILINE).strip() # ## 제목 제거
+                    
                     lines = biz_analysis.split('\n')
                     final_lines = []
-                    body_started = False
+                    
+                    # 💡 [개선] 무조건 [로 시작해야 한다는 제약을 버리고, 의미 있는 문장부터 수집
+                    intro_keywords = ["안녕하세요", "알겠습니다", "작성하겠습니다", "분석 결과", "Sure", "Understood", "Here is"]
+                    
+                    content_found = False
                     for line in lines:
                         l = line.strip()
                         if not l: continue
-                        if not body_started:
-                            if (l.startswith('**[') or l.startswith('[')): body_started = True
-                            else: continue
-                        final_lines.append(line)
+                        
+                        # 이미 본문이 시작되었으면 무조건 추가
+                        if content_found:
+                            final_lines.append(l)
+                            continue
+                            
+                        # 본문의 시작점 찾기 (소제목 형태이거나, 인사말이 아니면서 충분히 긴 문장)
+                        is_subheading = l.startswith('**[') or l.startswith('[') or (l.startswith('**') and ']' in l)
+                        is_not_intro = not any(kw in l for kw in intro_keywords)
+                        
+                        if is_subheading or (is_not_intro and len(l) > 20):
+                            content_found = True
+                            final_lines.append(l)
                     
                     biz_analysis = "\n".join(final_lines).strip()
-                    clean_paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 10]
+
+                    # [3] HTML 변환 (소제목 강조 및 들여쓰기)
+                    clean_paragraphs = [p.strip() for p in biz_analysis.split('\n') if len(p.strip()) > 5]
                     
                     html_parts = []
                     for p in clean_paragraphs:
-                        if p.startswith('**[') or p.startswith('['):
-                            html_parts.append(f'<p style="font-weight:bold; margin-top:20px; margin-bottom:5px; color:#111;">{p.replace("**","")}</p>')
+                        # 소제목 스타일 적용 (굵은 글씨)
+                        if p.startswith('**[') or p.startswith('[') or (p.startswith('**') and ']' in p):
+                            clean_p = p.replace("**", "").replace("[", "").replace("]", "").strip()
+                            html_parts.append(f'<p style="font-weight:bold; margin-top:22px; margin-bottom:8px; color:#111; font-size:16px;">[{clean_p}]</p>')
                         else:
+                            # 일반 본문 스타일 적용 (들여쓰기 및 정렬)
                             indent = "14px" if lang_code == "ko" else "0px"
                             html_parts.append(f'<p style="text-indent:{indent}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>')
 
                     html_output = "".join(html_parts)
 
-                    # 3. DB 저장
-                    batch_upsert("analysis_cache", [{
-                        "cache_key": cache_key,
-                        "content": json.dumps({"html": html_output, "news": news_list[:5]}, ensure_ascii=False),
-                        "updated_at": now.isoformat()
-                    }], on_conflict="cache_key")
-                    break 
+                    # [4] 데이터 저장
+                    if len(html_output) > 30: # 최소 분량 검증
+                        batch_upsert("analysis_cache", [{
+                            "cache_key": cache_key,
+                            "content": json.dumps({"html": html_output, "news": news_list[:5]}, ensure_ascii=False),
+                            "updated_at": now.isoformat()
+                        }], on_conflict="cache_key")
+                        break 
+                    else:
+                        print(f"⚠️ [{ticker}] 가공 후 내용이 너무 짧음. 재시도 중...")
 
                 except Exception as e:
-                    print(f"❌ [{ticker}] {lang_code} 분석 에러: {e}")
+                    print(f"❌ [{ticker}] {lang_code} 분석 후처리 에러: {e}")
                     time.sleep(1)
-        
-        # 전체 국어 분석 완료 후 트래커 갱신
-        batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": now.isoformat()}], "cache_key")
-        print(f"✅ [{ticker}] Tab 1 비선형 인텔리전스 분석 완료 (1년 Deep Search)")
-    else:
-        print(f"⏩ [{ticker}] Tab 1 변경점 없음. 스킵!")
                 
     # =========================================================
     # 🚀 [B] 프리미엄 전용 데이터 수집 (기업 공식 보도자료 - Raw Tracker 적용!)
