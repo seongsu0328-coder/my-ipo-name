@@ -1599,6 +1599,272 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
     except Exception as e:
         print(f"Premium FMP Collection Error for {ticker}: {e}")
+
+
+# ==========================================
+# [완벽 복구] Tab 4: 기관 리포트 요약 (JSON 은탄환 파싱 + Raw Tracker 방어막)
+# ==========================================
+def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, analyst_data=None):
+    if 'model_strict' not in globals() or not model_strict: return False
+    
+    # 💡 [과금 방어막 1] 애널리스트 목표가/투자의견 원본 문자열화
+    current_analyst_str = json.dumps(analyst_data, sort_keys=True) if analyst_data else "{}"
+    tracker_key = f"{ticker}_Tab4_Analyst_RawTracker"
+    is_changed = True
+    
+    try:
+        # 💡[과금 방어막 2] 기존 DB의 애널리스트 데이터 원본과 비교
+        res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
+        if res_tracker.data and current_analyst_str == res_tracker.data[0]['content']:
+            is_changed = False # 토씨 하나 안 틀리고 똑같으면 스킵!
+    except: pass
+
+    if not is_changed:
+        return True # 목표가/의견이 안 변했으면 새로운 리포트가 없다고 간주하고 함수 즉시 종료 (검색 API 0원!)
+        
+    print(f"🔔 [{ticker}] 기관 목표가/투자의견 변경 감지! Tab 4 AI 검색 요약 시작...")
+
+    status_lower = str(ipo_status).lower()
+    is_stable = bool(re.search(r'\b(withdrawn|rw|철회|취소|delisted|폐지)\b', status_lower))
+    
+    if not is_stable and ipo_date_str:
+        try:
+            ipo_dt = pd.to_datetime(ipo_date_str).date()
+            if (datetime.now().date() - ipo_dt).days > 365: is_stable = True
+        except: pass
+
+    valid_hours = 168 if is_stable else 24
+    limit_time_str = (datetime.now() - timedelta(hours=valid_hours)).isoformat()
+
+    # 💡 [신규 추가] 긍정적 시그널 포착 여부 확인 변수
+    is_positive_signal = False
+    detected_rating = ""
+
+    for lang_code, target_lang in SUPPORTED_LANGS.items():
+        cache_key = f"{ticker}_Tab4_v4_Premium_{lang_code}" 
+        
+        try:
+            res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key).gt("updated_at", limit_time_str).execute()
+            if res.data: continue 
+        except: pass
+
+        fmp_context = ""
+        if analyst_data and analyst_data.get('target') != 'N/A':
+            fmp_context = f"""
+[Wall Street Consensus (FMP Premium Data)]
+- Consensus Rating: {analyst_data.get('consensus')}
+- Target Price (Average): ${analyst_data.get('target')} (High: ${analyst_data.get('high')}, Low: ${analyst_data.get('low')})
+"""
+
+        if lang_code == 'en':
+            prompt = f"""You are an IPO analyst from Wall Street.
+Use the Google search tool to find and analyze the latest institutional reports for {company_name} ({ticker}).
+{fmp_context}
+
+[Instructions]
+1. **Language Rule**: MUST write entirely in English. DO NOT mix any Korean words.
+2. **Analysis Depth**: Provide a professional analysis including specific figures and evidence (especially Target Price if available).
+3. **Pros & Cons**: Clearly derive and reflect exactly 2 positive factors (Pros) and 2 negative factors (Cons).
+4. **Score**: Evaluate the overall positive/expectation level of the Wall Street report as an integer from 1 (Worst) to 5 (Moonshot/Best).
+5. **Output Format**: Strictly output ONLY the JSON format below. 100% compliance with the 'Value' instructions.
+6. **Link Location**: NEVER put URLs inside the main body text. You MUST only put them inside the "links" array.
+
+<JSON_START>
+{{
+    "target_price": "Insert FMP Average Target Price (e.g., $150.00) or 'N/A'",
+    "rating": "Strong Buy / Buy / Hold / Neutral / Sell",
+    "score": "Integer from 1 to 5",
+    "summary": "Professional 3-line summary in English. Mention Target Price if provided.",
+    "pro_con": "**Pros**:\\n- Detail 1\\n- Detail 2\\n\\n**Cons**:\\n- Detail 1\\n- Detail 2",
+    "links": [ {{"title": "Report Title", "link": "URL"}} ]
+}}
+<JSON_END>"""
+
+        elif lang_code == 'ja':
+            prompt = f"""あなたはウォール街出身のIPO専門アナリストです。
+Google検索を使用して、{company_name} ({ticker})に関する最新の機関投資家レポートを見つけ分析してください。
+{fmp_context}
+
+[作成指針]
+1. **言語規則**: 全て自然な日本語のみで記述してください。韓国語を絶対に混ぜないでください。
+2. **分析の深さ**: 具体的な数値や根拠（特に目標株価）を含む専門的な分析を提供してください。
+3. **Pros & Cons**: 肯定的な要素(長所)を2つ、否定的な要素(短所)を2つ明確に導き出して反映させてください。
+4. **スコア**: ウォール街のレポートの総合的な期待レベルを1(最悪)から5(最高)までの整数で評価してください。
+5. **出力形式**: 以下の<JSON_START>フォーマットの指示を100%遵守して出力してください。
+6. **リンクの位置**: 本文の中には絶対にURLを入れず、必ず「links」配列の中にのみ記入してください。
+
+<JSON_START>
+{{
+    "target_price": "FMPの平均目標株価を挿入 (例: $150.00) または 'N/A'",
+    "rating": "Strong Buy / Buy / Hold / Neutral / Sell (英語維持)",
+    "score": "1から5までの整数",
+    "summary": "日本語での専門的な3行要約 (目標株価の言及を含む)",
+    "pro_con": "**長所(Pros)**:\\n- 詳細内容1\\n- 詳細内容2\\n\\n**短所(Cons)**:\\n- リスク要因1\\n- リスク要因2",
+    "links":[ {{"title": "レポートタイトル", "link": "URL"}} ]
+}}
+<JSON_END>"""
+
+        elif lang_code == 'zh':
+            prompt = f"""您是华尔街的专业IPO分析师。
+请使用Google搜索工具查找并分析关于 {company_name} ({ticker}) 的最新机构报告。
+{fmp_context}
+
+[编写指南]
+1. **语言规则**: 必须只用简体中文编写。严禁混用韩语。
+2. **分析深度**: 提供包含具体数据和依据的专业分析（特别是目标价）。
+3. **Pros & Cons**: 明确提取2个积极因素(优点)和2个消极因素(缺点)。
+4. **评分**: 将华尔街报告的综合预期水平评为1(最差)到5(极佳)的整数。
+5. **输出格式**: 100%严格遵守以下<JSON_START>格式中“值”的指示进行填写。
+6. **链接位置**: 绝对不要在正文中放入URL，必须只填写在“links”数组中。
+
+<JSON_START>
+{{
+    "target_price": "插入FMP平均目标价 (如: $150.00) 或 'N/A'",
+    "rating": "Strong Buy / Buy / Hold / Neutral / Sell (保留英文)",
+    "score": "1到5的整数",
+    "summary": "包含目标价背景的专业中文三行摘要",
+    "pro_con": "**优点(Pros)**:\\n- 详细分析1\\n- 详细分析2\\n\\n**缺点(Cons)**:\\n- 风险因素1\\n- 风险因素2",
+    "links":[ {{"title": "报告标题", "link": "URL"}} ]
+}}
+<JSON_END>"""
+
+        else: # ko
+            prompt = f"""당신은 월가 출신의 IPO 전문 분석가입니다. 
+구글 검색 도구를 사용하여 {company_name} ({ticker})에 대한 최신 기관 리포트(Seeking Alpha, Renaissance Capital 등)를 찾아 심층 분석하세요.
+{fmp_context}
+
+[작성 지침]
+1. **언어 규칙**: 반드시 자연스러운 한국어로 번역하여 작성하세요.
+2. **분석 깊이**: 구체적인 수치나 근거를 포함하여 전문적으로 분석하세요.
+3. **Pros & Cons**: 긍정적 요소(Pros) 2가지와 부정적 요소(Cons) 2가지를 명확히 도출하여 반영하세요.
+4. **Score**: 월가 리포트의 종합적인 긍정/기대 수준을 1점(최악)부터 5점(대박) 사이의 정수로 평가하세요.
+5. **출력 형식**: 아래 제공된 <JSON_START> 양식의 '값(Value)' 부분에 적힌 언어와 지시사항을 100% 준수하여 채워 넣으세요.
+6. **링크 위치**: 본문 안에는 절대 URL을 넣지 말고, 반드시 "links" 배열 안에만 기입하세요.
+
+<JSON_START>
+{{
+    "target_price": "FMP 평균 목표 주가 삽입 (예: $150.00) 또는 'N/A'",
+    "rating": "Strong Buy / Buy / Hold / Neutral / Sell 중 택 1 (영어 유지)",
+    "score": "1~5 사이의 정수 (예: 4)",
+    "summary": "한국어 전문 3줄 요약 (목표 주가 맥락을 포함할 것)",
+    "pro_con": "**장점(Pros)**:\\n- 구체적 분석 내용 1\\n- 구체적 분석 내용 2\\n\\n**단점(Cons)**:\\n- 구체적 리스크 요인 1\\n- 구체적 리스크 요인 2",
+    "links": [ {{"title": "리포트 제목", "link": "URL"}} ]
+}}
+<JSON_END>"""
+        
+        for attempt in range(3):
+            try:
+                target_model = model_search if model_search is not None else model_strict
+                response = target_model.generate_content(prompt)
+                
+                if not response or not hasattr(response, 'text') or not response.text:
+                    time.sleep(1); continue
+                    
+                full_text = response.text
+                
+                # 🚨 [은탄환] 어떤 찌꺼기가 붙어있든 무조건 첫 { 와 마지막 } 사이만 강제 추출
+                start_idx = full_text.find('{')
+                end_idx = full_text.rfind('}')
+                
+                if start_idx != -1 and end_idx != -1:
+                    json_str = full_text[start_idx:end_idx+1]
+                    try:
+                        parsed_json = json.loads(json_str, strict=False)
+                        
+                        # 🚀 [로직 추가] 한국어 분석 시점에 등급/점수를 체크하여 긍정적이면 플래그 ON
+                        if lang_code == 'ko':
+                            rating_val = str(parsed_json.get('rating', '')).upper()
+                            score_val = str(parsed_json.get('score', '0')).strip()
+                            if ("BUY" in rating_val) or (score_val in ["4", "5"]):
+                                is_positive_signal = True
+                                detected_rating = parsed_json.get('rating', 'Buy')
+
+                        batch_upsert("analysis_cache",[{
+                            "cache_key": cache_key, 
+                            "content": json.dumps(parsed_json, ensure_ascii=False), 
+                            "updated_at": datetime.now().isoformat()
+                        }], on_conflict="cache_key")
+                        print(f"✅ [{ticker}] Tab 4 기관 리포트 완료 ({lang_code})")
+                        break
+                    except json.JSONDecodeError as e:
+                        print(f"⚠️ [{ticker}] Tab 4 JSON 파싱 실패 ({lang_code}): {e}")
+                time.sleep(1)
+            except Exception as e:
+                time.sleep(1)
+
+    # 💡 [과금 방어막 3] 4개 국어 번역이 성공적으로 끝났다면 트래커 갱신!
+    batch_upsert("analysis_cache",[{"cache_key": tracker_key, "content": current_analyst_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+
+    # 🚀 [신규 추가] 긍정적 시그널이 포착되었을 때만 프리미엄 플러스 유저에게 푸시 발송
+    if is_positive_signal:
+        try:
+            send_fcm_push(
+                title=f"🎯 {ticker} 기관 투자 의견 상향",
+                body=f"월가 분석 결과, {ticker}에 대해 '{detected_rating}' 등급의 긍정적 리포트가 포착되었습니다.",
+                ticker=ticker,
+                target_level='premium_plus'  # <-- 이 한 줄 추가
+            )
+            print(f"🚀 [알림 전송] {ticker} 긍정적 리포트 시그널 발송 완료")
+        except Exception as e:
+            print(f"⚠️ Tab 4 푸시 발송 실패: {e}")
+
+    return True
+
+    # =========================================================
+    # 🚀 [B] 프리미엄 전용 데이터 수집 (Upgrades/Downgrades & Peers)
+    # =========================================================
+    try:
+        # 💡 [Stable 변경 완료] API v4 및 언더바(_)를 stable과 하이픈(-)으로 교체
+        ud_url = f"https://financialmodelingprep.com/stable/upgrades-downgrades?symbol={ticker}&apikey={FMP_API_KEY}"
+        ud_raw = get_fmp_data_with_cache(ticker, "RAW_UPGRADES", ud_url, valid_hours=24)
+        
+        peers_url = f"https://financialmodelingprep.com/stable/stock-peers?symbol={ticker}&apikey={FMP_API_KEY}"
+        peers_raw = get_fmp_data_with_cache(ticker, "RAW_PEERS", peers_url, valid_hours=24)
+
+        # 🚨 [환각 방어막] 진짜 데이터인지 엄격 검사
+        is_ud_valid = isinstance(ud_raw, list) and len(ud_raw) > 0
+        is_peers_valid = isinstance(peers_raw, list) and len(peers_raw) > 0
+
+        for lang_code in SUPPORTED_LANGS.keys():
+            if is_ud_valid:
+                ud_summary_key = f"{ticker}_PremiumUpgrades_v1_{lang_code}"
+                try:
+                    res_ud = supabase.table("analysis_cache").select("updated_at").eq("cache_key", ud_summary_key).gt("updated_at", limit_time_str).execute()
+                    if not res_ud.data:
+                        prompt_ud = get_tab4_premium_prompt(lang_code, "Upgrades and Downgrades History", ticker, ud_raw)
+                        for attempt in range(3):
+                            try:
+                                resp_ud = model_strict.generate_content(prompt_ud)
+                                if resp_ud and resp_ud.text:
+                                    ud_paragraphs = [p.strip() for p in resp_ud.text.split('\n') if len(p.strip()) > 20]
+                                    indent_size = "14px" if lang_code == "ko" else "0px"
+                                    html_ud = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in ud_paragraphs])
+                                    batch_upsert("analysis_cache", [{"cache_key": ud_summary_key, "content": html_ud, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                    print(f"✅ [{ticker}] 투자의견 히스토리 캐싱 완료 ({lang_code})")
+                                    break
+                            except Exception as e: time.sleep(1)
+                except: pass
+
+            if is_peers_valid:
+                peers_summary_key = f"{ticker}_PremiumPeers_v1_{lang_code}"
+                try:
+                    res_p = supabase.table("analysis_cache").select("updated_at").eq("cache_key", peers_summary_key).gt("updated_at", limit_time_str).execute()
+                    if not res_p.data:
+                        prompt_p = get_tab4_premium_prompt(lang_code, "Stock Peers & Competitors", ticker, peers_raw)
+                        for attempt in range(3):
+                            try:
+                                resp_p = model_strict.generate_content(prompt_p)
+                                if resp_p and resp_p.text:
+                                    p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
+                                    indent_size = "14px" if lang_code == "ko" else "0px"
+                                    html_p = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in p_paragraphs])
+                                    batch_upsert("analysis_cache", [{"cache_key": peers_summary_key, "content": html_p, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                    print(f"✅ [{ticker}] 경쟁사 비교 캐싱 완료 ({lang_code})")
+                                    break
+                            except Exception as e: time.sleep(1)
+                except: pass
+    except Exception as e:
+        print(f"Premium Tab 4 FMP Error for {ticker}: {e}")
         
 # ==========================================
 # [신규 추가] Tab 4 프리미엄 요약 전용 프롬프트 (다국어 완벽 분리)
