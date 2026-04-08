@@ -1260,12 +1260,13 @@ def get_core_corp_name(name):
     clean = re.sub(r'\b(inc|corp|corporation|ltd|plc|group|holdings|co|company|incorporated)\b\.?', '', name, flags=re.IGNORECASE)
     return clean.strip()
 
-def is_business_relevant_v2(title, core_name, ticker):
+def is_business_relevant_v2(title, core_name, ticker, is_fmp_verified=False):
     """비선형 맥락 검증: 가십 차단 및 동명이인(피겨스케이팅 등) 노이즈 완벽 분리"""
     title_l = title.lower()
     ticker_l = ticker.lower()
 
-    # 1. 🚨 1차 방어막: 가십/노이즈 무조건 배제 (스포츠, 연예 등 추가)
+    # 1. 🚨 1차 방어막: 가십/노이즈 무조건 배제 (스포츠, 연예 등)
+    # FMP가 인증한 뉴스라도, 피겨스케이팅 챔피언십 같은 노이즈면 여기서 무조건 컷!
     noise_indicators = [
         'dating', 'rumor', 'scandal', 'wedding', 'divorce', 'hobby', 'vacation', 
         'instagram', 'celebrity', 'sports', 'championship', 'skating', 'tournament'
@@ -1273,16 +1274,19 @@ def is_business_relevant_v2(title, core_name, ticker):
     if any(noise in title_l for noise in noise_indicators):
         return False
 
-    # 2. 🔍 정체성 확인
+    # 2. 🚀 FMP 인증 패스 (가장 핵심적인 수정!)
+    # FMP API가 "이거 해당 기업 뉴스 맞음"이라고 꼬리표를 달아준 상태라면,
+    # 위에서 노이즈(가십/스포츠)만 통과했으면 제목에 회사 이름이 없어도 무조건 합격!
+    if is_fmp_verified:
+        return True
+
+    # 3. 🔍 구글 검색 등 FMP 인증이 없는 경우 (백업/엄격 로직)
     core_l = core_name.lower()
     first_word = core_l.split()[0] if core_l else ""
     
-    # 문장 내 단어 단위로 티커가 독립적으로 쓰였는지 확인 (예: AAPL)
     has_ticker = bool(re.search(rf'\b{ticker_l}\b', title_l)) if len(ticker_l) > 1 else (f"({ticker_l})" in title_l)
-    # 기업명 확인 (예: Apple, Riku)
     has_core = (core_l in title_l) or (len(first_word) >= 3 and first_word in title_l)
 
-    # 3. 💼 비즈니스 앵커 (금융/비즈니스 단어)
     biz_anchors = [
         'ipo', 'stock', 'market', 'revenue', 'earnings', 'deal', 'contract', 'partnership',
         'acquisition', 'merger', 'strategy', 'growth', 'funding', 'investment', 'ceo',
@@ -1291,18 +1295,9 @@ def is_business_relevant_v2(title, core_name, ticker):
     ]
     has_biz_context = any(anchor in title_l for anchor in biz_anchors)
 
-    # ==========================================
-    # 💡 [핵심 스마트 판별 로직]
-    # ==========================================
-    # 케이스 A: 기사 제목에 아예 티커(예: AAPL)가 대놓고 명시되어 있다면 확실한 금융 뉴스이므로 통과!
-    if has_ticker:
-        return True
-    
-    # 케이스 B: 티커는 없고 이름(예: Riku)만 있다면, '동명이인'일 확률이 있으므로 반드시 [비즈니스 단어]가 포함되어야만 통과!
-    if has_core and has_biz_context:
-        return True
+    if has_ticker: return True
+    if has_core and has_biz_context: return True
 
-    # 그 외 (이름도 없고 티커도 없거나, 이름만 있고 피겨스케이팅 뉴스인 경우) -> 가차 없이 버림
     return False
     
 # ==========================================
@@ -1338,19 +1333,17 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         if not n: continue
         title = n.get('title', '')
         
-        # [수정포인트 1] FMP API가 주는 심볼 문자열에서 콤마 주변 공백(Space) 완벽 제거
+        # FMP API가 주는 심볼 문자열에서 콤마 주변 공백(Space) 완벽 제거
         api_symbols = [s.strip().upper() for s in str(n.get('symbol', '')).split(',')]
         is_symbol_matched = ticker.upper() in api_symbols
 
-        # [수정포인트 2] FMP가 보증한 뉴스라도, 가십이나 노이즈가 아닌지 is_business_relevant_v2 로 한번 더 확인
-        if is_symbol_matched and is_business_relevant_v2(title, core_name, ticker):
-            valid_news.append(n)
-        # 만약 FMP 심볼 매칭에는 실패했더라도, 제목에 확실한 기업 정체성과 비즈니스 맥락이 있다면 백업용으로 추가
-        elif not is_symbol_matched and is_business_relevant_v2(title, core_name, ticker) and bool(re.search(rf'\b{ticker.lower()}\b', title.lower())):
+        # 💡 [핵심 수정] is_fmp_verified 파라미터에 is_symbol_matched 값을 넘겨줍니다.
+        # 이렇게 하면 FMP가 보증한 뉴스는 깐깐한 이름 검사 없이 노이즈만 거르고 바로 통과됩니다!
+        if is_business_relevant_v2(title, core_name, ticker, is_fmp_verified=is_symbol_matched):
             valid_news.append(n)
 
     fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in valid_news])
-
+    
     # 3. 분석 엔진 및 트래커 체크
     is_fmp_poor = (len(biz_desc) < 50) or (len(valid_news) < 3)
     current_model = model_search if (is_fmp_poor and model_search) else model_strict
