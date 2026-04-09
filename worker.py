@@ -1252,16 +1252,25 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 [Raw Data]:
 {raw_data}"""
 
-# ==========================================
-# [완벽 복구 및 기능 강화] Tab 1: 뉴스 및 비즈니스 (동적 검색 및 서론 제거 통합)
-# ==========================================
+# 💡 [추가할 헬퍼 함수] 검색 최적화를 위해 법인 꼬리표를 뗀 이름을 만듭니다. (파일 상단 헬퍼 함수 모음에 추가)
+def get_search_friendly_name(name):
+    if not name or pd.isna(name): return ""
+    name = str(name)
+    name = re.sub(r'(/DE|Cl\s*[A-Z]|Class\s*[A-Z])', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'\b(Inc|Corp|Corporation|Co|Ltd|Plc|Group|Company|Holdings)\b\.?', '', name, flags=re.IGNORECASE)
+    return name.strip().strip(',').strip()
+
+# =========================================================================
+# [수정된 Tab 1 분석 함수 교체] run_tab1_analysis 전체를 아래 코드로 교체하세요.
+# =========================================================================
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return
     
+    # 💡 [추가] 구글 검색을 위한 최적화된 기업명 추출
+    search_name = get_search_friendly_name(company_name)
+    
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
-    # 💡 [검토 결과]: 기존 원본에는 없던 로직입니다. 
-    # 작업일 기준 12개월 전 날짜를 계산하여 검색 결과 누락(Encore Medical 등)을 원천 방어합니다.
     one_year_ago = (now - timedelta(days=365)).strftime("%Y-%m-%d")
     
     status_lower = str(ipo_status).lower()
@@ -1276,6 +1285,21 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             if days_passed > 365: is_over_1y = True
             elif days_passed > 90: is_over_3m = True
     except: pass
+
+    # =========================================================
+    # 💡 [핵심 수정]: 기업의 생애주기에 맞춰 검색 키워드를 동적으로 변경합니다.
+    # =========================================================
+    if is_withdrawn:
+        search_query = f'"{search_name}" OR "{ticker}" IPO withdrawn OR corporate news'
+    elif is_delisted_or_otc:
+        search_query = f'"{search_name}" OR "{ticker}" delisted OR OTC stock news'
+    elif is_over_1y:
+        # 상장 1년 차 이상의 성숙 기업은 'IPO'를 빼고 실적/비즈니스 이슈 위주로 검색
+        search_query = f'"{search_name}" OR "{ticker}" stock news OR earnings OR business'
+    else:
+        # 1년 미만의 신규 상장 기업은 기존처럼 IPO 뉴스 중심 검색
+        search_query = f'"{search_name}" OR "{ticker}" stock IPO news'
+    # =========================================================
 
     valid_hours = 24 
     limit_time_str = (now - timedelta(hours=valid_hours)).isoformat()
@@ -1297,7 +1321,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     is_fmp_poor = (len(biz_desc) < 50) or (len(valid_news) < 3)
     current_model = model_search if (is_fmp_poor and model_search) else model_strict
 
-    # 과금 방어 트래커
     current_raw_data = {"biz": biz_desc, "news": fmp_news_context}
     current_raw_str = json.dumps(current_raw_data, sort_keys=True)
     tracker_key = f"{ticker}_Tab1_Main_RawTracker"
@@ -1314,7 +1337,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         for lang_code in SUPPORTED_LANGS.keys():
             cache_key = f"{ticker}_Tab1_v5_{lang_code}"
             
-            # 💡 [프롬프트 복원 및 최적화] 모든 언어별 상세 지침 완전 유지 + 개수 강제 제거
             if lang_code == 'ko':
                 sys_prompt = "당신은 최고 수준의 증권사 리서치 센터의 시니어 애널리스트입니다. 반드시 한국어로 작성하세요."
                 lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하십시오."
@@ -1334,22 +1356,24 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     task1_structure = "- 1문단: [비즈니스 모델 및 스케일] (구체적 수치를 동반한 비즈니스 모델 설명)\n- 2문단: [시장 점유율 및 경쟁 우위] (명확한 경쟁사명 명시한 비교 분석)\n- 3문단: [성장 전략 및 미래 전망] (핵심 신사업 확장 계획 및 트렌드)"
 
                 if is_fmp_poor:
-                    task1_structure += "\n[환각 방어]: 🚨 절대 숫자를 임의로 지어내지 마세요. 확인 불가능한 수치는 '비공개' 혹은 '확인 불가'로 처리하세요."
-                    # 💡 수정: "반드시 5개" 문구를 삭제하고 "최대 5개" 및 "부족 시 확인된 것만"으로 변경
+                    # 💡 [핵심 전략 반영] 생애주기에 맞춰 동적으로 생성된 {search_query} 사용
                     search_directive = f"""
-                    🚨 [강제 검색 및 수집 지시]: 
-                    FMP 데이터가 부족하므로 구글 검색을 통해 다음을 수행하세요:
-                    1. '{company_name} ({ticker})'의 최신 비즈니스 모델 및 매출 구조 분석.
-                    2. 뉴스 검색: [{one_year_ago}]부터 [{current_date}]까지 1년의 기간 내에 보도된 뉴스 중 관련성 높은 뉴스를 검색하세요.
-                    3. 위 기간 내의 뉴스 중 가장 중요하고 최신인 것을 **최대 5개** 추출하세요. 만약 관련 뉴스가 부족하다면 무리하게 개수를 채우지 말고 확인된 유의미한 뉴스만 포함하세요.
+                    🚨 [강제 검색 및 필터링 지시 (Inclusion & Exclusion)]: 
+                    FMP 데이터가 부족하므로 Google Search 도구를 사용하여 반드시 다음 지침을 따르세요:
+                    1. 검색 쿼리(Inclusion): 반드시 `{search_query}` 로 검색하여 넓게 데이터를 확보하세요.
+                    2. 필터링(Exclusion): 검색 결과 중 동명이인(예: 피겨스케이팅 선수, 일반인 등)이나 완전히 무관한 산업의 기사는 철저히 배제하세요.
+                    3. 기간: [{one_year_ago}] 부터 [{current_date}] 사이의 뉴스만 포함하세요.
+                    4. 추출: 필터링을 거쳐 유효하다고 판단된 최신 뉴스만 최대 5개 추출하세요. 억지로 채우지 마세요.
                     """
                 else:
                     search_directive = "🚨 [환각 금지] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오."
                 
-                prohibition_rule = '🚨 【절대 금지】: 첫문장에 "안녕하세요", "알겠습니다", "작성하겠습니다", "보고서입니다" 등 모든 인사말을 금지합니다. 첫문장은 반드시 **[소제목]**으로 시작하세요.'
+                prohibition_rule = '🚨 【절대 금지】: 첫문장에 "안녕하세요", "알겠습니다" 등 모든 인사말 금지. 첫문장은 반드시 **[소제목]**으로 시작.'
                 task2_label = "[작업 2: 최신 뉴스 수집 및 전문 번역]"
-                news_instruction = '- [Part 2]의 뉴스 데이터를 바탕으로 반드시 **최신순 상위 최대 5개**를 추출하세요.\n- sentiment 값은 시스템을 위해 반드시 "Positive", "Negative", "Neutral" 중 하나의 영단어로 출력하세요.'
-                json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일 번역", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
+                news_instruction = '- [Part 2]의 뉴스 데이터를 바탕으로 반드시 **최신순 상위 최대 5개**를 추출하세요.\n- sentiment 값은 반드시 "Positive", "Negative", "Neutral" 중 하나로 출력하세요.'
+                
+                # 💡 [디버깅 추가] JSON에 debug_search_raw 키를 추가하여 구글 검색 결과를 확인
+                json_format = f"""{{ "debug_search_raw": "구글 검색에서 실제로 발견한 원본 뉴스 제목들과, 무관한 것을 배제한 이유를 간략히 적어주세요.", "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일 번역", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'en':
                 sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
@@ -1358,58 +1382,56 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 
                 if is_withdrawn:
                     task1_label = "[Task 1: IPO Withdrawal Analysis]"
-                    task1_structure = "- Para 1: [Withdrawal Background] Reasons for IPO withdrawal.\n- Para 2: [Financial Impact] Impact on liquidity and financials.\n- Para 3: [Survival Strategy] Future alternatives and strategies."
+                    task1_structure = "- Para 1: [Withdrawal Background]\n- Para 2: [Financial Impact]\n- Para 3: [Survival Strategy]"
                 elif is_delisted_or_otc:
                     task1_label = "[Task 1: OTC/Delisting Risk Analysis]"
-                    task1_structure = "- Para 1: [Delisting Background] Reasons for delisting.\n- Para 2: [Investment Risks] Core risk diagnosis.\n- Para 3: [Long-term Outlook] Future prospects."
+                    task1_structure = "- Para 1: [Delisting Background]\n- Para 2: [Investment Risks]\n- Para 3: [Long-term Outlook]"
                 elif is_over_1y:
                     task1_label = "[Task 1: 1-Year Fundamental Review]"
-                    task1_structure = "- Para 1: [Milestone Achievement] Assessment of business goals.\n- Para 2: [Profitability Assessment] Earnings generation analysis.\n- Para 3: [Capital Efficiency] Capital deployment efficiency."
+                    task1_structure = "- Para 1: [Milestone Achievement]\n- Para 2: [Profitability Assessment]\n- Para 3: [Capital Efficiency]"
                 else:
                     task1_label = "[Task 1: Deep Business Model Analysis]"
-                    task1_structure = "- Para 1: [Core Business Model] Details with specific figures.\n- Para 2: [Market Share & Edge] Clear comparison against explicitly named peers.\n- Para 3: [Future Growth Strategy] Expansion plans and targets."
+                    task1_structure = "- Para 1: [Core Business Model]\n- Para 2: [Market Share & Edge]\n- Para 3: [Future Growth Strategy]"
 
                 if is_fmp_poor:
-                    # 💡 [EN] Up to 5 items, no forced filling
-                    search_directive = f"🚨 [Force Search]: FMP data is insufficient. Search for '{company_name} {ticker}' from [{one_year_ago}] to [{current_date}]. Extract **up to 5** latest relevant news items. Do not force the count if relevant news is missing."
+                    search_directive = f"🚨 [Force Search & Filter]: Search exactly `{search_query}`. Exclude irrelevant entities (e.g., figure skaters, regular people). Keep only valid news from [{one_year_ago}] to [{current_date}]. Max 5 items."
                 else:
                     search_directive = "🚨 [Strict Rule] Write ONLY using the [Part 1] text data provided below."
                 
-                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings like "Understood" or "Certainly." Start IMMEDIATELY with the analysis using **[Subheading]**.'
+                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Start IMMEDIATELY with **[Subheading]**.'
                 task2_label = "[Task 2: Latest News Collection and Professional Translation]"
                 news_instruction = '- Extract **up to 5** latest relevant news items.\n- The sentiment value MUST be "Positive", "Negative", or "Neutral".'
-                json_format = f"""{{ "news": [ {{ "title_en": "Original English Title", "translated_title": "Professional WSJ style headline", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
+                json_format = f"""{{ "debug_search_raw": "Briefly summarize what raw results were found via Google and why irrelevant ones were excluded.", "news": [ {{ "title_en": "Original English Title", "translated_title": "Professional WSJ style headline", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'ja':
-                sys_prompt = "あなたは最高レベルの証券회사 리서치 센터의 시니어 애널리스트입니다. 모든 답변은 일본어로 작성하세요."
-                lang_instruction = "반드시 자연스러운 일본어만 사용하세요."
-                format_instruction = "반드시 3개의 문단으로 작성하세요."
+                sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は日本語で作成してください。"
+                lang_instruction = "必ず自然な日本語のみを使用してください。"
+                format_instruction = "必ず3つの段落で作成してください。"
                 
                 if is_withdrawn:
-                    task1_label = "[任務 1: 上場撤회 심층 진단]"
+                    task1_label = "[任務 1: 上場撤回深層診断]"
                     task1_structure = "- 第1段落: [撤回の背景]\n- 第2段落: [財務的打撃]\n- 第3段落: [生存戦略]"
                 elif is_over_1y:
-                    task1_label = "[任務 1: 上場1년차 펀더멘털 점검]"
+                    task1_label = "[任務 1: 上場1年次ファンダメンタル点検]"
                     task1_structure = "- 第1段落: [目標達成度]\n- 第2段落: [収益性評価]\n- 第3段落: [資本効率]"
                 else:
-                    task1_label = "[任務 1: 新規IPOビジネス심층 분석]"
+                    task1_label = "[任務 1: 新規IPOビジネス深層分析]"
                     task1_structure = "- 第1段落: [ビジネスモデルとスケール]\n- 第2段落: [市場シェアと競合優位性]\n- 第3段落: [成長戦略と今後の展望]"
 
                 if is_fmp_poor:
-                    # 💡 [JA] 最大5件, 無理な補充禁止
-                    search_directive = f"🚨 [強制検索]: '{company_name} ({ticker})'의 정보를 [{one_year_ago}]부터 [{current_date}]까지의 기간에서 검색하고, 관련성이 높은 최신 뉴스를 **最大5件** 추출하세요. 관련 뉴스가 부족한 경우 개수를 강제로 채우지 마세요."
+                    search_directive = f"🚨 [強制検索とフィルタリング]: 必ず `{search_query}` で検索し、同姓同名（フィギュアスケート選手など）や無関係なニュースを徹底的に排除してください。期間は[{one_year_ago}]から[{current_date}]です。最大5件。"
                 else:
                     search_directive = "🚨 [厳格な規則] 提供された [Part 1] テキストデータのみを使用して作成してください。"
                 
-                prohibition_rule = '🚨 【厳禁】: 「承知いたしました」などの挨拶은 일절 금지입니다. 즉시 **[見出し]**로 시작하세요.'
+                prohibition_rule = '🚨 【厳禁】: 「承知いたしました」などの挨拶は一切禁止です。すぐに **[見出し]**で開始してください。'
                 task2_label = "[任務 2: 最新ニュース収集]"
                 news_instruction = "- 最新の**最大5件**を抽出してください。"
-                json_format = f"""{{ "news": [ {{ "title_en": "Title", "translated_title": "翻訳", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
+                json_format = f"""{{ "debug_search_raw": "Google検索で発見した生データと、無関係なものを除外した理由を簡潔に記載してください。", "news": [ {{ "title_en": "Title", "translated_title": "翻訳", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
-            else: # zh (Simplified Chinese)
+            else: # zh
                 sys_prompt = "您是顶级券商研究中心的高级分析师。必须只用简体中文编写。"
-                lang_instruction = "必须只用自然流畅의 简体中文编写。"
-                format_instruction = "必须严格分为 3 个 자연스러운 단락。"
+                lang_instruction = "必须只用自然流畅的简体中文编写。"
+                format_instruction = "必须严格分为 3 个自然段落。"
                 
                 if is_withdrawn:
                     task1_label = "[任务 1: IPO 撤回深度诊断]"
@@ -1422,17 +1444,15 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     task1_structure = "- 第一段: [核心商业模式]\n- 第二段: [市场份额与竞争优势]\n- 第三段: [增长战略与未来展望]"
 
                 if is_fmp_poor:
-                    # 💡 [ZH] 最多5条, 不强行凑数
-                    search_directive = f"🚨 [强制搜索]: 请在谷歌搜索 '{company_name} ({ticker})' 从 [{one_year_ago}] 到 [{current_date}] 的重要新闻。提取**最多 5 条**最相关的最新新闻。如果相关新闻不足，请勿强行凑数。"
+                    search_directive = f"🚨 [强制搜索与过滤]: 必须使用 `{search_query}` 进行搜索。彻底排除同名人物（如花样滑冰运动员）或无关行业的文章。期间为 [{one_year_ago}] 至 [{current_date}]。最多 5 条。"
                 else:
                     search_directive = "🚨 [严格规则] 只能使用下面提供的 [Part 1] 文本数据进行编写。"
 
-                prohibition_rule = '🚨 【绝对禁止】: 严禁出现“好的”、“明白了”等客套话。请从第一个字开始直接进入正文 **[副标题]**。'
+                prohibition_rule = '🚨 【绝对禁止】: 严禁出现问候语。请从第一个字开始直接进入正文 **[副标题]**。'
                 task2_label = "[任务 2: 收集最新新闻]"
                 news_instruction = '- 提取最新的**最多 5 条**。'
-                json_format = f"""{{ "news": [ {{ "title_en": "Title", "translated_title": "翻译", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
+                json_format = f"""{{ "debug_search_raw": "简要说明在Google上搜到了什么，以及为何排除无关结果。", "news": [ {{ "title_en": "Title", "translated_title": "翻译", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
-            # 💡 최종 프롬프트 조립
             prompt = f"""
             {sys_prompt}
             분석 대상: {company_name} ({ticker})
@@ -1459,23 +1479,18 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             <JSON_END>
             """
 
-            # --- [AI 응답 후처리: 인사말 제거 및 정제] ---
             for attempt in range(3):
                 try:
                     response = current_model.generate_content(prompt)
                     if not response or not response.text: continue
                     
-                    # 💡 [방어막] 코드 레벨에서 인사말 강제 삭제기 (Preamble Cleaner)
                     def clean_ai_preamble(text):
-                        # 1. 정규표현식으로 흔한 서론 패턴 도려내기
                         patterns = [
                             r"^(안녕하세요|알겠습니다|작성하겠습니다|요청하신|보고서입니다|Sure|Understood|Certainly|Okay).*?(\n|$)",
                             r"^(承知いたしました|作成します|こんにちは|明白了|好的|这是).*?(\n|$)"
                         ]
                         for p in patterns:
                             text = re.sub(p, "", text, flags=re.MULTILINE | re.IGNORECASE)
-                        
-                        # 2. 첫 문단이 소제목(**[...]**)이 아닌 단순 문장으로 시작하면서 너무 짧으면 삭제
                         lines = text.strip().split('\n')
                         if lines:
                             first_line = lines[0].strip()
@@ -1488,7 +1503,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     news_list = []
                     biz_analysis = full_text
 
-                    # [1] 강력한 JSON 도려내기
+                    # JSON 파싱 및 디버그 로깅
                     json_patterns = [r'<JSON_START>.*<JSON_END>', r'```json\s*\{.*?\}\s*```', r'```\s*\{.*?\}\s*```', r'\{.*"news".*\}']
                     for pattern in json_patterns:
                         match = re.search(pattern, biz_analysis, re.DOTALL | re.IGNORECASE)
@@ -1499,11 +1514,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                                 try:
                                     parsed = json.loads(c_match.group(1), strict=False)
                                     news_list = parsed.get("news", [])
+                                    # 💡 [디버깅 로그 출력] LLM이 실제로 구글 검색 후 어떻게 필터링했는지 콘솔에 출력!
+                                    if "debug_search_raw" in parsed and lang_code == 'ko':
+                                        print(f"🐛 [디버깅: {ticker} 검색 필터링 결과] -> {parsed['debug_search_raw']}")
                                 except: pass
                             biz_analysis = biz_analysis.replace(json_str, "").strip()
                             break
 
-                    # [2] 제목/인사말 추가 삭제 및 정제
                     biz_analysis = re.sub(r'^#+.*$', '', biz_analysis, flags=re.MULTILINE).strip()
                     lines = biz_analysis.split('\n')
                     final_lines = []
@@ -1520,8 +1537,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         final_lines.append(line)
                     
                     biz_analysis = "\n".join(final_lines).strip()
-
-                    # [3] HTML 변환 (소제목 강조 및 들여쓰기)
                     biz_analysis = re.sub(r'(\*\*\[.*?\]\*\*)\s*:\s*', r'\1\n', biz_analysis)
                     raw_paragraphs = biz_analysis.split('\n')
                     clean_paragraphs = [p.strip() for p in raw_paragraphs if len(p.strip()) > 10]
@@ -1536,7 +1551,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
                     html_output = "".join(html_parts)
 
-                    # [4] 저장
                     batch_upsert("analysis_cache", [{
                         "cache_key": cache_key,
                         "content": json.dumps({"html": html_output, "news": news_list[:5]}, ensure_ascii=False),
@@ -1549,7 +1563,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     time.sleep(1)
         
         batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": now.isoformat()}], "cache_key")
-        print(f"✅ [{ticker}] Tab 1 분석 및 캐싱 완료 (동적 1년 검색 & 인사말 제거)")
+        print(f"✅ [{ticker}] Tab 1 분석 및 캐싱 완료 (동적 필터링 & 디버깅 적용)")
     else:
         print(f"⏩ [{ticker}] Tab 1 변경점 없음. AI 요약 스킵!")
                 
