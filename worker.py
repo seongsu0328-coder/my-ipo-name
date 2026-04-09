@@ -1342,21 +1342,21 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 lang_instruction = "반드시 자연스러운 한국어만 사용하세요.\n모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하십시오."
                 format_instruction = "반드시 3개의 문단으로 나누어 작성하세요. (각 문단은 4~5문장 길이)"
                 
+                # 💡 [수정] 라벨을 지시사항(Instruction) 형태로 명확히 변경
                 if is_withdrawn:
-                    task1_label = "[작업 1: 상장 철회 심층 진단]"
+                    task1_label = "--- [분석 지시 1: 상장 철회 심층 진단] ---"
                     task1_structure = "- 1문단: [철회 배경 진단] (철회 배경 설명)\n- 2문단: [재무적 타격] (유동성 등 재무 영향)\n- 3문단: [생존 전략] (향후 대안 및 전략)"
                 elif is_delisted_or_otc:
-                    task1_label = "[작업 1: OTC/장외시장 거래 리스크 진단]"
+                    task1_label = "--- [분석 지시 1: OTC/장외시장 거래 리스크 진단] ---"
                     task1_structure = "- 1문단: [장외 편입 배경] (편입 배경 설명)\n- 2문단: [투자 리스크] (리스크 진단)\n- 3문단: [장기 전망] (장기 전망 서술)"
                 elif is_over_1y:
-                    task1_label = "[작업 1: 상장 1년 차 펀더멘털 점검]"
+                    task1_label = "--- [분석 지시 1: 상장 1년 차 펀더멘털 점검] ---"
                     task1_structure = "- 1문단: [목표 달성도] (사업 목표 달성 수준)\n- 2문단: [수익성 평가] (이익 창출력 분석)\n- 3문단: [자본 효율성] (자본 배치 효율성)"
                 else:
-                    task1_label = "[작업 1: 신규 IPO 비즈니스 심층 분석]"
+                    task1_label = "--- [분석 지시 1: 신규 IPO 비즈니스 심층 분석] ---"
                     task1_structure = "- 1문단: [비즈니스 모델 및 스케일] (구체적 수치를 동반한 비즈니스 모델 설명)\n- 2문단: [시장 점유율 및 경쟁 우위] (명확한 경쟁사명 명시한 비교 분석)\n- 3문단: [성장 전략 및 미래 전망] (핵심 신사업 확장 계획 및 트렌드)"
 
                 if is_fmp_poor:
-                    # 💡 [핵심 전략 반영] 생애주기에 맞춰 동적으로 생성된 {search_query} 사용
                     search_directive = f"""
                     🚨 [강제 검색 및 필터링 지시 (Inclusion & Exclusion)]: 
                     FMP 데이터가 부족하므로 Google Search 도구를 사용하여 반드시 다음 지침을 따르세요:
@@ -1368,11 +1368,10 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 else:
                     search_directive = "🚨 [환각 금지] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오."
                 
-                prohibition_rule = '🚨 【절대 금지】: 첫문장에 "안녕하세요", "알겠습니다" 등 모든 인사말 금지. 첫문장은 반드시 **[소제목]**으로 시작.'
-                task2_label = "[작업 2: 최신 뉴스 수집 및 전문 번역]"
+                # 💡 [수정] '[소제목]'이라는 글자 자체를 쓰지 못하게 하고 예시를 제공, 작업 라벨 출력 금지 지시 추가
+                prohibition_rule = '🚨 【절대 금지】: 첫문장에 인사말을 절대 쓰지 마세요. 본문은 반드시 내용에 맞는 실제 소제목(예: **[글로벌 시장 확장 전략]**)으로 시작하세요. "[소제목]", "[작업 1]", "분석 지시" 같은 지시어 단어 자체를 결과물에 절대 출력하지 마세요.'
+                task2_label = "--- [분석 지시 2: 최신 뉴스 수집 및 전문 번역] ---"
                 news_instruction = '- [Part 2]의 뉴스 데이터를 바탕으로 반드시 **최신순 상위 최대 5개**를 추출하세요.\n- sentiment 값은 반드시 "Positive", "Negative", "Neutral" 중 하나로 출력하세요.'
-                
-                # 💡 [디버깅 추가] JSON에 debug_search_raw 키를 추가하여 구글 검색 결과를 확인
                 json_format = f"""{{ "debug_search_raw": "구글 검색에서 실제로 발견한 원본 뉴스 제목들과, 무관한 것을 배제한 이유를 간략히 적어주세요.", "news": [ {{ "title_en": "Original English Title", "translated_title": "한국 경제신문 헤드라인 스타일 번역", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'en':
@@ -1381,16 +1380,16 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 format_instruction = "Must be written in exactly 3 paragraphs. (Each paragraph should be 4-5 sentences long)"
                 
                 if is_withdrawn:
-                    task1_label = "[Task 1: IPO Withdrawal Analysis]"
+                    task1_label = "--- [Instruction 1: IPO Withdrawal Analysis] ---"
                     task1_structure = "- Para 1: [Withdrawal Background]\n- Para 2: [Financial Impact]\n- Para 3: [Survival Strategy]"
                 elif is_delisted_or_otc:
-                    task1_label = "[Task 1: OTC/Delisting Risk Analysis]"
+                    task1_label = "--- [Instruction 1: OTC/Delisting Risk Analysis] ---"
                     task1_structure = "- Para 1: [Delisting Background]\n- Para 2: [Investment Risks]\n- Para 3: [Long-term Outlook]"
                 elif is_over_1y:
-                    task1_label = "[Task 1: 1-Year Fundamental Review]"
+                    task1_label = "--- [Instruction 1: 1-Year Fundamental Review] ---"
                     task1_structure = "- Para 1: [Milestone Achievement]\n- Para 2: [Profitability Assessment]\n- Para 3: [Capital Efficiency]"
                 else:
-                    task1_label = "[Task 1: Deep Business Model Analysis]"
+                    task1_label = "--- [Instruction 1: Deep Business Model Analysis] ---"
                     task1_structure = "- Para 1: [Core Business Model]\n- Para 2: [Market Share & Edge]\n- Para 3: [Future Growth Strategy]"
 
                 if is_fmp_poor:
@@ -1398,8 +1397,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 else:
                     search_directive = "🚨 [Strict Rule] Write ONLY using the [Part 1] text data provided below."
                 
-                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Start IMMEDIATELY with **[Subheading]**.'
-                task2_label = "[Task 2: Latest News Collection and Professional Translation]"
+                # 💡 [수정]
+                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Start IMMEDIATELY with a bold subheading that summarizes the content (e.g., **[Global Market Expansion]**). NEVER output the literal words "[Subheading]", "[Task 1]", or "Instruction".'
+                task2_label = "--- [Instruction 2: Latest News Collection and Professional Translation] ---"
                 news_instruction = '- Extract **up to 5** latest relevant news items.\n- The sentiment value MUST be "Positive", "Negative", or "Neutral".'
                 json_format = f"""{{ "debug_search_raw": "Briefly summarize what raw results were found via Google and why irrelevant ones were excluded.", "news": [ {{ "title_en": "Original English Title", "translated_title": "Professional WSJ style headline", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD" }} ] }}"""
 
@@ -1409,13 +1409,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 format_instruction = "必ず3つの段落で作成してください。"
                 
                 if is_withdrawn:
-                    task1_label = "[任務 1: 上場撤回深層診断]"
+                    task1_label = "--- [指示 1: 上場撤回深層診断] ---"
                     task1_structure = "- 第1段落: [撤回の背景]\n- 第2段落: [財務的打撃]\n- 第3段落: [生存戦略]"
                 elif is_over_1y:
-                    task1_label = "[任務 1: 上場1年次ファンダメンタル点検]"
+                    task1_label = "--- [指示 1: 上場1年次ファンダメンタル点検] ---"
                     task1_structure = "- 第1段落: [目標達成度]\n- 第2段落: [収益性評価]\n- 第3段落: [資本効率]"
                 else:
-                    task1_label = "[任務 1: 新規IPOビジネス深層分析]"
+                    task1_label = "--- [指示 1: 新規IPOビジネス深層分析] ---"
                     task1_structure = "- 第1段落: [ビジネスモデルとスケール]\n- 第2段落: [市場シェアと競合優位性]\n- 第3段落: [成長戦略と今後の展望]"
 
                 if is_fmp_poor:
@@ -1423,8 +1423,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 else:
                     search_directive = "🚨 [厳格な規則] 提供された [Part 1] テキストデータのみを使用して作成してください。"
                 
-                prohibition_rule = '🚨 【厳禁】: 「承知いたしました」などの挨拶は一切禁止です。すぐに **[見出し]**で開始してください。'
-                task2_label = "[任務 2: 最新ニュース収集]"
+                # 💡 [수정]
+                prohibition_rule = '🚨 【厳禁】: 挨拶は一切禁止です。すぐに内容に合った太字の小見出し（例：**[グローバル市場拡張]**）で開始してください。出力に「[見出し]」「[指示 1]」「[作業]」という単語そのものを絶対に含めないでください。'
+                task2_label = "--- [指示 2: 最新ニュース収集] ---"
                 news_instruction = "- 最新の**最大5件**を抽出してください。"
                 json_format = f"""{{ "debug_search_raw": "Google検索で発見した生データと、無関係なものを除外した理由を簡潔に記載してください。", "news": [ {{ "title_en": "Title", "translated_title": "翻訳", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
@@ -1434,13 +1435,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 format_instruction = "必须严格分为 3 个自然段落。"
                 
                 if is_withdrawn:
-                    task1_label = "[任务 1: IPO 撤回深度诊断]"
+                    task1_label = "--- [指令 1: IPO 撤回深度诊断] ---"
                     task1_structure = "- 第一段: [撤回背景]\n- 第二段: [财务影响]\n- 第三段: [生存战略]"
                 elif is_over_1y:
-                    task1_label = "[任务 1: 上市一周年基本面审查]"
+                    task1_label = "--- [指令 1: 上市一周年基本面审查] ---"
                     task1_structure = "- 第一段: [目标达成度]\n- 第二段: [盈利能力评估]\n- 第三段: [资本效率]"
                 else:
-                    task1_label = "[任务 1: 新 IPO 业务深度分析]"
+                    task1_label = "--- [指令 1: 新 IPO 业务深度分析] ---"
                     task1_structure = "- 第一段: [核心商业模式]\n- 第二段: [市场份额与竞争优势]\n- 第三段: [增长战略与未来展望]"
 
                 if is_fmp_poor:
@@ -1448,11 +1449,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 else:
                     search_directive = "🚨 [严格规则] 只能使用下面提供的 [Part 1] 文本数据进行编写。"
 
-                prohibition_rule = '🚨 【绝对禁止】: 严禁出现问候语。请从第一个字开始直接进入正文 **[副标题]**。'
-                task2_label = "[任务 2: 收集最新新闻]"
+                # 💡 [수정]
+                prohibition_rule = '🚨 【绝对禁止】: 严禁出现问候语。请直接以概括内容的加粗副标题（例如：**[全球市场扩张]**）开始正文。绝对不要在输出中包含“[副标题]”、“[指令 1]”或“[任务]”等字眼。'
+                task2_label = "--- [指令 2: 收集最新新闻] ---"
                 news_instruction = '- 提取最新的**最多 5 条**。'
                 json_format = f"""{{ "debug_search_raw": "简要说明在Google上搜到了什么，以及为何排除无关结果。", "news": [ {{ "title_en": "Title", "translated_title": "翻译", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
+            # 💡 [수정] Prompt 조립 단계에서 명확한 분리 지시 추가
             prompt = f"""
             {sys_prompt}
             분석 대상: {company_name} ({ticker})
@@ -1473,6 +1476,10 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             
             {task2_label}
             {news_instruction}
+            
+            🚨 [최종 출력 규칙]:
+            당신의 답변에 "--- [분석 지시 1" 이나 "--- [분석 지시 2" 같은 프롬프트의 지시어 라벨을 절대 출력하지 마세요.
+            오직 깔끔하게 작성된 3개의 문단과, 그 아래에 <JSON_START> 로 시작하는 뉴스 데이터만 출력하십시오.
             
             <JSON_START>
             {json_format}
