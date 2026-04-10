@@ -999,66 +999,66 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 try:
                     response = model_strict.generate_content(prompt)
                     if response and response.text:
-                        # 1. AI 인사말 제거 (첫 줄이 소제목인 경우 보존하는 강화된 정제)
+                        # 1. AI 인사말 제거
                         raw_text = response.text.strip()
                         clean_text = clean_ai_preamble(raw_text)
 
-                        # 2. 한 줄씩 분석하여 HTML 구조화 (단락 및 소제목 처리)
-                        # 💡 줄바꿈이 여러 개 섞여 있어도 깔끔하게 문단 단위로 재구성합니다.
+                        # 2. 한 줄씩 분석하여 HTML 구조화 (Tab 0 전용 중복 대괄호 방어)
                         lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
                         final_html = ""
                         
                         for line in lines:
                             # [소제목 패턴 탐지] 
-                            # 패턴 1: [제목], 패턴 2: **[제목]**, 패턴 3: (제목), 패턴 4: **제목**
-                            # 소제목 뒤에 바로 본문이 붙어 나오는 경우를 위해 4번째 그룹(remainder)까지 캡처
+                            # 시작 부분에 있는 모든 별표, 대괄호, 소괄호 조합을 캡처
                             match = re.match(r'^(\*\*|\[|\*\*\[|\()(.*?)(\]|\] \*\*|\*\*\*|\]\*\*|\))\s*(.*)', line)
                             
                             is_header = False
-                            header_text = ""
+                            clean_title = ""
                             remainder_text = ""
 
                             if match:
-                                # 괄호 안의 내용이 너무 짧으면 (예: 티커 [ARXS]) 제목이 아님
-                                if len(match.group(2).strip()) > 5:
+                                # 🚀 [핵심 수정] 추출된 제목 안팎의 모든 대괄호와 별표를 완전히 제거(strip)
+                                raw_title = match.group(2).strip()
+                                clean_title = raw_title.strip('[]*() ') 
+                                
+                                # 소제목으로 인정할 최소 길이 (티커 [ARXS] 등과 구분)
+                                if len(clean_title) > 5:
                                     is_header = True
-                                    header_text = f"[{match.group(2).strip()}]"
                                     remainder_text = match.group(4).strip()
                             
                             if is_header:
                                 # [소제목 처리]
-                                # 앞 단락이 있다면 2줄 띄움 (단락 구분)
                                 if final_html:
-                                    final_html += "<br><br>"
+                                    final_html += "<br><br>" # 문단 간격 확보
                                 
-                                # 소제목 볼드 처리
-                                final_html += f"<b>{header_text}</b>"
+                                # 🚀 [중복 방지] 깨끗해진 제목에 딱 한 번만 대괄호를 입히고 굵게 처리
+                                final_html += f"<b>[{clean_title}]</b>"
                                 
-                                # 소제목 뒤에 본문이 붙어 있었다면 줄바꿈 후 본문 추가
+                                # 소제목 뒤에 본문이 붙어 있는 경우 처리
                                 if remainder_text:
                                     final_html += f"<br>{remainder_text}"
                             else:
                                 # [일반 본문 처리]
                                 if not final_html:
-                                    # 첫 줄인데 제목이 아닌 경우 (Tab 3 첫단락 잘림 방지)
                                     final_html = line
                                 else:
-                                    # 이전 줄이 제목(</b>)이었다면 줄바꿈 하나만 하고 본문 시작
+                                    # 이전 줄이 제목(</b>)이었다면 한 줄 띄우고 시작
                                     if final_html.endswith("</b>"):
                                         final_html += f"<br>{line}"
-                                    # 이전 줄도 본문이었다면 AI가 의도한 줄바꿈일 수 있으므로 줄바꿈 추가
+                                    # 이전 줄이 본문이었다면 AI의 의도(단락 띄어쓰기)를 존중
                                     else:
-                                        final_html += "<br>" + line
+                                        # 이미 잘 되고 있는 단락 띄어쓰기 로직 유지
+                                        final_html += f"<br>{line}"
                         
                         processed_content = final_html.strip()
-                        # 💡 [완벽 교정 로직 끝]
 
+                        # Supabase 저장
                         batch_upsert("analysis_cache", [{
                             "cache_key": cache_key, 
                             "content": processed_content, 
                             "updated_at": datetime.now().isoformat(),
                             "ticker": ticker,
-                            "tier": "free" if topic in ["S-1", "S-1/A", "F-1", "FWP", "424B4", "10-K", "10-Q"] else "premium_plus",
+                            "tier": "free",
                             "tab_name": "tab0",
                             "lang": lang_code,
                             "data_type": topic
