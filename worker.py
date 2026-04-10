@@ -2460,7 +2460,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
 
     # =====================================================================
-    # 🚀 4개 국어 리포트 작성 (이때는 무조건 무료인 model_strict만 씁니다!)
+    # 🚀 4개 국어 리포트 작성 (단위 표기 지침 추가 버전)
     # =====================================================================
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
@@ -2472,7 +2472,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
         except: pass
 
         if lang_code == 'ko':
-            na_handling_rule = "🚨 [N/A 방어 규칙]: 만약 P/E나 DCF 등 밸류에이션 지표가 N/A이거나 수익이 0(Pre-revenue)이라면 '평가할 수 없다'거나 '정보가 부족하다'는 변명을 절대 쓰지 마세요. 대신 \"현재 초기 단계(또는 신규 상장)로 전통적인 현금흐름 기반의 밸류에이션 적용은 제한적이며, 시장은 해당 기업의 미래 파이프라인, 비전, 그리고 잠재 시장 규모(TAM)에 프리미엄을 부여하며 가치를 평가하고 있습니다\"라는 논리로 매우 전문성 있게 서술하세요."
+            na_handling_rule = "🚨 [N/A 방어 규칙]: 만약 P/E나 DCF 등 밸류에이션 지표가 N/A이거나 수익이 0(Pre-revenue)이라면 '평가할 수 없다'거나 '정보가 부족하다'는 변명을 절대 쓰지 마세요. 대신 \"현재 초기 단계(또는 신규 상장)로 전통적인 현금흐름 기반의 밸류에이션 적용은 제한적이며, 시장은 해당 기업의 미래 파이프라인, 비전, 그리고 잠재 시장 규모(TAM)에 프리미엄을 부여하며 가치를 평가하고 있습니다\"라는 논리로 매우 전문성 있게 서술하세요. 또한 모든 재무 수치는 반드시 달러($) 기호와 단위(Billion 또는 Million)를 함께 표기하세요."
             # 💡 아래의 검색 지시어(search_directive)도 일반 모델을 쓸 것이므로 비워버립니다.
             search_directive = ""
             
@@ -2488,16 +2488,16 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
             full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 '표준 정통 재무 분석 리포트'를 작성하세요.\n[비율 데이터]: {g1_context}, {g2_context}, {g3_context}\n[핵심 원시 데이터]: {g4_context}\n🚨 {na_handling_rule}\n{search_directive}"
             full_i = """[작성 규칙 - 절대 엄수]
             1. 메인 제목이나 이모지를 절대 쓰지 마세요. 첫 글자부터 바로 소제목으로 시작하세요.
-            2. 🚨 구체적 수치 인용 필수:[핵심 원시 데이터]에 제공된 현금흐름, 부채, 순이익 등의 '정확한 수치'를 본문에 적극 인용하여 전문성을 높이세요.
+            2. 🚨 구체적 수치 및 단위($ Billion/Million) 인용 필수: [핵심 원시 데이터]에 제공된 현금흐름, 부채, 순이익 등의 숫자를 쓸 때 반드시 '$3.34 Billion'과 같이 통화와 단위를 붙여 전문성을 높이세요. 숫자만 적는 것은 금지합니다.
             3. 🚨 데이터가 허락하는 선에서 매출액, 순이익, ROE, 부채비율 등을 총합 10개 내외로 녹여내세요.
             4. 반드시 아래 3개의 소제목을 괄호만 사용하여 작성하세요:[수익성 및 성장성 분석],[재무 건전성 및 현금흐름],[적정 가치 및 종합 투자의견]. 마크다운 굵은 글씨(**)는 절대 금지.
             5. 🚨 소제목을 쓴 후 바로 다음 줄에 본문을 4~5문장 꽉 채워 작성하세요.
             6. '데이터가 없어 분석이 어렵다'는 변명은 절대 쓰지 마세요.
-            7. 모든 문장은 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하십시오.
+            7. 모든 문장은 '~습니다', '~합니다' 형태의 정중한 존댓말(합쇼체)로 마무리하십시오.
             """
 
         elif lang_code == 'en':
-            na_handling_rule = "🚨 [N/A Defense Rule]: If valuation metrics like P/E or DCF are N/A or Pre-revenue, NEVER say 'cannot be evaluated' or 'lack of data'. Instead, professionally defend it by stating: 'As an early-stage/newly listed company, the application of traditional cash-flow-based valuation models is limited. The market is currently pricing the stock based on its future pipeline, strategic vision, and Total Addressable Market (TAM) potential.'"
+            na_handling_rule = "🚨 [N/A Defense Rule]: If valuation metrics like P/E or DCF are N/A or Pre-revenue, NEVER say 'cannot be evaluated' or 'lack of data'. Instead, professionally defend it by stating: 'As an early-stage/newly listed company, the application of traditional cash-flow-based valuation models is limited. The market is currently pricing the stock based on its future pipeline, strategic vision, and Total Addressable Market (TAM) potential.' Also, always include currency symbols ($) and units (Billion/Million) for all financial figures."
             search_directive = ""
             
             sum_p = f"""As a Quant Analyst, evaluate {company_name}({ticker}). 
@@ -2513,18 +2513,18 @@ Data: {g1_context} | {g2_context} | {g3_context}
             full_p = f"Write a standard financial report for {company_name}({ticker}).\n[Ratio Data]: {g1_context}, {g2_context}, {g3_context}\n[Raw Data]: {g4_context}\n🚨 Rule: {na_handling_rule}\n{search_directive}"
             full_i = """[STRICT RULES]
 1. 🚨 ABSOLUTELY NO INTRODUCTORY TEXT, NO GREETINGS, and NO MAIN TITLES. Start the very first word with the first subheading (e.g., [Profitability & Growth Analysis]). Do not write "Here is the report" or "Company Report".
-2. QUOTE HARD NUMBERS from the [Raw Data].
+2. 🚨 QUOTE HARD NUMBERS WITH UNITS ($ Billion/Million) from the [Raw Data]. Do not output raw numbers without units.
 3. Incorporate up to 10 standard financial metrics.
 4. Use EXACTLY 3 subheadings with brackets ONLY: [Profitability & Growth Analysis], [Financial Health & Cash Flow], [Valuation & Final Verdict]. DO NOT use markdown bold (**).
 5. Write 4-5 sentences immediately after subheadings.
 6. NEVER complain about missing data."""
 
         elif lang_code == 'ja':
-            na_handling_rule = "🚨 [N/A防御規則]: P/EやDCFなどのバリュエーション指標がN/A、またはPre-revenueの場合、「評価できない」「情報が不足している」という言い訳は絶対に使わないでください。代わりに、「現在は初期段階（または新規上場）であり、伝統的なキャッシュフローに基づくバリュエーションの適用は限定的です。市場は同社の今後のパイプライン、ビジョン、および潜在的市場規模（TAM）にプレミアムを付与して価値を評価しています」という論理で非常に専門的に記述してください。"
+            na_handling_rule = "🚨 [N/A防御規則]: P/EやDCFなどのバリュエーション指標がN/A、またはPre-revenueの場合、「評価できない」「情報が不足している」という言い訳は絶対に使わないでください。代わりに、「現在は初期段階（または新規上場）であり、伝統的なキャッシュフローに基づくバリュエーションの適用は限定的です。市場は同社の今後のパイプライン、ビジョン、および潜在的市場規模（TAM）にプレミアムを付与して価値を評価しています」という論理で非常に専門的に記述してください。また、すべての財務数値には必ず通貨記号($)と単位(BillionまたはMillion)を付けてください。"
             search_directive = ""
             
-            sum_p = f"""あなたはクオンツアナリストです。{company_name}({ticker})を評価してください。
-データ: {g1_context} | {g2_context} | {g3_context}
+            sum_p = f"""あなたはクオン츠アナリストです。{company_name}({ticker})を評価してください。
+데이터: {g1_context} | {g2_context} | {g3_context}
 🚨 規則: {na_handling_rule}
 {search_directive}
 [厳格な出力フォーマット規則]
@@ -2536,21 +2536,21 @@ Data: {g1_context} | {g2_context} | {g3_context}
             full_p = f"{company_name}({ticker}) の本格的財務分析レポートを作成してください。\n[比率データ]: {g1_context}, {g2_context}, {g3_context}\n[原データ]: {g4_context}\n🚨 規則: {na_handling_rule}\n{search_directive}"
             full_i = """[厳格な規則]
 1. 🚨 挨拶、導入文、メインタイトルは絶対に禁止です。「以下は～のレポートです」などの文章は一切書かず、最初の文字からすぐに小見出し（例：[収益性と成長性の分析]）で始めてください。
-2. [原データ]から具体的な数値を引用してください。
+2. 🚨 [原データ]から具体的な数値と単位($ Billion/Million)を引用してください。数値のみの記載は厳禁です。
 3. 主要な数値を10個程度参照してください。
 4. 3つの小見出しを括弧のみで使用してください:[収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見]。太字(**)は禁止です。
 5. 小見出しの直後に本文(4〜5文)を開始してください。
 6. 「データがない」という言い訳は禁止です。"""
 
         else: # zh
-            na_handling_rule = "🚨 [N/A防御规则]: 如果 P/E 或 DCF 等估值指标为 N/A 或处于 Pre-revenue 阶段，绝对不要写“无法评估”或“缺乏数据”等借口。相反，请以极其专业的口吻解释：“作为一家处于早期（或新上市）的公司，传统基于现金流的估值模型的适用性有限。市场目前主要基于其未来的产品管线、战略愿景以及潜在市场规模 (TAM) 来赋予其估值溢价。”"
+            na_handling_rule = "🚨 [N/A防御规则]: 如果 P/E 或 DCF 等估值指标为 N/A 或处于 Pre-revenue 阶段，绝对不要写“无法评估”或“缺乏数据”等借口。相反，请以极其专业的口吻解释：“作为一家处于早期（或新上市）的公司，传统基于现金流的估值模型的适用性有限。市场目前主要基于其未来的产品管线、战略愿景以及潜在市场规模 (TAM) 来赋予其估值溢价。”此外，所有财务数值必须附带货币符号($)和单位(Billion或Million)。"
             search_directive = ""
             
             sum_p = f"""作为量化分析师，请评估 {company_name}({ticker})。
 数据: {g1_context} | {g2_context} | {g3_context}
 🚨 规则：{na_handling_rule}
 {search_directive}[严格格式规则]
-1. 必须输出3段完全独立的纯文本。绝对不要使用JSON或Markdown。
+1. 必须输出3段完全独立的纯文本。绝对不要使用JSON or Markdown。
 2. 必须严格按照以下格式输出:
    [格式]: (增长与盈利能力 4-5句话) |||SEP||| (财务健康 4-5句话) |||SEP||| (市场估值 4-5句话)
 3. 仅使用 '|||SEP|||' 作为分隔符，不要加入任何其他换行符。
@@ -2558,7 +2558,7 @@ Data: {g1_context} | {g2_context} | {g3_context}
             full_p = f"请撰写 {company_name}({ticker}) 的深度财务分析报告。\n[比率数据]: {g1_context}, {g2_context}, {g3_context}\n[原始数据]: {g4_context}\n🚨 规则：{na_handling_rule}\n{search_directive}"
             full_i = """[严格规则]
 1. 🚨 绝对禁止任何问候语、开场白或主标题。不要写“以下是财务报告”之类的句子，必须从第一个字开始直接输出副标题（例如：[盈利能力与增长性分析]）。
-2. 必须引用[原始数据]中的具体数据。
+2. 🚨 必须引用[原始数据]中的具体数据及单位($ Billion/Million)。严禁仅输出数字。
 3. 融入约10个核心数值。
 4. 仅使用3个带方括号的副标题，绝对不要加粗(**): [盈利能力与增长性分析], [财务健康与现金流], [合理估值与综合投资意见]。
 5. 副标题后直接写4-5句话。
