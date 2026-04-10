@@ -999,52 +999,56 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 try:
                     response = model_strict.generate_content(prompt)
                     if response and response.text:
-                        # 💡 [완벽 교정 로직 시작]
+                        # 1. AI 인사말 제거 (첫 줄이 소제목인 경우 보존하는 강화된 정제)
                         raw_text = response.text.strip()
-                        
-                        # 1. 뭉쳐 있는 "[소제목]" 앞에는 강제로 줄바꿈 삽입 (티커 [ARXS] 등 짧은 괄호는 보호)
-                        def smart_break_before_header(match):
-                            punct = match.group(1) # 마침표 등
-                            header = match.group(2) # [소제목]
-                            inner = re.sub(r'[\[\]\(\)]', '', header)
-                            # 괄호 안이 7자 미만(티커 [ARXS] 등)이면 줄바꿈 없이 공백만 유지
-                            if len(inner) < 7: return f"{punct} {header}"
-                            # 7자 이상이면 진짜 소제목이므로 줄바꿈 두 번 삽입
-                            return f"{punct}\n\n{header}\n"
+                        clean_text = clean_ai_preamble(raw_text)
 
-                        # 문장 끝(.!?) 뒤에 바로 붙은 괄호를 찾아 줄바꿈 보정
-                        text_fixed = re.sub(r'([.!?])\s*([\[\(].*?[\]\)])', smart_break_before_header, raw_text)
-
-                        # 2. 한 줄씩 읽어서 HTML 태그 입히기
-                        lines = [l.strip() for l in text_fixed.split('\n') if l.strip()]
+                        # 2. 한 줄씩 분석하여 HTML 구조화 (단락 및 소제목 처리)
+                        # 💡 줄바꿈이 여러 개 섞여 있어도 깔끔하게 문단 단위로 재구성합니다.
+                        lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
                         final_html = ""
                         
                         for line in lines:
-                            # 줄 시작이 [소제목] 형태인지 검사
-                            match = re.match(r'^([\[\(].*?[\]\)])\s*(.*)', line)
+                            # [소제목 패턴 탐지] 
+                            # 패턴 1: [제목], 패턴 2: **[제목]**, 패턴 3: (제목), 패턴 4: **제목**
+                            # 소제목 뒤에 바로 본문이 붙어 나오는 경우를 위해 4번째 그룹(remainder)까지 캡처
+                            match = re.match(r'^(\*\*|\[|\*\*\[|\()(.*?)(\]|\] \*\*|\*\*\*|\]\*\*|\))\s*(.*)', line)
                             
-                            if match and len(re.sub(r'[\[\]\(\)]', '', match.group(1))) > 5:
-                                # [진짜 소제목]인 경우
-                                header_tag = match.group(1)
-                                body_after = match.group(2).strip()
-                                
-                                if final_html: final_html += "<br><br>" # 이전 단락과 간격 확보
-                                final_html += f"<b>{header_tag}</b>" # 소제목 볼드 처리
-                                
-                                if body_after: # 소제목 뒤에 내용이 붙어있다면 줄 바꿔서 추가
-                                    final_html += f"<br>{body_after}"
-                            else:
-                                # [일반 문장]인 경우
+                            is_header = False
+                            header_text = ""
+                            remainder_text = ""
+
+                            if match:
+                                # 괄호 안의 내용이 너무 짧으면 (예: 티커 [ARXS]) 제목이 아님
+                                if len(match.group(2).strip()) > 5:
+                                    is_header = True
+                                    header_text = f"[{match.group(2).strip()}]"
+                                    remainder_text = match.group(4).strip()
+                            
+                            if is_header:
+                                # [소제목 처리]
+                                # 앞 단락이 있다면 2줄 띄움 (단락 구분)
                                 if final_html:
-                                    # 이전 줄이 제목이었다면 줄바꿈 후 시작
+                                    final_html += "<br><br>"
+                                
+                                # 소제목 볼드 처리
+                                final_html += f"<b>{header_text}</b>"
+                                
+                                # 소제목 뒤에 본문이 붙어 있었다면 줄바꿈 후 본문 추가
+                                if remainder_text:
+                                    final_html += f"<br>{remainder_text}"
+                            else:
+                                # [일반 본문 처리]
+                                if not final_html:
+                                    # 첫 줄인데 제목이 아닌 경우 (Tab 3 첫단락 잘림 방지)
+                                    final_html = line
+                                else:
+                                    # 이전 줄이 제목(</b>)이었다면 줄바꿈 하나만 하고 본문 시작
                                     if final_html.endswith("</b>"):
                                         final_html += f"<br>{line}"
-                                    # 이전 줄이 문장이었다면 자연스럽게 한 칸 띄고 연결 (단락 유지)
+                                    # 이전 줄도 본문이었다면 AI가 의도한 줄바꿈일 수 있으므로 줄바꿈 추가
                                     else:
-                                        # 💡 AI가 이미 줄바꿈을 한 경우라면 단락 구분을 위해 한 줄 띄움
                                         final_html += "<br>" + line
-                                else:
-                                    final_html = line
                         
                         processed_content = final_html.strip()
                         # 💡 [완벽 교정 로직 끝]
@@ -1054,7 +1058,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             "content": processed_content, 
                             "updated_at": datetime.now().isoformat(),
                             "ticker": ticker,
-                            "tier": "free",
+                            "tier": "free" if topic in ["S-1", "S-1/A", "F-1", "FWP", "424B4", "10-K", "10-Q"] else "premium_plus",
                             "tab_name": "tab0",
                             "lang": lang_code,
                             "data_type": topic
@@ -2633,7 +2637,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
 
     # =====================================================================
-    # 🚀 4개 국어 리포트 작성 (단위 표기 지침 추가 버전)
+    # 🚀 4개 국어 리포트 작성 (단위 표기 지침 및 소제목 보정 버전)
     # =====================================================================
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
@@ -2645,28 +2649,26 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
         except: pass
 
         if lang_code == 'ko':
-            na_handling_rule = "🚨 [N/A 방어 규칙]: 만약 P/E나 DCF 등 밸류에이션 지표가 N/A이거나 수익이 0(Pre-revenue)이라면 '평가할 수 없다'거나 '정보가 부족하다'는 변명을 절대 쓰지 마세요. 대신 \"현재 초기 단계(또는 신규 상장)로 전통적인 현금흐름 기반의 밸류에이션 적용은 제한적이며, 시장은 해당 기업의 미래 파이프라인, 비전, 그리고 잠재 시장 규모(TAM)에 프리미엄을 부여하며 가치를 평가하고 있습니다\"라는 논리로 매우 전문성 있게 서술하세요. 또한 모든 재무 수치는 반드시 달러($) 기호와 단위(Billion 또는 Million)를 함께 표기하세요."
-            # 💡 아래의 검색 지시어(search_directive)도 일반 모델을 쓸 것이므로 비워버립니다.
+            na_handling_rule = "🚨 [N/A 방어 규칙]: 만약 P/E나 DCF 등 밸류에이션 지표가 N/A이거나 수익이 0(Pre-revenue)이라면 '평가할 수 없다'거나 '정보가 부족하다'는 변명을 절대 쓰지 마세요. 대신 \"현재 초기 단계(또는 신규 상장)로 전통적인 현금흐름 기반의 밸류에이션 적용은 제한적이며, 시장은 해당 기업의 미래 파이프라인, 비전, 그리고 잠재 시장 규모(TAM)에 프리미엄을 부여하며 가치를 평가하고 있습니다\"라는 논리로 매우 전문성 있게 서술하세요."
             search_directive = ""
             
             sum_p = f"""당신은 퀀트 애널리스트입니다. {company_name}({ticker})의 지표를 해석하여 대시보드 카드를 작성하세요.
 [데이터]: {g1_context} | {g2_context} | {g3_context}
 🚨 {na_handling_rule}
-{search_directive}[카드 작성 규칙 - 절대 엄수]
+[카드 작성 규칙 - 절대 엄수]
 1. 당신의 답변은 웹사이트의 서로 다른 3개의 독립된 카드에 각각 들어갈 텍스트입니다. 절대 JSON이나 마크다운을 쓰지 마세요.
 2. 반드시 아래의 정확한 포맷으로만 출력하세요.
    [포맷]: (성장성 및 수익성 진단 4~5문장) |||SEP||| (재무 건전성 및 이익 질 진단 4~5문장) |||SEP||| (시장 가치 평가 4~5문장)
 3. 구분자 '|||SEP|||' 이외의 어떠한 특수기호나 줄바꿈도 단락 사이에 넣지 마세요. 모든 문장은 '~습니다/합니다' 체를 사용하세요.
 """
-            full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 '표준 정통 재무 분석 리포트'를 작성하세요.\n[비율 데이터]: {g1_context}, {g2_context}, {g3_context}\n[핵심 원시 데이터]: {g4_context}\n🚨 {na_handling_rule}\n{search_directive}"
+            full_p = f"다음 데이터를 사용하여 {company_name}({ticker})의 '표준 정통 재무 분석 리포트'를 작성하세요.\n[비율 데이터]: {g1_context}, {g2_context}, {g3_context}\n[핵심 원시 데이터]: {g4_context}\n🚨 {na_handling_rule}"
             full_i = """[작성 규칙 - 절대 엄수]
-            1. 메인 제목이나 이모지를 절대 쓰지 마세요. 첫 글자부터 바로 소제목으로 시작하세요.
-            2. 🚨 구체적 수치 및 단위($ Billion/Million) 인용 필수: [핵심 원시 데이터]에 제공된 현금흐름, 부채, 순이익 등의 숫자를 쓸 때 반드시 '$3.34 Billion'과 같이 통화와 단위를 붙여 전문성을 높이세요. 숫자만 적는 것은 금지합니다.
-            3. 🚨 데이터가 허락하는 선에서 매출액, 순이익, ROE, 부채비율 등을 총합 10개 내외로 녹여내세요.
-            4. 반드시 아래 3개의 소제목을 괄호만 사용하여 작성하세요:[수익성 및 성장성 분석],[재무 건전성 및 현금흐름],[적정 가치 및 종합 투자의견]. 마크다운 굵은 글씨(**)는 절대 금지.
-            5. 🚨 소제목을 쓴 후 바로 다음 줄에 본문을 4~5문장 꽉 채워 작성하세요.
-            6. '데이터가 없어 분석이 어렵다'는 변명은 절대 쓰지 마세요.
-            7. 모든 문장은 '~습니다', '~합니다' 형태의 정중한 존댓말(합쇼체)로 마무리하십시오.
+            1. 🚨 인사말 없이 첫 글자부터 바로 **[소제목]**으로 시작하세요.
+            2. 🚨 소제목 강제 형식: 반드시 **[소제목명]** 형태로 작성하고, 소제목 직후에 줄바꿈을 한 번 하세요.
+            3. 소제목 명칭: [수익성 및 성장성 분석], [재무 건전성 및 현금흐름], [적정 가치 및 종합 투자의견]을 순서대로 사용하세요.
+            4. 🚨 모든 숫자는 '15.9억 달러' 또는 '4,600만 달러'와 같이 한국어 단위를 명시하세요. '$' 기호와 'Billion/Million' 영문 혼용은 금지합니다.
+            5. 각 문단은 4~5문장으로 구성하며, 모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하십시오.
+            6. '정보가 부족하다'는 변명 대신, 제공된 데이터를 바탕으로 분석가로서의 통찰을 채워 작성하세요.
             """
 
         elif lang_code == 'en':
@@ -2680,59 +2682,51 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
    (Growth analysis 4-5 sentences) |||SEP||| (Health analysis 4-5 sentences) |||SEP||| (Valuation analysis 4-5 sentences)
 3. DO NOT use any other separators or line breaks. Start the analysis immediately.
 """
-            full_p = f"Write a standard financial report for {company_name}({ticker}).\n[Ratio Data]: {g1_context}, {g2_context}, {g3_context}\n[Raw Data]: {g4_context}\n🚨 Rule: {na_handling_rule}\n{search_directive}"
+            full_p = f"Write a standard financial report for {company_name}({ticker}).\n[Ratio Data]: {g1_context}, {g2_context}, {g3_context}\n[Raw Data]: {g4_context}\n🚨 Rule: {na_handling_rule}"
             full_i = """[STRICT RULES]
-1. 🚨 ABSOLUTELY NO INTRODUCTORY TEXT, NO GREETINGS, and NO MAIN TITLES. Start the very first word with the first subheading (e.g., [Profitability & Growth Analysis]). Do not write "Here is the report" or "Company Report".
-2. 🚨 QUOTE HARD NUMBERS WITH UNITS ($ Billion/Million) from the [Raw Data]. Do not output raw numbers without units.
-3. Incorporate up to 10 standard financial metrics.
-4. Use EXACTLY 3 subheadings with brackets ONLY: [Profitability & Growth Analysis], [Financial Health & Cash Flow], [Valuation & Final Verdict]. DO NOT use markdown bold (**).
-5. Write 4-5 sentences immediately after subheadings.
-6. NEVER complain about missing data."""
+1. 🚨 Start IMMEDIATELY with the first subheading **[Profitability & Growth Analysis]**. NO greetings, NO intro.
+2. 🚨 Mandatory Header Format: Use **[Subheading Name]** with a line break right after it.
+3. Subheadings to use: **[Profitability & Growth Analysis]**, **[Financial Health & Cash Flow]**, **[Valuation & Final Verdict]**.
+4. 🚨 Numerical Data: ALWAYS use the format '$1.59 Billion' or '$46.0 Million'. Do not write '$1.59 Billion dollars' redundantly.
+5. Each paragraph must be 4-5 sentences long. Maintain a cold, professional, and objective tone.
+6. If data is limited, provide analytical insights based on the available figures instead of stating information is missing.
+"""
 
         elif lang_code == 'ja':
-            na_handling_rule = "🚨 [N/A防御規則]: P/EやDCFなどのバリュエーション指標がN/A、またはPre-revenueの場合、「評価できない」「情報が不足している」という言い訳は絶対に使わないでください。代わりに、「現在は初期段階（または新規上場）であり、伝統的なキャッシュフローに基づくバリュエーションの適用は限定的です。市場は同社の今後のパイプライン、ビジョン、および潜在的市場規模（TAM）にプレミアムを付与して価値を評価しています」という論理で非常に専門的に記述してください。また、すべての財務数値には必ず通貨記号($)と単位(BillionまたはMillion)を付けてください。"
-            search_directive = ""
-            
-            sum_p = f"""あなたはクオン츠アナリストです。{company_name}({ticker})を評価してください。
-데이터: {g1_context} | {g2_context} | {g3_context}
-🚨 規則: {na_handling_rule}
-{search_directive}
+            na_handling_rule = "🚨 [N/A防御規則]: P/EやDCFなどの指標がN/Aの場合、「情報不足」と言い訳せず、将来のTAMへの期待によるプレミアムとして専門的に記述してください。"
+            sum_p = f"""あなたはクオンツアナリストです。{company_name}({ticker})を評価してください。
+データ: {g1_context} | {g2_context} | {g3_context}
+🚨 {na_handling_rule}
 [厳格な出力フォーマット規則]
-1. 3つの完全に独立したテキストのみを出力してください。JSONやマークダウンは絶対に使用しないでください。
-2. 必ず以下のフォーマットのみで出力してください:
-   [フォーマット]: (成長性と収益性 4〜5文) |||SEP||| (財務健全性 4〜5文) |||SEP||| (バリュエーション 4〜5文)
-3. 区切り文字 '|||SEP|||' のみを使用し、その他の改行などは入れないでください。丁寧な日本語を使用してください。
+1. 3つの独立したテキストのみを出力してください。
+2. 形式: (成長性と収益性) |||SEP||| (財務健全性) |||SEP||| (バリュエーション)
+3. 区切り文字 '|||SEP|||' 以外に改行を入れないでください。丁寧な日本語を使用してください。
 """
-            full_p = f"{company_name}({ticker}) の本格的財務分析レポートを作成してください。\n[比率データ]: {g1_context}, {g2_context}, {g3_context}\n[原データ]: {g4_context}\n🚨 規則: {na_handling_rule}\n{search_directive}"
+            full_p = f"{company_name}({ticker}) の本格的財務分析レポートを作成してください。\n[比率データ]: {g1_context}, {g2_context}, {g3_context}\n[原データ]: {g4_context}\n🚨 規則: {na_handling_rule}"
             full_i = """[厳格な規則]
-1. 🚨 挨拶、導入文、メインタイトルは絶対に禁止です。「以下は～のレポートです」などの文章は一切書かず、最初の文字からすぐに小見出し（例：[収益性と成長性の分析]）で始めてください。
-2. 🚨 [原データ]から具体的な数値と単位($ Billion/Million)を引用してください。数値のみの記載は厳禁です。
-3. 主要な数値を10個程度参照してください。
-4. 3つの小見出しを括弧のみで使用してください:[収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見]。太字(**)は禁止です。
-5. 小見出しの直後に本文(4〜5文)を開始してください。
-6. 「データがない」という言い訳は禁止です。"""
+1. 🚨 挨拶、導入文は禁止です。最初からすぐに **[小見出し]** で始めてください。
+2. 🚨 必ず以下の小見출しを **[小見出し名]** 形式で使用し、直後に改行してください: [収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見]。
+3. 🚨 数値引用: すべての数値は必ず「15.9億ドル」または「4,600万ドル」のような形式で記載してください。
+4. 各段落は4〜5文で構成し、です・ます調を維持してください。
+5. 「データがない」という言い訳は禁止です。"""
 
         else: # zh
-            na_handling_rule = "🚨 [N/A防御规则]: 如果 P/E 或 DCF 等估值指标为 N/A 或处于 Pre-revenue 阶段，绝对不要写“无法评估”或“缺乏数据”等借口。相反，请以极其专业的口吻解释：“作为一家处于早期（或新上市）的公司，传统基于现金流的估值模型的适用性有限。市场目前主要基于其未来的产品管线、战略愿景以及潜在市场规模 (TAM) 来赋予其估值溢价。”此外，所有财务数值必须附带货币符号($)和单位(Billion或Million)。"
-            search_directive = ""
-            
+            na_handling_rule = "🚨 [N/A防御规则]: 如果估值指标为 N/A，请专业地解释为市场对未来 TAM 和产品管线的溢价，不要说“缺乏数据”。"
             sum_p = f"""作为量化分析师，请评估 {company_name}({ticker})。
 数据: {g1_context} | {g2_context} | {g3_context}
-🚨 规则：{na_handling_rule}
-{search_directive}[严格格式规则]
-1. 必须输出3段完全独立的纯文本。绝对不要使用JSON or Markdown。
-2. 必须严格按照以下格式输出:
-   [格式]: (增长与盈利能力 4-5句话) |||SEP||| (财务健康 4-5句话) |||SEP||| (市场估值 4-5句话)
+🚨 {na_handling_rule}
+[严格格式规则]
+1. 仅输出3段独立的纯文本。
+2. 格式: (增长与盈利能力) |||SEP||| (财务健康) |||SEP||| (市场估值)
 3. 仅使用 '|||SEP|||' 作为分隔符，不要加入任何其他换行符。
 """
-            full_p = f"请撰写 {company_name}({ticker}) 的深度财务分析报告。\n[比率数据]: {g1_context}, {g2_context}, {g3_context}\n[原始数据]: {g4_context}\n🚨 规则：{na_handling_rule}\n{search_directive}"
+            full_p = f"请撰写 {company_name}({ticker}) 的深度财务分析报告。\n[数据]: {g4_context}\n🚨 规则：{na_handling_rule}"
             full_i = """[严格规则]
-1. 🚨 绝对禁止任何问候语、开场白或主标题。不要写“以下是财务报告”之类的句子，必须从第一个字开始直接输出副标题（例如：[盈利能力与增长性分析]）。
-2. 🚨 必须引用[原始数据]中的具体数据及单位($ Billion/Million)。严禁仅输出数字。
-3. 融入约10个核心数值。
-4. 仅使用3个带方括号的副标题，绝对不要加粗(**): [盈利能力与增长性分析], [财务健康与现金流], [合理估值与综合投资意见]。
-5. 副标题后直接写4-5句话。
-6. 绝对不要抱怨数据缺失。"""
+1. 🚨 绝对禁止任何问候语。必须从第一个字开始直接输出 **[副标题]**。
+2. 🚨 必须使用以下带方括号的副标题并在标题后换行: [盈利能力与增长性分析], [财务健康与现金流], [合理估值与综合投资意见]。
+3. 🚨 数值引用: 请将所有金额转换为中文单位（如：15.9亿美元 或 4,600万美元）。严禁仅输出数字。
+4. 副标题后直接写4-5句话。保持专业冷静的语调。
+5. 绝对不要抱怨数据缺失。"""
 
         # ----------------------------------------------------
         # [Call 1] 3D 카드 요약 생성 (괄호 찌꺼기 완전 박멸)
