@@ -654,15 +654,50 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         return lang_group.get(doc_type, fallback_meta)
 
     def get_format_instruction(lang):
-        # 💡 [복원 및 강화] 줄바꿈 및 섹션 분리 지시 강화 버전
-        if lang == 'en': 
-            return "- Write exactly 3 paragraphs.\n- MUST start each section with a new line.\n- Format: **[Subheading]** followed by a newline.\n- Use TWO newlines (Enter twice) between sections.\n- Each paragraph MUST be 4-5 sentences long.\n- DO NOT bold numbers.\n- If data is missing, answer: 'Information not verified.'"
-        elif lang == 'ja': 
-            return "- 必ず3つの段落に分け、各段落の間には空行（Enter 2回）を入れてください。\n- 各段落は必ず4〜5文で構成してください。\n- 各段落の先頭は必ず **[見出し]** のように太字にして始めてください。\n- 本文の数値に太字（**）は絶対に使用しないでください。\n- 指定された情報が提供されたテキストにない場合は、推論したり捏造したりせず、「該当情報が確認できません。」とだけ回答してください。"
-        elif lang == 'zh': 
-            return "- 必须严格分为3个段落，每段之间留有空行（按两下Enter）。\n- 每个段落必须包含4-5个句子。\n- 每个段落必须以加粗的 **[副标题]** 开头。\n- 绝对不要对正文中的数字使用加粗。\n- 如果提供的文本中没有相关信息，绝对不要推断或捏造，只需回答：“未确认到相关信息。”"
-        else: 
-            return "- 반드시 3개의 문단으로 작성하며, 문단과 문단 사이에는 반드시 '빈 줄(Enter 2번)'을 넣어 분리하세요.\n- 각 문단은 반드시 4~5줄(문장) 길이로 작성하세요.\n- 각 문단은 반드시 **[소제목]** 형태로 굵게 강조하여 시작하세요.\n- 단, 본문 내용의 '숫자'에는 절대 강조(**) 기호를 쓰지 마세요.\n- 제공된 텍스트에 지시된 내용이 없다면, 절대 추론하거나 지어내지 말고 \"해당 정보가 확인되지 않습니다.\"라고만 답변하세요."
+        # 💡 [언어별 현지화 지시] 언어 혼용을 막기 위해 각국 언어로 직접 지시합니다.
+        
+        if lang == 'en':
+            return (
+                "- Write exactly 3 paragraphs.\n"
+                "- EACH paragraph MUST start with a bold subheading in brackets: **[Subheading]**.\n"
+                "- Provide a line break immediately after each subheading.\n"
+                "- EACH paragraph must be 4-5 sentences long.\n"
+                "- DO NOT use markdown bold (**) for numbers.\n"
+                "- If the information is not found, strictly use the phrase 'Information not verified.'"
+            )
+            
+        elif lang == 'ja':
+            return (
+                "- 必ず3つの段落で構成してください。\n"
+                "- 各段落の冒頭には、必ず括弧付きの太字の見出しを付けてください：**[見出し]**。\n"
+                "- 見出しの直後には必ず改行を入れてください。\n"
+                "- 各段落は必ず4〜5文で構成してください。\n"
+                "- 数値に太字（**）は絶対に使用しないでください。\n"
+                "- 全ての文章は「〜です・ます」の丁寧語で統一してください。\n"
+                "- 情報が見つからない場合は、「該当情報が確認できません。」と正確に記述してください。"
+            )
+            
+        elif lang == 'zh':
+            return (
+                "- 必须严格分为3个段落。\n"
+                "- 每个段落必须以带方括号의 加粗副标题开头：**[副标题]**。\n"
+                "- 副标题后请务必换行。\n"
+                "- 每个段落由4-5个句子组成。\n"
+                "- 严禁对数字使用加粗（**）。\n"
+                "- 必须完全 blinds 使用简体中文，保持专业、冷峻的分析语气。\n"
+                "- 若无法确认信息，请统一回答：“未确认到相关信息。”"
+            )
+            
+        else: # ko (기준점)
+            return (
+                "- 반드시 3개의 문단으로 작성하세요.\n"
+                "- 각 문단은 반드시 대괄호 형태의 굵은 소제목으로 시작하세요: **[소제목]**.\n"
+                "- 소제목 바로 다음에 줄바꿈을 하세요.\n"
+                "- 각 문단은 반드시 4~5줄(문장) 길이로 작성하세요.\n"
+                "- 본문의 숫자에는 절대 굵게(**) 표시를 하지 마세요.\n"
+                "- 모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하세요.\n"
+                "- 제공된 정보가 없다면 \"해당 정보가 확인되지 않습니다.\"라고 답변하세요."
+            )
 
     def get_missing_document_message(lang, doc_type):
         msg_map = {
@@ -842,27 +877,52 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     try:
                         resp_8k = model_strict.generate_content(prompt_8k)
                         if resp_8k and resp_8k.text:
+                            # 💡 8-K 가독성 가공 로직
+                            raw_8k = resp_8k.text.strip()
+                            clean_8k = clean_ai_preamble(raw_8k)
+                            
+                            # 뭉쳐있는 제목 앞 줄바꿈 보정 (티커 [ARXS] 보호)
+                            def brk_8k(m):
+                                p, h = m.group(1), m.group(2)
+                                if len(re.sub(r'[\[\]\(\)]', '', h)) < 7: return f"{p} {h}"
+                                return f"{p}<br><br>{h}"
+                            
+                            text_brk = re.sub(r'([.!?])\s*([\[\(].*?[\]\)])', brk_8k, clean_8k)
+                            lines = [l.strip() for l in text_brk.split('\n') if l.strip()]
+                            f_html = ""
+                            for l in lines:
+                                m = re.match(r'^([\[\(].*?[\]\)])\s*(.*)', l)
+                                if m and len(re.sub(r'[\[\]\(\)]', '', m.group(1))) > 5:
+                                    if f_html: f_html += "<br><br>"
+                                    f_html += f"<b>{m.group(1)}</b>"
+                                    if m.group(2): f_html += f"<br>{m.group(2).strip()}"
+                                else:
+                                    if f_html:
+                                        if f_html.endswith("</b>"): f_html += f"<br>{l}"
+                                        else: f_html += " " + l
+                                    else: f_html = l
+
                             batch_upsert("analysis_cache", [{
                                 "cache_key": cache_key_8k, 
-                                "content": resp_8k.text.strip(), 
+                                "content": f_html.strip(), 
                                 "updated_at": datetime.now().isoformat(),
                                 "ticker": ticker,
-                                "tier": "free",
+                                "tier": "premium_plus", # 👈 'free'에서 'premium_plus'로 수정 완료
                                 "tab_name": "tab0",
                                 "lang": lang_code,
                                 "data_type": "8-K"
                             }], on_conflict="cache_key")
-                            print(f"✅ [{ticker}] 8-K AI 분석 완료 ({lang_code})")
-                    except: pass
+                            print(f"✅ [{ticker}] 8-K AI 분석 및 가공 완료 ({lang_code})")
+                    except Exception as e:
+                        print(f"❌ [{ticker}] 8-K 에러 ({lang_code}): {e}")
                 
-                # 🚀 [FCM 추가] 3. 유료 결제자들에게 실시간 푸시 알림 전송
-                # 분석이 끝난 직후 쏘는 것이 가장 정확합니다.
+                # 🚀 [FCM 추가] 분석이 끝난 직후 Plus 유저에게만 발송
                 try:
                     send_fcm_push(
                         title=f"🚨 {ticker} 중대 공시(8-K) 발생",
                         body=f"{ticker}의 새로운 중대 이벤트 분석이 완료되었습니다. 지금 확인하세요.",
                         ticker=ticker,
-                        target_level='premium_plus'  # <-- 이 한 줄을 추가!
+                        target_level='premium_plus'
                     )
                 except Exception as e:
                     print(f"⚠️ 8-K 푸시 발송 실패: {e}")
