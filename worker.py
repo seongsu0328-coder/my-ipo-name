@@ -1003,13 +1003,12 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         raw_text = response.text.strip()
                         clean_text = clean_ai_preamble(raw_text)
 
-                        # 2. 한 줄씩 분석하여 HTML 구조화 (Tab 0 전용 중복 대괄호 방어)
+                        # 2. 한 줄씩 분석하여 HTML 구조화 (Tab 0 전용 밀착형 구조)
                         lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
                         final_html = ""
                         
                         for line in lines:
                             # [소제목 패턴 탐지] 
-                            # 시작 부분에 있는 모든 별표, 대괄호, 소괄호 조합을 캡처
                             match = re.match(r'^(\*\*|\[|\*\*\[|\()(.*?)(\]|\] \*\*|\*\*\*|\]\*\*|\))\s*(.*)', line)
                             
                             is_header = False
@@ -1017,11 +1016,11 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             remainder_text = ""
 
                             if match:
-                                # 🚀 [핵심 수정] 추출된 제목 안팎의 모든 대괄호와 별표를 완전히 제거(strip)
+                                # 제목 안팎의 불필요한 기호 제거
                                 raw_title = match.group(2).strip()
                                 clean_title = raw_title.strip('[]*() ') 
                                 
-                                # 소제목으로 인정할 최소 길이 (티커 [ARXS] 등과 구분)
+                                # 소제목 최소 길이 체크 (티커 보호)
                                 if len(clean_title) > 5:
                                     is_header = True
                                     remainder_text = match.group(4).strip()
@@ -1029,12 +1028,13 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             if is_header:
                                 # [소제목 처리]
                                 if final_html:
-                                    final_html += "<br><br>" # 문단 간격 확보
+                                    # 다음 소제목이 시작되기 전에는 확실히 공간 확보 (2줄 띄움 효과)
+                                    final_html += "<br><br>"
                                 
-                                # 🚀 [중복 방지] 깨끗해진 제목에 딱 한 번만 대괄호를 입히고 굵게 처리
+                                # 소제목을 굵게 하고 대괄호 중복 방지
                                 final_html += f"<b>[{clean_title}]</b>"
                                 
-                                # 소제목 뒤에 본문이 붙어 있는 경우 처리
+                                # 🚀 [핵심 수정] 소제목 뒤에 내용이 붙어 있다면 즉시 줄바꿈 후 추가
                                 if remainder_text:
                                     final_html += f"<br>{remainder_text}"
                             else:
@@ -1042,15 +1042,21 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                                 if not final_html:
                                     final_html = line
                                 else:
-                                    # 이전 줄이 제목(</b>)이었다면 한 줄 띄우고 시작
+                                    # 🚀 [핵심 수정] 이전 줄이 제목(</b>)이었다면 
+                                    # 추가적인 여백 없이 단일 줄바꿈(<br>)만 수행하여 밀착시킴
                                     if final_html.endswith("</b>"):
                                         final_html += f"<br>{line}"
-                                    # 이전 줄이 본문이었다면 AI의 의도(단락 띄어쓰기)를 존중
                                     else:
-                                        # 이미 잘 되고 있는 단락 띄어쓰기 로직 유지
-                                        final_html += f"<br>{line}"
+                                        # 본문이 계속 이어지는 경우 자연스럽게 공백 하나 주고 연결 (문단 유지)
+                                        final_html += f" {line}"
                         
-                        processed_content = final_html.strip()
+                        # 최종 결과물이 비어있지 않은지 확인
+                        if not final_html:
+                            final_html = clean_text
+
+                        # 최종 레이아웃: 전체를 하나의 P 태그로 감싸고 내부에서 <br>로 조절
+                        indent_size = "14px" if lang_code == "ko" else "0px"
+                        processed_content = f'<p style="display:block; text-indent:{indent_size}; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{final_html.strip()}</p>'
 
                         # Supabase 저장
                         batch_upsert("analysis_cache", [{
@@ -1063,7 +1069,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             "lang": lang_code,
                             "data_type": topic
                         }], on_conflict="cache_key")
-                        print(f"✅ [{ticker}] {topic} 가독성 보정 완료 ({lang_code})")
+                        print(f"✅ [{ticker}] {topic} 밀착형 가독성 보정 완료 ({lang_code})")
                 except Exception as e:
                     print(f"❌ [{ticker}] {topic} AI 에러 ({lang_code}): {e}")
 
