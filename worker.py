@@ -1003,12 +1003,12 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         raw_text = response.text.strip()
                         clean_text = clean_ai_preamble(raw_text)
 
-                        # 2. 한 줄씩 분석하여 HTML 구조화 (Tab 0 전용 밀착형 구조)
+                        # 2. 한 줄씩 분석하여 HTML 구조화 (기존 색상/배경 스타일 제거)
                         lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
                         final_html = ""
                         
                         for line in lines:
-                            # [소제목 패턴 탐지] 
+                            # [소제목 패턴 탐지]
                             match = re.match(r'^(\*\*|\[|\*\*\[|\()(.*?)(\]|\] \*\*|\*\*\*|\]\*\*|\))\s*(.*)', line)
                             
                             is_header = False
@@ -1016,11 +1016,9 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             remainder_text = ""
 
                             if match:
-                                # 제목 안팎의 불필요한 기호 제거
                                 raw_title = match.group(2).strip()
                                 clean_title = raw_title.strip('[]*() ') 
                                 
-                                # 소제목 최소 길이 체크 (티커 보호)
                                 if len(clean_title) > 5:
                                     is_header = True
                                     remainder_text = match.group(4).strip()
@@ -1028,13 +1026,13 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             if is_header:
                                 # [소제목 처리]
                                 if final_html:
-                                    # 다음 소제목이 시작되기 전에는 확실히 공간 확보 (2줄 띄움 효과)
+                                    # 다음 소제목 시작 전에만 간격 확보
                                     final_html += "<br><br>"
                                 
-                                # 소제목을 굵게 하고 대괄호 중복 방지
+                                # 소제목 볼드 처리 및 괄호 중복 방지
                                 final_html += f"<b>[{clean_title}]</b>"
                                 
-                                # 🚀 [핵심 수정] 소제목 뒤에 내용이 붙어 있다면 즉시 줄바꿈 후 추가
+                                # 소제목 바로 아래 본문을 붙임 (<br> 하나만 사용)
                                 if remainder_text:
                                     final_html += f"<br>{remainder_text}"
                             else:
@@ -1042,21 +1040,15 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                                 if not final_html:
                                     final_html = line
                                 else:
-                                    # 🚀 [핵심 수정] 이전 줄이 제목(</b>)이었다면 
-                                    # 추가적인 여백 없이 단일 줄바꿈(<br>)만 수행하여 밀착시킴
+                                    # 이전 줄이 제목이었다면 밀착해서 시작
                                     if final_html.endswith("</b>"):
                                         final_html += f"<br>{line}"
                                     else:
-                                        # 본문이 계속 이어지는 경우 자연스럽게 공백 하나 주고 연결 (문단 유지)
+                                        # 본문이 이어지는 경우 한 칸 띄고 연결
                                         final_html += f" {line}"
                         
-                        # 최종 결과물이 비어있지 않은지 확인
-                        if not final_html:
-                            final_html = clean_text
-
-                        # 최종 레이아웃: 전체를 하나의 P 태그로 감싸고 내부에서 <br>로 조절
-                        indent_size = "14px" if lang_code == "ko" else "0px"
-                        processed_content = f'<p style="display:block; text-indent:{indent_size}; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{final_html.strip()}</p>'
+                        # 3. 스타일 래퍼(<p> 등)를 제거하고 순수 HTML만 저장하여 기존 색상 복구
+                        processed_content = final_html.strip()
 
                         # Supabase 저장
                         batch_upsert("analysis_cache", [{
@@ -1069,7 +1061,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             "lang": lang_code,
                             "data_type": topic
                         }], on_conflict="cache_key")
-                        print(f"✅ [{ticker}] {topic} 밀착형 가독성 보정 완료 ({lang_code})")
+                        print(f"✅ [{ticker}] {topic} 가독성 보정 완료 (기존 색상 복구)")
                 except Exception as e:
                     print(f"❌ [{ticker}] {topic} AI 에러 ({lang_code}): {e}")
 
