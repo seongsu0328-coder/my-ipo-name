@@ -19,7 +19,6 @@ from google import genai
 # ==========================================
 # [1] 환경 설정 & 디버깅 로그
 # ==========================================
-print(f"🚀 Worker Process 시작: {datetime.now()}")
 
 # 1. 환경 변수 로드
 raw_url = os.environ.get("SUPABASE_URL", "")
@@ -3532,7 +3531,7 @@ def update_global_macro_and_events():
 # [4] 메인 실행 루프
 # ==========================================
 def main():
-    print(f"🚀 Worker Start: {datetime.now()}")
+    print(f"🚀 Worker Process 시작: {datetime.now()}")
     
 
     # 👇👇👇 [기존 코드 유지] 👇👇👇
