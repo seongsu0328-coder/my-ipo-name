@@ -654,9 +654,9 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         return lang_group.get(doc_type, fallback_meta)
 
     def get_format_instruction(lang):
-        # 💡 [복원 및 강화] **[소제목]** 형식 유지 + 줄바꿈(Enter 2번) 강제 + 분량(4~5문장) 통제 + 숫자 강조 금지
+        # 💡 [복원 및 강화] 줄바꿈 및 섹션 분리 지시 강화 버전
         if lang == 'en': 
-            return "- Write exactly 3 paragraphs. Separate each paragraph with a blank line (Enter twice).\n- Each paragraph MUST be 4-5 sentences long.\n- Begin each paragraph with a bold subheading like **[Subheading]**.\n- DO NOT bold numbers.\n- If the requested information is not found in the provided text, DO NOT infer or guess. Simply answer: \"Information not verified.\""
+            return "- Write exactly 3 paragraphs.\n- MUST start each section with a new line.\n- Format: **[Subheading]** followed by a newline.\n- Use TWO newlines (Enter twice) between sections.\n- Each paragraph MUST be 4-5 sentences long.\n- DO NOT bold numbers.\n- If data is missing, answer: 'Information not verified.'"
         elif lang == 'ja': 
             return "- 必ず3つの段落に分け、各段落の間には空行（Enter 2回）を入れてください。\n- 各段落は必ず4〜5文で構成してください。\n- 各段落の先頭は必ず **[見出し]** のように太字にして始めてください。\n- 本文の数値に太字（**）は絶対に使用しないでください。\n- 指定された情報が提供されたテキストにない場合は、推論したり捏造したりせず、「該当情報が確認できません。」とだけ回答してください。"
         elif lang == 'zh': 
@@ -939,18 +939,46 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 try:
                     response = model_strict.generate_content(prompt)
                     if response and response.text:
+                        # 💡 [강제 가공 로직 시작]
+                        raw_text = response.text.strip()
+                        
+                        # 1. 뭉쳐 있는 "[소제목]" 패턴을 찾아 앞에 줄바꿈 두 번을 삽입합니다.
+                        # (예: "sentence. [Valuation]" -> "sentence.\n\n[Valuation]")
+                        text_with_breaks = re.sub(r'([.!?])\s*([\[\(].*?[\]\)])', r'\1\n\n\2', raw_text)
+                        
+                        # 2. 한 줄씩 읽어서 소제목에 볼드 태그(<b>)를 입히고 가독성을 높입니다.
+                        lines = [l.strip() for l in text_with_breaks.split('\n') if l.strip()]
+                        final_html = ""
+                        
+                        for line in lines:
+                            # 줄 시작이 [ ] 또는 ( ) 로 시작하는지 검사
+                            match = re.match(r'^([\[\(].*?[\]\)])\s*(.*)', line)
+                            if match:
+                                # 제목 부분에서 괄호 제거 후 세련되게 정리
+                                title = match.group(1).replace('[','').replace(']','').replace('(','').replace(')','').strip()
+                                body = match.group(2).strip()
+                                if final_html: final_html += "<br><br>"
+                                # 제목을 굵게 하고 본문과 줄을 나눕니다.
+                                final_html += f"<b>[{title}]</b><br>{body}"
+                            else:
+                                # 일반 문장인 경우 앞 내용과 자연스럽게 연결
+                                if final_html: final_html += " " + line
+                                else: final_html = line
+                        
+                        processed_content = final_html.strip() if final_html else raw_text
+                        # 💡 [강제 가공 로직 끝]
+
                         batch_upsert("analysis_cache", [{
                             "cache_key": cache_key, 
-                            "content": response.text.strip(), 
+                            "content": processed_content, # 👈 가공된 깨끗한 데이터 저장
                             "updated_at": datetime.now().isoformat(),
-                            # --- 신규 태그 추가 ---
                             "ticker": ticker,
                             "tier": "free",
                             "tab_name": "tab0",
                             "lang": lang_code,
-                            "data_type": topic  # S-1, 10-K, 10-Q 등
+                            "data_type": topic
                         }], on_conflict="cache_key")
-                        print(f"✅ [{ticker}] {topic} AI 분석 완료 ({lang_code})")
+                        print(f"✅ [{ticker}] {topic} 가독성 가공 완료 ({lang_code})")
                 except Exception as e:
                     # 토큰 에러나 기타 AI 응답 에러 시 로그 출력
                     print(f"❌ [{ticker}] {topic} AI 에러 ({lang_code}): {e}")
@@ -1421,29 +1449,14 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 lang_instruction = "Your entire response MUST be in English only."
                 format_instruction = "Must be written in exactly 3 paragraphs. (Each paragraph should be 4-5 sentences long)"
                 
-                if is_withdrawn:
-                    task1_label = "--- [Instruction 1: IPO Withdrawal Analysis] ---"
-                    task1_structure = "- Para 1: [Withdrawal Background]\n- Para 2: [Financial Impact]\n- Para 3: [Survival Strategy]"
-                elif is_delisted_or_otc:
-                    task1_label = "--- [Instruction 1: OTC/Delisting Risk Analysis] ---"
-                    task1_structure = "- Para 1: [Delisting Background]\n- Para 2: [Investment Risks]\n- Para 3: [Long-term Outlook]"
-                elif is_over_1y:
-                    task1_label = "--- [Instruction 1: 1-Year Fundamental Review] ---"
-                    task1_structure = "- Para 1: [Milestone Achievement]\n- Para 2: [Profitability Assessment]\n- Para 3: [Capital Efficiency]"
-                else:
-                    task1_label = "--- [Instruction 1: Deep Business Model Analysis] ---"
-                    task1_structure = "- Para 1: [Core Business Model]\n- Para 2: [Market Share & Edge]\n- Para 3: [Future Growth Strategy]"
-
-                if is_fmp_poor:
-                    search_directive = f"🚨 [Force Search & Filter]: Search exactly `{search_query}`. Exclude irrelevant entities (e.g., figure skaters, regular people). Keep only valid news from [{one_year_ago}] to [{current_date}]. Max 5 items."
-                else:
-                    search_directive = "🚨 [Strict Rule] Write ONLY using the [Part 1] text data provided below."
+                # 💡 [7-a, 7-b 전략 반영]
+                search_directive = f"🚨 [Force Search & Filter]: Search exactly `{search_query}`. Exclude irrelevant entities (e.g., athletes). Max 5 items."
+                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Start IMMEDIATELY with a bold subheading (e.g., **[Global Expansion]**).'
                 
-                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Start IMMEDIATELY with a bold subheading that summarizes the content (e.g., **[Global Market Expansion]**). NEVER output the literal words "[Subheading]", "[Task 1]", or "Instruction".'
-                task2_label = "--- [Instruction 2: Latest News Collection and Professional Translation] ---"
-                # 💡 [핵심 수정] 날짜 환각 방지 및 원문(Fallback) 허용 지시
-                news_instruction = '- Extract **up to 5** latest relevant news items based on [Part 2] OR Google Search results.\n- The sentiment MUST be "Positive", "Negative", or "Neutral".\n- 🚨 For the publication date (date), preferably use the "YYYY-MM-DD" format. However, if the exact date is unclear, DO NOT hallucinate or guess; strictly output the exact relative time shown in the search snippet (e.g., "3 days ago", "Mar 16").'
-                json_format = f"""{{ "debug_search_raw": "Briefly summarize what raw results were found via Google and why irrelevant ones were excluded.", "news": [ {{ "title_en": "Original English Title", "translated_title": "Professional WSJ style headline", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD or 3 days ago" }} ] }}"""
+                task2_label = "--- [Instruction 2: Latest News Collection] ---"
+                # 💡 날짜 환각 방지 지침 추가 및 JSON 샘플에 debug_search_raw 삽입
+                news_instruction = '- Extract up to 5 latest news items. Sentiment: "Positive", "Negative", or "Neutral".'
+                json_format = f"""{{ "debug_search_raw": "Summary of search results", "news": [ {{ "title_en": "Title", "translated_title": "Headline", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'ja':
                 sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は日本語で作成してください。"
@@ -2577,18 +2590,15 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
             """
 
         elif lang_code == 'en':
-            na_handling_rule = "🚨 [N/A Defense Rule]: If valuation metrics like P/E or DCF are N/A or Pre-revenue, NEVER say 'cannot be evaluated' or 'lack of data'. Instead, professionally defend it by stating: 'As an early-stage/newly listed company, the application of traditional cash-flow-based valuation models is limited. The market is currently pricing the stock based on its future pipeline, strategic vision, and Total Addressable Market (TAM) potential.' Also, always include currency symbols ($) and units (Billion/Million) for all financial figures."
-            search_directive = ""
-            
-            sum_p = f"""As a Quant Analyst, evaluate {company_name}({ticker}). 
-Data: {g1_context} | {g2_context} | {g3_context}
-🚨 Rule: {na_handling_rule}
-{search_directive}
+            na_handling_rule = "🚨 [N/A Defense]: If valuation is N/A, explain that market premium is based on future TAM and pipeline."
+            sum_p = f"""당신은 퀀트 애널리스트입니다. {company_name}({ticker})의 지표를 해석하여 대시보드 카드를 작성하세요. (Write ENTIRELY in English)
+[DATA]: {g1_context} | {g2_context} | {g3_context}
+🚨 {na_handling_rule}
 [STRICT FORMAT RULE]
-1. Output EXACTLY 3 independent text blocks. DO NOT use JSON or markdown.
-2. Output FORMAT MUST BE EXACTLY as below:
-   [Format]: (Growth & profitability 4-5 sentences) |||SEP||| (Health & earnings quality 4-5 sentences) |||SEP||| (Market valuation 4-5 sentences)
-3. Separate strictly by '|||SEP|||'. Do not use any other line breaks.
+1. Your answer will be placed in 3 independent cards on a website.
+2. YOU MUST USE THIS EXACT FORMAT:
+   (Growth analysis 4-5 sentences) |||SEP||| (Health analysis 4-5 sentences) |||SEP||| (Valuation analysis 4-5 sentences)
+3. DO NOT use any other separators or line breaks. Start the analysis immediately.
 """
             full_p = f"Write a standard financial report for {company_name}({ticker}).\n[Ratio Data]: {g1_context}, {g2_context}, {g3_context}\n[Raw Data]: {g4_context}\n🚨 Rule: {na_handling_rule}\n{search_directive}"
             full_i = """[STRICT RULES]
