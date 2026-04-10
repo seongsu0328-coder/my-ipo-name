@@ -939,48 +939,63 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 try:
                     response = model_strict.generate_content(prompt)
                     if response and response.text:
-                        # 💡 [강제 가공 로직 시작]
+                        # 💡 [보정된 강제 가공 로직 시작]
                         raw_text = response.text.strip()
                         
-                        # 1. 뭉쳐 있는 "[소제목]" 패턴을 찾아 앞에 줄바꿈 두 번을 삽입합니다.
-                        # (예: "sentence. [Valuation]" -> "sentence.\n\n[Valuation]")
-                        text_with_breaks = re.sub(r'([.!?])\s*([\[\(].*?[\]\)])', r'\1\n\n\2', raw_text)
+                        # 1. 티커(예: [ARXS])는 보존하고, 진짜 [소제목] 앞에서만 줄을 바꿉니다.
+                        # 대괄호 안의 글자수가 7자 이상일 때만 진짜 제목으로 간주합니다.
+                        def smart_header_split(match):
+                            punct = match.group(1) # 마침표 등
+                            bracket_content = match.group(2) # [소제목]
+                            # 괄호 안의 내용이 짧으면(티커 등) 무시하고 그대로 둠
+                            inner_text = re.sub(r'[\[\]\(\)]', '', bracket_content)
+                            if len(inner_text) < 7: 
+                                return f"{punct} {bracket_content}"
+                            # 7자 이상이면 진짜 제목이므로 줄바꿈 두 번 삽입
+                            return f"{punct}\n\n{bracket_content}"
+
+                        # 문장 끝(.!?) 뒤에 바로 붙은 괄호를 찾아 처리
+                        text_with_breaks = re.sub(r'([.!?])\s*([\[\(].*?[\]\)])', smart_header_split, raw_text)
                         
-                        # 2. 한 줄씩 읽어서 소제목에 볼드 태그(<b>)를 입히고 가독성을 높입니다.
+                        # 2. 한 줄씩 읽어서 HTML로 변환
                         lines = [l.strip() for l in text_with_breaks.split('\n') if l.strip()]
                         final_html = ""
                         
                         for line in lines:
-                            # 줄 시작이 [ ] 또는 ( ) 로 시작하는지 검사
+                            # 줄 시작이 [제목] 또는 (제목) 인지 검사
                             match = re.match(r'^([\[\(].*?[\]\)])\s*(.*)', line)
-                            if match:
-                                # 제목 부분에서 괄호 제거 후 세련되게 정리
+                            
+                            # 제목이 맞고, 그 제목이 티커가 아닐 때(5자 초과)만 볼드 및 줄바꿈 적용
+                            if match and len(re.sub(r'[\[\]\(\)]', '', match.group(1))) > 5:
                                 title = match.group(1).replace('[','').replace(']','').replace('(','').replace(')','').strip()
                                 body = match.group(2).strip()
                                 if final_html: final_html += "<br><br>"
-                                # 제목을 굵게 하고 본문과 줄을 나눕니다.
+                                # 제목 아래에 본문이 오도록 <br> 삽입
                                 final_html += f"<b>[{title}]</b><br>{body}"
                             else:
-                                # 일반 문장인 경우 앞 내용과 자연스럽게 연결
-                                if final_html: final_html += " " + line
-                                else: final_html = line
+                                # 제목이 아니거나 티커인 경우 앞 문장과 자연스럽게 연결
+                                if final_html:
+                                    # 현재 줄이 문장의 시작이면 한 칸 띄고 연결
+                                    final_html += " " + line
+                                else:
+                                    final_html = line
                         
                         processed_content = final_html.strip() if final_html else raw_text
-                        # 💡 [강제 가공 로직 끝]
+                        # 💡 [보정된 강제 가공 로직 끝]
 
                         batch_upsert("analysis_cache", [{
                             "cache_key": cache_key, 
-                            "content": processed_content, # 👈 가공된 깨끗한 데이터 저장
+                            "content": processed_content, # 가공된 데이터 저장
                             "updated_at": datetime.now().isoformat(),
+                            # --- 신규 태그 유지 ---
                             "ticker": ticker,
                             "tier": "free",
                             "tab_name": "tab0",
                             "lang": lang_code,
                             "data_type": topic
                         }], on_conflict="cache_key")
-                        print(f"✅ [{ticker}] {topic} 가독성 가공 완료 ({lang_code})")
+                        print(f"✅ [{ticker}] {topic} 가독성 보정 완료 ({lang_code})")
                 except Exception as e:
-                    # 토큰 에러나 기타 AI 응답 에러 시 로그 출력
                     print(f"❌ [{ticker}] {topic} AI 에러 ({lang_code}): {e}")
 
             # 4개 국어 분석 시도가 모두 끝난 후 트래커 저장 (성공/실패 여부와 상관없이 번호 기록하여 무한 재시도 방지)
