@@ -299,21 +299,27 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         "Content-Type": "application/json",
         "Prefer": "return=minimal,resolution=merge-duplicates" 
     }
+    
     clean_batch = []
     for item in data_list:
+        # 모든 값을 Supabase가 받아들일 수 있는 형태로 정제
         payload = {k: sanitize_value(v) for k, v in item.items()}
+        
+        # 💡 [핵심] 필수 키가 있는지 확인 (cache_key 혹은 ticker 등)
         if payload.get(on_conflict):
             clean_batch.append(payload)
+            
     if not clean_batch: return
+    
     try:
         resp = requests.post(endpoint, json=clean_batch, headers=headers)
         if resp.status_code in [200, 201, 204]:
-            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공")
+            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공 (태깅 포함)")
         else:
             print(f"❌ [{table_name}] 저장 실패 ({resp.status_code}): {resp.text}")
     except Exception as e:
         print(f"❌ [{table_name}] 통신 에러: {e}")
-
+        
 # [worker.py 내부의 send_fcm_push 함수를 아래 내용으로 교체하세요]
 def send_fcm_push(title, body, ticker=None, target_level='premium'):
     """
@@ -837,7 +843,16 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     try:
                         resp_8k = model_strict.generate_content(prompt_8k)
                         if resp_8k and resp_8k.text:
-                            batch_upsert("analysis_cache", [{"cache_key": cache_key_8k, "content": resp_8k.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                            batch_upsert("analysis_cache", [{
+                                "cache_key": cache_key_8k, 
+                                "content": resp_8k.text.strip(), 
+                                "updated_at": datetime.now().isoformat(),
+                                "ticker": ticker,
+                                "tier": "free",
+                                "tab_name": "tab0",
+                                "lang": lang_code,
+                                "data_type": "8-K"
+                            }], on_conflict="cache_key")
                             print(f"✅ [{ticker}] 8-K AI 분석 완료 ({lang_code})")
                     except: pass
                 
@@ -925,7 +940,17 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 try:
                     response = model_strict.generate_content(prompt)
                     if response and response.text:
-                        batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                        batch_upsert("analysis_cache", [{
+                            "cache_key": cache_key, 
+                            "content": response.text.strip(), 
+                            "updated_at": datetime.now().isoformat(),
+                            # --- 신규 태그 추가 ---
+                            "ticker": ticker,
+                            "tier": "free",
+                            "tab_name": "tab0",
+                            "lang": lang_code,
+                            "data_type": topic  # S-1, 10-K, 10-Q 등
+                        }], on_conflict="cache_key")
                         print(f"✅ [{ticker}] {topic} AI 분석 완료 ({lang_code})")
                 except Exception as e:
                     # 토큰 에러나 기타 AI 응답 에러 시 로그 출력
@@ -1042,7 +1067,16 @@ def run_tab0_premium_collection(ticker, company_name):
                         indent_size = "14px" if lang_code == "ko" else "0px"
                         html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
                         
-                        batch_upsert("analysis_cache", [{"cache_key": ec_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+                        batch_upsert("analysis_cache", [{
+                            "cache_key": ec_summary_key, 
+                            "content": html_str, 
+                            "updated_at": datetime.now().isoformat(),
+                            "ticker": ticker,
+                            "tier": "premium_plus",
+                            "tab_name": "tab0",
+                            "lang": lang_code,
+                            "data_type": "earnings_call"
+                        }], on_conflict="cache_key")
                         print(f"✅ [{ticker}] 어닝 콜 요약 캐싱 완료 ({lang_code})")
                         break
                 except Exception as e: time.sleep(1)
@@ -1162,7 +1196,16 @@ def run_tab2_premium_collection(ticker, company_name):
                         indent_size = "14px" if lang_code == "ko" else "0px"
                         html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
                         
-                        batch_upsert("analysis_cache", [{"cache_key": esg_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+                        batch_upsert("analysis_cache", [{
+                            "cache_key": esg_summary_key, 
+                            "content": html_str, 
+                            "updated_at": datetime.now().isoformat(),
+                            "ticker": ticker,
+                            "tier": "premium_plus",
+                            "tab_name": "tab2",
+                            "lang": lang_code,
+                            "data_type": "esg_report"
+                        }], on_conflict="cache_key")
                         print(f"✅ [{ticker}] ESG 분석 캐싱 완료 ({lang_code})")
                         analysis_performed = True
                         break
@@ -1560,7 +1603,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     batch_upsert("analysis_cache", [{
                         "cache_key": cache_key,
                         "content": json.dumps({"html": html_output, "news": news_list[:5]}, ensure_ascii=False),
-                        "updated_at": now.isoformat()
+                        "updated_at": now.isoformat(),
+                        # --- 신규 태그 추가 ---
+                        "ticker": ticker,
+                        "tier": "free",
+                        "tab_name": "tab1",
+                        "lang": lang_code,
+                        "data_type": "biz_summary"
                     }], on_conflict="cache_key")
                     break 
 
@@ -1610,10 +1659,22 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                                 indent_size = "14px" if lang_code == "ko" else "0px"
                                 html_p = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in p_paragraphs])
                                 
-                                batch_upsert("analysis_cache", [{"cache_key": pr_summary_key, "content": html_p, "updated_at": now.isoformat()}], "cache_key")
+                                # ✅ 태깅 정보 추가 및 tier를 'free'로 설정
+                                batch_upsert("analysis_cache", [{
+                                    "cache_key": pr_summary_key, 
+                                    "content": html_p, 
+                                    "updated_at": now.isoformat(),
+                                    "ticker": ticker,
+                                    "tier": "free",          # 모든 사용자 공개
+                                    "tab_name": "tab1",
+                                    "lang": lang_code,
+                                    "data_type": "press_release"
+                                }], on_conflict="cache_key")
+                                
                                 print(f"✅ [{ticker}] 기업 공식 보도자료 캐싱 완료 ({lang_code})")
                                 break
-                        except: time.sleep(1)
+                        except:
+                            time.sleep(1) # ✅ 쉼표 없이 깔끔하게 줄바꿈 처리
                         
                 # 요약 완료 후 트래커 갱신
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_pr, "content": current_pr_str, "updated_at": now.isoformat()}], "cache_key")
@@ -1800,10 +1861,16 @@ Google検索を使用して、{company_name} ({ticker})に関する最新の機�
                                 is_positive_signal = True
                                 detected_rating = parsed_json.get('rating', 'Buy')
 
-                        batch_upsert("analysis_cache",[{
+                        batch_upsert("analysis_cache", [{
                             "cache_key": cache_key, 
                             "content": json.dumps(parsed_json, ensure_ascii=False), 
-                            "updated_at": datetime.now().isoformat()
+                            "updated_at": datetime.now().isoformat(),
+                            # --- 신규 태그 추가 ---
+                            "ticker": ticker,
+                            "tier": "premium",
+                            "tab_name": "tab4",
+                            "lang": lang_code,
+                            "data_type": "analyst_report"
                         }], on_conflict="cache_key")
                         print(f"✅ [{ticker}] Tab 4 기관 리포트 완료 ({lang_code})")
                         break
@@ -2146,7 +2213,10 @@ def run_tab4_ma_premium_collection(ticker, company_name):
                         paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
                         indent_size = "14px" if lang_code == "ko" else "0px"
                         html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
-                        batch_upsert("analysis_cache", [{"cache_key": ma_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+                        batch_upsert("analysis_cache", [{
+                        "cache_key": ma_summary_key, "content": html_str, "updated_at": datetime.now().isoformat(),
+                        "ticker": ticker, "tier": "premium_plus", "tab_name": "tab4", "lang": lang_code, "data_type": "ma_report"
+                        }], on_conflict="cache_key")
                         print(f"✅ [{ticker}] M&A 분석 캐싱 완료 ({lang_code})")
                         analysis_success = True
                         break
@@ -2256,7 +2326,10 @@ def run_tab4_premium_collection(ticker, company_name):
                                 ud_paragraphs = [p.strip() for p in resp_ud.text.split('\n') if len(p.strip()) > 20]
                                 indent_size = "14px" if lang_code == "ko" else "0px"
                                 html_ud = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in ud_paragraphs])
-                                batch_upsert("analysis_cache", [{"cache_key": ud_summary_key, "content": html_ud, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                batch_upsert("analysis_cache", [{
+                                "cache_key": ud_summary_key, "content": html_ud, "updated_at": datetime.now().isoformat(),
+                                "ticker": ticker, "tier": "premium", "tab_name": "tab4", "lang": lang_code, "data_type": "rating_history"
+                                }], on_conflict="cache_key")
                                 print(f"✅ [{ticker}] 투자의견 히스토리 캐싱 완료 ({lang_code})")
                                 ud_success = True
                                 break
@@ -2301,7 +2374,10 @@ def run_tab4_premium_collection(ticker, company_name):
                                 p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
                                 indent_size = "14px" if lang_code == "ko" else "0px"
                                 html_p = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in p_paragraphs])
-                                batch_upsert("analysis_cache", [{"cache_key": peers_summary_key, "content": html_p, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                batch_upsert("analysis_cache", [{
+                                "cache_key": peers_summary_key, "content": html_p, "updated_at": datetime.now().isoformat(),
+                                "ticker": ticker, "tier": "premium", "tab_name": "tab4", "lang": lang_code, "data_type": "peer_comparison"
+                                }], on_conflict="cache_key")
                                 print(f"✅ [{ticker}] 경쟁사 비교 캐싱 완료 ({lang_code})")
                                 break
                         except Exception as e: time.sleep(1)
@@ -2439,10 +2515,15 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 
                 if updated:
                     # 화면에 보여주기 위해 꽉 채워진 데이터를 Raw_Financials 키에 저장합니다. 
-                    batch_upsert("analysis_cache",[{
-                        "cache_key": f"{ticker}_Raw_Financials",
-                        "content": json.dumps(enriched_metrics, ensure_ascii=False),
-                        "updated_at": datetime.now().isoformat()
+                    batch_upsert("analysis_cache", [{
+                        "cache_key": cache_key_sum, 
+                        "content": clean_sum, 
+                        "updated_at": datetime.now().isoformat(),
+                        "ticker": ticker,
+                        "tier": "free",
+                        "tab_name": "tab3",
+                        "lang": lang_code,
+                        "data_type": "metrics_card"
                     }], on_conflict="cache_key")
                     print(f"✅[{ticker}] 15대 데이터 수집 및 확장 지표(Accruals, P/E) 연산 완료!")
         except Exception as e:
@@ -2613,7 +2694,17 @@ Data: {g1_context} | {g2_context} | {g3_context}
                 html_full = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
                 
                 # 정제된 리포트 저장
-                batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": html_full, "updated_at": datetime.now().isoformat()}], "cache_key")
+                batch_upsert("analysis_cache", [{
+                    "cache_key": cache_key_full, 
+                    "content": html_full, 
+                    "updated_at": datetime.now().isoformat(),
+                    # --- 신규 태그 추가 ---
+                    "ticker": ticker,
+                    "tier": "premium",
+                    "tab_name": "tab3",
+                    "lang": lang_code,
+                    "data_type": "financial_report"
+                }], on_conflict="cache_key")
                 
             print(f"✅ [{ticker}] Tab 3 미시 지표 전문 리포트 완료 ({lang_code})")
         except Exception as e:
@@ -2722,7 +2813,16 @@ def run_tab3_premium_collection(ticker, company_name):
                                 s_paragraphs = [p.strip() for p in resp_s.text.split('\n') if len(p.strip()) > 20]
                                 indent_size = "14px" if lang_code == "ko" else "0px"
                                 html_s = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in s_paragraphs])
-                                batch_upsert("analysis_cache", [{"cache_key": surp_summary_key, "content": html_s, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                batch_upsert("analysis_cache", [{
+                                    "cache_key": surp_summary_key, 
+                                    "content": html_s, 
+                                    "updated_at": datetime.now().isoformat(),
+                                    "ticker": ticker,
+                                    "tier": "premium_plus",
+                                    "tab_name": "tab3",
+                                    "lang": lang_code,
+                                    "data_type": "earnings_surprise"
+                                }], on_conflict="cache_key")
                                 print(f"✅ [{ticker}] 어닝서프라이즈 캐싱 완료 ({lang_code})")
                                 break
                         except Exception as e: time.sleep(1)
@@ -2769,7 +2869,16 @@ def run_tab3_premium_collection(ticker, company_name):
                                 e_paragraphs = [p.strip() for p in resp_e.text.split('\n') if len(p.strip()) > 20]
                                 indent_size = "14px" if lang_code == "ko" else "0px"
                                 html_e = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in e_paragraphs])
-                                batch_upsert("analysis_cache", [{"cache_key": est_summary_key, "content": html_e, "updated_at": datetime.now().isoformat()}], "cache_key")
+                                batch_upsert("analysis_cache", [{
+                                    "cache_key": est_summary_key, 
+                                    "content": html_e, 
+                                    "updated_at": datetime.now().isoformat(),
+                                    "ticker": ticker,
+                                    "tier": "premium",
+                                    "tab_name": "tab3",
+                                    "lang": lang_code,
+                                    "data_type": "analyst_estimates"
+                                }], on_conflict="cache_key")
                                 print(f"✅ [{ticker}] 실적전망치 캐싱 완료 ({lang_code})")
                                 break
                         except Exception as e: time.sleep(1)
@@ -2890,7 +2999,16 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
                         paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
                         indent_size = "14px" if lang_code == "ko" else "0px"
                         html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
-                        batch_upsert("analysis_cache", [{"cache_key": rev_summary_key, "content": html_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+                        batch_upsert("analysis_cache", [{
+                            "cache_key": rev_summary_key, 
+                            "content": html_str, 
+                            "updated_at": datetime.now().isoformat(),
+                            "ticker": ticker,
+                            "tier": "premium_plus",
+                            "tab_name": "tab3",
+                            "lang": lang_code,
+                            "data_type": "revenue_segment"
+                        }], on_conflict="cache_key")
                         print(f"✅ [{ticker}] 매출 비중 분석 캐싱 완료 ({lang_code})")
                         analysis_success = True
                         break
@@ -3070,11 +3188,31 @@ def update_macro_data(df):
         try:
             res_sum = model_strict.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
-                batch_upsert("analysis_cache", [{"cache_key": cache_key_summary, "content": res_sum.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
-
+                batch_upsert("analysis_cache", [{
+                    "cache_key": cache_key_summary, 
+                    "content": res_sum.text.strip(), 
+                    "updated_at": datetime.now().isoformat(),
+                    # --- 신규 태그 추가 ---
+                    "ticker": "MARKET",
+                    "tier": "free",
+                    "tab_name": "tab2",
+                    "lang": lang_code,
+                    "data_type": "macro_card"
+                }], on_conflict="cache_key")
+        
             res_full = model_strict.generate_content(full_p + full_i)
             if res_full and res_full.text:
-                batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_full.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                batch_upsert("analysis_cache", [{
+                    "cache_key": cache_key_full, 
+                    "content": res_full.text.strip(), 
+                    "updated_at": datetime.now().isoformat(),
+                    # --- 신규 태그 추가 ---
+                    "ticker": "MARKET",
+                    "tier": "free",
+                    "tab_name": "tab2",
+                    "lang": lang_code,
+                    "data_type": "macro_report"
+                }], on_conflict="cache_key")
                 
             print(f"✅ 거시 지표 AI 분석 완료 ({lang_code})")
         except Exception as e:
@@ -3167,7 +3305,17 @@ def run_tab6_analysis(ticker, company_name, smart_money_data):
         try:
             response = model_strict.generate_content(prompt)
             if response and response.text:
-                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": response.text.strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                batch_upsert("analysis_cache", [{
+                    "cache_key": cache_key, 
+                    "content": response.text.strip(), 
+                    "updated_at": datetime.now().isoformat(),
+                    # --- 신규 태그 추가 ---
+                    "ticker": ticker,
+                    "tier": "premium_plus",
+                    "tab_name": "tab6",
+                    "lang": lang_code,
+                    "data_type": "smart_money_report"
+                }], on_conflict="cache_key")
                 analysis_performed = True
         except: pass
 
