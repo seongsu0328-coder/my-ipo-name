@@ -2683,86 +2683,89 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
 
     # =====================================================================
-    # 🚀 4개 국어 리포트 작성 (중복 소제목 및 인사말 완전 박멸 버전)
+    # 🚀 4개 국어 리포트 작성 (카드 요약 최적화 - 전 언어 공통 원칙 적용)
     # =====================================================================
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
         cache_key_full = f"{ticker}_Tab3_v2_Premium_{lang_code}"
         
+        # 전문 리포트가 이미 최신이면 스킵 (기존 로직 유지)
         try:
             res = supabase.table("analysis_cache").select("updated_at").eq("cache_key", cache_key_full).gt("updated_at", limit_time_str).execute()
             if res.data: continue 
         except: pass
 
+        # [1] 언어별 맞춤 프롬프트 (수치 인용 + 산업 연계 지능 추가)
         if lang_code == 'ko':
-            na_rule = "🚨 [N/A 지침]: 숫자가 없으면 추측하지 말고 '신규 상장으로 데이터 축적 기간이 짧아 지표 산출이 제한적임'을 설명하고 향후 관전 포인트를 3~4문장 적으세요."
-            unit_rule = "🚨 [단위]: 반드시 '억 달러' 또는 '만 달러' 단위를 쓰세요."
-            sum_p = f"월가 분석가: {company_name} 지표 해설\n{g1_context} | {g2_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "포맷: (성장성 가이드) |||SEP||| (건전성 가이드) |||SEP||| (밸류에이션 가이드). 제목/인사말 절대 금지."
-            full_p = f"{company_name} 재무 리포트:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            # 🚀 [교정] 첫 줄 시작 문구 강제 고정
-            full_i = "🚨 [엄격 규칙]: **전체 출력물의 첫 번째 글자는 반드시 '['여야 합니다.** ##제목이나 인사말을 절대 쓰지 마세요. 곧바로 **[수익성 및 성장성 분석]**부터 시작하세요."
+            sum_p = f"""당신은 퀀트 애널리스트입니다. 아래 데이터를 바탕으로 산업 특성을 반영한 '핵심 투자 진단'을 작성하세요.
+[데이터]: {g1_context} | {g2_context} | {g3_context}
+🚨 [작성 규칙]
+1. 모든 지표가 N/A이면 "현재 자료가 부족한 상태입니다."만 출력하세요.
+2. 지표가 있다면 반드시 '구체적 수치'를 인용하고, 해당 산업군에서 이 수치가 갖는 의미를 3문장 이내로 설명하세요.
+3. 소제목, 제목, "분석 결과입니다" 같은 서론은 절대 쓰지 마세요.
+4. (성장성) |||SEP||| (건전성) |||SEP||| (밸류에이션) 순서로 작성하세요."""
 
         elif lang_code == 'en':
-            na_rule = "🚨 [N/A Rule]: If data is N/A, explain why and provide a 3-4 sentence outlook on future KPIs. No guessing."
-            unit_rule = "🚨 [Unit]: Use '$1.59 Billion' or '$46.0 Million'."
-            sum_p = f"Analyst Insight: {company_name}\n{g1_context} | {g2_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "Format: (Growth) |||SEP||| (Health) |||SEP||| (Valuation). NO title, NO intro."
-            full_p = f"Financial Report for {company_name}:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            full_i = "🚨 [STRICT]: **The very first character of your response must be '['.** DO NOT write any report title or 'Here is...'. Start immediately with **[Profitability & Growth Analysis]**."
+            sum_p = f"""You are a Quant Analyst. Provide a sharp 'Investment Diagnosis' based on the following data and industry context.
+[Data]: {g1_context} | {g2_context} | {g3_context}
+🚨 [STRICT RULES]
+1. If all data is N/A, output only "Currently, data is insufficient."
+2. If data exists, you MUST quote specific numbers and explain their significance within the industry in 3 sentences or less.
+3. Do NOT include any headings, labels, or introductory remarks.
+4. Format: (Growth) |||SEP||| (Health) |||SEP||| (Valuation)"""
 
         elif lang_code == 'ja':
-            na_rule = "🚨 [N/A指針]: 数値がない場合は捏造せず、今後の注目点を3〜4文で解説してください。"
-            unit_rule = "🚨 [単位]: 「億ドル」または「万ドル」を使用。"
-            sum_p = f"シニアアナリスト: {company_name} 指標解説\n{g1_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "形式: (成長性) |||SEP||| (健全性) |||SEP||| (判断). タイトル禁止."
-            full_p = f"{company_name} 財務レポート:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            full_i = "🚨 [厳格な規則]: **出力の最初の文字は必ず '[' にしてください。** ##タイトルや挨拶は書かず、すぐに **[収益性と成長性の分析]** から始めてください。"
+            sum_p = f"""あなたはクオンツアナリストです。提供されたデータと業界の特性를 반영한「核心投資診断」を作成してください。
+[데이터]: {g1_context} | {g2_context} | {g3_context}
+🚨 [作成規則]
+1. 全ての指標가 N/Aの場合、「現在資料が不足している状態です。」とだけ出力してください。
+2. データがある場合、必ず具体的な数値を引用し、業界内での意味を3文以内で解説してください.
+3. 見出しや「分析結果です」などの導入文は一切省いてください。
+4. 形式: (成長性) |||SEP||| (健全性) |||SEP||| (割安性)"""
 
         else: # zh
-            na_rule = "🚨 [N/A规则]: 若数据缺失，请说明原因并提供3-4句未来关注点，严禁推测。"
-            unit_rule = "🚨 [单位]: 使用中文单位 (亿/万)。"
-            sum_p = f"高级分析师: {company_name} 指标解析\n{g1_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "格式: (增长) |||SEP||| (健康) |||SEP||| (估치). 禁止标题."
-            full_p = f"{company_name} 财务报告:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            full_i = "🚨 [严格规则]: **输出的第一个字符必须是 '['。** 严禁写 ##主标题或任何开장白。请直接从 **[盈利能力与增长性分析]** 开始。"
+            sum_p = f"""你是量化分析师。请结合以下数据和行业背景，提供一份锐利的“投资诊断”。
+[数据]: {g1_context} | {g2_context} | {g3_context}
+🚨 [严格规则]
+1. 若数据全部缺失，仅输出“目前相关数据不足。”
+2. 若有数据，必须引用具体数值，并在3句以内结合行业背景分析其重要性。
+3. 严禁包含任何标题、标签或开场白。
+4. 格式: (增长) |||SEP||| (健康) |||SEP||| (估值)"""
 
-        # [Step 1] 상단 3D 카드 요약
+        # [Step 1] 상단 3D 카드 요약 생성 및 강력한 필터링 (전 언어 공통)
         try:
-            res_sum = model_strict.generate_content(sum_p + sum_i)
+            res_sum = model_strict.generate_content(sum_p)
             if res_sum and res_sum.text:
-                raw_sum_text = res_sum.text.strip().replace('****', '').replace('**', '')
+                # 1단계: 원본 텍스트 획득 및 불필요한 별표 제거
+                raw_sum = res_sum.text.strip().replace('**', '')
                 
-                # 🚀 [교정] clean_ai_preamble 호출 위치를 조정하여 카드 데이터 파괴 방지
-                # 괄호 안에 들어간 제목 이름만 지우고 데이터는 보존합니다.
-                clean_sum = re.sub(r'[\[\(](성장성|건전성|밸류에이션|Growth|Health|Valuation|収益|財務|盈利|财务).*?[\]\)]\s*:?', '', raw_sum_text)
+                # 2단계: 소제목 찌꺼기 제거 (정규식 사용 - 전 언어 공통 대응)
+                clean_sum = re.sub(r'^[\[\(].*?[\]\)]\s*:?', '', raw_sum) # 시작 부분 제거
+                clean_sum = re.sub(r'\|\|\|SEP\|\|\|\s*[\[\(].*?[\]\)]\s*:?', ' |||SEP||| ', clean_sum) # 구분자 뒤 제거
                 
+                # 3단계: 줄바꿈 제거 (한 줄로 통합하여 앱 UI 최적화)
+                final_content = clean_sum.replace('\n', ' ').strip()
+
                 batch_upsert("analysis_cache", [{
                     "cache_key": cache_key_sum, 
-                    "content": clean_sum.replace('\n', ' ').strip(), 
+                    "content": final_content, 
                     "updated_at": datetime.now().isoformat(),
                     "ticker": ticker, "tier": "free", "tab_name": "tab3", "lang": lang_code, "data_type": "metrics_card"
                 }], on_conflict="cache_key")
-        except: pass
+        except Exception as e:
+            print(f"❌ [{ticker}] Tab 3 카드 분석 에러: {e}")
 
         # [Step 2] 하단 전문 리포트 (중복 방지 및 외국어 뭉침 해결)
         try:
             res_full = model_strict.generate_content(full_p + full_i)
             if res_full and res_full.text:
                 raw_full = res_full.text.strip()
-                
-                # 마크다운 제목 강제 삭제
                 clean_full_text = re.sub(r'^#+.*$', '', raw_full, flags=re.MULTILINE).strip()
-                
-                # 인사말 정제
                 clean_full_text = clean_ai_preamble(clean_full_text)
-                
-                # 🚀 [교정] 외국어 뭉침 해결 로직 강화: 마침표 뒤의 대괄호 강제 분리
                 clean_full_text = re.sub(r'([.!?。])\s*(\[|\*\*\[)', r'\1\n\n\2', clean_full_text)
 
                 lines = [l.strip() for l in clean_full_text.split('\n') if l.strip()]
                 
-                # 첫 줄과 두 번째 줄 제목 중복 체크
                 if len(lines) > 2:
                     first_l = lines[0].replace('*', '').strip()
                     second_l = lines[1].replace('*', '').strip()
@@ -2771,7 +2774,6 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
 
                 final_full_html = ""
                 for line in lines:
-                    # 🚀 [교정] 더 유연한 소제목 탐지 (별표 유무와 상관없이 추출)
                     match = re.match(r'^(\*\*|\[|\*\*\[|\()(.*?)(\]|\] \*\*|\*\*\*|\]\*\*|\))\s*(.*)', line)
                     if match and len(match.group(2).strip()) > 4:
                         title = match.group(2).strip('[]*() ')
@@ -2789,9 +2791,11 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                     "updated_at": datetime.now().isoformat(),
                     "ticker": ticker, "tier": "premium", "tab_name": "tab3", "lang": lang_code, "data_type": "financial_report"
                 }], on_conflict="cache_key")
-                print(f"✅ [{ticker}] Tab 3 중복 제목 제거 완료 ({lang_code})")
-        except Exception as e: pass
+                print(f"✅ [{ticker}] Tab 3 전문 리포트 완료 ({lang_code})")
+        except Exception as e:
+            print(f"❌ [{ticker}] Tab 3 전문 리포트 에러: {e}")
 
+    # 트래커 갱신 (for 루프 밖으로 한 칸 빼야 함)
     batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": pristine_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
     return True
             
