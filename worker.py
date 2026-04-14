@@ -1526,17 +1526,16 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
             elif lang_code == 'en':
                 sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
-                lang_instruction = "Your entire response MUST be in English only."
+                lang_instruction = "Your entire response MUST be in 100% English. NEVER use Korean."
                 format_instruction = "Must be written in exactly 3 paragraphs. (Each paragraph should be 4-5 sentences long)"
                 
-                # 💡 [7-a, 7-b 전략 반영]
-                search_directive = f"🚨 [Force Search & Filter]: Search exactly `{search_query}`. Exclude irrelevant entities (e.g., athletes). Max 5 items."
-                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Start IMMEDIATELY with a bold subheading (e.g., **[Global Expansion]**).'
+                search_directive = f"🚨 [Force Search & Filter]: Search exactly `{search_query}`. Focus on financial news and business updates. If specific news is scarce, describe the general sector trend affecting {ticker}."
+                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Do not use any Korean words. Start IMMEDIATELY with a bold subheading.'
                 
                 task2_label = "--- [Instruction 2: Latest News Collection] ---"
-                # 💡 날짜 환각 방지 지침 추가 및 JSON 샘플에 debug_search_raw 삽입
-                news_instruction = '- Extract up to 5 latest news items. Sentiment: "Positive", "Negative", or "Neutral".'
-                json_format = f"""{{ "debug_search_raw": "Summary of search results", "news": [ {{ "title_en": "Title", "translated_title": "Headline", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
+                # 🚀 [교정] translated_title 대신 headline_summary로 명칭 변경 및 한글 금지 명시
+                news_instruction = '- Extract up to 5 latest news items. Sentiment: "Positive", "Negative", or "Neutral".\n- If no specific news is found, search for industry-wide news that impacts {ticker}.\n- 🚨 NEVER output "N/A". If details are missing, provide a professional summary of the company\'s recent filings.'
+                json_format = f"""{{ "debug_search_raw": "Summary of search results", "news": [ {{ "title_en": "Headline in English", "translated_title": "A more concise, punchy version of the headline", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'ja':
                 sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は日本語で作成してください。"
@@ -2633,7 +2632,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
 
     # =====================================================================
-    # 🚀 4개 국어 리포트 작성 (환각 방어 + 카드 공란/별표 제거 + 밀착 레이아웃)
+    # 🚀 4개 국어 리포트 작성 (환각 방어 + 전문가용 해설 보강 버전)
     # =====================================================================
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
@@ -2644,54 +2643,53 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
             if res.data: continue 
         except: pass
 
-        # 1. 언어별 프롬프트 및 환각 방어 지침 설정
+        # 🚀 [교정] N/A 상황에서도 분석가로서의 '해석'을 담도록 지침 변경
         if lang_code == 'ko':
-            na_rule = "🚨 [N/A 처리]: 지표가 N/A라면 반드시 '현재 확인 가능한 미시지표가 없습니다.'라고 적고 절대 미래 잠재력을 상상해서 적지 마세요."
+            na_rule = "🚨 [N/A 처리]: 수치가 N/A라면 단순히 '없음'이라 하지 말고, '신규 상장 기업 특성상 데이터가 아직 불충분하나, 초기 성장 단계의 비즈니스 모델로 볼 때 향후 어떤 지표가 중요해질지' 애널리스트 관점에서 3~4문장으로 풍성하게 설명하세요."
             unit_rule = "🚨 [단위]: 반드시 '15.9억 달러' 또는 '4,600만 달러'와 같이 한국어 단위를 쓰세요."
-            sum_p = f"퀀트 애널리스트: {company_name} 지표 해석\n{g1_context} | {g2_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "포맷: (성장성) |||SEP||| (건전성) |||SEP||| (가치평가). 인사말 및 '****' 절대 금지."
-            full_p = f"{company_name} 재무 리포트 작성:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            full_i = "🚨 소제목 강제: **[수익성 및 성장성 분석]**, **[재무 건전성 및 이익 품질]**, **[적정 가치 및 종합 투자의견]**. 본문 시작 시 제목을 반복하지 마세요."
+            sum_p = f"당신은 월가 시니어 애널리스트입니다. {company_name}의 재무 지표를 해석하여 투자자에게 친절하게 설명하세요.\n{g1_context} | {g2_context}\n🚨 {na_rule}\n{unit_rule}"
+            sum_i = "포맷: (성장성 및 수익성 진단) |||SEP||| (재무 건전성 및 품질 진단) |||SEP||| (시장 가치 평가 코멘트). 각 문단은 4문장 이상으로 작성하고 인사말은 금지합니다."
+            full_p = f"{company_name} 재무 심층 리포트:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
+            full_i = "🚨 소제목 강제: **[수익성 및 성장성 분석]**, **[재무 건전성 및 이익 품질]**, **[적정 가치 및 종합 투자의견]**. 수치와 통찰을 결합하여 묵직하게 작성하세요."
 
         elif lang_code == 'en':
-            na_rule = "🚨 [N/A Rule]: If data is N/A, strictly state 'No verified metrics available'. NEVER hallucinate future potential."
-            unit_rule = "🚨 [Unit]: Use professional units like '$1.59 Billion' or '$46.0 Million'."
-            sum_p = f"Quant Analysis for {company_name}({ticker}).\n{g1_context} | {g2_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "Format: (Growth) |||SEP||| (Health) |||SEP||| (Valuation). NO intro, NO '****'."
-            full_p = f"Standard financial report for {company_name}({ticker}).\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            full_i = "🚨 Headers: **[Profitability & Growth Analysis]**, **[Financial Health & Earnings Quality]**, **[Valuation & Final Verdict]**. Attach text under headers. No Korean headers."
+            na_rule = "🚨 [N/A Rule]: If data is N/A, do not just say 'None'. Explain professionally why this is common for newly listed firms and what alternative signals (like TAM or pipeline) investors should monitor. Write 4 sentences per section."
+            unit_rule = "🚨 [Unit]: ALWAYS use '$1.59 Billion' or '$46.0 Million'."
+            sum_p = f"You are a Senior Wall Street Analyst. Interpret {company_name}'s metrics for a premium dashboard.\n{g1_context} | {g2_context}\n🚨 {na_rule}\n{unit_rule}"
+            sum_i = "Format: (Growth & Profitability) |||SEP||| (Health & Quality) |||SEP||| (Valuation Verdict). No intro, provide deep insights."
+            full_p = f"In-depth financial report for {company_name}({ticker}).\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
+            full_i = "🚨 Headers: **[Profitability & Growth Analysis]**, **[Financial Health & Earnings Quality]**, **[Valuation & Final Verdict]**. No Korean."
 
         elif lang_code == 'ja':
-            na_rule = "🚨 [N/A規則]: データがN/Aの場合、必ず「現在確認可能な指標はありません」と記述し、将来性を捏造しないでください。"
-            unit_rule = "🚨 [単位]: 必ず「15.9億ドル」または「4,600万ドル」のように日本語의 単位を使用。"
-            sum_p = f"クオンツアナリストとして{company_name}を評価:\n{g1_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "形式: (成長性) |||SEP||| (健全性) |||SEP||| (評価). 挨拶抜き, '****' 禁止."
-            full_p = f"{company_name}の財務分析レポート:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            full_i = "🚨 小見出し: **[収益性と成長性の分析]**, **[財務健全性と収益の質]**, **[適正価値と総合投資意見]**. 挨拶抜き。"
+            na_rule = "🚨 [N/A規則]: データがN/Aの場合、単に『無し』とせず、新規上場企業として今後の成長性をどう見るべきか、専門家の視点で4文以上で詳しく解説してください。"
+            unit_rule = "🚨 [単位]: 반드시 '15.9억 달러' 또는 '4,600만 달러'와 같이 한국어 단위를 쓰세요." # 💡 일본어도 억/만 단위 사용
+            sum_p = f"シニアアナリストとして{company_name}の指標を詳しく解説してください。\n{g1_context}\n🚨 {na_rule}\n{unit_rule}"
+            sum_i = "形式: (成長性と収益性) |||SEP||| (健全性と品質) |||SEP||| (評価). 挨拶抜き, 各項目4文以上."
+            full_p = f"{company_name}の財務レポート作成:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
+            full_i = "🚨 小見出し: **[収益性と成長性の分析]**, **[財務健全性と収益の質]**, **[適正価値と総合投資意見]**。"
 
         else: # zh
-            na_rule = "🚨 [N/A规则]: 如果数据为 N/A，必须说明“暂无确认指标”，严禁捏造未来价值。"
-            unit_rule = "🚨 [单位]: 使用中文单位 (例: 15.9亿美元 或 4,600万美元)。"
-            sum_p = f"评价 {company_name}:\n{g1_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "格式: (增长) |||SEP||| (健康) |||SEP||| (估值). 严禁 '****'."
-            full_p = f"撰写 {company_name} 的财务报告:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
+            na_rule = "🚨 [N/A规则]: 如果数据为 N/A，不要只说'无'。请从专业分析师的角度解释新上市公司的财务特点，以及未来应关注的潜力，每部分写4句话。"
+            unit_rule = "🚨 [单位]: '15.9亿美元' or '4,600万美元'。"
+            sum_p = f"作为高级分析师评价 {company_name}:\n{g1_context}\n🚨 {na_rule}\n{unit_rule}"
+            sum_i = "格式: (增长与盈利) |||SEP||| (健康与质量) |||SEP||| (估值判定). 禁止寒暄."
+            full_p = f"撰写 {company_name} 的深度财务报告:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
             full_i = "🚨 标题: **[盈利能力与增长性分析]**, **[财务健康与收益质量]**, **[合理估值与综合投资意见]**。"
 
         # ----------------------------------------------------
-        # [Step 1] 상단 3D 카드 요약 (**** 제거 및 공란 방어)
+        # [Step 1] 상단 3D 카드 요약 (내용 풍성화 적용)
         # ----------------------------------------------------
         try:
             res_sum = model_strict.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
-                raw_sum_text = res_sum.text.strip()
-                # 🚀 [보완] 강조 기호 제거
-                clean_sum = raw_sum_text.replace('****', '').replace('**', '')
+                raw_sum_text = res_sum.text.strip().replace('****', '').replace('**', '')
                 
-                # 🚀 [보완] |||SEP|||가 포함된 정량 데이터는 clean_ai_preamble을 건너뛰어 보존 (공란 방지)
+                # 🚀 [보완] 카드가 풍성해졌으므로 구분자 유지하며 정제
+                clean_sum = raw_sum_text
                 if "|||SEP|||" not in clean_sum:
                     clean_sum = clean_ai_preamble(clean_sum)
                 
-                # 카드 내부의 소제목 괄호 파괴 (프론트엔드 공간 확보)
+                # 카드 내부 제목 찌꺼기 제거
                 clean_sum = re.sub(r'[\[\(].*?[\]\)]\s*:?', '', clean_sum)
                 
                 batch_upsert("analysis_cache", [{
@@ -2703,7 +2701,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
         except: pass
 
         # ----------------------------------------------------
-        # [Step 2] 하단 전문 리포트 (뭉침 해결 + 밀착 레이아웃)
+        # [Step 2] 하단 전문 리포트 (중복 방지 및 밀착 레이아웃)
         # ----------------------------------------------------
         try:
             res_full = model_strict.generate_content(full_p + full_i)
@@ -2716,32 +2714,22 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 else:
                     clean_full_text = clean_ai_preamble(raw_full)
                 
-                # 🚀 [교정] 외국어 뭉침 해결: 마침표 뒤에 붙은 [소제목] 강제 줄바꿈
+                # 외국어 뭉침 해결 및 HTML 구조화
                 clean_full_text = re.sub(r'([.!?。])\s*(\[|\*\*\[)', r'\1\n\n\2', clean_full_text)
-
-                # HTML 구조화 엔진
                 lines = [l.strip() for l in clean_full_text.split('\n') if l.strip()]
                 final_full_html = ""
-                
                 for line in lines:
                     match = re.match(r'^(\*\*|\[|\*\*\[|\()(.*?)(\]|\] \*\*|\*\*\*|\]\*\*|\))\s*(.*)', line)
                     if match and len(match.group(2).strip()) > 5:
                         title = match.group(2).strip('[]*() ')
-                        if final_full_html:
-                            final_full_html += "<br><br>" # 단락 간격
+                        if final_full_html: final_full_html += "<br><br>"
                         final_full_html += f"<b>[{title}]</b>"
-                        # 소제목 뒤에 붙은 본문 처리
-                        if match.group(4).strip():
-                            final_full_html += f"<br>{match.group(4).strip()}"
+                        if match.group(4).strip(): final_full_html += f"<br>{match.group(4).strip()}"
                     else:
-                        if not final_full_html:
-                            final_full_html = line
+                        if not final_full_html: final_full_html = line
                         else:
-                            # 소제목 바로 아래는 <br> 하나로 밀착
-                            if final_full_html.endswith("</b>"):
-                                final_full_html += f"<br>{line}"
-                            else:
-                                final_full_html += f" {line}"
+                            if final_full_html.endswith("</b>"): final_full_html += f"<br>{line}"
+                            else: final_full_html += f" {line}"
                 
                 batch_upsert("analysis_cache", [{
                     "cache_key": cache_key_full, 
@@ -2749,13 +2737,9 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                     "updated_at": datetime.now().isoformat(),
                     "ticker": ticker, "tier": "premium", "tab_name": "tab3", "lang": lang_code, "data_type": "financial_report"
                 }], on_conflict="cache_key")
-                print(f"✅ [{ticker}] Tab 3 교정 완료 ({lang_code})")
-        except Exception as e:
-            print(f"❌ [{ticker}] Tab 3 리포트 에러 ({lang_code}): {e}")
+                print(f"✅ [{ticker}] Tab 3 리포트/카드 보정 완료 ({lang_code})")
+        except: pass
 
-    # =========================================================
-    # 💡 [핵심 방어막] 중복 분석 방지 (Raw Tracker 갱신)
-    # =========================================================
     batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": pristine_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
     return True
             
