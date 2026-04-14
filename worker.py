@@ -1538,19 +1538,32 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
             elif lang_code == 'en':
                 sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
-                lang_instruction = "Your entire response MUST be in English only."
+                lang_instruction = "Your entire response MUST be in English only. Maintain a cold, professional, and analytical tone."
                 format_instruction = "Must be written in exactly 3 paragraphs. (Each paragraph should be 4-5 sentences long)"
                 
-                # 🚀 [교정] 가장 관련 있는 뉴스를 추출하도록 지시 (배제 로직 완화)
-                search_directive = f"🚨 [Force Search & Filter]: Search exactly `{search_query}`. From the search results or [Part 2], extract up to 5 most relevant news items for {company_name} ({ticker})."
-                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Start IMMEDIATELY with a bold subheading (e.g., **[Global Expansion]**).'
+                # 🚀 [교정] 한국어와 1:1로 일치시킨 4단계 강제 지시 로직
+                if is_fmp_poor:
+                    search_directive = f"""
+                    🚨 [Mandatory Search & Filtering Directive (Inclusion & Exclusion)]: 
+                    FMP data is insufficient, so you MUST use Google Search tool and follow these instructions:
+                    1. Search Query (Inclusion): Search exactly `{search_query}` to secure broad data.
+                    2. Filtering (Exclusion): Strictly exclude articles about people with the same name (e.g., athletes) or irrelevant industries.
+                    3. Period: Only include news published between [{one_year_ago}] and [{current_date}].
+                    4. Extraction: Extract up to 5 of the latest news items judged valid after filtering. Do not fill slots with fake data.
+                    """
+                else:
+                    search_directive = "🚨 [Prohibition of Hallucination]: Use ONLY the [Part 1] text data provided below to write."
                 
-                task2_label = "--- [Instruction 2: Latest News Collection] ---"
-                # 🚀 [교정] 날짜 및 타이틀 지침을 타 언어와 일치시킴
-                news_instruction = '- Extract up to 5 latest news items from the provided [Part 2] or Google search results.\n- sentiment: "Positive", "Negative", or "Neutral".\n- date: Use "YYYY-MM-DD" or the expression shown in results.\n- 🚨 IMPORTANT: Use the original headline for "title_en", and a more concise, punchy version for "translated_title".'
+                prohibition_rule = '🚨 【PROHIBITION】: Do not start with greetings. Start IMMEDIATELY with a bold subheading (e.g., **[Business Model and Scale]**). Never output labels like "Instruction 1" or "Task 2" in the final text.'
                 
-                # 🚀 [교정] 다른 언어와 동일하게 한 줄로 작성된 JSON 포맷
-                json_format = f"""{{ "debug_search_raw": "Summary of search results", "news": [ {{ "title_en": "Original Headline", "translated_title": "Concise Summary", "link": "https://...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
+                # 🚀 [교정] 라벨을 한국어와 동일하게 유지 (모델의 구조적 일관성 확보)
+                task2_label = "--- [분석 지시 2: 최신 뉴스 수집 및 전문 번역] ---"
+                
+                # 🚀 [교정] 날짜 환각 방지 지침을 한국어와 100% 일치시킴
+                news_instruction = '- Extract up to 5 latest news items based on [Part 2] or Google Search results.\n- sentiment: Value MUST be one of "Positive", "Negative", or "Neutral".\n- 🚨 date: Format MUST be "YYYY-MM-DD". If the exact date is unclear, do not hallucinate; use the expression shown in the search result (e.g., "3 days ago", "Mar 16").'
+                
+                # 🚀 [교정] JSON 키값 설명을 한국어 섹션과 동일한 수준으로 보강
+                json_format = f"""{{ "debug_search_raw": "Briefly state the original news titles found in Google and the reason for excluding irrelevant results.", "news": [ {{ "title_en": "Original English Title", "translated_title": "Punchy headline-style summary in English", "link": "...", "sentiment": "Positive/Negative/Neutral", "date": "YYYY-MM-DD or 3 days ago" }} ] }}"""
 
             elif lang_code == 'ja':
                 sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は日本語で作成してください。"
