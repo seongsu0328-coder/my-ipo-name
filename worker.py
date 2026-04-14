@@ -999,21 +999,24 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 try:
                     response = model_strict.generate_content(prompt)
                     if response and response.text:
-                        # 1. AI 인사말 제거
                         raw_text = response.text.strip()
                         
-                        # 🚀 [보완] 첫 줄이 이미 분석 소제목([)으로 시작하면 인사말 제거를 패스하여 데이터 유실 방지
+                        # 🚀 [보완 1] 첫 줄이 소제목이면 인사말 제거 함수(clean_ai_preamble)를 건너뛰어 보존
                         if raw_text.startswith('[') or raw_text.startswith('**['):
                             clean_text = raw_text
                         else:
                             clean_text = clean_ai_preamble(raw_text)
 
-                        # 2. 한 줄씩 분석하여 HTML 구조화 (밀착형 레이아웃 + 중복 괄호 방어)
+                        # 🚀 [보완 2] AI가 줄바꿈 없이 한 덩어리로 보냈을 경우를 대비해 소제목 패턴 앞에 줄바꿈 강제 삽입
+                        # 문장 중간에 [제목]이 나오면 \n\n[제목]으로 변경
+                        clean_text = re.sub(r'([.!?])\s*(\[|\*\*\[)', r'\1\n\n\2', clean_text)
+
+                        # 2. 분석 및 HTML 구조화
                         lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
                         final_html = ""
                         
                         for line in lines:
-                            # [소제목 패턴 탐지] (**, [, (, ] 등 모든 조합 대응)
+                            # 소제목 패턴 탐지
                             match = re.match(r'^(\*\*|\[|\*\*\[|\()(.*?)(\]|\] \*\*|\*\*\*|\]\*\*|\))\s*(.*)', line)
                             
                             is_header = False
@@ -1021,11 +1024,8 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             remainder_text = ""
 
                             if match:
-                                # 🚀 [중복 방지] 제목 안팎의 불필요한 모든 특수문자 제거 후 순수 텍스트만 추출
                                 raw_title = match.group(2).strip()
                                 clean_title = raw_title.strip('[]*() ') 
-                                
-                                # 소제목 길이가 최소 5자 이상일 때만 헤더로 인정 (티커 [ARXS] 보호)
                                 if len(clean_title) > 5:
                                     is_header = True
                                     remainder_text = match.group(4).strip()
@@ -1033,28 +1033,21 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             if is_header:
                                 # [소제목 처리]
                                 if final_html:
-                                    # 다음 소제목 시작 전에는 확실하게 단락을 나눔 (2줄 띄움)
-                                    final_html += "<br><br>"
+                                    final_html += "<br><br>" # 다음 섹션 전에는 확실히 띄움
                                 
-                                # 🚀 [해결] 무조건 한 쌍의 대괄호만 입히고 굵게 처리
                                 final_html += f"<b>[{clean_title}]</b>"
-                                
-                                # 소제목 바로 뒤에 본문이 붙어 있었다면 줄바꿈 한 번 후 바로 붙임
                                 if remainder_text:
-                                    final_html += f"<br>{remainder_text}"
+                                    final_html += f"<br>{remainder_text}" # 소제목-요약문 사이는 밀착
                             else:
                                 # [일반 본문 처리]
                                 if not final_html:
                                     final_html = line
                                 else:
-                                    # 🚀 [밀착 레이아웃] 이전 줄이 제목(</b>)이었다면 빈 줄 없이(<br> 하나) 바로 아래 붙임
                                     if final_html.endswith("</b>"):
-                                        final_html += f"<br>{line}"
+                                        final_html += f"<br>{line}" # 소제목 직후 본문 밀착
                                     else:
-                                        # 본문 문장이 이어지는 경우 한 칸 띄고 자연스럽게 연결
-                                        final_html += f" {line}"
+                                        final_html += f" {line}" # 본문끼리는 자연스럽게 연결
                         
-                        # 3. 스타일 래퍼(<p> 등) 없이 순수 HTML만 저장하여 앱 테마의 기본 색상/배경 유지
                         processed_content = final_html.strip()
 
                         # Supabase 저장
@@ -1068,7 +1061,7 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             "lang": lang_code,
                             "data_type": topic
                         }], on_conflict="cache_key")
-                        print(f"✅ [{ticker}] {topic} 가독성 및 밀착형 레이아웃 교정 완료 ({lang_code})")
+                        print(f"✅ [{ticker}] {topic} 레이아웃 교정 완료 ({lang_code})")
                 except Exception as e:
                     print(f"❌ [{ticker}] {topic} AI 에러 ({lang_code}): {e}")
 
@@ -2641,7 +2634,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
 
     # =====================================================================
-    # 🚀 4개 국어 리포트 작성 (단위 현지화 및 밀착형 레이아웃 교정 버전)
+    # 🚀 4개 국어 리포트 작성 (단위 현지화 및 카드 공란/별표 제거 버전)
     # =====================================================================
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
@@ -2652,64 +2645,57 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
             if res.data: continue 
         except: pass
 
-        # 1. 언어별 프롬프트 및 지시사항 설정
+        # 1. 언어별 프롬프트 설정 (지시사항 강화)
         if lang_code == 'ko':
-            na_rule = "🚨 [N/A 방어]: 지표가 N/A라면 '데이터 부족'이라 하지 말고, 미래 파이프라인과 TAM에 기반한 프리미엄 가치라고 전문적으로 서술하세요."
-            unit_rule = "🚨 [단위 환산]: 모든 금액은 반드시 한국어 단위로 환산하세요 (예: $1.59 Billion -> 15.9억 달러, $46.0 Million -> 4,600만 달러)."
+            na_rule = "🚨 [N/A 방어]: 지표가 N/A라면 '데이터 부족'이라 하지 말고, 미래 가치에 기반한 프리미엄이라고 서술하세요."
+            unit_rule = "🚨 [단위]: 반드시 '15.9억 달러' 또는 '4,600만 달러'와 같이 한국어 단위를 쓰세요."
             sum_p = f"퀀트 애널리스트로서 {company_name} 지표 해석:\n{g1_context} | {g2_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "포맷: (성장성) |||SEP||| (건전성) |||SEP||| (가치평가). 인사말 금지."
-            full_p = f"{company_name} 정통 재무 리포트 작성:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            full_i = """[작성 규칙]
-            1. 🚨 시작은 반드시 **[수익성 및 성장성 분석]**. 인사말 절대 금지.
-            2. 소제목 강제: **[수익성 및 성장성 분석]**, **[재무 건전성 및 현금흐름]**, **[적정 가치 및 종합 투자의견]**
-            3. 제목 직후 본문을 붙여쓰고(한 줄 내림), 다음 제목 전엔 두 줄 띄우세요. 모든 문장은 '~습니다' 체 사용.
-            """
+            sum_i = "포맷: (성장성) |||SEP||| (건전성) |||SEP||| (가치평가). 인사말 및 '****' 절대 금지."
+            full_p = f"{company_name} 재무 리포트 작성:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
+            full_i = "🚨 소제목 강제: **[수익성 및 성장성 분석]**, **[재무 건전성 및 이익 품질]**, **[적정 가치 및 종합 투자의견]**. 제목 직후 본문 밀착."
 
         elif lang_code == 'en':
-            na_rule = "🚨 [N/A Defense]: If metrics are N/A, explain it as a premium on future potential and TAM."
-            unit_rule = "🚨 [Unit Rule]: Use professional English units (e.g., $1.59 Billion, $46.0 Million)."
-            sum_p = f"Financial Analyst report for {company_name}({ticker}).\n{g1_context} | {g2_context}\n🚨 {na_rule}"
-            sum_i = "Format: (Growth) |||SEP||| (Health) |||SEP||| (Valuation). No intro."
-            full_p = f"Professional financial report for {company_name}({ticker}).\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            full_i = """[STRICT RULES]
-            1. 🚨 Start IMMEDIATELY with **[Profitability & Growth Analysis]**. NO Korean allowed.
-            2. Required Headers: **[Profitability & Growth Analysis]**, **[Financial Health & Cash Flow]**, **[Valuation & Final Verdict]**.
-            3. Attach text right under headers. Use 4-5 sentences per paragraph.
-            """
+            na_rule = "🚨 [N/A Defense]: Attribute N/A to future growth premium and TAM potential."
+            unit_rule = "🚨 [Unit]: ALWAYS use '$1.59 Billion' or '$46.0 Million'. No raw numbers."
+            sum_p = f"Financial Analyst report for {company_name}({ticker}).\n{g1_context} | {g2_context}\n🚨 {na_rule}\n{unit_rule}"
+            sum_i = "FORMAT: (Growth) |||SEP||| (Health) |||SEP||| (Valuation). No intro, no '****'."
+            full_p = f"Standard financial report for {company_name}({ticker}).\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
+            full_i = "🚨 Headers: **[Profitability & Growth Analysis]**, **[Financial Health & Earnings Quality]**, **[Valuation & Final Verdict]**. Attach text under headers. No Korean."
 
         elif lang_code == 'ja':
-            na_rule = "🚨 [N/A防御]: N/Aの場合は「不足」と言わず、将来性への期待によるプレミアムとして記述してください。"
-            unit_rule = "🚨 [単位変換]: 日本語の単位を使用してください (例: $1.59 Billion -> 15.9億ドル, $46.0 Million -> 4,600万ドル)。"
-            sum_p = f"クオンツアナリストとして{company_name}を評価:\n{g1_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "形式: (成長性) |||SEP||| (健全性) |||SEP||| (評価). 挨拶抜き。"
-            full_p = f"{company_name}の財務分析レポートを作成してください:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            full_i = """[厳格な規則]
-            1. 🚨 最初から **[収益性と成長性の分析]** で始めてください。挨拶は不要です。
-            2. 見出し形式: **[収益性と成長性の分析]**, **[財務健全性とキャッシュフロー]**, **[適正価値と総合投資意見]**。
-            3. 見出しの直後に本文を記述し、丁寧な日本語(です・ます調)を維持してください。
-            """
+            na_rule = "🚨 [N/A防御]: N/Aは将来性への期待によるプレミアムとして専門的に記述。"
+            unit_rule = "🚨 [単位]: 必ず「15.9億ドル」または「4,600万ドル」のように日本語の単位を使用。"
+            sum_p = f"クオン츠アナリストとして{company_name}を評価:\n{g1_context}\n🚨 {na_rule}\n{unit_rule}"
+            sum_i = "形式: (成長性) |||SEP||| (健全性) |||SEP||| (評価). 挨拶抜き, '****' 禁止."
+            full_p = f"{company_name}の財務分析レポート:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
+            full_i = "🚨 小見出し: **[収益性と成長性の分析]**, **[財務健全性と収益の質]**, **[適正価値と総合投資意見]**. 挨拶抜き。"
 
         else: # zh
-            na_rule = "🚨 [N/A防御]: 若为 N/A，请专业地解释为市场对未来潜力的溢价，不要说数据缺失。"
-            unit_rule = "🚨 [单位转换]: 使用中文单位 (例: $1.59 Billion -> 15.9亿美元, $46.0 Million -> 4,600万美元)。"
+            na_rule = "🚨 [N/A防御]: N/A专业地解释为市场对未来的溢价。"
+            unit_rule = "🚨 [单位转换]: 使用中文单位 (例: 15.9亿美元 或 4,600万美元)。"
             sum_p = f"作为量化分析师评价 {company_name}:\n{g1_context}\n🚨 {na_rule}\n{unit_rule}"
-            sum_i = "格式: (增长) |||SEP||| (健康) |||SEP||| (估值). 无需寒暄。"
-            full_p = f"撰写 {company_name} 的深度财务报告:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
-            full_i = """[严格规则]
-            1. 🚨 直接以 **[盈利能力与增长性分析]** 开始。严禁使用韩语。
-            2. 必须使用以下标题: **[盈利能力与增长性分析]**, **[财务健康与现金流]**, **[合理估值与综合投资意见]**。
-            3. 标题后紧跟正文，每段保持 4-5 句话，语气专业冷峻。
-            """
+            sum_i = "格式: (增长) |||SEP||| (健康) |||SEP||| (估值). 严禁 '****'."
+            full_p = f"撰写 {company_name} 的财务报告:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
+            full_i = "🚨 标题: **[盈利能力与增长性分析]**, **[财务健康与收益质量]**, **[合理估值与综合投资意见]**. 无需寒暄。"
 
         # ----------------------------------------------------
-        # [Step 1] 상단 3D 카드 요약 생성
+        # [Step 1] 상단 카드 요약 (**** 제거 및 공란 방어)
         # ----------------------------------------------------
         try:
             res_sum = model_strict.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
-                clean_sum = clean_ai_preamble(res_sum.text.strip())
-                # 카드 텍스트 내 불필요한 대괄호 제목 파괴
+                raw_sum_text = res_sum.text.strip()
+                
+                # 🚀 [보완] 카드 텍스트에서 **** 및 ** 찌꺼기 제거
+                clean_sum = raw_sum_text.replace('****', '').replace('**', '')
+                
+                # 🚀 [보완] 구분자가 있으면 인사말 정제를 건너뛰어 공란 발생 원천 차단
+                if "|||SEP|||" not in clean_sum:
+                    clean_sum = clean_ai_preamble(clean_sum)
+                
+                # 카드 텍스트 내부의 불필요한 대괄호 제목 제거 (UI용)
                 clean_sum = re.sub(r'[\[\(].*?[\]\)]\s*:?', '', clean_sum)
+                
                 batch_upsert("analysis_cache", [{
                     "cache_key": cache_key_sum, 
                     "content": clean_sum.replace('\n', ' ').strip(), 
@@ -2719,20 +2705,20 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
         except: pass
 
         # ----------------------------------------------------
-        # [Step 2] 하단 전문 리포트 생성 (밀착형 HTML 가공)
+        # [Step 2] 하단 전문 리포트 (밀착형 레이아웃 + 굵게)
         # ----------------------------------------------------
         try:
             res_full = model_strict.generate_content(full_p + full_i)
             if res_full and res_full.text:
                 raw_full = res_full.text.strip()
                 
-                # 소제목 보호: AI가 바로 분석을 시작한 경우 인사말 제거 스킵
+                # 소제목 보호 로직 (인사말 함수가 제목을 지우지 못하게 함)
                 if raw_full.startswith('[') or raw_full.startswith('**['):
                     clean_full_text = raw_full
                 else:
                     clean_full_text = clean_ai_preamble(raw_full)
                 
-                # HTML 구조화 엔진 (중복 괄호 제거 + 굵게 + 밀착)
+                # HTML 가공 엔진 (Tab 0와 동일한 강력한 구조화 적용)
                 lines = [l.strip() for l in clean_full_text.split('\n') if l.strip()]
                 final_full_html = ""
                 
@@ -2742,16 +2728,17 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                     if match and len(match.group(2).strip()) > 5:
                         title = match.group(2).strip('[]*() ')
                         if final_full_html:
-                            final_full_html += "<br><br>" # 단락 간격
+                            final_full_html += "<br><br>" # 단락 간 간격
+                        
                         final_full_html += f"<b>[{title}]</b>"
-                        # 제목 뒤에 본문이 붙어있는 경우 처리
+                        # 제목 뒤에 본문이 한 줄에 붙어있는 경우 처리
                         if match.group(4).strip():
                             final_full_html += f"<br>{match.group(4).strip()}"
                     else:
                         if not final_full_html:
                             final_full_html = line
                         else:
-                            # 소제목 바로 아래는 밀착(<br>), 본문끼리는 문단 유지(공백)
+                            # 소제목 바로 아래는 밀착(<br>), 일반 문장끼리는 한 칸 띄고 연결
                             if final_full_html.endswith("</b>"):
                                 final_full_html += f"<br>{line}"
                             else:
