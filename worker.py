@@ -1538,16 +1538,18 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
             elif lang_code == 'en':
                 sys_prompt = "You are a senior analyst at a top-tier brokerage research center. You MUST write strictly in English."
-                lang_instruction = "Your entire response MUST be in 100% English. NEVER use Korean."
+                lang_instruction = "Your entire response MUST be in English only."
                 format_instruction = "Must be written in exactly 3 paragraphs. (Each paragraph should be 4-5 sentences long)"
                 
-                search_directive = f"🚨 [Force Search & Filter]: Search exactly `{search_query}`. Focus on financial news and business updates. If specific news is scarce, describe the general sector trend affecting {ticker}."
-                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Do not use any Korean words. Start IMMEDIATELY with a bold subheading.'
+                # 🚀 교정: 다른 언어와 동일하게 회사 관련 뉴스에만 집중하도록 단순화
+                search_directive = f"🚨 [Force Search & Filter]: Search exactly `{search_query}`. Only include news strictly related to {company_name} ({ticker}). Exclude irrelevant entities."
+                prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Start IMMEDIATELY with a bold subheading (e.g., **[Global Expansion]**).'
                 
                 task2_label = "--- [Instruction 2: Latest News Collection] ---"
-                # 🚀 [교정] translated_title 대신 headline_summary로 명칭 변경 및 한글 금지 명시
-                news_instruction = '- Extract up to 5 latest news items. Sentiment: "Positive", "Negative", or "Neutral".\n- If no specific news is found, search for industry-wide news that impacts {ticker}.\n- 🚨 NEVER output "N/A". If details are missing, provide a professional summary of the company\'s recent filings.'
-                json_format = f"""{{ "debug_search_raw": "Summary of search results", "news": [ {{ "title_en": "Headline in English", "translated_title": "A more concise, punchy version of the headline", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
+                # 🚀 교정: 한국어/일어/중어와 동일한 로직으로 통일 (최대 5개, 없으면 있는 만큼만)
+                news_instruction = '- Extract up to 5 latest news items strictly related to {company_name} ({ticker}) from [Part 2] or Google Search results.\n- sentiment: "Positive", "Negative", or "Neutral".\n- date: Use "YYYY-MM-DD" or the expression shown in results (e.g., "3 days ago").'
+                
+                json_format = f"""{{ "debug_search_raw": "Summary of search results", "news": [ {{ "title_en": "Original Title", "translated_title": "Concise version of the headline", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'ja':
                 sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は日本語で作成してください。"
