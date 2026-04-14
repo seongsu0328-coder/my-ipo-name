@@ -261,11 +261,14 @@ def sanitize_value(v):
 def clean_ai_preamble(text):
     if not text: return ""
     
+    # 🚀 [방어] Tab 3 카드 전용 구분자가 들어있으면 카드 데이터로 간주하고 정제를 건너뜀 (공란 방지)
+    if "|||SEP|||" in text:
+        return text.strip()
+    
     # 1. 마크다운 제목 행(## 등) 무조건 삭제
     text = re.sub(r'^#+.*$', '', text, flags=re.MULTILINE).strip()
     
-    # 2. 대괄호([])나 소괄호(())로 감싸진 전형적인 AI 인사말 패턴 정의
-    # (여기에 분석가들이 쓰지 않는 불필요한 문구들을 추가)
+    # 2. 대괄호([])나 소괄호(())로 감싸진 AI 인사말 패턴
     banned_intros = [
         r'here is the.*', r'certainly.*', r'understood.*', r'sure.*', 
         r'분석 결과.*', r'보고서입니다.*', r'요청하신.*', r'작성하겠습니다.*',
@@ -279,18 +282,19 @@ def clean_ai_preamble(text):
         l = line.strip()
         if not l: continue
         
-        # 대괄호 안의 내용을 확인 (예: [Here's the report:])
         bracket_match = re.match(r'^[\[\(](.*?)[\]\)]', l)
         if bracket_match:
             inner_content = bracket_match.group(1).lower()
-            # 대괄호 안 내용이 금지된 인사말 패턴에 해당하면 그 줄은 버림
+            # 금지된 인사말이면 삭제
             if any(re.match(p, inner_content) for p in banned_intros):
                 continue
-            # 만약 내용이 우리가 지정한 소제목(수익성, 건전성 등)을 포함하면 보존
+            # 소제목 키워드가 들어있으면 보존
             if any(kw in inner_content for kw in ['분석', '품질', '전망', '가치', 'analysis', 'health', 'valuation', '収益', '財務', '盈利', '财务']):
                 cleaned_lines.append(line)
                 continue
-            # 그 외의 의미 없는 대괄호 줄은 삭제
+            # 그 외의 의미 없는 대괄호 줄은 삭제하되, 본문 내용이 길면 보존
+            if len(l) > 50: 
+                cleaned_lines.append(line)
             continue
         
         cleaned_lines.append(line)
@@ -1651,32 +1655,51 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     news_list = []
                     biz_analysis = full_text
 
-                    # JSON 파싱 및 디버그 로깅
-                    json_patterns = [r'<JSON_START>.*<JSON_END>', r'```json\s*\{.*?\}\s*```', r'```\s*\{.*?\}\s*```', r'\{.*"news".*\}']
-                    for pattern in json_patterns:
+                    # 🚀 [교정] 줄바꿈 및 특수문자 대응이 강화된 JSON 파싱 엔진
+                    # re.DOTALL을 사용하여 태그 사이의 줄바꿈을 무시하고 전체 내용을 캡처합니다.
+                    json_patterns = [
+                        (r'<JSON_START>(.*?)<JSON_END>', 1),  # 태그 내부 그룹 1번 캡처
+                        (r'```json\s*(\{.*?\})\s*```', 1),     # 코드블록 내부 그룹 1번 캡처
+                        (r'(\{.*"news".*?\})', 0)              # JSON 형태 전체 캡처
+                    ]
+                    
+                    news_list = []
+                    biz_analysis = full_text # 원본 텍스트 보존
+
+                    for pattern, group_idx in json_patterns:
                         match = re.search(pattern, biz_analysis, re.DOTALL | re.IGNORECASE)
                         if match:
-                            json_str = match.group(0)
-                            c_match = re.search(r'(\{.*\})', json_str, re.DOTALL)
-                            if c_match:
-                                try:
-                                    parsed = json.loads(c_match.group(1), strict=False)
+                            target_json_raw = match.group(group_idx)
+                            try:
+                                # JSON 외부에 붙은 설명글 제거 ({ 앞, } 뒤)
+                                start_ptr = target_json_raw.find('{')
+                                end_ptr = target_json_raw.rfind('}')
+                                if start_ptr != -1 and end_ptr != -1:
+                                    json_clean = target_json_raw[start_ptr:end_ptr+1]
+                                    parsed = json.loads(json_clean, strict=False)
                                     news_list = parsed.get("news", [])
-                                    # 💡 [디버깅 로그 출력] LLM이 실제로 구글 검색 후 어떻게 필터링했는지 콘솔에 출력!
+                                    
+                                    # 💡 [디버깅 로그] LLM의 검색 필터링 근거 출력
                                     if "debug_search_raw" in parsed and lang_code == 'ko':
                                         print(f"🐛 [디버깅: {ticker} 검색 필터링 결과] -> {parsed['debug_search_raw']}")
-                                except: pass
-                            biz_analysis = biz_analysis.replace(json_str, "").strip()
-                            break
+                                    
+                                    # 🚀 [중요] 화면에 표시될 본문에서 JSON 데이터와 태그 전체를 완벽 제거
+                                    biz_analysis = biz_analysis.replace(match.group(0), "").strip()
+                                    break
+                            except Exception as e:
+                                print(f"⚠️ [{ticker}] {lang_code} JSON 파싱 시도 중 오류: {e}")
 
+                    # 3. 본문 텍스트 정제 및 HTML 변환
                     biz_analysis = re.sub(r'^#+.*$', '', biz_analysis, flags=re.MULTILINE).strip()
                     lines = biz_analysis.split('\n')
                     final_lines = []
                     body_started = False
+                    
                     for line in lines:
                         l = line.strip()
                         if not l: continue
                         if not body_started:
+                            # 소제목이나 본문의 시작점 탐지
                             is_subheading = l.startswith('**[') or l.startswith('[')
                             is_short_title = (l.startswith('**') and l.endswith('**') and len(l) < 60)
                             is_intro_line = (len(l) < 55 and (l.endswith(':') or l.endswith('입니다') or l.endswith('보고서')))
@@ -1685,41 +1708,45 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         final_lines.append(line)
                     
                     biz_analysis = "\n".join(final_lines).strip()
+                    # 소제목 직후 콜론 제거 및 줄바꿈 보정
                     biz_analysis = re.sub(r'(\*\*\[.*?\]\*\*)\s*:\s*', r'\1\n', biz_analysis)
+                    
                     raw_paragraphs = biz_analysis.split('\n')
                     clean_paragraphs = [p.strip() for p in raw_paragraphs if len(p.strip()) > 10]
                     
                     html_parts = []
                     for p in clean_paragraphs:
                         if p.startswith('**[') or p.startswith('['):
-                            html_parts.append(f'<p style="font-weight:bold; margin-top:20px; margin-bottom:5px; color:#111;">{p.replace("**","")}</p>')
+                            # 소제목은 굵게 처리
+                            clean_p = p.replace("**", "").strip()
+                            html_parts.append(f'<p style="font-weight:bold; margin-top:20px; margin-bottom:5px; color:#111;">{clean_p}</p>')
                         else:
+                            # 한국어만 들여쓰기 14px 적용, 다른 언어는 0px
                             indent = "14px" if lang_code == "ko" else "0px"
                             html_parts.append(f'<p style="text-indent:{indent}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>')
 
                     html_output = "".join(html_parts)
 
+                    # 4. Supabase 최종 저장
                     batch_upsert("analysis_cache", [{
                         "cache_key": cache_key,
                         "content": json.dumps({"html": html_output, "news": news_list[:5]}, ensure_ascii=False),
                         "updated_at": now.isoformat(),
-                        # --- 신규 태그 추가 ---
                         "ticker": ticker,
                         "tier": "free",
                         "tab_name": "tab1",
                         "lang": lang_code,
                         "data_type": "biz_summary"
                     }], on_conflict="cache_key")
-                    break 
+                    break # 성공 시 재시도 루프 탈출
 
                 except Exception as e:
-                    print(f"❌ [{ticker}] {lang_code} 분석 시도 중 오류: {e}")
+                    print(f"❌ [{ticker}] {lang_code} 분석 시도 중 최종 오류: {e}")
                     time.sleep(1)
         
+        # 원본 데이터 트래커 갱신
         batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": now.isoformat()}], "cache_key")
-        print(f"✅ [{ticker}] Tab 1 분석 및 캐싱 완료 (동적 필터링 & 디버깅 적용)")
-    else:
-        print(f"⏩ [{ticker}] Tab 1 변경점 없음. AI 요약 스킵!")
+        print(f"✅ [{ticker}] Tab 1 분석 및 캐싱 완료 (강력한 JSON 파싱 적용)")
                 
     # =========================================================
     # 🚀 [B] 프리미엄 전용 데이터 수집 (기업 공식 보도자료 - Raw Tracker 적용!)
@@ -2684,39 +2711,53 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
             full_p = f"{company_name} 财务报告:\n{g4_context}\n🚨 {na_rule}\n{unit_rule}"
             full_i = "🚨 [严格规则]: **输出的第一个字符必须是 '['。** 严禁写 ##主标题或任何开장白。请直接从 **[盈利能力与增长性分析]** 开始。"
 
-        # [Step 1] 카드 요약 생성
+        # [Step 1] 상단 3D 카드 요약
         try:
             res_sum = model_strict.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
-                clean_sum = clean_ai_preamble(res_sum.text.strip())
-                clean_sum = re.sub(r'[\[\(].*?[\]\)]\s*:?', '', clean_sum)
-                batch_upsert("analysis_cache", [{"cache_key": cache_key_sum, "content": clean_sum.replace('\n', ' ').strip(), "updated_at": datetime.now().isoformat()}], "cache_key")
+                raw_sum_text = res_sum.text.strip().replace('****', '').replace('**', '')
+                
+                # 🚀 [교정] clean_ai_preamble 호출 위치를 조정하여 카드 데이터 파괴 방지
+                # 괄호 안에 들어간 제목 이름만 지우고 데이터는 보존합니다.
+                clean_sum = re.sub(r'[\[\(](성장성|건전성|밸류에이션|Growth|Health|Valuation|収益|財務|盈利|财务).*?[\]\)]\s*:?', '', raw_sum_text)
+                
+                batch_upsert("analysis_cache", [{
+                    "cache_key": cache_key_sum, 
+                    "content": clean_sum.replace('\n', ' ').strip(), 
+                    "updated_at": datetime.now().isoformat(),
+                    "ticker": ticker, "tier": "free", "tab_name": "tab3", "lang": lang_code, "data_type": "metrics_card"
+                }], on_conflict="cache_key")
         except: pass
 
-        # [Step 2] 전문 리포트 생성 및 정제
+        # [Step 2] 하단 전문 리포트 (중복 방지 및 외국어 뭉침 해결)
         try:
             res_full = model_strict.generate_content(full_p + full_i)
             if res_full and res_full.text:
-                # 1. 강화된 인사말/제목 제거 함수 호출
-                clean_full_text = clean_ai_preamble(res_full.text.strip())
+                raw_full = res_full.text.strip()
                 
-                # 2. 🚀 [보완] 만약 AI가 첫 번째 섹션 제목을 제목줄로 쓰고 본문에서 또 썼을 경우 중복 제거
+                # 마크다운 제목 강제 삭제
+                clean_full_text = re.sub(r'^#+.*$', '', raw_full, flags=re.MULTILINE).strip()
+                
+                # 인사말 정제
+                clean_full_text = clean_ai_preamble(clean_full_text)
+                
+                # 🚀 [교정] 외국어 뭉침 해결 로직 강화: 마침표 뒤의 대괄호 강제 분리
+                clean_full_text = re.sub(r'([.!?。])\s*(\[|\*\*\[)', r'\1\n\n\2', clean_full_text)
+
                 lines = [l.strip() for l in clean_full_text.split('\n') if l.strip()]
+                
+                # 첫 줄과 두 번째 줄 제목 중복 체크
                 if len(lines) > 2:
                     first_l = lines[0].replace('*', '').strip()
                     second_l = lines[1].replace('*', '').strip()
-                    # 첫 줄과 두 번째 줄의 제목이 유사하면 첫 줄 삭제
                     if (first_l in second_l) or (second_l in first_l):
                         lines = lines[1:]
 
-                # 3. 레이아웃 및 HTML 구조화 (Tab 0 로직 유지)
-                clean_full_text = re.sub(r'([.!?。])\s*(\[|\*\*\[)', r'\1\n\n\2', '\n'.join(lines))
-                final_lines = [l.strip() for l in clean_full_text.split('\n') if l.strip()]
                 final_full_html = ""
-                
-                for line in final_lines:
+                for line in lines:
+                    # 🚀 [교정] 더 유연한 소제목 탐지 (별표 유무와 상관없이 추출)
                     match = re.match(r'^(\*\*|\[|\*\*\[|\()(.*?)(\]|\] \*\*|\*\*\*|\]\*\*|\))\s*(.*)', line)
-                    if match and len(match.group(2).strip()) > 5:
+                    if match and len(match.group(2).strip()) > 4:
                         title = match.group(2).strip('[]*() ')
                         if final_full_html: final_full_html += "<br><br>"
                         final_full_html += f"<b>[{title}]</b>"
