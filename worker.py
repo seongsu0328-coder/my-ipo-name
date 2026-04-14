@@ -1541,15 +1541,16 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 lang_instruction = "Your entire response MUST be in English only."
                 format_instruction = "Must be written in exactly 3 paragraphs. (Each paragraph should be 4-5 sentences long)"
                 
-                # 🚀 교정: 다른 언어와 동일하게 회사 관련 뉴스에만 집중하도록 단순화
-                search_directive = f"🚨 [Force Search & Filter]: Search exactly `{search_query}`. Only include news strictly related to {company_name} ({ticker}). Exclude irrelevant entities."
+                # 🚀 [교정] 가장 관련 있는 뉴스를 추출하도록 지시 (배제 로직 완화)
+                search_directive = f"🚨 [Force Search & Filter]: Search exactly `{search_query}`. From the search results or [Part 2], extract up to 5 most relevant news items for {company_name} ({ticker})."
                 prohibition_rule = '🚨 ABSOLUTELY PROHIBITED: Do not start with greetings. Start IMMEDIATELY with a bold subheading (e.g., **[Global Expansion]**).'
                 
                 task2_label = "--- [Instruction 2: Latest News Collection] ---"
-                # 🚀 교정: 한국어/일어/중어와 동일한 로직으로 통일 (최대 5개, 없으면 있는 만큼만)
-                news_instruction = '- Extract up to 5 latest news items strictly related to {company_name} ({ticker}) from [Part 2] or Google Search results.\n- sentiment: "Positive", "Negative", or "Neutral".\n- date: Use "YYYY-MM-DD" or the expression shown in results (e.g., "3 days ago").'
+                # 🚀 [교정] 날짜 및 타이틀 지침을 타 언어와 일치시킴
+                news_instruction = '- Extract up to 5 latest news items from the provided [Part 2] or Google search results.\n- sentiment: "Positive", "Negative", or "Neutral".\n- date: Use "YYYY-MM-DD" or the expression shown in results.\n- 🚨 IMPORTANT: Use the original headline for "title_en", and a more concise, punchy version for "translated_title".'
                 
-                json_format = f"""{{ "debug_search_raw": "Summary of search results", "news": [ {{ "title_en": "Original Title", "translated_title": "Concise version of the headline", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
+                # 🚀 [교정] 다른 언어와 동일하게 한 줄로 작성된 JSON 포맷
+                json_format = f"""{{ "debug_search_raw": "Summary of search results", "news": [ {{ "title_en": "Original Headline", "translated_title": "Concise Summary", "link": "https://...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'ja':
                 sys_prompt = "あなたは最高レベルの証券会社リサーチセンターのシニアアナリストです。すべての回答は日本語で作成してください。"
