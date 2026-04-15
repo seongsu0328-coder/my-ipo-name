@@ -261,18 +261,19 @@ def sanitize_value(v):
 def clean_ai_preamble(text):
     if not text: return ""
     
-    # 🚀 [방어] Tab 3 카드 전용 구분자가 들어있으면 카드 데이터로 간주하고 정제를 건너뜀 (공란 방지)
+    # 🚀 [방어] Tab 3 카드 전용 구분자가 들어있으면 카드 데이터로 간주하고 정제를 건너뜀
     if "|||SEP|||" in text:
         return text.strip()
     
     # 1. 마크다운 제목 행(## 등) 무조건 삭제
     text = re.sub(r'^#+.*$', '', text, flags=re.MULTILINE).strip()
     
-    # 2. 대괄호([])나 소괄호(())로 감싸진 AI 인사말 패턴
+    # 2. AI 인사말 패턴 (기존 리스트 유지 + 리포트 서두 패턴 추가)
     banned_intros = [
         r'here is the.*', r'certainly.*', r'understood.*', r'sure.*', 
         r'분석 결과.*', r'보고서입니다.*', r'요청하신.*', r'작성하겠습니다.*',
-        r'以下は.*', r'作成します.*', r'好的.*', r'这是.*'
+        r'以下は.*', r'作成します.*', r'好的.*', r'这是.*',
+        r'^\**\[(개요|introduction|概要|引言)\]\**' # [개요] 단락 삭제용
     ]
     
     lines = text.split('\n')
@@ -282,21 +283,25 @@ def clean_ai_preamble(text):
         l = line.strip()
         if not l: continue
         
-        bracket_match = re.match(r'^[\[\(](.*?)[\]\)]', l)
-        if bracket_match:
-            inner_content = bracket_match.group(1).lower()
-            # 금지된 인사말이면 삭제
-            if any(re.match(p, inner_content) for p in banned_intros):
-                continue
-            # 소제목 키워드가 들어있으면 보존
-            if any(kw in inner_content for kw in ['분석', '품질', '전망', '가치', 'analysis', 'health', 'valuation', '収益', '財務', '盈利', '财务']):
-                cleaned_lines.append(line)
-                continue
-            # 그 외의 의미 없는 대괄호 줄은 삭제하되, 본문 내용이 길면 보존
-            if len(l) > 50: 
-                cleaned_lines.append(line)
-            continue
+        # 소제목 여부 확인 (**, [ 포함)
+        is_header = re.match(r'^(\**\[)(.*?)(\]\**)', l)
         
+        if is_header:
+            header_content = is_header.group(2).lower()
+            # 1. 금지된 인사말이나 [개요]인 경우 삭제
+            if any(re.match(p, header_content) for p in banned_intros):
+                continue
+            # 2. 유효한 소제목 키워드가 들어있으면 무조건 보존
+            if any(kw in header_content for kw in ['분석', '품질', '전망', '가치', 'analysis', 'health', 'valuation', '収益', '財務', '盈利', '财务', 'invest', 'opinion']):
+                cleaned_lines.append(line)
+                continue
+            # 3. 그 외 의미 없는 대괄호는 길이에 따라 판단
+            if len(l) < 50: continue
+        
+        # 일반 문장인데 금지어 패턴에 걸리면 삭제
+        if any(re.match(p, l.lower()) for p in banned_intros):
+            continue
+            
         cleaned_lines.append(line)
         
     return '\n'.join(cleaned_lines).strip()
@@ -2701,7 +2706,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
 
         if not needs_card and not needs_full: continue
 
-        # [1] 언어별 완전 격리 지시어 설정 (소제목 번역 완료)
+        # [1] 언어별 완전 격리 지시어 설정 (언어 유출 방지를 위해 각국 언어로만 지시)
         if lang_code == 'ko':
             sum_p = f"당신은 퀀트 애널리스트입니다. {company_name}({ticker}) 지표 해석.\n[데이터]: {g1_context} | {g2_context}\n규칙: 1.수치인용 필수 2.3문장이내 3.반드시 '~습니다/합니다' 체 사용 4.제목금지"
             sum_i = "포맷: (성장성) |||SEP||| (건전성) |||SEP||| (밸류에이션)"
@@ -2712,19 +2717,19 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
             sum_p = f"You are a Quant Analyst. Analyze {company_name}({ticker}).\nData: {g1_context} | {g2_context}\nRules: 1.Quote specific numbers 2.Max 3 sentences 3.No headings 4.Strictly English."
             sum_i = "Format: (Growth) |||SEP||| (Health) |||SEP||| (Valuation)"
             full_p = f"Write a professional financial report for {company_name}({ticker}) using:\n{g4_context}"
-            full_i = "STRICT RULES: 1.The very first character must be '['. 2.Use ONLY these subheadings: [Profitability and Growth Analysis], [Financial Health and Cash Flow], [Intrinsic Value and Verdict]. 3.Never use any Korean words. 4.No introductory text."
+            full_i = "STRICT RULES: 1.The first character must be '['. 2.Use ONLY these exact subheadings: [Profitability and Growth Analysis], [Financial Health and Cash Flow], [Intrinsic Value and Verdict]. 3.Never use any Korean words. 4.No introductory text."
 
         elif lang_code == 'ja':
             sum_p = f"あなたはクオンツアナリストです。{company_name}({ticker})の分析.\nデータ: {g1_context} | {g2_context}\n規則: 1.数値引用 2.3文以内 3.丁寧語(です・ます)必須 4.見出し禁止"
             sum_i = "形式: (成長性) |||SEP||| (健全性) |||SEP||| (判断)"
             full_p = f"{company_name}({ticker})の財務分析レポートを作成してください:\n{g4_context}"
-            full_i = "厳格な規則: 1.最初の文字は必ず '['. 2.見出しは必ず [収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見] を使用してください. 3.韓国語を絶対に混ぜないでください. 4.導入文は省略してください."
+            full_i = "厳格な規則: 1.最初の文字は必ず '[' で始めてください。 2.見出しは必ず [収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見] を使用してください。 3.韓国語(한글)は絶対に混ぜないでください。 4.導入文(概要など)は省略してください。"
 
         else: # zh
             sum_p = f"你是量化分析师。解析 {company_name}({ticker}).\n数据: {g1_context} | {g2_context}\n规则: 1.引用数值 2.3句以内 3.严禁标题 4.必须全中文"
             sum_i = "格式: (增长) |||SEP||| (健康) |||SEP||| (估值)"
             full_p = f"请为 {company_name}({ticker}) 撰写一份深度财务报告:\n{g4_context}"
-            full_i = "严格规则: 1.第一个字符必须是 '['. 2.必须且仅使用以下副标题: [盈利能力与增长性分析], [财务健康与现金流], [合理估值与综合投资意见]. 3.绝对不能出现韩语. 4.省略开场白."
+            full_i = "严格规则: 1.第一个字符必须是 '['。 2.必须且仅使用以下副标题: [盈利能力与增长性分析], [财务健康与现金流], [合理估值与综合投资意见]。 3.绝对不能出现韩语。 4.省略开场白。"
 
         # [Step 1] 카드 요약 생성
         if needs_card:
@@ -2749,8 +2754,8 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                     # 인사말 정제 및 다국어 대응 서론 삭제
                     raw_f = clean_ai_preamble(res_full.text.strip())
                     
-                    # 문장 중간에 붙은 소제목 강제 분리
-                    raw_f = re.sub(r'([.!?。])\s*(\[)', r'\1\n\n\2', raw_f)
+                    # 🚀 [교정] 문장 중간에 붙은 소제목 강제 분리 (마크다운 ** 및 다국어 공백 대응)
+                    raw_f = re.sub(r'([.!?。])\s*(\**\[)', r'\1\n\n\2', raw_f)
                     
                     lines = [l.strip() for l in raw_f.split('\n') if l.strip()]
                     
@@ -2762,16 +2767,33 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
 
                     f_html = ""
                     for line in lines:
-                        # 소제목 탐지 및 볼드 처리
-                        if line.startswith('['):
+                        # 🚀 [교정] 소제목 탐지 로직 강화 (모든 언어 및 마크다운 볼드 대응)
+                        header_match = re.match(r'^(\**\[)(.*?)(\]\**)', line)
+                        
+                        if header_match:
+                            clean_title = header_match.group(2).strip()
                             if f_html: f_html += "<br><br>"
-                            f_html += f"<b>{line}</b>"
+                            f_html += f"<b>[{clean_title}]</b>"
                         else:
-                            if not f_html: f_html = line
+                            if not f_html:
+                                f_html = line
                             else:
-                                if f_html.endswith("</b>"): f_html += f"<br>{line}"
-                                else: f_html += f" {line}"
+                                if f_html.endswith("</b>"):
+                                    f_html += f"<br>{line}" # 제목 바로 밑에 본문 밀착
+                                else:
+                                    # 문장 간 연결 (한국어/일어/중어는 공백 없이 붙여도 무방하나 가독성 위해 공백 1칸 유지)
+                                    f_html += f" {line}"
                     
+                    # 🚀 [교정] 한국어일 경우 문단 첫 들여쓰기 14px 스타일 적용
+                    if lang_code == 'ko':
+                        f_html = f_html.replace("<br><br>", "@@@").replace("<br>", "###")
+                        parts = f_html.split("@@@")
+                        styled_parts = []
+                        for p in parts:
+                            if p.startswith("<b>"): styled_parts.append(p)
+                            else: styled_parts.append(f'<span style="display:block; text-indent:14px;">{p}</span>')
+                        f_html = "".join(styled_parts).replace("###", "<br>")
+
                     batch_upsert("analysis_cache", [{
                         "cache_key": cache_key_full, "content": f_html.strip(), 
                         "updated_at": datetime.now().isoformat(),
