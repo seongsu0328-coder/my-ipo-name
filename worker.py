@@ -2608,7 +2608,6 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
         }}
         """
         try:
-            # 💡 여기서는 model_search를 써서 구글을 뒤집니다.
             rec_res = model_search.generate_content(recovery_prompt)
             if rec_res and rec_res.text:
                 text = rec_res.text
@@ -2629,7 +2628,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 
                 updated = False
                 
-                # 🚨 복사본(enriched_metrics)에만 데이터를 채워 넣습니다! 원본은 절대 건드리지 않음!
+                # 🚀 분모, 분자를 찾아 직접 Ratio 계산 및 업데이트
                 if rev is not None and p_rev is not None and p_rev > 0:
                     enriched_metrics["growth"] = f"{((rev - p_rev) / p_rev) * 100:.1f}%"
                     updated = True
@@ -2661,31 +2660,33 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 enriched_metrics["raw_deep_data"] = rich_raw_data_str
                 
                 if updated:
-                    # 화면에 보여주기 위해 꽉 채워진 데이터를 Raw_Financials 키에 저장합니다. 
+                    # 💡 [핵심 추가] AI가 찾은 데이터로 "카드 UI용 원본 JSON"을 즉시 갱신합니다.
+                    # 그래야 카드 UI의 N/A가 숫자로 바뀝니다.
+                    raw_fin_key = f"{ticker}_Raw_Financials"
                     batch_upsert("analysis_cache", [{
-                        "cache_key": cache_key_sum, 
-                        "content": clean_sum, 
+                        "cache_key": raw_fin_key,
+                        "content": json.dumps(enriched_metrics, ensure_ascii=False),
                         "updated_at": datetime.now().isoformat(),
                         "ticker": ticker,
-                        "tier": "free",
-                        "tab_name": "tab3",
-                        "lang": lang_code,
-                        "data_type": "metrics_card"
+                        "data_type": "enriched_financial_data"
                     }], on_conflict="cache_key")
-                    print(f"✅[{ticker}] 15대 데이터 수집 및 확장 지표(Accruals, P/E) 연산 완료!")
+                    print(f"✅ [{ticker}] 15대 데이터 기반 Ratio 연산 및 카드용 원본 갱신 완료!")
+
         except Exception as e:
             print(f"⚠️ [{ticker}] 기초 데이터 수집/연산 실패: {e}")
 
+    # 구글 검색 결과가 있으면 반영하고, 없으면 기존 데이터 사용
     if rich_raw_data_str == "N/A" and "raw_deep_data" in enriched_metrics:
         rich_raw_data_str = enriched_metrics["raw_deep_data"]
 
-    # 컨텍스트 조립도 오염된 복사본(enriched_metrics)을 사용합니다. (이 숫자들을 공통으로 씁니다)
+    # 💡 [갱신됨] 이제 아래 컨텍스트들은 AI가 계산한 최신 지표들을 가지고 루프에 들어갑니다.
     g1_context = f"[Business Growth & Profitability] Sales Growth: {enriched_metrics.get('growth', 'N/A')}, Net Margin: {enriched_metrics.get('net_margin', 'N/A')}, Piotroski Score: {enriched_metrics.get('health_score', 'N/A')}/9"
     g2_context = f"[Financial Health & Quality] Debt to Equity: {enriched_metrics.get('debt_equity', 'N/A')}, Accruals Quality: {enriched_metrics.get('accruals', 'Unknown')}"
     g3_context = f"[Market Valuation] Forward P/E: {enriched_metrics.get('pe', 'N/A')}, DCF Target Price: {enriched_metrics.get('dcf_price', 'N/A')}, Current Price: {enriched_metrics.get('current_price', 'N/A')}"
     g4_context = f"[Deep Raw Financials] {rich_raw_data_str}"
 
     limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
+
 
     # =====================================================================
     # 🚀 4개 국어 리포트 작성 (완벽한 언어 격리 및 인사말 박멸 버전)
