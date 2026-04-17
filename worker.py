@@ -1424,7 +1424,8 @@ def get_search_friendly_name(name):
     if not name or pd.isna(name): return ""
     name = str(name)
     name = re.sub(r'(/DE|Cl\s*[A-Z]|Class\s*[A-Z])', '', name, flags=re.IGNORECASE)
-    name = re.sub(r'\b(Inc|Corp|Corporation|Co|Ltd|Plc|Group|Company|Holdings)\b\.?', '', name, flags=re.IGNORECASE)
+    # 💡 Holdco, LLC, LP, Trust 등 검색을 방해하는 꼬리표 추가 제거
+    name = re.sub(r'\b(Inc|Corp|Corporation|Co|Ltd|Plc|Group|Company|Holdings|Holdco|LLC|LP|Trust)\b\.?', '', name, flags=re.IGNORECASE)
     return name.strip().strip(',').strip()
 
 # =========================================================================
@@ -1457,15 +1458,13 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     # 💡 [핵심 수정]: 기업의 생애주기에 맞춰 검색 키워드를 동적으로 변경합니다.
     # =========================================================
     if is_withdrawn:
-        search_query = f'"{search_name}" OR "{ticker}" IPO withdrawn OR corporate news'
+        search_query = f'{search_name} OR "{ticker}" IPO withdrawn corporate news'
     elif is_delisted_or_otc:
-        search_query = f'"{search_name}" OR "{ticker}" delisted OR OTC stock news'
+        search_query = f'{search_name} OR "{ticker}" delisted OTC stock news'
     elif is_over_1y:
-        # 상장 1년 차 이상의 성숙 기업은 'IPO'를 빼고 실적/비즈니스 이슈 위주로 검색
-        search_query = f'"{search_name}" OR "{ticker}" stock news OR earnings OR business'
+        search_query = f'{search_name} OR "{ticker}" stock earnings business news'
     else:
-        # 1년 미만의 신규 상장 기업은 기존처럼 IPO 뉴스 중심 검색
-        search_query = f'"{search_name}" OR "{ticker}" stock IPO news'
+        search_query = f'{search_name} OR "{ticker}" stock IPO news'
     # =========================================================
 
     valid_hours = 24 
