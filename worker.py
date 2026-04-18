@@ -79,7 +79,8 @@ if GENAI_API_KEY:
             def __init__(self, client):
                 self.client = client
             def generate_content(self, prompt):
-                for attempt in range(2): # 최대 2번만 시도
+                # 💡 [수정] 재시도 횟수 3회로 증가, 대기 시간 기하급수적 증가(Exponential Backoff)
+                for attempt in range(3): 
                     try:
                         return self.client.models.generate_content(
                             model='gemini-2.0-flash',
@@ -87,13 +88,12 @@ if GENAI_API_KEY:
                         )
                     except Exception as e:
                         err_str = str(e).lower()
-                        # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료 (스팸 방지)
-                       
-                            
-                        # 단순 속도 제한일 경우 30초 대기 후 딱 1번만 재시도
+                        # 429(한도초과) 또는 quota 에러 발생 시
                         if "429" in err_str or "quota" in err_str:
-                            if attempt == 0:
-                                time.sleep(30)
+                            if attempt < 2:
+                                wait_time = 40 * (attempt + 1) # 1차: 40초, 2차: 80초 대기
+                                print(f"⏳ [API 한도 초과 방어] 구글 토큰 한도 도달. {wait_time}초 대기 후 재시도합니다...")
+                                time.sleep(wait_time)
                                 continue
                         raise e
 
@@ -109,7 +109,8 @@ if GENAI_API_KEY:
                 class MockResponse:
                     def __init__(self, text): self.text = text
                 
-                for attempt in range(2):
+                # 💡 [수정] 동일하게 재시도 횟수 3회 및 대기 시간 강화
+                for attempt in range(3):
                     try:
                         res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
                         
@@ -122,12 +123,10 @@ if GENAI_API_KEY:
                             return MockResponse(text_output)
                             
                         elif res.status_code == 429:
-                            err_str = res.text.lower()
-                            # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료
-                            
-                                
-                            if attempt == 0:
-                                time.sleep(30)
+                            if attempt < 2:
+                                wait_time = 40 * (attempt + 1)
+                                print(f"⏳ [검색 API 한도 초과 방어] {wait_time}초 대기 후 재시도...")
+                                time.sleep(wait_time)
                                 continue
                             raise Exception(f"429 Limit: {res.text}")
                         else:
@@ -1080,9 +1079,16 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         print(f"✅ [{ticker}] {topic} 레이아웃 교정 완료 ({lang_code})")
                 except Exception as e:
                     print(f"❌ [{ticker}] {topic} AI 에러 ({lang_code}): {e}")
+                    
+                # 💡[핵심 방어막] 한 언어를 번역하고 나서 3초간 의도적으로 쉬어줍니다. (토큰 과부하 방지)
+                time.sleep(3)
+
+            # 💡 [핵심 방어막] 4개 국어를 다 번역한 후, 다음 서류(예: S-1 -> S-1/A)로 넘어가기 전에 10초간 푹 쉬어줍니다.
+            print(f"⏸️ [{ticker}] 토큰 한도 확보를 위해 10초간 쿨타임을 갖습니다...")
+            time.sleep(10)
 
             # 4개 국어 분석 시도가 모두 끝난 후 트래커 저장
-            batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": acc_num, "updated_at": datetime.now().isoformat()}], "cache_key")
+            batch_upsert("analysis_cache",[{"cache_key": tracker_key, "content": acc_num, "updated_at": datetime.now().isoformat()}], "cache_key")
 def get_tab0_ec_premium_prompt(lang, ticker, raw_data):
     if lang == 'en':
         return f"""You are a Lead Buy-Side Analyst on Wall Street. Summarize the latest Earnings Call Transcript for {ticker}.
