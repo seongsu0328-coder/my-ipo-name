@@ -585,10 +585,10 @@ def fetch_fmp_earnings_call(symbol, api_key):
 # ==========================================
 # [완전 교체] run_tab0_analysis 함수 (에러 영구 차단 + 20-F 하이브리드 탐색)
 # ==========================================
-def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None):
+def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None, original_ticker=None):
     if 'model_strict' not in globals() or not model_strict: return
     
-    # 🚀 [1] CIK 실시간 확보 로직 (PAYP 성공의 열쇠)
+    # 🚀 [1] CIK 실시간 확보 로직
     cik = cik_mapping.get(ticker) if (cik_mapping is not None) else None
     if not cik:
         cik = get_fallback_cik(ticker, company_name, FMP_API_KEY)
@@ -943,27 +943,25 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_8k, "content": acc_num_8k, "updated_at": datetime.now().isoformat()}], "cache_key")
 
     # =========================================================
-    # 🚀 [5] 통합 서류 루프 (AccessionNumber 기반 최적화 버전)
+    # 🚀 [교정] 통합 서류 루프 (티커 Fallback 적용)
     # =========================================================
     for topic in target_topics:
         acc_num, f_date = None, None
         
-        # 1. 메타데이터(문서번호)만 먼저 가져옴
-        if topic in ["BS", "IS", "CF", "10-K"]:
-            priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
-        elif topic == "10-Q":
-            priority_targets = ["10-Q", "10-Q/A"] 
-        elif topic == "F-1":
-            priority_targets = ["F-1", "F-1/A", "20-F"] 
-        elif topic == "S-1":
-            priority_targets = ["S-1", "S-1/A"]
-        elif topic == "424B4":
-            priority_targets = ["424B4", "424B3", "424B5"]
-        else:
-            priority_targets = [topic]
+        # 검색 대상 설정
+        if topic in ["BS", "IS", "CF", "10-K"]: priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
+        elif topic == "10-Q": priority_targets = ["10-Q", "10-Q/A"] 
+        elif topic == "F-1": priority_targets = ["F-1", "F-1/A", "20-F"] 
+        elif topic == "S-1": priority_targets = ["S-1", "S-1/A"]
+        elif topic == "424B4": priority_targets = ["424B4", "424B3", "424B5"]
+        else: priority_targets = [topic]
 
         for target in priority_targets:
+            # 1. 현재 티커로 시도
             acc_num, f_date = fetch_sec_metadata(ticker, target, FMP_API_KEY, cik)
+            # 2. 실패 시 원본 티커로 재시도 (PS 같은 사례 방어)
+            if not acc_num and original_ticker and original_ticker != ticker:
+                acc_num, f_date = fetch_sec_metadata(original_ticker, target, FMP_API_KEY, cik)
             if acc_num: break
 
         # 서류가 아예 없는 경우 안내 메시지 생성 (Summarization Error 방지)
@@ -2542,12 +2540,12 @@ def run_tab4_premium_collection(ticker, company_name):
         print(f"Tab4 Premium Collection Error for {ticker}: {e}")
     
 # ==========================================
-# [최종 수정본] Tab 3: 미시 지표 분석 (에러 방지 + 카드 데이터 실시간 동기화)
+# [최종 수정본] Tab 3: 미시 지표 분석 (데이터 정직성 + 실시간 동기화)
 # ==========================================
 def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return False
     
-    # 💡 [핵심 방어막 1] FMP 원본 데이터 박제
+    # 💡 [핵심 방어막 1] 원본 데이터 보존
     pristine_metrics_str = json.dumps(raw_metrics, sort_keys=True)
     tracker_key = f"{ticker}_Tab3_Financial_RawTracker"
     is_changed = True
@@ -2567,7 +2565,7 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     force_search_run = False
     if not is_changed and can_fin_search:
         try:
-            limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() # 7일
+            limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat()
             test_key = f"{ticker}_Tab3_Summary_ko"
             res_exp = supabase.table("analysis_cache").select("updated_at").eq("cache_key", test_key).gt("updated_at", limit_time_str).execute()
             if not res_exp.data:
@@ -2577,15 +2575,15 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     if not is_changed and not force_search_run:
         return True 
         
-    reason = "데이터 변경" if is_changed else "정기 재무 검색(7일)"
-    print(f"🔔 [{ticker}] Tab 3 업데이트 감지 ({reason})! 데이터 보강 및 분석 시작...")
+    reason = "데이터 변경" if is_changed else "정기 재무 검색"
+    print(f"🔔 [{ticker}] Tab 3 업데이트 감지 ({reason})! 분석 시작...")
     
     curr_yr = datetime.now().year
     past_3_years = f"{curr_yr-2} {curr_yr-1} {curr_yr}"
     rich_raw_data_str = "N/A"
     
     # =====================================================================
-    # 🚀 [Step 1] 15대 기초 데이터 수집 및 "카드 원본 JSON" 갱신
+    # 🚀 [Step 1] 구글 검색 데이터 보강 및 "카드 원본 JSON" 갱신
     # =====================================================================
     if can_fin_search:
         print(f"🔍 [{ticker}] 재무 데이터 누락 감지. 구글 딥서치 시도...")
@@ -2611,12 +2609,8 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                     try: return float(re.sub(r'[^0-9.-]', '', str(val)))
                     except: return None
                 
-                rev = to_float(raw_data.get("revenue"))
-                p_rev = to_float(raw_data.get("prev_revenue"))
-                net = to_float(raw_data.get("net_income"))
-                debt = to_float(raw_data.get("total_debt"))
-                equity = to_float(raw_data.get("total_equity"))
-                ocf = to_float(raw_data.get("operating_cash_flow"))
+                rev, p_rev, net = to_float(raw_data.get("revenue")), to_float(raw_data.get("prev_revenue")), to_float(raw_data.get("net_income"))
+                debt, equity, ocf = to_float(raw_data.get("total_debt")), to_float(raw_data.get("total_equity")), to_float(raw_data.get("operating_cash_flow"))
                 eps = to_float(raw_data.get("eps"))
                 
                 updated = False
@@ -2632,70 +2626,69 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 if net and ocf:
                     enriched_metrics["accruals"] = "Low" if (net - ocf) <= 0 else "High"
                     updated = True
+                if eps: enriched_metrics["eps"] = eps
 
                 rich_raw_data_str = ", ".join([f"{k}: {v}" for k, v in raw_data.items() if v not in [None, "N/A", ""]])
                 enriched_metrics["raw_deep_data"] = rich_raw_data_str
                 
                 if updated:
-                    # 💡 [중요] AI가 찾은 데이터를 원본 JSON에 즉시 덮어씌워 카드 UI의 N/A 해결
+                    # 💡 [카드 UI 동기화] 보강된 데이터를 원본 캐시에 저장
                     batch_upsert("analysis_cache", [{
                         "cache_key": f"{ticker}_Raw_Financials",
                         "content": json.dumps(enriched_metrics, ensure_ascii=False),
                         "updated_at": datetime.now().isoformat(),
-                        "ticker": ticker,
-                        "data_type": "enriched_financial_data"
+                        "ticker": ticker, "data_type": "enriched_financial_data"
                     }], on_conflict="cache_key")
-                    print(f"✅ [{ticker}] 카드 UI용 원본 지표 동기화 완료!")
         except Exception as e:
-            print(f"⚠️ [{ticker}] 기초 데이터 수집 실패: {e}")
+            print(f"⚠️ [{ticker}] 데이터 수집 실패: {e}")
 
     if rich_raw_data_str == "N/A" and "raw_deep_data" in enriched_metrics:
         rich_raw_data_str = enriched_metrics["raw_deep_data"]
 
-    # 컨텍스트 조립 (보강된 수치를 분석 루프에서 공통 사용)
-    g1_context = f"[Business Growth & Profitability] Sales Growth: {enriched_metrics.get('growth', 'N/A')}, Net Margin: {enriched_metrics.get('net_margin', 'N/A')}, Piotroski Score: {enriched_metrics.get('health_score', 'N/A')}/9"
-    g2_context = f"[Financial Health & Quality] Debt to Equity: {enriched_metrics.get('debt_equity', 'N/A')}, Accruals Quality: {enriched_metrics.get('accruals', 'Unknown')}"
-    g3_context = f"[Market Valuation] Forward P/E: {enriched_metrics.get('pe', 'N/A')}, DCF Target Price: {enriched_metrics.get('dcf_price', 'N/A')}, Current Price: {enriched_metrics.get('current_price', 'N/A')}"
-    g4_context = f"[Deep Raw Financials] {rich_raw_data_str}"
+    # 분석용 컨텍스트 조립
+    g1_context = f"Growth & Profitability: Sales Growth {enriched_metrics.get('growth', 'N/A')}, Net Margin {enriched_metrics.get('net_margin', 'N/A')}"
+    g2_context = f"Financial Health: Debt to Equity {enriched_metrics.get('debt_equity', 'N/A')}, Accruals {enriched_metrics.get('accruals', 'Unknown')}"
+    g3_context = f"Market/Valuation: Forward P/E {enriched_metrics.get('pe', 'N/A')}, DCF Target {enriched_metrics.get('dcf_price', 'N/A')}"
+    g4_context = f"Raw Financial Numbers: {rich_raw_data_str}"
 
     limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
 
     # =====================================================================
-    # 🚀 [Step 2] 4개 국어 리포트 및 요약 카드 작성 (프롬프트 생략 및 레이아웃 교정)
+    # 🚀 [Step 2] 4개 국어 리포트 및 요약 카드 작성 (정직한 데이터 분석)
     # =====================================================================
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
         cache_key_full = f"{ticker}_Tab3_v2_Premium_{lang_code}"
         
-        # 언어별 최적화 지시 사항 (Instructions)
+        # 언어별 지시 사항
         if lang_code == 'ko':
-            sum_i = "포맷: (성장성 해석) |||SEP||| (건전성 해석) |||SEP||| (가치 평가 해석). 제목과 인사말은 절대 쓰지 마세요."
-            full_i = "🚨 [엄격 규칙]: 전체 출력물의 첫 글자는 반드시 '['여야 합니다. 인사말 금지. 반드시 다음 소제목을 사용하세요: [수익성 및 성장성 분석], [재무 건전성 및 현금흐름], [적정 가치 및 종합 투자의견]."
-            na_rule = "🚨 [N/A]: 데이터가 없으면 '데이터 부족'을 언급하고 향후 관전 포인트를 3~4문장 쓰세요."
+            sum_i = "포맷: (성장성 해석) |||SEP||| (건전성 해석) |||SEP||| (밸류에이션 해석). 제목/인사말 절대 금지."
+            full_i = "전체 출력의 첫 글자는 반드시 '['여야 합니다. 소제목 [수익성 및 성장성 분석], [재무 건전성 및 현금흐름], [적정 가치 및 종합 투자의견]을 사용하세요."
+            na_rule = "지표가 'N/A'인 경우, 데이터 부족 사실을 정직하게 밝히고 해당 정보를 알 수 없을 때의 투자 리스크를 설명하세요."
         elif lang_code == 'en':
-            sum_i = "Format: (Growth) |||SEP||| (Health) |||SEP||| (Valuation). NO titles, NO greetings."
-            full_i = "🚨 [STRICT]: The first character must be '['. NO intro. Use ONLY: [Profitability & Growth Analysis], [Financial Health & Cash Flow], [Intrinsic Value & Verdict]."
-            na_rule = "🚨 [N/A]: If data is missing, explain the limitation and provide a 3-4 sentence outlook."
+            sum_i = "Format: (Growth) |||SEP||| (Health) |||SEP||| (Valuation). NO titles/intro."
+            full_i = "The first character must be '['. Use ONLY: [Profitability & Growth Analysis], [Financial Health & Cash Flow], [Intrinsic Value & Verdict]."
+            na_rule = "If a metric is 'N/A', state it clearly and discuss the investment risks of having incomplete data."
         elif lang_code == 'ja':
-            sum_i = "形式: (成長性) |||SEP||| (健全性) |||SEP||| (評価). タイトルや挨拶は禁止です。"
-            full_i = "🚨 [厳格な規則]: 最初の文字は必ず '[' にしてください. 必ず次の見出しを使用してください: [収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見]."
-            na_rule = "🚨 [N/A]: 数値がない場合は捏造せず、今後の注目点を解説してください。"
+            sum_i = "形式: (成長性) |||SEP||| (健全性) |||SEP||| (評価). タイトル/挨拶禁止。"
+            full_i = "最初の文字は必ず '[' にしてください. 見出し: [収益性と成長性の分析], [財務健全性とキャッシュフロー], [適正価値と総合投資意見]."
+            na_rule = "指標이 'N/A'인 경우, 데이터 부족 사실을 정직하게 밝히고 리스크를 설명하세요."
         else: # zh
-            sum_i = "格式: (增长) |||SEP||| (健康) |||SEP||| (估值). 严禁标题和开场白。"
-            full_i = "🚨 [严格规则]: 第一个字符必须是 '['. 请务必使用以下副标题: [盈利能力与增长性分析], [财务健康与现金流], [合理估值与综合投资意见]."
-            na_rule = "🚨 [N/A]: 若数据缺失，请说明原因并??供3-4句未来关注点。"
+            sum_i = "格式: (增长) |||SEP||| (健康) |||SEP||| (估值). 严禁标题/开场白。"
+            full_i = "第一个字符必须是 '['. 副标题: [盈利能力与增长性分析], [财务健康与现金流], [合理估值与综合投资意见]."
+            na_rule = "若指标为 'N/A', 请诚实说明数据缺失, 并分析信息不透明带来的风险。"
 
-        # 💡 프롬프트 구조화 (AI의 지시 생략 방지)
-        final_sum_prompt = f"[Role]: Senior Wall Street Analyst\n[Data]: {g1_context} | {g2_context}\n[Instruction]: {sum_i}\n[Rule]: {na_rule}\n[Language]: {target_lang}"
-        final_full_prompt = f"[Role]: Quant Analyst\n[Data]: {g4_context}\n[Context]: {g3_context}\n[Instruction]: {full_i}\n[Rule]: {na_rule}\n[Language]: {target_lang}"
+        # 💡 [정직한 데이터 제공]: 강제하지 않고 "제공된 데이터"로서 전달
+        data_packet = f"Available Metrics:\n- {g1_context}\n- {g2_context}\n- {g3_context}\n- {g4_context}"
+        
+        final_sum_prompt = f"Analyze {company_name} metrics for UI dashboard.\n{data_packet}\nInstruction: {sum_i}\nRule: {na_rule}\nLanguage: {target_lang}"
+        final_full_prompt = f"Write a professional financial report for {company_name}.\n{data_packet}\nInstruction: {full_i}\nRule: {na_rule}\nLanguage: {target_lang}"
 
-        # [Action 1] 상단 3D 카드 요약 생성
+        # [Action 1] 요약 카드 생성
         try:
             res_sum = model_strict.generate_content(final_sum_prompt)
             if res_sum and res_sum.text:
-                raw_text = res_sum.text.strip()
-                # 괄호 제목 찌꺼기 제거
-                clean_sum = re.sub(r'^[\[\(](성장성|건전성|밸류에이션|Growth|Health|Valuation|収益|財務|盈利|财务).*?[\]\)]\s*:?', '', raw_text)
+                clean_sum = re.sub(r'^[\[\(](성장성|건전성|밸류에이션|Growth|Health|Valuation|収益|財務|盈利|财务).*?[\]\)]\s*:?', '', res_sum.text.strip())
                 batch_upsert("analysis_cache", [{
                     "cache_key": cache_key_sum, "content": clean_sum.replace('\n', ' ').strip(), 
                     "updated_at": datetime.now().isoformat(), "ticker": ticker, "tier": "free", 
@@ -2703,19 +2696,19 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 }], on_conflict="cache_key")
         except: pass
 
-        # [Action 2] 하단 전문 리포트 생성 및 레이아웃 가공
+        # [Action 2] 전문 리포트 생성 및 가공
         try:
             res_full = model_strict.generate_content(final_full_prompt)
             if res_full and res_full.text:
                 raw_f = clean_ai_preamble(res_full.text.strip())
-                # 뭉침 방지: 마침표 뒤의 대괄호를 강제로 줄바꿈
+                # 마침표 뒤 대괄호 제목 줄바꿈 보정
                 raw_f = re.sub(r'([.!?。])\s*(\[|\*\*\[)', r'\1\n\n\2', raw_f)
                 lines = [l.strip() for l in raw_f.split('\n') if l.strip()]
                 
                 f_html = ""
                 for line in lines:
                     match = re.match(r'^(\*\*|\[|\*\*\[|\()(.*?)(\]|\] \*\*|\*\*\*|\]\*\*|\))\s*(.*)', line)
-                    if match and len(match.group(2).strip()) > 4:
+                    if match and any(kw in match.group(2) for kw in ['분석', '흐름', '의견', 'Analysis', 'Health', 'Verdict', '分析', '収益', '財務']):
                         title = match.group(2).strip('[]*() ')
                         if f_html: f_html += "<br><br>"
                         f_html += f"<b>[{title}]</b>"
@@ -2726,11 +2719,10 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                             if f_html.endswith("</b>"): f_html += f"<br>{line}"
                             else: f_html += f" {line}"
                 
-                # 한국어의 경우 리포트 가독성을 위한 들여쓰기 추가
                 processed_content = f_html.strip()
                 if lang_code == 'ko':
                     parts = processed_content.split("<br><br>")
-                    styled = [f'<div style="text-indent:14px; margin-bottom:15px;">{p}</div>' if not p.startswith("<b>") else p for p in parts]
+                    styled = [f'<div style="text-indent:14px; margin-bottom:15px; line-height:1.7;">{p}</div>' if not p.startswith("<b>") else p for p in parts]
                     processed_content = "".join(styled)
 
                 batch_upsert("analysis_cache", [{
@@ -2738,10 +2730,8 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                     "updated_at": datetime.now().isoformat(), "ticker": ticker, 
                     "tier": "premium", "tab_name": "tab3", "lang": lang_code, "data_type": "financial_report"
                 }], on_conflict="cache_key")
-                print(f"✅ [{ticker}] Tab 3 분석 및 카드 동기화 완료 ({lang_code})")
         except Exception as e: pass
 
-    # 모든 루프 완료 후 트래커 최신화
     batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": pristine_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
     return True
             
@@ -3697,7 +3687,7 @@ def main():
                 
                 # Tab 0 & Tab 1 (기본 + 프리미엄)
                 run_tab1_analysis(official_symbol, name, c_status, c_date)
-                run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping)
+                run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping, original_symbol) # 이 부분 수정
                 run_tab0_premium_collection(official_symbol, name)
                 run_tab2_premium_collection(official_symbol, name) 
                 
