@@ -985,8 +985,14 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         if topic == "10-K": priority_targets = ["10-K", "20-F"]
         elif topic == "10-Q": priority_targets = ["10-Q", "6-K"]
         elif topic in ["BS", "IS", "CF"]: priority_targets = ["10-K", "20-F", "10-Q", "6-K"]
-        # 💡 S-1 탭에서는 S-1만, S-1/A 탭에서는 S-1/A만 찾도록 하여 PS 사례의 오버라이트 방지
-        else: priority_targets = [topic]
+        # 🚀 [교정] 신규 기업(S-1) 뿐만 아니라 기존 기업의 추가 발행(S-3)까지 대응
+        else:
+            if topic == "S-1":
+                priority_targets = ["S-1", "S-3", "S-3ASR"] # S-3 추가
+            elif topic == "S-1/A":
+                priority_targets = ["S-1/A", "S-3/A"] # S-3/A 추가
+            else:
+                priority_targets = [topic]
 
         print(f"🔍 [{ticker}] {topic} 공시 탐색 중...") 
 
@@ -1512,9 +1518,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     elif is_over_1y:
         search_query = f'{safe_name} news OR business OR corporate OR earnings'
     else:
-        # 🚀 [교정]: 티커(PS) 노이즈를 피하고, 정제된 브랜드명으로 검색하여 최신 기사 유입량 극대화
-        # "Pershing Square" stock OR "Pershing Square" IPO
-        search_query = f'"{search_name}" stock OR "{search_name}" IPO'
+        # 🚀 [교정] 우선주 티커(NHPBP) 대신 원본 티커(NHP)를 보조 검색어로 활용
+        # 또한 REITs 특성에 맞는 'Offering', 'Preferred' 키워드 추가
+        search_query = f'"{search_name}" news OR "{search_name}" stock OR "{search_name}" offering'
     # =========================================================
 
     valid_hours = 24 
@@ -1574,20 +1580,19 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
                 if is_fmp_poor:
                     search_directive = f"""
-                    🚨 [광범위 검색 및 지능적 필터링 지시]: 
+                    🚨 [광범위 검색 및 보편적 가치 기반 필터링 지시]: 
                     1. 검색 쿼리: `{search_query}`
                     
                     2. 필터링 원칙 (Exclusion Logic):
-                       - [Entity Match]: '{search_name}'은 특정 기업의 고유 브랜드 명칭입니다. 
-                         💡 **중요**: 이름에 포함된 **'Properties', 'Trust', 'Holdings', 'Capital'** 등은 해당 기업의 정체성을 나타내는 고유 명사이므로, 이를 일반적인 부동산 자산이나 일반 용어로 오인하여 기사를 배제하지 마세요.
-                       - [Subject Role Match]: 기사의 **핵심 주체(Protagonist)**가 반드시 '{search_name}'이어야 합니다. 
-                         ✅ **REITs/투자사 특례**: 만약 이 기업이 부동산 투자사(REITs)나 지주사인 경우, **자산 매입(Acquisition), 타사 투자, 배당 발표** 소식은 이 기업의 가장 중요한 **본체 뉴스**입니다. 이를 '단순 투자자 언급'으로 착각하여 제외하지 말고 반드시 포함하세요.
-                         ❌ **배제 대상**: 타사의 사업 뉴스에서 '{search_name}'이 단순히 수많은 주주 명단 중 하나로 나열되거나, 아주 비중 적게 언급된 기사만 배제하세요.
-                       - [Context Match]: 단순 주가 수치 나열보다는 기업의 전략, 상장, 실적, 공시 등 기업 가치에 실질적 영향을 주는 맥락을 우선하세요.
+                       - [Entity Elasticity (명칭 유연성)]: '{search_name}'은 법적 풀네임이며, 언론 기사에서는 **브랜드명 일부, 줄임말, 또는 모체(Parent Entity)의 명칭**으로 언급될 수 있습니다. 기사의 맥락상 해당 브랜드 그룹의 활동이 맞고, 대상 기업의 가치에 직접 영향을 준다면 명칭이 100% 일치하지 않더라도 배제하지 마세요.
+                       - [Sector-Specific Subject (업종별 주체성)]: 기사의 주인공을 판별할 때 기업의 **업종 특성**을 고려하세요.
+                         * **투자/지주/부동산 업종**: 자산 매입, 포트폴리오 투자 소식 자체가 본체의 핵심 영업 활동입니다. 이를 '단순 언급'으로 오인하여 배제하지 마세요.
+                         * **일반 제조/서비스 업종**: 타사 뉴스에 이름만 한 줄 언급된 기사는 기존 원칙대로 배제하세요.
+                       - [Context Match (맥락 일치)]: 단순한 일반 부동산 매물 정보나 일반 명사(예: Properties, Trust)에 대한 사전적 기사는 배제하되, '자본 시장(Capital Market)' 맥락에서의 공모, 상장, 실적, 전략 기사는 최우선으로 포함하세요.
                     
                     3. 기간: [{one_year_ago}] 부터 [{current_date}] 사이의 뉴스만 포함하세요.
                     
-                    4. 추출: 위 논리에 부합하는 유효한 최신 뉴스를 최대 5개 추출하세요. 만약 필터링 결과 조건에 맞는 뉴스가 단 1건도 없다면 억지로 채우지 마세요.
+                    4. 추출: 위 보편적 분석 논리에 부합하는 유효한 최신 뉴스를 최대 5개 추출하세요. 만약 필터링 결과 신뢰할 수 있는 뉴스가 없다면 억지로 채우지 마세요.
                     """
                 else:
                     search_directive = "🚨 [환각 금지] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오."
