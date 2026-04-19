@@ -154,6 +154,7 @@ SUPPORTED_LANGS = {
 def fetch_sec_metadata(ticker, doc_type, api_key, cik=None):
     try:
         accession_num, filed_date = None, None
+        # 1. FMP 티커 기반 검색 시도
         search_url = f"https://financialmodelingprep.com/stable/sec-filings?symbol={ticker}&type={doc_type}&limit=1&apikey={api_key}"
         r = requests.get(search_url, timeout=5)
         if r.status_code == 200:
@@ -161,13 +162,20 @@ def fetch_sec_metadata(ticker, doc_type, api_key, cik=None):
             if isinstance(res_data, list) and len(res_data) > 0:
                 accession_num = res_data[0].get('accessionNumber')
                 filed_date = res_data[0].get('fillingDate')
+        
+        # 2. FMP 실패 시 SEC 공식 API(CIK 기반) 직접 조회
         if not accession_num and cik:
-            sec_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+            # 🚀 [교정] CIK를 10자리 문자열로 변환 (예: 1834356 -> 0001834356)
+            clean_cik = str(cik).zfill(10)
+            sec_url = f"https://data.sec.gov/submissions/CIK{clean_cik}.json"
             sec_res = requests.get(sec_url, headers=SEC_HEADERS, timeout=5)
+            
             if sec_res.status_code == 200:
                 filings = sec_res.json().get('filings', {}).get('recent', {})
-                for i, form in enumerate(filings.get('form', [])):
-                    if doc_type.upper() in str(form).upper():
+                forms = filings.get('form', [])
+                for i, form in enumerate(forms):
+                    # 사용자가 원하는 doc_type과 정확히 일치하는지 검사
+                    if doc_type.upper() == str(form).upper():
                         accession_num = filings.get('accessionNumber', [])[i]
                         filed_date = filings.get('filingDate', [])[i]
                         break
@@ -178,22 +186,27 @@ def fetch_sec_metadata(ticker, doc_type, api_key, cik=None):
 def fetch_sec_full_content(accession_num, ticker, doc_type, api_key, cik=None):
     if not accession_num: return None
     try:
-        # 1. FMP 텍스트 시도
+        # 1. FMP 텍스트 서버 시도
         text_url = f"https://financialmodelingprep.com/stable/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
         txt_res = requests.get(text_url, timeout=7)
         if txt_res.status_code == 200 and txt_res.json():
             full_text = txt_res.json()[0].get('content', '')
-            return full_text[:100000] # 💡 [여기 추가] 상위 10만 자만 리턴
+            if len(full_text) > 100:
+                return full_text[:100000] # 상위 10만 자만 리턴
 
-        # 2. FMP 실패 시 SEC 직접 스크래핑
+        # 2. FMP 실패 시 SEC EDGAR 아카이브 직접 스크래핑
         if cik:
+            # 🚀 [교정] SEC 아카이브 경로는 하이픈을 뺀 번호를 폴더명으로 사용함
             acc_no_clean = str(accession_num).replace('-', '')
+            # 정수형 CIK를 사용하여 URL 생성 (앞의 0이 있어도 int() 처리로 안정성 확보)
             raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc_no_clean}/{accession_num}.txt"
+            
             raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=10)
             if raw_res.status_code == 200:
+                # HTML 태그 및 중복 공백 제거하여 텍스트 순도 높임
                 clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
                 clean_text = re.sub(r'\s+', ' ', clean_text)
-                return clean_text[:100000] # 💡 [여기 추가] 상위 10만 자만 리턴
+                return clean_text[:100000]
     except:
         pass
     return None
