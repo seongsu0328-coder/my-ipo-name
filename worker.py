@@ -1008,19 +1008,25 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
             continue
 
-        # 🚀 [교정] 중복 체크 로직 (Undefined Variable 에러 해결 버전)
+        # run_tab0_analysis 함수 내부의 중복 체크 블록 수정
         tracker_key = f"{company_name}_{topic}_LastAccNum"
-        is_skip = False # 변수 초기화
+        is_skip = False
         try:
+            # 1. 서류 번호 확인
             res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
             if res_tracker.data and res_tracker.data[0]['content'] == acc_num:
-                print(f"⏩ [{ticker}] {topic}는 이미 분석된 최신 서류입니다. (스킵)")
-                is_skip = True 
+                # 2. 🚀 [교정] 실제로 분석 리포트가 저장되어 있는지 한 번 더 확인 (누락 방지)
+                test_key = f"{company_name}_{topic}_Tab0_v16_ko"
+                res_content = supabase.table("analysis_cache").select("cache_key").eq("cache_key", test_key).execute()
+                
+                if res_content.data:
+                    print(f"⏩ [{ticker}] {topic} 리포트가 이미 존재합니다. (스킵)")
+                    is_skip = True 
+                else:
+                    print(f"🔄 [{ticker}] {topic} 번호는 같지만 리포트가 없어 재분석합니다.")
         except: pass
 
-        # 중복된 서류라면 다음 서류(topic)로 넘어감
-        if is_skip:
-            continue
+        if is_skip: continue
 
         # 새 문서일 때만 다운로드
         print(f"📥 [{ticker}] {topic} 신규 공시 분석 시작 ({acc_num})...")
@@ -1456,8 +1462,8 @@ def get_search_friendly_name(name):
     name = re.sub(r'(/DE|Cl\s*[A-Z]|Class\s*[A-Z]|\(.*\))', '', name, flags=re.IGNORECASE)
     
     # 2. 법인 접미사 제거 (뉴스 헤드라인에서 생략되는 것들)
-    # 'Holdco', 'L.P.' 등을 확실히 제거하여 'Pershing Square'만 남김
-    suffix_pattern = r'\b(inc|corp|corporation|co|ltd|lp|l\.p\.|plc|group|company|holdings|holdco|sa|s\.a\.|nv|n\.v\.|ag)\b\.?'
+    # properties는 제거 대상에서 제외 (브랜드 정체성 유지)
+    suffix_pattern = r'\b(inc|corp|corporation|co|ltd|lp|l\.p\.|plc|group|company|holdco|capital|management|sa|s\.a\.|nv|n\.v\.|ag)\b\.?'
     name = re.sub(suffix_pattern, '', name, flags=re.IGNORECASE)
     
     name = name.strip().strip(',').strip('.').strip()
@@ -1567,7 +1573,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     🚨 [광범위 검색 및 정교한 필터링 지시]: 
                     1. 검색 쿼리: `{search_query}`
                     2. 필터링 원칙 (Exclusion Logic):
-                       - [Entity Match]: '{search_name}'과 이름이 비슷하지만 완전히 다른 산업(예: 공원, 장소, 일반 명사)은 배제하세요.
+                       - [Entity Match]: '{search_name}'은 특정 기업의 고유 명칭입니다. 💡 **중요**: 이름에 들어간 **'Properties', 'Trust', 'Holdings'** 등은 REITs(부동산투자신탁) 기업의 핵심 명칭이므로, 이를 일반 명사로 취급하여 배제하지 마세요. 
                        - [Subject Role Match - 중요]: 기사의 **주인공(Protagonist)**이 반드시 '{search_name}'이어야 합니다. 
                          ❌ 배제 대상: '{search_name}'이 단순히 주주로 언급되거나, 투자자로 한 줄 언급된 **타사(포트폴리오/피투자 기업)의 뉴스**는 배제하세요. (예: "A사의 주가 하락에 B투자사 손실" 기사에서 주인공이 A사라면 배제)
                          ✅ 포함 대상: '{search_name}' 본체의 상장 이슈, 본체 실적, 본체 경영진의 전략 발표, 본체의 직접적인 지배구조 변경.
