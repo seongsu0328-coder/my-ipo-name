@@ -194,24 +194,42 @@ def fetch_sec_full_content(accession_num, ticker, doc_type, api_key, cik=None):
         txt_res = requests.get(text_url, timeout=7)
         if txt_res.status_code == 200 and txt_res.json():
             full_text = txt_res.json()[0].get('content', '')
-            if len(full_text) > 100:
-                return full_text[:100000] # 상위 10만 자만 리턴
+            # 데이터가 유의미하게 존재할 때만 리턴
+            if len(full_text) > 500:
+                return full_text[:100000]
 
         # 2. FMP 실패 시 SEC EDGAR 아카이브 직접 스크래핑
         if cik:
-            # 🚀 [교정] SEC 아카이브 경로는 하이픈을 뺀 번호를 폴더명으로 사용함
+            # 🚀 [유지] 사용자의 성공 사례에 따라 CIK를 10자리 문자열로 고정 (Padding 유지)
+            cik_str = str(cik).zfill(10)
+            # SEC 아카이브 경로는 하이픈을 뺀 번호를 폴더명으로 사용함
             acc_no_clean = str(accession_num).replace('-', '')
-            # 정수형 CIK를 사용하여 URL 생성 (앞의 0이 있어도 int() 처리로 안정성 확보)
-            raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc_no_clean}/{accession_num}.txt"
             
-            raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=10)
+            # URL 조립
+            raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_str}/{acc_no_clean}/{accession_num}.txt"
+            
+            # 💡 [추가] 경로 추적 로그: PS 등에서 문제가 생길 때 URL을 직접 확인하기 위함
+            print(f"📡 [SEC 본문 요청] {ticker} ({doc_type}) -> URL: {raw_txt_url}")
+            
+            # 💡 [보완] 대용량 파일 대응을 위해 타임아웃을 15초로 연장
+            raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=15)
+            
             if raw_res.status_code == 200:
+                # 💡 [추가] 수신 성공 로그 및 데이터 길이 확인
+                print(f"✅ [SEC 본문 수신 성공] {ticker} - 길이: {len(raw_res.text)} 자")
+                
                 # HTML 태그 및 중복 공백 제거하여 텍스트 순도 높임
                 clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
                 clean_text = re.sub(r'\s+', ' ', clean_text)
                 return clean_text[:100000]
-    except:
-        pass
+            else:
+                # 💡 [추가] 실패 시 상태 코드 로그
+                print(f"❌ [SEC 본문 수신 실패] {ticker} - HTTP 상태코드: {raw_res.status_code}")
+                
+    except Exception as e:
+        # 에러 발생 시 상세 원인 출력
+        print(f"⚠️ [SEC 스크래핑 에러] {ticker} ({doc_type}): {e}")
+        
     return None
 
 
@@ -1550,7 +1568,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     🚨 [강제 검색 및 필터링 지시]: 
                     FMP 데이터가 부족하므로 Google Search 도구를 사용하여 반드시 다음 지침을 따르세요:
                     1. 검색 쿼리: `{search_query}` 로 검색하여 최대한 넓게 데이터를 확보하세요.
-                    2. 필터링(Exclusion): 검색 결과 중 '{search_name}' 기업과 관련이 없는 동명의 장소, 일반 명사 기사는 철저히 배제하세요. (예: 공원 이름, 타인 등)
+                    2. 필터링(Exclusion): '{search_name}' 또는 '{ticker}'와 관련된 주식, 상장, 비즈니스 기사라면 법인 접미사(Holdco, L.P 등)가 생략되었더라도 반드시 포함하세요. 단, 기업과 무관한 '공원(Park)'이나 '인물' 기사만 배제하세요.
                     3. 추출: 필터링을 거쳐 유효하다고 판단된 최신 뉴스만 최대 5개 추출하세요. 억지로 채우지 마세요.
                     4. 기간: [{one_year_ago}] 부터 [{current_date}] 사이의 뉴스만 포함하세요.
                     """
