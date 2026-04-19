@@ -1468,12 +1468,12 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 def get_search_friendly_name(name):
     if not name or pd.isna(name): return ""
     name = str(name)
-    # 1. 괄호 및 지역 정보 제거
+    # 1. 괄호 내용 및 클래스 정보 제거
     name = re.sub(r'(/DE|Cl\s*[A-Z]|Class\s*[A-Z]|\(.*\))', '', name, flags=re.IGNORECASE)
     
-    # 2. 법인 접미사 제거 (뉴스 헤드라인에서 생략되는 것들)
-    # 🚀 [교정] 'Properties'와 'Trust'는 REITs 기업의 정체성이므로 검색어에서 삭제하지 않음
-    suffix_pattern = r'\b(inc|corp|corporation|co|ltd|lp|l\.p\.|plc|group|company|holdings|holdco|capital|management|sa|s\.a\.|nv|n\.v\.|ag)\b\.?'
+    # 2. 🚀 [교정] 'Inc.', 'Properties' 등을 무조건 지우는 게 아니라, 
+    # 검색어로서 너무 길어지는 접미사 위주로만 정리 (브랜드 핵심어 추출)
+    suffix_pattern = r'\b(inc|corp|corporation|co|ltd|lp|l\.p\.|plc|group|holdco|capital|management|sa|nv|ag)\b\.?'
     name = re.sub(suffix_pattern, '', name, flags=re.IGNORECASE)
     
     name = name.strip().strip(',').strip('.').strip()
@@ -1518,9 +1518,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     elif is_over_1y:
         search_query = f'{safe_name} news OR business OR corporate OR earnings'
     else:
-        # 🚀 [교정] 우선주 티커(NHPBP) 대신 원본 티커(NHP)를 보조 검색어로 활용
-        # 또한 REITs 특성에 맞는 'Offering', 'Preferred' 키워드 추가
-        search_query = f'"{search_name}" news OR "{search_name}" stock OR "{search_name}" offering'
+        # 🚀 [교정] 큰따옴표를 제거하여 구글의 유연한 검색(Fuzzy Match)을 유도하고, 
+        # 티커와 핵심 단어 위주로 결합하여 검색 결과 노출량을 극대화함
+        search_query = f'{search_name} news {ticker} OR {search_name} stock'
     # =========================================================
 
     valid_hours = 24 
@@ -1584,11 +1584,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     1. 검색 쿼리: `{search_query}`
                     
                     2. 필터링 원칙 (Exclusion Logic):
-                       - [Entity Elasticity (명칭 유연성)]: '{search_name}'은 법적 풀네임이며, 언론 기사에서는 **브랜드명 일부, 줄임말, 또는 모체(Parent Entity)의 명칭**으로 언급될 수 있습니다. 기사의 맥락상 해당 브랜드 그룹의 활동이 맞고, 대상 기업의 가치에 직접 영향을 준다면 명칭이 100% 일치하지 않더라도 배제하지 마세요.
-                       - [Sector-Specific Subject (업종별 주체성)]: 기사의 주인공을 판별할 때 기업의 **업종 특성**을 고려하세요.
-                         * **투자/지주/부동산 업종**: 자산 매입, 포트폴리오 투자 소식 자체가 본체의 핵심 영업 활동입니다. 이를 '단순 언급'으로 오인하여 배제하지 마세요.
-                         * **일반 제조/서비스 업종**: 타사 뉴스에 이름만 한 줄 언급된 기사는 기존 원칙대로 배제하세요.
-                       - [Context Match (맥락 일치)]: 단순한 일반 부동산 매물 정보나 일반 명사(예: Properties, Trust)에 대한 사전적 기사는 배제하되, '자본 시장(Capital Market)' 맥락에서의 공모, 상장, 실적, 전략 기사는 최우선으로 포함하세요.
+                       - [Subject Lineage (주체 연계성)]: 대상 기업이 모기업의 자회사이거나 특정 브랜드 그룹에 속한 경우, **모기업(Parent Company)이나 그룹 명의로 보도된 소식**이라도 해당 티커({ticker})의 사업이나 주식 발행과 연관이 있다면 주인공으로 인정하여 절대 배제하지 마세요.
+                       - [Relevance Over Precision (정확도보다 연관성)]: 이름이 100% 일치하지 않더라도, 기사 내용이 해당 기업의 상장, 실적, 자산 매입 등을 다루고 있다면 포함하세요. 단, 동명의 공원이나 무관한 인물 기사만 철저히 배제하세요.
+                       - [No Hallucination (환각 금지)]: 검색 결과에 유효한 뉴스가 없다면 **절대 가상의 예시를 지어내지 마세요.** 뉴스가 없다면 빈 리스트([])를 반환하는 것이 정답입니다.
                     
                     3. 기간: [{one_year_ago}] 부터 [{current_date}] 사이의 뉴스만 포함하세요.
                     
