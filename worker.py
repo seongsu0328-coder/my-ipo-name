@@ -1452,19 +1452,16 @@ def get_tab1_premium_prompt(lang, type_name, raw_data):
 def get_search_friendly_name(name):
     if not name or pd.isna(name): return ""
     name = str(name)
-    # 1. 괄호 및 델라웨어 주 표시(/DE) 등 제거
+    # 1. 괄호 및 지역 정보 제거
     name = re.sub(r'(/DE|Cl\s*[A-Z]|Class\s*[A-Z]|\(.*\))', '', name, flags=re.IGNORECASE)
     
-    # 2. 흔한 법인 접미사(Legal Suffixes) 제거
-    # 리스트: inc, corp, ltd, co, lp, l.p., plc, group, company, holdings, corp, sa, nv 등
-    suffix_pattern = r'\b(inc|corp|corporation|co|ltd|lp|l\.p\.|plc|group|company|holdings|holdco|sa|s\.a\.|nv|n\.v\.|ag)\b\.?'
+    # 2. 광범위한 법인 접미사 제거 (뉴스 헤드라인에서 생략되는 단어들)
+    # 브랜드 핵심만 남기기 위해 'Management', 'Capital' 등도 포함
+    suffix_pattern = r'\b(inc|corp|corporation|co|ltd|lp|l\.p\.|plc|group|company|holdings|holdco|capital|management|sa|s\.a\.|nv|n\.v\.|ag)\b\.?'
     name = re.sub(suffix_pattern, '', name, flags=re.IGNORECASE)
     
-    # 3. 불필요한 쉼표, 마침표 및 연속된 공백 정리
     name = name.strip().strip(',').strip('.').strip()
-    name = re.sub(r'\s+', ' ', name)
-    
-    return name
+    return re.sub(r'\s+', ' ', name)
     
 # =========================================================================
 # [수정된 Tab 1 분석 함수 교체] run_tab1_analysis 전체를 아래 코드로 교체하세요.
@@ -1567,11 +1564,15 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
                 if is_fmp_poor:
                     search_directive = f"""
-                    🚨 [강제 검색 및 필터링 지시]: 
-                    FMP 데이터가 부족하므로 Google Search 도구를 사용하여 반드시 다음 지침을 따르세요:
-                    1. 검색 쿼리: `{search_query}` 로 검색하여 최대한 넓게 데이터를 확보하세요.
-                    2. 필터링(Exclusion): '{search_name}' 기업의 비즈니스, 투자, 공시와 관련된 뉴스라면 'IPO'라는 단어가 없더라도 반드시 포함하세요. 
-                    3. 추출: 필터링을 거쳐 유효하다고 판단된 최신 뉴스만 최대 5개 추출하세요. 억지로 채우지 마세요.
+                    🚨 [광범위 검색 및 정교한 필터링 지시]: 
+                    1. 검색 쿼리: `{search_query}`
+                    2. 필터링 원칙 (Exclusion Logic):
+                       - [Entity Match]: '{search_name}'과 이름이 비슷하지만 완전히 다른 산업(예: 공원, 장소, 일반 명사)은 배제하세요.
+                       - [Subject Role Match - 중요]: 기사의 **주인공(Protagonist)**이 반드시 '{search_name}'이어야 합니다. 
+                         ❌ 배제 대상: '{search_name}'이 단순히 주주로 언급되거나, 투자자로 한 줄 언급된 **타사(포트폴리오/피투자 기업)의 뉴스**는 배제하세요. (예: "A사의 주가 하락에 B투자사 손실" 기사에서 주인공이 A사라면 배제)
+                         ✅ 포함 대상: '{search_name}' 본체의 상장 이슈, 본체 실적, 본체 경영진의 전략 발표, 본체의 직접적인 지배구조 변경.
+                       - [Context Match]: 단순한 주가 나열 기사가 아닌, 기업의 펀더멘털이나 시장 내 입지에 관한 맥락이 있는 기사를 우선하세요.
+                    3. 추출: 위 논리에 부합하는 최신 뉴스를 최대 5개 추출하세요. (유효한 뉴스가 없다면 억지로 채우지 마세요.)
                     4. 기간: [{one_year_ago}] 부터 [{current_date}] 사이의 뉴스만 포함하세요.
                     """
                 else:
