@@ -991,11 +991,15 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         print(f"🔍 [{ticker}] {topic} 공시 탐색 중...") 
 
         for target in priority_targets:
-            # 1차 시도: 현재 티커
+            # 1. 교정 티커 + 기존 CIK로 시도
             acc_num, f_date = fetch_sec_metadata(ticker, target, FMP_API_KEY, cik)
-            # 2차 시도: 실패 시 원본 티커 (PS 같은 특수 사례 방어)
+            
+            # 🚀 [교정] 교정 티커로 S-1 등을 못 찾은 경우 (PS, NHP 사례 방어)
             if not acc_num and original_ticker and original_ticker != ticker:
-                acc_num, f_date = fetch_sec_metadata(original_ticker, target, FMP_API_KEY, cik)
+                # 2. 원본 티커로 재시도하되, CIK를 None으로 주어 티커 기반 검색을 강제함
+                # 이는 교정 로직이 엉뚱한 기업의 CIK를 가져왔을 때를 대비한 최후의 방어선임
+                acc_num, f_date = fetch_sec_metadata(original_ticker, target, FMP_API_KEY, None)
+            
             if acc_num: break
 
         # 서류가 아예 없는 경우 안내 메시지 생성 (이미 데이터가 있는 경우는 제외)
@@ -1462,8 +1466,8 @@ def get_search_friendly_name(name):
     name = re.sub(r'(/DE|Cl\s*[A-Z]|Class\s*[A-Z]|\(.*\))', '', name, flags=re.IGNORECASE)
     
     # 2. 법인 접미사 제거 (뉴스 헤드라인에서 생략되는 것들)
-    # properties는 제거 대상에서 제외 (브랜드 정체성 유지)
-    suffix_pattern = r'\b(inc|corp|corporation|co|ltd|lp|l\.p\.|plc|group|company|holdco|capital|management|sa|s\.a\.|nv|n\.v\.|ag)\b\.?'
+    # 🚀 [교정] 'Properties'와 'Trust'는 REITs 기업의 정체성이므로 검색어에서 삭제하지 않음
+    suffix_pattern = r'\b(inc|corp|corporation|co|ltd|lp|l\.p\.|plc|group|company|holdings|holdco|capital|management|sa|s\.a\.|nv|n\.v\.|ag)\b\.?'
     name = re.sub(suffix_pattern, '', name, flags=re.IGNORECASE)
     
     name = name.strip().strip(',').strip('.').strip()
@@ -1570,16 +1574,20 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
                 if is_fmp_poor:
                     search_directive = f"""
-                    🚨 [광범위 검색 및 정교한 필터링 지시]: 
+                    🚨 [광범위 검색 및 지능적 필터링 지시]: 
                     1. 검색 쿼리: `{search_query}`
+                    
                     2. 필터링 원칙 (Exclusion Logic):
-                       - [Entity Match]: '{search_name}'은 특정 기업의 고유 명칭입니다. 💡 **중요**: 이름에 들어간 **'Properties', 'Trust', 'Holdings'** 등은 REITs(부동산투자신탁) 기업의 핵심 명칭이므로, 이를 일반 명사로 취급하여 배제하지 마세요. 
-                       - [Subject Role Match - 중요]: 기사의 **주인공(Protagonist)**이 반드시 '{search_name}'이어야 합니다. 
-                         ❌ 배제 대상: '{search_name}'이 단순히 주주로 언급되거나, 투자자로 한 줄 언급된 **타사(포트폴리오/피투자 기업)의 뉴스**는 배제하세요. (예: "A사의 주가 하락에 B투자사 손실" 기사에서 주인공이 A사라면 배제)
-                         ✅ 포함 대상: '{search_name}' 본체의 상장 이슈, 본체 실적, 본체 경영진의 전략 발표, 본체의 직접적인 지배구조 변경.
-                       - [Context Match]: 단순한 주가 나열 기사가 아닌, 기업의 펀더멘털이나 시장 내 입지에 관한 맥락이 있는 기사를 우선하세요.
+                       - [Entity Match]: '{search_name}'은 특정 기업의 고유 브랜드 명칭입니다. 
+                         💡 **중요**: 이름에 포함된 **'Properties', 'Trust', 'Holdings', 'Capital'** 등은 해당 기업의 정체성을 나타내는 고유 명사이므로, 이를 일반적인 부동산 자산이나 일반 용어로 오인하여 기사를 배제하지 마세요.
+                       - [Subject Role Match]: 기사의 **핵심 주체(Protagonist)**가 반드시 '{search_name}'이어야 합니다. 
+                         ✅ **REITs/투자사 특례**: 만약 이 기업이 부동산 투자사(REITs)나 지주사인 경우, **자산 매입(Acquisition), 타사 투자, 배당 발표** 소식은 이 기업의 가장 중요한 **본체 뉴스**입니다. 이를 '단순 투자자 언급'으로 착각하여 제외하지 말고 반드시 포함하세요.
+                         ❌ **배제 대상**: 타사의 사업 뉴스에서 '{search_name}'이 단순히 수많은 주주 명단 중 하나로 나열되거나, 아주 비중 적게 언급된 기사만 배제하세요.
+                       - [Context Match]: 단순 주가 수치 나열보다는 기업의 전략, 상장, 실적, 공시 등 기업 가치에 실질적 영향을 주는 맥락을 우선하세요.
+                    
                     3. 기간: [{one_year_ago}] 부터 [{current_date}] 사이의 뉴스만 포함하세요.
-                    4. 추출: 위 논리에 부합하는 최신 뉴스를 최대 5개 추출하세요. (유효한 뉴스가 없다면 억지로 채우지 마세요.)
+                    
+                    4. 추출: 위 논리에 부합하는 유효한 최신 뉴스를 최대 5개 추출하세요. 만약 필터링 결과 조건에 맞는 뉴스가 단 1건도 없다면 억지로 채우지 마세요.
                     """
                 else:
                     search_directive = "🚨 [환각 금지] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오."
