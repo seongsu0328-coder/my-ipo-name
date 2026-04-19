@@ -1455,9 +1455,9 @@ def get_search_friendly_name(name):
     # 1. 괄호 및 지역 정보 제거
     name = re.sub(r'(/DE|Cl\s*[A-Z]|Class\s*[A-Z]|\(.*\))', '', name, flags=re.IGNORECASE)
     
-    # 2. 광범위한 법인 접미사 제거 (뉴스 헤드라인에서 생략되는 단어들)
-    # 브랜드 핵심만 남기기 위해 'Management', 'Capital' 등도 포함
-    suffix_pattern = r'\b(inc|corp|corporation|co|ltd|lp|l\.p\.|plc|group|company|holdings|holdco|capital|management|sa|s\.a\.|nv|n\.v\.|ag)\b\.?'
+    # 2. 법인 접미사 제거 (뉴스 헤드라인에서 생략되는 것들)
+    # 'Holdco', 'L.P.' 등을 확실히 제거하여 'Pershing Square'만 남김
+    suffix_pattern = r'\b(inc|corp|corporation|co|ltd|lp|l\.p\.|plc|group|company|holdings|holdco|sa|s\.a\.|nv|n\.v\.|ag)\b\.?'
     name = re.sub(suffix_pattern, '', name, flags=re.IGNORECASE)
     
     name = name.strip().strip(',').strip('.').strip()
@@ -1500,11 +1500,11 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     elif is_delisted_or_otc:
         search_query = f'{safe_name} delisted OR "OTC market" OR "Form 15"'
     elif is_over_1y:
-        # 티커를 빼고 news, business 등 넓은 키워드를 사용하여 정보 누락을 방지합니다.
         search_query = f'{safe_name} news OR business OR corporate OR earnings'
     else:
-        # 신규 상장 기업
-        search_query = f'{safe_name} news OR "{ticker}" stock news'
+        # 🚀 [교정]: 티커(PS) 노이즈를 피하고, 정제된 브랜드명으로 검색하여 최신 기사 유입량 극대화
+        # "Pershing Square" stock OR "Pershing Square" IPO
+        search_query = f'"{search_name}" stock OR "{search_name}" IPO'
     # =========================================================
 
     valid_hours = 24 
@@ -1572,8 +1572,8 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                          ❌ 배제 대상: '{search_name}'이 단순히 주주로 언급되거나, 투자자로 한 줄 언급된 **타사(포트폴리오/피투자 기업)의 뉴스**는 배제하세요. (예: "A사의 주가 하락에 B투자사 손실" 기사에서 주인공이 A사라면 배제)
                          ✅ 포함 대상: '{search_name}' 본체의 상장 이슈, 본체 실적, 본체 경영진의 전략 발표, 본체의 직접적인 지배구조 변경.
                        - [Context Match]: 단순한 주가 나열 기사가 아닌, 기업의 펀더멘털이나 시장 내 입지에 관한 맥락이 있는 기사를 우선하세요.
-                    3. 추출: 위 논리에 부합하는 최신 뉴스를 최대 5개 추출하세요. (유효한 뉴스가 없다면 억지로 채우지 마세요.)
-                    4. 기간: [{one_year_ago}] 부터 [{current_date}] 사이의 뉴스만 포함하세요.
+                    3. 기간: [{one_year_ago}] 부터 [{current_date}] 사이의 뉴스만 포함하세요.
+                    4. 추출: 위 논리에 부합하는 최신 뉴스를 최대 5개 추출하세요. (유효한 뉴스가 없다면 억지로 채우지 마세요.)
                     """
                 else:
                     search_directive = "🚨 [환각 금지] 오직 아래 제공된 [Part 1] 텍스트 데이터만을 사용하여 작성하십시오."
