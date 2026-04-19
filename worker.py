@@ -1507,7 +1507,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         search_query = f'{safe_name} news OR business OR corporate OR earnings'
     else:
         # 신규 상장 기업
-        search_query = f'{safe_name} IPO news OR "stock debut" OR "going public"'
+        search_query = f'{safe_name} news OR "{ticker}" stock news'
     # =========================================================
 
     valid_hours = 24 
@@ -1570,7 +1570,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     🚨 [강제 검색 및 필터링 지시]: 
                     FMP 데이터가 부족하므로 Google Search 도구를 사용하여 반드시 다음 지침을 따르세요:
                     1. 검색 쿼리: `{search_query}` 로 검색하여 최대한 넓게 데이터를 확보하세요.
-                    2. 필터링(Exclusion): '{search_name}' 또는 '{ticker}'와 관련된 주식, 상장, 비즈니스 기사라면 법인 접미사(Holdco, L.P 등)가 생략되었더라도 반드시 포함하세요. 단, 기업과 무관한 '공원(Park)'이나 '인물' 기사만 배제하세요.
+                    2. 필터링(Exclusion): '{search_name}' 기업의 비즈니스, 투자, 공시와 관련된 뉴스라면 'IPO'라는 단어가 없더라도 반드시 포함하세요. 
                     3. 추출: 필터링을 거쳐 유효하다고 판단된 최신 뉴스만 최대 5개 추출하세요. 억지로 채우지 마세요.
                     4. 기간: [{one_year_ago}] 부터 [{current_date}] 사이의 뉴스만 포함하세요.
                     """
