@@ -1008,18 +1008,18 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
             continue
 
-        # 🚀 [교정] 중복 체크 로직에 로그 추가 및 강제 재분석 가능하도록 보완
+        # 🚀 [교정] 중복 체크 로직 (Undefined Variable 에러 해결 버전)
         tracker_key = f"{company_name}_{topic}_LastAccNum"
+        is_skip = False # 변수 초기화
         try:
             res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
             if res_tracker.data and res_tracker.data[0]['content'] == acc_num:
-                # 💡 분석은 성공했는데 리포트 데이터가 없는 경우를 대비해 실제 리포트 존재 여부도 체크하면 좋지만,
-                # 우선 로그를 찍어 스킵 사유를 명확히 함
                 print(f"⏩ [{ticker}] {topic}는 이미 분석된 최신 서류입니다. (스킵)")
-                continue 
+                is_skip = True 
         except: pass
 
-        if is_already_analyzed:
+        # 중복된 서류라면 다음 서류(topic)로 넘어감
+        if is_skip:
             continue
 
         # 새 문서일 때만 다운로드
