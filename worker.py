@@ -174,10 +174,13 @@ def fetch_sec_metadata(ticker, doc_type, api_key, cik=None):
                 filings = sec_res.json().get('filings', {}).get('recent', {})
                 forms = filings.get('form', [])
                 for i, form in enumerate(forms):
-                    # 사용자가 원하는 doc_type과 정확히 일치하는지 검사
-                    if doc_type.upper() == str(form).upper():
+                    # 🚀 [교정] SEC의 'S-1/A'는 'S-1/A ' 처럼 공백이 포함될 수 있으므로 strip() 처리
+                    # 또한 'S-1' 검색 시 'S-1/A'가 걸리지 않도록 정확히 일치하는지 확인
+                    clean_form = str(form).upper().strip()
+                    if doc_type.upper() == clean_form:
                         accession_num = filings.get('accessionNumber', [])[i]
                         filed_date = filings.get('filingDate', [])[i]
+                        print(f"✅ [SEC 직접 매칭 성공] {ticker} - {clean_form}")
                         break
         return accession_num, filed_date
     except: return None, None
@@ -954,28 +957,27 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 # 4. 분석 완료 후 트래커 갱신 (다음 실행 때 스킵)
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_8k, "content": acc_num_8k, "updated_at": datetime.now().isoformat()}], "cache_key")
 
-    # =========================================================
-    # 🚀 [교정] 통합 서류 루프 (티커 Fallback 적용)
-    # =========================================================
+    # ==========================================================================
+    # 🚀 [교정] 각 토픽별로 '정확히' 해당 서류만 찾도록 우선순위 로직을 엄격히 분리
+    # ==========================================================================
     for topic in target_topics:
         acc_num, f_date = None, None
         
-        # 검색 대상 설정
-        if topic in ["BS", "IS", "CF", "10-K"]: priority_targets = ["10-K", "10-K/A", "20-F", "20-F/A"]
-        elif topic == "10-Q": priority_targets = ["10-Q", "10-Q/A"] 
-        elif topic == "F-1": priority_targets = ["F-1", "F-1/A", "20-F"] 
-        elif topic == "S-1": priority_targets = ["S-1", "S-1/A"]
-        elif topic == "424B4": priority_targets = ["424B4", "424B3", "424B5"]
+        # 💡 생애 주기별 탭(Tab) 구성을 유지하면서, 각 서류가 자기 자리를 찾게 함
+        if topic == "10-K": priority_targets = ["10-K", "20-F"]
+        elif topic == "10-Q": priority_targets = ["10-Q", "6-K"]
+        elif topic in ["BS", "IS", "CF"]: priority_targets = ["10-K", "20-F", "10-Q", "6-K"]
+        # 💡 S-1 탭에서는 S-1만, S-1/A 탭에서는 S-1/A만 찾도록 하여 PS 사례의 오버라이트 방지
         else: priority_targets = [topic]
 
+        print(f"🔍 [{ticker}] {topic} 공시 탐색 중...") 
+
         for target in priority_targets:
-            # 💡 [교정] 1차 시도: 현재 티커 (예: NHPBP)
+            # 1차 시도: 현재 티커
             acc_num, f_date = fetch_sec_metadata(ticker, target, FMP_API_KEY, cik)
-            
-            # 💡 [교정] 2차 시도: 실패 시 원본 티커로 재시도 (예: PS, NHP)
+            # 2차 시도: 실패 시 원본 티커 (PS 같은 특수 사례 방어)
             if not acc_num and original_ticker and original_ticker != ticker:
                 acc_num, f_date = fetch_sec_metadata(original_ticker, target, FMP_API_KEY, cik)
-            
             if acc_num: break
 
         # 서류가 아예 없는 경우 안내 메시지 생성 (이미 데이터가 있는 경우는 제외)
