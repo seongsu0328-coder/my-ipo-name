@@ -1540,6 +1540,11 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     news_url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={ticker}&limit=15&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_15", news_url, valid_hours=6)
     
+    # 🚀 [여기에 아래 코드 추가] 우선주로 뉴스가 없으면 일반주(base_ticker)로 재요청
+    if not news_data and ticker != base_ticker:
+        news_url_base = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={base_ticker}&limit=15&apikey={FMP_API_KEY}"
+        news_data = get_fmp_data_with_cache(base_ticker, "RAW_NEWS_15_BASE", news_url_base, valid_hours=6)
+    
     # 🚀 [수정] 뉴스 필터링 시 우선주(ticker)와 일반주(base_ticker) 둘 중 하나라도 포함되면 유효한 것으로 인정
     valid_news = [
         n for n in (news_data or []) 
@@ -1594,7 +1599,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     1. 검색 쿼리: `{search_query}`
                     
                     2. 필터링 원칙 (Exclusion Logic):
-                       - [Subject Lineage (주체 연계성)]: 대상 기업이 모기업의 자회사이거나 특정 브랜드 그룹에 속한 경우, **모기업(Parent Company)이나 그룹 명의로 보도된 소식**이라도 해당 티커({ticker})의 사업이나 주식 발행과 연관이 있다면 주인공으로 인정하여 절대 배제하지 마세요.
+                       - [Subject Lineage (주체 연계성)]: 대상 기업이 모기업의 자회사이거나 특정 브랜드 그룹에 속한 경우, **모기업(Parent Company)이나 그룹 명의로 보도된 소식**이라도 해당 티커({base_ticker})의 사업이나 주식 발행과 연관이 있다면 주인공으로 인정하여 절대 배제하지 마세요.
                        - [Relevance Over Precision (정확도보다 연관성)]: 이름이 100% 일치하지 않더라도, 기사 내용이 해당 기업의 상장, 실적, 자산 매입 등을 다루고 있다면 포함하세요. 단, 동명의 공원이나 무관한 인물 기사만 철저히 배제하세요.
                        - [No Hallucination (환각 금지)]: 검색 결과에 유효한 뉴스가 없다면 **절대 가상의 예시를 지어내지 마세요.** 뉴스가 없다면 빈 리스트([])를 반환하는 것이 정답입니다.
                     
@@ -1694,7 +1699,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             # 💡 [수정] Prompt 조립 단계에서 명확한 분리 지시 추가
             prompt = f"""
             {sys_prompt}
-            분석 대상: {company_name} ({ticker})
+            분석 대상: {company_name} (종목코드: {ticker}, 본주: {base_ticker})
             오늘 날짜: {current_date}
 
             [Part 1: Official Business Profile (Source: FMP)]
