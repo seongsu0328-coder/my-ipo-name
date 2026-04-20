@@ -150,6 +150,16 @@ SUPPORTED_LANGS = {
     'zh': '简体中文(Simplified Chinese)'
 }
 
+def get_base_ticker(ticker):
+    """우선주 티커에서 일반주 티커를 유추합니다. (예: NHPBP -> NHP, T-P -> T)"""
+    if not ticker or len(ticker) <= 3: return ticker
+    # 하이픈이나 점이 있는 경우 앞부분만 추출
+    if '-' in ticker: return ticker.split('-')[0]
+    if '.' in ticker: return ticker.split('.')[0]
+    # 끝자리가 BP, PR로 끝나는 5자 이상의 티커 대응
+    if len(ticker) >= 5 and ticker.endswith(('BP', 'PR')): return ticker[:-2]
+    return ticker
+
 # (A) 메타데이터(Accession Number)만 가져오는 가벼운 함수
 def fetch_sec_metadata(ticker, doc_type, api_key, cik=None):
     try:
@@ -458,13 +468,6 @@ def get_ticker_from_cik(cik_str):
 
 
 # ==========================================
-# [추가] 프리미엄 유저 대상 통계적 급등 알림 엔진 (FMP 최적화 버전)
-# ==========================================
-
-
-
-
-# ==========================================
 # [SEC EDGAR API 헬퍼 함수] 
 # ==========================================
 SEC_HEADERS = {'User-Agent': 'UnicornFinder App admin@unicornfinder.com'}
@@ -612,8 +615,6 @@ def fetch_fmp_earnings_call(symbol, api_key):
             return f"[Quarter: {quarter} / Year: {year}]\n{content}..."
         return "No earnings call transcript available."
     except: return "No earnings call transcript available."
-
-
 
 # ==========================================
 # [완전 교체] run_tab0_analysis 함수 (에러 영구 차단 + 20-F 하이브리드 탐색)
@@ -1485,6 +1486,9 @@ def get_search_friendly_name(name):
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return
     
+    # 🚀 [추가] 일반주 티커 추출 (우선주 NHPBP -> 일반주 NHP)
+    base_ticker = get_base_ticker(ticker)
+    
     # 💡 [추가] 구글 검색을 위한 최적화된 기업명 추출
     search_name = get_search_friendly_name(company_name)
     
@@ -1506,9 +1510,6 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     except: pass
 
     # =========================================================
-    # 🚀 [본질적 개선]: 티커(PS 등)의 노이즈를 피하기 위해 Ticker 검색을 배제하고 
-    # 기업 고유 명칭(search_name) 중심으로 검색 범위를 넓힙니다.
-    # =========================================================
     safe_name = f'"{search_name}"'
 
     if is_withdrawn:
@@ -1518,9 +1519,8 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     elif is_over_1y:
         search_query = f'{safe_name} news OR business OR corporate OR earnings'
     else:
-        # 🚀 [교정] 큰따옴표를 제거하여 구글의 유연한 검색(Fuzzy Match)을 유도하고, 
-        # 티커와 핵심 단어 위주로 결합하여 검색 결과 노출량을 극대화함
-        search_query = f'{search_name} news {ticker} OR {search_name} stock'
+        # 🚀 [수정] ticker 대신 base_ticker를 사용하여 구글 검색 노이즈 완화
+        search_query = f'{search_name} news {base_ticker} OR {search_name} stock'
     # =========================================================
 
     valid_hours = 24 
@@ -1529,14 +1529,24 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     # 1. 원본 데이터 수집
     profile_url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={FMP_API_KEY}"
     profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
+    
+    # 🚀 [추가] 만약 우선주로 프로필을 못 가져오면 일반주(base_ticker)로 한 번 더 시도
+    if not profile_data and ticker != base_ticker:
+        profile_url_base = f"https://financialmodelingprep.com/stable/profile?symbol={base_ticker}&apikey={FMP_API_KEY}"
+        profile_data = get_fmp_data_with_cache(base_ticker, "PROFILE", profile_url_base, valid_hours=168)
+
     biz_desc = profile_data[0].get('description') or "" if profile_data else ""
 
     news_url = f"https://financialmodelingprep.com/stable/news/stock-latest?symbol={ticker}&limit=15&apikey={FMP_API_KEY}"
     news_data = get_fmp_data_with_cache(ticker, "RAW_NEWS_15", news_url, valid_hours=6)
     
+    # 🚀 [수정] 뉴스 필터링 시 우선주(ticker)와 일반주(base_ticker) 둘 중 하나라도 포함되면 유효한 것으로 인정
     valid_news = [
         n for n in (news_data or []) 
-        if n and ticker.upper() in [s.strip().upper() for s in str(n.get('symbol', '')).split(',')]
+        if n and (
+            ticker.upper() in [s.strip().upper() for s in str(n.get('symbol', '')).split(',')] or
+            base_ticker.upper() in [s.strip().upper() for s in str(n.get('symbol', '')).split(',')]
+        )
     ]
     fmp_news_context = "\n".join([f"- Title: {n.get('title')} | Date: {n.get('publishedDate')} | Link: {n.get('url')}" for n in valid_news])
 
