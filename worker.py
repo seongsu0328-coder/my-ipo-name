@@ -67,6 +67,7 @@ else:
 # 3. AI 모델 설정 (하이브리드 전략: 엄격 모델 & 검색 허용 모델 분리)
 import sys
 import random
+import time
 
 model_strict = None
 model_search = None
@@ -74,12 +75,42 @@ if GENAI_API_KEY:
     try:
         client = genai.Client(api_key=GENAI_API_KEY)
         
-        # [1] 환각 원천 차단용 일반 모델
+        # [1] 환각 차단 + 토큰 스로틀링 + 지수 백오프가 결합된 완벽한 래퍼
         class StrictModelWrapper:
             def __init__(self, client):
                 self.client = client
+                # 💡 분당 토큰 한도 (TPM) 보수적 설정 (약 80만 토큰)
+                self.tpm_limit = 800000 
+                self.current_minute_tokens = 0
+                self.minute_start_time = time.time()
+
+            def _wait_if_needed(self, estimated_tokens):
+                """요청 전 토큰 한도를 계산하여 스스로 대기(Pacing)합니다."""
+                now = time.time()
+                elapsed = now - self.minute_start_time
+
+                if elapsed > 60:
+                    self.current_minute_tokens = 0
+                    self.minute_start_time = now
+
+                if self.current_minute_tokens + estimated_tokens > self.tpm_limit:
+                    sleep_time = 60 - elapsed + 1.0
+                    if sleep_time > 0:
+                        print(f"🚦 [TPM 통제] 분당 토큰 한도 도달 임박. 쿼터 갱신을 위해 {sleep_time:.1f}초 스스로 대기합니다...")
+                        time.sleep(sleep_time)
+                    self.current_minute_tokens = 0
+                    self.minute_start_time = time.time()
+
+                self.current_minute_tokens += estimated_tokens
+
             def generate_content(self, prompt):
-                for attempt in range(2): # 최대 2번만 시도
+                estimated_tokens = len(prompt) // 3
+                self._wait_if_needed(estimated_tokens)
+
+                max_retries = 6  # 최대 6번 재시도 (약 15분까지 버팀)
+                base_delay = 15  # 기본 대기 15초
+
+                for attempt in range(max_retries):
                     try:
                         return self.client.models.generate_content(
                             model='gemini-2.0-flash',
@@ -87,19 +118,17 @@ if GENAI_API_KEY:
                         )
                     except Exception as e:
                         err_str = str(e).lower()
-                        # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료 (스팸 방지)
-                       
-                            
-                        # 단순 속도 제한일 경우 30초 대기 후 딱 1번만 재시도
-                        if "429" in err_str or "quota" in err_str:
-                            if attempt == 0:
-                                time.sleep(30)
-                                continue
-                        raise e
+                        if "429" in err_str or "quota" in err_str or "exhausted" in err_str or "503" in err_str:
+                            sleep_time = base_delay * (2 ** attempt) + random.uniform(1, 5)
+                            print(f"⚠️ [API 과부하(Strict)] 429 한도 초과. {sleep_time:.1f}초 대기 후 재시도합니다... ({attempt+1}/{max_retries})")
+                            time.sleep(sleep_time)
+                        else:
+                            raise e
+                raise Exception("StrictModel: API Rate Limit(429)을 여러 번의 대기 후에도 극복하지 못했습니다.")
 
         model_strict = StrictModelWrapper(client)
         
-        # [2] 하이브리드 엔진 (REST API)
+        # [2] 하이브리드 엔진 (REST API) - 지수 백오프 방어막 추가
         class DirectGeminiSearch:
             def __init__(self, api_key):
                 self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
@@ -109,7 +138,10 @@ if GENAI_API_KEY:
                 class MockResponse:
                     def __init__(self, text): self.text = text
                 
-                for attempt in range(2):
+                max_retries = 6
+                base_delay = 15
+
+                for attempt in range(max_retries):
                     try:
                         res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
                         
@@ -121,23 +153,24 @@ if GENAI_API_KEY:
                                     if "text" in part: text_output += part["text"]
                             return MockResponse(text_output)
                             
-                        elif res.status_code == 429:
-                            err_str = res.text.lower()
-                            # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료
-                            
-                                
-                            if attempt == 0:
-                                time.sleep(30)
-                                continue
-                            raise Exception(f"429 Limit: {res.text}")
+                        elif res.status_code == 429 or res.status_code == 503:
+                            sleep_time = base_delay * (2 ** attempt) + random.uniform(1, 5)
+                            print(f"⚠️ [API 과부하(Search)] 429 한도 초과. {sleep_time:.1f}초 대기 후 재시도합니다... ({attempt+1}/{max_retries})")
+                            time.sleep(sleep_time)
+                            continue
                         else:
+                            # 429/503이 아닌 다른 에러는 무시하고 빈 텍스트 반환
                             return MockResponse("")
+                            
                     except Exception as e:
                         if "exit" in str(type(e)).lower(): sys.exit(1)
-                        raise e
+                        print(f"⚠️ [Search API 에러] {e}")
+                        time.sleep(5)
+                        
+                raise Exception("DirectSearch: API Rate Limit(429)을 여러 번의 대기 후에도 극복하지 못했습니다.")
 
         model_search = DirectGeminiSearch(GENAI_API_KEY)
-        print("✅ AI 하이브리드 모델 로드 성공 (결제 한도 초과 시 셧다운 방어막 가동!)")
+        print("✅ AI 하이브리드 모델 로드 성공 (지능형 토큰 통제 & 지수 백오프 방어막 가동!)")
 
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
