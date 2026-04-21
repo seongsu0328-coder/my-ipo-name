@@ -79,7 +79,8 @@ if GENAI_API_KEY:
             def __init__(self, client):
                 self.client = client
             def generate_content(self, prompt):
-                for attempt in range(2): # 최대 2번만 시도
+                # 💡 [수정] 재시도 횟수 3회로 증가, 대기 시간 기하급수적 증가(Exponential Backoff)
+                for attempt in range(3): 
                     try:
                         return self.client.models.generate_content(
                             model='gemini-2.0-flash',
@@ -87,13 +88,12 @@ if GENAI_API_KEY:
                         )
                     except Exception as e:
                         err_str = str(e).lower()
-                        # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료 (스팸 방지)
-                       
-                            
-                        # 단순 속도 제한일 경우 30초 대기 후 딱 1번만 재시도
+                        # 429(한도초과) 또는 quota 에러 발생 시
                         if "429" in err_str or "quota" in err_str:
-                            if attempt == 0:
-                                time.sleep(30)
+                            if attempt < 2:
+                                wait_time = 40 * (attempt + 1) # 1차: 40초, 2차: 80초 대기
+                                print(f"⏳ [API 한도 초과 방어] 구글 토큰 한도 도달. {wait_time}초 대기 후 재시도합니다...")
+                                time.sleep(wait_time)
                                 continue
                         raise e
 
@@ -109,7 +109,8 @@ if GENAI_API_KEY:
                 class MockResponse:
                     def __init__(self, text): self.text = text
                 
-                for attempt in range(2):
+                # 💡 [수정] 동일하게 재시도 횟수 3회 및 대기 시간 강화
+                for attempt in range(3):
                     try:
                         res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
                         
@@ -123,11 +124,10 @@ if GENAI_API_KEY:
                             
                         elif res.status_code == 429:
                             err_str = res.text.lower()
-                            # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료
-                            
-                                
-                            if attempt == 0:
-                                time.sleep(30)
+                            if attempt < 2:
+                                wait_time = 40 * (attempt + 1)
+                                print(f"⏳[검색 API 한도 초과 방어] {wait_time}초 대기 후 재시도...")
+                                time.sleep(wait_time)
                                 continue
                             raise Exception(f"429 Limit: {res.text}")
                         else:
@@ -1358,10 +1358,17 @@ def run_tab2_premium_collection(ticker, company_name):
     """Tab 2: ESG (매일 감시하되 변경점 없으면 AI 스킵)"""
     if 'model_strict' not in globals() or not model_strict: return
     
-    try: # [1] 메인 try 시작
+    base_ticker = get_base_ticker(ticker) # 💡 추가
+    
+    try: 
         url = f"https://financialmodelingprep.com/stable/esg-ratings?symbol={ticker}&apikey={FMP_API_KEY}"
-        esg_raw = get_fmp_data_with_cache(ticker, "RAW_ESG", url, valid_hours=24) # 매일 확인
+        esg_raw = get_fmp_data_with_cache(ticker, "RAW_ESG", url, valid_hours=24) 
         
+        # 💡 [추가] 우선주로 실패 시 모기업으로 재탐색
+        if (not isinstance(esg_raw, list) or len(esg_raw) == 0) and ticker != base_ticker:
+            url_base = f"https://financialmodelingprep.com/stable/esg-ratings?symbol={base_ticker}&apikey={FMP_API_KEY}"
+            esg_raw = get_fmp_data_with_cache(base_ticker, "RAW_ESG", url_base, valid_hours=24)
+
         if not isinstance(esg_raw, list) or len(esg_raw) == 0:
             return
 
@@ -3321,11 +3328,13 @@ def update_macro_data(df):
     g2_context = f"Risk/Supply (Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%)"
     g3_context = f"Macro/Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
 
+    macro_success = False # 💡 [핵심] 성공 여부를 판별하는 플래그 추가
+
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_summary = f"Global_Market_Summary_{lang_code}"
         cache_key_full = f"Global_Market_Dashboard_{lang_code}"
         
-        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약
+        # 💡[Call 1] 완전히 독립된 3개의 UI 카드 요약
         if lang_code == 'ko':
             sum_p = f"월가 수석 전략가로서 다음 3개 그룹의 데이터를 바탕으로 3개의 독립적인 대시보드 카드 요약을 작성하세요.\n[1번 카드 데이터]: {g1_context}\n[2번 카드 데이터]: {g2_context}\n[3번 카드 데이터]: {g3_context}"
             sum_i = """
@@ -3356,8 +3365,7 @@ def update_macro_data(df):
             """
         elif lang_code == 'zh':
             sum_p = f"作为华尔街首席策略师，请根据以下三组数据撰写3份独立的仪表板卡片摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}"
-            sum_i = """
-            [UI卡片规则 - 严格遵守]
+            sum_i = """[UI卡片规则 - 严格遵守]
             1. 仅输出3段完全独立的文本。严禁使用数字编号或标题（如“卡片1”）。
             2. 格式: (结合初期收益率与撤回率诊断投机狂热 3-4句话) |||SEP||| (结合上市排队数量与亏损企业占比分析供给风险 3-4句话) |||SEP||| (结合VIX、恐慌贪婪指数、巴菲特指标和PE评估宏观过热 3-4句话)
             3. 仅使用 '|||SEP|||' 作为分隔符，段落之间不要换行。
@@ -3365,7 +3373,6 @@ def update_macro_data(df):
             """
 
         # 💡[Call 2] 하단 전문 (지표 통합 및 인과관계 중심의 단일 단락)
-        # 모든 지표를 하나의 텍스트 덩어리로 합칩니다 (경계 해체)
         all_macro_metrics = f"VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, S&P500 PE: {data['pe_ratio']}x, Buffett Indicator: {data['buffett_val']}%, IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%, Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%"
 
         if lang_code == 'ko':
@@ -3409,11 +3416,10 @@ def update_macro_data(df):
         try:
             res_sum = model_strict.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
-                batch_upsert("analysis_cache", [{
+                batch_upsert("analysis_cache",[{
                     "cache_key": cache_key_summary, 
                     "content": res_sum.text.strip(), 
                     "updated_at": datetime.now().isoformat(),
-                    # --- 신규 태그 추가 ---
                     "ticker": "MARKET",
                     "tier": "free",
                     "tab_name": "tab2",
@@ -3423,11 +3429,10 @@ def update_macro_data(df):
         
             res_full = model_strict.generate_content(full_p + full_i)
             if res_full and res_full.text:
-                batch_upsert("analysis_cache", [{
+                batch_upsert("analysis_cache",[{
                     "cache_key": cache_key_full, 
                     "content": res_full.text.strip(), 
                     "updated_at": datetime.now().isoformat(),
-                    # --- 신규 태그 추가 ---
                     "ticker": "MARKET",
                     "tier": "free",
                     "tab_name": "tab2",
@@ -3436,32 +3441,44 @@ def update_macro_data(df):
                 }], on_conflict="cache_key")
                 
             print(f"✅ 거시 지표 AI 분석 완료 ({lang_code})")
+            macro_success = True # 💡 [핵심] 한 번이라도 성공하면 True로 변경
         except Exception as e:
             print(f"❌ 거시 지표 AI 에러 ({lang_code}): {e}")
 
-    # 💡 [과금 방어막 3] 요약 완료 후 트래커 갱신
-    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_macro_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+        time.sleep(3) # 💡 [추가] 토큰 폭격을 막기 위해 1개 언어 분석이 끝나면 3초 쉬어줍니다.
+
+    # 💡 [과금 방어막 3] 에러가 나서 텍스트를 못 만들었으면 Tracker를 갱신하지 않음!
+    # 그래야 다음번에 워커를 켤 때 스킵하지 않고 다시 요약을 시도합니다.
+    if macro_success:
+        batch_upsert("analysis_cache",[{"cache_key": tracker_key, "content": current_macro_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
 # ==========================================
 # [수정] Tab 6: 스마트머니 통합 데이터 수집 (국회의원 & 공매도 추가)
 # ==========================================
 def fetch_smart_money_data(symbol, api_key):
     """FMP API 4종 세트를 캐싱 방어막과 함께 수집합니다."""
-    data = {"insider": [], "institutional": [], "senate": [], "fail_to_deliver": []}
+    data = {"insider": [], "institutional": [], "senate":[], "fail_to_deliver":[]}
+    base_ticker = get_base_ticker(symbol) # 💡 추가
     
-    in_url = f"https://financialmodelingprep.com/stable/insider-trading?symbol={symbol}&limit=10&apikey={api_key}"
-    data["insider"] = get_fmp_data_with_cache(symbol, "SMART_IN", in_url) or []
+    # 내부 함수: 본주 Fallback 지원
+    def get_with_fallback(api_type, url_template):
+        res = get_fmp_data_with_cache(symbol, api_type, url_template.format(sym=symbol))
+        if (not isinstance(res, list) or len(res) == 0) and symbol != base_ticker:
+            res = get_fmp_data_with_cache(base_ticker, api_type, url_template.format(sym=base_ticker))
+        return res if isinstance(res, list) else []
 
-    inst_url = f"https://financialmodelingprep.com/stable/institutional-ownership?symbol={symbol}&apikey={api_key}"
-    res_inst = get_fmp_data_with_cache(symbol, "SMART_INST", inst_url)
-    data["institutional"] = res_inst[:10] if isinstance(res_inst, list) else []
+    # 💡 [수정] 포맷 문자열로 변경하여 Fallback 지원
+    in_url_tmpl = "https://financialmodelingprep.com/stable/insider-trading?symbol={sym}&limit=10&apikey=" + api_key
+    data["insider"] = get_with_fallback("SMART_IN", in_url_tmpl)
+
+    inst_url_tmpl = "https://financialmodelingprep.com/stable/institutional-ownership?symbol={sym}&apikey=" + api_key
+    data["institutional"] = get_with_fallback("SMART_INST", inst_url_tmpl)[:10]
     
-    sen_url = f"https://financialmodelingprep.com/stable/senate-trading?symbol={symbol}&apikey={api_key}"
-    res_sen = get_fmp_data_with_cache(symbol, "SMART_SENATE", sen_url)
-    data["senate"] = res_sen[:5] if isinstance(res_sen, list) else []
+    sen_url_tmpl = "https://financialmodelingprep.com/stable/senate-trading?symbol={sym}&apikey=" + api_key
+    data["senate"] = get_with_fallback("SMART_SENATE", sen_url_tmpl)[:5]
     
-    ftd_url = f"https://financialmodelingprep.com/stable/fail-to-deliver?symbol={symbol}&apikey={api_key}"
-    data["fail_to_deliver"] = get_fmp_data_with_cache(symbol, "SMART_FTD", ftd_url) or []
+    ftd_url_tmpl = "https://financialmodelingprep.com/stable/fail-to-deliver?symbol={sym}&apikey=" + api_key
+    data["fail_to_deliver"] = get_with_fallback("SMART_FTD", ftd_url_tmpl)
 
     return data
 
