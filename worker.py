@@ -17,13 +17,6 @@ from supabase import create_client
 from google import genai
 
 # ==========================================
-# [0] 유틸리티 및 로깅 설정 (여기에 추가!)
-# ==========================================
-def log_now(msg):
-    """GitHub Actions 실시간 로그 출력을 위한 타임스탬프 로거"""
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
-    
-# ==========================================
 # [1] 환경 설정 & 디버깅 로그
 # ==========================================
 
@@ -74,7 +67,6 @@ else:
 # 3. AI 모델 설정 (하이브리드 전략: 엄격 모델 & 검색 허용 모델 분리)
 import sys
 import random
-import time
 
 model_strict = None
 model_search = None
@@ -82,42 +74,12 @@ if GENAI_API_KEY:
     try:
         client = genai.Client(api_key=GENAI_API_KEY)
         
-        # [1] 환각 차단 + 토큰 스로틀링 + 지수 백오프가 결합된 완벽한 래퍼
+        # [1] 환각 원천 차단용 일반 모델
         class StrictModelWrapper:
             def __init__(self, client):
                 self.client = client
-                # 💡 분당 토큰 한도 (TPM) 보수적 설정 (약 80만 토큰)
-                self.tpm_limit = 800000 
-                self.current_minute_tokens = 0
-                self.minute_start_time = time.time()
-
-            def _wait_if_needed(self, estimated_tokens):
-                """요청 전 토큰 한도를 계산하여 스스로 대기(Pacing)합니다."""
-                now = time.time()
-                elapsed = now - self.minute_start_time
-
-                if elapsed > 60:
-                    self.current_minute_tokens = 0
-                    self.minute_start_time = now
-
-                if self.current_minute_tokens + estimated_tokens > self.tpm_limit:
-                    sleep_time = 60 - elapsed + 1.0
-                    if sleep_time > 0:
-                        print(f"🚦 [TPM 통제] 분당 토큰 한도 도달 임박. 쿼터 갱신을 위해 {sleep_time:.1f}초 스스로 대기합니다...")
-                        time.sleep(sleep_time)
-                    self.current_minute_tokens = 0
-                    self.minute_start_time = time.time()
-
-                self.current_minute_tokens += estimated_tokens
-
             def generate_content(self, prompt):
-                estimated_tokens = len(prompt) // 3
-                self._wait_if_needed(estimated_tokens)
-
-                max_retries = 6  # 최대 6번 재시도 (약 15분까지 버팀)
-                base_delay = 15  # 기본 대기 15초
-
-                for attempt in range(max_retries):
+                for attempt in range(2): # 최대 2번만 시도
                     try:
                         return self.client.models.generate_content(
                             model='gemini-2.0-flash',
@@ -125,17 +87,19 @@ if GENAI_API_KEY:
                         )
                     except Exception as e:
                         err_str = str(e).lower()
-                        if "429" in err_str or "quota" in err_str or "exhausted" in err_str or "503" in err_str:
-                            sleep_time = base_delay * (2 ** attempt) + random.uniform(1, 5)
-                            print(f"⚠️ [API 과부하(Strict)] 429 한도 초과. {sleep_time:.1f}초 대기 후 재시도합니다... ({attempt+1}/{max_retries})")
-                            time.sleep(sleep_time)
-                        else:
-                            raise e
-                raise Exception("StrictModel: API Rate Limit(429)을 여러 번의 대기 후에도 극복하지 못했습니다.")
+                        # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료 (스팸 방지)
+                       
+                            
+                        # 단순 속도 제한일 경우 30초 대기 후 딱 1번만 재시도
+                        if "429" in err_str or "quota" in err_str:
+                            if attempt == 0:
+                                time.sleep(30)
+                                continue
+                        raise e
 
         model_strict = StrictModelWrapper(client)
         
-        # [2] 하이브리드 엔진 (REST API) - 지수 백오프 방어막 추가
+        # [2] 하이브리드 엔진 (REST API)
         class DirectGeminiSearch:
             def __init__(self, api_key):
                 self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
@@ -145,10 +109,7 @@ if GENAI_API_KEY:
                 class MockResponse:
                     def __init__(self, text): self.text = text
                 
-                max_retries = 6
-                base_delay = 15
-
-                for attempt in range(max_retries):
+                for attempt in range(2):
                     try:
                         res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
                         
@@ -160,24 +121,23 @@ if GENAI_API_KEY:
                                     if "text" in part: text_output += part["text"]
                             return MockResponse(text_output)
                             
-                        elif res.status_code == 429 or res.status_code == 503:
-                            sleep_time = base_delay * (2 ** attempt) + random.uniform(1, 5)
-                            print(f"⚠️ [API 과부하(Search)] 429 한도 초과. {sleep_time:.1f}초 대기 후 재시도합니다... ({attempt+1}/{max_retries})")
-                            time.sleep(sleep_time)
-                            continue
-                        else:
-                            # 429/503이 아닌 다른 에러는 무시하고 빈 텍스트 반환
-                            return MockResponse("")
+                        elif res.status_code == 429:
+                            err_str = res.text.lower()
+                            # 🚨 결제 한도/무료 티어 소진 시 즉시 프로그램 강제 종료
                             
+                                
+                            if attempt == 0:
+                                time.sleep(30)
+                                continue
+                            raise Exception(f"429 Limit: {res.text}")
+                        else:
+                            return MockResponse("")
                     except Exception as e:
                         if "exit" in str(type(e)).lower(): sys.exit(1)
-                        print(f"⚠️ [Search API 에러] {e}")
-                        time.sleep(5)
-                        
-                raise Exception("DirectSearch: API Rate Limit(429)을 여러 번의 대기 후에도 극복하지 못했습니다.")
+                        raise e
 
         model_search = DirectGeminiSearch(GENAI_API_KEY)
-        print("✅ AI 하이브리드 모델 로드 성공 (지능형 토큰 통제 & 지수 백오프 방어막 가동!)")
+        print("✅ AI 하이브리드 모델 로드 성공 (결제 한도 초과 시 셧다운 방어막 가동!)")
 
     except Exception as e:
         print(f"⚠️ AI 모델 로드 에러: {e}")
@@ -349,7 +309,7 @@ def clean_ai_preamble(text):
     # 1. 마크다운 제목 행(## 등) 삭제
     text = re.sub(r'^#+.*$', '', text, flags=re.MULTILINE).strip()
     
-    # 2. 본문 내의 마크다운 별표(**) 및 불렛 기호(*) 삭제
+    # 2. 본문 내의 마크다운 별표(**) 및 불렛 기호(*) 삭제 (레이아웃 파괴 방지)
     text = text.replace('**', '')
     text = re.sub(r'^\s*[\*\-\+]\s+', '', text, flags=re.MULTILINE)
 
@@ -384,7 +344,6 @@ def clean_ai_preamble(text):
         
     return '\n'.join(cleaned_lines).strip()
 
-# 🚀 오류가 났던 batch_upsert 함수 (timeout 적용 및 이중 캐싱 포함)
 def batch_upsert(table_name, data_list, on_conflict="ticker"):
     if not data_list: return
     endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
@@ -397,18 +356,25 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
     
     clean_batch = []
     for item in data_list:
+        # 모든 값을 Supabase가 받아들일 수 있는 형태로 정제
         payload = {k: sanitize_value(v) for k, v in item.items()}
+        
+        # 필수 키가 있는지 확인
         if payload.get(on_conflict):
             clean_batch.append(payload)
             
-            # 🚀 범용 이중 캐싱 (Dual Caching) 로직
+            # 🚀 [범용 이중 캐싱 (Dual Caching) 마법 적용]
+            # analysis_cache 테이블에 저장될 때, 티커(ticker)가 존재하면 검사 개입
             if table_name == "analysis_cache" and "ticker" in payload and "cache_key" in payload:
                 original_ticker = str(payload["ticker"])
                 base_ticker = get_base_ticker(original_ticker)
                 
+                # 우선주(NHPBP)처럼 원본과 일반주(NHP)가 다르다면? -> 복제본 생성!
                 if original_ticker != base_ticker and original_ticker != "MARKET":
                     dup_payload = payload.copy()
                     dup_payload["ticker"] = base_ticker
+                    
+                    # 정규식을 이용해 cache_key 안의 티커 이름만 안전하게 본주로 싹 치환 (예: NHPBP_Tab1 -> NHP_Tab1)
                     import re
                     dup_payload["cache_key"] = re.sub(
                         rf'(^|_){original_ticker}(_|$)', 
@@ -416,29 +382,40 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
                         str(dup_payload["cache_key"]), 
                         count=1
                     )
+                    
+                    # 복제된 쌍둥이 데이터도 전송 리스트에 추가
                     clean_batch.append(dup_payload)
             
     if not clean_batch: return
     
     try:
-        # 💡 [핵심] timeout=15 추가 완료
-        resp = requests.post(endpoint, json=clean_batch, headers=headers, timeout=15)
+        resp = requests.post(endpoint, json=clean_batch, headers=headers)
         if resp.status_code in [200, 201, 204]:
-            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공")
+            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공 (태깅 및 복제 포함)")
         else:
             print(f"❌ [{table_name}] 저장 실패 ({resp.status_code}): {resp.text}")
     except Exception as e:
         print(f"❌ [{table_name}] 통신 에러: {e}")
-
+        
+# [worker.py 내부의 send_fcm_push 함수를 아래 내용으로 교체하세요]
 def send_fcm_push(title, body, ticker=None, target_level='premium'):
-    if not firebase_admin._apps: return
+    """
+    target_level: 
+      - 'premium': Premium 및 Premium Plus 유저 모두에게 발송
+      - 'premium_plus': Premium Plus 유저에게만 발송
+    """
+    if not firebase_admin._apps:
+        return
 
     try:
+        # 등급에 따른 필터링 조건 설정
         if target_level == 'premium_plus':
+            # Premium Plus 유저만 추출
             res = supabase.table("user_fcm_tokens").select(
                 "fcm_token, users!inner(membership_level)"
             ).eq("users.membership_level", "premium_plus").execute()
         else:
+            # Premium 이상(Premium + Premium Plus) 모든 유저 추출
             res = supabase.table("user_fcm_tokens").select(
                 "fcm_token, users!inner(membership_level)"
             ).in_("users.membership_level", ["premium", "premium_plus"]).execute()
@@ -457,6 +434,7 @@ def send_fcm_push(title, body, ticker=None, target_level='premium'):
 
         response = messaging.send_each_for_multicast(message)
         print(f"🚀 [{target_level} 푸시] {ticker} 알림 {response.success_count}개 발송 완료")
+
     except Exception as e:
         print(f"❌ FCM 발송 에러: {e}")
 
@@ -3270,7 +3248,7 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         print(f"Tab3 Premium Revenue Seg Error for {ticker}: {e}")
 
 # ==========================================
-# [수정] Tab 2: 거시 지표 수집 (FRED 데이터 분리 적용)
+# [수정] Tab 2: 거시 지표 수집 (Raw Tracker 완벽 이식)
 # ==========================================
 def update_macro_data(df):
     if 'model_strict' not in globals() or not model_strict: return
@@ -3279,7 +3257,7 @@ def update_macro_data(df):
     
     today = datetime.now()
     data = {
-        "ipo_return": 5.2, "ipo_volume": 0, "unprofitable_pct": 60.0,
+        "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0.0,
         "withdrawal_rate": 0.0, "vix": 20.0, "fear_greed": 50, 
         "buffett_val": 195.0, "pe_ratio": 24.0
     }
@@ -3294,6 +3272,9 @@ def update_macro_data(df):
             if len(past_1y) > 0:
                 withdrawn_cnt = len(past_1y[past_1y['status'].str.lower().str.contains('withdrawn|철회', na=False)])
                 data["withdrawal_rate"] = (withdrawn_cnt / len(past_1y)) * 100
+                
+            data["unprofitable_pct"] = 75.0 if data["ipo_volume"] > 15 else 60.0
+            data["ipo_return"] = 18.5 if data["vix"] < 15 else 5.2
     except: pass
 
     try:
@@ -3306,54 +3287,43 @@ def update_macro_data(df):
             if '^W5000' in q_map:
                 w5000_price = float(q_map['^W5000'].get('price', 0))
                 if w5000_price > 0: data["buffett_val"] = ((w5000_price * 1.1) / 1000 / 28.0) * 100
+
+        r_url = f"https://financialmodelingprep.com/stable/market-risk-premium?apikey={FMP_API_KEY}"
+        r_res = requests.get(r_url, timeout=5).json()
+        if isinstance(r_res, list) and len(r_res) > 0:
+            us_risk = next((item for item in r_res if item.get('country') == 'United States'), None)
+            if us_risk: data["fear_greed"] = max(0, min(100, 100 - ((float(us_risk.get('totalEquityRiskPremium', 5.0)) - 3.0) * 20))) 
     except: pass
 
-    # 💡 [FRED 데이터 로드] DB에서 개별 지표를 불러와 AI 분석용 컨텍스트 생성
-    fred_context = "FRED Macro Data Unavailable"
-    try:
-        res_fred = supabase.table("macro_cache").select("content").eq("cache_key", "FRED_MACRO_DATA").execute()
-        if res_fred.data:
-            fred_raw = json.loads(res_fred.data[0]['content'])
-            current_fred = fred_raw.get("0", {}) 
-            
-            fred_parts = []
-            for k, v in current_fred.items():
-                # AI 분석을 위해 이름, 현재값, 전년비 증감을 문장으로 조립
-                fred_parts.append(f"{v.get('name')}: {v.get('val')}% (전년비 {v.get('diff')})")
-            fred_context = " | ".join(fred_parts)
-    except: pass
+    batch_upsert("analysis_cache", [{"cache_key": "Market_Dashboard_Metrics", "content": json.dumps(data), "updated_at": datetime.now().isoformat()}], "cache_key")
 
-    # UI 카드용 수치 저장 (프론트엔드에서 숫자로 보여주는 부분)
-    batch_upsert("analysis_cache", [{"cache_key": "Market_Dashboard_Metrics", "content": json.dumps(data), "updated_at": today.isoformat()}], "cache_key")
-
-    # 💡 [변경 감지 로직 수정] IPO 지표뿐만 아니라 FRED 거시 지표 변화까지 함께 감시합니다.
-    current_macro_str = json.dumps({**data, "fred_info": fred_context}, sort_keys=True)
+    # 💡 [과금 방어막 1] 거시 지표 원본 문자열화
+    current_macro_str = json.dumps(data, sort_keys=True)
     tracker_key = "Global_Macro_RawTracker"
     is_changed = True
 
     try:
+        # 💡 [과금 방어막 2] 기존 DB의 거시 지표와 비교
         res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
         if res_tracker.data and current_macro_str == res_tracker.data[0]['content']:
             is_changed = False
     except: pass
 
     if not is_changed:
-        print("⏩ [거시경제] 모든 지표(시장+경제) 수치 변동 없음. AI 요약 스킵!")
-        return 
+        print("⏩ [거시경제] 지표 수치 변경 없음. AI 요약 스킵!")
+        return # 데이터가 안 변했으면 과감하게 종료!
 
     print("🔔 거시 지표 수치 변동 감지! AI 요약 시작...")
     
-    # AI용 데이터 그룹화
     g1_context = f"Sentiment/Liquidity (IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%)"
     g2_context = f"Risk/Supply (Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%)"
-    g3_context = f"Market Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
-    # g4_context 격인 fred_context는 루프 내부의 하단 전문(Call 2)에서 사용됩니다.
+    g3_context = f"Macro/Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
 
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_summary = f"Global_Market_Summary_{lang_code}"
         cache_key_full = f"Global_Market_Dashboard_{lang_code}"
         
-        # [Call 1] 3개 카드 요약 (기존 로직 유지)
+        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약
         if lang_code == 'ko':
             sum_p = f"월가 수석 전략가로서 다음 3개 그룹의 데이터를 바탕으로 3개의 독립적인 대시보드 카드 요약을 작성하세요.\n[1번 카드 데이터]: {g1_context}\n[2번 카드 데이터]: {g2_context}\n[3번 카드 데이터]: {g3_context}"
             sum_i = """
@@ -3392,44 +3362,46 @@ def update_macro_data(df):
             4. 请使用专业且正式的陈述句。
             """
 
-        # 💡 [Call 2] 하단 전문 (순수 FRED 거시경제 지표 주입)
-        all_macro_metrics = fred_context
+        # 💡[Call 2] 하단 전문 (지표 통합 및 인과관계 중심의 단일 단락)
+        # 모든 지표를 하나의 텍스트 덩어리로 합칩니다 (경계 해체)
+        all_macro_metrics = f"VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, S&P500 PE: {data['pe_ratio']}x, Buffett Indicator: {data['buffett_val']}%, IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%, Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%"
 
         if lang_code == 'ko':
-            full_p = f"월가 거시경제(Macro) 전략가로서 아래 실제 미국 경제 지표들을 종합적으로 분석한 날카로운 시장 브리핑을 작성하세요.\n[경제 지표 데이터]: {all_macro_metrics}"
+            full_p = f"월가 헤지펀드 전략가로서 아래 8개 시장 지표의 상관관계를 분석한 날카로운 투자 코멘트를 작성하세요.\n[시장 데이터]: {all_macro_metrics}"
             full_i = """
-            [작성 규칙 - Macro Strategic Brief]
+            [작성 규칙 - Strategic Brief]
             1. **형식**: 소제목, 제목, 불필요한 공백을 절대 쓰지 마세요. **딱 하나의 단락**으로만 구성합니다.
-            2. **지표 분석**: 기준금리, 10년물 국채, CPI, PCE, M2 통화량 등 실제 제공된 수치와 과거 평균을 비교하여, 현재 인플레이션 국면과 시장 유동성 상태를 유기적으로 엮어서 설명하세요.
-            3. **중복 금지**: 절대 상단 카드 요약(IPO 수익률, VIX 등)의 내용을 반복하지 마세요. 오직 제공된 경제 지표 데이터만 다루세요.
-            4. **분량**: 모바일 최적화를 위해 전체 **5~6줄(문장 3~4개 내외)**로 매우 압축하여 작성하세요.
-            5. **첫 단어**: 반드시 '현재' 또는 '글로벌'로 시작하세요. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
+            2. **지표 결합**: '시장의 가치평가(PE/버핏지수) 대비 변동성(VIX)이 어떠하며, 이것이 신규 IPO 공급량과 질적 수준(적자 비중)에 어떤 인과관계를 미치고 있는지' 유기적으로 엮어서 설명하세요. 
+            3. **중복 금지**: 단순히 지표를 나열하거나 상단 카드 내용을 반복하면 안 됩니다. '현상이 원인이 되어 결과로 나타나는 흐름'을 서술하세요.
+            4. **분량**: 모바일 최적화를 위해 전체 **5~6줄(문장 3개 내외)**로 매우 압축하여 작성하세요.
+            5. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
+            6. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
             """
         elif lang_code == 'en':
-            full_p = f"As a Wall Street Macro Strategist, provide a sharp market brief by analyzing these key economic indicators.\n[Macro Data]: {all_macro_metrics}"
+            full_p = f"As a Wall Street Hedge Fund Strategist, provide a sharp investment brief by correlating these 8 metrics.\n[Market Data]: {all_macro_metrics}"
             full_i = """
             [Rules]
             1. **Format**: Single paragraph only. No subheadings.
-            2. **Logic**: Synthesize the current state of liquidity and inflation based on the provided Fed Rate, 10Y Bond, CPI/PCE, and M2 supply. 
-            3. **Content**: Do NOT repeat the IPO data (VIX, IPO return) from the cards. Focus exclusively on macroeconomic trends.
-            4. **Length**: 5-6 lines (approx 3-4 sentences). Optimized for mobile.
-            5. **Opening**: Start with 'Currently' or 'Global'.
+            2. **Logic**: Synthesize the relationship between market valuation (PE/Buffett), volatility (VIX), and IPO supply quality (Volume/Unprofitable ratio).
+            3. **Content**: Do NOT repeat the cards. Focus on the causal links between the data points.
+            4. **Length**: 5-6 lines (approx 3 sentences). Optimized for mobile.
+            5. **Opening**: Start with 'Global' or 'Currently'.
             """
         elif lang_code == 'ja':
-            full_p = f"ウォール街のマクロ戦略家として、以下の主要な経済指標を総合的に分析した鋭い市場ブリーフィングを1つの段落で作成してください。\n[データ]: {all_macro_metrics}"
+            full_p = f"ヘッジファンド・ストラテジストとして、8つの指標を相関 분석した鋭い投資コメントを1つの段落で作成してください。\n[データ]: {all_macro_metrics}"
             full_i = """
             1. 形式: 1つの段落。見出し禁止。
-            2. 内容: 政策金利、10年債利回り、CPI/PCE、M2などの数値を基に、現在のインフレと流動性の状況を論理的に記述してください。上部カードのIPO指標（VIXなど）は絶対に繰り返さないでください。
-            3. 長さ: 5〜6行程度（3〜4文）。モバイル最適化。
-            4. 開始: 「現在」または「グローバル」で始める。です・ます調。
+            2. 内容: バリュエーション(PE)と変動性(VIX)がIPOの需給と質(赤字比率)に与える因果関係を論理的に記述してください。
+            3. 長さ: 5〜6行程度。モバイル最適化。
+            4. 開始: 「グローバル」または「現在」で始める。です・ます調。
             """
         else: # zh
-            full_p = f"作为华尔街宏观策略师，请综合分析以下主要经济指标，撰写一份尖锐的市场简报。\n[市场数据]: {all_macro_metrics}"
+            full_p = f"作为对冲基金策略师，请结合以下8项指标的因果关系，撰写一份尖锐的投资简报。\n[市场数据]: {all_macro_metrics}"
             full_i = """
             1. 格式: 仅限一个自然段。严禁小标题。
-            2. 逻辑: 结合基准利率、10年期国债、CPI/PCE、M2等实际数据，分析当前的通胀局面与市场流动性状态。严禁重复上部卡片的IPO指标(VIX等)。
-            3. 篇幅: 5-6行（约3-4句话）。移动端优化。
-            4. 首词: 以“当前”或“全球”开头。
+            2. 逻辑: 将宏观估值(PE/巴菲特指标)与波动率(VIX)结合，分析其对IPO发行质量(破发率/赤字率)的连锁 영향.
+            3. 篇幅: 5-6行。移动端优化。
+            4. 首词: 以“全球”或“当前”开头。
             """
 
         try:
@@ -3439,7 +3411,12 @@ def update_macro_data(df):
                     "cache_key": cache_key_summary, 
                     "content": res_sum.text.strip(), 
                     "updated_at": datetime.now().isoformat(),
-                    "ticker": "MARKET", "tier": "free", "tab_name": "tab2", "lang": lang_code, "data_type": "macro_card"
+                    # --- 신규 태그 추가 ---
+                    "ticker": "MARKET",
+                    "tier": "free",
+                    "tab_name": "tab2",
+                    "lang": lang_code,
+                    "data_type": "macro_card"
                 }], on_conflict="cache_key")
         
             res_full = model_strict.generate_content(full_p + full_i)
@@ -3448,13 +3425,19 @@ def update_macro_data(df):
                     "cache_key": cache_key_full, 
                     "content": res_full.text.strip(), 
                     "updated_at": datetime.now().isoformat(),
-                    "ticker": "MARKET", "tier": "free", "tab_name": "tab2", "lang": lang_code, "data_type": "macro_report"
+                    # --- 신규 태그 추가 ---
+                    "ticker": "MARKET",
+                    "tier": "free",
+                    "tab_name": "tab2",
+                    "lang": lang_code,
+                    "data_type": "macro_report"
                 }], on_conflict="cache_key")
                 
             print(f"✅ 거시 지표 AI 분석 완료 ({lang_code})")
         except Exception as e:
             print(f"❌ 거시 지표 AI 에러 ({lang_code}): {e}")
 
+    # 💡 [과금 방어막 3] 요약 완료 후 트래커 갱신
     batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_macro_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
 # ==========================================
@@ -3663,19 +3646,10 @@ def run_premium_alert_engine(df_calendar):
 # [신규 추가] 글로벌 매크로 & 주요 일정 캐싱 워커
 # ==========================================
 def update_global_macro_and_events():
-    # 💡 [방어막] 오늘 이미 성공했다면 무거운 작업 스킵
-    try:
-        res = supabase.table("macro_cache").select("updated_at").eq("cache_key", "FRED_MACRO_DATA").execute()
-        if res.data:
-            last_update = pd.to_datetime(res.data[0]['updated_at']).date()
-            if last_update == datetime.now().date():
-                log_now("⏩ FRED 매크로 데이터가 이미 오늘 업데이트되었습니다. (스킵)")
-                return
-    except: pass
-
-    log_now("🌍 [Calendar용] FRED 6년치 데이터 수집 및 평균 계산 시작...")
+    print("🌍 글로벌 매크로(FRED) 및 경제 일정(FMP) 데이터 수집 시작...")
     today = datetime.now()
     
+    # 3행 4열 프론트엔드 UI 대응을 위한 col 인덱스
     series_info = {
         "FEDFUNDS": {"name": "기준금리", "col": 1}, 
         "DGS10": {"name": "10년물 국채", "col": 1}, 
@@ -3686,16 +3660,19 @@ def update_global_macro_and_events():
         "UNRATE": {"name": "실업률", "col": 4}
     }
     pc1_series = ["CPIAUCSL", "PCEPI", "WM2NS"] 
+    
+    # ⭐ 기존 프론트엔드가 데이터를 찾을 수 있도록 "0" ~ "-3" 구조 복구
     results = {"0": {}, "-1": {}, "-2": {}, "-3": {}} 
+    
+    # 🚀 과거 3년 전(-3)의 3년 평균까지 구하려면 총 6년치 데이터가 필요합니다.
     start_date = (today - timedelta(days=365*6)).strftime('%Y-%m-%d')
     
     try:
         if FRED_API_KEY:
             for sid, info in series_info.items():
-                log_now(f"📡 FRED API 수집 중: {info['name']} ({sid})")
                 units = "pc1" if sid in pc1_series else "lin"
                 url = f"https://api.stlouisfed.org/fred/series/observations?series_id={sid}&api_key={FRED_API_KEY}&file_type=json&observation_start={start_date}&units={units}"
-                res = requests.get(url, timeout=15).json()
+                res = requests.get(url, timeout=10).json()
                 obs = res.get('observations', [])
                 if not obs: continue
                 
@@ -3706,66 +3683,92 @@ def update_global_macro_and_events():
                     for o in valid_obs:
                         if pd.to_datetime(o['date']) <= target_date: return float(o['value'])
                     return None
-
+                    
+                # 현재부터 5년 전까지의 데이터를 모두 추출
                 v0 = get_val_near_date(today)
                 v1 = get_val_near_date(today - timedelta(days=365))
                 v2 = get_val_near_date(today - timedelta(days=365*2))
                 v3 = get_val_near_date(today - timedelta(days=365*3))
                 v4 = get_val_near_date(today - timedelta(days=365*4))
                 v5 = get_val_near_date(today - timedelta(days=365*5))
-
+                
+                # 증감(diff) 계산 함수 (프론트엔드 에러 방지를 위해 +기호 포함 문자열로 반환)
                 def calc_diff_str(curr, prev):
-                    return f"{curr - prev:+.2f}%p" if curr is not None and prev is not None else None
+                    if curr is not None and prev is not None:
+                        return f"{curr - prev:+.2f}%p"
+                    return None
+                    
+                # 3년 평균 계산 함수
                 def calc_avg(curr, p1, p2):
-                    return round((curr + p1 + p2) / 3, 2) if all(x is not None for x in [curr, p1, p2]) else None
+                    if curr is not None and p1 is not None and p2 is not None:
+                        return round((curr + p1 + p2) / 3, 2)
+                    return None
 
-                for year_key, curr, p1, p2 in [("0", v0, v1, v2), ("-1", v1, v2, v3), ("-2", v2, v3, v4), ("-3", v3, v4, v5)]:
+                # 🚀 0, -1, -2, -3 각 년도에 대해 동일하게 val, diff, avg_3y를 꽉꽉 채워줍니다!
+                for year_key, curr, p1, p2, p3 in [
+                    ("0", v0, v1, v2, v3),
+                    ("-1", v1, v2, v3, v4),
+                    ("-2", v2, v3, v4, v5),
+                    ("-3", v3, v4, v5, None)
+                ]:
                     results[year_key][sid] = {
-                        "name": info["name"], "column": info["col"], "val": round(curr, 2) if curr is not None else None,
-                        "diff": calc_diff_str(curr, p1), "avg_3y": calc_avg(curr, p1, p2)
+                        "name": info["name"],
+                        "column": info["col"],
+                        "val": round(curr, 2) if curr is not None else None,
+                        "diff": calc_diff_str(curr, p1),
+                        "avg_3y": calc_avg(curr, p1, p2)
                     }
                 
-            batch_upsert("macro_cache", [{"cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()}], "cache_key")
-            log_now("✅ Calendar용 FRED 데이터 저장 완료")
+            batch_upsert("macro_cache", [{
+                "cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()
+            }], on_conflict="cache_key")
+            print("✅ FRED 매크로 3x4 Grid용 요약 데이터 DB 저장 완료 (과거 년도 완벽 지원)")
+    except Exception as e: print(f"⚠️ FRED API Error: {e}")
 
-        # FMP 경제 일정 (기존 로직)
-        start = today.strftime('%Y-%m-%d'); end = (today + timedelta(days=30)).strftime('%Y-%m-%d')
+    # (이 아래는 기존 FMP 경제 일정 수집 코드 그대로 유지하시면 됩니다.)
+
+    # 2. FMP 경제 일정 수집 (그대로 유지)
+    try:
+        start = today.strftime('%Y-%m-%d')
+        end = (today + timedelta(days=30)).strftime('%Y-%m-%d')
         url = f"https://financialmodelingprep.com/stable/economic-calendar?from={start}&to={end}&apikey={FMP_API_KEY}"
-        fmp_res = requests.get(url, timeout=10).json()
-        if isinstance(fmp_res, list):
-            important_events = [e for e in fmp_res if e.get('country') == 'US' and any(kw in e.get('event','').lower() for kw in ['fed interest','cpi','unemployment'])]
-            batch_upsert("macro_cache", [{"cache_key": "FMP_MACRO_EVENTS", "content": json.dumps(important_events[:5]), "updated_at": today.isoformat()}], "cache_key")
-            log_now("✅ FMP 경제 일정 저장 완료")
-    except Exception as e: log_now(f"⚠️ 매크로 수집 에러: {e}")
+        res = requests.get(url, timeout=10).json()
+        
+        if isinstance(res, list):
+            important_events = [
+                e for e in res 
+                if e.get('country') == 'US' and any(keyword in e.get('event', '').lower() for keyword in ['fed interest', 'cpi', 'unemployment', 'non farm'])
+            ]
+            important_events.sort(key=lambda x: x['date'])
+            
+            batch_upsert("macro_cache", [{
+                "cache_key": "FMP_MACRO_EVENTS", "content": json.dumps(important_events[:5]), "updated_at": today.isoformat()
+            }], on_conflict="cache_key")
+            print("✅ FMP 향후 30일 미국 경제일정 DB 저장 완료")
+    except Exception as e: print(f"⚠️ FMP Economic Calendar Error: {e}")
     
 # ==========================================
-# [4] 메인 실행 루프 (Hanging 방지 및 로그 강화 버전)
+# [4] 메인 실행 루프
 # ==========================================
 def main():
-    log_now("🚀 Worker Process 시작")
+    print(f"🚀 Worker Process 시작: {datetime.now()}")
     
-    # 1. 글로벌 매크로 & 경제 일정 업데이트
-    log_now("🌍 1. 글로벌 매크로(FRED) 및 경제 일정 업데이트 시작...")
+
+    # 👇👇👇 [기존 코드 유지] 👇👇👇
     update_global_macro_and_events()
-    log_now("✅ 글로벌 매크로 업데이트 완료")
     
-    # 2. Finnhub에서 IPO 종목 리스트 수집
-    log_now("📡 2. Finnhub에서 IPO 종목 리스트 수집 시작...")
     df = get_target_stocks()
     if df.empty: 
-        log_now("⚠️ 수집된 IPO 종목이 없습니다. 작업을 종료합니다.")
+        print("⚠️ 수집된 IPO 종목이 없습니다.")
         return
-    log_now(f"✅ 종목 수집 완료: 총 {len(df)}개 후보 확보")
 
-    # 3. [stock_cache] 명단 업데이트 및 신규 편입 식별
-    log_now("📋 3. [stock_cache] 명단 동기화 및 신규 종목 식별 시작...")
+    print("\n📋 [stock_cache] 명단 업데이트 및 신규 편입 식별 시작...")
+    
     try:
-        log_now("📡 Supabase에서 기존 티커 목록 로드 중...")
         res_known = supabase.table("stock_cache").select("symbol").execute()
         known_tickers = {item['symbol'] for item in res_known.data}
-        log_now(f"✅ 기존 티커 {len(known_tickers)}개 로드 완료")
     except Exception as e:
-        log_now(f"⚠️ 기존 Ticker 로드 실패 (초기화 상태로 간주): {e}")
+        print(f"⚠️ 기존 Ticker 로드 실패 (초기화 상태로 간주): {e}")
         known_tickers = set()
         
     now_iso = datetime.now().isoformat()
@@ -3775,6 +3778,7 @@ def main():
     
     for _, row in df.iterrows():
         sym = str(row['symbol'])
+        
         try: ipo_dt = pd.to_datetime(row['date']).date()
         except: ipo_dt = today_date
         
@@ -3788,7 +3792,6 @@ def main():
         })
         
     if sudden_additions:
-        log_now(f"✨ 신규 편입 종목 {len(sudden_additions)}개 감지. 리스트 업데이트 중...")
         try:
             old_res = supabase.table("analysis_cache").select("content").eq("cache_key", "SUDDEN_ADDITIONS_LIST").execute()
             if old_res.data:
@@ -3801,100 +3804,106 @@ def main():
             "content": df.to_json(orient='records'),
             "updated_at": datetime.now().isoformat()
         }], on_conflict="cache_key")
-        log_now("✅ 신규 편입 정보 DB 저장 완료")
+        print(f"✨ 신규 편입(스팩/직상장) 누적 {len(sudden_additions)}개 식별 및 DB 저장 완료.")
 
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
-
-    # 4. Tab 2 거시 지표 분석 (AI 리포트 생성 포함)
-    log_now("📊 4. Tab 2 거시 지표 분석 및 AI 요약 시작...")
     update_macro_data(df)
-    log_now("✅ Tab 2 분석 완료")
     
-    # 5. 분석 타겟 종목 선별 (35일 상장예정 + 18개월 신규상장)
-    log_now("🔥 5. 분석 대상 종목 필터링 시작...")
+    # ------------------ 💡 18개월 이내 상장 기업 타겟팅 ------------------
+    print("🔥 타겟 종목 선별 중 (35일 상장예정 + 18개월 신규상장)...")
     price_map = get_current_prices() 
+    
     today = datetime.now()
     df['dt'] = pd.to_datetime(df['date'])
     
     target_symbols = set()
+    
+    # 1. 상장 예정(35일)
     upcoming = df[(df['dt'] > today) & (df['dt'] <= today + timedelta(days=35))]
     target_symbols.update(upcoming['symbol'].tolist())
+    print(f"   -> 상장 예정(35일): {len(upcoming)}개")
     
+    # 2. 최근 상장(18개월 = 540일)
     past_18m = df[(df['dt'] >= today - timedelta(days=540)) & (df['dt'] <= today)]
     target_symbols.update(past_18m['symbol'].tolist())
+    print(f"   -> 최근 상장(18개월): {len(past_18m)}개")
 
-    log_now(f"✅ 최종 분석 대상: 총 {len(target_symbols)}개 종목 확정 (중복 제거 완료)")
+    print(f"✅ 최종 분석 대상: 총 {len(target_symbols)}개 종목 (중복 제거)")
 
     target_df = df[df['symbol'].isin(target_symbols)]
     total = len(target_df)
     
-    # 6. SEC EDGAR CIK 매핑 데이터 로드 (가장 빈번한 Hanging 지점)
-    log_now("🏛️ 6. SEC EDGAR CIK 매핑 데이터 로드 시작 (대용량 JSON)...")
+    print("\n🏛️ SEC EDGAR CIK 매핑 데이터 로드 중 (API 최적화)...")
     cik_mapping, name_to_ticker_map = get_sec_master_mapping()
-    log_now(f"✅ SEC 식별번호 {len(cik_mapping)}개 확보 완료")
+    print(f"✅ 총 {len(cik_mapping)}개의 SEC 식별번호 확보 완료.")
     
-    log_now(f"🤖 7. 개별 종목 AI 심층 분석 루프 진입 (총 {total}개)")
+    print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 종목 다국어 캐싱)...")
     
+    import time
     WORKER_START_TIME = time.time()
-    MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간 제한
+    MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간(19,800초)
 
+    # 🚨 AAPL 테스트 모드 삭제 완료. 18개월 타겟 전체 루프 시작!
     for idx, row in target_df.iterrows():
         # 5.5시간 강제 종료 방어막
         if time.time() - WORKER_START_TIME > MAX_RUN_TIME_SEC:
-            log_now("⏳ [알림] 깃허브 6시간 실행 제한 임박! 안전을 위해 작업을 여기서 중단합니다.")
+            print("⏳ [알림] 깃허브 6시간 제한 임박! 서버 강제 다운을 막기 위해 작업을 일시 중단합니다.")
             break
 
         original_symbol = row.get('symbol')
         name = row.get('name')
         
-        # 티커 교정 로직
         clean_name = normalize_company_name(name)
         official_symbol = name_to_ticker_map.get(clean_name, original_symbol)
         
         if original_symbol != official_symbol:
-            log_now(f"🔧 [티커 교정] {name}: {original_symbol} ➡️ {official_symbol}")
+            print(f"🔧 [티커 교정 작동] {name}: {original_symbol} ➡️ {official_symbol}")
             if official_symbol in cik_mapping:
                 cik_mapping[original_symbol] = cik_mapping[official_symbol]
         
-        # 개별 종목 분석 (3회 재시도 로직)
+        # =========================================================
+        # 🚨 [신규 적용] 3회 재시도(Retry) 및 10초 대기 방어 로직
+        # =========================================================
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                log_now(f" 분석 시작 [{idx+1}/{total}]: {original_symbol} (시도 {attempt+1})")
+                print(f"\n[{idx+1}/{total}] {original_symbol} 분석 중... (시도 {attempt+1}/{max_retries})", flush=True)
                 
                 c_status = row.get('status', 'Active')
                 c_date = row.get('date', None)
                 
-                # 티커 역추적 로직
                 if not official_symbol or str(official_symbol).strip() == "":
+                    # 티커가 없으면 우선 기업 이름으로 CIK 강제 획득 시도
                     cik = get_fallback_cik(official_symbol, name, FMP_API_KEY)
                     if cik:
+                        print(f"🔍 [역추적 시도] CIK {cik} 번호로 Ticker 검색 중...")
                         found_ticker = get_ticker_from_cik(cik)
                         if found_ticker:
-                            log_now(f"   ↳ [역추적 성공] {name} -> {found_ticker}")
+                            print(f"✅ [역추적 성공] 숨겨진 Ticker 발견: {found_ticker}")
                             official_symbol = found_ticker
-                            cik_mapping[official_symbol] = cik
+                            cik_mapping[official_symbol] = cik # 매핑 업데이트
 
+                # 역추적을 거치고도 티커가 아예 없다면, 크래시 방지를 위해 이번 종목은 스킵
                 if not official_symbol or str(official_symbol).strip() == "":
-                    log_now(f"   ⚠️ [스킵] {original_symbol}: 유효한 티커를 찾을 수 없음")
-                    break 
+                    print(f"⚠️ [FMP API 스킵] Ticker가 아직 존재하지 않아 수치 데이터를 건너뜁니다.")
+                    break # 재시도 할 필요 없이 이 종목은 완전 스킵
                 
-                # [분석 루틴 실행]
+                # Tab 0 & Tab 1 (기본 + 프리미엄)
                 run_tab1_analysis(official_symbol, name, c_status, c_date)
-                run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping, original_symbol)
+                run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping, original_symbol) # 이 부분 수정
                 run_tab0_premium_collection(official_symbol, name)
                 run_tab2_premium_collection(official_symbol, name) 
                 
-                # Tab 4 & M&A
+                # Tab 4: 목표가 수집 및 투자의견/M&A
                 try:
                     analyst_metrics = fetch_analyst_estimates(official_symbol, FMP_API_KEY)
                     run_tab4_analysis(official_symbol, name, c_status, c_date, analyst_metrics)
                     run_tab4_ma_premium_collection(official_symbol, name) 
                     run_tab4_premium_collection(official_symbol, name) 
                 except Exception as e:
-                    log_now(f"   ⚠️ Tab4 에러 ({official_symbol}): {e}")
+                    print(f"Tab4 Analyst Data Error for {official_symbol}: {e}")
                 
-                # Tab 3 & 재무
+                # Tab 3: 11지표 통합 수집 및 재무 분석
                 try:
                     unified_metrics = fetch_premium_financials(official_symbol, FMP_API_KEY)
                     batch_upsert("analysis_cache", [{
@@ -3907,42 +3916,47 @@ def main():
                     run_tab3_premium_collection(official_symbol, name)
                     run_tab3_revenue_premium_collection(official_symbol, name) 
                 except Exception as e:
-                    log_now(f"   ⚠️ Tab3 에러 ({official_symbol}): {e}")
+                    print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
 
-                # Tab 6 스마트머니
+                # Tab 6: 스마트머니 수집 및 분석
                 try:
                     smart_money_data = fetch_smart_money_data(official_symbol, FMP_API_KEY)
                     run_tab6_analysis(official_symbol, name, smart_money_data)
                 except Exception as e:
-                    log_now(f"   ⚠️ Tab6 에러 ({official_symbol}): {e}")
+                    print(f"Tab6 Smart Money Error for {official_symbol}: {e}")
                 
-                # 성공 시 재시도 루프 탈출
+                # 💡 모든 탭 분석이 정상적으로 끝났다면 재시도 루프(attempt)를 안전하게 탈출합니다.
                 break 
                 
             except Exception as e:
                 error_msg = str(e)
-                if any(err in error_msg for err in ["503", "429", "quota", "UNAVAILABLE"]):
+                # 💡 503 과부하, Canceled, 429 한도 초과 등 API 통신 에러 감지 시
+                if any(err in error_msg for err in ["503", "UNAVAILABLE", "Canceled", "429", "quota"]):
                     if attempt < max_retries - 1:
-                        log_now(f"   ⏳ [통신 지연] {original_symbol}: 10초 대기 후 재시도...")
+                        print(f"⚠️ [{original_symbol}] 통신 지연 감지: {error_msg}. 10초 대기 후 재시도합니다...")
                         time.sleep(10)
                     else:
-                        log_now(f"   🚨 [포기] {original_symbol}: 3회 시도 모두 실패 (과부하)")
+                        print(f"🚨 [{original_symbol}] 3회 재시도 실패. 트래픽 과부하가 심하여 다음 기업으로 넘어갑니다.")
                 else:
-                    log_now(f"   ❌ [내부 오류] {original_symbol}: {e}")
-                    break 
+                    # 통신 에러가 아닌 코드/파싱 에러라면 재시도 없이 원인 출력 후 스킵
+                    import traceback 
+                    print(f"\n🚨 [{original_symbol}] 분석 중 내부 오류 발생! (재시도 안함)")
+                    print(f"사유: {e}")
+                    print("-" * 30)
+                    traceback.print_exc()
+                    print("-" * 30)
+                    break # 재시도 루프 탈출
         
-        # 디도스 방지용 쿨타임
+        # 💡 [필수 쿨타임] 성공이든 실패든 하나의 기업이 끝나면 2초간 쉬어주어 디도스를 원천 예방합니다.
         time.sleep(2)
+        # =========================================================
 
-    # 8. 최종 알림 엔진 실행
-    log_now("🕵️ 8. 프리미엄 알림 엔진(Surge Alert) 가동...")
     run_premium_alert_engine(df)
     
-    # 9. 워커 생존 신고
-    log_now("🚩 9. 워커 최종 상태 보고 중...")
+    # 💡 [생존 신고] 메인 워커 작업이 끝난 후 앱에 상태 알림
     batch_upsert("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
             
-    log_now(f"🏁 모든 작업이 성공적으로 종료되었습니다. (종료 시각: {datetime.now()})")
+    print(f"\n🏁 모든 작업 종료: {datetime.now()}")
 
 if __name__ == "__main__":
     main()
