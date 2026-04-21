@@ -17,6 +17,13 @@ from supabase import create_client
 from google import genai
 
 # ==========================================
+# [0] 유틸리티 및 로깅 설정 (여기에 추가!)
+# ==========================================
+def log_now(msg):
+    """GitHub Actions 실시간 로그 출력을 위한 타임스탬프 로거"""
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
+    
+# ==========================================
 # [1] 환경 설정 & 디버깅 로그
 # ==========================================
 
@@ -3272,7 +3279,7 @@ def update_macro_data(df):
     
     today = datetime.now()
     data = {
-        "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0.0,
+        "ipo_return": 5.2, "ipo_volume": 0, "unprofitable_pct": 60.0,
         "withdrawal_rate": 0.0, "vix": 20.0, "fear_greed": 50, 
         "buffett_val": 195.0, "pe_ratio": 24.0
     }
@@ -3287,9 +3294,6 @@ def update_macro_data(df):
             if len(past_1y) > 0:
                 withdrawn_cnt = len(past_1y[past_1y['status'].str.lower().str.contains('withdrawn|철회', na=False)])
                 data["withdrawal_rate"] = (withdrawn_cnt / len(past_1y)) * 100
-                
-            data["unprofitable_pct"] = 75.0 if data["ipo_volume"] > 15 else 60.0
-            data["ipo_return"] = 18.5 if data["vix"] < 15 else 5.2
     except: pass
 
     try:
@@ -3302,36 +3306,28 @@ def update_macro_data(df):
             if '^W5000' in q_map:
                 w5000_price = float(q_map['^W5000'].get('price', 0))
                 if w5000_price > 0: data["buffett_val"] = ((w5000_price * 1.1) / 1000 / 28.0) * 100
-
-        r_url = f"https://financialmodelingprep.com/stable/market-risk-premium?apikey={FMP_API_KEY}"
-        r_res = requests.get(r_url, timeout=5).json()
-        if isinstance(r_res, list) and len(r_res) > 0:
-            us_risk = next((item for item in r_res if item.get('country') == 'United States'), None)
-            if us_risk: data["fear_greed"] = max(0, min(100, 100 - ((float(us_risk.get('totalEquityRiskPremium', 5.0)) - 3.0) * 20))) 
     except: pass
 
-    # 💡 [신규 추가] 하단 전문에 사용할 FRED 거시 지표를 DB에서 불러와 조립합니다.
+    # 💡 [FRED 데이터 로드] DB에서 개별 지표를 불러와 AI 분석용 컨텍스트 생성
     fred_context = "FRED Macro Data Unavailable"
     try:
         res_fred = supabase.table("macro_cache").select("content").eq("cache_key", "FRED_MACRO_DATA").execute()
         if res_fred.data:
             fred_raw = json.loads(res_fred.data[0]['content'])
-            current_fred = fred_raw.get("0", {}) # 현재 년도 데이터 추출
+            current_fred = fred_raw.get("0", {}) 
             
             fred_parts = []
             for k, v in current_fred.items():
-                name = v.get('name', k)
-                val = v.get('val', 'N/A')
-                diff = v.get('diff', 'N/A')
-                avg = v.get('avg_3y', 'N/A')
-                fred_parts.append(f"{name}: {val}% (전년비 증감: {diff}, 3년 평균: {avg}%)")
+                # AI 분석을 위해 이름, 현재값, 전년비 증감을 문장으로 조립
+                fred_parts.append(f"{v.get('name')}: {v.get('val')}% (전년비 {v.get('diff')})")
             fred_context = " | ".join(fred_parts)
-    except Exception as e:
-        print(f"⚠️ FRED 데이터 로드 실패 (기본값으로 진행): {e}")
+    except: pass
 
-    batch_upsert("analysis_cache", [{"cache_key": "Market_Dashboard_Metrics", "content": json.dumps(data), "updated_at": datetime.now().isoformat()}], "cache_key")
+    # UI 카드용 수치 저장 (프론트엔드에서 숫자로 보여주는 부분)
+    batch_upsert("analysis_cache", [{"cache_key": "Market_Dashboard_Metrics", "content": json.dumps(data), "updated_at": today.isoformat()}], "cache_key")
 
-    current_macro_str = json.dumps(data, sort_keys=True)
+    # 💡 [변경 감지 로직 수정] IPO 지표뿐만 아니라 FRED 거시 지표 변화까지 함께 감시합니다.
+    current_macro_str = json.dumps({**data, "fred_info": fred_context}, sort_keys=True)
     tracker_key = "Global_Macro_RawTracker"
     is_changed = True
 
@@ -3342,15 +3338,16 @@ def update_macro_data(df):
     except: pass
 
     if not is_changed:
-        print("⏩ [거시경제] 지표 수치 변경 없음. AI 요약 스킵!")
+        print("⏩ [거시경제] 모든 지표(시장+경제) 수치 변동 없음. AI 요약 스킵!")
         return 
 
     print("🔔 거시 지표 수치 변동 감지! AI 요약 시작...")
     
-    # 상단 3개 카드용 데이터 (IPO 관련 지표)
+    # AI용 데이터 그룹화
     g1_context = f"Sentiment/Liquidity (IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%)"
     g2_context = f"Risk/Supply (Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%)"
-    g3_context = f"Macro/Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
+    g3_context = f"Market Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
+    # g4_context 격인 fred_context는 루프 내부의 하단 전문(Call 2)에서 사용됩니다.
 
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_summary = f"Global_Market_Summary_{lang_code}"
@@ -3666,10 +3663,19 @@ def run_premium_alert_engine(df_calendar):
 # [신규 추가] 글로벌 매크로 & 주요 일정 캐싱 워커
 # ==========================================
 def update_global_macro_and_events():
-    print("🌍 글로벌 매크로(FRED) 및 경제 일정(FMP) 데이터 수집 시작...")
+    # 💡 [방어막] 오늘 이미 성공했다면 무거운 작업 스킵
+    try:
+        res = supabase.table("macro_cache").select("updated_at").eq("cache_key", "FRED_MACRO_DATA").execute()
+        if res.data:
+            last_update = pd.to_datetime(res.data[0]['updated_at']).date()
+            if last_update == datetime.now().date():
+                log_now("⏩ FRED 매크로 데이터가 이미 오늘 업데이트되었습니다. (스킵)")
+                return
+    except: pass
+
+    log_now("🌍 [Calendar용] FRED 6년치 데이터 수집 및 평균 계산 시작...")
     today = datetime.now()
     
-    # 3행 4열 프론트엔드 UI 대응을 위한 col 인덱스
     series_info = {
         "FEDFUNDS": {"name": "기준금리", "col": 1}, 
         "DGS10": {"name": "10년물 국채", "col": 1}, 
@@ -3680,19 +3686,16 @@ def update_global_macro_and_events():
         "UNRATE": {"name": "실업률", "col": 4}
     }
     pc1_series = ["CPIAUCSL", "PCEPI", "WM2NS"] 
-    
-    # ⭐ 기존 프론트엔드가 데이터를 찾을 수 있도록 "0" ~ "-3" 구조 복구
     results = {"0": {}, "-1": {}, "-2": {}, "-3": {}} 
-    
-    # 🚀 과거 3년 전(-3)의 3년 평균까지 구하려면 총 6년치 데이터가 필요합니다.
     start_date = (today - timedelta(days=365*6)).strftime('%Y-%m-%d')
     
     try:
         if FRED_API_KEY:
             for sid, info in series_info.items():
+                log_now(f"📡 FRED API 수집 중: {info['name']} ({sid})")
                 units = "pc1" if sid in pc1_series else "lin"
                 url = f"https://api.stlouisfed.org/fred/series/observations?series_id={sid}&api_key={FRED_API_KEY}&file_type=json&observation_start={start_date}&units={units}"
-                res = requests.get(url, timeout=10).json()
+                res = requests.get(url, timeout=15).json()
                 obs = res.get('observations', [])
                 if not obs: continue
                 
@@ -3703,69 +3706,37 @@ def update_global_macro_and_events():
                     for o in valid_obs:
                         if pd.to_datetime(o['date']) <= target_date: return float(o['value'])
                     return None
-                    
-                # 현재부터 5년 전까지의 데이터를 모두 추출
+
                 v0 = get_val_near_date(today)
                 v1 = get_val_near_date(today - timedelta(days=365))
                 v2 = get_val_near_date(today - timedelta(days=365*2))
                 v3 = get_val_near_date(today - timedelta(days=365*3))
                 v4 = get_val_near_date(today - timedelta(days=365*4))
                 v5 = get_val_near_date(today - timedelta(days=365*5))
-                
-                # 증감(diff) 계산 함수 (프론트엔드 에러 방지를 위해 +기호 포함 문자열로 반환)
-                def calc_diff_str(curr, prev):
-                    if curr is not None and prev is not None:
-                        return f"{curr - prev:+.2f}%p"
-                    return None
-                    
-                # 3년 평균 계산 함수
-                def calc_avg(curr, p1, p2):
-                    if curr is not None and p1 is not None and p2 is not None:
-                        return round((curr + p1 + p2) / 3, 2)
-                    return None
 
-                # 🚀 0, -1, -2, -3 각 년도에 대해 동일하게 val, diff, avg_3y를 꽉꽉 채워줍니다!
-                for year_key, curr, p1, p2, p3 in [
-                    ("0", v0, v1, v2, v3),
-                    ("-1", v1, v2, v3, v4),
-                    ("-2", v2, v3, v4, v5),
-                    ("-3", v3, v4, v5, None)
-                ]:
+                def calc_diff_str(curr, prev):
+                    return f"{curr - prev:+.2f}%p" if curr is not None and prev is not None else None
+                def calc_avg(curr, p1, p2):
+                    return round((curr + p1 + p2) / 3, 2) if all(x is not None for x in [curr, p1, p2]) else None
+
+                for year_key, curr, p1, p2 in [("0", v0, v1, v2), ("-1", v1, v2, v3), ("-2", v2, v3, v4), ("-3", v3, v4, v5)]:
                     results[year_key][sid] = {
-                        "name": info["name"],
-                        "column": info["col"],
-                        "val": round(curr, 2) if curr is not None else None,
-                        "diff": calc_diff_str(curr, p1),
-                        "avg_3y": calc_avg(curr, p1, p2)
+                        "name": info["name"], "column": info["col"], "val": round(curr, 2) if curr is not None else None,
+                        "diff": calc_diff_str(curr, p1), "avg_3y": calc_avg(curr, p1, p2)
                     }
                 
-            batch_upsert("macro_cache", [{
-                "cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()
-            }], on_conflict="cache_key")
-            print("✅ FRED 매크로 3x4 Grid용 요약 데이터 DB 저장 완료 (과거 년도 완벽 지원)")
-    except Exception as e: print(f"⚠️ FRED API Error: {e}")
+            batch_upsert("macro_cache", [{"cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()}], "cache_key")
+            log_now("✅ Calendar용 FRED 데이터 저장 완료")
 
-    # (이 아래는 기존 FMP 경제 일정 수집 코드 그대로 유지하시면 됩니다.)
-
-    # 2. FMP 경제 일정 수집 (그대로 유지)
-    try:
-        start = today.strftime('%Y-%m-%d')
-        end = (today + timedelta(days=30)).strftime('%Y-%m-%d')
+        # FMP 경제 일정 (기존 로직)
+        start = today.strftime('%Y-%m-%d'); end = (today + timedelta(days=30)).strftime('%Y-%m-%d')
         url = f"https://financialmodelingprep.com/stable/economic-calendar?from={start}&to={end}&apikey={FMP_API_KEY}"
-        res = requests.get(url, timeout=10).json()
-        
-        if isinstance(res, list):
-            important_events = [
-                e for e in res 
-                if e.get('country') == 'US' and any(keyword in e.get('event', '').lower() for keyword in ['fed interest', 'cpi', 'unemployment', 'non farm'])
-            ]
-            important_events.sort(key=lambda x: x['date'])
-            
-            batch_upsert("macro_cache", [{
-                "cache_key": "FMP_MACRO_EVENTS", "content": json.dumps(important_events[:5]), "updated_at": today.isoformat()
-            }], on_conflict="cache_key")
-            print("✅ FMP 향후 30일 미국 경제일정 DB 저장 완료")
-    except Exception as e: print(f"⚠️ FMP Economic Calendar Error: {e}")
+        fmp_res = requests.get(url, timeout=10).json()
+        if isinstance(fmp_res, list):
+            important_events = [e for e in fmp_res if e.get('country') == 'US' and any(kw in e.get('event','').lower() for kw in ['fed interest','cpi','unemployment'])]
+            batch_upsert("macro_cache", [{"cache_key": "FMP_MACRO_EVENTS", "content": json.dumps(important_events[:5]), "updated_at": today.isoformat()}], "cache_key")
+            log_now("✅ FMP 경제 일정 저장 완료")
+    except Exception as e: log_now(f"⚠️ 매크로 수집 에러: {e}")
     
 # ==========================================
 # [4] 메인 실행 루프
