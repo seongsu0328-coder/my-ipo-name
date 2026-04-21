@@ -1260,7 +1260,7 @@ def run_tab0_premium_collection(ticker, company_name):
                     if resp and resp.text:
                         paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
                         indent_size = "14px" if lang_code == "ko" else "0px"
-                        html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+                        html_str = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in paragraphs])
                         
                         batch_upsert("analysis_cache", [{
                             "cache_key": ec_summary_key, 
@@ -1389,7 +1389,7 @@ def run_tab2_premium_collection(ticker, company_name):
                     if resp and resp.text:
                         paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
                         indent_size = "14px" if lang_code == "ko" else "0px"
-                        html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+                        html_str = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in paragraphs])
                         
                         batch_upsert("analysis_cache", [{
                             "cache_key": esg_summary_key, 
@@ -1903,7 +1903,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                             if resp_p and resp_p.text:
                                 p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
                                 indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_p = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in p_paragraphs])
+                                html_p = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in p_paragraphs])
                                 
                                 # ✅ 태깅 정보 추가 및 tier를 'free'로 설정
                                 batch_upsert("analysis_cache", [{
@@ -2197,7 +2197,7 @@ Google検索を使用して、"{search_brand}" ({ticker})に関する最新の�
                                 if resp_ud and resp_ud.text:
                                     ud_paragraphs = [p.strip() for p in resp_ud.text.split('\n') if len(p.strip()) > 20]
                                     indent_size = "14px" if lang_code == "ko" else "0px"
-                                    html_ud = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in ud_paragraphs])
+                                    html_ud = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in ud_paragraphs])
                                     batch_upsert("analysis_cache", [{"cache_key": ud_summary_key, "content": html_ud, "updated_at": datetime.now().isoformat()}], "cache_key")
                                     print(f"✅ [{ticker}] 투자의견 히스토리 캐싱 완료 ({lang_code})")
                                     break
@@ -2216,7 +2216,7 @@ Google検索を使用して、"{search_brand}" ({ticker})に関する最新の�
                                 if resp_p and resp_p.text:
                                     p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
                                     indent_size = "14px" if lang_code == "ko" else "0px"
-                                    html_p = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in p_paragraphs])
+                                    html_p = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in p_paragraphs])
                                     batch_upsert("analysis_cache", [{"cache_key": peers_summary_key, "content": html_p, "updated_at": datetime.now().isoformat()}], "cache_key")
                                     print(f"✅ [{ticker}] 경쟁사 비교 캐싱 완료 ({lang_code})")
                                     break
@@ -2512,7 +2512,7 @@ def run_tab4_ma_premium_collection(ticker, company_name):
                     if resp and resp.text:
                         paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
                         indent_size = "14px" if lang_code == "ko" else "0px"
-                        html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+                        html_str = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in paragraphs])
                         batch_upsert("analysis_cache", [{
                         "cache_key": ma_summary_key, "content": html_str, "updated_at": datetime.now().isoformat(),
                         "ticker": ticker, "tier": "premium_plus", "tab_name": "tab4", "lang": lang_code, "data_type": "ma_report"
@@ -2633,7 +2633,7 @@ def run_tab4_premium_collection(ticker, company_name):
                             if resp_ud and resp_ud.text:
                                 ud_paragraphs = [p.strip() for p in resp_ud.text.split('\n') if len(p.strip()) > 20]
                                 indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_ud = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in ud_paragraphs])
+                                html_ud = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in ud_paragraphs])
                                 batch_upsert("analysis_cache", [{
                                 "cache_key": ud_summary_key, "content": html_ud, "updated_at": datetime.now().isoformat(),
                                 "ticker": ticker, "tier": "premium", "tab_name": "tab4", "lang": lang_code, "data_type": "rating_history"
@@ -2686,7 +2686,7 @@ def run_tab4_premium_collection(ticker, company_name):
                             if resp_p and resp_p.text:
                                 p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
                                 indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_p = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in p_paragraphs])
+                                html_p = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in p_paragraphs])
                                 batch_upsert("analysis_cache", [{
                                 "cache_key": peers_summary_key, "content": html_p, "updated_at": datetime.now().isoformat(),
                                 "ticker": ticker, "tier": "premium", "tab_name": "tab4", "lang": lang_code, "data_type": "peer_comparison"
@@ -3016,7 +3016,7 @@ def run_tab3_premium_collection(ticker, company_name):
                             if resp_s and resp_s.text:
                                 s_paragraphs = [p.strip() for p in resp_s.text.split('\n') if len(p.strip()) > 20]
                                 indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_s = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in s_paragraphs])
+                                html_s = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in s_paragraphs])
                                 batch_upsert("analysis_cache", [{
                                     "cache_key": surp_summary_key, 
                                     "content": html_s, 
@@ -3077,7 +3077,7 @@ def run_tab3_premium_collection(ticker, company_name):
                             if resp_e and resp_e.text:
                                 e_paragraphs = [p.strip() for p in resp_e.text.split('\n') if len(p.strip()) > 20]
                                 indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_e = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in e_paragraphs])
+                                html_e = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in e_paragraphs])
                                 batch_upsert("analysis_cache", [{
                                     "cache_key": est_summary_key, 
                                     "content": html_e, 
@@ -3218,7 +3218,7 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
                     if resp and resp.text:
                         paragraphs = [p.strip() for p in resp.text.split('\n') if len(p.strip()) > 20]
                         indent_size = "14px" if lang_code == "ko" else "0px"
-                        html_str = "".join([f'<p style="display:block; text-indent:{indent_size}; margin-bottom:20px; line-height:1.8; text-align:justify; font-size: 15px; color: #333;">{p}</p>' for p in paragraphs])
+                        html_str = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in paragraphs])
                         batch_upsert("analysis_cache", [{
                             "cache_key": rev_summary_key, 
                             "content": html_str, 
