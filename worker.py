@@ -377,58 +377,7 @@ def clean_ai_preamble(text):
         
     return '\n'.join(cleaned_lines).strip()
 
-def batch_upsert(table_name, data_list, on_conflict="ticker"):
-    if not data_list: return
-    endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal,resolution=merge-duplicates" 
-    }
-    
-    clean_batch = []
-    for item in data_list:
-        # 모든 값을 Supabase가 받아들일 수 있는 형태로 정제
-        payload = {k: sanitize_value(v) for k, v in item.items()}
-        
-        # 필수 키가 있는지 확인
-        if payload.get(on_conflict):
-            clean_batch.append(payload)
-            
-            # 🚀 [범용 이중 캐싱 (Dual Caching) 마법 적용]
-            # analysis_cache 테이블에 저장될 때, 티커(ticker)가 존재하면 검사 개입
-            if table_name == "analysis_cache" and "ticker" in payload and "cache_key" in payload:
-                original_ticker = str(payload["ticker"])
-                base_ticker = get_base_ticker(original_ticker)
-                
-                # 우선주(NHPBP)처럼 원본과 일반주(NHP)가 다르다면? -> 복제본 생성!
-                if original_ticker != base_ticker and original_ticker != "MARKET":
-                    dup_payload = payload.copy()
-                    dup_payload["ticker"] = base_ticker
-                    
-                    # 정규식을 이용해 cache_key 안의 티커 이름만 안전하게 본주로 싹 치환 (예: NHPBP_Tab1 -> NHP_Tab1)
-                    import re
-                    dup_payload["cache_key"] = re.sub(
-                        rf'(^|_){original_ticker}(_|$)', 
-                        rf'\g<1>{base_ticker}\g<2>', 
-                        str(dup_payload["cache_key"]), 
-                        count=1
-                    )
-                    
-                    # 복제된 쌍둥이 데이터도 전송 리스트에 추가
-                    clean_batch.append(dup_payload)
-            
-    if not clean_batch: return
-    
-    try:
-        resp = requests.post(endpoint, json=clean_batch, headers=headers)
-        if resp.status_code in [200, 201, 204]:
-            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공 (태깅 및 복제 포함)")
-        else:
-            print(f"❌ [{table_name}] 저장 실패 ({resp.status_code}): {resp.text}")
-    except Exception as e:
-        print(f"❌ [{table_name}] 통신 에러: {e}")
+단어 하나(timeout=15)*
         
 # [worker.py 내부의 send_fcm_push 함수를 아래 내용으로 교체하세요]
 def send_fcm_push(title, body, ticker=None, target_level='premium'):
@@ -3281,7 +3230,7 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         print(f"Tab3 Premium Revenue Seg Error for {ticker}: {e}")
 
 # ==========================================
-# [수정] Tab 2: 거시 지표 수집 (Raw Tracker 완벽 이식)
+# [수정] Tab 2: 거시 지표 수집 (FRED 데이터 분리 적용)
 # ==========================================
 def update_macro_data(df):
     if 'model_strict' not in globals() or not model_strict: return
@@ -3328,15 +3277,32 @@ def update_macro_data(df):
             if us_risk: data["fear_greed"] = max(0, min(100, 100 - ((float(us_risk.get('totalEquityRiskPremium', 5.0)) - 3.0) * 20))) 
     except: pass
 
+    # 💡 [신규 추가] 하단 전문에 사용할 FRED 거시 지표를 DB에서 불러와 조립합니다.
+    fred_context = "FRED Macro Data Unavailable"
+    try:
+        res_fred = supabase.table("macro_cache").select("content").eq("cache_key", "FRED_MACRO_DATA").execute()
+        if res_fred.data:
+            fred_raw = json.loads(res_fred.data[0]['content'])
+            current_fred = fred_raw.get("0", {}) # 현재 년도 데이터 추출
+            
+            fred_parts = []
+            for k, v in current_fred.items():
+                name = v.get('name', k)
+                val = v.get('val', 'N/A')
+                diff = v.get('diff', 'N/A')
+                avg = v.get('avg_3y', 'N/A')
+                fred_parts.append(f"{name}: {val}% (전년비 증감: {diff}, 3년 평균: {avg}%)")
+            fred_context = " | ".join(fred_parts)
+    except Exception as e:
+        print(f"⚠️ FRED 데이터 로드 실패 (기본값으로 진행): {e}")
+
     batch_upsert("analysis_cache", [{"cache_key": "Market_Dashboard_Metrics", "content": json.dumps(data), "updated_at": datetime.now().isoformat()}], "cache_key")
 
-    # 💡 [과금 방어막 1] 거시 지표 원본 문자열화
     current_macro_str = json.dumps(data, sort_keys=True)
     tracker_key = "Global_Macro_RawTracker"
     is_changed = True
 
     try:
-        # 💡 [과금 방어막 2] 기존 DB의 거시 지표와 비교
         res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
         if res_tracker.data and current_macro_str == res_tracker.data[0]['content']:
             is_changed = False
@@ -3344,10 +3310,11 @@ def update_macro_data(df):
 
     if not is_changed:
         print("⏩ [거시경제] 지표 수치 변경 없음. AI 요약 스킵!")
-        return # 데이터가 안 변했으면 과감하게 종료!
+        return 
 
     print("🔔 거시 지표 수치 변동 감지! AI 요약 시작...")
     
+    # 상단 3개 카드용 데이터 (IPO 관련 지표)
     g1_context = f"Sentiment/Liquidity (IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%)"
     g2_context = f"Risk/Supply (Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%)"
     g3_context = f"Macro/Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
@@ -3356,7 +3323,7 @@ def update_macro_data(df):
         cache_key_summary = f"Global_Market_Summary_{lang_code}"
         cache_key_full = f"Global_Market_Dashboard_{lang_code}"
         
-        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약
+        # [Call 1] 3개 카드 요약 (기존 로직 유지)
         if lang_code == 'ko':
             sum_p = f"월가 수석 전략가로서 다음 3개 그룹의 데이터를 바탕으로 3개의 독립적인 대시보드 카드 요약을 작성하세요.\n[1번 카드 데이터]: {g1_context}\n[2번 카드 데이터]: {g2_context}\n[3번 카드 데이터]: {g3_context}"
             sum_i = """
@@ -3395,46 +3362,44 @@ def update_macro_data(df):
             4. 请使用专业且正式的陈述句。
             """
 
-        # 💡[Call 2] 하단 전문 (지표 통합 및 인과관계 중심의 단일 단락)
-        # 모든 지표를 하나의 텍스트 덩어리로 합칩니다 (경계 해체)
-        all_macro_metrics = f"VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, S&P500 PE: {data['pe_ratio']}x, Buffett Indicator: {data['buffett_val']}%, IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%, Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%"
+        # 💡 [Call 2] 하단 전문 (순수 FRED 거시경제 지표 주입)
+        all_macro_metrics = fred_context
 
         if lang_code == 'ko':
-            full_p = f"월가 헤지펀드 전략가로서 아래 8개 시장 지표의 상관관계를 분석한 날카로운 투자 코멘트를 작성하세요.\n[시장 데이터]: {all_macro_metrics}"
+            full_p = f"월가 거시경제(Macro) 전략가로서 아래 실제 미국 경제 지표들을 종합적으로 분석한 날카로운 시장 브리핑을 작성하세요.\n[경제 지표 데이터]: {all_macro_metrics}"
             full_i = """
-            [작성 규칙 - Strategic Brief]
+            [작성 규칙 - Macro Strategic Brief]
             1. **형식**: 소제목, 제목, 불필요한 공백을 절대 쓰지 마세요. **딱 하나의 단락**으로만 구성합니다.
-            2. **지표 결합**: '시장의 가치평가(PE/버핏지수) 대비 변동성(VIX)이 어떠하며, 이것이 신규 IPO 공급량과 질적 수준(적자 비중)에 어떤 인과관계를 미치고 있는지' 유기적으로 엮어서 설명하세요. 
-            3. **중복 금지**: 단순히 지표를 나열하거나 상단 카드 내용을 반복하면 안 됩니다. '현상이 원인이 되어 결과로 나타나는 흐름'을 서술하세요.
-            4. **분량**: 모바일 최적화를 위해 전체 **5~6줄(문장 3개 내외)**로 매우 압축하여 작성하세요.
-            5. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
-            6. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
+            2. **지표 분석**: 기준금리, 10년물 국채, CPI, PCE, M2 통화량 등 실제 제공된 수치와 과거 평균을 비교하여, 현재 인플레이션 국면과 시장 유동성 상태를 유기적으로 엮어서 설명하세요.
+            3. **중복 금지**: 절대 상단 카드 요약(IPO 수익률, VIX 등)의 내용을 반복하지 마세요. 오직 제공된 경제 지표 데이터만 다루세요.
+            4. **분량**: 모바일 최적화를 위해 전체 **5~6줄(문장 3~4개 내외)**로 매우 압축하여 작성하세요.
+            5. **첫 단어**: 반드시 '현재' 또는 '글로벌'로 시작하세요. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
             """
         elif lang_code == 'en':
-            full_p = f"As a Wall Street Hedge Fund Strategist, provide a sharp investment brief by correlating these 8 metrics.\n[Market Data]: {all_macro_metrics}"
+            full_p = f"As a Wall Street Macro Strategist, provide a sharp market brief by analyzing these key economic indicators.\n[Macro Data]: {all_macro_metrics}"
             full_i = """
             [Rules]
             1. **Format**: Single paragraph only. No subheadings.
-            2. **Logic**: Synthesize the relationship between market valuation (PE/Buffett), volatility (VIX), and IPO supply quality (Volume/Unprofitable ratio).
-            3. **Content**: Do NOT repeat the cards. Focus on the causal links between the data points.
-            4. **Length**: 5-6 lines (approx 3 sentences). Optimized for mobile.
-            5. **Opening**: Start with 'Global' or 'Currently'.
+            2. **Logic**: Synthesize the current state of liquidity and inflation based on the provided Fed Rate, 10Y Bond, CPI/PCE, and M2 supply. 
+            3. **Content**: Do NOT repeat the IPO data (VIX, IPO return) from the cards. Focus exclusively on macroeconomic trends.
+            4. **Length**: 5-6 lines (approx 3-4 sentences). Optimized for mobile.
+            5. **Opening**: Start with 'Currently' or 'Global'.
             """
         elif lang_code == 'ja':
-            full_p = f"ヘッジファンド・ストラテジストとして、8つの指標を相関 분석した鋭い投資コメントを1つの段落で作成してください。\n[データ]: {all_macro_metrics}"
+            full_p = f"ウォール街のマクロ戦略家として、以下の主要な経済指標を総合的に分析した鋭い市場ブリーフィングを1つの段落で作成してください。\n[データ]: {all_macro_metrics}"
             full_i = """
             1. 形式: 1つの段落。見出し禁止。
-            2. 内容: バリュエーション(PE)と変動性(VIX)がIPOの需給と質(赤字比率)に与える因果関係を論理的に記述してください。
-            3. 長さ: 5〜6行程度。モバイル最適化。
-            4. 開始: 「グローバル」または「現在」で始める。です・ます調。
+            2. 内容: 政策金利、10年債利回り、CPI/PCE、M2などの数値を基に、現在のインフレと流動性の状況を論理的に記述してください。上部カードのIPO指標（VIXなど）は絶対に繰り返さないでください。
+            3. 長さ: 5〜6行程度（3〜4文）。モバイル最適化。
+            4. 開始: 「現在」または「グローバル」で始める。です・ます調。
             """
         else: # zh
-            full_p = f"作为对冲基金策略师，请结合以下8项指标的因果关系，撰写一份尖锐的投资简报。\n[市场数据]: {all_macro_metrics}"
+            full_p = f"作为华尔街宏观策略师，请综合分析以下主要经济指标，撰写一份尖锐的市场简报。\n[市场数据]: {all_macro_metrics}"
             full_i = """
             1. 格式: 仅限一个自然段。严禁小标题。
-            2. 逻辑: 将宏观估值(PE/巴菲特指标)与波动率(VIX)结合，分析其对IPO发行质量(破发率/赤字率)的连锁 영향.
-            3. 篇幅: 5-6行。移动端优化。
-            4. 首词: 以“全球”或“当前”开头。
+            2. 逻辑: 结合基准利率、10年期国债、CPI/PCE、M2等实际数据，分析当前的通胀局面与市场流动性状态。严禁重复上部卡片的IPO指标(VIX等)。
+            3. 篇幅: 5-6行（约3-4句话）。移动端优化。
+            4. 首词: 以“当前”或“全球”开头。
             """
 
         try:
@@ -3444,12 +3409,7 @@ def update_macro_data(df):
                     "cache_key": cache_key_summary, 
                     "content": res_sum.text.strip(), 
                     "updated_at": datetime.now().isoformat(),
-                    # --- 신규 태그 추가 ---
-                    "ticker": "MARKET",
-                    "tier": "free",
-                    "tab_name": "tab2",
-                    "lang": lang_code,
-                    "data_type": "macro_card"
+                    "ticker": "MARKET", "tier": "free", "tab_name": "tab2", "lang": lang_code, "data_type": "macro_card"
                 }], on_conflict="cache_key")
         
             res_full = model_strict.generate_content(full_p + full_i)
@@ -3458,19 +3418,13 @@ def update_macro_data(df):
                     "cache_key": cache_key_full, 
                     "content": res_full.text.strip(), 
                     "updated_at": datetime.now().isoformat(),
-                    # --- 신규 태그 추가 ---
-                    "ticker": "MARKET",
-                    "tier": "free",
-                    "tab_name": "tab2",
-                    "lang": lang_code,
-                    "data_type": "macro_report"
+                    "ticker": "MARKET", "tier": "free", "tab_name": "tab2", "lang": lang_code, "data_type": "macro_report"
                 }], on_conflict="cache_key")
                 
             print(f"✅ 거시 지표 AI 분석 완료 ({lang_code})")
         except Exception as e:
             print(f"❌ 거시 지표 AI 에러 ({lang_code}): {e}")
 
-    # 💡 [과금 방어막 3] 요약 완료 후 트래커 갱신
     batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_macro_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
 # ==========================================
