@@ -342,7 +342,7 @@ def clean_ai_preamble(text):
     # 1. 마크다운 제목 행(## 등) 삭제
     text = re.sub(r'^#+.*$', '', text, flags=re.MULTILINE).strip()
     
-    # 2. 본문 내의 마크다운 별표(**) 및 불렛 기호(*) 삭제 (레이아웃 파괴 방지)
+    # 2. 본문 내의 마크다운 별표(**) 및 불렛 기호(*) 삭제
     text = text.replace('**', '')
     text = re.sub(r'^\s*[\*\-\+]\s+', '', text, flags=re.MULTILINE)
 
@@ -377,27 +377,61 @@ def clean_ai_preamble(text):
         
     return '\n'.join(cleaned_lines).strip()
 
-단어 하나(timeout=15)*
-        
-# [worker.py 내부의 send_fcm_push 함수를 아래 내용으로 교체하세요]
+# 🚀 오류가 났던 batch_upsert 함수 (timeout 적용 및 이중 캐싱 포함)
+def batch_upsert(table_name, data_list, on_conflict="ticker"):
+    if not data_list: return
+    endpoint = f"{SUPABASE_URL}/rest/v1/{table_name}?on_conflict={on_conflict}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal,resolution=merge-duplicates" 
+    }
+    
+    clean_batch = []
+    for item in data_list:
+        payload = {k: sanitize_value(v) for k, v in item.items()}
+        if payload.get(on_conflict):
+            clean_batch.append(payload)
+            
+            # 🚀 범용 이중 캐싱 (Dual Caching) 로직
+            if table_name == "analysis_cache" and "ticker" in payload and "cache_key" in payload:
+                original_ticker = str(payload["ticker"])
+                base_ticker = get_base_ticker(original_ticker)
+                
+                if original_ticker != base_ticker and original_ticker != "MARKET":
+                    dup_payload = payload.copy()
+                    dup_payload["ticker"] = base_ticker
+                    import re
+                    dup_payload["cache_key"] = re.sub(
+                        rf'(^|_){original_ticker}(_|$)', 
+                        rf'\g<1>{base_ticker}\g<2>', 
+                        str(dup_payload["cache_key"]), 
+                        count=1
+                    )
+                    clean_batch.append(dup_payload)
+            
+    if not clean_batch: return
+    
+    try:
+        # 💡 [핵심] timeout=15 추가 완료
+        resp = requests.post(endpoint, json=clean_batch, headers=headers, timeout=15)
+        if resp.status_code in [200, 201, 204]:
+            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공")
+        else:
+            print(f"❌ [{table_name}] 저장 실패 ({resp.status_code}): {resp.text}")
+    except Exception as e:
+        print(f"❌ [{table_name}] 통신 에러: {e}")
+
 def send_fcm_push(title, body, ticker=None, target_level='premium'):
-    """
-    target_level: 
-      - 'premium': Premium 및 Premium Plus 유저 모두에게 발송
-      - 'premium_plus': Premium Plus 유저에게만 발송
-    """
-    if not firebase_admin._apps:
-        return
+    if not firebase_admin._apps: return
 
     try:
-        # 등급에 따른 필터링 조건 설정
         if target_level == 'premium_plus':
-            # Premium Plus 유저만 추출
             res = supabase.table("user_fcm_tokens").select(
                 "fcm_token, users!inner(membership_level)"
             ).eq("users.membership_level", "premium_plus").execute()
         else:
-            # Premium 이상(Premium + Premium Plus) 모든 유저 추출
             res = supabase.table("user_fcm_tokens").select(
                 "fcm_token, users!inner(membership_level)"
             ).in_("users.membership_level", ["premium", "premium_plus"]).execute()
@@ -416,7 +450,6 @@ def send_fcm_push(title, body, ticker=None, target_level='premium'):
 
         response = messaging.send_each_for_multicast(message)
         print(f"🚀 [{target_level} 푸시] {ticker} 알림 {response.success_count}개 발송 완료")
-
     except Exception as e:
         print(f"❌ FCM 발송 에러: {e}")
 
