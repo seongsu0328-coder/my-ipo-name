@@ -354,7 +354,7 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         "Prefer": "return=minimal,resolution=merge-duplicates" 
     }
     
-    clean_batch = []
+    clean_batch =[]
     for item in data_list:
         # 모든 값을 Supabase가 받아들일 수 있는 형태로 정제
         payload = {k: sanitize_value(v) for k, v in item.items()}
@@ -363,14 +363,38 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         if payload.get(on_conflict):
             clean_batch.append(payload)
             
+            # ========================================================
+            # 🚀[Dual Caching] 유니버설 이중 저장 로직
+            # 특정 기업이 아닌, get_base_ticker 결과가 다르면 무조건 복제 적용
+            # ========================================================
+            if table_name == "analysis_cache" and "ticker" in payload and "cache_key" in payload:
+                original_ticker = str(payload["ticker"])
+                base_ticker = get_base_ticker(original_ticker)
+                
+                # 변형 티커(예: NHPBP)인 경우에만 본주(NHP) 복제본 생성 (MARKET 제외)
+                if original_ticker != base_ticker and original_ticker != "MARKET":
+                    dup_payload = payload.copy()
+                    dup_payload["ticker"] = base_ticker
+                    
+                    # 정규식을 사용해 cache_key 안의 original_ticker를 base_ticker로 안전하게 치환
+                    # 예: "NHPBP_Tab1_v5_ko" -> "NHP_Tab1_v5_ko"
+                    dup_payload["cache_key"] = re.sub(
+                        rf'(^|_){original_ticker}(_|$)', 
+                        rf'\g<1>{base_ticker}\g<2>', 
+                        str(dup_payload["cache_key"]), 
+                        count=1
+                    )
+                    clean_batch.append(dup_payload)
+            # ========================================================
+            
     if not clean_batch: return
     
     try:
         resp = requests.post(endpoint, json=clean_batch, headers=headers)
-        if resp.status_code in [200, 201, 204]:
-            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공 (태깅 포함)")
+        if resp.status_code in[200, 201, 204]:
+            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공 (Dual Caching 적용)")
         else:
-            print(f"❌ [{table_name}] 저장 실패 ({resp.status_code}): {resp.text}")
+            print(f"❌[{table_name}] 저장 실패 ({resp.status_code}): {resp.text}")
     except Exception as e:
         print(f"❌ [{table_name}] 통신 에러: {e}")
         
