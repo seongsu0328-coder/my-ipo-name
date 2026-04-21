@@ -3739,27 +3739,33 @@ def update_global_macro_and_events():
     except Exception as e: log_now(f"⚠️ 매크로 수집 에러: {e}")
     
 # ==========================================
-# [4] 메인 실행 루프
+# [4] 메인 실행 루프 (Hanging 방지 및 로그 강화 버전)
 # ==========================================
 def main():
-    print(f"🚀 Worker Process 시작: {datetime.now()}")
+    log_now("🚀 Worker Process 시작")
     
-
-    # 👇👇👇 [기존 코드 유지] 👇👇👇
+    # 1. 글로벌 매크로 & 경제 일정 업데이트
+    log_now("🌍 1. 글로벌 매크로(FRED) 및 경제 일정 업데이트 시작...")
     update_global_macro_and_events()
+    log_now("✅ 글로벌 매크로 업데이트 완료")
     
+    # 2. Finnhub에서 IPO 종목 리스트 수집
+    log_now("📡 2. Finnhub에서 IPO 종목 리스트 수집 시작...")
     df = get_target_stocks()
     if df.empty: 
-        print("⚠️ 수집된 IPO 종목이 없습니다.")
+        log_now("⚠️ 수집된 IPO 종목이 없습니다. 작업을 종료합니다.")
         return
+    log_now(f"✅ 종목 수집 완료: 총 {len(df)}개 후보 확보")
 
-    print("\n📋 [stock_cache] 명단 업데이트 및 신규 편입 식별 시작...")
-    
+    # 3. [stock_cache] 명단 업데이트 및 신규 편입 식별
+    log_now("📋 3. [stock_cache] 명단 동기화 및 신규 종목 식별 시작...")
     try:
+        log_now("📡 Supabase에서 기존 티커 목록 로드 중...")
         res_known = supabase.table("stock_cache").select("symbol").execute()
         known_tickers = {item['symbol'] for item in res_known.data}
+        log_now(f"✅ 기존 티커 {len(known_tickers)}개 로드 완료")
     except Exception as e:
-        print(f"⚠️ 기존 Ticker 로드 실패 (초기화 상태로 간주): {e}")
+        log_now(f"⚠️ 기존 Ticker 로드 실패 (초기화 상태로 간주): {e}")
         known_tickers = set()
         
     now_iso = datetime.now().isoformat()
@@ -3769,7 +3775,6 @@ def main():
     
     for _, row in df.iterrows():
         sym = str(row['symbol'])
-        
         try: ipo_dt = pd.to_datetime(row['date']).date()
         except: ipo_dt = today_date
         
@@ -3783,6 +3788,7 @@ def main():
         })
         
     if sudden_additions:
+        log_now(f"✨ 신규 편입 종목 {len(sudden_additions)}개 감지. 리스트 업데이트 중...")
         try:
             old_res = supabase.table("analysis_cache").select("content").eq("cache_key", "SUDDEN_ADDITIONS_LIST").execute()
             if old_res.data:
@@ -3795,106 +3801,100 @@ def main():
             "content": df.to_json(orient='records'),
             "updated_at": datetime.now().isoformat()
         }], on_conflict="cache_key")
-        print(f"✨ 신규 편입(스팩/직상장) 누적 {len(sudden_additions)}개 식별 및 DB 저장 완료.")
+        log_now("✅ 신규 편입 정보 DB 저장 완료")
 
     batch_upsert("stock_cache", stock_list, on_conflict="symbol")
+
+    # 4. Tab 2 거시 지표 분석 (AI 리포트 생성 포함)
+    log_now("📊 4. Tab 2 거시 지표 분석 및 AI 요약 시작...")
     update_macro_data(df)
+    log_now("✅ Tab 2 분석 완료")
     
-    # ------------------ 💡 18개월 이내 상장 기업 타겟팅 ------------------
-    print("🔥 타겟 종목 선별 중 (35일 상장예정 + 18개월 신규상장)...")
+    # 5. 분석 타겟 종목 선별 (35일 상장예정 + 18개월 신규상장)
+    log_now("🔥 5. 분석 대상 종목 필터링 시작...")
     price_map = get_current_prices() 
-    
     today = datetime.now()
     df['dt'] = pd.to_datetime(df['date'])
     
     target_symbols = set()
-    
-    # 1. 상장 예정(35일)
     upcoming = df[(df['dt'] > today) & (df['dt'] <= today + timedelta(days=35))]
     target_symbols.update(upcoming['symbol'].tolist())
-    print(f"   -> 상장 예정(35일): {len(upcoming)}개")
     
-    # 2. 최근 상장(18개월 = 540일)
     past_18m = df[(df['dt'] >= today - timedelta(days=540)) & (df['dt'] <= today)]
     target_symbols.update(past_18m['symbol'].tolist())
-    print(f"   -> 최근 상장(18개월): {len(past_18m)}개")
 
-    print(f"✅ 최종 분석 대상: 총 {len(target_symbols)}개 종목 (중복 제거)")
+    log_now(f"✅ 최종 분석 대상: 총 {len(target_symbols)}개 종목 확정 (중복 제거 완료)")
 
     target_df = df[df['symbol'].isin(target_symbols)]
     total = len(target_df)
     
-    print("\n🏛️ SEC EDGAR CIK 매핑 데이터 로드 중 (API 최적화)...")
+    # 6. SEC EDGAR CIK 매핑 데이터 로드 (가장 빈번한 Hanging 지점)
+    log_now("🏛️ 6. SEC EDGAR CIK 매핑 데이터 로드 시작 (대용량 JSON)...")
     cik_mapping, name_to_ticker_map = get_sec_master_mapping()
-    print(f"✅ 총 {len(cik_mapping)}개의 SEC 식별번호 확보 완료.")
+    log_now(f"✅ SEC 식별번호 {len(cik_mapping)}개 확보 완료")
     
-    print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 종목 다국어 캐싱)...")
+    log_now(f"🤖 7. 개별 종목 AI 심층 분석 루프 진입 (총 {total}개)")
     
-    import time
     WORKER_START_TIME = time.time()
-    MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간(19,800초)
+    MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간 제한
 
-    # 🚨 AAPL 테스트 모드 삭제 완료. 18개월 타겟 전체 루프 시작!
     for idx, row in target_df.iterrows():
         # 5.5시간 강제 종료 방어막
         if time.time() - WORKER_START_TIME > MAX_RUN_TIME_SEC:
-            print("⏳ [알림] 깃허브 6시간 제한 임박! 서버 강제 다운을 막기 위해 작업을 일시 중단합니다.")
+            log_now("⏳ [알림] 깃허브 6시간 실행 제한 임박! 안전을 위해 작업을 여기서 중단합니다.")
             break
 
         original_symbol = row.get('symbol')
         name = row.get('name')
         
+        # 티커 교정 로직
         clean_name = normalize_company_name(name)
         official_symbol = name_to_ticker_map.get(clean_name, original_symbol)
         
         if original_symbol != official_symbol:
-            print(f"🔧 [티커 교정 작동] {name}: {original_symbol} ➡️ {official_symbol}")
+            log_now(f"🔧 [티커 교정] {name}: {original_symbol} ➡️ {official_symbol}")
             if official_symbol in cik_mapping:
                 cik_mapping[original_symbol] = cik_mapping[official_symbol]
         
-        # =========================================================
-        # 🚨 [신규 적용] 3회 재시도(Retry) 및 10초 대기 방어 로직
-        # =========================================================
+        # 개별 종목 분석 (3회 재시도 로직)
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                print(f"\n[{idx+1}/{total}] {original_symbol} 분석 중... (시도 {attempt+1}/{max_retries})", flush=True)
+                log_now(f" 분석 시작 [{idx+1}/{total}]: {original_symbol} (시도 {attempt+1})")
                 
                 c_status = row.get('status', 'Active')
                 c_date = row.get('date', None)
                 
+                # 티커 역추적 로직
                 if not official_symbol or str(official_symbol).strip() == "":
-                    # 티커가 없으면 우선 기업 이름으로 CIK 강제 획득 시도
                     cik = get_fallback_cik(official_symbol, name, FMP_API_KEY)
                     if cik:
-                        print(f"🔍 [역추적 시도] CIK {cik} 번호로 Ticker 검색 중...")
                         found_ticker = get_ticker_from_cik(cik)
                         if found_ticker:
-                            print(f"✅ [역추적 성공] 숨겨진 Ticker 발견: {found_ticker}")
+                            log_now(f"   ↳ [역추적 성공] {name} -> {found_ticker}")
                             official_symbol = found_ticker
-                            cik_mapping[official_symbol] = cik # 매핑 업데이트
+                            cik_mapping[official_symbol] = cik
 
-                # 역추적을 거치고도 티커가 아예 없다면, 크래시 방지를 위해 이번 종목은 스킵
                 if not official_symbol or str(official_symbol).strip() == "":
-                    print(f"⚠️ [FMP API 스킵] Ticker가 아직 존재하지 않아 수치 데이터를 건너뜁니다.")
-                    break # 재시도 할 필요 없이 이 종목은 완전 스킵
+                    log_now(f"   ⚠️ [스킵] {original_symbol}: 유효한 티커를 찾을 수 없음")
+                    break 
                 
-                # Tab 0 & Tab 1 (기본 + 프리미엄)
+                # [분석 루틴 실행]
                 run_tab1_analysis(official_symbol, name, c_status, c_date)
-                run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping, original_symbol) # 이 부분 수정
+                run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping, original_symbol)
                 run_tab0_premium_collection(official_symbol, name)
                 run_tab2_premium_collection(official_symbol, name) 
                 
-                # Tab 4: 목표가 수집 및 투자의견/M&A
+                # Tab 4 & M&A
                 try:
                     analyst_metrics = fetch_analyst_estimates(official_symbol, FMP_API_KEY)
                     run_tab4_analysis(official_symbol, name, c_status, c_date, analyst_metrics)
                     run_tab4_ma_premium_collection(official_symbol, name) 
                     run_tab4_premium_collection(official_symbol, name) 
                 except Exception as e:
-                    print(f"Tab4 Analyst Data Error for {official_symbol}: {e}")
+                    log_now(f"   ⚠️ Tab4 에러 ({official_symbol}): {e}")
                 
-                # Tab 3: 11지표 통합 수집 및 재무 분석
+                # Tab 3 & 재무
                 try:
                     unified_metrics = fetch_premium_financials(official_symbol, FMP_API_KEY)
                     batch_upsert("analysis_cache", [{
@@ -3907,47 +3907,42 @@ def main():
                     run_tab3_premium_collection(official_symbol, name)
                     run_tab3_revenue_premium_collection(official_symbol, name) 
                 except Exception as e:
-                    print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
+                    log_now(f"   ⚠️ Tab3 에러 ({official_symbol}): {e}")
 
-                # Tab 6: 스마트머니 수집 및 분석
+                # Tab 6 스마트머니
                 try:
                     smart_money_data = fetch_smart_money_data(official_symbol, FMP_API_KEY)
                     run_tab6_analysis(official_symbol, name, smart_money_data)
                 except Exception as e:
-                    print(f"Tab6 Smart Money Error for {official_symbol}: {e}")
+                    log_now(f"   ⚠️ Tab6 에러 ({official_symbol}): {e}")
                 
-                # 💡 모든 탭 분석이 정상적으로 끝났다면 재시도 루프(attempt)를 안전하게 탈출합니다.
+                # 성공 시 재시도 루프 탈출
                 break 
                 
             except Exception as e:
                 error_msg = str(e)
-                # 💡 503 과부하, Canceled, 429 한도 초과 등 API 통신 에러 감지 시
-                if any(err in error_msg for err in ["503", "UNAVAILABLE", "Canceled", "429", "quota"]):
+                if any(err in error_msg for err in ["503", "429", "quota", "UNAVAILABLE"]):
                     if attempt < max_retries - 1:
-                        print(f"⚠️ [{original_symbol}] 통신 지연 감지: {error_msg}. 10초 대기 후 재시도합니다...")
+                        log_now(f"   ⏳ [통신 지연] {original_symbol}: 10초 대기 후 재시도...")
                         time.sleep(10)
                     else:
-                        print(f"🚨 [{original_symbol}] 3회 재시도 실패. 트래픽 과부하가 심하여 다음 기업으로 넘어갑니다.")
+                        log_now(f"   🚨 [포기] {original_symbol}: 3회 시도 모두 실패 (과부하)")
                 else:
-                    # 통신 에러가 아닌 코드/파싱 에러라면 재시도 없이 원인 출력 후 스킵
-                    import traceback 
-                    print(f"\n🚨 [{original_symbol}] 분석 중 내부 오류 발생! (재시도 안함)")
-                    print(f"사유: {e}")
-                    print("-" * 30)
-                    traceback.print_exc()
-                    print("-" * 30)
-                    break # 재시도 루프 탈출
+                    log_now(f"   ❌ [내부 오류] {original_symbol}: {e}")
+                    break 
         
-        # 💡 [필수 쿨타임] 성공이든 실패든 하나의 기업이 끝나면 2초간 쉬어주어 디도스를 원천 예방합니다.
+        # 디도스 방지용 쿨타임
         time.sleep(2)
-        # =========================================================
 
+    # 8. 최종 알림 엔진 실행
+    log_now("🕵️ 8. 프리미엄 알림 엔진(Surge Alert) 가동...")
     run_premium_alert_engine(df)
     
-    # 💡 [생존 신고] 메인 워커 작업이 끝난 후 앱에 상태 알림
+    # 9. 워커 생존 신고
+    log_now("🚩 9. 워커 최종 상태 보고 중...")
     batch_upsert("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
             
-    print(f"\n🏁 모든 작업 종료: {datetime.now()}")
+    log_now(f"🏁 모든 작업이 성공적으로 종료되었습니다. (종료 시각: {datetime.now()})")
 
 if __name__ == "__main__":
     main()
