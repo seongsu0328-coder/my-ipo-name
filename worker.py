@@ -175,22 +175,23 @@ def fetch_sec_metadata(ticker, doc_type, api_key, cik=None):
         
         # 2. FMP 실패 시 SEC 공식 API(CIK 기반) 직접 조회
         if not accession_num and cik:
-            # 🚀 [교정] CIK를 10자리 문자열로 변환 (예: 1834356 -> 0001834356)
             clean_cik = str(cik).zfill(10)
             sec_url = f"https://data.sec.gov/submissions/CIK{clean_cik}.json"
             sec_res = requests.get(sec_url, headers=SEC_HEADERS, timeout=5)
             
             if sec_res.status_code == 200:
                 filings = sec_res.json().get('filings', {}).get('recent', {})
-                forms = filings.get('form', [])
+                forms = filings.get('form',[])
                 for i, form in enumerate(forms):
-                    # 🚀 [교정] SEC의 'S-1/A'는 'S-1/A ' 처럼 공백이 포함될 수 있으므로 strip() 처리
-                    # 또한 'S-1' 검색 시 'S-1/A'가 걸리지 않도록 정확히 일치하는지 확인
                     clean_form = str(form).upper().strip()
-                    if doc_type.upper() == clean_form:
+                    # 💡 [핵심 복구] S-1 검색 시 S-1/A가 걸리는 것만 막고, 나머지 연관 서류(S-11 등)는 모두 허용(in)
+                    if doc_type.upper() == 'S-1' and 'S-1/A' in clean_form:
+                        continue
+                        
+                    if doc_type.upper() in clean_form:
                         accession_num = filings.get('accessionNumber', [])[i]
                         filed_date = filings.get('filingDate', [])[i]
-                        print(f"✅ [SEC 직접 매칭 성공] {ticker} - {clean_form}")
+                        print(f"✅[SEC 직접 매칭 성공] {ticker} - {clean_form}")
                         break
         return accession_num, filed_date
     except: return None, None
@@ -1020,16 +1021,16 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 priority_targets = [topic]
 
         print(f"🔍 [{ticker}] {topic} 공시 탐색 중...") 
+        base_ticker = get_base_ticker(ticker) # 💡 모기업 티커 추출
 
         for target in priority_targets:
-            # 1. 교정 티커 + 기존 CIK로 시도
+            # 1. 현재 티커(NHPBP)로 시도
             acc_num, f_date = fetch_sec_metadata(ticker, target, FMP_API_KEY, cik)
             
-            # 🚀 [교정] 교정 티커로 S-1 등을 못 찾은 경우 (PS, NHP 사례 방어)
-            if not acc_num and original_ticker and original_ticker != ticker:
-                # 2. 원본 티커로 재시도하되, CIK를 None으로 주어 티커 기반 검색을 강제함
-                # 이는 교정 로직이 엉뚱한 기업의 CIK를 가져왔을 때를 대비한 최후의 방어선임
-                acc_num, f_date = fetch_sec_metadata(original_ticker, target, FMP_API_KEY, None)
+            # 2. 💡[핵심 복구] 못 찾았을 경우, 본주/모기업 티커(NHP)로 SEC 시스템 재탐색!
+            if not acc_num and ticker != base_ticker:
+                print(f"🔄 [{ticker}] 공시 없음. 모기업({base_ticker}) 티커로 재탐색...")
+                acc_num, f_date = fetch_sec_metadata(base_ticker, target, FMP_API_KEY, None)
             
             if acc_num: break
 
@@ -1537,14 +1538,14 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     safe_name = f'"{search_name}"'
 
     if is_withdrawn:
-        search_query = f'{safe_name} IPO withdrawn OR "withdrawal" OR "canceled"'
+        search_query = f'{safe_name} OR {base_ticker} IPO withdrawn OR canceled'
     elif is_delisted_or_otc:
-        search_query = f'{safe_name} delisted OR "OTC market" OR "Form 15"'
+        search_query = f'{safe_name} OR {base_ticker} delisted OR "OTC"'
     elif is_over_1y:
-        search_query = f'{safe_name} news OR business OR corporate OR earnings'
+        search_query = f'{safe_name} OR {base_ticker} stock news'
     else:
-        # 🚀 [수정] ticker 대신 base_ticker를 사용하여 구글 검색 노이즈 완화
-        search_query = f'{search_name} news {base_ticker} OR {search_name} stock'
+        # 💡 [핵심 복구] 느슨한 OR 검색으로 변경하여 모기업 뉴스 확보율 극대화
+        search_query = f'{safe_name} OR "{base_ticker}" stock news'
     # =========================================================
 
     valid_hours = 24 
