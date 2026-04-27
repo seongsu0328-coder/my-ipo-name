@@ -3374,47 +3374,45 @@ def update_macro_data(df):
             4. 请使用专业且正式의 陈述句.
             """
 
-        # 💡 [Call 2] 하단 전문 리포트 (🚀 전 언어 지침 통일 및 데이터 격리 적용)
+        # 💡 [Call 2] 하단 전문 리포트 (🚀 제목/인사말 생략 + 첫 단어 고정)
         if lang_code == 'ko':
             full_p = f"당신은 글로벌 투자 전략가입니다. 실물 경제 지표를 원인으로 삼아 현재의 금융 시장 상황을 유기적으로 분석하세요.\n[통합 데이터]: {macro_report_context}"
             full_i = """
             [작성 규칙 - 거시경제 전략 브리핑]
-            1. **인과관계 분석**: 실물 경제 지표(금리, 물가, 실업률)가 현재 금융 시장의 지표(VIX, PE, 버핏지수)에 어떤 영향을 주고 있는지 그 '이유'를 중심으로 설명하세요.
-            2. **자연스러운 연결**: 상단 카드의 내용을 단순히 복제하지 말고, '금리/물가 환경 때문에 시장의 밸류에이션이나 펀더멘털이 어떠한 상태에 놓여있다'는 흐름으로 서술하세요.
-            3. **데이터 제한**: 제공되지 않은 데이터(IPO 수익률, 상장 물량 등)는 본문에서 절대 언급하지 마세요. 오직 주어진 데이터로만 분석하세요.
-            4. **형식**: 소제목 없이 **단 하나의 단락**으로 매우 압축하여 작성하세요. (5~6줄 내외)
-            5. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
+            1. **인사말 및 제목 금지**: '브리핑입니다', '전략 리포트' 같은 제목이나 인사말을 절대 쓰지 마세요. 
+            2. **첫 단어 고정**: 반드시 '글로벌' 또는 '현재'라는 단어로 글을 시작하세요.
+            3. **인과관계 분석**: 금리, 물가, 고용 수치가 시장의 VIX나 PE 밸류에이션에 어떤 논리적 영향을 주고 있는지 그 '이유'를 중심으로 설명하세요.
+            4. **데이터 제한**: IPO 수익률, 상장 물량 등 제공되지 않은 데이터는 절대 언급하지 마세요.
+            5. **형식**: 소제목 없이 **단 하나의 유기적인 문단**으로만 작성하세요. (5~6줄 내외)
             6. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
             """
         elif lang_code == 'en':
-            full_p = f"As a Global Investment Strategist, analyze the current financial market by using real economy indicators as causes.\n[Data]: {macro_report_context}"
+            full_p = f"As a Global Investment Strategist, analyze the market using real economy indicators as causes.\n[Data]: {macro_report_context}"
             full_i = """
-            [Writing Rules - Strategic Macro Brief]
-            1. **Causal Analysis**: Focus on explaining the 'reasons' for how real economy indicators (Rates, CPI, Unemployment) are impacting financial market metrics (VIX, PE, Buffett Index).
-            2. **Natural Connection**: Do not replicate the card summaries. Describe how the interest rate/inflation environment puts market valuation or fundamentals in its current state.
-            3. **Data Restriction**: Do NOT mention data not provided in the prompt (e.g., IPO returns, volume). Analyze only the provided data.
-            4. **Format**: Compose exactly one cohesive paragraph without subheadings. (Approx. 5-6 lines)
-            5. **Opening**: Must start with the word 'Global' or 'Currently'.
+            [Rules]
+            1. **NO TITLES/GREETINGS**: Do not start with 'Here is the report' or titles. 
+            2. **Starting Word**: Start immediately with 'Global' or 'Currently'.
+            3. **Causal Analysis**: Explain how Rates/CPI/Jobs impact Market PE and VIX.
+            4. **No IPO Data**: Do not mention IPO volume or returns.
+            5. **Format**: Exactly one paragraph. No subheadings. (Approx. 5-6 lines)
             """
         elif lang_code == 'ja':
-            full_p = f"あなたはグローバル投資戦略家です。実体経済指標を原因として、現在の金融市場状況을 논리적으로 분석하십시오.\n[統合データ]: {macro_report_context}"
+            full_p = f"グローバル投資戦略家として、実体経済指標を原因として現在の金融市場状況を論理的に分析してください.\n[データ]: {macro_report_context}"
             full_i = """
-            [作成規則 - マクロ経済戦略ブリーフィング]
-            1. **因果関係の分析**: 実体経済指標（金利、物価、雇用）が現在の金融市場指標（VIX、PE、バフェット指数）にどのような影響を与えているか、その「理由」を中心に説明してください。
-            2. **自然なつながり**: 上部カードの内容を単純に複製するのではなく、「金利・物価環境のために市場のバリュエ이션やファンダメンタルズがどのような状態にあるか」という流れで記述してください。
-            3. **データ制限**: 提供されていないデータ（IPO収益率、上場数など）は本文で絶対に言及しないでください。
-            4. **形式**: 小見出しなしで、単一の段落として非常に簡潔に作成してください。（5〜6行程度）
-            5. **最初の単語**: 必ず「グローバル」または「현재」で始めてください.
+            [作成規則]
+            1. **タイトル・挨拶禁止**: 「分析レポートです」などの挨拶は省き、すぐに本論に入ってください。
+            2. **最初の単語**: 必ず「グローバル」または「現在」で始めてください。
+            3. **因果関係**: 金利・物価が市場指標(PE/VIX)に与える影響を論理的に説明。
+            4. **形式**: 小見出しなし、単一の段落。（5〜6行程度）
             """
         else: # zh
-            full_p = f"您是全球投资战略家。请以实体经济指标为诱因，有机地分析当前的金融市场状况。\n[综合数据]: {macro_report_context}"
+            full_p = f"您是全球投资战略家。请以实体经济指标为诱因，有机地分析当前的金融市场状况。\n[数据]: {macro_report_context}"
             full_i = """
-            [编写规则 - 宏观经济战略简报]
-            1. **因果关系分析**: 重点分析实体经济指标（利率、物价、就业）如何影响当前的金融市场指标（VIX、PE、巴菲特指数）及其背后的“原因”。
-            2. **有机结合**: 不要简单重复卡片内容，请描述“由于利率和物价环境，市场估值或基本面处于何种状态”的逻辑流程。
-            3. **数据限制**: 请勿提及未提供的数据（如 IPO 收益率、发行量等）。仅基于提供的数据进行分析。
-            4. **格式**: 严禁使用小标题，仅限一个自然段，内容需高度压缩。（约 5-6 行）
-            5. **首词**: 必须以“全球”或“当前”开头。
+            [编写规则]
+            1. **严禁标题/问候**: 严禁使用“这是报告”等废话。直接输出分析内容。
+            2. **首词**: 必须以“全球”或“当前”开头。
+            3. **因果分析**: 重点分析利率/物价/就业如何影响市场估值(PE)和情绪(VIX)。
+            4. **格式**: 严禁使用小标题，仅限一个自然段。（约 5-6 行）
             """
 
         try:
