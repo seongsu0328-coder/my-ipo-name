@@ -3374,46 +3374,49 @@ def update_macro_data(df):
             4. 请使用专业且正式의 陈述句。
             """
 
-        # 💡 [Call 2] 하단 전문 리포트 (🚀 실물 지표 기반 인과관계 분석 - 지침 통일)
+        # 💡 [Call 2] 하단 전문 리포트 (🚀 통찰력 및 전략 중심 분석)
         if lang_code == 'ko':
-            full_p = f"당신은 글로벌 투자 전략가입니다. 실물 경제 지표를 원인으로 삼아 현재의 금융 시장 상황을 유기적으로 분석하세요.\n[통합 데이터]: {macro_full_context}"
+            full_p = f"당신은 월가 헤지펀드의 수석 전략가입니다. 실물 경제 환경이 현재의 투자 심리와 금융 시장 펀더멘털에 어떤 '인과관계'를 형성하고 있는지 분석 리포트를 작성하세요.\n[통합 데이터]: {macro_full_context}"
             full_i = """
-            [작성 규칙 - 거시경제 전략 브리핑]
-            1. **인과관계 분석**: 실물 경제 지표(금리, 물가, 실업률)가 현재 금융 시장의 지표(VIX, PE, IPO 수익률)에 어떤 영향을 주고 있는지 그 '이유'를 중심으로 설명하세요.
-            2. **자연스러운 연결**: 상단 카드의 내용을 단순히 복제하지 말고, '금리/물가 환경 때문에 시장의 밸류에이션이나 IPO 열기가 어떠한 상태에 놓여있다'는 흐름으로 서술하세요.
-            3. **형식**: 소제목 없이 **단 하나의 단락**으로 매우 압축하여 작성하세요. (4~5줄 내외)
-            4. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
-            5. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
+            [리포트 작성 지침 - 고도의 전략 분석]
+            1. **논리적 연결 (Reasoning)**: 단순히 지표를 나열하지 마세요. '금리나 물가 상황(원인)'이 어떻게 '시장 밸류에이션이나 IPO 열기(결과)'를 만들어내고 있는지 그 흐름을 설명하세요.
+            2. **나열 금지 (No Listing)**: "IPO 수익률은 몇 %이고, 금리는 몇 %이다" 식의 문장을 지양하세요. 대신 "현재의 금리 환경이 신규 상장 시장의 수익률을 제한하고 있다"는 식의 '해석'을 담으세요.
+            3. **전략적 함의 (Strategy)**: 이러한 거시적 흐름 속에서 투자자가 가져야 할 태도나 주의해야 할 리스크를 전문적인 어조로 제언하세요.
+            4. **형식**: 소제목 없이 **단 하나의 유기적인 단락**으로만 구성하세요. (4~5줄 내외)
+            5. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
+            6. 모든 문장은 '~습니다/ㅂ니다'로 정중하게 마무리하세요.
             """
         elif lang_code == 'en':
-            full_p = f"As a Global Investment Strategist, analyze the current financial market situation by using real economy indicators as causes.\n[Consolidated Data]: {macro_full_context}"
+            full_p = f"As a Senior Wall Street Strategist, analyze the 'causal link' between the real economy and current market fundamentals.\n[Consolidated Data]: {macro_full_context}"
             full_i = """
-            [Writing Rules - Strategic Macro Brief]
-            1. **Causal Analysis**: Focus on explaining the 'reasons' for how real economy indicators (Rates, CPI, Unemployment) are impacting current financial market metrics (VIX, PE, IPO returns).
-            2. **Natural Connection**: Do not simply replicate the card summaries. Describe the flow of how the interest rate/inflation environment puts market valuation or IPO heat in its current state.
-            3. **Format**: Compose exactly one cohesive paragraph without any subheadings. (Approx. 4-5 lines)
-            4. **Opening**: Must start with the word 'Global' or 'Currently'.
-            5. Tone: Maintain a professional and formal analytical tone.
+            [Writing Rules - Strategic Insights]
+            1. **Focus on 'Why'**: Do not just list the numbers. Explain HOW the interest rate and inflation environment is shaping the current market PE and IPO activity.
+            2. **Narrative Flow**: Avoid repetitive phrasing from the cards. Synthesize the data into a professional investment column.
+            3. **Strategic Outlook**: Conclude with a brief professional view on the macro risk or opportunity.
+            4. **Format**: Exactly one cohesive paragraph without subheadings. (Approx. 4-5 lines)
+            5. **Opening**: Must start with the word 'Global' or 'Currently'.
             """
         elif lang_code == 'ja':
-            full_p = f"あなたはグローバル投資戦略家です。実体経済指標を原因として、現在の金融市場状況を論理的に分析してください。\n[統合データ]: {macro_full_context}"
+            full_p = f"あなたはウォール街のチーフストラテジストです。実体経済指標が現在の投資心理と金融市場のファンダ멘탈에 어떠한 '因果関係'를 형성하고 있는지 분석 리포트를 작성하십시오.\n[統合データ]: {macro_full_context}"
             full_i = """
-            [作成規則 - マクロ経済戦略ブリーフィング]
-            1. **因果関係の分析**: 実体経済指標（金利、物価、雇用）が現在の金融市場指標（VIX、PE、IPO収益率）にどのような影響を与えているか、その「理由」を中心に説明してください。
-            2. **自然なつながり**: 上部カードの内容を単純に複製するのではなく、「金利・物価環境のために市場のバリュエ이션やIPOの熱気がどのような状態にあるか」という流れで記述してください。
-            3. **形式**: 小見出しなしで、単一の段落として非常に簡潔に作成してください。（4〜5行程度）
-            4. **最初の単語**: 必ず「グローバル」または「現在」で始めてください。
-            5. 文体：丁寧語（です・ます調）を使用してください。
+            [作成規則 - 戦略的洞察]
+            1. **因果関係の解釈**: 単に指標を羅列するのではなく、「金利や物価状況（原因）」がどのように「市場評価やIPOの熱気（結果）」を作り出しているか、その流れを説明してください。
+            2. **分析的記述**: 「IPO収益率は〜%だ」という記述ではなく、「現在の金利環境が市場のバリュエーションにどのような圧力を与えているか」という『解釈』を中心に記述してください。
+            3. **戦略的提言**: 投資家が注意すべきリスクや、マクロ環境における投資姿勢を専門的なトーンで提言してください。
+            4. **形式**: 小見出しなしの単一の段落として作成してください。（4〜5行程度）
+            5. **開始単語**: 必ず「グローバル」または「現在」で始めてください。
+            6. 文体：丁寧語（です・ます調）を使用してください。
             """
         else: # zh
-            full_p = f"您是全球投资战略家。请以实体经济指标为诱因，有机地分析当前的金融市场状况。\n[综合数据]: {macro_full_context}"
+            full_p = f"您是华尔街首席策略师。请分析实体经济指标与当前投资心理及金融市场基本面之间的“因果关系”，并撰写分析报告。\n[综合数据]: {macro_full_context}"
             full_i = """
-            [编写规则 - 宏观经济战略简보]
-            1. **因果关系分析**: 重点分析实体经济指标（利率、物价、就业）如何影响当前的金融市场指标（VIX、PE、IPO收益率）及其背后的“原因”。
-            2. **有机结合**: 不要简单重复卡片内容，请描述“由于利率和物价环境，市场估值或IPO热度处于何种状态”的逻辑流程。
-            3. **格式**: 严禁使用小标题，仅限一个自然段，内容需高度压缩。（约 4-5 行）
-            4. **首词**: 必须以“全球”或“当前”开头。
-            5. 语气：保持专业且正式的分析语调。
+            [编写规则 - 战略洞察]
+            1. **因果分析**: 严禁简单罗列数据。请解释“利率和通胀环境（原因）”如何影响“市场估值和IPO热度（结果）”。
+            2. **深度解析**: 不要重复“IPO收益率为xx%”之类的句子。相反，请侧重于阐述宏观环境对投资情绪的具体影响。
+            3. **策略建议**: 以专业口吻就当前宏观趋势下的风险管理或投资机会提供建议。
+            4. **格式**: 严禁使用小标题，仅限一个有机结合的自然段。（约 4-5 行）
+            5. **首词**: 必须以“全球”或“当前”开头。
+            6. 语气：保持专业且正式的分析语调。
             """
 
         try:
