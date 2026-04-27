@@ -3235,14 +3235,14 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         print(f"Tab3 Premium Revenue Seg Error for {ticker}: {e}")
 
 # ==========================================
-# [최종 완성] Tab 2: 거시 지표 수집 및 통합 분석 (전 언어 지침 통일 적용)
+# [최종 완성] Tab 2: 거시 지표 수집 및 통합 분석 (데이터 격리 및 전 언어 지침 통일)
 # ==========================================
 def update_macro_data(df):
     if 'model_strict' not in globals() or not model_strict: return
     
-    print("🌍 거시 지표(Tab 2) 업데이트 시작 (실물 경제와 금융 시장의 통합 분석)")
+    print("🌍 거시 지표(Tab 2) 업데이트 시작 (카드 로직 유지 & 리포트 데이터 격리)")
     
-    # [1] 기본 데이터 초기화 (API 실패 시 안전장치용 기본값)
+    # [1] 기본 데이터 초기화
     today = datetime.now()
     data = {
         "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0.0,
@@ -3317,18 +3317,18 @@ def update_macro_data(df):
         print("⏩ [거시경제] 지표 수치 변화 없음. AI 분석 스킵!")
         return 
 
-    print("🔔 거시 지표 변동 감지! AI 분석 시작...")
+    print("🔔 거시 지표 변동 감지! AI 분석(데이터 격리 적용) 시작...")
     
     # 컨텍스트 준비
+    # Call 1용: IPO 통계 위주
     g1_context = f"Sentiment/Liquidity (IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%)"
     g2_context = f"Risk/Supply (Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%)"
     g3_context = f"Macro/Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
     
-    # 리포트용 통합 컨텍스트
-    macro_full_context = f"""
+    # 🚀 Call 2용: 실물 지표와 시장 기초체력 결합 (IPO 수치 완전 배제)
+    macro_report_context = f"""
     [실물 경제 상황]: {real_economy_str}
-    [금융 시장 지표]: VIX {data['vix']}, S&P500 PE {data['pe_ratio']}x, 공포탐욕지수 {data['fear_greed']}
-    [IPO 시장 현황]: 상장예정 {data['ipo_volume']}건, 초기수익률 {data['ipo_return']}%, 상장철회율 {data['withdrawal_rate']}%
+    [금융 시장 지표]: VIX {data['vix']}, S&P500 PE {data['pe_ratio']}x, 공포탐욕지수 {data['fear_greed']}, 버핏지수 {data['buffett_val']}%
     """
 
     macro_success = False
@@ -3336,7 +3336,7 @@ def update_macro_data(df):
         cache_key_summary = f"Global_Market_Summary_{lang_code}"
         cache_key_full = f"Global_Market_Dashboard_{lang_code}"
         
-        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약 (기존 유지)
+        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약 (요청하신 대로 그대로 유지)
         if lang_code == 'ko':
             sum_p = f"월가 수석 전략가로서 다음 3개 그룹의 데이터를 바탕으로 3개의 독립적인 대시보드 카드 요약을 작성하세요.\n[1번 카드 데이터]: {g1_context}\n[2번 카드 데이터]: {g2_context}\n[3번 카드 데이터]: {g3_context}"
             sum_i = """
@@ -3357,75 +3357,73 @@ def update_macro_data(df):
             4. Use a professional and formal tone.
             """
         elif lang_code == 'ja':
-            sum_p = f"ウォール街のチーフストラテジ스트として、次の3つのデータに基づいて3つの独立したダッシュボードカードの要約を作成してください。\n[カード1]: {g1_context}\n[カード2]: {g2_context}\n[카드3]: {g3_context}"
+            sum_p = f"ウォール街のチーフストラ테지스트として、次の3つのデータに基づいて3つの独立한 대시보드 카드의 요약을 작성하세요.\n[카드1]: {g1_context}\n[카드2]: {g2_context}\n[카드3]: {g3_context}"
             sum_i = """
-            [UIカード作成規則 - 厳守]
-            1. 3つの完全に独立したテキストのみを出力してください。数字のナンバリングや見出しは絶対に使わないでください。
-            2. フォーマット: (初期収益率と撤回率に基づく投機적熱狂の診断 3〜4文) |||SEP||| (上場予定件数と赤字企業比率による供給リスク分析 3〜4文) |||SEP||| (VIX、Fear&Greed、バフェット指数、PEを結合したマクロ的な過熱感の評価 3〜4文)
-            3. 区切り文字 '|||SEP|||' 以外に改行を入れないでください.
-            4. すべての文章は「〜です・ます」調の丁寧語を使用してください。
+            [UI카드 작성 규칙 - 엄수]
+            1. 3개의 완전히 독립된 텍스트만 출력하세요. 숫자 넘버링이나 별도의 제목은 절대 쓰지 마세요.
+            2. 포맷: (초기 수익률과 철회율 데이터를 바탕으로 투기적 광기 및 위험 선호도 진단 3~4문장) |||SEP||| (상장 예정 물량과 미수익 기업 비중을 결합하여 공급 과잉 및 질적 저하 리스크 분석 3~4문장) |||SEP||| (VIX, 공포탐욕지수, 밸류에이션을 결합하여 증시 전반의 거시적 과열 여부 진단 3~4문장)
+            3. 구분자 '|||SEP|||' 이외의 줄바꿈은 넣지 마세요.
+            4. 모든 문장은 'です/ます' 형태의 정중체를 사용하세요.
             """
         elif lang_code == 'zh':
             sum_p = f"作为华尔街首席策略师，请根据以下三组数据撰写3份独立的仪表板卡片摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}"
             sum_i = """[UI卡片规则 - 严格遵守]
             1. 仅输出3段完全独立的文本。严禁使用数字编号或标题（如“卡片1”）。
             2. 格式: (结合初期收益率与撤回率诊断投机狂热 3-4句话) |||SEP||| (结合上市排队数量与亏损企业占比分析供给风险 3-4句话) |||SEP||| (结合VIX、恐慌贪婪指数、巴菲特指标和PE评估宏观过热 3-4句话)
-            3. 仅使用 '|||SEP|||' 作为分隔符，段落之间不要换行。
-            4. 请使用专业且正式의 陈述句。
+            3. 仅使用 '|||SEP|||' 作为分隔符，段落之间不要换行.
+            4. 请使用专业且正式의 陈述句.
             """
 
-        # 💡 [Call 2] 하단 전문 리포트 (🚀 통찰력 및 전략 중심 분석)
+        # 💡 [Call 2] 하단 전문 리포트 (🚀 전 언어 지침 통일 및 데이터 격리 적용)
         if lang_code == 'ko':
-            full_p = f"당신은 월가 헤지펀드의 수석 전략가입니다. 실물 경제 환경이 현재의 투자 심리와 금융 시장 펀더멘털에 어떤 '인과관계'를 형성하고 있는지 분석 리포트를 작성하세요.\n[통합 데이터]: {macro_full_context}"
+            full_p = f"당신은 글로벌 투자 전략가입니다. 실물 경제 지표를 원인으로 삼아 현재의 금융 시장 상황을 유기적으로 분석하세요.\n[통합 데이터]: {macro_report_context}"
             full_i = """
-            [리포트 작성 지침 - 고도의 전략 분석]
-            1. **논리적 연결 (Reasoning)**: 단순히 지표를 나열하지 마세요. '금리나 물가 상황(원인)'이 어떻게 '시장 밸류에이션이나 IPO 열기(결과)'를 만들어내고 있는지 그 흐름을 설명하세요.
-            2. **나열 금지 (No Listing)**: "IPO 수익률은 몇 %이고, 금리는 몇 %이다" 식의 문장을 지양하세요. 대신 "현재의 금리 환경이 신규 상장 시장의 수익률을 제한하고 있다"는 식의 '해석'을 담으세요.
-            3. **전략적 함의 (Strategy)**: 이러한 거시적 흐름 속에서 투자자가 가져야 할 태도나 주의해야 할 리스크를 전문적인 어조로 제언하세요.
-            4. **형식**: 소제목 없이 **단 하나의 유기적인 단락**으로만 구성하세요. (4~5줄 내외)
+            [작성 규칙 - 거시경제 전략 브리핑]
+            1. **인과관계 분석**: 실물 경제 지표(금리, 물가, 실업률)가 현재 금융 시장의 지표(VIX, PE, 버핏지수)에 어떤 영향을 주고 있는지 그 '이유'를 중심으로 설명하세요.
+            2. **자연스러운 연결**: 상단 카드의 내용을 단순히 복제하지 말고, '금리/물가 환경 때문에 시장의 밸류에이션이나 펀더멘털이 어떠한 상태에 놓여있다'는 흐름으로 서술하세요.
+            3. **데이터 제한**: 제공되지 않은 데이터(IPO 수익률, 상장 물량 등)는 본문에서 절대 언급하지 마세요. 오직 주어진 데이터로만 분석하세요.
+            4. **형식**: 소제목 없이 **단 하나의 단락**으로 매우 압축하여 작성하세요. (5~6줄 내외)
             5. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
-            6. 모든 문장은 '~습니다/ㅂ니다'로 정중하게 마무리하세요.
+            6. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
             """
         elif lang_code == 'en':
-            full_p = f"As a Senior Wall Street Strategist, analyze the 'causal link' between the real economy and current market fundamentals.\n[Consolidated Data]: {macro_full_context}"
+            full_p = f"As a Global Investment Strategist, analyze the current financial market by using real economy indicators as causes.\n[Data]: {macro_report_context}"
             full_i = """
-            [Writing Rules - Strategic Insights]
-            1. **Focus on 'Why'**: Do not just list the numbers. Explain HOW the interest rate and inflation environment is shaping the current market PE and IPO activity.
-            2. **Narrative Flow**: Avoid repetitive phrasing from the cards. Synthesize the data into a professional investment column.
-            3. **Strategic Outlook**: Conclude with a brief professional view on the macro risk or opportunity.
-            4. **Format**: Exactly one cohesive paragraph without subheadings. (Approx. 4-5 lines)
+            [Writing Rules - Strategic Macro Brief]
+            1. **Causal Analysis**: Focus on explaining the 'reasons' for how real economy indicators (Rates, CPI, Unemployment) are impacting financial market metrics (VIX, PE, Buffett Index).
+            2. **Natural Connection**: Do not replicate the card summaries. Describe how the interest rate/inflation environment puts market valuation or fundamentals in its current state.
+            3. **Data Restriction**: Do NOT mention data not provided in the prompt (e.g., IPO returns, volume). Analyze only the provided data.
+            4. **Format**: Compose exactly one cohesive paragraph without subheadings. (Approx. 5-6 lines)
             5. **Opening**: Must start with the word 'Global' or 'Currently'.
             """
         elif lang_code == 'ja':
-            full_p = f"あなたはウォール街のチーフストラテジストです。実体経済指標が現在の投資心理と金融市場のファンダ멘탈에 어떠한 '因果関係'를 형성하고 있는지 분석 리포트를 작성하십시오.\n[統合データ]: {macro_full_context}"
+            full_p = f"あなたはグローバル投資戦略家です。実体経済指標を原因として、現在の金融市場状況을 논리적으로 분석하십시오.\n[統合データ]: {macro_report_context}"
             full_i = """
-            [作成規則 - 戦略的洞察]
-            1. **因果関係の解釈**: 単に指標を羅列するのではなく、「金利や物価状況（原因）」がどのように「市場評価やIPOの熱気（結果）」を作り出しているか、その流れを説明してください。
-            2. **分析的記述**: 「IPO収益率は〜%だ」という記述ではなく、「現在の金利環境が市場のバリュエーションにどのような圧力を与えているか」という『解釈』を中心に記述してください。
-            3. **戦略的提言**: 投資家が注意すべきリスクや、マクロ環境における投資姿勢を専門的なトーンで提言してください。
-            4. **形式**: 小見出しなしの単一の段落として作成してください。（4〜5行程度）
-            5. **開始単語**: 必ず「グローバル」または「現在」で始めてください。
-            6. 文体：丁寧語（です・ます調）を使用してください。
+            [作成規則 - マクロ経済戦略ブリーフィング]
+            1. **因果関係の分析**: 実体経済指標（金利、物価、雇用）が現在の金融市場指標（VIX、PE、バフェット指数）にどのような影響を与えているか、その「理由」を中心に説明してください。
+            2. **自然なつながり**: 上部カードの内容を単純に複製するのではなく、「金利・物価環境のために市場のバリュエ이션やファンダメンタルズがどのような状態にあるか」という流れで記述してください。
+            3. **データ制限**: 提供されていないデータ（IPO収益率、上場数など）は本文で絶対に言及しないでください。
+            4. **形式**: 小見出しなしで、単一の段落として非常に簡潔に作成してください。（5〜6行程度）
+            5. **最初の単語**: 必ず「グローバル」または「현재」で始めてください.
             """
         else: # zh
-            full_p = f"您是华尔街首席策略师。请分析实体经济指标与当前投资心理及金融市场基本面之间的“因果关系”，并撰写分析报告。\n[综合数据]: {macro_full_context}"
+            full_p = f"您是全球投资战略家。请以实体经济指标为诱因，有机地分析当前的金融市场状况。\n[综合数据]: {macro_report_context}"
             full_i = """
-            [编写规则 - 战略洞察]
-            1. **因果分析**: 严禁简单罗列数据。请解释“利率和通胀环境（原因）”如何影响“市场估值和IPO热度（结果）”。
-            2. **深度解析**: 不要重复“IPO收益率为xx%”之类的句子。相反，请侧重于阐述宏观环境对投资情绪的具体影响。
-            3. **策略建议**: 以专业口吻就当前宏观趋势下的风险管理或投资机会提供建议。
-            4. **格式**: 严禁使用小标题，仅限一个有机结合的自然段。（约 4-5 行）
+            [编写规则 - 宏观经济战略简报]
+            1. **因果关系分析**: 重点分析实体经济指标（利率、物价、就业）如何影响当前的金融市场指标（VIX、PE、巴菲特指数）及其背后的“原因”。
+            2. **有机结合**: 不要简单重复卡片内容，请描述“由于利率和物价环境，市场估值或基本面处于何种状态”的逻辑流程。
+            3. **数据限制**: 请勿提及未提供的数据（如 IPO 收益率、发行量等）。仅基于提供的数据进行分析。
+            4. **格式**: 严禁使用小标题，仅限一个自然段，内容需高度压缩。（约 5-6 行）
             5. **首词**: 必须以“全球”或“当前”开头。
-            6. 语气：保持专业且正式的分析语调。
             """
 
         try:
-            # 1. 카드 요약 생성 및 저장
+            # 1. 카드 요약 저장
             res_sum = model_strict.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
                 batch_upsert("analysis_cache", [{"cache_key": cache_key_summary, "content": res_sum.text.strip(), "ticker": "MARKET", "tab_name": "tab2", "lang": lang_code, "data_type": "macro_card"}], "cache_key")
         
-            # 2. 전문 리포트 생성 및 저장
+            # 2. 전문 리포트 저장
             res_full = model_strict.generate_content(full_p + full_i)
             if res_full and res_full.text:
                 batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_full.text.strip(), "ticker": "MARKET", "tab_name": "tab2", "lang": lang_code, "data_type": "macro_report"}], "cache_key")
