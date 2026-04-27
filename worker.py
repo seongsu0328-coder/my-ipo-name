@@ -3235,12 +3235,12 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         print(f"Tab3 Premium Revenue Seg Error for {ticker}: {e}")
 
 # ==========================================
-# [완성] Tab 2: 거시 지표 수집 및 분석 (카드 로직 유지 + 리포트 이원화)
+# [최종 완성] Tab 2: 거시 지표 수집 및 분석 (지표 통합 및 인과관계 분석 적용)
 # ==========================================
 def update_macro_data(df):
     if 'model_strict' not in globals() or not model_strict: return
     
-    print("🌍 거시 지표(Tab 2) 업데이트 시작 (카드 로직 유지 & 리포트 지표 차별화)")
+    print("🌍 거시 지표(Tab 2) 업데이트 시작 (실물 경제와 금융 시장의 통합 분석)")
     
     # [1] 기본 데이터 초기화
     today = datetime.now()
@@ -3250,7 +3250,7 @@ def update_macro_data(df):
         "buffett_val": 195.0, "pe_ratio": 24.0
     }
     
-    # [2] 실시간 IPO 통계 계산 (기존 로직)
+    # [2] 실시간 IPO 통계 계산 (기존 로직 유지)
     try:
         if not df.empty:
             df['dt'] = pd.to_datetime(df['date'], errors='coerce')
@@ -3287,17 +3287,17 @@ def update_macro_data(df):
                 data["fear_greed"] = max(0, min(100, 100 - ((erp - 3.0) * 20))) 
     except: pass
 
-    # [4] 리포트 전용 실물 경제 지표 로드 (FRED 캐시 활용)
+    # [4] 실물 경제 지표 로드 (FRED 캐시 활용)
     real_economy_str = "N/A"
     try:
         res = supabase.table("macro_cache").select("content").eq("cache_key", "FRED_MACRO_DATA").execute()
         if res.data:
             full_fred = json.loads(res.data[0]['content'])
             cur = full_fred.get("0", {}) 
-            rate = cur.get("FEDFUNDS", {}).get("val", "N/A")
+            fed_rate = cur.get("FEDFUNDS", {}).get("val", "N/A")
             cpi = cur.get("CPIAUCSL", {}).get("val", "N/A")
             unrate = cur.get("UNRATE", {}).get("val", "N/A")
-            real_economy_str = f"Fed Rate: {rate}%, CPI Inflation: {cpi}%, Unemployment: {unrate}%"
+            real_economy_str = f"기준금리: {fed_rate}%, 소비자물가(CPI): {cpi}%, 실업률: {unrate}%"
     except: pass
 
     # UI 수치 데이터 저장
@@ -3317,22 +3317,26 @@ def update_macro_data(df):
         print("⏩ [거시경제] 지표 수치 변화 없음. AI 분석 스킵!")
         return 
 
-    print("🔔 거시 지표 변동 감지! AI 분석(카드 vs 리포트 개별화) 시작...")
+    print("🔔 거시 지표 변동 감지! AI 분석 시작...")
     
     # 컨텍스트 준비
     g1_context = f"Sentiment/Liquidity (IPO Return: {data['ipo_return']}%, Withdrawal Rate: {data['withdrawal_rate']}%)"
     g2_context = f"Risk/Supply (Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%)"
     g3_context = f"Macro/Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
     
-    # 리포트용 (실물경제 중심)
-    report_context = f"Real Economy: {real_economy_str} | Market Fundamentals: VIX {data['vix']}, S&P500 PE {data['pe_ratio']}x, Buffett Indicator {data['buffett_val']}%"
+    # 리포트용 통합 컨텍스트 (실물 경제와 금융 시장 지표의 결합)
+    macro_full_context = f"""
+    [실물 경제 상황]: {real_economy_str}
+    [금융 시장 지표]: VIX {data['vix']}, S&P500 PE {data['pe_ratio']}x, 공포탐욕지수 {data['fear_greed']}
+    [IPO 시장 현황]: 상장예정 {data['ipo_volume']}건, 초기수익률 {data['ipo_return']}%, 상장철회율 {data['withdrawal_rate']}%
+    """
 
     macro_success = False
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_summary = f"Global_Market_Summary_{lang_code}"
         cache_key_full = f"Global_Market_Dashboard_{lang_code}"
         
-        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약 (사용자 요청에 따라 기존 유지)
+        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약 (사용자 요청 유지)
         if lang_code == 'ko':
             sum_p = f"월가 수석 전략가로서 다음 3개 그룹의 데이터를 바탕으로 3개의 독립적인 대시보드 카드 요약을 작성하세요.\n[1번 카드 데이터]: {g1_context}\n[2번 카드 데이터]: {g2_context}\n[3번 카드 데이터]: {g3_context}"
             sum_i = """
@@ -3353,15 +3357,15 @@ def update_macro_data(df):
             4. Use a professional and formal tone.
             """
         elif lang_code == 'ja':
-            sum_p = f"ウォール街のチーフストラテジストとして、次の3つの데이터에 기초하여 3개의 독립적인 대시보드 카드의 요약을 작성하세요.\n[카드1]: {g1_context}\n[카드2]: {g2_context}\n[카드3]: {g3_context}"
+            sum_p = f"ウォール街のチーフストラテジ스트として、次の3つの데이터에 기초하여 3개의 독립적인 대시보드 카드의 요약을 작성하세요.\n[카드1]: {g1_context}\n[카드2]: {g2_context}\n[카드3]: {g3_context}"
             sum_i = """
             [UI카드 작성 규칙 - 엄수]
             1. 3개의 완전히 독립된 텍스트만 출력하세요. 숫자 넘버링이나 별도의 제목은 절대 쓰지 마세요.
-            2. 포맷: (초기 수익률과 철회율 데이터를 바탕으로 투기적 광기 및 위험 선호도 진단 3~4문장) |||SEP||| (상장 예정 물량과 미수익 기업 비중을 결합하여 공급 과잉 및 질적 저하 리스크 분석 3~4문장) |||SEP||| (VIX, 공포탐욕지수, 밸류에이션을 결합하여 증시 전반의 거시적 과열 여부 진단 3~4문장)
+            2. 포맷: (초기 수익률과 철회율 데이터를 바탕으로 투기적 광기 및 위험 선호도 진단 3〜4문장) |||SEP||| (상장 예정 물량과 미수익 기업 비중을 결합하여 공급 과잉 및 질적 저하 리스크 분석 3〜4문장) |||SEP||| (VIX, 공포탐욕지수, 밸류에이션을 결합하여 증시 전반의 거시적 과열 여부 진단 3〜4문장)
             3. 구분자 '|||SEP|||' 이외의 줄바꿈은 넣지 마세요.
-            4. 모든 문장은 '입니다/합니다' 형태의 정중체를 사용하세요.
+            4. 모든 문장은 'です/ます' 형태의 정중체를 사용하세요.
             """
-        else: # zh
+        elif lang_code == 'zh':
             sum_p = f"作为华尔街首席策略师，请根据以下三组数据撰写3份独立的仪表板卡片摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}"
             sum_i = """[UI卡片规则 - 严格遵守]
             1. 仅输出3段完全独立的文本。严禁使用数字编号或标题（如“卡片1”）。
@@ -3370,26 +3374,26 @@ def update_macro_data(df):
             4. 请使用专业且正式的陈述句。
             """
 
-        # 💡 [Call 2] 하단 전문 리포트 (🚀 실물 경제 지표 기반으로 완전 차별화)
+        # 💡 [Call 2] 하단 전문 리포트 (실물 지표 기반의 인과관계 분석)
         if lang_code == 'ko':
-            full_p = f"월가 헤지펀드 전략가로서 아래 실물 경제 지표가 증시 펀더멘털에 미치는 영향을 분석하세요.\n[경제 데이터]: {report_context}"
+            full_p = f"당신은 글로벌 투자 전략가입니다. 실물 경제 지표를 원인으로 삼아 현재의 금융 시장 상황을 유기적으로 분석하세요.\n[통합 데이터]: {macro_full_context}"
             full_i = """
-            [작성 규칙 - Strategic Brief]
-            1. **데이터 엄격 분리**: 상단 카드에 언급된 'IPO 수익률, 상장 물량, 철회율, 미수익 기업 비중' 수치를 리포트 본문에서 절대 다시 언급하지 마세요. 오직 금리, 물가, 실업률에 집중하세요.
-            2. **인과관계 분석**: 현재의 금리와 물가 수준이 시장의 밸류에이션(PE) 및 공포지수(VIX)에 어떤 실질적인 압력을 주고 있는지 분석하세요. 
-            3. **중복 금지**: 단순히 지표를 나열하지 말고 '현상이 원인이 되어 결과로 나타나는 흐름'을 서술하세요.
-            4. **형식**: 소제목 없이 **단 하나의 단락**으로 매우 압축하여 작성하세요. (5~6줄 내외)
+            [작성 규칙 - 거시경제 전략 브리핑]
+            1. **인과관계 분석**: 실물 경제 지표(금리, 물가, 실업률)가 현재 금융 시장의 지표(VIX, PE, IPO 수익률)에 어떤 영향을 주고 있는지 그 '이유'를 중심으로 설명하세요.
+            2. **자연스러운 연결**: 상단 카드의 내용을 단순히 복제하지 말고, '금리/물가 환경 때문에 시장의 밸류에이션이나 IPO 열기가 어떠한 상태에 놓여있다'는 흐름으로 서술하세요.
+            3. **형식**: 소제목 없이 **단 하나의 단락**으로 매우 압축하여 작성하세요. (5~6줄 내외)
+            4. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
             5. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
             """
         elif lang_code == 'en':
-            full_p = f"As a Wall Street Strategist, analyze how real economy indicators are shaping market fundamentals.\n[Data]: {report_context}"
-            full_i = "\nRules: DO NOT mention IPO stats. Focus on Rate/CPI/Jobs impact on Market PE and VIX. Single paragraph only. No subheadings."
+            full_p = f"As a Global Investment Strategist, analyze the market by using real economy indicators as causes.\n[Data]: {macro_full_context}"
+            full_i = "\nRules: Connect Real Economy (Rates/CPI) with Market Performance (PE/IPO). Explain the logical link. Single paragraph. Start with 'Global' or 'Currently'."
         elif lang_code == 'ja':
-            full_p = f"ヘッジファンド・ストラテジ스트として、実体経済指標が市場に与える影響을 분석하십시오.\n[데이터]: {report_context}"
-            full_i = "\n規則: IPO統計は言及禁止。金리、物価、雇用が市場PEとVIXに与える影響を1つの段落で記述してください。"
+            full_p = f"グローバル投資戦略家として、実体経済指標を原因として現在の金融市場状況を論理的に分析してください。\n[データ]: {macro_full_context}"
+            full_i = "\n規則: 金利・物価・雇用が市場PEやIPOに与える因果関係を説明。1つの段落で構成。開始は「グローバル」または「現在」。"
         else: # zh
-            full_p = f"作为对冲基金策略师，请分析实物经济指标对市场基本面的影响。\n[数据]: {report_context}"
-            full_i = "\n规则: 严禁重复IPO数据。重点分析利率、物价、就业对市场PE和VIX的影响。仅限一个自然段。"
+            full_p = f"作为全球投资战略家，请以实物经济指标为诱因，有机分析当前金融市场状况。\n[数据]: {macro_full_context}"
+            full_i = "\n规则: 分析利率/物价/就业如何影响市场估值和IPO。严禁简单重复。仅限一个自然段。以“全球”或“当前”开头。"
 
         try:
             # 1. 카드 요약 저장
