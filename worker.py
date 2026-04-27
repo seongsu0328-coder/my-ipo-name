@@ -2805,165 +2805,276 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
 
     # =====================================================================
-    # 🚀[Step 2] 4개 국어 리포트 및 요약 카드 작성 (IB 벤치마크 기반 + 환각 완벽 차단)
+    # 🚀 [Step 2] 4개 국어 리포트 및 요약 카드 작성 (디버깅 모드 + 정규식 안전 교체)
     # =====================================================================
-    for lang_code, target_lang in SUPPORTED_LANGS.items():
-        cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
-        cache_key_full = f"{ticker}_Tab3_v2_Premium_{lang_code}"
+    def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
+        if 'model_strict' not in globals() or not model_strict: return False
         
-        # 🚨[글로벌 투자은행(IB) 표준 평가 벤치마크 - 9대 핵심 지표 확장]
-        ib_benchmark = """[Wall Street IB Standard Benchmarks for Analysis]
-        1. Profitability & Growth (수익성 및 성장성):
-           - Sales Growth: > 20% (High Growth / Strong Demand), 0-20% (Moderate), < 0% (Contraction).
-           - Net Margin: > 10% (Solid Profitability), < 0% (Deficit / Warning).
-           - Piotroski F-Score: 8-9 (Exceptional / Strong Fundamental), 5-7 (Stable), 0-4 (Weak / Distressed).
-        2. Financial Health & Earnings Quality (건전성 및 이익 품질):
-           - Debt-to-Equity (D/E): < 100% (Healthy / Low Leverage), > 200% (High Risk / Highly Leveraged).
-           - Accruals Quality: 'Low' (High Quality Earnings - OCF > Net Income), 'High' (Low Quality Earnings - Warning).
-        3. Valuation & Market Sentiment (가치 평가 및 시장 심리):
-           - Forward P/E: > 25x (Growth Premium or Overvalued), < 15x (Value Territory).
-           - DCF Gap: DCF > Current Price (Undervalued / Upside Potential), DCF < Current Price (Overvalued / Downside Risk).
-           - IPO Return: > 20% (Strong Market Appetite), < 0% (Busted IPO / Weak Demand).
-        """
-
-        # 🚨[언어별 환각(소설) 차단 강력 지시]
-        if lang_code == 'ko':
-            sum_i = f"""
-            {ib_benchmark}[UI 카드 작성 규칙 - 절대 엄수]
-            1. '성장성 해석:', '건전성 해석:' 같은 라벨이나 소제목을 절대 출력하지 마세요. 바로 본문 문장만 작성하세요.
-            2. 포맷: (수익성 비율 중심 팩트 요약 2~3문장) |||SEP||| (건전성 및 이익 품질 중심 팩트 요약 2~3문장) |||SEP||| (시장 밸류에이션 팩트 요약 2~3문장)
-            3. 🚨[절대값 추론 금지]: "부채가 54만 달러로 긍정적" 같은 절대값 기반의 자의적 해석을 절대 금지합니다. 제공된 IB 표준 벤치마크를 활용하여 부채비율, 순이익률, PER, Accruals 등 '비율(Ratio)'과 '퀄리티(Quality)' 중심으로만 분석하세요. 비율 정보가 없으면 절대 추론하지 마세요.
-            4. 구분자 '|||SEP|||' 외에 어떤 기호나 줄바꿈도 금지합니다.
-            """
-            full_i = """[전문 리포트 작성 규칙 - 절대 엄수]
-            1. 출력의 첫 글자는 반드시 '['여야 합니다. 리포트 제목, '요약', 인사말은 절대 금지.
-            2. 반드시 [수익성 및 성장성 분석],[재무 건전성 분석], [시장 및 가치 평가] 3개의 소제목으로만 구성하세요.
-            3. 각 문단은 반드시 3~4줄(문장) 길이로 작성하세요.
-            4. 🚨[Wall Street IB Standard Analysis]: 수치를 단순 나열하지 마세요. 제공된 IB 벤치마크를 엄격하게 적용하여, 실제 확인된 수치가 기업의 펀더멘털과 투자 매력도에 미치는 전략적 의미를 글로벌 투자은행(IB)의 시니어 애널리스트가 작성하는 공식 리서치 보고서 어조로 매우 전문적이고 깊이 있게 분석하세요.
-            5. 모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하세요.
-            """
-            na_rule = "🚨 [환각 완벽 차단 규칙]: 지표 데이터가 'N/A' 또는 'Unknown'일 경우, 데이터 부족으로 인한 리스크를 억지로 지어내어 소설을 쓰지 마세요. 빈 칸을 채우기 위해 추론하지 말고, 깔끔하게 '해당 정보가 확인되지 않습니다.'라고 단 한 줄만 답변하고 넘어가세요."
-            
-        elif lang_code == 'en':
-            sum_i = f"""
-            {ib_benchmark}[UI Card Rules - STRICT]
-            1. DO NOT output any labels like 'Growth:'. Write plain sentences ONLY.
-            2. Format: (Profitability Ratios 2-3 sentences) |||SEP||| (Health & Quality Ratios 2-3 sentences) |||SEP||| (Valuation 2-3 sentences)
-            3. 🚨 [No Absolute Value Guessing]: Never evaluate health based on absolute numbers (e.g., "Debt of $500k is good"). Use the provided IB Benchmarks to analyze Ratios and Quality. If ratios are missing, DO NOT guess.
-            4. NO line breaks. Use '|||SEP|||' as the only separator.
-            """
-            full_i = """
-            [Report Rules - STRICT]
-            1. First character MUST be '['. No titles or greetings.
-            2. Use exactly 3 subheadings: [Profitability & Growth], [Financial Health], [Valuation].
-            3. Each paragraph MUST be exactly 3 to 4 sentences long.
-            4. 🚨[Wall Street IB Standard Analysis]: Do not just list numbers. Apply the provided IB benchmarks strictly. Explain the strategic implications of the actual metrics on the company's fundamentals using the highly professional, formal tone of a Senior Equity Research Analyst at a global investment bank.
-            """
-            na_rule = "🚨 [ANTI-HALLUCINATION]: If ratio metrics are 'N/A' or 'Unknown', DO NOT hallucinate risks. Simply state 'This information is currently unverified.' and move on. Focus ONLY on exact verified numbers."
-            
-        elif lang_code == 'ja':
-            sum_i = f"""
-            {ib_benchmark}[UIカード規則 - 厳守]
-            1. 「成長性:」のようなラベルは絶対に出力せず、文章のみを記述してください。
-            2. フォーマット: (収益性比率の要約 2-3文) |||SEP||| (健全性と利益品質の要約 2-3文) |||SEP||| (バリュエーション要約 2-3文)
-            3. 🚨[絶対値の推論禁止]: 絶対値(例:負債50万ドル)だけで勝手に健全性を評価しないでください。提供されたIBベンチマークを活用し、「比率(Ratio)」と「品質(Quality)」のみで評価してください。
-            4. '|||SEP|||' 以外の改行や記号は禁止。
-            """
-            full_i = """[レポート規則 - 厳守]
-            1. 最初の文字は必ず '[' です。タイトルや挨拶は禁止。
-            2. 必ず [収益性と成長性の分析],[財務健全性分析], [市場および価値評価] の3つの見出しのみで構成。
-            3. 各段落は必ず 3〜4文の長さ で作成してください。
-            4. 🚨[Wall Street IB Standard Analysis]: 数値を単に羅列しないでください。提供されたIBベンチマークを厳格に適用し、確認された数値が企業のファンダメンタルズに与える戦略的意味を、グローバル投資銀行(IB)のシニアアナリストの公式リサーチレポートのトーンで非常に専門的かつ深く分析してください。
-            5. 全ての文章は「〜です」「〜ます」の丁寧な表現で統一してください。
-            """
-            na_rule = "🚨 [捏造完全遮断]: 指標が 'N/A' または 'Unknown' の場合、不足リスクについて小説を書かないでください。推論せず、「該当情報は確認されていません。」と一文だけ記述して次に進んでください。"
-            
-        else: # zh
-            sum_i = f"""
-            {ib_benchmark}[UI卡片规则 - 严格遵守]
-            1. 绝对不要输出任何标签(如“增长性:”)。只输出纯文本句子。
-            2. 格式: (盈利比率摘要 2-3句话) |||SEP||| (健康与盈利质量摘要 2-3句话) |||SEP||| (估值摘要 2-3句话)
-            3. 🚨[禁止绝对值推测]: 绝对不能仅凭绝对值(如负债50万美元)随意评估。请使用提供的IB基准，仅通过比率和质量(如D/E，Accruals等)进行分析。如果没有比率数据，请勿猜测。
-            4. 严禁使用 '|||SEP|||' 之外的换行或符号。
-            """
-            full_i = """[报告规则 - 严格遵守]
-            1. 第一个字符必须是 '['。严禁标题和问候。
-            2. 必须仅包含[盈利能力与增长性分析], [财务健康状况分析],[市场与估值分析] 三个子标题。
-            3. 每个段落必须正好包含 3到4句话。
-            4. 🚨[Wall Street IB Standard Analysis]: 不要只是罗列数字。严格应用提供的IB基准，以全球投资银行(IB)资深分析师官方研究报告的专业口吻，深度分析实际确定的数字对企业基本面和投资吸引力的战略意义。
-            """
-            na_rule = "🚨 [防幻觉绝对规则]: 若比率指标为 'N/A' 或 'Unknown', 绝对不要长篇大论编造数据缺失带来的风险！不要主观推测，只需回复“未确认到相关信息。”即可。"
-
-        data_packet = f"Available Metrics:\n- {g1_context}\n- {g2_context}\n- {g3_context}\n- {g4_context}"
-        final_full_prompt = f"Write a professional financial report for {company_name}.\n{data_packet}\nInstruction: {full_i}\nRule: {na_rule}\nLanguage: {target_lang}"
-
-        # [Action 1] 요약 카드 생성 (기존 로직 유지)
+        print(f"🛠️ [DEBUG-{ticker}] Tab3 프로세스 진입")
+        base_ticker = get_base_ticker(ticker)
+        
+        pristine_metrics_str = json.dumps(raw_metrics, sort_keys=True)
+        tracker_key = f"{ticker}_Tab3_Financial_RawTracker"
+        is_changed = True
+        
         try:
-            res_sum = model_strict.generate_content(f"Analyze {company_name} metrics for UI.\n{data_packet}\nInstruction: {sum_i}\nLanguage: {target_lang}")
-            if res_sum and res_sum.text:
-                clean_sum = re.sub(r'^[\[\(](성장성|건전성|밸류에이션|Growth|Health|Valuation|収益|財務|評価|增长|健康|估值).*?[\]\)]\s*:?', '', res_sum.text.strip())
-                batch_upsert("analysis_cache", [{
-                    "cache_key": cache_key_sum, "content": clean_sum.replace('\n', ' ').strip(), 
-                    "updated_at": datetime.now().isoformat(), "ticker": ticker, "tier": "free", 
-                    "tab_name": "tab3", "lang": lang_code, "data_type": "metrics_card"
-                }], on_conflict="cache_key")
-        except: pass
-
-        # [Action 2] 전문 리포트 생성 및 레이아웃 가공 (노이즈 필터링 강화)
-        try:
-            res_full = model_strict.generate_content(final_full_prompt)
-            if res_full and res_full.text:
-                # 1. AI 서론 및 인사말 정제
-                raw_f = clean_ai_preamble(res_full.text.strip())
-                
-                # 2. 마침표 뒤의 소제목 강제 분리 (뭉침 방지)
-                raw_f = re.sub(r'([.!?。])\s*(\[|\*\*\[)', r'\1\n\n\2', raw_f)
-                lines = [l.strip() for l in raw_f.split('\n') if l.strip()]
-                
-                f_html = ""
-                first_header_found = False # 🚀 첫 번째 소제목 발견 여부 플래그
-
-                for line in lines:
-                    # 🚀 별표(*) 기호 삭제 및 소제목 패턴 탐지
-                    clean_line = line.replace('*', '').strip()
-                    if not clean_line: continue
-
-                    # 소제목 매칭 (수익성, 재무, 적정/종합 등 허용된 키워드만)
-                    header_match = re.match(r'^\[(수익성|재무|적정|종합|Profitability|Financial|Intrinsic|Verdict|収益|財務|適正|総合|盈利|财务|合理|综合).*?\]', clean_line)
+            print(f"🛠️ [DEBUG-{ticker}] 캐시 DB 조회 중...")
+            res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
+            if res_tracker.data and pristine_metrics_str == res_tracker.data[0]['content']:
+                is_changed = False 
+        except Exception as e: 
+            print(f"🛠️ [DEBUG-{ticker}] 캐시 DB 조회 에러: {e}")
+    
+        enriched_metrics = copy.deepcopy(raw_metrics)
+        is_fmp_fin_poor = (str(enriched_metrics.get('growth', 'N/A')) in ['N/A', '', 'None'])
+        can_fin_search = is_fmp_fin_poor and (model_search is not None)
+        
+        force_search_run = False
+        if not is_changed and can_fin_search:
+            try:
+                limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat()
+                test_key = f"{ticker}_Tab3_Summary_ko"
+                res_exp = supabase.table("analysis_cache").select("updated_at").eq("cache_key", test_key).gt("updated_at", limit_time_str).execute()
+                if not res_exp.data:
+                    force_search_run = True 
+            except: pass
+    
+        if not is_changed and not force_search_run:
+            print(f"🛠️ [DEBUG-{ticker}] 변경점 없음. 분석 스킵!")
+            return True 
+            
+        reason = "데이터 변경" if is_changed else "정기 재무 검색"
+        print(f"🔔 [{ticker}] Tab 3 업데이트 감지 ({reason})! 분석 시작...")
+        
+        curr_yr = datetime.now().year
+        past_3_years = f"{curr_yr-2} {curr_yr-1} {curr_yr}"
+        rich_raw_data_str = "N/A"
+        
+        if can_fin_search:
+            print(f"🔍 [{ticker}] 구글 딥서치 API 호출 중...")
+            recovery_prompt = f"""
+            Search Google for the latest fundamental financial numbers of {company_name} (Ticker: {ticker}, Base Ticker: {base_ticker}) for the years {past_3_years}.
+            Find EXACT absolute numbers in Millions or Billions.
+            Output ONLY valid JSON:
+            {{
+                "revenue": "numeric", "prev_revenue": "numeric", "gross_profit": "numeric",
+                "operating_income": "numeric", "net_income": "numeric", "total_assets": "numeric",
+                "total_liabilities": "numeric", "total_debt": "numeric", "total_equity": "numeric",
+                "operating_cash_flow": "numeric", "free_cash_flow": "numeric", "eps": "numeric"
+            }}
+            """
+            try:
+                rec_res = model_search.generate_content(recovery_prompt)
+                print(f"🛠️ [DEBUG-{ticker}] 구글 딥서치 응답 성공")
+                if rec_res and rec_res.text:
+                    text = rec_res.text
+                    json_str = text[text.find('{'):text.rfind('}')+1]
+                    raw_data = json.loads(json_str)
                     
-                    if header_match:
-                        first_header_found = True # 유효한 소제목 시작됨
-                        if f_html: f_html += "<br><br>"
-                        f_html += f"<b>{clean_line}</b>"
-                    else:
-                        # 🚀 첫 번째 소제목이 나오기 전의 텍스트(임의 제목/요약 등)는 모두 버림
-                        if not first_header_found:
-                            continue
-                        
-                        # 본문 연결 로직
-                        if f_html.endswith("</b>"):
-                            f_html += f"<br>{clean_line}"
-                        else:
-                            f_html += f" {clean_line}"
+                    def to_float(val):
+                        try: return float(re.sub(r'[^0-9.-]', '', str(val)))
+                        except: return None
+                    
+                    rev, p_rev, net = to_float(raw_data.get("revenue")), to_float(raw_data.get("prev_revenue")), to_float(raw_data.get("net_income"))
+                    debt, equity, ocf = to_float(raw_data.get("total_debt")), to_float(raw_data.get("total_equity")), to_float(raw_data.get("operating_cash_flow"))
+                    eps = to_float(raw_data.get("eps"))
+                    
+                    updated = False
+                    if rev and p_rev and p_rev > 0:
+                        enriched_metrics["growth"] = f"{((rev - p_rev) / p_rev) * 100:+.1f}%"
+                        updated = True
+                    if rev and net:
+                        enriched_metrics["net_margin"] = f"{(net / rev) * 100:.1f}%"
+                        updated = True
+                    if debt and equity and equity > 0:
+                        enriched_metrics["debt_equity"] = f"{(debt / equity) * 100:.1f}%"
+                        updated = True
+                    if net and ocf:
+                        enriched_metrics["accruals"] = "Low" if (net - ocf) <= 0 else "High"
+                        updated = True
+                    if eps: enriched_metrics["eps"] = eps
+    
+                    rich_raw_data_str = ", ".join([f"{k}: {v}" for k, v in raw_data.items() if v not in [None, "N/A", ""]])
+                    enriched_metrics["raw_deep_data"] = rich_raw_data_str
+                    
+                    if updated:
+                        batch_upsert("analysis_cache",[{
+                            "cache_key": f"{ticker}_Raw_Financials",
+                            "content": json.dumps(enriched_metrics, ensure_ascii=False),
+                            "updated_at": datetime.now().isoformat(),
+                            "ticker": ticker, "data_type": "enriched_financial_data"
+                        }], on_conflict="cache_key")
+            except Exception as e:
+                print(f"⚠️[{ticker}] 데이터 수집 실패: {e}")
+    
+        if rich_raw_data_str == "N/A" and "raw_deep_data" in enriched_metrics:
+            rich_raw_data_str = enriched_metrics["raw_deep_data"]
+    
+        g1_context = f"Growth & Profitability: Sales Growth {enriched_metrics.get('growth', 'N/A')}, Net Margin {enriched_metrics.get('net_margin', 'N/A')}"
+        g2_context = f"Financial Health: Debt to Equity {enriched_metrics.get('debt_equity', 'N/A')}, Accruals {enriched_metrics.get('accruals', 'Unknown')}"
+        g3_context = f"Market/Valuation: Forward P/E {enriched_metrics.get('pe', 'N/A')}, DCF Target {enriched_metrics.get('dcf_price', 'N/A')}"
+        g4_context = f"Raw Financial Numbers: {rich_raw_data_str}"
+    
+        for lang_code, target_lang in SUPPORTED_LANGS.items():
+            print(f"🛠️ [DEBUG-{ticker}] {lang_code} 언어 분석 루프 시작")
+            cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
+            cache_key_full = f"{ticker}_Tab3_v2_Premium_{lang_code}"
+            
+            ib_benchmark = """[Wall Street IB Standard Benchmarks for Analysis]
+            1. Profitability & Growth (수익성 및 성장성):
+               - Sales Growth: > 20% (High Growth / Strong Demand), 0-20% (Moderate), < 0% (Contraction).
+               - Net Margin: > 10% (Solid Profitability), < 0% (Deficit / Warning).
+               - Piotroski F-Score: 8-9 (Exceptional / Strong Fundamental), 5-7 (Stable), 0-4 (Weak / Distressed).
+            2. Financial Health & Earnings Quality (건전성 및 이익 품질):
+               - Debt-to-Equity (D/E): < 100% (Healthy / Low Leverage), > 200% (High Risk / Highly Leveraged).
+               - Accruals Quality: 'Low' (High Quality Earnings - OCF > Net Income), 'High' (Low Quality Earnings - Warning).
+            3. Valuation & Market Sentiment (가치 평가 및 시장 심리):
+               - Forward P/E: > 25x (Growth Premium or Overvalued), < 15x (Value Territory).
+               - DCF Gap: DCF > Current Price (Undervalued / Upside Potential), DCF < Current Price (Overvalued / Downside Risk).
+               - IPO Return: > 20% (Strong Market Appetite), < 0% (Busted IPO / Weak Demand).
+            """
+    
+            if lang_code == 'ko':
+                sum_i = f"""{ib_benchmark}[UI 카드 작성 규칙 - 절대 엄수]
+                1. 라벨이나 소제목을 절대 출력하지 마세요.
+                2. 포맷: (수익성 비율 중심 팩트 요약 2~3문장) |||SEP||| (건전성 비율 중심 팩트 요약 2~3문장) |||SEP||| (시장 밸류에이션 요약 2~3문장)
+                3. 🚨[절대값 추론 금지]: 절대값(예:부채 54만달러)으로 긍정/부정을 판단하지 마세요. 비율과 퀄리티 지표로만 분석하세요.
+                """
+                full_i = """[전문 리포트 작성 규칙 - 절대 엄수]
+                1. 첫 글자는 반드시 '['여야 합니다. 
+                2. 반드시 [수익성 및 성장성 분석],[재무 건전성 분석], [시장 및 가치 평가] 3개의 소제목으로만 구성하세요.
+                3. 각 문단은 3~4줄(문장) 길이로 작성.
+                4. 🚨[Wall Street IB Standard Analysis]: 제공된 IB 벤치마크를 엄격하게 적용하여 시니어 애널리스트 어조로 분석하세요.
+                5. 모든 문장은 '~습니다', '~합니다'로 마무리하세요.
+                """
+                na_rule = "🚨 [환각 완벽 차단 규칙]: 데이터가 'N/A' 또는 'Unknown'일 경우, 억지로 지어내지 말고 '해당 정보가 확인되지 않습니다.'라고 단 한 줄만 답변하세요."
                 
-                # 최종 가공 및 한국어 들여쓰기 적용
-                processed_content = f_html.strip()
-                if lang_code == 'ko' and processed_content:
-                    parts = processed_content.split("<br><br>")
-                    styled = [f'<div style="text-indent:14px; margin-bottom:15px; line-height:1.7;">{p}</div>' if not p.startswith("<b>") else p for p in parts]
-                    processed_content = "".join(styled)
-
-                if processed_content:
-                    batch_upsert("analysis_cache", [{
-                        "cache_key": cache_key_full, "content": processed_content, 
-                        "updated_at": datetime.now().isoformat(), "ticker": ticker, 
-                        "tier": "premium", "tab_name": "tab3", "lang": lang_code, "data_type": "financial_report"
+            elif lang_code == 'en':
+                sum_i = f"""{ib_benchmark}[UI Card Rules - STRICT]
+                1. DO NOT output labels. Format: (Profitability Ratios 2-3 sentences) |||SEP||| (Health Ratios 2-3 sentences) |||SEP||| (Valuation 2-3 sentences)
+                2. 🚨 [No Absolute Value Guessing]: Never evaluate health based on absolute numbers. Use Benchmarks for Ratios.
+                """
+                full_i = """[Report Rules - STRICT]
+                1. First character MUST be '['. 
+                2. Exactly 3 subheadings: [Profitability & Growth], [Financial Health],[Valuation].
+                3. Each paragraph MUST be 3 to 4 sentences long.
+                4. 🚨[Wall Street IB Standard Analysis]: Apply IB benchmarks strictly.
+                """
+                na_rule = "🚨[ANTI-HALLUCINATION]: If metrics are 'N/A', state 'This information is currently unverified.' and move on."
+                
+            elif lang_code == 'ja':
+                sum_i = f"""{ib_benchmark}[UIカード規則 - 厳守]
+                1. ラベルは絶対に出力しないでください。フォーマット: (収益性比率要約 2-3文) |||SEP||| (健全性要約 2-3文) |||SEP||| (バリュエーション要約 2-3文)
+                2. 🚨[絶対値の推論禁止]: 絶対値だけで健全性を評価しないでください。比率と品質のみで評価してください。
+                """
+                full_i = """[レポート規則 - 厳守]
+                1. 最初の文字は必ず '[' です。
+                2. 必ず [収益性と成長性の分析],[財務健全性分析], [市場および価値評価] の3つの見出しのみで構成。
+                3. 各段落は必ず 3〜4文の長さ。
+                4. 🚨[Wall Street IB Standard Analysis]: IBベンチマークを厳格に適用してください。
+                5. 全ての文章は「〜です」「〜ます」で統一。
+                """
+                na_rule = "🚨 [捏造完全遮断]: 指標が 'N/A' の場合、「該当情報は確認されていません。」と一文だけ記述してください。"
+                
+            else: # zh
+                sum_i = f"""{ib_benchmark}[UI卡片规则 - 严格遵守]
+                1. 绝对不要输出标签。格式: (盈利比率摘要 2-3句话) |||SEP||| (健康质量摘要 2-3句话) |||SEP||| (估值摘要 2-3句话)
+                2. 🚨[禁止绝对值推测]: 不能凭绝对值评估。使用比率进行分析。
+                """
+                full_i = """[报告规则 - 严格遵守]
+                1. 第一个字符必须是 '['。
+                2. 仅包含 [盈利能力与增长性分析], [财务健康状况分析], [市场与估值分析] 三个子标题。
+                3. 每个段落正好 3到4句话。
+                4. 🚨[Wall Street IB Standard Analysis]: 严格应用IB基准。
+                """
+                na_rule = "🚨[防幻觉绝对规则]: 若比率指标为 'N/A', 只需回复“未确认到相关信息。”即可。"
+    
+            data_packet = f"Available Metrics:\n- {g1_context}\n- {g2_context}\n- {g3_context}\n- {g4_context}"
+            final_full_prompt = f"Write a professional financial report for {company_name}.\n{data_packet}\nInstruction: {full_i}\nRule: {na_rule}\nLanguage: {target_lang}"
+    
+            # [Action 1] 요약 카드 생성
+            print(f"🛠️ [DEBUG-{ticker}] {lang_code} 카드 요약(Action 1) AI 호출 중...")
+            try:
+                res_sum = model_strict.generate_content(f"Analyze {company_name} metrics for UI.\n{data_packet}\nInstruction: {sum_i}\nLanguage: {target_lang}")
+                print(f"🛠️ [DEBUG-{ticker}] {lang_code} 카드 요약 AI 응답 완료")
+                
+                if res_sum and res_sum.text:
+                    raw_sum = res_sum.text.strip()
+                    cleaned_parts =[]
+                    for part in raw_sum.split('|||SEP|||'):
+                        part = part.strip()
+                        # 🚨 무한루프(Catastrophic Backtracking)를 유발하던 정규식 제거, 안전한 Split 사용!
+                        if ":" in part:
+                            prefix = part.split(':', 1)[0]
+                            # 콜론 앞이 30자 이내면 라벨(예: "성장성 해석:")로 간주하고 잘라버림
+                            if len(prefix) < 30: 
+                                part = part.split(':', 1)[1].strip()
+                        part = part.replace('**', '').replace('[', '').replace(']', '').strip()
+                        cleaned_parts.append(part)
+                    
+                    final_clean_sum = " |||SEP||| ".join(cleaned_parts)
+                    
+                    print(f"🛠️[DEBUG-{ticker}] {lang_code} 카드 요약 DB 저장 중...")
+                    batch_upsert("analysis_cache",[{
+                        "cache_key": cache_key_sum, "content": final_clean_sum, 
+                        "updated_at": datetime.now().isoformat(), "ticker": ticker, "tier": "free", 
+                        "tab_name": "tab3", "lang": lang_code, "data_type": "metrics_card"
                     }], on_conflict="cache_key")
-                print(f"✅ [{ticker}] Tab 3 리포트 노이즈 정제 완료 ({lang_code})")
-        except Exception as e: pass
-
-    batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": pristine_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
-    return True
+            except Exception as e: 
+                print(f"❌ [DEBUG-{ticker}] {lang_code} 카드 요약 에러: {e}")
+    
+            # [Action 2] 전문 리포트 생성
+            print(f"🛠️ [DEBUG-{ticker}] {lang_code} 전문 리포트(Action 2) AI 호출 중...")
+            try:
+                res_full = model_strict.generate_content(final_full_prompt)
+                print(f"🛠️ [DEBUG-{ticker}] {lang_code} 전문 리포트 AI 응답 완료")
+                
+                if res_full and res_full.text:
+                    raw_f = clean_ai_preamble(res_full.text.strip())
+                    raw_f = re.sub(r'([.!?。])\s*(\[|\*\*\[)', r'\1\n\n\2', raw_f)
+                    lines = [l.strip() for l in raw_f.split('\n') if l.strip()]
+                    
+                    f_html = ""
+                    first_header_found = False 
+    
+                    for line in lines:
+                        clean_line = line.replace('*', '').strip()
+                        if not clean_line: continue
+    
+                        header_match = re.match(r'^\[(수익성|재무|적정|종합|Profitability|Financial|Intrinsic|Verdict|収益|財務|適正|総合|盈利|财务|合理|综合).*?\]', clean_line)
+                        
+                        if header_match:
+                            first_header_found = True
+                            if f_html: f_html += "<br><br>"
+                            f_html += f"<b>{clean_line}</b>"
+                        else:
+                            if not first_header_found:
+                                continue
+                            if f_html.endswith("</b>"):
+                                f_html += f"<br>{clean_line}"
+                            else:
+                                f_html += f" {clean_line}"
+                    
+                    processed_content = f_html.strip()
+                    if lang_code == 'ko' and processed_content:
+                        parts = processed_content.split("<br><br>")
+                        styled =[f'<div style="text-indent:14px; margin-bottom:15px; line-height:1.7;">{p}</div>' if not p.startswith("<b>") else p for p in parts]
+                        processed_content = "".join(styled)
+    
+                    if processed_content:
+                        print(f"🛠️ [DEBUG-{ticker}] {lang_code} 전문 리포트 DB 저장 중...")
+                        batch_upsert("analysis_cache",[{
+                            "cache_key": cache_key_full, "content": processed_content, 
+                            "updated_at": datetime.now().isoformat(), "ticker": ticker, 
+                            "tier": "premium", "tab_name": "tab3", "lang": lang_code, "data_type": "financial_report"
+                        }], on_conflict="cache_key")
+                        print(f"✅ [{ticker}] Tab 3 전문 리포트 완료 ({lang_code})")
+            except Exception as e: 
+                print(f"❌ [DEBUG-{ticker}] {lang_code} 전문 리포트 에러: {e}")
+    
+        print(f"🛠️ [DEBUG-{ticker}] 트래커 갱신 및 종료")
+        batch_upsert("analysis_cache",[{"cache_key": tracker_key, "content": pristine_metrics_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+        return True
             
 # ==========================================
 # [신규 추가] Tab 3 프리미엄 요약 전용 프롬프트 (다국어 완벽 분리)
