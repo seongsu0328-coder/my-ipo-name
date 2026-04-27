@@ -1513,7 +1513,7 @@ def get_search_friendly_name(name):
     return re.sub(r'\s+', ' ', name)
     
 # =========================================================================
-# [최종 교정본] Tab 1 분석 함수 - 비즈니스 맥락 우선 원칙 적용
+# [최종 완성본] Tab 1 분석 함수 - 비즈니스 맥락 우선 원칙 및 완벽 분리 로직 적용
 # =========================================================================
 def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return
@@ -1546,7 +1546,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
     else:
         search_query = f'{safe_name} OR "{base_ticker}" stock news'
 
-    # 데이터 수집 (FMP)
+    # 1. 데이터 수집 (FMP)
     profile_url = f"https://financialmodelingprep.com/stable/profile?symbol={ticker}&apikey={FMP_API_KEY}"
     profile_data = get_fmp_data_with_cache(ticker, "PROFILE", profile_url, valid_hours=168)
     if not profile_data and ticker != base_ticker:
@@ -1609,7 +1609,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     task1_label = "--- [분석 지시 1: 상장 1년 차 펀더멘털 점검] ---"
                     task1_structure = "- 1문단: [목표 달성도]\n- 2문단: [수익성 평가]\n- 3문단: [자본 효율성]"
                 else:
-                    task1_label = "--- [분석 지시 1: 신규 IPO 비즈니스 심층 분석] ---"
+                    task1_label = "--- [분석 지시 1: 신규 IPO 비즈념 심층 분석] ---"
                     task1_structure = "- 1문단: [비즈니스 모델 및 스케일]\n- 2문단: [시장 점유율 및 경쟁 우위]\n- 3문단: [성장 전략 및 미래 전망]"
 
                 search_directive = f"""
@@ -1652,12 +1652,12 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 search_directive = f"""
                     🚨 [強制検索とフィルタリング]: 
                     1. クエリ: `{search_query}`
-                    2. フィルタリング: 地名と重なっても、IPOやビジネス用語があれば含めてください。略称も同一企業とみなします。
+                    2. フィルタリング: 地名と重なっても、IPOやビジネス用語があれば含めてください。略称も同一企業とみなします.
                     3. 期間: [{one_year_ago}] ~ [{current_date}]
-                    4. 抽出: 最大5件。""" if is_fmp_poor else "🚨 [厳格な規則] [Part 1] データのみを使用してください。"
+                    4. 抽出: 最大5件。""" if is_fmp_poor else "🚨 [厳格な規則] [Part 1] 데이터만 사용하십시오."
 
                 task2_label = "--- [指示 2: 最新ニュース収集] ---"
-                news_instruction = '- 最新ニュースを最大5件抽出。略称であってもビジネスの文脈が一致すれば含めてください。\n- sentiment: Positive, Negative, Neutral.\n- date: YYYY-MM-DD または検索結果の表記。'
+                news_instruction = '- 最新ニュースを最大5件抽出。略称であってもビジネスの文脈이 일치하면 포함하십시오.\n- sentiment: Positive, Negative, Neutral.\n- date: YYYY-MM-DD または検索結果の表記。'
                 json_format = f"""{{ "debug_search_raw": "ビジネス文脈に基づく除外/包含の根拠。", "news": [ {{ "title_en": "Title", "translated_title": "翻訳", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
             else: # zh
@@ -1710,54 +1710,78 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     response = current_model.generate_content(prompt)
                     if not response or not response.text: continue
                     
-                    full_text = response.text.strip()
+                    def clean_ai_preamble(text):
+                        patterns = [
+                            r"^(안녕하세요|알겠습니다|작성하겠습니다|요청하신|보고서입니다|Sure|Understood|Certainly|Okay).*?(\n|$)",
+                            r"^(承知いたしました|作成します|こんにちは|明白了|好的|这是).*?(\n|$)"
+                        ]
+                        for p in patterns:
+                            text = re.sub(p, "", text, flags=re.MULTILINE | re.IGNORECASE)
+                        lines = text.strip().split('\n')
+                        if lines:
+                            first_line = lines[0].strip()
+                            if not (first_line.startswith('**[') or first_line.startswith('[')):
+                                if len(first_line) < 65 and first_line.endswith(('다', '요', '요.', 'ね', 'る', '了', ':', '。')):
+                                    text = '\n'.join(lines[1:])
+                        return text.strip()
+
+                    # 1. 초기 텍스트 정합성 확보
+                    full_text = clean_ai_preamble(response.text)
                     news_list = []
                     biz_analysis = full_text
 
-                    # 🚀 [은탄환 파싱] 태그 유실 대비 마지막 중괄호 블록 추적 로직 보강
-                    json_payload = None
-                    tag_match = re.search(r'<JSON_START>(.*?)<JSON_END>', full_text, re.DOTALL | re.IGNORECASE)
-                    if tag_match:
-                        json_payload = tag_match.group(1)
-                    else:
-                        # 태그가 없을 경우 텍스트 뒷부분의 중괄호 블록을 역추적하여 추출
-                        s_ptr = full_text.rfind('{')
-                        e_ptr = full_text.rfind('}')
-                        if s_ptr != -1 and e_ptr != -1 and s_ptr < e_ptr:
-                            potential_json = full_text[s_ptr:e_ptr+1]
-                            if '"news"' in potential_json: # 유효성 검사
-                                json_payload = potential_json
-
-                    if json_payload:
-                        try:
-                            parsed = json.loads(json_payload.strip(), strict=False)
-                            news_list = parsed.get("news", [])
-                            if "debug_search_raw" in parsed and lang_code == 'ko':
-                                print(f"🔍 [{ticker}] 필터링 근거: {parsed['debug_search_raw']}")
-                            
-                            # 본문에서 JSON 부분 제거
-                            if tag_match:
-                                biz_analysis = biz_analysis.replace(tag_match.group(0), "").strip()
-                            else:
-                                biz_analysis = biz_analysis.replace(json_payload, "").strip()
-                        except: pass
-
-                    # 본문 HTML 가공
-                    biz_analysis = clean_ai_preamble(biz_analysis)
-                    biz_analysis = re.sub(r'([.!?。])\s*(\[|\*\*\[)', r'\1\n\n\2', biz_analysis)
-                    lines = [l.strip() for l in biz_analysis.split('\n') if l.strip()]
+                    # 2. 🚀 [교정] 본문과 JSON 완벽 분리 로직
+                    # match.group(0)은 태그 포함 전체를 지우는 데 사용하고,
+                    # group(idx)는 내부 JSON만 추출하는 데 사용합니다.
+                    json_patterns = [
+                        (r'<JSON_START>(.*?)<JSON_END>', 1),  # 1순위: 태그 포함 전체
+                        (r'```json\s*(\{.*?\})\s*```', 1),     # 2순위: 마크다운 블록 포함 전체
+                        (r'(\{.*"news".*?\})', 0)              # 3순위: 생 JSON 덩어리
+                    ]
                     
+                    for pattern, group_idx in json_patterns:
+                        match = re.search(pattern, biz_analysis, re.DOTALL | re.IGNORECASE)
+                        if match:
+                            target_json_raw = match.group(group_idx)
+                            try:
+                                # JSON 파싱용 정제
+                                s_ptr = target_json_raw.find('{')
+                                e_ptr = target_json_raw.rfind('}')
+                                if s_ptr != -1 and e_ptr != -1:
+                                    json_clean = target_json_raw[s_ptr:e_ptr+1]
+                                    parsed = json.loads(json_clean, strict=False)
+                                    news_list = parsed.get("news", [])
+                                    
+                                    if "debug_search_raw" in parsed and lang_code == 'ko':
+                                        print(f"🔍 [{ticker}] 필터링 근거: {parsed['debug_search_raw']}")
+                                    
+                                    # 🚀 핵심: 본문에서 매칭된 전체(태그/마크다운 포함)를 완벽 제거
+                                    biz_analysis = biz_analysis.replace(match.group(0), "").strip()
+                                    break # 추출 성공 시 패턴 루프 종료
+                            except:
+                                continue
+
+                    # 3. 본문 추가 정제 (잔여 마커 제거)
+                    biz_analysis = biz_analysis.replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
+                    biz_analysis = re.sub(r'```json\s*|```\s*', '', biz_analysis)
+                    biz_analysis = re.sub(r'([.!?。])\s*(\[|\*\*\[)', r'\1\n\n\2', biz_analysis)
+                    
+                    # 4. HTML 가공
+                    lines = [l.strip() for l in biz_analysis.split('\n') if l.strip()]
                     html_parts = []
                     for p in lines:
                         if p.startswith('**[') or p.startswith('['):
+                            # 소제목 처리
                             clean_p = p.replace("**", "").strip()
                             html_parts.append(f'<p style="font-weight:bold; margin-top:20px; margin-bottom:5px; color:#111;">{clean_p}</p>')
                         else:
+                            # 일반 본문 처리 (한국어만 들여쓰기 적용)
                             indent = "14px" if lang_code == "ko" else "0px"
                             html_parts.append(f'<p style="text-indent:{indent}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>')
 
                     html_output = "".join(html_parts)
 
+                    # 5. Supabase 최종 저장
                     batch_upsert("analysis_cache", [{
                         "cache_key": cache_key,
                         "content": json.dumps({"html": html_output, "news": news_list[:5]}, ensure_ascii=False),
@@ -1768,13 +1792,67 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         "lang": lang_code,
                         "data_type": "biz_summary"
                     }], on_conflict="cache_key")
-                    break
+                    break # 성공 시 시도 루프 탈출
+
                 except Exception as e:
-                    print(f"❌ [{ticker}] {lang_code} 분석 에러: {e}")
+                    print(f"❌ [{ticker}] {lang_code} 분석 시도 중 최종 오류: {e}")
                     time.sleep(1)
         
+        # 원본 데이터 트래커 갱신
         batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": now.isoformat()}], "cache_key")
-        print(f"✅ [{ticker}] Tab 1 분석 및 캐싱 완료 (맥락 우선 원칙 적용)")
+        print(f"✅ [{ticker}] Tab 1 분석 및 캐싱 완료 (맥락 우선 원칙 및 완벽 분리 적용)")
+                
+    # =========================================================
+    # 🚀 [B] 프리미엄 전용 데이터 수집 (기업 공식 보도자료)
+    # =========================================================
+    try:
+        pr_url = f"https://financialmodelingprep.com/stable/press-releases?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
+        pr_raw = get_fmp_data_with_cache(ticker, "RAW_PR", pr_url, valid_hours=12)
+        
+        if isinstance(pr_raw, list) and len(pr_raw) > 0: 
+            current_pr_str = json.dumps(pr_raw, sort_keys=True)
+            tracker_key_pr = f"{ticker}_PressRelease_RawTracker"
+            is_changed_pr = True
+            
+            try:
+                res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_pr).execute()
+                if res_tracker.data and current_pr_str == res_tracker.data[0]['content']:
+                    is_changed_pr = False
+            except: pass
+
+            if is_changed_pr:
+                print(f"🔔 [{ticker}] 기업 보도자료 업데이트 감지! AI 요약 시작...")
+                for lang_code in SUPPORTED_LANGS.keys():
+                    pr_summary_key = f"{ticker}_PressReleaseSummary_v1_{lang_code}"
+                    prompt_p = get_tab1_premium_prompt(lang_code, "Official Press Release", current_pr_str)
+                    
+                    for attempt in range(3):
+                        try:
+                            resp_p = model_strict.generate_content(prompt_p)
+                            if resp_p and resp_p.text:
+                                p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
+                                indent_size = "14px" if lang_code == "ko" else "0px"
+                                html_p = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in p_paragraphs])
+                                
+                                batch_upsert("analysis_cache", [{
+                                    "cache_key": pr_summary_key, 
+                                    "content": html_p, 
+                                    "updated_at": now.isoformat(),
+                                    "ticker": ticker,
+                                    "tier": "free",
+                                    "tab_name": "tab1",
+                                    "lang": lang_code,
+                                    "data_type": "press_release"
+                                }], on_conflict="cache_key")
+                                print(f"✅ [{ticker}] 기업 공식 보도자료 캐싱 완료 ({lang_code})")
+                                break
+                        except:
+                            time.sleep(1)
+                        
+                batch_upsert("analysis_cache", [{"cache_key": tracker_key_pr, "content": current_pr_str, "updated_at": now.isoformat()}], "cache_key")
+
+    except Exception as e:
+        print(f"Premium FMP Collection Error for {ticker}: {e}")
                 
     # =========================================================
     # 🚀 [B] 프리미엄 전용 데이터 수집 (기업 공식 보도자료 - Raw Tracker 적용!)
