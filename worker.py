@@ -2805,29 +2805,94 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     limit_time_str = (datetime.now() - timedelta(hours=168)).isoformat() if force_search_run else (datetime.now() - timedelta(hours=24)).isoformat()
 
     # =====================================================================
-    # 🚀 [Step 2] 4개 국어 리포트 및 요약 카드 작성 (레이아웃 및 노이즈 완벽 교정)
+    # 🚀[Step 2] 4개 국어 리포트 및 요약 카드 작성 (IB 벤치마크 기반 + 환각 완벽 차단)
     # =====================================================================
     for lang_code, target_lang in SUPPORTED_LANGS.items():
         cache_key_sum = f"{ticker}_Tab3_Summary_{lang_code}"
         cache_key_full = f"{ticker}_Tab3_v2_Premium_{lang_code}"
         
-        # 언어별 상세 지시 사항 (Instructions)
+        # 🚨[글로벌 투자은행(IB) 표준 평가 벤치마크 - 9대 핵심 지표 확장]
+        ib_benchmark = """[Wall Street IB Standard Benchmarks for Analysis]
+        1. Profitability & Growth (수익성 및 성장성):
+           - Sales Growth: > 20% (High Growth / Strong Demand), 0-20% (Moderate), < 0% (Contraction).
+           - Net Margin: > 10% (Solid Profitability), < 0% (Deficit / Warning).
+           - Piotroski F-Score: 8-9 (Exceptional / Strong Fundamental), 5-7 (Stable), 0-4 (Weak / Distressed).
+        2. Financial Health & Earnings Quality (건전성 및 이익 품질):
+           - Debt-to-Equity (D/E): < 100% (Healthy / Low Leverage), > 200% (High Risk / Highly Leveraged).
+           - Accruals Quality: 'Low' (High Quality Earnings - OCF > Net Income), 'High' (Low Quality Earnings - Warning).
+        3. Valuation & Market Sentiment (가치 평가 및 시장 심리):
+           - Forward P/E: > 25x (Growth Premium or Overvalued), < 15x (Value Territory).
+           - DCF Gap: DCF > Current Price (Undervalued / Upside Potential), DCF < Current Price (Overvalued / Downside Risk).
+           - IPO Return: > 20% (Strong Market Appetite), < 0% (Busted IPO / Weak Demand).
+        """
+
+        # 🚨[언어별 환각(소설) 차단 강력 지시]
         if lang_code == 'ko':
-            sum_i = "포맷: (성장성 해석) |||SEP||| (건전성 해석) |||SEP||| (밸류에이션 해석). 제목/인사말 금지."
-            full_i = "출력의 첫 글자는 반드시 '['여야 합니다. 리포트 제목, '요약' 섹션, 인사말을 절대 쓰지 마세요. 곧바로 [수익성 및 성장성 분석]부터 시작하세요."
-            na_rule = "지표가 'N/A'인 경우 데이터 부족을 정직하게 밝히고 정보 부재에 따른 리스크를 설명하세요."
+            sum_i = f"""
+            {ib_benchmark}[UI 카드 작성 규칙 - 절대 엄수]
+            1. '성장성 해석:', '건전성 해석:' 같은 라벨이나 소제목을 절대 출력하지 마세요. 바로 본문 문장만 작성하세요.
+            2. 포맷: (수익성 비율 중심 팩트 요약 2~3문장) |||SEP||| (건전성 및 이익 품질 중심 팩트 요약 2~3문장) |||SEP||| (시장 밸류에이션 팩트 요약 2~3문장)
+            3. 🚨[절대값 추론 금지]: "부채가 54만 달러로 긍정적" 같은 절대값 기반의 자의적 해석을 절대 금지합니다. 제공된 IB 표준 벤치마크를 활용하여 부채비율, 순이익률, PER, Accruals 등 '비율(Ratio)'과 '퀄리티(Quality)' 중심으로만 분석하세요. 비율 정보가 없으면 절대 추론하지 마세요.
+            4. 구분자 '|||SEP|||' 외에 어떤 기호나 줄바꿈도 금지합니다.
+            """
+            full_i = """[전문 리포트 작성 규칙 - 절대 엄수]
+            1. 출력의 첫 글자는 반드시 '['여야 합니다. 리포트 제목, '요약', 인사말은 절대 금지.
+            2. 반드시 [수익성 및 성장성 분석],[재무 건전성 분석], [시장 및 가치 평가] 3개의 소제목으로만 구성하세요.
+            3. 각 문단은 반드시 3~4줄(문장) 길이로 작성하세요.
+            4. 🚨[Wall Street IB Standard Analysis]: 수치를 단순 나열하지 마세요. 제공된 IB 벤치마크를 엄격하게 적용하여, 실제 확인된 수치가 기업의 펀더멘털과 투자 매력도에 미치는 전략적 의미를 글로벌 투자은행(IB)의 시니어 애널리스트가 작성하는 공식 리서치 보고서 어조로 매우 전문적이고 깊이 있게 분석하세요.
+            5. 모든 문장은 반드시 '~습니다', '~합니다' 형태의 정중한 존댓말로 마무리하세요.
+            """
+            na_rule = "🚨 [환각 완벽 차단 규칙]: 지표 데이터가 'N/A' 또는 'Unknown'일 경우, 데이터 부족으로 인한 리스크를 억지로 지어내어 소설을 쓰지 마세요. 빈 칸을 채우기 위해 추론하지 말고, 깔끔하게 '해당 정보가 확인되지 않습니다.'라고 단 한 줄만 답변하고 넘어가세요."
+            
         elif lang_code == 'en':
-            sum_i = "Format: (Growth) |||SEP||| (Health) |||SEP||| (Valuation). NO intro/titles."
-            full_i = "First character must be '['. NEVER include a 'Report Title' or 'Summary' section. Start immediately with [Profitability & Growth Analysis]."
-            na_rule = "If metrics are 'N/A', state it honestly and discuss the risks of data opacity."
+            sum_i = f"""
+            {ib_benchmark}[UI Card Rules - STRICT]
+            1. DO NOT output any labels like 'Growth:'. Write plain sentences ONLY.
+            2. Format: (Profitability Ratios 2-3 sentences) |||SEP||| (Health & Quality Ratios 2-3 sentences) |||SEP||| (Valuation 2-3 sentences)
+            3. 🚨 [No Absolute Value Guessing]: Never evaluate health based on absolute numbers (e.g., "Debt of $500k is good"). Use the provided IB Benchmarks to analyze Ratios and Quality. If ratios are missing, DO NOT guess.
+            4. NO line breaks. Use '|||SEP|||' as the only separator.
+            """
+            full_i = """
+            [Report Rules - STRICT]
+            1. First character MUST be '['. No titles or greetings.
+            2. Use exactly 3 subheadings: [Profitability & Growth], [Financial Health], [Valuation].
+            3. Each paragraph MUST be exactly 3 to 4 sentences long.
+            4. 🚨[Wall Street IB Standard Analysis]: Do not just list numbers. Apply the provided IB benchmarks strictly. Explain the strategic implications of the actual metrics on the company's fundamentals using the highly professional, formal tone of a Senior Equity Research Analyst at a global investment bank.
+            """
+            na_rule = "🚨 [ANTI-HALLUCINATION]: If ratio metrics are 'N/A' or 'Unknown', DO NOT hallucinate risks. Simply state 'This information is currently unverified.' and move on. Focus ONLY on exact verified numbers."
+            
         elif lang_code == 'ja':
-            sum_i = "形式: (成長性) |||SEP||| (健全性) |||SEP||| (評価). タイトル/挨拶禁止。"
-            full_i = "最初の文字は必ず '[' にしてください. レポートの見出しや「要約」セクションは除外し、すぐに [収益性と成長性の分析] から始めてください。"
-            na_rule = "指標が 'N/A' の場合、正直にデータ不足を伝え、そのリスクを説明してください。"
+            sum_i = f"""
+            {ib_benchmark}[UIカード規則 - 厳守]
+            1. 「成長性:」のようなラベルは絶対に出力せず、文章のみを記述してください。
+            2. フォーマット: (収益性比率の要約 2-3文) |||SEP||| (健全性と利益品質の要約 2-3文) |||SEP||| (バリュエーション要約 2-3文)
+            3. 🚨[絶対値の推論禁止]: 絶対値(例:負債50万ドル)だけで勝手に健全性を評価しないでください。提供されたIBベンチマークを活用し、「比率(Ratio)」と「品質(Quality)」のみで評価してください。
+            4. '|||SEP|||' 以外の改行や記号は禁止。
+            """
+            full_i = """[レポート規則 - 厳守]
+            1. 最初の文字は必ず '[' です。タイトルや挨拶は禁止。
+            2. 必ず [収益性と成長性の分析],[財務健全性分析], [市場および価値評価] の3つの見出しのみで構成。
+            3. 各段落は必ず 3〜4文の長さ で作成してください。
+            4. 🚨[Wall Street IB Standard Analysis]: 数値を単に羅列しないでください。提供されたIBベンチマークを厳格に適用し、確認された数値が企業のファンダメンタルズに与える戦略的意味を、グローバル投資銀行(IB)のシニアアナリストの公式リサーチレポートのトーンで非常に専門的かつ深く分析してください。
+            5. 全ての文章は「〜です」「〜ます」の丁寧な表現で統一してください。
+            """
+            na_rule = "🚨 [捏造完全遮断]: 指標が 'N/A' または 'Unknown' の場合、不足リスクについて小説を書かないでください。推論せず、「該当情報は確認されていません。」と一文だけ記述して次に進んでください。"
+            
         else: # zh
-            sum_i = "格式: (增长) |||SEP||| (健康) |||SEP||| (估值). 严禁标题/开场白。"
-            full_i = "第一个字符必须是 '['. 严禁包含“报告标题”或“摘要”部分。请直接从 [盈利能力与增长性分析] 开始。"
-            na_rule = "若指标为 'N/A', 请诚实说明数据缺失, 并分析由于信息不透明带来的投资风险。"
+            sum_i = f"""
+            {ib_benchmark}[UI卡片规则 - 严格遵守]
+            1. 绝对不要输出任何标签(如“增长性:”)。只输出纯文本句子。
+            2. 格式: (盈利比率摘要 2-3句话) |||SEP||| (健康与盈利质量摘要 2-3句话) |||SEP||| (估值摘要 2-3句话)
+            3. 🚨[禁止绝对值推测]: 绝对不能仅凭绝对值(如负债50万美元)随意评估。请使用提供的IB基准，仅通过比率和质量(如D/E，Accruals等)进行分析。如果没有比率数据，请勿猜测。
+            4. 严禁使用 '|||SEP|||' 之外的换行或符号。
+            """
+            full_i = """[报告规则 - 严格遵守]
+            1. 第一个字符必须是 '['。严禁标题和问候。
+            2. 必须仅包含[盈利能力与增长性分析], [财务健康状况分析],[市场与估值分析] 三个子标题。
+            3. 每个段落必须正好包含 3到4句话。
+            4. 🚨[Wall Street IB Standard Analysis]: 不要只是罗列数字。严格应用提供的IB基准，以全球投资银行(IB)资深分析师官方研究报告的专业口吻，深度分析实际确定的数字对企业基本面和投资吸引力的战略意义。
+            """
+            na_rule = "🚨 [防幻觉绝对规则]: 若比率指标为 'N/A' 或 'Unknown', 绝对不要长篇大论编造数据缺失带来的风险！不要主观推测，只需回复“未确认到相关信息。”即可。"
 
         data_packet = f"Available Metrics:\n- {g1_context}\n- {g2_context}\n- {g3_context}\n- {g4_context}"
         final_full_prompt = f"Write a professional financial report for {company_name}.\n{data_packet}\nInstruction: {full_i}\nRule: {na_rule}\nLanguage: {target_lang}"
