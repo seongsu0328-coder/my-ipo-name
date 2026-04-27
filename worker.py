@@ -3235,14 +3235,14 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
         print(f"Tab3 Premium Revenue Seg Error for {ticker}: {e}")
 
 # ==========================================
-# [최종 완성] Tab 2: 거시 지표 수집 및 분석 (지표 통합 및 인과관계 분석 적용)
+# [최종 완성] Tab 2: 거시 지표 수집 및 통합 분석 (전 언어 지침 통일 적용)
 # ==========================================
 def update_macro_data(df):
     if 'model_strict' not in globals() or not model_strict: return
     
     print("🌍 거시 지표(Tab 2) 업데이트 시작 (실물 경제와 금융 시장의 통합 분석)")
     
-    # [1] 기본 데이터 초기화
+    # [1] 기본 데이터 초기화 (API 실패 시 안전장치용 기본값)
     today = datetime.now()
     data = {
         "ipo_return": 0.0, "ipo_volume": 0, "unprofitable_pct": 0.0,
@@ -3324,7 +3324,7 @@ def update_macro_data(df):
     g2_context = f"Risk/Supply (Upcoming IPOs: {data['ipo_volume']}, Unprofitable Ratio: {data['unprofitable_pct']}%)"
     g3_context = f"Macro/Valuation (VIX: {data['vix']}, Fear&Greed: {data['fear_greed']}, Buffett Indicator: {data['buffett_val']}%, S&P500 PE: {data['pe_ratio']}x)"
     
-    # 리포트용 통합 컨텍스트 (실물 경제와 금융 시장 지표의 결합)
+    # 리포트용 통합 컨텍스트
     macro_full_context = f"""
     [실물 경제 상황]: {real_economy_str}
     [금융 시장 지표]: VIX {data['vix']}, S&P500 PE {data['pe_ratio']}x, 공포탐욕지수 {data['fear_greed']}
@@ -3336,7 +3336,7 @@ def update_macro_data(df):
         cache_key_summary = f"Global_Market_Summary_{lang_code}"
         cache_key_full = f"Global_Market_Dashboard_{lang_code}"
         
-        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약 (사용자 요청 유지)
+        # 💡 [Call 1] 완전히 독립된 3개의 UI 카드 요약 (기존 유지)
         if lang_code == 'ko':
             sum_p = f"월가 수석 전략가로서 다음 3개 그룹의 데이터를 바탕으로 3개의 독립적인 대시보드 카드 요약을 작성하세요.\n[1번 카드 데이터]: {g1_context}\n[2번 카드 데이터]: {g2_context}\n[3번 카드 데이터]: {g3_context}"
             sum_i = """
@@ -3357,13 +3357,13 @@ def update_macro_data(df):
             4. Use a professional and formal tone.
             """
         elif lang_code == 'ja':
-            sum_p = f"ウォール街のチーフストラテジ스트として、次の3つの데이터에 기초하여 3개의 독립적인 대시보드 카드의 요약을 작성하세요.\n[카드1]: {g1_context}\n[카드2]: {g2_context}\n[카드3]: {g3_context}"
+            sum_p = f"ウォール街のチーフストラテジ스트として、次の3つのデータに基づいて3つの独立したダッシュボードカードの要約を作成してください。\n[カード1]: {g1_context}\n[カード2]: {g2_context}\n[카드3]: {g3_context}"
             sum_i = """
-            [UI카드 작성 규칙 - 엄수]
-            1. 3개의 완전히 독립된 텍스트만 출력하세요. 숫자 넘버링이나 별도의 제목은 절대 쓰지 마세요.
-            2. 포맷: (초기 수익률과 철회율 데이터를 바탕으로 투기적 광기 및 위험 선호도 진단 3〜4문장) |||SEP||| (상장 예정 물량과 미수익 기업 비중을 결합하여 공급 과잉 및 질적 저하 리스크 분석 3〜4문장) |||SEP||| (VIX, 공포탐욕지수, 밸류에이션을 결합하여 증시 전반의 거시적 과열 여부 진단 3〜4문장)
-            3. 구분자 '|||SEP|||' 이외의 줄바꿈은 넣지 마세요.
-            4. 모든 문장은 'です/ます' 형태의 정중체를 사용하세요.
+            [UIカード作成規則 - 厳守]
+            1. 3つの完全に独立したテキストのみを出力してください。数字のナンバリングや見出しは絶対に使わないでください。
+            2. フォーマット: (初期収益率と撤回率に基づく投機적熱狂の診断 3〜4文) |||SEP||| (上場予定件数と赤字企業比率による供給リスク分析 3〜4文) |||SEP||| (VIX、Fear&Greed、バフェット指数、PEを結合したマクロ的な過熱感の評価 3〜4文)
+            3. 区切り文字 '|||SEP|||' 以外に改行を入れないでください.
+            4. すべての文章は「〜です・ます」調の丁寧語を使用してください。
             """
         elif lang_code == 'zh':
             sum_p = f"作为华尔街首席策略师，请根据以下三组数据撰写3份独立的仪表板卡片摘要。\n[卡片1]: {g1_context}\n[卡片2]: {g2_context}\n[卡片3]: {g3_context}"
@@ -3371,37 +3371,58 @@ def update_macro_data(df):
             1. 仅输出3段完全独立的文本。严禁使用数字编号或标题（如“卡片1”）。
             2. 格式: (结合初期收益率与撤回率诊断投机狂热 3-4句话) |||SEP||| (结合上市排队数量与亏损企业占比分析供给风险 3-4句话) |||SEP||| (结合VIX、恐慌贪婪指数、巴菲特指标和PE评估宏观过热 3-4句话)
             3. 仅使用 '|||SEP|||' 作为分隔符，段落之间不要换行。
-            4. 请使用专业且正式的陈述句。
+            4. 请使用专业且正式의 陈述句。
             """
 
-        # 💡 [Call 2] 하단 전문 리포트 (실물 지표 기반의 인과관계 분석)
+        # 💡 [Call 2] 하단 전문 리포트 (🚀 실물 지표 기반 인과관계 분석 - 지침 통일)
         if lang_code == 'ko':
             full_p = f"당신은 글로벌 투자 전략가입니다. 실물 경제 지표를 원인으로 삼아 현재의 금융 시장 상황을 유기적으로 분석하세요.\n[통합 데이터]: {macro_full_context}"
             full_i = """
             [작성 규칙 - 거시경제 전략 브리핑]
             1. **인과관계 분석**: 실물 경제 지표(금리, 물가, 실업률)가 현재 금융 시장의 지표(VIX, PE, IPO 수익률)에 어떤 영향을 주고 있는지 그 '이유'를 중심으로 설명하세요.
             2. **자연스러운 연결**: 상단 카드의 내용을 단순히 복제하지 말고, '금리/물가 환경 때문에 시장의 밸류에이션이나 IPO 열기가 어떠한 상태에 놓여있다'는 흐름으로 서술하세요.
-            3. **형식**: 소제목 없이 **단 하나의 단락**으로 매우 압축하여 작성하세요. (5~6줄 내외)
+            3. **형식**: 소제목 없이 **단 하나의 단락**으로 매우 압축하여 작성하세요. (4~5줄 내외)
             4. **첫 단어**: 반드시 '글로벌' 또는 '현재'로 시작하세요.
             5. 모든 문장은 '~습니다/ㅂ니다'로 마무리하세요.
             """
         elif lang_code == 'en':
-            full_p = f"As a Global Investment Strategist, analyze the market by using real economy indicators as causes.\n[Data]: {macro_full_context}"
-            full_i = "\nRules: Connect Real Economy (Rates/CPI) with Market Performance (PE/IPO). Explain the logical link. Single paragraph. Start with 'Global' or 'Currently'."
+            full_p = f"As a Global Investment Strategist, analyze the current financial market situation by using real economy indicators as causes.\n[Consolidated Data]: {macro_full_context}"
+            full_i = """
+            [Writing Rules - Strategic Macro Brief]
+            1. **Causal Analysis**: Focus on explaining the 'reasons' for how real economy indicators (Rates, CPI, Unemployment) are impacting current financial market metrics (VIX, PE, IPO returns).
+            2. **Natural Connection**: Do not simply replicate the card summaries. Describe the flow of how the interest rate/inflation environment puts market valuation or IPO heat in its current state.
+            3. **Format**: Compose exactly one cohesive paragraph without any subheadings. (Approx. 4-5 lines)
+            4. **Opening**: Must start with the word 'Global' or 'Currently'.
+            5. Tone: Maintain a professional and formal analytical tone.
+            """
         elif lang_code == 'ja':
-            full_p = f"グローバル投資戦略家として、実体経済指標を原因として現在の金融市場状況を論理的に分析してください。\n[データ]: {macro_full_context}"
-            full_i = "\n規則: 金利・物価・雇用が市場PEやIPOに与える因果関係を説明。1つの段落で構成。開始は「グローバル」または「現在」。"
+            full_p = f"あなたはグローバル投資戦略家です。実体経済指標を原因として、現在の金融市場状況を論理的に分析してください。\n[統合データ]: {macro_full_context}"
+            full_i = """
+            [作成規則 - マクロ経済戦略ブリーフィング]
+            1. **因果関係の分析**: 実体経済指標（金利、物価、雇用）が現在の金融市場指標（VIX、PE、IPO収益率）にどのような影響を与えているか、その「理由」を中心に説明してください。
+            2. **自然なつながり**: 上部カードの内容を単純に複製するのではなく、「金利・物価環境のために市場のバリュエ이션やIPOの熱気がどのような状態にあるか」という流れで記述してください。
+            3. **形式**: 小見出しなしで、単一の段落として非常に簡潔に作成してください。（4〜5行程度）
+            4. **最初の単語**: 必ず「グローバル」または「現在」で始めてください。
+            5. 文体：丁寧語（です・ます調）を使用してください。
+            """
         else: # zh
-            full_p = f"作为全球投资战略家，请以实物经济指标为诱因，有机分析当前金融市场状况。\n[数据]: {macro_full_context}"
-            full_i = "\n规则: 分析利率/物价/就业如何影响市场估值和IPO。严禁简单重复。仅限一个自然段。以“全球”或“当前”开头。"
+            full_p = f"您是全球投资战略家。请以实体经济指标为诱因，有机地分析当前的金融市场状况。\n[综合数据]: {macro_full_context}"
+            full_i = """
+            [编写规则 - 宏观经济战略简보]
+            1. **因果关系分析**: 重点分析实体经济指标（利率、物价、就业）如何影响当前的金融市场指标（VIX、PE、IPO收益率）及其背后的“原因”。
+            2. **有机结合**: 不要简单重复卡片内容，请描述“由于利率和物价环境，市场估值或IPO热度处于何种状态”的逻辑流程。
+            3. **格式**: 严禁使用小标题，仅限一个自然段，内容需高度压缩。（约 4-5 行）
+            4. **首词**: 必须以“全球”或“当前”开头。
+            5. 语气：保持专业且正式的分析语调。
+            """
 
         try:
-            # 1. 카드 요약 저장
+            # 1. 카드 요약 생성 및 저장
             res_sum = model_strict.generate_content(sum_p + sum_i)
             if res_sum and res_sum.text:
                 batch_upsert("analysis_cache", [{"cache_key": cache_key_summary, "content": res_sum.text.strip(), "ticker": "MARKET", "tab_name": "tab2", "lang": lang_code, "data_type": "macro_card"}], "cache_key")
         
-            # 2. 전문 리포트 저장
+            # 2. 전문 리포트 생성 및 저장
             res_full = model_strict.generate_content(full_p + full_i)
             if res_full and res_full.text:
                 batch_upsert("analysis_cache", [{"cache_key": cache_key_full, "content": res_full.text.strip(), "ticker": "MARKET", "tab_name": "tab2", "lang": lang_code, "data_type": "macro_report"}], "cache_key")
@@ -3414,7 +3435,7 @@ def update_macro_data(df):
     # 모든 분석이 성공했을 때만 트래커 갱신
     if macro_success:
         batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_state_str, "updated_at": datetime.now().isoformat()}], "cache_key")
-
+        
 # ==========================================
 # [수정] Tab 6: 스마트머니 통합 데이터 수집 (국회의원 & 공매도 추가)
 # ==========================================
