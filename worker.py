@@ -671,15 +671,16 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         if raw_price and raw_price.replace('.', '', 1).isdigit():
             price_val = float(raw_price)
             
-        shares = float(row_data.get('numberOfShares', 0))
-        if shares > 0 and price_val > 0:
-            offering_amount = f"${(price_val * shares / 1000000):,.1f}M" 
+            shares = float(row_data.get('numberOfShares', 0))
+            if shares > 0 and price_val > 0:
+                offering_amount = f"${(price_val * shares / 1000000):,.1f}M" 
     except Exception as e:
         pass # 에러가 나도 이미 price_val은 0.0이므로 시스템이 죽지 않습니다.
 
     # 2. 🚀 4개 국어 요약문 수집 로직
     summaries = {}
-    for lang in ['ko', 'en', 'ja', 'zh']:
+    languages = ['en', 'ko', 'ja', 'zh'] # 영어를 먼저 쏘도록 순서 배치
+    for lang in languages:
         try:
             res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_Tab1_v5_{lang}").execute()
             if res_sum.data:
@@ -693,7 +694,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             summaries[lang] = ""
 
     # 3. 언어별 반복(Loop) 처리
-    for lang in ['ko', 'en', 'ja', 'zh']:
+    for lang in languages:
         summary_text = summaries.get(lang, "")
         if not summary_text: continue # 요약문이 없으면 해당 언어는 패스
 
@@ -713,12 +714,16 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         consensus = analyst_metrics.get('consensus', 'N/A') if analyst_metrics else 'N/A'
         growth = unified_metrics.get('growth', 'N/A') if unified_metrics else 'N/A'
         
+        # 🕒 스팸 필터 우회용 타임스탬프 (초 단위까지 넣어 중복 문서로 걸리는 것 방지)
+        current_time_str = datetime.now().strftime("%H:%M:%S")
+
         tweet_text = f"{emoji} {company_name} ({ticker}) IPO Insight\n\n"
         tweet_text += f"📅 Date: {row_data.get('date', 'TBD')} | 🏛️ Exch: {row_data.get('exchange', 'USA')}\n"
         tweet_text += f"💰 Price: ${price_val:.2f} | 📊 Offering: {offering_amount}\n"
         tweet_text += f"📈 Consensus: {consensus} | 🚀 Growth: {growth}\n\n"
         tweet_text += f"📝 {summary_text[:80]}...\n\n" 
-        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}"
+        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n"
+        tweet_text += f"🕒 {current_time_str}" # 트윗 하단에 시간 추가
 
         # 4. 트위터 직접 전송
         success, result = post_to_twitter(tweet_text)
@@ -729,6 +734,11 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
         else:
             print(f"❌ [Twitter] {ticker} ({lang}) 트윗 실패: {result}")
+            
+        # 5. 🚀 핵심 방어 로직: 연사 제한 방지 (30초 대기)
+        if lang != languages[-1]:
+            print(f"⏳ 트위터 API 연사 제한 방어 중... 30초 대기 ({lang} -> 다음 언어 준비)")
+            time.sleep(30)
             
     return True, "Done"
 
