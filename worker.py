@@ -662,7 +662,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         except Exception as e:
             pass # 날짜 형식이 이상하면 그냥 넘어갑니다.
 
-    # 1. 💡 공모 정보 계산 (변수를 먼저 0으로 세팅해서 NameError 원천 차단!)
+    # 1. 💡 공모 정보 계산 (변수를 먼저 0으로 세팅)
     price_val = 0.0  
     offering_amount = "TBD"
     
@@ -675,7 +675,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             if shares > 0 and price_val > 0:
                 offering_amount = f"${(price_val * shares / 1000000):,.1f}M" 
     except Exception as e:
-        pass # 에러가 나도 이미 price_val은 0.0이므로 시스템이 죽지 않습니다.
+        pass 
 
     # 2. 🚀 4개 국어 요약문 수집 로직
     summaries = {}
@@ -685,9 +685,10 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_Tab1_v5_{lang}").execute()
             if res_sum.data:
                 content_json = json.loads(res_sum.data[0]['content'])
-                # HTML 제거 및 첫 문장 추출
+                # HTML 제거
                 clean_text = re.sub(r'<[^>]+>', '', content_json.get('html', ''))
-                summaries[lang] = clean_text.split('.')[0] + "."
+                # 💡 [수정] 강제로 자르지 않고, Gemini가 만들어낸 텍스트 전체를 사용
+                summaries[lang] = clean_text.strip()
             else:
                 summaries[lang] = "" 
         except:
@@ -707,30 +708,50 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             if res.data: continue # 이미 보냈으면 다음 언어로
         except: pass
 
-        # 메시지 구성
-        emoji = {"ko": "🇰🇷", "en": "🇺🇸", "ja": "🇯🇵", "zh": "🇨🇳"}.get(lang, "🌐")
+        # 💡 [신규] 다국어 CTA 및 로컬 해시태그 설정
+        localization = {
+            "ko": {"cta": "💎 더 깊은 AI 분석과 스마트머니 동향은 Unicornfinder앱에서 확인하세요.", "tags": "#미국주식 #공모주"},
+            "en": {"cta": "💎 Unlock deeper AI analysis & Smart Money trends on the Unicornfinder app.", "tags": "#StockMarket #SmartMoney"},
+            "ja": {"cta": "💎 詳細なAI分析とスマートマネー動向はUnicornfinderアプリでご確認ください。", "tags": "#米国株 #新規公開株"},
+            "zh": {"cta": "💎 深入的 AI 分析与聪明钱动向，尽在 Unicornfinder APP。", "tags": "#美股 #打新"}
+        }
+
+        # 💡 [신규] 실제 DB/딕셔너리 키값으로 완벽 매핑된 Tab 4 프리미엄 지표
+        analyst_rating = analyst_metrics.get('consensus', 'N/A') if analyst_metrics else 'N/A'
         
-        # 데이터가 없는 경우를 대비해 안전하게 꺼내기
-        consensus = analyst_metrics.get('consensus', 'N/A') if analyst_metrics else 'N/A'
-        growth = unified_metrics.get('growth', 'N/A') if unified_metrics else 'N/A'
+        target_val = analyst_metrics.get('target', 'N/A') if analyst_metrics else 'N/A'
+        wall_st_target = f"${target_val}" if str(target_val) != 'N/A' else 'N/A'
         
-        # 🕒 스팸 필터 우회용 타임스탬프 (초 단위까지 넣어 중복 문서로 걸리는 것 방지)
+        score_val = unified_metrics.get('health_score', 'N/A') if unified_metrics else 'N/A'
+        scoop_score = f"{score_val}/5" if str(score_val) != 'N/A' else 'N/A'
+        
+        # 🕒 스팸 필터 우회용 타임스탬프
         current_time_str = datetime.now().strftime("%H:%M:%S")
 
-        tweet_text = f"{emoji} {company_name} ({ticker}) IPO Insight\n\n"
-        tweet_text += f"📅 Date: {row_data.get('date', 'TBD')} | 🏛️ Exch: {row_data.get('exchange', 'USA')}\n"
-        tweet_text += f"💰 Price: ${price_val:.2f} | 📊 Offering: {offering_amount}\n"
-        tweet_text += f"📈 Consensus: {consensus} | 🚀 Growth: {growth}\n\n"
-        tweet_text += f"📝 {summary_text[:80]}...\n\n" 
-        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n"
-        tweet_text += f"🕒 {current_time_str}" # 트윗 하단에 시간 추가
+        # 🚀 [신규] 텍스트 온리(Text-only) 미니멀리즘 트윗 조립
+        tweet_text = f"{company_name} (${ticker})\n\n"
+        tweet_text += f"{row_data.get('exchange', 'USA')} | ${price_val:.2f} | {offering_amount} | {row_data.get('date', 'TBD')}\n\n"
+        
+        tweet_text += f"Analyst Ratings: {analyst_rating}\n"
+        tweet_text += f"IPO Scoop Score: {scoop_score}\n"
+        tweet_text += f"Wall St. Targets: {wall_st_target}\n\n"
+        
+        # 💡 [수정] [:80]... 제거, 원본 그대로의 후킹 문장 삽입
+        tweet_text += f"{summary_text}\n\n" 
+        
+        # CTA 문구 및 URL
+        tweet_text += f"{localization[lang]['cta']}\n"
+        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n\n"
+        
+        # 캐시태그 + 글로벌 태그 + 로컬 태그
+        tweet_text += f"${ticker} #IPO {localization[lang]['tags']}\n"
+        tweet_text += f"🕒 {current_time_str}" 
 
         # 4. 트위터 직접 전송
         success, result = post_to_twitter(tweet_text)
         
         if success:
             print(f"✅ [Twitter] {ticker} ({lang}) 트윗 게시 성공: {result}")
-            # 언어별로 각각 상태 저장
             batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
         else:
             print(f"❌ [Twitter] {ticker} ({lang}) 트윗 실패: {result}")
