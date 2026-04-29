@@ -642,6 +642,74 @@ def fetch_fmp_earnings_call(symbol, api_key):
     except: return "No earnings call transcript available."
 
 # ==========================================
+# [마케팅 전용] 트위터 커넥터 (Make.com 연동)
+# ==========================================
+def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, analyst_metrics):
+    """
+    모든 분석이 완료된 시점에 마케팅 데이터를 Make.com으로 전송합니다.
+    """
+    # 💡 [방어막] 중복 포스팅 방지 체크 (기업당 딱 한 번만 발송)
+    tracker_key = f"{ticker}_Twitter_Sent_Tracker"
+    try:
+        res = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
+        if res.data:
+            return # 이미 보낸 기록이 있으면 즉시 종료
+    except: pass
+
+    # Railway 환경변수에서 URL 로드
+    MAKE_WEBHOOK_URL = os.environ.get("MAKE_TWITTER_WEBHOOK_URL", "")
+    if not MAKE_WEBHOOK_URL: 
+        return
+
+    # 1. 공모가 및 발행총액(Total Offering) 계산
+    try:
+        raw_price = str(row_data.get('price', '0')).replace('$', '').split('-')[0].strip()
+        price_val = float(raw_price)
+        shares = float(row_data.get('numberOfShares', 0))
+        # 발행총액 계산 (공모가 * 주식수)
+        offering_amount = f"${(price_val * shares / 1000000):,.1f}M" 
+    except:
+        price_val = 0.0
+        offering_amount = "TBD"
+
+    # 2. 비즈니스 요약 (방금 생성된 Tab 1 캐시에서 추출)
+    summary_text = ""
+    try:
+        res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_Tab1_v5_en").execute()
+        if res_sum.data:
+            content_json = json.loads(res_sum.data[0]['content'])
+            # HTML 태그 제거 후 깔끔한 문장만 추출
+            clean_biz = re.sub(r'<[^>]+>', '', content_json.get('html', ''))
+            summary_text = clean_biz.split('.')[0] + "." # 첫 문장만 사용
+    except:
+        summary_text = f"New CFA-level investment analysis for {company_name} is now ready."
+
+    # 3. 데이터 패키징
+    payload = {
+        "ticker": ticker,
+        "name": company_name,
+        "date": row_data.get('date', 'TBD'),
+        "price": f"${price_val:.2f}" if price_val > 0 else "TBD",
+        "offering_amount": offering_amount,
+        "exchange": row_data.get('exchange', 'USA'),
+        "sector": row_data.get('sector', 'Other'),
+        "revenue_growth": unified_metrics.get('growth', 'N/A'),
+        "rating": analyst_metrics.get('consensus', 'N/A'),
+        "summary": summary_text,
+        "web_url": f"https://unicornfinder.app/detail/{ticker}" # 실제 웹사이트 주소로 수정 가능
+    }
+
+    # 4. Make.com으로 전송
+    try:
+        response = requests.post(MAKE_WEBHOOK_URL, json=payload, timeout=10)
+        if response.status_code == 200:
+            print(f"🚀 [Twitter Connector] {ticker} 마케팅 데이터 전송 성공")
+            # 전송 성공 시 다시는 안 보내도록 트래커 저장
+            batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
+    except Exception as e:
+        print(f"❌ [Twitter Connector] 전송 실패: {e}")
+
+# ==========================================
 # [완전 교체] run_tab0_analysis 함수 (에러 영구 차단 + 20-F 하이브리드 탐색)
 # ==========================================
 def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=None, cik_mapping=None, original_ticker=None):
@@ -4021,11 +4089,11 @@ def main():
     WORKER_START_TIME = time.time()
     MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간(19,800초)
 
-    # 🚨 AAPL 테스트 모드 삭제 완료. 18개월 타겟 전체 루프 시작!
+    # 🚨 4093라인 부근: 18개월 타겟 전체 루프 시작
     for idx, row in target_df.iterrows():
-        # 5.5시간 강제 종료 방어막
+        # 5.5시간 강제 종료 방어막 (Github Actions/Railway 제한 대비)
         if time.time() - WORKER_START_TIME > MAX_RUN_TIME_SEC:
-            print("⏳ [알림] 깃허브 6시간 제한 임박! 서버 강제 다운을 막기 위해 작업을 일시 중단합니다.")
+            print("⏳ [알림] 작업 제한 시간 임박! 작업을 일시 중단합니다.")
             break
 
         original_symbol = row.get('symbol')
@@ -4045,13 +4113,17 @@ def main():
         max_retries = 3
         for attempt in range(max_retries):
             try:
+                # 🚀 [교정] 에러 방지용 변수 초기화
+                analyst_metrics = {"target": "N/A", "consensus": "N/A"}
+                unified_metrics = {"growth": "N/A"}
+
                 print(f"\n[{idx+1}/{total}] {original_symbol} 분석 중... (시도 {attempt+1}/{max_retries})", flush=True)
                 
                 c_status = row.get('status', 'Active')
                 c_date = row.get('date', None)
                 
                 if not official_symbol or str(official_symbol).strip() == "":
-                    # 티커가 없으면 우선 기업 이름으로 CIK 강제 획득 시도
+                    # 티커가 없으면 기업 이름으로 CIK 강제 획득 시도
                     cik = get_fallback_cik(official_symbol, name, FMP_API_KEY)
                     if cik:
                         print(f"🔍 [역추적 시도] CIK {cik} 번호로 Ticker 검색 중...")
@@ -4059,20 +4131,19 @@ def main():
                         if found_ticker:
                             print(f"✅ [역추적 성공] 숨겨진 Ticker 발견: {found_ticker}")
                             official_symbol = found_ticker
-                            cik_mapping[official_symbol] = cik # 매핑 업데이트
-
-                # 역추적을 거치고도 티커가 아예 없다면, 크래시 방지를 위해 이번 종목은 스킵
-                if not official_symbol or str(official_symbol).strip() == "":
-                    print(f"⚠️ [FMP API 스킵] Ticker가 아직 존재하지 않아 수치 데이터를 건너뜁니다.")
-                    break # 재시도 할 필요 없이 이 종목은 완전 스킵
+                            cik_mapping[official_symbol] = cik
                 
-                # Tab 0 & Tab 1 (기본 + 프리미엄)
+                if not official_symbol or str(official_symbol).strip() == "":
+                    print(f"⚠️ [스킵] Ticker가 존재하지 않아 분석을 건너뜁니다.")
+                    break 
+                
+                # [분석 단계] Tab 0 ~ Tab 2
                 run_tab1_analysis(official_symbol, name, c_status, c_date)
-                run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping, original_symbol) # 이 부분 수정
+                run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping, original_symbol)
                 run_tab0_premium_collection(official_symbol, name)
                 run_tab2_premium_collection(official_symbol, name) 
                 
-                # Tab 4: 목표가 수집 및 투자의견/M&A
+                # [분석 단계] Tab 4
                 try:
                     analyst_metrics = fetch_analyst_estimates(official_symbol, FMP_API_KEY)
                     run_tab4_analysis(official_symbol, name, c_status, c_date, analyst_metrics)
@@ -4081,7 +4152,7 @@ def main():
                 except Exception as e:
                     print(f"Tab4 Analyst Data Error for {official_symbol}: {e}")
                 
-                # Tab 3: 11지표 통합 수집 및 재무 분석
+                # [분석 단계] Tab 3
                 try:
                     unified_metrics = fetch_premium_financials(official_symbol, FMP_API_KEY)
                     batch_upsert("analysis_cache", [{
@@ -4096,45 +4167,48 @@ def main():
                 except Exception as e:
                     print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
 
-                # Tab 6: 스마트머니 수집 및 분석
+                # [분석 단계] Tab 6
                 try:
                     smart_money_data = fetch_smart_money_data(official_symbol, FMP_API_KEY)
                     run_tab6_analysis(official_symbol, name, smart_money_data)
                 except Exception as e:
                     print(f"Tab6 Smart Money Error for {official_symbol}: {e}")
                 
-                # 💡 모든 탭 분석이 정상적으로 끝났다면 재시도 루프(attempt)를 안전하게 탈출합니다.
+                # 🚀 [마케팅 단계] 모든 분석 완료 후 트위터 커넥터 호출
+                try:
+                    send_to_twitter_connector(
+                        ticker=official_symbol,
+                        company_name=name,
+                        row_data=row,
+                        unified_metrics=unified_metrics,
+                        analyst_metrics=analyst_metrics
+                    )
+                except Exception as e:
+                    print(f"⚠️ Twitter Connector Error: {e}")
+
+                # 💡 모든 작업 성공 시 재시도 루프 탈출
                 break 
                 
             except Exception as e:
                 error_msg = str(e)
-                # 💡 503 과부하, Canceled, 429 한도 초과 등 API 통신 에러 감지 시
-                if any(err in error_msg for err in ["503", "UNAVAILABLE", "Canceled", "429", "quota"]):
+                # API 한도 초과(429)나 통신 지연(503) 시에만 재시도
+                if any(err in error_msg for err in ["503", "UNAVAILABLE", "429", "quota"]):
                     if attempt < max_retries - 1:
-                        print(f"⚠️ [{original_symbol}] 통신 지연 감지: {error_msg}. 10초 대기 후 재시도합니다...")
+                        print(f"⚠️ [{original_symbol}] 통신 지연 ({error_msg}). 10초 후 재시도...")
                         time.sleep(10)
                     else:
-                        print(f"🚨 [{original_symbol}] 3회 재시도 실패. 트래픽 과부하가 심하여 다음 기업으로 넘어갑니다.")
+                        print(f"🚨 [{original_symbol}] 3회 시도 실패. 다음 기업으로 넘어갑니다.")
                 else:
-                    # 통신 에러가 아닌 코드/파싱 에러라면 재시도 없이 원인 출력 후 스킵
+                    # 단순 코드 에러는 재시도 없이 원인 출력 후 스킵
                     import traceback 
-                    print(f"\n🚨 [{original_symbol}] 분석 중 내부 오류 발생! (재시도 안함)")
-                    print(f"사유: {e}")
-                    print("-" * 30)
+                    print(f"\n🚨 [{original_symbol}] 내부 오류 발생!")
                     traceback.print_exc()
-                    print("-" * 30)
-                    break # 재시도 루프 탈출
+                    break 
         
-        # 💡 [필수 쿨타임] 성공이든 실패든 하나의 기업이 끝나면 2초간 쉬어주어 디도스를 원천 예방합니다.
+        # 💡 [필수 쿨타임] 하나의 기업 처리가 끝날 때마다 2초 휴식 (DDoS 방어)
         time.sleep(2)
-        # =========================================================
 
+    # 모든 루프 종료 후 실행되는 후속 작업
     run_premium_alert_engine(df)
-    
-    # 💡 [생존 신고] 메인 워커 작업이 끝난 후 앱에 상태 알림
     batch_upsert("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-            
     print(f"\n🏁 모든 작업 종료: {datetime.now()}")
-
-if __name__ == "__main__":
-    main()
