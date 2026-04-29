@@ -687,11 +687,18 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             if res.data: continue # 이미 보냈으면 다음 언어로
         except: pass
 
-        # 메시지 구성 (국기 이모지 추가)
+        # 메시지 구성 (최대 정보 포함 버전)
         emoji = {"ko": "🇰🇷", "en": "🇺🇸", "ja": "🇯🇵", "zh": "🇨🇳"}.get(lang, "🌐")
-        tweet_text = f"{emoji} {company_name} ({ticker}) IPO Analysis\n\n"
-        tweet_text += f"{summary_text}\n\n"
-        tweet_text += f"💰 Offering Size: {offering_amount}\n"
+        
+        # 데이터가 없는 경우를 대비해 기본값 처리
+        consensus = analyst_metrics.get('consensus', 'N/A')
+        growth = unified_metrics.get('growth', 'N/A')
+        
+        tweet_text = f"{emoji} {company_name} ({ticker}) IPO Insight\n\n"
+        tweet_text += f"📅 Date: {row_data.get('date', 'TBD')} | 🏛️ Exch: {row_data.get('exchange', 'USA')}\n"
+        tweet_text += f"💰 Price: {price_val:.2f} | 📊 Offering: {offering_amount}\n"
+        tweet_text += f"📈 Consensus: {consensus} | 🚀 Growth: {growth}\n\n"
+        tweet_text += f"📝 {summary_text[:80]}...\n\n" # 80자 정도로 요약 제한
         tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}"
 
         # 4. 트위터 직접 전송 (Make.com 제거)
