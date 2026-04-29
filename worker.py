@@ -1713,17 +1713,19 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 format_instruction = "Must be written in exactly 3 paragraphs."
                 
                 search_directive = f"""
-                    🚨 [Mandatory Search & Filtering Directive]: 
+                    🚨[Mandatory Search & Filtering Directive]: 
                     1. Search Query: `{search_query}`
                     2. Filtering (Exclusion/Inclusion): 
                        - [Contextual Inclusion]: Even if the name matches a place or generic term, include it if business keywords like IPO, Stock, or Listing are present.
                        - [Name Variants]: Shortened names like '{search_name}' should be recognized as the target entity.
-                    3. Period: [{one_year_ago}] to [{current_date}]
-                    4. Extraction: Extract up to 5 valid news items.""" if is_fmp_poor else "🚨 [No Hallucination]: Use ONLY [Part 1] data."
+                    3. Period:[{one_year_ago}] to [{current_date}]
+                    4. Extraction: Extract up to 5 valid news items.""" if is_fmp_poor else "🚨 [No Hallucination]: Use ONLY[Part 1] data."
 
                 task2_label = "--- [Task 2: Latest News Collection] ---"
-                news_instruction = '- Extract up to 5 items. Do NOT discard news just because the name is shortened if the business context is clear.\n- sentiment: Positive, Negative, or Neutral.\n- date: YYYY-MM-DD or the expression from search results.'
-                json_format = f"""{{ "debug_search_raw": "Summary of inclusion/exclusion based on context.", "news": [ {{ "title_en": "Title", "translated_title": "Headline style summary", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
+                # 💡 [핵심 수정] 영어일 경우 translated_title을 강제로 빈 문자열("")로 비우도록 지시!
+                news_instruction = '- Extract up to 5 items. Do NOT discard news just because the name is shortened if the business context is clear.\n- 🚨 For English, you MUST leave "translated_title" strictly as an empty string "". DO NOT translate.\n- sentiment: Positive, Negative, or Neutral.\n- date: YYYY-MM-DD or the expression from search results.'
+                
+                json_format = f"""{{ "debug_search_raw": "Summary of inclusion/exclusion based on context.", "news":[ {{ "title_en": "Original English Title", "translated_title": "", "link": "...", "sentiment": "Positive", "date": "YYYY-MM-DD" }} ] }}"""
 
             elif lang_code == 'ja':
                 sys_prompt = "あなたは証券会社のシニアアナリストです。日本語で作成してください。"
