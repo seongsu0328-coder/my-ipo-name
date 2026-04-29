@@ -4213,3 +4213,7 @@ def main():
     run_premium_alert_engine(df)
     batch_upsert("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
     print(f"\n🏁 모든 작업 종료: {datetime.now()}")
+
+# 👇👇 이 부분을 스크립트 맨 마지막에 추가하세요 👇👇
+if __name__ == "__main__":
+    main()
