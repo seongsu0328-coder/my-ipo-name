@@ -646,18 +646,8 @@ def fetch_fmp_earnings_call(symbol, api_key):
 # ==========================================
 def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, analyst_metrics):
     """
-    모든 분석이 완료된 시점에 4개 국어 요약 데이터를 통합하여 Make.com으로 전송합니다.
+    모든 분석이 완료된 시점에 4개 국어 요약 데이터를 각각 트위터로 직접 전송합니다.
     """
-    tracker_key = f"{ticker}_Twitter_Sent_Tracker"
-    try:
-        res = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
-        if res.data:
-            return 
-    except: pass
-
-    MAKE_WEBHOOK_URL = os.environ.get("MAKE_TWITTER_WEBHOOK_URL", "")
-    if not MAKE_WEBHOOK_URL: return
-
     # 1. 공모 정보 계산
     try:
         raw_price = str(row_data.get('price', '0')).replace('$', '').split('-')[0].strip()
@@ -683,33 +673,36 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         except:
             summaries[lang] = ""
 
-    # 3. 데이터 패키징 (4개 언어 통합)
-    payload = {
-        "ticker": ticker,
-        "name": company_name,
-        "date": row_data.get('date', 'TBD'),
-        "price": f"${price_val:.2f}" if price_val > 0 else "TBD",
-        "offering_amount": offering_amount,
-        "exchange": row_data.get('exchange', 'USA'),
-        "sector": row_data.get('sector', 'Other'),
-        "revenue_growth": unified_metrics.get('growth', 'N/A'),
-        "rating": analyst_metrics.get('consensus', 'N/A'),
-        "summary_ko": summaries.get('ko', ''),
-        "summary_en": summaries.get('en', ''),
-        "summary_ja": summaries.get('ja', ''),
-        "summary_zh": summaries.get('zh', ''),
-        "web_url": f"https://unicornfinder.app/detail/{ticker}"
-    }
+    # 3. 언어별 반복(Loop) 처리
+    for lang in ['ko', 'en', 'ja', 'zh']:
+        summary_text = summaries.get(lang, "")
+        if not summary_text: continue # 요약문이 없으면 해당 언어는 패스
 
-    # 4. Make.com 대신 직접 트위터 서비스 호출 (교체 포인트)
-    success, result = post_to_twitter(tweet_text)
-    
-    if success:
-        print(f"✅ [Twitter] {ticker} 트윗 게시 성공: {result}")
-        # 기존 트래커 업데이트 로직 유지
-        batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
-    else:
-        print(f"❌ [Twitter] {ticker} 트윗 실패: {result}")
+        # 언어별 고유 트래커 키 생성 (예: AAPL_Twitter_Sent_Tracker_ko)
+        tracker_key = f"{ticker}_Twitter_Sent_Tracker_{lang}"
+        
+        # 중복 전송 방지 확인
+        try:
+            res = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
+            if res.data: continue # 이미 보냈으면 다음 언어로
+        except: pass
+
+        # 메시지 구성 (국기 이모지 추가)
+        emoji = {"ko": "🇰🇷", "en": "🇺🇸", "ja": "🇯🇵", "zh": "🇨🇳"}.get(lang, "🌐")
+        tweet_text = f"{emoji} {company_name} ({ticker}) IPO Analysis\n\n"
+        tweet_text += f"{summary_text}\n\n"
+        tweet_text += f"💰 Offering Size: {offering_amount}\n"
+        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}"
+
+        # 4. 트위터 직접 전송 (Make.com 제거)
+        success, result = post_to_twitter(tweet_text)
+        
+        if success:
+            print(f"✅ [Twitter] {ticker} ({lang}) 트윗 게시 성공: {result}")
+            # 언어별로 각각 상태 저장
+            batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
+        else:
+            print(f"❌ [Twitter] {ticker} ({lang}) 트윗 실패: {result}")
 
 # ==========================================
 # [완전 교체] run_tab0_analysis 함수 (에러 영구 차단 + 20-F 하이브리드 탐색)
