@@ -642,49 +642,48 @@ def fetch_fmp_earnings_call(symbol, api_key):
     except: return "No earnings call transcript available."
 
 # ==========================================
-# [마케팅 전용] 트위터 커넥터 (Make.com 연동)
+# [마케팅 전용] 4개 국어 지원 트위터 커넥터 (Make.com 연동)
 # ==========================================
 def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, analyst_metrics):
     """
-    모든 분석이 완료된 시점에 마케팅 데이터를 Make.com으로 전송합니다.
+    모든 분석이 완료된 시점에 4개 국어 요약 데이터를 통합하여 Make.com으로 전송합니다.
     """
-    # 💡 [방어막] 중복 포스팅 방지 체크 (기업당 딱 한 번만 발송)
     tracker_key = f"{ticker}_Twitter_Sent_Tracker"
     try:
         res = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
         if res.data:
-            return # 이미 보낸 기록이 있으면 즉시 종료
+            return 
     except: pass
 
-    # Railway 환경변수에서 URL 로드
     MAKE_WEBHOOK_URL = os.environ.get("MAKE_TWITTER_WEBHOOK_URL", "")
-    if not MAKE_WEBHOOK_URL: 
-        return
+    if not MAKE_WEBHOOK_URL: return
 
-    # 1. 공모가 및 발행총액(Total Offering) 계산
+    # 1. 공모 정보 계산
     try:
         raw_price = str(row_data.get('price', '0')).replace('$', '').split('-')[0].strip()
         price_val = float(raw_price)
         shares = float(row_data.get('numberOfShares', 0))
-        # 발행총액 계산 (공모가 * 주식수)
         offering_amount = f"${(price_val * shares / 1000000):,.1f}M" 
     except:
         price_val = 0.0
         offering_amount = "TBD"
 
-    # 2. 비즈니스 요약 (방금 생성된 Tab 1 캐시에서 추출)
-    summary_text = ""
-    try:
-        res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_Tab1_v5_en").execute()
-        if res_sum.data:
-            content_json = json.loads(res_sum.data[0]['content'])
-            # HTML 태그 제거 후 깔끔한 문장만 추출
-            clean_biz = re.sub(r'<[^>]+>', '', content_json.get('html', ''))
-            summary_text = clean_biz.split('.')[0] + "." # 첫 문장만 사용
-    except:
-        summary_text = f"New CFA-level investment analysis for {company_name} is now ready."
+    # 2. 🚀 4개 국어 요약문 수집 로직
+    summaries = {}
+    for lang in ['ko', 'en', 'ja', 'zh']:
+        try:
+            res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_Tab1_v5_{lang}").execute()
+            if res_sum.data:
+                content_json = json.loads(res_sum.data[0]['content'])
+                # HTML 제거 및 첫 문장 추출
+                clean_text = re.sub(r'<[^>]+>', '', content_json.get('html', ''))
+                summaries[lang] = clean_text.split('.')[0] + "."
+            else:
+                summaries[lang] = "" # 데이터 없으면 빈값
+        except:
+            summaries[lang] = ""
 
-    # 3. 데이터 패키징
+    # 3. 데이터 패키징 (4개 언어 통합)
     payload = {
         "ticker": ticker,
         "name": company_name,
@@ -695,16 +694,18 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         "sector": row_data.get('sector', 'Other'),
         "revenue_growth": unified_metrics.get('growth', 'N/A'),
         "rating": analyst_metrics.get('consensus', 'N/A'),
-        "summary": summary_text,
-        "web_url": f"https://unicornfinder.app/detail/{ticker}" # 실제 웹사이트 주소로 수정 가능
+        "summary_ko": summaries.get('ko', ''),
+        "summary_en": summaries.get('en', ''),
+        "summary_ja": summaries.get('ja', ''),
+        "summary_zh": summaries.get('zh', ''),
+        "web_url": f"https://unicornfinder.app/detail/{ticker}"
     }
 
     # 4. Make.com으로 전송
     try:
-        response = requests.post(MAKE_WEBHOOK_URL, json=payload, timeout=10)
+        response = requests.post(MAKE_WEBHOOK_URL, json=payload, timeout=15)
         if response.status_code == 200:
-            print(f"🚀 [Twitter Connector] {ticker} 마케팅 데이터 전송 성공")
-            # 전송 성공 시 다시는 안 보내도록 트래커 저장
+            print(f"🚀 [Twitter Connector] {ticker} 4개 국어 데이터 전송 성공")
             batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
     except Exception as e:
         print(f"❌ [Twitter Connector] 전송 실패: {e}")
