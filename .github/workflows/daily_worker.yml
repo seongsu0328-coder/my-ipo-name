@@ -36,4 +36,5 @@ jobs:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: python worker.py
+        # 👇 파이썬 강제 즉시 출력 옵션(-u) 적용
+        run: python -u worker.py
