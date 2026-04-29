@@ -1,4 +1,3 @@
-
 import os
 import time
 import json
@@ -8,6 +7,10 @@ import copy
 import pandas as pd
 import numpy as np
 import logging
+
+# 💡 [트위터 커넥터 추가]
+from twitter_service import post_to_twitter 
+
 # 💡 [FCM 추가] Firebase 라이브러리
 import firebase_admin
 from firebase_admin import credentials, messaging
