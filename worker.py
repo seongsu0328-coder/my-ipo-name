@@ -653,9 +653,9 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
     if ipo_date_str:
         try:
             ipo_dt = datetime.strptime(ipo_date_str, '%Y-%m-%d').date()
-            # 오늘 기준 상장일이 3일이 지났다면(혹은 아직 안 됐더라도 3일 범위 밖이면) 트윗 안 함
-            if abs((datetime.now().date() - ipo_dt).days) > 3:
-                print(f"⏩ [{ticker}] 상장일({ipo_date_str}) 범위 밖(3일 초과). 트윗 스킵.")
+            # abs()를 지워서, 과거로 3일이 지난 기업만 스킵하도록 변경
+            if (datetime.now().date() - ipo_dt).days > 3:
+                print(f"⏩ [{ticker}] 상장일({ipo_date_str})이 3일 지남. 트윗 스킵.")
                 return False, "Old IPO (Skipped)"
         except Exception as e:
             print(f"⚠️ 날짜 파싱 에러: {e}")
