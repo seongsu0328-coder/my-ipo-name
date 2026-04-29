@@ -4077,7 +4077,7 @@ def main():
 
     print(f"✅ 최종 분석 대상: 총 {len(target_symbols)}개 종목 (중복 제거)")
 
-    target_df = df[df['symbol'].isin(target_symbols)].head(1)
+    target_df = df[df['symbol'].isin(target_symbols)]
     total = len(target_df)
     
     print("\n🏛️ SEC EDGAR CIK 매핑 데이터 로드 중 (API 최적화)...")
