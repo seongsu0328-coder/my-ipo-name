@@ -648,18 +648,26 @@ def fetch_fmp_earnings_call(symbol, api_key):
 # [마케팅 전용] 4개 국어 지원 트위터 커넥터 (Make.com 연동)
 # ==========================================
 def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, analyst_metrics):
-    """
-    모든 분석이 완료된 시점에 4개 국어 요약 데이터를 각각 트위터로 직접 전송합니다.
-    """
-    # 1. 공모 정보 계산
-    try:
-        raw_price = str(row_data.get('price', '0')).replace('$', '').split('-')[0].strip()
-        price_val = float(raw_price)
-        shares = float(row_data.get('numberOfShares', 0))
-        offering_amount = f"${(price_val * shares / 1000000):,.1f}M" 
-    except:
-        price_val = 0.0
-        offering_amount = "TBD"
+    # 🚨 [완벽 안전장치] 함수 시작부터 걸어버립니다.
+    ipo_date_str = row_data.get('date')
+    if ipo_date_str:
+        try:
+            ipo_dt = datetime.strptime(ipo_date_str, '%Y-%m-%d').date()
+            # 오늘 기준 상장일이 3일이 지났다면(혹은 아직 안 됐더라도 3일 범위 밖이면) 트윗 안 함
+            if abs((datetime.now().date() - ipo_dt).days) > 3:
+                print(f"⏩ [{ticker}] 상장일({ipo_date_str}) 범위 밖(3일 초과). 트윗 스킵.")
+                return False, "Old IPO (Skipped)"
+        except Exception as e:
+            print(f"⚠️ 날짜 파싱 에러: {e}")
+            return False, "Date Error"
+    else:
+        # 날짜 정보가 없는 기업도 안전을 위해 스킵
+        print(f"⏩ [{ticker}] 상장일 데이터 없음. 트윗 스킵.")
+        return False, "No Date"
+
+    # --- 여기서부터 기존의 트윗 전송 로직이 실행됨 ---
+    # 이제 기존 500개 기업은 위 if문에서 다 걸러져서 
+    # 아래 로직은 오늘 상장한 기업들만 통과하게 됩니다!
 
     # 2. 🚀 4개 국어 요약문 수집 로직
     summaries = {}
