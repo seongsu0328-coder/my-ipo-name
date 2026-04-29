@@ -648,26 +648,34 @@ def fetch_fmp_earnings_call(symbol, api_key):
 # [마케팅 전용] 4개 국어 지원 트위터 커넥터 (Make.com 연동)
 # ==========================================
 def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, analyst_metrics):
-    # 🚨 [완벽 안전장치] 함수 시작부터 걸어버립니다.
+    """
+    모든 분석이 완료된 시점에 4개 국어 요약 데이터를 각각 트위터로 직접 전송합니다.
+    """
+    # 🚨 [안전장치] 과거 상장 기업 트윗 방지 (3일 초과 시 스킵)
     ipo_date_str = row_data.get('date')
     if ipo_date_str:
         try:
             ipo_dt = datetime.strptime(ipo_date_str, '%Y-%m-%d').date()
-            # abs()를 지워서, 과거로 3일이 지난 기업만 스킵하도록 변경
             if (datetime.now().date() - ipo_dt).days > 3:
-                print(f"⏩ [{ticker}] 상장일({ipo_date_str})이 3일 지남. 트윗 스킵.")
-                return False, "Old IPO (Skipped)"
+                print(f"⏩ [{ticker}] 상장일({ipo_date_str}) 범위 밖(3일 초과). 트윗 스킵.")
+                return False, "Old IPO"
         except Exception as e:
-            print(f"⚠️ 날짜 파싱 에러: {e}")
-            return False, "Date Error"
-    else:
-        # 날짜 정보가 없는 기업도 안전을 위해 스킵
-        print(f"⏩ [{ticker}] 상장일 데이터 없음. 트윗 스킵.")
-        return False, "No Date"
+            pass # 날짜 형식이 이상하면 그냥 넘어갑니다.
 
-    # --- 여기서부터 기존의 트윗 전송 로직이 실행됨 ---
-    # 이제 기존 500개 기업은 위 if문에서 다 걸러져서 
-    # 아래 로직은 오늘 상장한 기업들만 통과하게 됩니다!
+    # 1. 💡 공모 정보 계산 (변수를 먼저 0으로 세팅해서 NameError 원천 차단!)
+    price_val = 0.0  
+    offering_amount = "TBD"
+    
+    try:
+        raw_price = str(row_data.get('price', '0')).replace('$', '').split('-')[0].strip()
+        if raw_price and raw_price.replace('.', '', 1).isdigit():
+            price_val = float(raw_price)
+            
+        shares = float(row_data.get('numberOfShares', 0))
+        if shares > 0 and price_val > 0:
+            offering_amount = f"${(price_val * shares / 1000000):,.1f}M" 
+    except Exception as e:
+        pass # 에러가 나도 이미 price_val은 0.0이므로 시스템이 죽지 않습니다.
 
     # 2. 🚀 4개 국어 요약문 수집 로직
     summaries = {}
@@ -680,7 +688,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
                 clean_text = re.sub(r'<[^>]+>', '', content_json.get('html', ''))
                 summaries[lang] = clean_text.split('.')[0] + "."
             else:
-                summaries[lang] = "" # 데이터 없으면 빈값
+                summaries[lang] = "" 
         except:
             summaries[lang] = ""
 
@@ -689,7 +697,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         summary_text = summaries.get(lang, "")
         if not summary_text: continue # 요약문이 없으면 해당 언어는 패스
 
-        # 언어별 고유 트래커 키 생성 (예: AAPL_Twitter_Sent_Tracker_ko)
+        # 언어별 고유 트래커 키 생성
         tracker_key = f"{ticker}_Twitter_Sent_Tracker_{lang}"
         
         # 중복 전송 방지 확인
@@ -698,21 +706,21 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             if res.data: continue # 이미 보냈으면 다음 언어로
         except: pass
 
-        # 메시지 구성 (최대 정보 포함 버전)
+        # 메시지 구성
         emoji = {"ko": "🇰🇷", "en": "🇺🇸", "ja": "🇯🇵", "zh": "🇨🇳"}.get(lang, "🌐")
         
-        # 데이터가 없는 경우를 대비해 기본값 처리
-        consensus = analyst_metrics.get('consensus', 'N/A')
-        growth = unified_metrics.get('growth', 'N/A')
+        # 데이터가 없는 경우를 대비해 안전하게 꺼내기
+        consensus = analyst_metrics.get('consensus', 'N/A') if analyst_metrics else 'N/A'
+        growth = unified_metrics.get('growth', 'N/A') if unified_metrics else 'N/A'
         
         tweet_text = f"{emoji} {company_name} ({ticker}) IPO Insight\n\n"
         tweet_text += f"📅 Date: {row_data.get('date', 'TBD')} | 🏛️ Exch: {row_data.get('exchange', 'USA')}\n"
-        tweet_text += f"💰 Price: {price_val:.2f} | 📊 Offering: {offering_amount}\n"
+        tweet_text += f"💰 Price: ${price_val:.2f} | 📊 Offering: {offering_amount}\n"
         tweet_text += f"📈 Consensus: {consensus} | 🚀 Growth: {growth}\n\n"
-        tweet_text += f"📝 {summary_text[:80]}...\n\n" # 80자 정도로 요약 제한
+        tweet_text += f"📝 {summary_text[:80]}...\n\n" 
         tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}"
 
-        # 4. 트위터 직접 전송 (Make.com 제거)
+        # 4. 트위터 직접 전송
         success, result = post_to_twitter(tweet_text)
         
         if success:
@@ -721,6 +729,8 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
         else:
             print(f"❌ [Twitter] {ticker} ({lang}) 트윗 실패: {result}")
+            
+    return True, "Done"
 
 # ==========================================
 # [완전 교체] run_tab0_analysis 함수 (에러 영구 차단 + 20-F 하이브리드 탐색)
