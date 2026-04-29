@@ -701,14 +701,15 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         "web_url": f"https://unicornfinder.app/detail/{ticker}"
     }
 
-    # 4. Make.com으로 전송
-    try:
-        response = requests.post(MAKE_WEBHOOK_URL, json=payload, timeout=15)
-        if response.status_code == 200:
-            print(f"🚀 [Twitter Connector] {ticker} 4개 국어 데이터 전송 성공")
-            batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
-    except Exception as e:
-        print(f"❌ [Twitter Connector] 전송 실패: {e}")
+    # 4. Make.com 대신 직접 트위터 서비스 호출 (교체 포인트)
+    success, result = post_to_twitter(tweet_text)
+    
+    if success:
+        print(f"✅ [Twitter] {ticker} 트윗 게시 성공: {result}")
+        # 기존 트래커 업데이트 로직 유지
+        batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
+    else:
+        print(f"❌ [Twitter] {ticker} 트윗 실패: {result}")
 
 # ==========================================
 # [완전 교체] run_tab0_analysis 함수 (에러 영구 차단 + 20-F 하이브리드 탐색)
