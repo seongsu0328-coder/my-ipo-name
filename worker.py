@@ -729,7 +729,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         current_time_str = datetime.now().strftime("%H:%M:%S")
 
         # 🚀 [신규] 텍스트 온리(Text-only) 미니멀리즘 트윗 조립
-        tweet_text = f"{company_name} (${ticker})\n\n"
+        tweet_text = f"{company_name} ({ticker})\n\n"
         tweet_text += f"{row_data.get('exchange', 'USA')} | ${price_val:.2f} | {offering_amount} | {row_data.get('date', 'TBD')}\n\n"
         
         tweet_text += f"Analyst Ratings: {analyst_rating}\n"
