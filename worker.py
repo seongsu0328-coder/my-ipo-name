@@ -7,23 +7,28 @@ import copy
 import pandas as pd
 import numpy as np
 import logging
+import concurrent.futures  # 🚀 [추가] 병렬 처리용 라이브러리
 
 # 💡 [트위터 커넥터 추가]
 from twitter_service import post_to_twitter 
 
 # 💡 [FCM 추가] Firebase 라이브러리
 import firebase_admin
-from firebase_admin import credentials, messaging
+from firebase_admin import credentials as firebase_credentials, messaging
 from datetime import datetime, timedelta
 
 from supabase import create_client
-from google import genai
+
+# 🚀[Vertex AI 추가] 기존 genai 대신 사용
+import vertexai
+from vertexai.generative_models import GenerativeModel, Tool
+from vertexai.preview.generative_models import grounding
+from google.oauth2 import service_account
 
 # ==========================================
 # [1] 환경 설정 & 디버깅 로그
 # ==========================================
 
-# 1. 환경 변수 로드
 raw_url = os.environ.get("SUPABASE_URL", "")
 if "/rest/v1" in raw_url:
     SUPABASE_URL = raw_url.split("/rest/v1")[0].rstrip('/')
@@ -31,19 +36,17 @@ else:
     SUPABASE_URL = raw_url.rstrip('/')
 
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-GENAI_API_KEY = os.environ.get("GENAI_API_KEY", "")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 FMP_API_KEY = os.environ.get("FMP_API_KEY", "")
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "781b0d2391740729adb2d931e200e322")
-# 💡 [FCM 추가] Firebase 서비스 계정 키 (Railway 환경 변수에서 로드)
 FIREBASE_SA_JSON = os.environ.get("FIREBASE_SERVICE_ACCOUNT", "")
+VERTEX_SA_JSON = os.environ.get("VERTEX_SA_JSON", "")  # 🚀 Vertex AI 서비스 계정 키
 
-# 💡 [디버깅] 상태 확인
 print(f"DEBUG: SUPABASE_URL 존재 = {bool(SUPABASE_URL)}")
 print(f"DEBUG: SUPABASE_KEY 존재 = {bool(SUPABASE_KEY)}")
 print(f"DEBUG: FIREBASE_SA 존재 = {bool(FIREBASE_SA_JSON)}")
+print(f"DEBUG: VERTEX_SA 존재 = {bool(VERTEX_SA_JSON)}")
 
-# 2. 필수 연결 체크 (Supabase)
 if not (SUPABASE_URL and SUPABASE_KEY):
     print("❌ 환경변수 누락으로 종료")
     exit()
@@ -55,95 +58,59 @@ except Exception as e:
     print(f"❌ Supabase 초기화 실패: {e}")
     exit()
 
-# 💡 [FCM 추가] Firebase Admin SDK 초기화
 if FIREBASE_SA_JSON:
     try:
         cred_dict = json.loads(FIREBASE_SA_JSON)
-        cred = credentials.Certificate(cred_dict)
+        cred = firebase_credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
         print("✅ Firebase Admin SDK 초기화 성공")
     except Exception as e:
         print(f"❌ Firebase 초기화 실패: {e}")
-else:
-    print("⚠️ FIREBASE_SERVICE_ACCOUNT 환경변수가 없어 푸시 알림이 비활성화됩니다.")
 
-# 3. AI 모델 설정 (하이브리드 전략: 엄격 모델 & 검색 허용 모델 분리)
-import sys
-import random
-
+# ==========================================
+# 🚀 3. AI 모델 설정 (Vertex AI 마이그레이션 적용)
+# ==========================================
 model_strict = None
 model_search = None
-if GENAI_API_KEY:
-    try:
-        client = genai.Client(api_key=GENAI_API_KEY)
-        
-        # [1] 환각 원천 차단용 일반 모델
-        class StrictModelWrapper:
-            def __init__(self, client):
-                self.client = client
-            def generate_content(self, prompt):
-                # 💡 [수정] 재시도 횟수 3회로 증가, 대기 시간 기하급수적 증가(Exponential Backoff)
-                for attempt in range(3): 
-                    try:
-                        return self.client.models.generate_content(
-                            model='gemini-2.0-flash',
-                            contents=prompt
-                        )
-                    except Exception as e:
-                        err_str = str(e).lower()
-                        # 429(한도초과) 또는 quota 에러 발생 시
-                        if "429" in err_str or "quota" in err_str:
-                            if attempt < 2:
-                                wait_time = 40 * (attempt + 1) # 1차: 40초, 2차: 80초 대기
-                                print(f"⏳ [API 한도 초과 방어] 구글 토큰 한도 도달. {wait_time}초 대기 후 재시도합니다...")
-                                time.sleep(wait_time)
-                                continue
-                        raise e
 
-        model_strict = StrictModelWrapper(client)
+if VERTEX_SA_JSON:
+    try:
+        sa_info = json.loads(VERTEX_SA_JSON)
+        project_id = sa_info.get("project_id")
+        credentials = service_account.Credentials.from_service_account_info(sa_info)
         
-        # [2] 하이브리드 엔진 (REST API)
-        class DirectGeminiSearch:
-            def __init__(self, api_key):
-                self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
-                
+        # Vertex AI 초기화 (리전: us-central1)
+        vertexai.init(project=project_id, location="us-central1", credentials=credentials)
+        base_model = GenerativeModel("gemini-2.0-flash")
+        search_tool = Tool.from_google_search_retrieval(grounding.GoogleSearchRetrieval())
+        
+        class VertexModelWrapper:
+            def __init__(self, model, use_search=False):
+                self.model = model
+                self.use_search = use_search
+
             def generate_content(self, prompt):
-                payload = { "contents":[{"parts": [{"text": prompt}]}], "tools": [{"googleSearch": {}}] }
-                class MockResponse:
-                    def __init__(self, text): self.text = text
-                
-                # 💡 [수정] 동일하게 재시도 횟수 3회 및 대기 시간 강화
+                tools = [search_tool] if self.use_search else None
+                # 💡[타임아웃 & Exponential Backoff 방어막]
                 for attempt in range(3):
                     try:
-                        res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
-                        
-                        if res.status_code == 200:
-                            data = res.json()
-                            text_output = ""
-                            for cand in data.get("candidates",[]):
-                                for part in cand.get("content", {}).get("parts",[]):
-                                    if "text" in part: text_output += part["text"]
-                            return MockResponse(text_output)
-                            
-                        elif res.status_code == 429:
-                            err_str = res.text.lower()
+                        return self.model.generate_content(prompt, tools=tools)
+                    except Exception as e:
+                        err_str = str(e).lower()
+                        if any(k in err_str for k in["429", "quota", "timeout", "deadline", "503", "unavailable"]):
                             if attempt < 2:
-                                wait_time = 40 * (attempt + 1)
-                                print(f"⏳[검색 API 한도 초과 방어] {wait_time}초 대기 후 재시도...")
+                                wait_time = 10 * (2 ** attempt) # 10초 -> 20초 대기
+                                print(f"⏳ [Vertex AI] 응답 지연. {wait_time}초 대기 후 재시도... ({err_str[:30]})")
                                 time.sleep(wait_time)
                                 continue
-                            raise Exception(f"429 Limit: {res.text}")
-                        else:
-                            return MockResponse("")
-                    except Exception as e:
-                        if "exit" in str(type(e)).lower(): sys.exit(1)
                         raise e
 
-        model_search = DirectGeminiSearch(GENAI_API_KEY)
-        print("✅ AI 하이브리드 모델 로드 성공 (결제 한도 초과 시 셧다운 방어막 가동!)")
+        model_strict = VertexModelWrapper(base_model, use_search=False)
+        model_search = VertexModelWrapper(base_model, use_search=True)
+        print("✅ Vertex AI (Enterprise) 모델 로드 성공! (무한대기 방어막 가동)")
 
     except Exception as e:
-        print(f"⚠️ AI 모델 로드 에러: {e}")
+        print(f"⚠️ Vertex AI 초기화 에러: {e}")
         
 # 💡 [중요] 다국어 지원 언어 리스트 정의
 SUPPORTED_LANGS = {
@@ -203,46 +170,34 @@ def fetch_sec_metadata(ticker, doc_type, api_key, cik=None):
 def fetch_sec_full_content(accession_num, ticker, doc_type, api_key, cik=None):
     if not accession_num: return None
     try:
-        # 1. FMP 텍스트 서버 시도
         text_url = f"https://financialmodelingprep.com/stable/sec-filing-full-text?accessionNumber={accession_num}&apikey={api_key}"
-        txt_res = requests.get(text_url, timeout=7)
+        txt_res = requests.get(text_url, timeout=15) # 🚀 타임아웃
         if txt_res.status_code == 200 and txt_res.json():
             full_text = txt_res.json()[0].get('content', '')
-            # 데이터가 유의미하게 존재할 때만 리턴
             if len(full_text) > 500:
-                return full_text[:100000]
+                # 🚀 정규식 멈춤(Hang) 방지: 원문을 30만 자로 먼저 컷
+                clean_text = re.sub(r'<[^>]+>', ' ', full_text[:300000])
+                return re.sub(r'\s+', ' ', clean_text)[:100000]
 
-        # 2. FMP 실패 시 SEC EDGAR 아카이브 직접 스크래핑
         if cik:
-            # 🚀 [유지] 사용자의 성공 사례에 따라 CIK를 10자리 문자열로 고정 (Padding 유지)
             cik_str = str(cik).zfill(10)
-            # SEC 아카이브 경로는 하이픈을 뺀 번호를 폴더명으로 사용함
             acc_no_clean = str(accession_num).replace('-', '')
-            
-            # URL 조립
             raw_txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_str}/{acc_no_clean}/{accession_num}.txt"
             
-            # 💡 [추가] 경로 추적 로그: PS 등에서 문제가 생길 때 URL을 직접 확인하기 위함
             print(f"📡 [SEC 본문 요청] {ticker} ({doc_type}) -> URL: {raw_txt_url}")
-            
-            # 💡 [보완] 대용량 파일 대응을 위해 타임아웃을 15초로 연장
-            raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=15)
+            raw_res = requests.get(raw_txt_url, headers=SEC_HEADERS, timeout=20) # 🚀 타임아웃
             
             if raw_res.status_code == 200:
-                # 💡 [추가] 수신 성공 로그 및 데이터 길이 확인
                 print(f"✅ [SEC 본문 수신 성공] {ticker} - 길이: {len(raw_res.text)} 자")
-                
-                # HTML 태그 및 중복 공백 제거하여 텍스트 순도 높임
-                clean_text = re.sub(r'<[^>]+>', ' ', raw_res.text)
-                clean_text = re.sub(r'\s+', ' ', clean_text)
-                return clean_text[:100000]
+                # 🚀 정규식 멈춤(Hang) 방지
+                raw_truncated = raw_res.text[:300000]
+                clean_text = re.sub(r'<[^>]+>', ' ', raw_truncated)
+                return re.sub(r'\s+', ' ', clean_text)[:100000]
             else:
-                # 💡 [추가] 실패 시 상태 코드 로그
                 print(f"❌ [SEC 본문 수신 실패] {ticker} - HTTP 상태코드: {raw_res.status_code}")
                 
     except Exception as e:
-        # 에러 발생 시 상세 원인 출력
-        print(f"⚠️ [SEC 스크래핑 에러] {ticker} ({doc_type}): {e}")
+        print(f"⚠️[SEC 스크래핑 에러/타임아웃] {ticker} ({doc_type}): {e}")
         
     return None
 
@@ -4048,6 +4003,97 @@ def update_global_macro_and_events():
             }], on_conflict="cache_key")
             print("✅ FMP 향후 30일 미국 경제일정 DB 저장 완료")
     except Exception as e: print(f"⚠️ FMP Economic Calendar Error: {e}")
+
+# ===================================================================
+# 🚀 [신규] 단일 종목 분석 함수 (스레드에서 개별 실행됨)
+# ===================================================================
+def process_single_ticker(idx, total, row, cik_mapping, name_to_ticker_map):
+    original_symbol = row.get('symbol')
+    name = row.get('name')
+    c_status = row.get('status', 'Active')
+    c_date = row.get('date', None)
+    
+    clean_name = normalize_company_name(name)
+    official_symbol = name_to_ticker_map.get(clean_name, original_symbol)
+    
+    if original_symbol != official_symbol:
+        if official_symbol in cik_mapping:
+            cik_mapping[original_symbol] = cik_mapping[official_symbol]
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # 에러 방지용 변수 초기화
+            analyst_metrics = {"target": "N/A", "consensus": "N/A"}
+            unified_metrics = {"growth": "N/A"}
+
+            print(f"\n⚡[{idx}/{total}] 쓰레드 가동: {original_symbol} 분석 중... (시도 {attempt+1}/{max_retries})")
+            
+            if not official_symbol or str(official_symbol).strip() == "":
+                cik = get_fallback_cik(official_symbol, name, FMP_API_KEY)
+                if cik:
+                    found_ticker = get_ticker_from_cik(cik)
+                    if found_ticker: official_symbol = found_ticker
+            
+            if not official_symbol or str(official_symbol).strip() == "":
+                print(f"⚠️ [스킵] {original_symbol} Ticker가 존재하지 않아 분석을 건너뜁니다.")
+                return 
+
+            # [분석 단계]
+            run_tab1_analysis(official_symbol, name, c_status, c_date)
+            run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping, original_symbol)
+            run_tab0_premium_collection(official_symbol, name)
+            run_tab2_premium_collection(official_symbol, name) 
+            
+            try:
+                analyst_metrics = fetch_analyst_estimates(official_symbol, FMP_API_KEY)
+                run_tab4_analysis(official_symbol, name, c_status, c_date, analyst_metrics)
+                run_tab4_ma_premium_collection(official_symbol, name) 
+                run_tab4_premium_collection(official_symbol, name) 
+            except Exception as e: print(f"Tab4 Analyst Data Error for {official_symbol}: {e}")
+            
+            try:
+                unified_metrics = fetch_premium_financials(official_symbol, FMP_API_KEY)
+                batch_upsert("analysis_cache",[{
+                    "cache_key": f"{official_symbol}_Raw_Financials",
+                    "content": json.dumps(unified_metrics, ensure_ascii=False),
+                    "updated_at": datetime.now().isoformat()
+                }], on_conflict="cache_key")
+                
+                run_tab3_analysis(official_symbol, name, unified_metrics)
+                run_tab3_premium_collection(official_symbol, name)
+                run_tab3_revenue_premium_collection(official_symbol, name) 
+            except Exception as e: print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
+
+            try:
+                smart_money_data = fetch_smart_money_data(official_symbol, FMP_API_KEY)
+                run_tab6_analysis(official_symbol, name, smart_money_data)
+            except Exception as e: print(f"Tab6 Smart Money Error for {official_symbol}: {e}")
+            
+            # [마케팅 단계] 트위터 커넥터
+            try:
+                send_to_twitter_connector(official_symbol, name, row, unified_metrics, analyst_metrics)
+            except Exception as e: print(f"⚠️ Twitter Connector Error: {e}")
+
+            break # 💡 모든 작업 성공 시 재시도 루프 탈출
+            
+        except Exception as e:
+            error_msg = str(e).lower()
+            if any(err in error_msg for err in ["503", "unavailable", "429", "quota", "timeout", "deadline"]):
+                if attempt < max_retries - 1:
+                    print(f"⚠️[{original_symbol}] 통신 지연 ({error_msg[:30]}). 10초 후 재시도...")
+                    time.sleep(10)
+                else:
+                    print(f"🚨 [{original_symbol}] 3회 시도 실패. 스킵합니다.")
+            else:
+                import traceback 
+                print(f"\n🚨 [{original_symbol}] 내부 오류 발생!")
+                traceback.print_exc()
+                break 
+    
+    # 디도스 방어용 짧은 휴식
+    time.sleep(1)
+
     
 # ==========================================
 # [4] 메인 실행 루프
@@ -4139,136 +4185,37 @@ def main():
     cik_mapping, name_to_ticker_map = get_sec_master_mapping()
     print(f"✅ 총 {len(cik_mapping)}개의 SEC 식별번호 확보 완료.")
     
-    print(f"\n🤖 AI 심층 분석 시작 (총 {total}개 종목 다국어 캐싱)...")
+    print(f"\n🤖 Vertex AI 기반 병렬 심층 분석 시작 (총 {total}개 종목)...")
     
-    import time
     WORKER_START_TIME = time.time()
     MAX_RUN_TIME_SEC = 5.5 * 3600  # 5.5시간(19,800초)
 
-    # 🚨 4093라인 부근: 18개월 타겟 전체 루프 시작
-    for idx, row in target_df.iterrows():
-        # 5.5시간 강제 종료 방어막 (Github Actions/Railway 제한 대비)
-        if time.time() - WORKER_START_TIME > MAX_RUN_TIME_SEC:
-            print("⏳ [알림] 작업 제한 시간 임박! 작업을 일시 중단합니다.")
-            break
-
-        original_symbol = row.get('symbol')
-        name = row.get('name')
+    # 🚀[병렬 스레드 풀 적용]
+    # 한 번에 5개의 기업을 동시에 분석합니다. (Vertex AI의 한도에 따라 최대 10~20까지 조절 가능)
+    max_threads = 5 
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+        futures =[]
+        for idx, row in target_df.iterrows():
+            futures.append(
+                executor.submit(process_single_ticker, idx+1, total, row, cik_mapping, name_to_ticker_map)
+            )
         
-        clean_name = normalize_company_name(name)
-        official_symbol = name_to_ticker_map.get(clean_name, original_symbol)
-        
-        if original_symbol != official_symbol:
-            print(f"🔧 [티커 교정 작동] {name}: {original_symbol} ➡️ {official_symbol}")
-            if official_symbol in cik_mapping:
-                cik_mapping[original_symbol] = cik_mapping[official_symbol]
-        
-        # =========================================================
-        # 🚨 [신규 적용] 3회 재시도(Retry) 및 10초 대기 방어 로직
-        # =========================================================
-        max_retries = 3
-        for attempt in range(max_retries):
+        for future in concurrent.futures.as_completed(futures):
+            # 5.5시간 강제 종료 방어막
+            if time.time() - WORKER_START_TIME > MAX_RUN_TIME_SEC:
+                print("⏳[알림] 작업 제한 시간 임박! 대기 중인 스레드를 취소합니다.")
+                executor.shutdown(wait=False, cancel_futures=True)
+                break
             try:
-                # 🚀 [교정] 에러 방지용 변수 초기화
-                analyst_metrics = {"target": "N/A", "consensus": "N/A"}
-                unified_metrics = {"growth": "N/A"}
-
-                print(f"\n[{idx+1}/{total}] {original_symbol} 분석 중... (시도 {attempt+1}/{max_retries})", flush=True)
-                
-                c_status = row.get('status', 'Active')
-                c_date = row.get('date', None)
-                
-                if not official_symbol or str(official_symbol).strip() == "":
-                    # 티커가 없으면 기업 이름으로 CIK 강제 획득 시도
-                    cik = get_fallback_cik(official_symbol, name, FMP_API_KEY)
-                    if cik:
-                        print(f"🔍 [역추적 시도] CIK {cik} 번호로 Ticker 검색 중...")
-                        found_ticker = get_ticker_from_cik(cik)
-                        if found_ticker:
-                            print(f"✅ [역추적 성공] 숨겨진 Ticker 발견: {found_ticker}")
-                            official_symbol = found_ticker
-                            cik_mapping[official_symbol] = cik
-                
-                if not official_symbol or str(official_symbol).strip() == "":
-                    print(f"⚠️ [스킵] Ticker가 존재하지 않아 분석을 건너뜁니다.")
-                    break 
-                
-                # [분석 단계] Tab 0 ~ Tab 2
-                run_tab1_analysis(official_symbol, name, c_status, c_date)
-                run_tab0_analysis(official_symbol, name, c_status, c_date, cik_mapping, original_symbol)
-                run_tab0_premium_collection(official_symbol, name)
-                run_tab2_premium_collection(official_symbol, name) 
-                
-                # [분석 단계] Tab 4
-                try:
-                    analyst_metrics = fetch_analyst_estimates(official_symbol, FMP_API_KEY)
-                    run_tab4_analysis(official_symbol, name, c_status, c_date, analyst_metrics)
-                    run_tab4_ma_premium_collection(official_symbol, name) 
-                    run_tab4_premium_collection(official_symbol, name) 
-                except Exception as e:
-                    print(f"Tab4 Analyst Data Error for {official_symbol}: {e}")
-                
-                # [분석 단계] Tab 3
-                try:
-                    unified_metrics = fetch_premium_financials(official_symbol, FMP_API_KEY)
-                    batch_upsert("analysis_cache", [{
-                        "cache_key": f"{official_symbol}_Raw_Financials",
-                        "content": json.dumps(unified_metrics, ensure_ascii=False),
-                        "updated_at": datetime.now().isoformat()
-                    }], on_conflict="cache_key")
-                    
-                    run_tab3_analysis(official_symbol, name, unified_metrics)
-                    run_tab3_premium_collection(official_symbol, name)
-                    run_tab3_revenue_premium_collection(official_symbol, name) 
-                except Exception as e:
-                    print(f"Tab3 Premium Data Error for {official_symbol}: {e}")
-
-                # [분석 단계] Tab 6
-                try:
-                    smart_money_data = fetch_smart_money_data(official_symbol, FMP_API_KEY)
-                    run_tab6_analysis(official_symbol, name, smart_money_data)
-                except Exception as e:
-                    print(f"Tab6 Smart Money Error for {official_symbol}: {e}")
-                
-                # 🚀 [마케팅 단계] 모든 분석 완료 후 트위터 커넥터 호출
-                try:
-                    send_to_twitter_connector(
-                        ticker=official_symbol,
-                        company_name=name,
-                        row_data=row,
-                        unified_metrics=unified_metrics,
-                        analyst_metrics=analyst_metrics
-                    )
-                except Exception as e:
-                    print(f"⚠️ Twitter Connector Error: {e}")
-
-                # 💡 모든 작업 성공 시 재시도 루프 탈출
-                break 
-                
-            except Exception as e:
-                error_msg = str(e)
-                # API 한도 초과(429)나 통신 지연(503) 시에만 재시도
-                if any(err in error_msg for err in ["503", "UNAVAILABLE", "429", "quota"]):
-                    if attempt < max_retries - 1:
-                        print(f"⚠️ [{original_symbol}] 통신 지연 ({error_msg}). 10초 후 재시도...")
-                        time.sleep(10)
-                    else:
-                        print(f"🚨 [{original_symbol}] 3회 시도 실패. 다음 기업으로 넘어갑니다.")
-                else:
-                    # 단순 코드 에러는 재시도 없이 원인 출력 후 스킵
-                    import traceback 
-                    print(f"\n🚨 [{original_symbol}] 내부 오류 발생!")
-                    traceback.print_exc()
-                    break 
-        
-        # 💡 [필수 쿨타임] 하나의 기업 처리가 끝날 때마다 2초 휴식 (DDoS 방어)
-        time.sleep(2)
+                future.result() # 스레드에서 발생한 예외 캐치
+            except Exception as exc:
+                print(f"🔥 스레드 실행 중 예외 발생: {exc}")
 
     # 모든 루프 종료 후 실행되는 후속 작업
     run_premium_alert_engine(df)
-    batch_upsert("analysis_cache", [{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-    print(f"\n🏁 모든 작업 종료: {datetime.now()}")
+    batch_upsert("analysis_cache",[{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
+    print(f"\n🏁 모든 병렬 작업 종료: {datetime.now()}")
 
-# 👇👇 이 부분을 스크립트 맨 마지막에 추가하세요 👇👇
 if __name__ == "__main__":
     main()
