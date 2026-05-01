@@ -18,3 +18,4 @@ supabase
 tweepy
 fastapi
 uvicorn
+google-cloud-aiplatform
