@@ -36,11 +36,12 @@ else:
     SUPABASE_URL = raw_url.rstrip('/')
 
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+GENAI_API_KEY = os.environ.get("GENAI_API_KEY", "") # 🚀 [복구 완료] 이 줄을 다시 추가했습니다!
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 FMP_API_KEY = os.environ.get("FMP_API_KEY", "")
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "781b0d2391740729adb2d931e200e322")
 FIREBASE_SA_JSON = os.environ.get("FIREBASE_SERVICE_ACCOUNT", "")
-VERTEX_SA_JSON = os.environ.get("VERTEX_SA_JSON", "")  # 🚀 Vertex AI 서비스 계정 키
+VERTEX_SA_JSON = os.environ.get("VERTEX_SA_JSON", "")
 
 print(f"DEBUG: SUPABASE_URL 존재 = {bool(SUPABASE_URL)}")
 print(f"DEBUG: SUPABASE_KEY 존재 = {bool(SUPABASE_KEY)}")
