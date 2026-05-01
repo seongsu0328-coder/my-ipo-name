@@ -115,7 +115,8 @@ if VERTEX_SA_JSON:
 if GENAI_API_KEY:
     class DirectGeminiSearch:
         def __init__(self, api_key):
-            self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+            # 🚀 [버전 교체] 구글이 1.5를 삭제했으므로 안정적인 2.0으로 주소 변경!
+            self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
             
         def generate_content(self, prompt):
             # 💡[핵심 교정] 구글 서버가 요구하는 정확한 파라미터명("google_search") 강제 주입!
