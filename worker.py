@@ -84,8 +84,8 @@ if VERTEX_SA_JSON:
         # Vertex AI 초기화
         vertexai.init(project=project_id, location="us-central1", credentials=credentials)
         
-        # 💡[안정성 최상위 모델] 404 에러를 방지하기 위해 글로벌 표준 최신 모델 적용
-        base_model = GenerativeModel("gemini-1.5-flash-002")
+        # 🚀 [최종 해결] 구글 클라우드 신규 프로젝트에서 유일하게 열어둔 최신 모델!
+        base_model = GenerativeModel("gemini-2.5-flash")
         
         class VertexModelWrapper:
             def __init__(self, model):
