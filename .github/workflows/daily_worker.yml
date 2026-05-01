@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 💡 [수정] v4의 최신 노드 지원 버전을 사용하거나 v4를 유지 (현재 v4가 최신이나 경고 시 내부 업데이트됨)
+      # 💡 [수정] v4의 최신 노드 지원 버전을 사용하거나 v4를 유지
       - name: 저장소 코드 체크아웃
         uses: actions/checkout@v4
 
@@ -36,9 +36,10 @@ jobs:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          # 💡 아래 4줄을 추가하세요
           TWITTER_CONSUMER_KEY: ${{ secrets.TWITTER_CONSUMER_KEY }}
           TWITTER_CONSUMER_SECRET: ${{ secrets.TWITTER_CONSUMER_SECRET }}
           TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
           TWITTER_ACCESS_SECRET: ${{ secrets.TWITTER_ACCESS_SECRET }}
+          # 🚀 [추가] 이 줄이 있어야 파이썬이 구글 엔터프라이즈 AI를 쓸 수 있습니다!
+          VERTEX_SA_JSON: ${{ secrets.VERTEX_SA_JSON }}
         run: python -u worker.py
