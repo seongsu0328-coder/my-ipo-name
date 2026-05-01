@@ -81,7 +81,7 @@ if VERTEX_SA_JSON:
         
         # Vertex AI 초기화 (리전: us-central1)
         vertexai.init(project=project_id, location="us-central1", credentials=credentials)
-        base_model = GenerativeModel("gemini-2.0-flash")
+        base_model = GenerativeModel("gemini-2.0-flash-001")
         search_tool = Tool.from_google_search_retrieval(grounding.GoogleSearchRetrieval())
         
         class VertexModelWrapper:
