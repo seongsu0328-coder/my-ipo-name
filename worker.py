@@ -68,49 +68,90 @@ if FIREBASE_SA_JSON:
         print(f"❌ Firebase 초기화 실패: {e}")
 
 # ==========================================
-# 🚀 3. AI 모델 설정 (Vertex AI 마이그레이션 적용)
+# 🚀 3. AI 모델 설정 (하이브리드 전략: Vertex AI + Developer API)
 # ==========================================
 model_strict = None
 model_search = None
 
+# [1] 메인 분석 엔진: Vertex AI Enterprise (대용량 토큰 & 무한대기 방어)
 if VERTEX_SA_JSON:
     try:
         sa_info = json.loads(VERTEX_SA_JSON)
         project_id = sa_info.get("project_id")
         credentials = service_account.Credentials.from_service_account_info(sa_info)
         
-        # Vertex AI 초기화 (리전: us-central1)
+        # Vertex AI 초기화
         vertexai.init(project=project_id, location="us-central1", credentials=credentials)
-        base_model = GenerativeModel("gemini-2.5-flash")
-        search_tool = Tool.from_google_search_retrieval(grounding.GoogleSearchRetrieval())
+        
+        # 💡[안정성 최상위 모델] 404 에러를 방지하기 위해 글로벌 표준 최신 모델 적용
+        base_model = GenerativeModel("gemini-1.5-flash-002")
         
         class VertexModelWrapper:
-            def __init__(self, model, use_search=False):
+            def __init__(self, model):
                 self.model = model
-                self.use_search = use_search
 
             def generate_content(self, prompt):
-                tools = [search_tool] if self.use_search else None
-                # 💡[타임아웃 & Exponential Backoff 방어막]
                 for attempt in range(3):
                     try:
-                        return self.model.generate_content(prompt, tools=tools)
+                        return self.model.generate_content(prompt)
                     except Exception as e:
                         err_str = str(e).lower()
                         if any(k in err_str for k in["429", "quota", "timeout", "deadline", "503", "unavailable"]):
                             if attempt < 2:
-                                wait_time = 10 * (2 ** attempt) # 10초 -> 20초 대기
+                                wait_time = 10 * (2 ** attempt)
                                 print(f"⏳ [Vertex AI] 응답 지연. {wait_time}초 대기 후 재시도... ({err_str[:30]})")
                                 time.sleep(wait_time)
                                 continue
                         raise e
 
-        model_strict = VertexModelWrapper(base_model, use_search=False)
-        model_search = VertexModelWrapper(base_model, use_search=True)
-        print("✅ Vertex AI (Enterprise) 모델 로드 성공! (무한대기 방어막 가동)")
+        model_strict = VertexModelWrapper(base_model)
+        print("✅ [엔진 1] Vertex AI (Enterprise) 로드 성공! (메인 분석용)")
 
     except Exception as e:
         print(f"⚠️ Vertex AI 초기화 에러: {e}")
+
+# [2] 구글 딥서치 엔진: Developer API REST (최신 Search 파라미터 직접 제어)
+if GENAI_API_KEY:
+    class DirectGeminiSearch:
+        def __init__(self, api_key):
+            self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+            
+        def generate_content(self, prompt):
+            # 💡[핵심 교정] 구글 서버가 요구하는 정확한 파라미터명("google_search") 강제 주입!
+            payload = { 
+                "contents": [{"parts": [{"text": prompt}]}], 
+                "tools":[{"google_search": {}}] 
+            }
+            class MockResponse:
+                def __init__(self, text): self.text = text
+            
+            for attempt in range(3):
+                try:
+                    res = requests.post(self.url, json=payload, headers={'Content-Type': 'application/json'}, timeout=30)
+                    
+                    if res.status_code == 200:
+                        data = res.json()
+                        text_output = ""
+                        for cand in data.get("candidates",[]):
+                            for part in cand.get("content", {}).get("parts",[]):
+                                if "text" in part: text_output += part["text"]
+                        return MockResponse(text_output)
+                        
+                    elif res.status_code in [429, 503]:
+                        if attempt < 2:
+                            time.sleep(10)
+                            continue
+                        raise Exception(f"API Error: {res.text}")
+                    else:
+                        raise Exception(f"Search API HTTP {res.status_code}: {res.text}")
+                except Exception as e:
+                    if attempt < 2: 
+                        time.sleep(10)
+                        continue
+                    raise e
+
+    model_search = DirectGeminiSearch(GENAI_API_KEY)
+    print("✅ [엔진 2] Gemini Search (Developer API) 로드 성공! (웹 검색용)")
         
 # 💡 [중요] 다국어 지원 언어 리스트 정의
 SUPPORTED_LANGS = {
