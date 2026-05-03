@@ -759,6 +759,13 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         tweet_text += f"${ticker} #IPO {localization[lang]['tags']}\n"
         tweet_text += f"🕒 {current_time_str}" 
 
+        # 👇 [여기서부터 복사해서 추가/수정해 주세요] 👇
+        # 🚨 [디버깅 엑스레이] 트위터로 쏘기 직전의 텍스트 원문과 길이를 터미널에 출력
+        print("\n" + "🚀"*15)
+        print(f"👀 [{ticker} - {lang}] 발송 직전 트윗 (총 {len(tweet_text)}자)")
+        print(tweet_text)
+        print("🚀"*15 + "\n")
+
         # 4. 트위터 직접 전송
         success, result = post_to_twitter(tweet_text)
         
