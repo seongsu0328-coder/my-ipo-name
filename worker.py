@@ -19,10 +19,8 @@ from datetime import datetime, timedelta
 
 from supabase import create_client
 
-# 🚀[Vertex AI 추가] 기존 genai 대신 사용
-import vertexai
-from vertexai.generative_models import GenerativeModel, Tool
-from vertexai.preview.generative_models import grounding
+# 🚀 [Vertex AI 추가] 구버전 삭제 및 최신 통합 SDK(genai)로 교체 완료
+from google import genai
 from google.oauth2 import service_account
 
 # ==========================================
@@ -81,20 +79,27 @@ if VERTEX_SA_JSON:
         project_id = sa_info.get("project_id")
         credentials = service_account.Credentials.from_service_account_info(sa_info)
         
-        # Vertex AI 초기화
-        vertexai.init(project=project_id, location="us-central1", credentials=credentials)
-        
-        # 🚀 [최종 해결] 구글 클라우드 신규 프로젝트에서 유일하게 열어둔 최신 모델!
-        base_model = GenerativeModel("gemini-2.5-flash")
+        # 💡 [핵심 교체] 최신 구글 통합 SDK 클라이언트로 초기화 (vertexai=True 플래그 사용)
+        client = genai.Client(
+            vertexai=True, 
+            project=project_id, 
+            location="us-central1", 
+            credentials=credentials
+        )
         
         class VertexModelWrapper:
-            def __init__(self, model):
-                self.model = model
+            def __init__(self, client, model_name):
+                self.client = client
+                self.model_name = model_name
 
             def generate_content(self, prompt):
                 for attempt in range(3):
                     try:
-                        return self.model.generate_content(prompt)
+                        # 💡 [핵심 교체] 모델 객체가 아닌 client를 통해 직접 호출
+                        return self.client.models.generate_content(
+                            model=self.model_name,
+                            contents=prompt
+                        )
                     except Exception as e:
                         err_str = str(e).lower()
                         if any(k in err_str for k in["429", "quota", "timeout", "deadline", "503", "unavailable"]):
@@ -105,8 +110,9 @@ if VERTEX_SA_JSON:
                                 continue
                         raise e
 
-        model_strict = VertexModelWrapper(base_model)
-        print("✅ [엔진 1] Vertex AI (Enterprise) 로드 성공! (메인 분석용)")
+        # 래퍼 객체 생성 시 클라이언트와 모델명(gemini-2.5-flash)을 함께 넘겨줌
+        model_strict = VertexModelWrapper(client, "gemini-2.5-flash")
+        print("✅ [엔진 1] Vertex AI (Enterprise) 통합 SDK 로드 성공! (메인 분석용)")
 
     except Exception as e:
         print(f"⚠️ Vertex AI 초기화 에러: {e}")
