@@ -718,12 +718,12 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
                 continue 
         except: pass
 
-        # 💡 [수정됨] 긴 다국어 CTA 문구를 삭제하고 해시태그 딕셔너리만 깔끔하게 유지
+        # 💡 [수정됨] 한국어는 유지, 나머지 언어는 트렌디한 Hooking 태그로 최적화
         localization = {
             "ko": {"tags": "#미국주식 #공모주"},
-            "en": {"tags": "#StockMarket #SmartMoney"},
-            "ja": {"tags": "#米国株 #新規公開株"},
-            "zh": {"tags": "#美股 #打新"}
+            "en": {"tags": "#StocksToWatch #Investing #SmartMoney"},
+            "ja": {"tags": "#米国株投資 #投資初心者 #新規公開株"},
+            "zh": {"tags": "#美股IPO #美股 #投资"}
         }
 
         # 💡 실제 DB/딕셔너리 키값으로 완벽 매핑된 Tab 4 프리미엄 지표
