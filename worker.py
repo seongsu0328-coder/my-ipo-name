@@ -718,12 +718,12 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
                 continue 
         except: pass
 
-        # 💡 다국어 CTA 및 로컬 해시태그 설정 (기존 내용 유지)
+        # 💡 [수정됨] 긴 다국어 CTA 문구를 삭제하고 해시태그 딕셔너리만 깔끔하게 유지
         localization = {
-            "ko": {"cta": "💎 더 깊은 AI 분석과 스마트머니 동향은 Unicornfinder앱에서 확인하세요.", "tags": "#미국주식 #공모주"},
-            "en": {"cta": "💎 Unlock deeper AI analysis & Smart Money trends on the Unicornfinder app.", "tags": "#StockMarket #SmartMoney"},
-            "ja": {"cta": "💎 詳細なAI分析とスマートマネー動向はUnicornfinderアプリでご確認ください。", "tags": "#米国株 #新規公開株"},
-            "zh": {"cta": "💎 深入的 AI 分析与聪明钱动向，尽在 Unicornfinder APP。", "tags": "#美股 #打新"}
+            "ko": {"tags": "#미국주식 #공모주"},
+            "en": {"tags": "#StockMarket #SmartMoney"},
+            "ja": {"tags": "#米国株 #新規公開株"},
+            "zh": {"tags": "#美股 #打新"}
         }
 
         # 💡 실제 DB/딕셔너리 키값으로 완벽 매핑된 Tab 4 프리미엄 지표
@@ -746,13 +746,11 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         tweet_text += f"IPO Scoop Score: {scoop_score}\n"
         tweet_text += f"Wall St. Targets: {wall_st_target}\n\n"
         
-        # 🚨 [핵심 방어] 트위터 280자 제한 완벽 방어! 120자 -> 60자로 대폭 축소
-        # 기본 뼈대와 URL이 긴 편이므로 요약본은 짧고 강렬하게 1~2문장(60자)으로 컷
-        safe_summary = summary_text[:60] + "..." if len(summary_text) > 60 else summary_text
+        # 🚨 [핵심 방어] 긴 문구가 빠져 공간이 생겼으므로 요약본을 90자까지 넉넉하게 허용
+        safe_summary = summary_text[:90] + "..." if len(summary_text) > 90 else summary_text
         tweet_text += f"{safe_summary}\n\n" 
         
-        # CTA 문구 및 URL (주석 해제 완료)
-        tweet_text += f"{localization[lang]['cta']}\n"
+        # 🔥 대표님 의도대로 불필요한 텍스트 없이 직관적인 URL과 해시태그만 삽입
         tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n\n"
         
         # 캐시태그 + 글로벌 태그 + 로컬 태그
