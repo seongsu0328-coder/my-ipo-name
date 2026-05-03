@@ -738,29 +738,24 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         # 🕒 스팸 필터 우회용 타임스탬프
         current_time_str = datetime.now().strftime("%H:%M:%S")
 
-        # 🚀 텍스트 온리(Text-only) 미니멀리즘 트윗 조립 (기존 골격 유지)
-        tweet_text = f"{company_name} ({ticker})\n\n"
-        tweet_text += f"{row_data.get('exchange', 'USA')} | ${price_val:.2f} | {offering_amount} | {row_data.get('date', 'TBD')}\n\n"
+        # 🚀 텍스트 온리 미니멀리즘 트윗 조립 (정보는 유지, 형태는 초압축)
+        tweet_text = f"{company_name[:25]} ({ticker})\n" # 회사명이 너무 길면 25자에서 컷
+        tweet_text += f"{row_data.get('exchange', 'USA').split(' ')[0]} | ${price_val:.2f} | {offering_amount} | {row_data.get('date', 'TBD')}\n"
         
-        tweet_text += f"Analyst Ratings: {analyst_rating}\n"
-        tweet_text += f"IPO Scoop Score: {scoop_score}\n"
-        tweet_text += f"Wall St. Targets: {wall_st_target}\n\n"
+        # 💡 [핵심] 3줄을 1줄로 병합하여 줄바꿈과 글자 수 대폭 절약
+        tweet_text += f"Analyst:{analyst_rating} | Scoop:{scoop_score} | Tgt:{wall_st_target}\n\n"
         
-        # 🚨 [핵심 방어] 긴 문구가 빠져 공간이 생겼으므로 요약본을 90자까지 넉넉하게 허용
-        safe_summary = summary_text[:90] + "..." if len(summary_text) > 90 else summary_text
+        # 🚨 CJK(한/일/중) 2배수 계산을 대비하여 요약본은 최대 40자(트위터 기준 80자)로 컷!
+        safe_summary = summary_text[:40] + "..." if len(summary_text) > 40 else summary_text
         tweet_text += f"{safe_summary}\n\n" 
         
-        # 🔥 대표님 의도대로 불필요한 텍스트 없이 직관적인 URL과 해시태그만 삽입
-        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n\n"
-        
-        # 캐시태그 + 글로벌 태그 + 로컬 태그
-        tweet_text += f"${ticker} #IPO {localization[lang]['tags']}\n"
-        tweet_text += f"🕒 {current_time_str}" 
+        # 🔗 URL 및 해시태그 (여기도 줄바꿈을 줄여서 한 줄로 배치)
+        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n"
+        tweet_text += f"${ticker} #IPO {localization[lang]['tags']} 🕒 {current_time_str}" 
 
-        # 👇 [여기서부터 복사해서 추가/수정해 주세요] 👇
-        # 🚨 [디버깅 엑스레이] 트위터로 쏘기 직전의 텍스트 원문과 길이를 터미널에 출력
+        # 👇 [디버깅 엑스레이 유지]
         print("\n" + "🚀"*15)
-        print(f"👀 [{ticker} - {lang}] 발송 직전 트윗 (총 {len(tweet_text)}자)")
+        print(f"👀 [{ticker} - {lang}] 발송 직전 트윗 (파이썬 기준 {len(tweet_text)}자)")
         print(tweet_text)
         print("🚀"*15 + "\n")
 
