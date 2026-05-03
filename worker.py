@@ -3070,12 +3070,15 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 """
                 full_i = """[전문 리포트 작성 규칙 - 절대 엄수]
                 1. 첫 글자는 반드시 '['여야 합니다. 
-                2. 반드시 [수익성 및 성장성 분석],[재무 건전성 분석], [시장 및 가치 평가] 3개의 소제목으로만 구성하세요.
-                3. 각 문단은 3~4줄(문장) 길이로 작성.
+                2. 반드시 [수익성 및 성장성 분석], [재무 건전성 분석], [시장 및 가치 평가] 3개의 소제목으로만 구성하세요.
+                3. 각 문단은 3~4줄(문장) 길이로 작성. (단, 데이터가 N/A인 경우 이 분량 규칙을 무시하고 아주 짧게 작성합니다.)
                 4. 🚨[Wall Street IB Standard Analysis]: 제공된 IB 벤치마크를 엄격하게 적용하여 시니어 애널리스트 어조로 분석하세요.
                 5. 모든 문장은 '~습니다', '~합니다'로 마무리하세요.
                 """
-                na_rule = "🚨 [환각 완벽 차단 규칙]: 데이터가 'N/A' 또는 'Unknown'일 경우, 억지로 지어내지 말고 '해당 정보가 확인되지 않습니다.'라고 단 한 줄만 답변하세요."
+                na_rule = """🚨 [CRITICAL RULES FOR MISSING DATA (N/A) - 환각 완벽 차단]
+                1. 사전적 정의 금지: 지표가 'N/A'일 때, 그 지표의 의미나 일반적인 투자 조언(예: "순이익률은 회사의 효율성을 뜻합니다", "투자자는 주의해야 합니다")을 절대 적지 마세요.
+                2. 즉각 스킵: 해당 섹션의 데이터가 부재하다면, "관련 데이터 부재(N/A)로 인해 분석할 수 없습니다."라고 단 한 줄만 적고 즉시 다음 섹션으로 넘어가세요. 분량 채우기 절대 금지.
+                """
                 
             elif lang_code == 'en':
                 sum_i = f"""{ib_benchmark}[UI Card Rules - STRICT]
@@ -3084,11 +3087,14 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 """
                 full_i = """[Report Rules - STRICT]
                 1. First character MUST be '['. 
-                2. Exactly 3 subheadings: [Profitability & Growth], [Financial Health],[Valuation].
-                3. Each paragraph MUST be 3 to 4 sentences long.
+                2. Exactly 3 subheadings: [Profitability & Growth], [Financial Health], [Valuation].
+                3. Each paragraph MUST be 3 to 4 sentences long. (Exception: Ignore this length rule entirely if data is N/A).
                 4. 🚨[Wall Street IB Standard Analysis]: Apply IB benchmarks strictly.
                 """
-                na_rule = "🚨[ANTI-HALLUCINATION]: If metrics are 'N/A', state 'This information is currently unverified.' and move on."
+                na_rule = """🚨 [CRITICAL RULES FOR MISSING DATA (N/A) - ANTI-HALLUCINATION]
+                1. NO TEXTBOOK DEFINITIONS: If a metric is 'N/A', DO NOT explain what the metric means or give general investing advice. (e.g., Never write "Sales growth indicates...").
+                2. DIRECT REPORTING: If data is missing, output exactly one sentence: "Insufficient data (N/A) to analyze this section." and MOVE ON. Do not pad the response to meet length requirements.
+                """
                 
             elif lang_code == 'ja':
                 sum_i = f"""{ib_benchmark}[UIカード規則 - 厳守]
@@ -3097,12 +3103,15 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 """
                 full_i = """[レポート規則 - 厳守]
                 1. 最初の文字は必ず '[' です。
-                2. 必ず [収益性と成長性の分析],[財務健全性分析], [市場および価値評価] の3つの見出しのみで構成。
-                3. 各段落は必ず 3〜4文の長さ。
+                2. 必ず [収益性と成長性の分析], [財務健全性分析], [市場および価値評価] の3つの見出しのみで構成。
+                3. 各段落は必ず 3〜4文の長さ。(例外：データがN/Aの場合はこの長さの規則を無視して短く記述してください。)
                 4. 🚨[Wall Street IB Standard Analysis]: IBベンチマークを厳格に適用してください。
                 5. 全ての文章は「〜です」「〜ます」で統一。
                 """
-                na_rule = "🚨 [捏造完全遮断]: 指標が 'N/A' の場合、「該当情報は確認されていません。」と一文だけ記述してください。"
+                na_rule = """🚨 [CRITICAL RULES FOR MISSING DATA (N/A) - 捏造完全遮断]
+                1. 辞書的定義の禁止: 指標が 'N/A' の場合、その指標の意味や一般的な投資アドバイスを絶対に書かないでください。
+                2. 即時スキップ: データがない場合は、「関連データが不足しているため、分析できません。」と一文だけ記述し、文字数を稼ぐための無駄な説明は一切やめてください。
+                """
                 
             else: # zh
                 sum_i = f"""{ib_benchmark}[UI卡片规则 - 严格遵守]
@@ -3112,10 +3121,13 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
                 full_i = """[报告规则 - 严格遵守]
                 1. 第一个字符必须是 '['。
                 2. 仅包含 [盈利能力与增长性分析], [财务健康状况分析], [市场与估值分析] 三个子标题。
-                3. 每个段落正好 3到4句话。
+                3. 每个段落正好 3到4句话。(例外：如果数据为N/A，请完全忽略此长度规则并简短作答。)
                 4. 🚨[Wall Street IB Standard Analysis]: 严格应用IB基准。
                 """
-                na_rule = "🚨[防幻觉绝对规则]: 若比率指标为 'N/A', 只需回复“未确认到相关信息。”即可。"
+                na_rule = """🚨 [CRITICAL RULES FOR MISSING DATA (N/A) - 防幻觉绝对规则]
+                1. 禁止教科书式定义: 若指标为 'N/A', 绝对不要解释该指标的含义或提供一般性投资建议。
+                2. 直接报告: 若缺乏数据，只需回复一句：“由于缺乏相关数据 (N/A)，无法进行分析。”，严禁为了凑字数而胡编乱造。
+                """
     
             data_packet = f"Available Metrics:\n- {g1_context}\n- {g2_context}\n- {g3_context}\n- {g4_context}"
             final_full_prompt = f"Write a professional financial report for {company_name}.\n{data_packet}\nInstruction: {full_i}\nRule: {na_rule}\nLanguage: {target_lang}"
