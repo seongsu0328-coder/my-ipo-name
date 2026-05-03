@@ -752,7 +752,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         
         # CTA 문구 및 URL
         tweet_text += f"{localization[lang]['cta']}\n"
-        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n\n"
+        # tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n\n"
         
         # 캐시태그 + 글로벌 태그 + 로컬 태그
         tweet_text += f"${ticker} #IPO {localization[lang]['tags']}\n"
