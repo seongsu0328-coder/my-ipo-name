@@ -649,7 +649,7 @@ def fetch_fmp_earnings_call(symbol, api_key):
     except: return "No earnings call transcript available."
 
 # ==========================================
-# [마케팅 전용] 4개 국어 지원 트위터 커넥터 (Make.com 연동)
+# [마케팅 전용] 4개 국어 지원 트위터 다이렉트 송고 (X API v2 연동)
 # ==========================================
 def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, analyst_metrics):
     """
@@ -718,7 +718,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
                 continue 
         except: pass
 
-        # 💡 다국어 CTA 및 로컬 해시태그 설정
+        # 💡 다국어 CTA 및 로컬 해시태그 설정 (기존 내용 유지)
         localization = {
             "ko": {"cta": "💎 더 깊은 AI 분석과 스마트머니 동향은 Unicornfinder앱에서 확인하세요.", "tags": "#미국주식 #공모주"},
             "en": {"cta": "💎 Unlock deeper AI analysis & Smart Money trends on the Unicornfinder app.", "tags": "#StockMarket #SmartMoney"},
@@ -738,7 +738,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         # 🕒 스팸 필터 우회용 타임스탬프
         current_time_str = datetime.now().strftime("%H:%M:%S")
 
-        # 🚀 텍스트 온리(Text-only) 미니멀리즘 트윗 조립
+        # 🚀 텍스트 온리(Text-only) 미니멀리즘 트윗 조립 (기존 골격 유지)
         tweet_text = f"{company_name} ({ticker})\n\n"
         tweet_text += f"{row_data.get('exchange', 'USA')} | ${price_val:.2f} | {offering_amount} | {row_data.get('date', 'TBD')}\n\n"
         
@@ -746,13 +746,14 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         tweet_text += f"IPO Scoop Score: {scoop_score}\n"
         tweet_text += f"Wall St. Targets: {wall_st_target}\n\n"
         
-        # 🚨 [핵심 방어] 트위터 280자 제한 방어! 요약 텍스트가 너무 길면 잘라냅니다.
-        safe_summary = summary_text[:120] + "..." if len(summary_text) > 120 else summary_text
+        # 🚨 [핵심 방어] 트위터 280자 제한 완벽 방어! 120자 -> 60자로 대폭 축소
+        # 기본 뼈대와 URL이 긴 편이므로 요약본은 짧고 강렬하게 1~2문장(60자)으로 컷
+        safe_summary = summary_text[:60] + "..." if len(summary_text) > 60 else summary_text
         tweet_text += f"{safe_summary}\n\n" 
         
-        # CTA 문구 및 URL
+        # CTA 문구 및 URL (주석 해제 완료)
         tweet_text += f"{localization[lang]['cta']}\n"
-        # tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n\n"
+        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n\n"
         
         # 캐시태그 + 글로벌 태그 + 로컬 태그
         tweet_text += f"${ticker} #IPO {localization[lang]['tags']}\n"
