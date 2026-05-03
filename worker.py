@@ -704,12 +704,24 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             if res.data: continue 
         except: pass
 
-        # 💡 브랜드 메시지 및 태그 설정
+        # 💡 [최종 수정] 브랜드 슬로건 통일 및 국가별 검색 최적화(SEO) 해시태그 대폭 강화
         localization = {
-            "ko": {"tags": "#미국주식 #공모주", "hook": "이번 주 상장주, Find your unicorn with Unicornfinder! "},
-            "en": {"tags": "#StocksToWatch #Investing #SmartMoney", "hook": "Find your unicorn with Unicornfinder. Don't miss this week's IPOs! "},
-            "ja": {"tags": "#米国株投資 #投資初心者 #新規公開株", "hook": "今週のIPO、Find your unicorn with Unicornfinder! "},
-            "zh": {"tags": "#美股IPO #美股 #投资", "hook": "本周 IPO 不容错过，Find your unicorn with Unicornfinder! "}
+            "ko": {
+                "tags": "#미국주식 #공모주 #주식투자 #재테크", 
+                "hook": "Find your unicorn with Unicornfinder"
+            },
+            "en": {
+                "tags": "#StocksToWatch #Investing #NewListing #MarketAlert", 
+                "hook": "Find your unicorn with Unicornfinder"
+            },
+            "ja": {
+                "tags": "#米国株投資 #投資初心者 #新規公開株 #投資", 
+                "hook": "Find your unicorn with Unicornfinder"
+            },
+            "zh": {
+                "tags": "#美股IPO #美股 #投资 #新股 #财经", 
+                "hook": "Find your unicorn with Unicornfinder"
+            }
         }
 
         # 프리미엄 지표 계산
