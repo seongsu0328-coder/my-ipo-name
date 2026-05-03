@@ -661,35 +661,31 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         try:
             ipo_dt = datetime.strptime(ipo_date_str, '%Y-%m-%d').date()
             if (datetime.now().date() - ipo_dt).days > 3:
-                print(f"⏩ [{ticker}] 상장일({ipo_date_str}) 범위 밖(3일 초과). 트윗 스킵.")
                 return False, "Old IPO"
-        except Exception as e:
-            pass # 날짜 형식이 이상하면 그냥 넘어갑니다.
+        except Exception:
+            pass
 
-    # 1. 💡 공모 정보 계산 (변수를 먼저 0으로 세팅)
+    # 1. 공모 정보 계산
     price_val = 0.0  
     offering_amount = "TBD"
-    
     try:
         raw_price = str(row_data.get('price', '0')).replace('$', '').split('-')[0].strip()
         if raw_price and raw_price.replace('.', '', 1).isdigit():
             price_val = float(raw_price)
-            
             shares = float(row_data.get('numberOfShares', 0))
             if shares > 0 and price_val > 0:
                 offering_amount = f"${(price_val * shares / 1000000):,.1f}M" 
-    except Exception as e:
+    except Exception:
         pass 
 
-    # 2. 🚀 4개 국어 요약문 수집 로직
+    # 2. 4개 국어 요약문 수집
     summaries = {}
-    languages = ['en', 'ko', 'ja', 'zh'] # 영어를 먼저 쏘도록 순서 배치
+    languages = ['en', 'ko', 'ja', 'zh']
     for lang in languages:
         try:
             res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_Tab1_v5_{lang}").execute()
             if res_sum.data:
                 content_json = json.loads(res_sum.data[0]['content'])
-                # HTML 제거
                 clean_text = re.sub(r'<[^>]+>', '', content_json.get('html', ''))
                 summaries[lang] = clean_text.strip()
             else:
@@ -697,80 +693,53 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         except:
             summaries[lang] = ""
 
-    # 3. 언어별 반복(Loop) 처리
+    # 3. 언어별 반복 처리
     for lang in languages:
         summary_text = summaries.get(lang, "")
-        
-        # 💡 [디버깅 추가] 요약문이 없어서 스킵되는 경우 원인 출력
-        if not summary_text: 
-            print(f"⚠️ [{ticker}] {lang} 요약본(Tab1_v5) 데이터가 없어 트윗을 스킵합니다.")
-            continue 
+        if not summary_text: continue 
 
-        # 언어별 고유 트래커 키 생성
         tracker_key = f"{ticker}_Twitter_Sent_Tracker_{lang}"
-        
-        # 중복 전송 방지 확인
         try:
             res = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
-            if res.data: 
-                # 💡 [디버깅 추가] 이미 트윗을 보낸 기록이 있어서 스킵되는 경우 원인 출력
-                print(f"⏩ [{ticker}] {lang} 이미 트윗 발송 이력이 존재하여 스킵합니다.")
-                continue 
+            if res.data: continue 
         except: pass
 
-        # 💡 [수정됨] 한국어는 유지, 나머지 언어는 트렌디한 Hooking 태그로 최적화
+        # 💡 브랜드 메시지 및 태그 설정
         localization = {
-            "ko": {"tags": "#미국주식 #공모주"},
-            "en": {"tags": "#StocksToWatch #Investing #SmartMoney"},
-            "ja": {"tags": "#米国株投資 #投資初心者 #新規公開株"},
-            "zh": {"tags": "#美股IPO #美股 #投资"}
+            "ko": {"tags": "#미국주식 #공모주", "hook": "이번 주 상장주, Find your unicorn with Unicornfinder! 🚀"},
+            "en": {"tags": "#StocksToWatch #Investing #SmartMoney", "hook": "Find your unicorn with Unicornfinder. Don't miss this week's IPOs! 🚀"},
+            "ja": {"tags": "#米国株投資 #投資初心者 #新規公開株", "hook": "今週のIPO、Find your unicorn with Unicornfinder! 🚀"},
+            "zh": {"tags": "#美股IPO #美股 #投资", "hook": "本周 IPO 不容错过，Find your unicorn with Unicornfinder! 🚀"}
         }
 
-        # 💡 실제 DB/딕셔너리 키값으로 완벽 매핑된 Tab 4 프리미엄 지표
+        # 프리미엄 지표 계산
         analyst_rating = analyst_metrics.get('consensus', 'N/A') if analyst_metrics else 'N/A'
-        
         target_val = analyst_metrics.get('target', 'N/A') if analyst_metrics else 'N/A'
         wall_st_target = f"${target_val}" if str(target_val) != 'N/A' else 'N/A'
-        
         score_val = unified_metrics.get('health_score', 'N/A') if unified_metrics else 'N/A'
         scoop_score = f"{score_val}/5" if str(score_val) != 'N/A' else 'N/A'
-        
-        # 🕒 스팸 필터 우회용 타임스탬프
         current_time_str = datetime.now().strftime("%H:%M:%S")
 
-        # 🚀 텍스트 온리 미니멀리즘 트윗 조립 (정보는 유지, 형태는 초압축)
-        tweet_text = f"{company_name[:25]} ({ticker})\n" # 회사명이 너무 길면 25자에서 컷
+        # 🚀 트윗 텍스트 조립
+        tweet_text = f"{company_name[:25]} ({ticker})\n"
         tweet_text += f"{row_data.get('exchange', 'USA').split(' ')[0]} | ${price_val:.2f} | {offering_amount} | {row_data.get('date', 'TBD')}\n"
-        
-        # 💡 [핵심] 3줄을 1줄로 병합하여 줄바꿈과 글자 수 대폭 절약
         tweet_text += f"Analyst:{analyst_rating} | Scoop:{scoop_score} | Tgt:{wall_st_target}\n\n"
         
-        # 🚨 CJK(한/일/중) 2배수 계산을 대비하여 요약본은 최대 40자(트위터 기준 80자)로 컷!
-        safe_summary = summary_text[:40] + "..." if len(summary_text) > 40 else summary_text
-        tweet_text += f"{safe_summary}\n\n" 
+        # 브랜드 메시지 삽입
+        tweet_text += f"{localization[lang]['hook']}\n\n" 
         
-        # 🔗 URL과 캐시태그가 서로 붙어서 링크가 깨지는 현상 방지 (공백 및 줄바꿈 추가)
-        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker} \n\n"
-        tweet_text += f"${ticker} #IPO {localization[lang]['tags']} 🕒 {current_time_str}"
+        # 해시태그 배치
+        tweet_text += f"${ticker} #IPO {localization[lang]['tags']} #Unicornfinder #Investing\n"
+        tweet_text += f"🕒 {current_time_str}"
 
-        # 👇 [디버깅 엑스레이 유지]
-        print("\n" + "🚀"*15)
-        print(f"👀 [{ticker} - {lang}] 발송 직전 트윗 (파이썬 기준 {len(tweet_text)}자)")
-        print(tweet_text)
-        print("🚀"*15 + "\n")
-
-        # 4. 트위터 직접 전송
+        # 4. 트위터 전송
         success, result = post_to_twitter(tweet_text)
         
         if success:
-            print(f"✅ [Twitter] {ticker} ({lang}) 트윗 게시 성공: {result}")
             batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
-        else:
-            print(f"❌ [Twitter] {ticker} ({lang}) 트윗 실패: {result}")
-            
-        # 5. 🚀 핵심 방어 로직: 연사 제한 방지 (30초 대기)
+        
+        # 5. 연사 제한 방지
         if lang != languages[-1]:
-            print(f"⏳ 트위터 API 연사 제한 방어 중... 30초 대기 ({lang} -> 다음 언어 준비)")
             time.sleep(30)
             
     return True, "Done"
