@@ -749,9 +749,9 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         safe_summary = summary_text[:40] + "..." if len(summary_text) > 40 else summary_text
         tweet_text += f"{safe_summary}\n\n" 
         
-        # 🔗 URL 및 해시태그 (여기도 줄바꿈을 줄여서 한 줄로 배치)
-        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker}\n"
-        tweet_text += f"${ticker} #IPO {localization[lang]['tags']} 🕒 {current_time_str}" 
+        # 🔗 URL과 캐시태그가 서로 붙어서 링크가 깨지는 현상 방지 (공백 및 줄바꿈 추가)
+        tweet_text += f"🔗 https://unicornfinder.app/detail/{ticker} \n\n"
+        tweet_text += f"${ticker} #IPO {localization[lang]['tags']} 🕒 {current_time_str}"
 
         # 👇 [디버깅 엑스레이 유지]
         print("\n" + "🚀"*15)
