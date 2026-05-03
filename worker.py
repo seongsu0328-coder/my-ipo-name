@@ -691,7 +691,6 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
                 content_json = json.loads(res_sum.data[0]['content'])
                 # HTML 제거
                 clean_text = re.sub(r'<[^>]+>', '', content_json.get('html', ''))
-                # 💡 [수정] 강제로 자르지 않고, Gemini가 만들어낸 텍스트 전체를 사용
                 summaries[lang] = clean_text.strip()
             else:
                 summaries[lang] = "" 
@@ -701,7 +700,11 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
     # 3. 언어별 반복(Loop) 처리
     for lang in languages:
         summary_text = summaries.get(lang, "")
-        if not summary_text: continue # 요약문이 없으면 해당 언어는 패스
+        
+        # 💡 [디버깅 추가] 요약문이 없어서 스킵되는 경우 원인 출력
+        if not summary_text: 
+            print(f"⚠️ [{ticker}] {lang} 요약본(Tab1_v5) 데이터가 없어 트윗을 스킵합니다.")
+            continue 
 
         # 언어별 고유 트래커 키 생성
         tracker_key = f"{ticker}_Twitter_Sent_Tracker_{lang}"
@@ -709,10 +712,13 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         # 중복 전송 방지 확인
         try:
             res = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
-            if res.data: continue # 이미 보냈으면 다음 언어로
+            if res.data: 
+                # 💡 [디버깅 추가] 이미 트윗을 보낸 기록이 있어서 스킵되는 경우 원인 출력
+                print(f"⏩ [{ticker}] {lang} 이미 트윗 발송 이력이 존재하여 스킵합니다.")
+                continue 
         except: pass
 
-        # 💡 [신규] 다국어 CTA 및 로컬 해시태그 설정
+        # 💡 다국어 CTA 및 로컬 해시태그 설정
         localization = {
             "ko": {"cta": "💎 더 깊은 AI 분석과 스마트머니 동향은 Unicornfinder앱에서 확인하세요.", "tags": "#미국주식 #공모주"},
             "en": {"cta": "💎 Unlock deeper AI analysis & Smart Money trends on the Unicornfinder app.", "tags": "#StockMarket #SmartMoney"},
@@ -720,7 +726,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             "zh": {"cta": "💎 深入的 AI 分析与聪明钱动向，尽在 Unicornfinder APP。", "tags": "#美股 #打新"}
         }
 
-        # 💡 [신규] 실제 DB/딕셔너리 키값으로 완벽 매핑된 Tab 4 프리미엄 지표
+        # 💡 실제 DB/딕셔너리 키값으로 완벽 매핑된 Tab 4 프리미엄 지표
         analyst_rating = analyst_metrics.get('consensus', 'N/A') if analyst_metrics else 'N/A'
         
         target_val = analyst_metrics.get('target', 'N/A') if analyst_metrics else 'N/A'
@@ -732,7 +738,7 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         # 🕒 스팸 필터 우회용 타임스탬프
         current_time_str = datetime.now().strftime("%H:%M:%S")
 
-        # 🚀 [신규] 텍스트 온리(Text-only) 미니멀리즘 트윗 조립
+        # 🚀 텍스트 온리(Text-only) 미니멀리즘 트윗 조립
         tweet_text = f"{company_name} ({ticker})\n\n"
         tweet_text += f"{row_data.get('exchange', 'USA')} | ${price_val:.2f} | {offering_amount} | {row_data.get('date', 'TBD')}\n\n"
         
@@ -740,8 +746,9 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         tweet_text += f"IPO Scoop Score: {scoop_score}\n"
         tweet_text += f"Wall St. Targets: {wall_st_target}\n\n"
         
-        # 💡 [수정] [:80]... 제거, 원본 그대로의 후킹 문장 삽입
-        tweet_text += f"{summary_text}\n\n" 
+        # 🚨 [핵심 방어] 트위터 280자 제한 방어! 요약 텍스트가 너무 길면 잘라냅니다.
+        safe_summary = summary_text[:120] + "..." if len(summary_text) > 120 else summary_text
+        tweet_text += f"{safe_summary}\n\n" 
         
         # CTA 문구 및 URL
         tweet_text += f"{localization[lang]['cta']}\n"
