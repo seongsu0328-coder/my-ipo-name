@@ -77,9 +77,14 @@ if VERTEX_SA_JSON:
     try:
         sa_info = json.loads(VERTEX_SA_JSON)
         project_id = sa_info.get("project_id")
-        credentials = service_account.Credentials.from_service_account_info(sa_info)
         
-        # 💡 [핵심 교체] 최신 구글 통합 SDK 클라이언트로 초기화 (vertexai=True 플래그 사용)
+        # 🚀 [핵심 수정] 구글 클라우드 플랫폼 접근 권한(Scope) 명시!
+        credentials = service_account.Credentials.from_service_account_info(
+            sa_info,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        
+        # 💡[핵심 교체] 최신 구글 통합 SDK 클라이언트로 초기화 (vertexai=True 플래그 사용)
         client = genai.Client(
             vertexai=True, 
             project=project_id, 
