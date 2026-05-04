@@ -683,9 +683,9 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
     except Exception:
         pass 
 
-    # 2. 4개 국어 요약문 수집
+    # 2. 4개 국어 요약문 존재 여부 확인 (작업이 끝났는지 확인하는 용도)
     summaries = {}
-    languages = ['en', 'ko', 'ja', 'zh']
+    languages =['en', 'ko', 'ja', 'zh']
     for lang in languages:
         try:
             res_sum = supabase.table("analysis_cache").select("content").eq("cache_key", f"{ticker}_Tab1_v5_{lang}").execute()
@@ -729,18 +729,21 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
             }
         }
 
-        # 프리미엄 지표 계산
-        analyst_rating = analyst_metrics.get('consensus', 'N/A') if analyst_metrics else 'N/A'
-        target_val = analyst_metrics.get('target', 'N/A') if analyst_metrics else 'N/A'
-        wall_st_target = f"${target_val}" if str(target_val) != 'N/A' else 'N/A'
-        score_val = unified_metrics.get('health_score', 'N/A') if unified_metrics else 'N/A'
-        scoop_score = f"{score_val}/5" if str(score_val) != 'N/A' else 'N/A'
+        # 💡 [신규] 앱 유도(Teasing) 다국어 문구
+        hook_lines = {
+            "ko": "Analyst Ratings & Targets : 🔒 앱에서 확인",
+            "en": "Analyst Ratings & Targets : 🔒 Unlock in App",
+            "ja": "Analyst Ratings & Targets : 🔒 アプリで確認",
+            "zh": "Analyst Ratings & Targets : 🔒 App内查看"
+        }
+        tease_line = hook_lines.get(lang, "Analyst Ratings & Targets : 🔒 Unlock in App")
+
         current_time_str = datetime.now().strftime("%H:%M:%S")
 
-        # 🚀 트윗 텍스트 조립
+        # 🚀 [미니멀 티징 포맷] 트윗 텍스트 조립
         tweet_text = f"{company_name[:25]} ({ticker})\n"
         tweet_text += f"{row_data.get('exchange', 'USA').split(' ')[0]} | ${price_val:.2f} | {offering_amount} | {row_data.get('date', 'TBD')}\n"
-        tweet_text += f"Analyst:{analyst_rating} | Scoop:{scoop_score} | Tgt:{wall_st_target}\n\n"
+        tweet_text += f"{tease_line}\n\n"
         
         # 브랜드 메시지 삽입
         tweet_text += f"{localization[lang]['hook']}\n\n" 
@@ -753,7 +756,10 @@ def send_to_twitter_connector(ticker, company_name, row_data, unified_metrics, a
         success, result = post_to_twitter(tweet_text)
         
         if success:
-            batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
+            batch_upsert("analysis_cache",[{"cache_key": tracker_key, "content": "sent", "updated_at": datetime.now().isoformat()}], "cache_key")
+            print(f"✅ [Twitter] {ticker} ({lang}) 트윗 성공")
+        else:
+            print(f"❌ [Twitter] {ticker} ({lang}) 트윗 실패: {result}")
         
         # 5. 연사 제한 방지
         if lang != languages[-1]:
