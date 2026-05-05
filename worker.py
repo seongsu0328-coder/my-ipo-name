@@ -1186,7 +1186,18 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 cache_key = f"{company_name}_{topic}_Tab0_v16_{lang_code}"
                 missing_msg = get_missing_document_message(lang_code, topic)
                 formatted_msg = f"<div style='background-color:#f8f9fa; padding:15px; border-radius:8px; color:#555; font-size:15px; line-height:1.6;'>{missing_msg}</div>"
-                batch_upsert("analysis_cache", [{"cache_key": cache_key, "content": formatted_msg, "updated_at": datetime.now().isoformat()}], "cache_key")
+                
+                # 🚀 [수정] 누락되었던 ticker, tab_name, lang, data_type 태그 완벽 추가!
+                batch_upsert("analysis_cache",[{
+                    "cache_key": cache_key, 
+                    "content": formatted_msg, 
+                    "updated_at": datetime.now().isoformat(),
+                    "ticker": ticker,
+                    "tab_name": "tab0",
+                    "lang": lang_code,
+                    "data_type": topic,
+                    "tier": "free"
+                }], on_conflict="cache_key")
             continue
 
         # run_tab0_analysis 함수 내부의 중복 체크 블록 수정
@@ -1298,8 +1309,18 @@ def run_tab0_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 except Exception as e:
                     print(f"❌ [{ticker}] {topic} AI 에러 ({lang_code}): {e}")
 
-            # 4개 국어 분석 시도가 모두 끝난 후 트래커 저장
-            batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": acc_num, "updated_at": datetime.now().isoformat()}], "cache_key")
+            # 💡 [핵심 방어막] 에러가 났는데 트래커만 갱신되는 '가짜 완료' 방지
+        try:
+            test_key = f"{company_name}_{topic}_Tab0_v16_ko"
+            res_verify = supabase.table("analysis_cache").select("content").eq("cache_key", test_key).execute()
+            
+            # 한국어(ko) 분석 내용이 있거나, 본문 다운로드 실패로 노란색 경고 박스라도 저장된 경우에만 완료(트래커 갱신)
+            if res_verify.data:
+                batch_upsert("analysis_cache",[{"cache_key": tracker_key, "content": acc_num, "updated_at": datetime.now().isoformat()}], "cache_key")
+            else:
+                print(f"⚠️ [{ticker}] {topic} AI 분석 실패로 트래커 갱신 보류 (다음 사이클에서 재시도합니다.)")
+        except: pass
+            
 def get_tab0_ec_premium_prompt(lang, ticker, raw_data):
     if lang == 'en':
         return f"""You are a Lead Buy-Side Analyst on Wall Street. Summarize the latest Earnings Call Transcript for {ticker}.
@@ -2076,11 +2097,20 @@ def run_tab4_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         # 💡[과금 방어막 2] 기존 DB의 애널리스트 데이터 원본과 비교
         res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
         if res_tracker.data and current_analyst_str == res_tracker.data[0]['content']:
-            is_changed = False # 토씨 하나 안 틀리고 똑같으면 스킵!
+            is_changed = False
     except: pass
 
+    # 🚀[가짜 트래커 자가 치유] 트래커는 안 변했어도 실제 DB에 리포트가 없으면 강제 재분석!
     if not is_changed:
-        return True # 목표가/의견이 안 변했으면 새로운 리포트가 없다고 간주하고 함수 즉시 종료 (검색 API 0원!)
+        try:
+            res_check = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{ticker}_Tab4_v4_Premium_ko").execute()
+            if not res_check.data:
+                is_changed = True
+                print(f"🔄 [{ticker}] Tab 4 가짜 트래커 발견. 강제 재분석합니다.")
+        except: pass
+
+    if not is_changed:
+        return True # 목표가/의견이 진짜로 안 변했으면 스킵
         
     print(f"🔔 [{ticker}] 기관 목표가/투자의견 변경 감지! Tab 4 AI 검색 요약 시작...")
 
@@ -2845,11 +2875,10 @@ def run_tab4_premium_collection(ticker, company_name):
 # ==========================================
 def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
     if 'model_strict' not in globals() or not model_strict: return False
-
-    # 🚀 [추가] 일반주 티커 추출
+    
+    print(f"🛠️[DEBUG-{ticker}] Tab3 프로세스 진입")
     base_ticker = get_base_ticker(ticker)
     
-    # 💡 [핵심 방어막 1] 원본 데이터 보존
     pristine_metrics_str = json.dumps(raw_metrics, sort_keys=True)
     tracker_key = f"{ticker}_Tab3_Financial_RawTracker"
     is_changed = True
@@ -2858,7 +2887,16 @@ def run_tab3_analysis(ticker, company_name, raw_metrics, ipo_date_str=None):
         res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key).execute()
         if res_tracker.data and pristine_metrics_str == res_tracker.data[0]['content']:
             is_changed = False 
-    except: pass
+    except Exception as e: pass
+
+    # 🚀[가짜 트래커 자가 치유] 트래커가 같아도 실제 AI 리포트가 없으면 강제로 뚫고 들어감!
+    if not is_changed:
+        try:
+            res_check = supabase.table("analysis_cache").select("cache_key").eq("cache_key", f"{ticker}_Tab3_v2_Premium_ko").execute()
+            if not res_check.data:
+                is_changed = True 
+                print(f"🔄 [{ticker}] Tab 3 가짜 트래커 발견. 강제 재분석합니다.")
+        except: pass
 
     # AI 보강용 복사본 생성
     enriched_metrics = copy.deepcopy(raw_metrics)
