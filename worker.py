@@ -3967,22 +3967,30 @@ def update_global_macro_and_events():
     print("🌍 글로벌 매크로(FRED) 및 경제 일정(FMP) 데이터 수집 시작...")
     today = datetime.now()
     
-    # 3행 4열 프론트엔드 UI 대응을 위한 col 인덱스
+    # 💡 [핵심 수정] 3행 4열 꽉 찬 대시보드를 위한 11개 지표 매핑 (col 정보는 참고용)
     series_info = {
+        # 1열 (금리)
         "FEDFUNDS": {"name": "기준금리", "col": 1}, 
         "DGS10": {"name": "10년물 국채", "col": 1}, 
         "T10Y2Y": {"name": "장단기 금리차", "col": 1}, 
+        # 2열 (물가)
         "CPIAUCSL": {"name": "소비자물가지수(CPI)", "col": 2}, 
         "PCEPI": {"name": "개인소비지출(PCE)", "col": 2}, 
-        "WM2NS": {"name": "M2 통화량", "col": 2},
-        "UNRATE": {"name": "실업률", "col": 4}
+        "PPIFIS": {"name": "생산자물가(PPI)", "col": 2}, # 🚀 신규
+        # 3열 (고용)
+        "UNRATE": {"name": "실업률", "col": 3},
+        "PAYEMS": {"name": "비농업고용(NFP)", "col": 3}, # 🚀 신규 (단위: Thousands)
+        "JTSJOL": {"name": "구인건수(JOLTS)", "col": 3}, # 🚀 신규 (단위: Thousands)
+        # 4열 (실물/통화) - 2개만 배치하여 뱃지 공간 확보
+        "WM2NS": {"name": "M2 통화량", "col": 4},
+        "RSAFS": {"name": "소매판매", "col": 4} # 🚀 신규
     }
-    pc1_series = ["CPIAUCSL", "PCEPI", "WM2NS"] 
     
-    # ⭐ 기존 프론트엔드가 데이터를 찾을 수 있도록 "0" ~ "-3" 구조 복구
+    # 전년 대비 성장률(%)로 가져올 지표들 (나머지는 절대 수치)
+    pc1_series =["CPIAUCSL", "PCEPI", "PPIFIS", "WM2NS", "RSAFS"] 
+    
     results = {"0": {}, "-1": {}, "-2": {}, "-3": {}} 
     
-    # 🚀 과거 3년 전(-3)의 3년 평균까지 구하려면 총 6년치 데이터가 필요합니다.
     start_date = (today - timedelta(days=365*6)).strftime('%Y-%m-%d')
     
     try:
@@ -3991,7 +3999,7 @@ def update_global_macro_and_events():
                 units = "pc1" if sid in pc1_series else "lin"
                 url = f"https://api.stlouisfed.org/fred/series/observations?series_id={sid}&api_key={FRED_API_KEY}&file_type=json&observation_start={start_date}&units={units}"
                 res = requests.get(url, timeout=10).json()
-                obs = res.get('observations', [])
+                obs = res.get('observations',[])
                 if not obs: continue
                 
                 valid_obs = [o for o in obs if o['value'] != '.']
@@ -4002,7 +4010,6 @@ def update_global_macro_and_events():
                         if pd.to_datetime(o['date']) <= target_date: return float(o['value'])
                     return None
                     
-                # 현재부터 5년 전까지의 데이터를 모두 추출
                 v0 = get_val_near_date(today)
                 v1 = get_val_near_date(today - timedelta(days=365))
                 v2 = get_val_near_date(today - timedelta(days=365*2))
@@ -4010,20 +4017,17 @@ def update_global_macro_and_events():
                 v4 = get_val_near_date(today - timedelta(days=365*4))
                 v5 = get_val_near_date(today - timedelta(days=365*5))
                 
-                # 증감(diff) 계산 함수 (프론트엔드 에러 방지를 위해 +기호 포함 문자열로 반환)
                 def calc_diff_str(curr, prev):
                     if curr is not None and prev is not None:
-                        return f"{curr - prev:+.2f}%p"
+                        return f"{curr - prev:+.2f}%p" if sid not in ["PAYEMS", "JTSJOL"] else f"{curr - prev:+.0f}K"
                     return None
                     
-                # 3년 평균 계산 함수
                 def calc_avg(curr, p1, p2):
                     if curr is not None and p1 is not None and p2 is not None:
                         return round((curr + p1 + p2) / 3, 2)
                     return None
 
-                # 🚀 0, -1, -2, -3 각 년도에 대해 동일하게 val, diff, avg_3y를 꽉꽉 채워줍니다!
-                for year_key, curr, p1, p2, p3 in [
+                for year_key, curr, p1, p2, p3 in[
                     ("0", v0, v1, v2, v3),
                     ("-1", v1, v2, v3, v4),
                     ("-2", v2, v3, v4, v5),
@@ -4037,15 +4041,13 @@ def update_global_macro_and_events():
                         "avg_3y": calc_avg(curr, p1, p2)
                     }
                 
-            batch_upsert("macro_cache", [{
+            batch_upsert("macro_cache",[{
                 "cache_key": "FRED_MACRO_DATA", "content": json.dumps(results), "updated_at": today.isoformat()
             }], on_conflict="cache_key")
-            print("✅ FRED 매크로 3x4 Grid용 요약 데이터 DB 저장 완료 (과거 년도 완벽 지원)")
+            print("✅ FRED 매크로 3x4 Grid용 요약 데이터 DB 저장 완료 (11개 지표 확장)")
     except Exception as e: print(f"⚠️ FRED API Error: {e}")
 
-    # (이 아래는 기존 FMP 경제 일정 수집 코드 그대로 유지하시면 됩니다.)
-
-    # 2. FMP 경제 일정 수집 (그대로 유지)
+    # 2. FMP 경제 일정 수집
     try:
         start = today.strftime('%Y-%m-%d')
         end = (today + timedelta(days=30)).strftime('%Y-%m-%d')
@@ -4053,13 +4055,13 @@ def update_global_macro_and_events():
         res = requests.get(url, timeout=10).json()
         
         if isinstance(res, list):
-            important_events = [
+            important_events =[
                 e for e in res 
-                if e.get('country') == 'US' and any(keyword in e.get('event', '').lower() for keyword in ['fed interest', 'cpi', 'unemployment', 'non farm'])
+                if e.get('country') == 'US' and any(keyword in e.get('event', '').lower() for keyword in['fed interest', 'cpi', 'unemployment', 'non farm'])
             ]
             important_events.sort(key=lambda x: x['date'])
             
-            batch_upsert("macro_cache", [{
+            batch_upsert("macro_cache",[{
                 "cache_key": "FMP_MACRO_EVENTS", "content": json.dumps(important_events[:5]), "updated_at": today.isoformat()
             }], on_conflict="cache_key")
             print("✅ FMP 향후 30일 미국 경제일정 DB 저장 완료")
