@@ -3561,23 +3561,12 @@ def run_tab3_revenue_premium_collection(ticker, company_name):
                         break
                 except Exception as e: time.sleep(1)
         
-        # 🚀 [FCM 추가] 분석 완료 후 알림 발송 (Premium Plus 전용)
+        # 🚀 [FCM 다국어 발송] 분석 완료 후 알림 발송 (Premium Plus 전용)
         if analysis_success:
             send_fcm_push(
-                title_dict={
-                    "ko": f"💰 {ticker} 스마트머니 포착",
-                    "en": f"💰 {ticker} Smart Money Detected",
-                    "ja": f"💰 {ticker} スマートマネーを捕捉",
-                    "zh": f"💰 {ticker} 捕捉聪明钱"
-                },
-                body_dict={
-                    "ko": f"내부자 거래 및 월가 고래들의 {ticker} 매집 동향 분석 리포트가 도착했습니다.",
-                    "en": f"A report analyzing insider trading and Wall Street 'whales' accumulation trends for {ticker} has arrived.",
-                    "ja": f"インサイダー取引およびウォール街のクジラによる {ticker} の買い集め動向分析レポートが届きました。",
-                    "zh": f"关于内部交易及华尔街大鳄对 {ticker} 的筹码 集中度分析报告已送达。"
-                },
-                ticker=ticker,
-                target_level='premium_plus'
+                title_dict={"ko": f"💰 {ticker} 부문별 매출 분석", "en": f"💰 {ticker} Revenue Breakdown", "ja": f"💰 {ticker} 部門別売上分析", "zh": f"💰 {ticker} 营收构成分析"},
+                body_dict={"ko": "핵심 사업과 신사업의 구체적인 매출 비중 리포트가 도착했습니다.", "en": "Detailed report on core and new business revenue share has arrived.", "ja": "中核事業と新規事業の具体的な売上比率レポートが届きました。", "zh": "核心业务与新业务的具体营收占比报告已送达。"},
+                ticker=ticker, target_level='premium_plus'
             )
                 
         batch_upsert("analysis_cache", [{"cache_key": tracker_key, "content": current_raw_str, "updated_at": datetime.now().isoformat()}], "cache_key")
