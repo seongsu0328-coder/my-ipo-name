@@ -4442,14 +4442,20 @@ def main():
     # 모든 루프 종료 후 실행되는 후속 작업
     run_premium_alert_engine(df)
     
-    # 🚀 [추가된 호출 로직]
+    # 🚀 [수정된 호출 로직]
     print("\n📊 Generating Market Intelligence Summaries (Alarm Summaries)...")
     
-    # 시장 전체 통계 계산 (한 번만 수행)
+    # 1. 시장 전체 통계 계산 (한 번만 수행)
     g_total, g_top4 = get_global_market_stats()
     
-    # 분석 대상 종목별 개별 요약본 생성 및 저장
-    for ticker in target_symbols:
+    # 2. 앱에 존재하는 '모든 종목(전체 Ticker)'의 목록을 가져옵니다.
+    all_symbols = df['symbol'].unique()
+    
+    print(f"✅ 총 {len(all_symbols)}개 전체 종목에 대해 알람 요약 캐시(빈 껍데기 포함)를 생성합니다.")
+    
+    # 3. 18개월 이내 종목이든, 오래된 종목이든 예외 없이 모두 요약본을 만들어 DB에 꽂아 넣습니다.
+    # (알람이 없는 종목은 자동으로 0으로 채워진 빈 껍데기가 들어갑니다.)
+    for ticker in all_symbols:
         update_alarm_summary_cache(ticker, g_total, g_top4)
     # 🚀 [추가 끝]
 
