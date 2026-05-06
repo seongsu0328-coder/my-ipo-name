@@ -1881,26 +1881,26 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
             <JSON_END>"""
 
             try:
-                response = current_model.generate_content(prompt)
-                
-                # 💡 루프가 사라졌으므로 continue 대신 강제로 예외를 발생시켜 하단의 except로 보냅니다.
-                if not response or not response.text: 
-                    raise ValueError("Empty response from AI")
-                
-                def clean_ai_preamble(text):
-                    patterns = [
-                        r"^(안녕하세요|알겠습니다|작성하겠습니다|요청하신|보고서입니다|Sure|Understood|Certainly|Okay).*?(\n|$)",
-                        r"^(承知いたしました|作成します|こんにちは|明白了|好的|这是).*?(\n|$)"
-                    ]
-                    for p in patterns:
-                        text = re.sub(p, "", text, flags=re.MULTILINE | re.IGNORECASE)
-                    lines = text.strip().split('\n')
-                    if lines:
-                        first_line = lines[0].strip()
-                        if not (first_line.startswith('**[') or first_line.startswith('[')):
-                            if len(first_line) < 65 and first_line.endswith(('다', '요', '요.', 'ね', 'る', '了', ':', '。')):
-                                text = '\n'.join(lines[1:])
-                    return text.strip()
+                    response = current_model.generate_content(prompt)
+                    
+                    # 💡 루프가 사라졌으므로 continue 대신 강제로 예외를 발생시켜 하단의 except로 보냅니다.
+                    if not response or not hasattr(response, 'text') or not response.text: 
+                        raise ValueError("Empty response from AI")
+                    
+                    def clean_ai_preamble(text):
+                        patterns = [
+                            r"^(안녕하세요|알겠습니다|작성하겠습니다|요청하신|보고서입니다|Sure|Understood|Certainly|Okay).*?(\n|$)",
+                            r"^(承知いたしました|作成します|こんにちは|明白了|好的|这是).*?(\n|$)"
+                        ]
+                        for p in patterns:
+                            text = re.sub(p, "", text, flags=re.MULTILINE | re.IGNORECASE)
+                        lines = text.strip().split('\n')
+                        if lines:
+                            first_line = lines[0].strip()
+                            if not (first_line.startswith('**[') or first_line.startswith('[')):
+                                if len(first_line) < 65 and first_line.endswith(('다', '요', '요.', 'ね', 'る', '了', ':', '。')):
+                                    text = '\n'.join(lines[1:])
+                        return text.strip()
 
                     # 1. 초기 텍스트 정합성 확보
                     full_text = clean_ai_preamble(response.text)
@@ -1908,12 +1908,10 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     biz_analysis = full_text
 
                     # 2. 🚀 [교정] 본문과 JSON 완벽 분리 로직
-                    # match.group(0)은 태그 포함 전체를 지우는 데 사용하고,
-                    # group(idx)는 내부 JSON만 추출하는 데 사용합니다.
                     json_patterns = [
-                        (r'<JSON_START>(.*?)<JSON_END>', 1),  # 1순위: 태그 포함 전체
-                        (r'```json\s*(\{.*?\})\s*```', 1),     # 2순위: 마크다운 블록 포함 전체
-                        (r'(\{.*"news".*?\})', 0)              # 3순위: 생 JSON 덩어리
+                        (r'<JSON_START>(.*?)<JSON_END>', 1), 
+                        (r'```json\s*(\{.*?\})\s*```', 1),   
+                        (r'(\{.*"news".*?\})', 0)             
                     ]
                     
                     for pattern, group_idx in json_patterns:
@@ -1921,24 +1919,19 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         if match:
                             target_json_raw = match.group(group_idx)
                             try:
-                                # JSON 파싱용 정제
                                 s_ptr = target_json_raw.find('{')
                                 e_ptr = target_json_raw.rfind('}')
                                 if s_ptr != -1 and e_ptr != -1:
                                     json_clean = target_json_raw[s_ptr:e_ptr+1]
                                     parsed = json.loads(json_clean, strict=False)
                                     news_list = parsed.get("news", [])
-                                    
                                     if "debug_search_raw" in parsed and lang_code == 'ko':
                                         print(f"🔍 [{ticker}] 필터링 근거: {parsed['debug_search_raw']}")
-                                    
-                                    # 🚀 핵심: 본문에서 매칭된 전체(태그/마크다운 포함)를 완벽 제거
                                     biz_analysis = biz_analysis.replace(match.group(0), "").strip()
-                                    break # 추출 성공 시 패턴 루프 종료
-                            except:
-                                continue
+                                    break 
+                            except: continue
 
-                    # 3. 본문 추가 정제 (잔여 마커 제거)
+                    # 3. 본문 추가 정제
                     biz_analysis = biz_analysis.replace("<JSON_START>", "").replace("<JSON_END>", "").strip()
                     biz_analysis = re.sub(r'```json\s*|```\s*', '', biz_analysis)
                     biz_analysis = re.sub(r'([.!?。])\s*(\[|\*\*\[)', r'\1\n\n\2', biz_analysis)
@@ -1948,11 +1941,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     html_parts = []
                     for p in lines:
                         if p.startswith('**[') or p.startswith('['):
-                            # 소제목 처리
                             clean_p = p.replace("**", "").strip()
                             html_parts.append(f'<p style="font-weight:bold; margin-top:20px; margin-bottom:5px; color:#111;">{clean_p}</p>')
                         else:
-                            # 일반 본문 처리 (한국어만 들여쓰기 적용)
                             indent = "14px" if lang_code == "ko" else "0px"
                             html_parts.append(f'<p style="text-indent:{indent}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>')
 
@@ -1960,7 +1951,7 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
 
                     # 5. Supabase 최종 저장
                     batch_upsert("analysis_cache", [{
-                        "cache_key": cache_key,
+                        "cache_key": cache_key, 
                         "content": json.dumps({"html": html_output, "news": news_list[:5]}, ensure_ascii=False),
                         "updated_at": now.isoformat(),
                         "ticker": ticker,
@@ -1969,10 +1960,9 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                         "lang": lang_code,
                         "data_type": "biz_summary"
                     }], on_conflict="cache_key")
-                    break # 성공 시 시도 루프 탈출
+                    print(f"✅ [{ticker}] {topic} 레이아웃 교정 완료 ({lang_code})")
 
                 except Exception as e:
-                    # 💡 기존의 time.sleep(1)을 지우고 래퍼 최종 실패 시의 로그만 남깁니다.
                     print(f"⚠️ [{ticker}] Tab 1 분석 실패 ({lang_code}) - 래퍼 복구 한도 초과: {e}")
         
         # 원본 데이터 트래커 갱신
