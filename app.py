@@ -9,7 +9,7 @@ st.set_page_config(page_title="Unicornfinder", layout="wide", page_icon="🦄")
 if 'lang' not in st.session_state:
     st.session_state.lang = 'ko'
 
-# 커스텀 CSS: 글로벌 전문 금융 터미널 스타일
+# 커스텀 CSS: !important를 사용하여 시스템 스타일을 무시하고 강제 적용
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
@@ -19,38 +19,41 @@ st.markdown("""
         background-color: #FFFFFF;
     }
     
-    /* 초대형 브랜드 간판 */
+    /* 초대형 브랜드 간판 - !important로 크기 강제 고정 */
     .hero-title { 
-        color: #FF0000; 
-        font-size: 7rem; 
-        font-weight: 900; 
-        text-align: center; 
-        letter-spacing: -2px;
-        margin-top: 50px;
-        margin-bottom: 80px;
-        line-height: 1;
+        color: #FF0000 !important; 
+        font-size: 8rem !important; /* 7rem에서 더 키움 */
+        font-weight: 900 !important; 
+        text-align: center !important; 
+        letter-spacing: -4px !important;
+        margin-top: 60px !important;
+        margin-bottom: 90px !important;
+        line-height: 0.8 !important;
+        display: block !important;
     }
     
-    /* 텍스트 스타일 통일 */
+    /* 텍스트 스타일 통일 (15px) */
     .standard-text {
-        font-size: 15px;
-        color: #555555;
-        line-height: 1.5;
+        font-size: 15px !important;
+        color: #555555 !important;
+        line-height: 1.5 !important;
     }
     
     .bold-black {
-        font-weight: 700;
-        color: #000000;
+        font-weight: 700 !important;
+        color: #000000 !important;
     }
     
     .count-zero {
-        color: #BBBBBB;
-        font-weight: 400;
+        color: #BBBBBB !important;
+        font-weight: 400 !important;
+        font-size: 18px !important;
     }
     
     .count-active {
-        color: #000000;
-        font-weight: 800;
+        color: #000000 !important;
+        font-weight: 800 !important;
+        font-size: 18px !important;
     }
 
     /* 상장 예정 기업 카드 */
@@ -69,25 +72,30 @@ st.markdown("""
         border-bottom: 1px solid #F0F0F0;
         text-align: left;
     }
+
+    /* 버튼 스타일 조정 */
+    div.stButton > button {
+        border-radius: 5px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# [3] 언어 선택기 (UI는 영어로 고정이지만, 내부 변수만 변경)
+# [3] 언어 선택기 (UI는 영어로 고정, 내부 변수만 변경)
 lang_cols = st.columns([8, 0.5, 0.5, 0.5, 0.5])
 with lang_cols[1]: 
-    if st.button("🇰🇷", help="Set App language to Korean"): st.session_state.lang = 'ko'; st.toast("Language set to Korean")
+    if st.button("🇰🇷"): st.session_state.lang = 'ko'; st.toast("App language set to Korean")
 with lang_cols[2]: 
-    if st.button("🇺🇸", help="Set App language to English"): st.session_state.lang = 'en'; st.toast("Language set to English")
+    if st.button("🇺🇸"): st.session_state.lang = 'en'; st.toast("App language set to English")
 with lang_cols[3]: 
-    if st.button("🇯🇵", help="Set App language to Japanese"): st.session_state.lang = 'ja'; st.toast("Language set to Japanese")
+    if st.button("🇯🇵"): st.session_state.lang = 'ja'; st.toast("App language set to Japanese")
 with lang_cols[4]: 
-    if st.button("🇨🇳", help="Set App language to Chinese"): st.session_state.lang = 'zh'; st.toast("Language set to Chinese")
+    if st.button("🇨🇳"): st.session_state.lang = 'zh'; st.toast("App language set to Chinese")
 
-# [4] Hero Section (English Only)
-st.markdown('<p class="hero-title">Unicornfinder</p>', unsafe_allow_html=True)
+# [4] Hero Section (초대형 간판)
+st.markdown('<h1 class="hero-title">Unicornfinder</h1>', unsafe_allow_html=True)
 
-# [5] REAL-TIME PREMIUM ALERTS (English Only)
-st.markdown('<p class="bold-black" style="font-size: 20px; margin-bottom: 20px;">LIVE INTELLIGENCE PRODUCTION</p>', unsafe_allow_html=True)
+# [5] REAL-TIME PREMIUM ALERTS
+st.markdown('<p class="bold-black" style="font-size: 20px; margin-bottom: 20px;">REAL-TIME PREMIUM ALERTS</p>', unsafe_allow_html=True)
 counts = get_daily_signal_counts()
 
 SIGNAL_LABELS_EN = {
@@ -105,7 +113,6 @@ SIGNAL_LABELS_EN = {
     "ESGRating": "ESG Risk Assessment"
 }
 
-# 4개씩 배치
 rows = [list(SIGNAL_LABELS_EN.keys())[i:i+4] for i in range(0, len(SIGNAL_LABELS_EN), 4)]
 for row_keys in rows:
     cols = st.columns(4)
@@ -116,13 +123,13 @@ for row_keys in rows:
             st.markdown(f"""
                 <div class="stat-box">
                     <div class="bold-black" style="font-size: 15px;">{SIGNAL_LABELS_EN[key]}</div>
-                    <div class="{count_style}" style="font-size: 18px;">{val}</div>
+                    <div class="{count_style}">{val}</div>
                 </div>
             """, unsafe_allow_html=True)
 
 st.write("<br><br>", unsafe_allow_html=True)
 
-# [6] Upcoming IPO Preview (English Only)
+# [6] Upcoming IPO Preview
 st.markdown('<p class="bold-black" style="font-size: 20px; margin-bottom: 20px;">UPCOMING IPO PREVIEW (30D)</p>', unsafe_allow_html=True)
 df_teaser = get_upcoming_ipo_teaser()
 
