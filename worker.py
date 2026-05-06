@@ -3429,27 +3429,28 @@ def run_tab3_premium_collection(ticker, company_name):
                     prompt_s = get_tab3_premium_prompt(lang_code, "Earnings Surprises (Beat/Miss)", ticker, current_surp_str)
                     
                     try:
-                            resp_s = model_strict.generate_content(prompt_s)
-                            if resp_s and resp_s.text:
-                                s_paragraphs = [p.strip() for p in resp_s.text.split('\n') if len(p.strip()) > 20]
-                                indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_s = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in s_paragraphs])
-                                
-                                batch_upsert("analysis_cache", [{
-                                    "cache_key": surp_summary_key, 
-                                    "content": html_s, 
-                                    "updated_at": datetime.now().isoformat(),
-                                    "ticker": ticker,
-                                    "tier": "premium_plus",
-                                    "tab_name": "tab3",
-                                    "lang": lang_code,
-                                    "data_type": "earnings_surprise"
-                                }], on_conflict="cache_key")
-                                
-                                print(f"✅ [{ticker}] 어닝서프라이즈 캐싱 완료 ({lang_code})")
-                        except Exception as e:
-                            # 래퍼가 내부에서 5번의 지수 백오프를 시도하고도 실패했을 때만 실행됩니다.
-                            print(f"⚠️ [{ticker}] 어닝서프라이즈 분석 실패 ({lang_code}) - 래퍼 복구 한도 초과: {e}")
+                        resp_s = model_strict.generate_content(prompt_s)
+                        if resp_s and resp_s.text:
+                            s_paragraphs = [p.strip() for p in resp_s.text.split('\n') if len(p.strip()) > 20]
+                            indent_size = "14px" if lang_code == "ko" else "0px"
+                            html_s = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in s_paragraphs])
+                            
+                            batch_upsert("analysis_cache", [{
+                                "cache_key": surp_summary_key, 
+                                "content": html_s, 
+                                "updated_at": datetime.now().isoformat(),
+                                "ticker": ticker,
+                                "tier": "premium_plus",
+                                "tab_name": "tab3",
+                                "lang": lang_code,
+                                "data_type": "earnings_surprise"
+                            }], on_conflict="cache_key")
+                            
+                            print(f"✅ [{ticker}] 어닝서프라이즈 캐싱 완료 ({lang_code})")
+                    except Exception as e:
+                        # 💡 [해결 포인트] 이 except 라인이 3450라인이며, 
+                        # 바로 위 'try:'와 정확히 수직으로 일치하도록 정렬되었습니다.
+                        print(f"⚠️ [{ticker}] 어닝서프라이즈 분석 실패 ({lang_code}) - 래퍼 복구 한도 초과: {e}")
                 
                 # 🚀 [FCM 다국어 발송] 분석 완료 후 프리미엄 유저에게 푸시 알림 발송 (Premium Plus 전용)
                 try:
