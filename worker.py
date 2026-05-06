@@ -2877,11 +2877,13 @@ def run_tab4_premium_collection(ticker, company_name):
             tracker_key_p = f"{ticker}_PremiumPeers_RawTracker"
             is_changed_p = True
             
-            try:
-            # 기존 캐시 확인 로직
-            res_p = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_p).execute()
-            if res_p.data and current_p_str == res_p.data[0]['content']:
-                is_changed_p = False
+            try: # 2880라인
+                # 기존 캐시 확인 로직
+                res_p = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_p).execute()
+                if res_p.data and current_p_str == res_p.data[0]['content']:
+                    is_changed_p = False
+            except:
+                pass
             
             if is_changed_p:
                 print(f"🔔 [{ticker}] 경쟁사(Peers) 업데이트 감지! AI 요약 시작...")
@@ -2916,9 +2918,9 @@ def run_tab4_premium_collection(ticker, company_name):
                 # 모든 언어 작업 완료 후 트래커 갱신 (if is_changed_p 안에 위치)
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_p, "content": current_p_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
-        except Exception as e:
-            # 💡 [해결포인트] 이 라인이 2911라인이며, [2]번 시작점 try와 수직 정렬됨
-            print(f"Tab4 Premium Peers Collection Error for {ticker}: {e}")
+    except Exception as e:
+        # 💡 [해결포인트] 이 라인이 전체 프로세스의 에러를 잡아주는 바깥쪽 except입니다.
+        print(f"Tab4 Premium Peers Collection Error for {ticker}: {e}")
     
 # ==========================================
 # [최종 수정본] Tab 3: 미시 지표 분석 (데이터 정직성 + 실시간 동기화)
