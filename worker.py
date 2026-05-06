@@ -4083,6 +4083,8 @@ def run_premium_alert_engine(df_calendar):
         )
         print(f"🚀 [알림 완료] {len(new_alerts)}개의 신호 생성 및 푸시 전송")
 
+
+
 # ==========================================
 # [신규 추가] 글로벌 매크로 & 주요 일정 캐싱 워커
 # ==========================================
@@ -4256,6 +4258,69 @@ def process_single_ticker(idx, total, row, cik_mapping, name_to_ticker_map):
     # 디도스 방어용 짧은 휴식 (종목 간의 간격 확보)
     time.sleep(1)
 
+
+def get_global_market_stats():
+    """오늘 전체 시장에서 발생한 알람 수와 상위 4개 종류 집계"""
+    now = datetime.now()
+    today_start = datetime(now.year, now.month, now.day).isoformat()
+    
+    try:
+        # 오늘 발생한 모든 알람 가져오기
+        res = supabase.table("premium_alerts").select("alert_type").gte("created_at", today_start).execute()
+        all_alerts = res.data or []
+        total_count = len(all_alerts)
+        
+        # 종류별 집계 (영어 라벨 적용)
+        counts = {}
+        for a in all_alerts:
+            name = SIGNAL_LABELS_EN.get(a['alert_type'], a['alert_type'])
+            counts[name] = counts.get(name, 0) + 1
+            
+        # 개수 순으로 정렬하여 상위 4개 추출
+        top_4 = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:4]
+        return total_count, top_4
+    except Exception as e:
+        print(f"⚠️ Global Market Stats 집계 에러: {e}")
+        return 0, []
+
+def update_alarm_summary_cache(ticker, global_total, global_top_4):
+    """특정 종목의 7일 통계와 시장 전체 통계를 결합하여 영어로 캐싱"""
+    now = datetime.now()
+    seven_days_ago = (now - timedelta(days=7)).isoformat()
+
+    try:
+        # 1. 특정 종목 최근 7일 데이터 가져오기
+        res_ticker = supabase.table("premium_alerts").select("alert_type").eq("ticker", ticker).gte("created_at", seven_days_ago).execute()
+        ticker_alerts = res_ticker.data or []
+        ticker_7d_total = len(ticker_alerts)
+
+        # 2. 해당 종목 내 알람 종류별 집계
+        t_counts = {}
+        for a in ticker_alerts:
+            name = SIGNAL_LABELS_EN.get(a['alert_type'], a['alert_type'])
+            t_counts[name] = t_counts.get(name, 0) + 1
+        ticker_top_4 = sorted(t_counts.items(), key=lambda x: x[1], reverse=True)[:4]
+
+        # 3. JSON 구조화 (전부 영어)
+        summary_json = {
+            "market_today_total": global_total,
+            "market_top_4": global_top_4, # [["IPO Surge", 12], ...]
+            "ticker_7d_total": ticker_7d_total,
+            "ticker_top_4": ticker_top_4, # [["Bottom Rebound", 3], ...]
+            "updated_at": now.isoformat()
+        }
+
+        # 4. analysis_cache에 저장 (Flutter 상세 페이지용)
+        batch_upsert("analysis_cache", [{
+            "cache_key": f"{ticker}_ALARM_SUMMARY",
+            "content": json.dumps(summary_json),
+            "ticker": ticker,
+            "data_type": "alarm_summary",
+            "lang": "en"
+        }], on_conflict="cache_key")
+
+    except Exception as e:
+        print(f"⚠️ [{ticker}] ALARM_SUMMARY 생성 실패: {e}")
     
 # ==========================================
 # [4] 메인 실행 루프
@@ -4376,8 +4441,20 @@ def main():
 
     # 모든 루프 종료 후 실행되는 후속 작업
     run_premium_alert_engine(df)
+    
+    # 🚀 [추가된 호출 로직]
+    print("\n📊 Generating Market Intelligence Summaries (Alarm Summaries)...")
+    
+    # 시장 전체 통계 계산 (한 번만 수행)
+    g_total, g_top4 = get_global_market_stats()
+    
+    # 분석 대상 종목별 개별 요약본 생성 및 저장
+    for ticker in target_symbols:
+        update_alarm_summary_cache(ticker, g_total, g_top4)
+    # 🚀 [추가 끝]
+
     batch_upsert("analysis_cache",[{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
-    print(f"\n🏁 모든 병렬 작업 종료: {datetime.now()}")
+    print(f"\n🏁 모든 병렬 작업 및 요약 종료: {datetime.now()}")
 
 if __name__ == "__main__":
     main()
