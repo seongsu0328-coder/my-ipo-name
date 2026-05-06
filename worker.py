@@ -2878,10 +2878,10 @@ def run_tab4_premium_collection(ticker, company_name):
             is_changed_p = True
             
             try:
-                res_p = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_p).execute()
-                if res_p.data and current_p_str == res_p.data[0]['content']:
-                    is_changed_p = False
-            except: pass
+            # 기존 캐시 확인 로직
+            res_p = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_p).execute()
+            if res_p.data and current_p_str == res_p.data[0]['content']:
+                is_changed_p = False
             
             if is_changed_p:
                 print(f"🔔 [{ticker}] 경쟁사(Peers) 업데이트 감지! AI 요약 시작...")
@@ -2890,32 +2890,35 @@ def run_tab4_premium_collection(ticker, company_name):
                     prompt_p = get_tab4_premium_prompt(lang_code, "Stock Peers & Competitors", ticker, current_p_str)
                     
                     try:
-                            resp_p = model_strict.generate_content(prompt_p)
-                            if resp_p and resp_p.text:
-                                p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
-                                indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_p = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in p_paragraphs])
-                                
-                                batch_upsert("analysis_cache", [{
-                                    "cache_key": peers_summary_key, 
-                                    "content": html_p, 
-                                    "updated_at": datetime.now().isoformat(),
-                                    "ticker": ticker, 
-                                    "tier": "premium", 
-                                    "tab_name": "tab4", 
-                                    "lang": lang_code, 
-                                    "data_type": "peer_comparison"
-                                }], on_conflict="cache_key")
-                                
-                                print(f"✅ [{ticker}] 경쟁사 비교 캐싱 완료 ({lang_code})")
-                        except Exception as e:
-                            # 래퍼가 내부에서 5번의 지수 백오프를 시도하고도 실패했을 때만 실행됩니다.
-                            print(f"⚠️ [{ticker}] 경쟁사 비교 분석 실패 ({lang_code}) - 래퍼 복구 한도 초과: {e}")
+                        # AI 호출 및 생성
+                        resp_p = model_strict.generate_content(prompt_p)
+                        if resp_p and resp_p.text:
+                            p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
+                            indent_size = "14px" if lang_code == "ko" else "0px"
+                            html_p = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in p_paragraphs])
+                            
+                            batch_upsert("analysis_cache", [{
+                                "cache_key": peers_summary_key, 
+                                "content": html_p, 
+                                "updated_at": datetime.now().isoformat(),
+                                "ticker": ticker, 
+                                "tier": "premium", 
+                                "tab_name": "tab4", 
+                                "lang": lang_code, 
+                                "data_type": "peer_comparison"
+                            }], on_conflict="cache_key")
+                            
+                            print(f"✅ [{ticker}] 경쟁사 비교 캐싱 완료 ({lang_code})")
+                    except Exception as ai_err:
+                        # 💡 개별 언어 분석 실패 시 로그만 남기고 다음 언어로 진행
+                        print(f"⚠️ [{ticker}] 경쟁사 비교 분석 실패 ({lang_code}): {ai_err}")
                         
+                # 모든 언어 작업 완료 후 트래커 갱신 (if is_changed_p 안에 위치)
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_p, "content": current_p_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
-    except Exception as e:
-        print(f"Tab4 Premium Collection Error for {ticker}: {e}")
+        except Exception as e:
+            # 💡 [해결포인트] 이 라인이 2911라인이며, [2]번 시작점 try와 수직 정렬됨
+            print(f"Tab4 Premium Peers Collection Error for {ticker}: {e}")
     
 # ==========================================
 # [최종 수정본] Tab 3: 미시 지표 분석 (데이터 정직성 + 실시간 동기화)
