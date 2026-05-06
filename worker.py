@@ -3492,42 +3492,44 @@ def run_tab3_premium_collection(ticker, company_name):
                     prompt_e = get_tab3_premium_prompt(lang_code, "Analyst Future Estimates (Revenue & EPS)", ticker, current_est_str)
                     
                     try:
-                            resp_e = model_strict.generate_content(prompt_e)
-                            if resp_e and resp_e.text:
-                                e_paragraphs = [p.strip() for p in resp_e.text.split('\n') if len(p.strip()) > 20]
-                                indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_e = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in e_paragraphs])
-                                
-                                batch_upsert("analysis_cache", [{
-                                    "cache_key": est_summary_key, 
-                                    "content": html_e, 
-                                    "updated_at": datetime.now().isoformat(),
-                                    "ticker": ticker,
-                                    "tier": "premium",
-                                    "tab_name": "tab3",
-                                    "lang": lang_code,
-                                    "data_type": "analyst_estimates"
-                                }], on_conflict="cache_key")
-                                
-                                print(f"✅ [{ticker}] 실적전망치 캐싱 완료 ({lang_code})")
-                        except Exception as e:
-                            # 래퍼가 내부에서 5번의 지수 백오프를 시도하고도 실패했을 때만 실행됩니다.
-                            print(f"⚠️ [{ticker}] 실적전망치 분석 실패 ({lang_code}) - 래퍼 복구 한도 초과: {e}")
+                        resp_e = model_strict.generate_content(prompt_e)
+                        if resp_e and resp_e.text:
+                            e_paragraphs = [p.strip() for p in resp_e.text.split('\n') if len(p.strip()) > 20]
+                            indent_size = "14px" if lang_code == "ko" else "0px"
+                            html_e = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in e_paragraphs])
+                            
+                            batch_upsert("analysis_cache", [{
+                                "cache_key": est_summary_key, 
+                                "content": html_e, 
+                                "updated_at": datetime.now().isoformat(),
+                                "ticker": ticker,
+                                "tier": "premium",
+                                "tab_name": "tab3",
+                                "lang": lang_code,
+                                "data_type": "analyst_estimates"
+                            }], on_conflict="cache_key")
+                            
+                            print(f"✅ [{ticker}] 실적전망치 캐싱 완료 ({lang_code})")
+                    except Exception as e:
+                        # 래퍼가 내부에서 5번의 지수 백오프를 시도하고도 실패했을 때만 실행됩니다.
+                        print(f"⚠️ [{ticker}] 실적전망치 분석 실패 ({lang_code}) - 래퍼 복구 한도 초과: {e}")
                 
-                # 🚀 [FCM 다국어 발송] 분석 완료 후 프리미엄 유저에게 푸시 알림 발송
+                # 🚀 [FCM 다국어 발송] 분석 완료 후 프리미엄 유저에게 푸시 알림 발송 (for문 밖에서 실행)
                 try:
                     send_fcm_push(
                         title_dict={"ko": f"📈 {ticker} 실적 전망치 변경", "en": f"📈 {ticker} Estimates Updated", "ja": f"📈 {ticker} 業績見通し変更", "zh": f"📈 {ticker} 业绩预期变更"},
-                        body_dict={"ko": "월가 애널리스트들의 향후 매출 및 수익 예측치가 업데이트되었습니다.", "en": "Wall Street analysts' future revenue and profit estimates have been updated.", "ja": "ウォール街のアナリストによる今後の売上および利益予測が更新されました。", "zh": "华尔街分析师的未来营收及利润预测已更新。"},
+                        body_dict={"ko": "월가 애널리스트들의 향후 매출 및 수익 예측치가 업데이트되었습니다.", "en": "Wall Street analysts' future revenue and profit estimates have been updated.", "ja": "ウォール街のア나リストによる今後の売上および利益予測が更新されました。", "zh": "华尔街分析师的未来营收及利润预测已更新。"},
                         ticker=ticker
                     )
                 except Exception as e:
                     print(f"⚠️ 실적전망치 푸시 실패: {e}")
 
-                # 트래커 갱신
+                # 트래커 갱신 (모든 처리가 끝난 후 수행)
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_e, "content": current_est_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
     except Exception as e:
+        # 💡 [해결 포인트] 이 except 라인이 3513라인이며, 
+        # 함수 최상단의 'try:' (FMP API 호출 시작점)와 수직으로 정확히 일치해야 합니다.
         print(f"Premium Tab 3 FMP Error for {ticker}: {e}")
 
 # ==========================================
