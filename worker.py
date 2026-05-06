@@ -2030,21 +2030,21 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
         pr_url = f"https://financialmodelingprep.com/stable/press-releases?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
         pr_raw = get_fmp_data_with_cache(ticker, "RAW_PR", pr_url, valid_hours=12)
         
-        # 🚨 [환각 완벽 차단] FMP가 보낸 데이터가 에러 딕셔너리({})가 아닌 정상 리스트([])일 때만 통과!
+        # 🚨 [환각 완벽 차단] FMP 데이터가 정상 리스트일 때만 실행
         is_pr_valid = isinstance(pr_raw, list) and len(pr_raw) > 0
 
         if is_pr_valid: 
-            
             current_pr_str = json.dumps(pr_raw, sort_keys=True)
             tracker_key_pr = f"{ticker}_PressRelease_RawTracker"
             is_changed_pr = True
             
             try:
-                # 💡 [과금 방어막] 기존 원본 데이터와 토씨 하나 안 틀리고 똑같으면 AI 스킵!
+                # [과금 방어막] 기존 원본 데이터와 비교
                 res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_pr).execute()
                 if res_tracker.data and current_pr_str == res_tracker.data[0]['content']:
                     is_changed_pr = False
-            except: pass
+            except:
+                pass
 
             if is_changed_pr:
                 print(f"🔔 [{ticker}] 기업 보도자료 업데이트 감지! AI 요약 시작...")
@@ -2053,33 +2053,32 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     prompt_p = get_tab1_premium_prompt(lang_code, "Official Press Release", current_pr_str)
                     
                     try:
-                            resp_p = model_strict.generate_content(prompt_p)
-                            if resp_p and resp_p.text:
-                                p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
-                                indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_p = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in p_paragraphs])
-                                
-                                # ✅ 태깅 정보 추가 및 tier를 'free'로 설정
-                                batch_upsert("analysis_cache", [{
-                                    "cache_key": pr_summary_key, 
-                                    "content": html_p, 
-                                    "updated_at": now.isoformat(),
-                                    "ticker": ticker,
-                                    "tier": "free",          # 모든 사용자 공개
-                                    "tab_name": "tab1",
-                                    "lang": lang_code,
-                                    "data_type": "press_release"
-                                }], on_conflict="cache_key")
-                                
-                                print(f"✅ [{ticker}] 기업 공식 보도자료 캐싱 완료 ({lang_code})")
-                        except Exception as e:
-                            print(f"⚠️ [{ticker}] 기업 공식 보도자료 분석 실패 ({lang_code}) - 래퍼 복구 한도 초과: {e}")
+                        resp_p = model_strict.generate_content(prompt_p)
+                        if resp_p and resp_p.text:
+                            p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
+                            indent_size = "14px" if lang_code == "ko" else "0px"
+                            html_p = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in p_paragraphs])
+                            
+                            batch_upsert("analysis_cache", [{
+                                "cache_key": pr_summary_key, 
+                                "content": html_p, 
+                                "updated_at": datetime.now().isoformat(),
+                                "ticker": ticker,
+                                "tier": "free",          
+                                "tab_name": "tab1",
+                                "lang": lang_code,
+                                "data_type": "press_release"
+                            }], on_conflict="cache_key")
+                            print(f"✅ [{ticker}] 기업 공식 보도자료 캐싱 완료 ({lang_code})")
+                    except Exception as ai_err:
+                        print(f"⚠️ [{ticker}] 보도자료 AI 분석 실패 ({lang_code}): {ai_err}")
                         
-                # 요약 완료 후 루프를 빠져나와 트래커 갱신
-                batch_upsert("analysis_cache", [{"cache_key": tracker_key_pr, "content": current_pr_str, "updated_at": now.isoformat()}], "cache_key")
+                # 모든 언어 요약 완료 후 트래커 갱신
+                batch_upsert("analysis_cache", [{"cache_key": tracker_key_pr, "content": current_pr_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
     except Exception as e:
-        print(f"Premium FMP Collection Error for {ticker}: {e}")
+        # 💡 [해결포인트] 이 라인이 2075라인이며, 가장 위 try와 수직선이 일치해야 합니다.
+        print(f"❌ [{ticker}] 보도자료 수집 프로세스 전체 에러: {e}")
 
 
 # ==========================================
