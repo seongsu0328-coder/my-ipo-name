@@ -162,11 +162,48 @@ if not df_teaser.empty:
 else:
     st.info("Syncing upcoming IPO data from SEC EDGAR...")
 
-# [7] CTA Section
-st.write("<br><br>", unsafe_allow_html=True)
-col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
-with col_btn2:
-    if st.button("ENTER UNICORNFINDER APP", use_container_width=True, type="primary"):
-        st.switch_page("pages/01_App.py")
+# [7] 통합 접속 섹션 (Login / Guest / Sign Up)
+st.markdown('<p class="bold-black" style="font-size: 20px; margin-bottom: 20px;">GET STARTED</p>', unsafe_allow_html=True)
+
+col_left, col_mid, col_right = st.columns([1, 2, 1])
+
+with col_mid:
+    # 탭 기능을 사용하여 깔끔하게 분리
+    auth_tabs = st.tabs(["Login", "Explore as Guest", "Sign Up"])
+    
+    # 1. Login 탭
+    with auth_tabs[0]:
+        with st.form("login_form"):
+            l_id = st.text_input("User ID", placeholder="Enter your ID")
+            l_pw = st.text_input("Password", type="password", placeholder="Enter your Password")
+            submit_login = st.form_submit_button("SIGN IN", use_container_width=True)
+            
+            if submit_login:
+                if l_id and l_pw:
+                    # Supabase에서 유저 정보 확인
+                    res = supabase.table("users").select("*").eq("id", l_id).execute()
+                    if res.data and res.data[0]['pw'] == l_pw:
+                        st.session_state.auth_status = 'user'
+                        st.session_state.user_info = res.data[0]
+                        st.success(f"Welcome back, {l_id}!")
+                        st.switch_page("pages/01_App.py")
+                    else:
+                        st.error("Invalid ID or Password.")
+                else:
+                    st.warning("Please fill in all fields.")
+
+    # 2. Explore as Guest 탭
+    with auth_tabs[1]:
+        st.info("You can view all financial reports and community posts. Posting/Voting will be restricted.")
+        if st.button("ENTER AS GUEST (VIEW ONLY)", use_container_width=True, type="primary"):
+            st.session_state.auth_status = 'guest'
+            st.session_state.user_info = {'id': 'Guest', 'role': 'guest'}
+            st.switch_page("pages/01_App.py")
+
+    # 3. Sign Up 탭 (안내)
+    with auth_tabs[2]:
+        st.write("Join Unicornfinder to get personalized alerts and full access.")
+        if st.button("CREATE NEW ACCOUNT", use_container_width=True):
+            st.info("Registration flow is currently being optimized. Please explore as a Guest first!")
 
 st.markdown("<p style='text-align: center; color: #BBB; font-size: 13px; margin-top: 80px;'>© 2026 Unicornfinder. Global Institutional-Grade AI Intelligence.</p>", unsafe_allow_html=True)
