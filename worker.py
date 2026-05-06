@@ -4076,9 +4076,17 @@ def run_premium_alert_engine(df_calendar):
         
         # 🚀 [추가됨] 유료 결제자들에게 실시간 푸시 전송 (가장 최신 알림 하나 발송)
         top_alert = new_alerts[0]
+        
+        # 💡 함수 정의에 맞춰 title -> title_dict, body -> body_dict로 변경하고 딕셔너리로 전달
         send_fcm_push(
-            title=top_alert['title'],
-            body=top_alert['message'],
+            title_dict={
+                "ko": top_alert['title'],
+                "en": f"🚨 {top_alert['ticker']} Premium Alert"  # 영어 제목 예시
+            },
+            body_dict={
+                "ko": top_alert['message'],
+                "en": "A new investment signal has been detected."  # 영어 내용 예시
+            },
             ticker=top_alert['ticker']
         )
         print(f"🚀 [알림 완료] {len(new_alerts)}개의 신호 생성 및 푸시 전송")
