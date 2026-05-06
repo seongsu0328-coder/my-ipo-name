@@ -2791,7 +2791,7 @@ def run_tab4_premium_collection(ticker, company_name):
         ud_url = f"https://financialmodelingprep.com/stable/upgrades-downgrades?symbol={ticker}&apikey={FMP_API_KEY}"
         ud_raw = get_fmp_data_with_cache(ticker, "RAW_UPGRADES", ud_url, valid_hours=24)
         
-        # 🚀 [추가]
+        # 🚀 [추가] 일반주 Fallback 로직
         if not ud_raw and ticker != base_ticker:
             ud_url_base = f"https://financialmodelingprep.com/stable/upgrades-downgrades?symbol={base_ticker}&apikey={FMP_API_KEY}"
             ud_raw = get_fmp_data_with_cache(base_ticker, "RAW_UPGRADES", ud_url_base, valid_hours=24)
@@ -2805,7 +2805,8 @@ def run_tab4_premium_collection(ticker, company_name):
                 res_ud = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_ud).execute()
                 if res_ud.data and current_ud_str == res_ud.data[0]['content']:
                     is_changed_ud = False
-            except: pass
+            except:
+                pass
             
             if is_changed_ud:
                 print(f"🔔 [{ticker}] 투자의견(Upgrades) 업데이트 감지! AI 요약 시작...")
@@ -2815,39 +2816,52 @@ def run_tab4_premium_collection(ticker, company_name):
                     prompt_ud = get_tab4_premium_prompt(lang_code, "Upgrades and Downgrades History", ticker, current_ud_str)
                     
                     try:
-                            resp_ud = model_strict.generate_content(prompt_ud)
-                            if resp_ud and resp_ud.text:
-                                ud_paragraphs = [p.strip() for p in resp_ud.text.split('\n') if len(p.strip()) > 20]
-                                indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_ud = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in ud_paragraphs])
-                                
-                                batch_upsert("analysis_cache", [{
-                                    "cache_key": ud_summary_key, 
-                                    "content": html_ud, 
-                                    "updated_at": datetime.now().isoformat(),
-                                    "ticker": ticker, 
-                                    "tier": "premium", 
-                                    "tab_name": "tab4", 
-                                    "lang": lang_code, 
-                                    "data_type": "rating_history"
-                                }], on_conflict="cache_key")
-                                
-                                print(f"✅ [{ticker}] 투자의견 히스토리 캐싱 완료 ({lang_code})")
-                                ud_success = True
-                                
-                        except Exception as e:
-                            # 래퍼가 내부에서 5번의 지수 백오프를 시도하고도 실패했을 때만 실행됩니다.
-                            print(f"⚠️ [{ticker}] 투자의견 히스토리 분석 실패 ({lang_code}) - 래퍼 복구 한도 초과: {e}")
+                        resp_ud = model_strict.generate_content(prompt_ud)
+                        if resp_ud and resp_ud.text:
+                            ud_paragraphs = [p.strip() for p in resp_ud.text.split('\n') if len(p.strip()) > 20]
+                            indent_size = "14px" if lang_code == "ko" else "0px"
+                            html_ud = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in ud_paragraphs])
+                            
+                            batch_upsert("analysis_cache", [{
+                                "cache_key": ud_summary_key, 
+                                "content": html_ud, 
+                                "updated_at": datetime.now().isoformat(),
+                                "ticker": ticker, 
+                                "tier": "premium", 
+                                "tab_name": "tab4", 
+                                "lang": lang_code, 
+                                "data_type": "rating_history"
+                            }], on_conflict="cache_key")
+                            
+                            print(f"✅ [{ticker}] 투자의견 히스토리 캐싱 완료 ({lang_code})")
+                            ud_success = True
+                    except Exception as ai_err:
+                        print(f"⚠️ [{ticker}] 투자의견 히스토리 분석 실패 ({lang_code}): {ai_err}")
                 
-                # 🚀 [FCM 다국어 발송] 알림 발송 (Premium Plus 전용)
+                # 🚀 [FCM 다국어 발송] 분석 완료 후 알림 발송 (Premium Plus 전용)
                 if ud_success:
                     send_fcm_push(
-                        title_dict={"ko": f"🎯 {ticker} 월가 투자의견 변경", "en": f"🎯 {ticker} Analyst Ratings Changed", "ja": f"🎯 {ticker} 投資判断変更", "zh": f"🎯 {ticker} 投资评级变更"},
-                        body_dict={"ko": "주요 투자은행들의 투자의견 및 목표주가 변화를 확인하세요.", "en": "Check the latest upgrades and target price changes by major IBs.", "ja": "主要投資銀行の投資判断および目標株価の変化をご確認ください。", "zh": "查看主要投行的投资评级及目标价变动。"},
-                        ticker=ticker, target_level='premium_plus'
+                        title_dict={
+                            "ko": f"🎯 {ticker} 월가 투자의견 변경", 
+                            "en": f"🎯 {ticker} Analyst Ratings Changed", 
+                            "ja": f"🎯 {ticker} 投資判断変更", 
+                            "zh": f"🎯 {ticker} 投资评级变更"
+                        },
+                        body_dict={
+                            "ko": "주요 투자은행들의 투자의견 및 목표주가 변화를 확인하세요.", 
+                            "en": "Check the latest upgrades and target price changes by major IBs.", 
+                            "ja": "主要投資銀行の投資判断および目標株価の変化をご確認ください。", 
+                            "zh": "查看主要投行的投资评级及目标价变动。"
+                        },
+                        ticker=ticker, 
+                        target_level='premium_plus'
                     )
                         
                 batch_upsert("analysis_cache", [{"cache_key": tracker_key_ud, "content": current_ud_str, "updated_at": datetime.now().isoformat()}], "cache_key")
+
+    except Exception as e:
+        # 💡 [해결포인트] 이 라인이 2838라인 부근이며, 섹션 가장 위의 try와 수직 정렬됨
+        print(f"Premium Tab 4 FMP Error for {ticker}: {e}")
 
         # --- [2] 경쟁사(Peers) 처리 ---
         peers_url = f"https://financialmodelingprep.com/stable/stock-peers?symbol={ticker}&apikey={FMP_API_KEY}"
