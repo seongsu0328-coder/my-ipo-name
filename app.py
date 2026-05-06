@@ -86,23 +86,23 @@ with lang_cols[4]:
 # [4] Hero Section (English Only)
 st.markdown('<p class="hero-title">Unicornfinder</p>', unsafe_allow_html=True)
 
-# [5] Live Intelligence Production (English Only)
+# [5] REAL-TIME PREMIUM ALERTS (English Only)
 st.markdown('<p class="bold-black" style="font-size: 20px; margin-bottom: 20px;">LIVE INTELLIGENCE PRODUCTION</p>', unsafe_allow_html=True)
 counts = get_daily_signal_counts()
 
 SIGNAL_LABELS_EN = {
-    "SURGE_IPO": "🚀 IPO Price 20% Surge",
-    "SURGE_1D": "📈 Daily 12%+ Surge",
-    "REBOUND": "⚓ Bottom Rebound Signal",
-    "INST_UPGRADE": "🎯 Institutional Strong Buy",
-    "LOCKUP": "🔔 Lock-up Expiry Alert",
-    "8K_UPDATE": "🚨 8-K Critical Event Analysis",
-    "EarningsCall": "🎙️ Earnings Call Recap",
-    "EarningsSurprise": "📊 Earnings Surprise Detection",
-    "SmartMoney": "🐋 Smart Money Flow Tracking",
-    "AnalystEstimates": "📈 Analyst Estimates Revision",
-    "Upgrades": "🎯 Rating History Tracking",
-    "ESGRating": "🌱 ESG Risk Assessment"
+    "SURGE_IPO": "IPO Price 20% Surge",
+    "SURGE_1D": "Daily 12%+ Surge",
+    "REBOUND": "Bottom Rebound Signal",
+    "INST_UPGRADE": "Institutional Strong Buy",
+    "LOCKUP": "Lock-up Expiry Alert",
+    "8K_UPDATE": "8-K Critical Event Analysis",
+    "EarningsCall": "Earnings Call Recap",
+    "EarningsSurprise": "Earnings Surprise Detection",
+    "SmartMoney": "Smart Money Tracking",
+    "AnalystEstimates": "Analyst Estimates Revision",
+    "Upgrades": "Rating History Tracking",
+    "ESGRating": "ESG Risk Assessment"
 }
 
 # 4개씩 배치
@@ -147,8 +147,8 @@ if not df_teaser.empty:
                     <div class="standard-text">{row['exchange']}</div>
                     <div class="standard-text" style="margin-bottom: 15px;">{row['date']}</div>
                     <div style="text-align: left; padding-top: 10px; border-top: 1px solid #EEE;">
-                        <div class="standard-text"><span class="bold-black">Analyst:</span> Moderate Buy</div>
-                        <div class="standard-text"><span class="bold-black">Scoop Score:</span> 3/5</div>
+                        <div class="standard-text"><span class="bold-black">Analyst: Moderate Buy</span></div>
+                        <div class="standard-text"><span class="bold-black">Scoop Score: 3/5</span></div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
