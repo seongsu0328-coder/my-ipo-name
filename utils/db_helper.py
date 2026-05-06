@@ -3,7 +3,7 @@ import os
 import json
 import pandas as pd
 from supabase import create_client
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 
 @st.cache_resource
 def init_supabase():
@@ -13,20 +13,25 @@ def init_supabase():
 
 supabase = init_supabase()
 
+# 💡 숫자가 너무 자주 바뀌지 않게 10분간 결과를 메모리에 저장(TTL)
+@st.cache_data(ttl=600)
 def get_daily_signal_counts():
-    """오늘 발생한 모든 시그널과 AI 리포트의 개수를 집계합니다."""
+    """오늘 날짜(00:00:00) 이후에 발생한 시그널만 집계하여 일관성을 유지합니다."""
     counts = {}
-    time_limit = (datetime.now() - timedelta(hours=24)).isoformat()
+    
+    # [핵심 변경] 슬라이딩 24시간이 아닌, '오늘의 시작' 시간을 구합니다.
+    today_start = datetime.combine(datetime.now().date(), time.min).isoformat()
 
     try:
-        # [1] 주가 시그널 집계
-        res_alerts = supabase.table("premium_alerts").select("alert_type").gte("created_at", time_limit).execute()
+        # [1] 주가 시그널 집계 (오늘 자정 이후 데이터만)
+        res_alerts = supabase.table("premium_alerts").select("alert_type").gte("created_at", today_start).execute()
         for item in res_alerts.data:
             a_type = item['alert_type']
             counts[a_type] = counts.get(a_type, 0) + 1
 
-        # [2] AI 리포트 집계
-        res_cache = supabase.table("analysis_cache").select("cache_key").gte("updated_at", time_limit).execute()
+        # [2] AI 리포트 집계 (오늘 자정 이후 업데이트된 것만)
+        res_cache = supabase.table("analysis_cache").select("cache_key").gte("updated_at", today_start).execute()
+        
         ai_types = {
             "8K_UPDATE": "8K_UPDATE",
             "PremiumEarningsCall": "EarningsCall",
@@ -37,17 +42,22 @@ def get_daily_signal_counts():
             "PremiumMA": "MAReport",
             "Tab6_SmartMoney": "SmartMoney"
         }
+
         seen_reports = set() 
         for item in res_cache.data:
             key = item['cache_key']
             for keyword, internal_name in ai_types.items():
                 if keyword in key:
-                    unique_id = key.split('_v1')[0].split('_Tab6')[0] 
-                    if unique_id not in seen_reports:
+                    # 언어(ko, en 등)와 상관없이 '종목+분석종류'가 같으면 하나로 카운트
+                    # 예: AAPL_PremiumESG_v1_ko 와 AAPL_PremiumESG_v1_en을 동일 취급
+                    base_key = key.rsplit('_', 1)[0] # 마지막 언어 코드 제거
+                    if base_key not in seen_reports:
                         counts[internal_name] = counts.get(internal_name, 0) + 1
-                        seen_reports.add(unique_id)
+                        seen_reports.add(base_key)
+        
         return counts
-    except: return {}
+    except:
+        return {}
 
 def get_upcoming_ipo_teaser():
     try:
@@ -55,7 +65,9 @@ def get_upcoming_ipo_teaser():
         if res.data:
             df = pd.DataFrame(json.loads(res.data[0]['content']))
             df['dt'] = pd.to_datetime(df['date'], errors='coerce')
-            return df[df['dt'] >= datetime.now()].sort_values('dt').head(5)
+            # 아직 상장 전이거나 오늘 상장하는 기업 5개
+            today = datetime.now().date()
+            return df[df['dt'].dt.date >= today].sort_values('dt').head(5)
     except: return pd.DataFrame()
 
 def get_worker_health():
