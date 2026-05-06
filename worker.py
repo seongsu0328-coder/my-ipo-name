@@ -375,47 +375,57 @@ def batch_upsert(table_name, data_list, on_conflict="ticker"):
         "Prefer": "return=minimal,resolution=merge-duplicates" 
     }
     
-    clean_batch =[]
+    raw_batch = []
     for item in data_list:
-        # 모든 값을 Supabase가 받아들일 수 있는 형태로 정제
         payload = {k: sanitize_value(v) for k, v in item.items()}
-        
-        # 💡 [핵심] 필수 키가 있는지 확인 (cache_key 혹은 ticker 등)
         if payload.get(on_conflict):
-            clean_batch.append(payload)
+            raw_batch.append(payload)
             
-            # ========================================================
-            # 🚀[Dual Caching] 유니버설 이중 저장 로직
-            # 특정 기업이 아닌, get_base_ticker 결과가 다르면 무조건 복제 적용
-            # ========================================================
+            # [Smart Dual Caching] 데이터 오염 방지 로직
             if table_name == "analysis_cache" and "ticker" in payload and "cache_key" in payload:
                 original_ticker = str(payload["ticker"])
                 base_ticker = get_base_ticker(original_ticker)
                 
-                # 변형 티커(예: NHPBP)인 경우에만 본주(NHP) 복제본 생성 (MARKET 제외)
                 if original_ticker != base_ticker and original_ticker != "MARKET":
-                    dup_payload = payload.copy()
-                    dup_payload["ticker"] = base_ticker
+                    content = str(payload.get("content", ""))
                     
-                    # 정규식을 사용해 cache_key 안의 original_ticker를 base_ticker로 안전하게 치환
-                    # 예: "NHPBP_Tab1_v5_ko" -> "NHP_Tab1_v5_ko"
-                    dup_payload["cache_key"] = re.sub(
-                        rf'(^|_){original_ticker}(_|$)', 
-                        rf'\g<1>{base_ticker}\g<2>', 
-                        str(dup_payload["cache_key"]), 
-                        count=1
-                    )
-                    clean_batch.append(dup_payload)
-            # ========================================================
-            
+                    # 🚀 [방어막] 아래 조건에 해당하면 본주(base_ticker)에 덮어쓰지 않음
+                    is_poor_content = any(skip_msg in content for skip_msg in [
+                        "확인된 최신 공시 내역이 없습니다",
+                        "No verified data available",
+                        "데이터가 존재하지 않습니다",
+                        "Information not verified",
+                        "分析できません"
+                    ]) or len(content) < 100 # 내용이 너무 짧은 경우도 제외
+                    
+                    if not is_poor_content:
+                        dup_payload = payload.copy()
+                        dup_payload["ticker"] = base_ticker
+                        dup_payload["cache_key"] = re.sub(
+                            rf'(^|_){original_ticker}(_|$)', 
+                            rf'\g<1>{base_ticker}\g<2>', 
+                            str(dup_payload["cache_key"]), 
+                            count=1
+                        )
+                        raw_batch.append(dup_payload)
+                    else:
+                        # 본주에 이미 좋은 데이터가 있을 수 있으므로, 
+                        # 빈 데이터는 본주(base_ticker) 복제 리스트에서 제외합니다.
+                        pass
+
+    # 전송 직전 중복 제거 (Unique 필터링)
+    unique_batch_dict = {}
+    for item in raw_batch:
+        key_value = item.get(on_conflict)
+        unique_batch_dict[key_value] = item
+    
+    clean_batch = list(unique_batch_dict.values())
     if not clean_batch: return
     
     try:
         resp = requests.post(endpoint, json=clean_batch, headers=headers)
-        if resp.status_code in[200, 201, 204]:
-            print(f"✅ [{table_name}] {len(clean_batch)}개 저장 성공 (Dual Caching 적용)")
-        else:
-            print(f"❌[{table_name}] 저장 실패 ({resp.status_code}): {resp.text}")
+        if resp.status_code not in [200, 201, 204]:
+            print(f"❌ [{table_name}] 저장 실패: {resp.text}")
     except Exception as e:
         print(f"❌ [{table_name}] 통신 에러: {e}")
         
