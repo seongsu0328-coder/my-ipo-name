@@ -1986,7 +1986,8 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                 res_tracker = supabase.table("analysis_cache").select("content").eq("cache_key", tracker_key_pr).execute()
                 if res_tracker.data and current_pr_str == res_tracker.data[0]['content']:
                     is_changed_pr = False
-            except: pass
+            except:
+                pass
 
             if is_changed_pr:
                 print(f"🔔 [{ticker}] 기업 보도자료 업데이트 감지! AI 요약 시작...")
@@ -1995,30 +1996,31 @@ def run_tab1_analysis(ticker, company_name, ipo_status="Active", ipo_date_str=No
                     prompt_p = get_tab1_premium_prompt(lang_code, "Official Press Release", current_pr_str)
                     
                     try:
-                            resp_p = model_strict.generate_content(prompt_p)
-                            if resp_p and resp_p.text:
-                                p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
-                                indent_size = "14px" if lang_code == "ko" else "0px"
-                                html_p = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in p_paragraphs])
-                                
-                                batch_upsert("analysis_cache", [{
-                                    "cache_key": pr_summary_key, 
-                                    "content": html_p, 
-                                    "updated_at": now.isoformat(),
-                                    "ticker": ticker,
-                                    "tier": "free",
-                                    "tab_name": "tab1",
-                                    "lang": lang_code,
-                                    "data_type": "press_release"
-                                }], on_conflict="cache_key")
-                                print(f"✅ [{ticker}] 기업 공식 보도자료 캐싱 완료 ({lang_code})")
-                        except Exception as e:
-                            print(f"⚠️ [{ticker}] 기업 공식 보도자료 분석 실패 ({lang_code}) - 래퍼 복구 한도 초과: {e}")
+                        resp_p = model_strict.generate_content(prompt_p)
+                        if resp_p and resp_p.text:
+                            p_paragraphs = [p.strip() for p in resp_p.text.split('\n') if len(p.strip()) > 20]
+                            indent_size = "14px" if lang_code == "ko" else "0px"
+                            html_p = "".join([f'<p style="text-indent:{indent_size}; margin-bottom:15px; line-height:1.8; text-align:justify; font-size:15px; color:#333;">{p}</p>' for p in p_paragraphs])
+                            
+                            batch_upsert("analysis_cache", [{
+                                "cache_key": pr_summary_key, 
+                                "content": html_p, 
+                                "updated_at": datetime.now().isoformat(),
+                                "ticker": ticker,
+                                "tier": "free",
+                                "tab_name": "tab1",
+                                "lang": lang_code,
+                                "data_type": "press_release"
+                            }], on_conflict="cache_key")
+                            print(f"✅ [{ticker}] 기업 공식 보도자료 캐싱 완료 ({lang_code})")
+                    except Exception as e:
+                        print(f"⚠️ [{ticker}] 기업 보도자료 AI 분석 실패 ({lang_code}): {e}")
                         
-                # 루프 밖으로 안전하게 빠져나와 트래커 갱신
-                batch_upsert("analysis_cache", [{"cache_key": tracker_key_pr, "content": current_pr_str, "updated_at": now.isoformat()}], "cache_key")
+                # 💡 [중요] 모든 언어 분석 후 트래커 갱신 (if is_changed_pr 안에 위치)
+                batch_upsert("analysis_cache", [{"cache_key": tracker_key_pr, "content": current_pr_str, "updated_at": datetime.now().isoformat()}], "cache_key")
 
     except Exception as e:
+        # 💡 [해결 포인트] 이 except는 가장 상단의 'try: (pr_url 시작점)'과 수직선이 일치해야 합니다.
         print(f"Premium FMP Collection Error for {ticker}: {e}")
                 
     # =========================================================
