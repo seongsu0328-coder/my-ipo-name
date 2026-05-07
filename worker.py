@@ -4486,22 +4486,26 @@ def main():
     # 모든 루프 종료 후 실행되는 후속 작업
     run_premium_alert_engine(df)
     
-    # 🚀 [수정된 호출 로직]
+    # ----------------------------------------------------
+    # 🚀 [수정] 결제 유도(Hooking)용 알람 집계 로직 (기간 확장)
+    # ----------------------------------------------------
     print("\n📊 Generating Market Intelligence Summaries (Alarm Summaries)...")
     
-    # 1. 오늘 발생한 전체 시장 알림 개수 및 급등 종목 개수 집계
-    today_start = datetime.now().replace(hour=0, minute=0, second=0).isoformat()
+    # "최근 24시간" 대신 "최근 7일"로 기간을 넓혀서 활성화된 모든 신호를 긁어옵니다.
+    # 앱 화면에는 "Today's market signals"라고 뜨지만, 내부적으로는 최근 7일치 누적 데이터를 
+    # 보여주어 항상 숫자가 높고 활발해 보이도록 연출(Teasing)합니다.
+    target_time_marketing = (datetime.now() - timedelta(days=7)).isoformat()
     
     global_total = 0
     global_surge_counts = {"1W": 0, "4W": 0, "3M": 0}
     
     try:
-        # 전체 알림 개수
-        res_today = supabase.table("premium_alerts").select("id", count="exact").gte("created_at", today_start).execute()
+        # 1. 최근 7일 내 발생하여 유지 중인 전체 알림 개수 (created_at 기준)
+        res_today = supabase.table("premium_alerts").select("id", count="exact").gte("created_at", target_time_marketing).execute()
         global_total = res_today.count if res_today.count else 0
         
-        # 급등 알림 종류별 개수
-        res_surge = supabase.table("premium_alerts").select("alert_type").in_("alert_type", ["SURGE_1W", "SURGE_4W", "SURGE_3M"]).gte("created_at", today_start).execute()
+        # 2. 최근 7일 내 발생하여 유지 중인 급등 알림 종류별 개수 (created_at 기준)
+        res_surge = supabase.table("premium_alerts").select("alert_type").in_("alert_type", ["SURGE_1W", "SURGE_4W", "SURGE_3M"]).gte("created_at", target_time_marketing).execute()
         if res_surge.data:
             for a in res_surge.data:
                 if a['alert_type'] == "SURGE_1W": global_surge_counts["1W"] += 1
@@ -4510,12 +4514,12 @@ def main():
     except Exception as e:
         print(f"⚠️ 글로벌 알람 통계 집계 실패: {e}")
     
-    # 2. 앱에 존재하는 '모든 종목(전체 Ticker)'의 목록을 가져옵니다.
+    # 2. 앱에 존재하는 '모든 종목(전체 Ticker)'의 목록
     all_symbols = df['symbol'].unique()
     
-    print(f"✅ 총 {len(all_symbols)}개 전체 종목에 대해 알람 요약 캐시(빈 껍데기 포함)를 생성합니다.")
+    print(f"✅ 총 {len(all_symbols)}개 전체 종목에 대해 알람 요약 캐시를 생성합니다. (마케팅용 7일 확장)")
     
-    # 3. 새로운 파라미터(global_surge_counts)를 넣어 캐싱 함수 호출!
+    # 3. 새로운 파라미터(global_surge_counts)를 넣어 캐싱 함수 호출
     for ticker in all_symbols:
         update_alarm_summary_cache(ticker, global_total, global_surge_counts)
 
