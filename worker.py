@@ -4301,34 +4301,60 @@ def get_global_market_stats():
         print(f"⚠️ Global Market Stats 집계 에러: {e}")
         return 0, []
 
-def update_alarm_summary_cache(ticker, global_total, global_top_4):
-    """특정 종목의 7일 통계와 시장 전체 통계를 결합하여 영어로 캐싱"""
+def update_alarm_summary_cache(ticker, global_total, global_surge_counts):
+    """
+    비결제 유저 후킹용 프리미엄 알람 요약 (100% English UI Format)
+    global_surge_counts 예시: {"1W": 12, "4W": 5, "3M": 2}
+    """
     now = datetime.now()
     seven_days_ago = (now - timedelta(days=7)).isoformat()
 
     try:
-        # 1. 특정 종목 최근 7일 데이터 가져오기
+        # 1. 특정 종목 최근 7일 알림 데이터 가져오기
         res_ticker = supabase.table("premium_alerts").select("alert_type").eq("ticker", ticker).gte("created_at", seven_days_ago).execute()
         ticker_alerts = res_ticker.data or []
         ticker_7d_total = len(ticker_alerts)
 
-        # 2. 해당 종목 내 알람 종류별 집계
-        t_counts = {}
+        # 💡 DB의 알람 코드를 UI용 깔끔한 영문으로 완벽 매핑
+        SIGNAL_LABELS_EN = {
+            "UPCOMING": "IPO Approaching",
+            "LOCKUP": "Lock-up Expiry",
+            "SURGE_1D": "1D Surge",
+            "SURGE_1W": "1W Surge",
+            "SURGE_4W": "4W Surge",
+            "SURGE_3M": "3M Surge",
+            "SURGE_1Y": "1Y Surge",
+            "SURGE_IPO": "IPO Price Surge",
+            "REBOUND": "Bottom Rebound",
+            "INST_UPGRADE": "Inst. Upgrade",
+            "8K_UPDATE": "8-K Material Event"
+        }
+        
+        # 중복 알람 카테고리 제거
+        unique_alerts = set()
         for a in ticker_alerts:
-            name = SIGNAL_LABELS_EN.get(a['alert_type'], a['alert_type'])
-            t_counts[name] = t_counts.get(name, 0) + 1
-        ticker_top_4 = sorted(t_counts.items(), key=lambda x: x[1], reverse=True)[:4]
+            raw_type = a['alert_type']
+            friendly_name = SIGNAL_LABELS_EN.get(raw_type, raw_type)
+            unique_alerts.add(friendly_name)
+        
+        # 콤마로 연결 (발생한 알람이 없으면 깔끔하게 "None" 출력)
+        activity_contents = ", ".join(list(unique_alerts)) if unique_alerts else "None"
 
-        # 3. JSON 구조화 (전부 영어)
+        # 단기 급증 종목 데이터 추출
+        surge_1w = global_surge_counts.get('1W', 0)
+        surge_4w = global_surge_counts.get('4W', 0)
+        surge_3m = global_surge_counts.get('3M', 0)
+        
+        # 💡 100% 영어로 구성된 4줄 포맷 완성
         summary_json = {
-            "market_today_total": global_total,
-            "market_top_4": global_top_4, # [["IPO Surge", 12], ...]
-            "ticker_7d_total": ticker_7d_total,
-            "ticker_top_4": ticker_top_4, # [["Bottom Rebound", 3], ...]
+            "line1": f"Today's market signals : {global_total} found",
+            "line2": f"Short-term surge stocks : 1W {surge_1w} | 4W {surge_4w} | 3M {surge_3m}",
+            "line3": f"Activity(7D) : {ticker_7d_total} Signals",
+            "line4": f"Activity contents : {activity_contents}",
             "updated_at": now.isoformat()
         }
 
-        # 4. analysis_cache에 저장 (Flutter 상세 페이지용)
+        # analysis_cache에 저장 (Flutter는 이 4개의 텍스트만 렌더링하면 됨)
         batch_upsert("analysis_cache", [{
             "cache_key": f"{ticker}_ALARM_SUMMARY",
             "content": json.dumps(summary_json),
@@ -4463,19 +4489,35 @@ def main():
     # 🚀 [수정된 호출 로직]
     print("\n📊 Generating Market Intelligence Summaries (Alarm Summaries)...")
     
-    # 1. 시장 전체 통계 계산 (한 번만 수행)
-    g_total, g_top4 = get_global_market_stats()
+    # 1. 오늘 발생한 전체 시장 알림 개수 및 급등 종목 개수 집계
+    today_start = datetime.now().replace(hour=0, minute=0, second=0).isoformat()
+    
+    global_total = 0
+    global_surge_counts = {"1W": 0, "4W": 0, "3M": 0}
+    
+    try:
+        # 전체 알림 개수
+        res_today = supabase.table("premium_alerts").select("id", count="exact").gte("created_at", today_start).execute()
+        global_total = res_today.count if res_today.count else 0
+        
+        # 급등 알림 종류별 개수
+        res_surge = supabase.table("premium_alerts").select("alert_type").in_("alert_type", ["SURGE_1W", "SURGE_4W", "SURGE_3M"]).gte("created_at", today_start).execute()
+        if res_surge.data:
+            for a in res_surge.data:
+                if a['alert_type'] == "SURGE_1W": global_surge_counts["1W"] += 1
+                elif a['alert_type'] == "SURGE_4W": global_surge_counts["4W"] += 1
+                elif a['alert_type'] == "SURGE_3M": global_surge_counts["3M"] += 1
+    except Exception as e:
+        print(f"⚠️ 글로벌 알람 통계 집계 실패: {e}")
     
     # 2. 앱에 존재하는 '모든 종목(전체 Ticker)'의 목록을 가져옵니다.
     all_symbols = df['symbol'].unique()
     
     print(f"✅ 총 {len(all_symbols)}개 전체 종목에 대해 알람 요약 캐시(빈 껍데기 포함)를 생성합니다.")
     
-    # 3. 18개월 이내 종목이든, 오래된 종목이든 예외 없이 모두 요약본을 만들어 DB에 꽂아 넣습니다.
-    # (알람이 없는 종목은 자동으로 0으로 채워진 빈 껍데기가 들어갑니다.)
+    # 3. 새로운 파라미터(global_surge_counts)를 넣어 캐싱 함수 호출!
     for ticker in all_symbols:
-        update_alarm_summary_cache(ticker, g_total, g_top4)
-    # 🚀 [추가 끝]
+        update_alarm_summary_cache(ticker, global_total, global_surge_counts)
 
     batch_upsert("analysis_cache",[{"cache_key": "WORKER_LAST_RUN", "content": "alive", "updated_at": datetime.now().isoformat()}], on_conflict="cache_key")
     print(f"\n🏁 모든 병렬 작업 및 요약 종료: {datetime.now()}")
